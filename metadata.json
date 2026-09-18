@@ -1,0 +1,6 @@
+{
+  "name": "Eldoria 3D RPG Adventure",
+  "description": "Game RPG 3D petualangan epik dengan eksplorasi open-world, pertarungan real-time, sistem quest, equipment, dan pertarungan boss.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
