@@ -175,22 +175,42 @@ function createDefaultRoomMonsters(): Record<string, ServerMonster> {
     };
   });
 
+  // Boss Sang Titan Kuno Obsidian (Ancient Obsidian Titan Boss)
+  monsters['boss_titan'] = {
+    id: 'boss_titan',
+    name: 'Sang Titan Kuno Obsidian',
+    type: 'boss',
+    x: 0,
+    y: -0.8,
+    z: -52,
+    spawnX: 0,
+    spawnZ: -52,
+    rotationY: 0,
+    hp: 450,
+    maxHp: 450,
+    speed: 2.4,
+    detectRange: 34,
+    attackRange: 7.5,
+    attack: 28,
+    isDead: false,
+  };
+
   // Boss Ignis Dragon
   monsters['boss_dragon'] = {
     id: 'boss_dragon',
     name: 'Ignis sang Naga Bencana',
     type: 'boss',
-    x: 0,
+    x: 20,
     y: 0.5,
-    z: -50,
-    spawnX: 0,
-    spawnZ: -50,
+    z: -145,
+    spawnX: 20,
+    spawnZ: -145,
     rotationY: Math.PI,
     hp: 750,
     maxHp: 750,
     speed: 2.5,
     detectRange: 28,
-    attackRange: 4.5,
+    attackRange: 5.0,
     attack: 38,
     isDead: false,
   };
