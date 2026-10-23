@@ -10,23 +10,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@v2
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: srvgame.banteng-sargas.ts.net
+          host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
             cd /var/www/git
+            git remote set-url origin https://github.com/adikarafifpradiptaibrahim/RPG_ADVENTURE.git
             git fetch origin main
             git reset --hard origin/main
             npm install
-            npm run build
+            NODE_OPTIONS="--max-old-space-size=2048" npm run build
             pm2 restart 0 --update-env
