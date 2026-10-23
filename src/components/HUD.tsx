@@ -50,6 +50,7 @@ interface HUDProps {
   onCastSkill: (slot: 1 | 2 | 3) => void;
   onJump: () => void;
   onRotateCamera?: (deltaX: number, deltaY: number) => void;
+  onZoomCamera?: (deltaZoom: number) => void;
   bossState: {
     active: boolean;
     name?: string;
@@ -98,6 +99,7 @@ export const HUD: React.FC<HUDProps> = ({
   onCastSkill,
   onJump,
   onRotateCamera,
+  onZoomCamera,
   bossState,
   isMuted,
   onToggleMute,
@@ -122,7 +124,7 @@ export const HUD: React.FC<HUDProps> = ({
   const [dismissMobileTip, setDismissMobileTip] = useState(false);
   const touchCameraRef = useRef<HTMLDivElement>(null);
 
-  // Dedicated smooth touch drag listener for 3D camera rotation on mobile
+  // Dedicated smooth touch & mouse drag listener for 3D camera rotation on the right screen half
   useEffect(() => {
     const el = touchCameraRef.current;
     if (!el || !onRotateCamera) return;
@@ -130,12 +132,26 @@ export const HUD: React.FC<HUDProps> = ({
     let touchId: number | null = null;
     let prevX = 0;
     let prevY = 0;
+    let initialPinch = 0;
 
+    // --- Touch Handlers (Mobile / Tablet) ---
     const handleCameraTouchStart = (e: TouchEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.targetTouches.length > 0 && touchId === null) {
-        const t = e.targetTouches[0];
+      // 2-finger pinch zoom initialization
+      if (e.touches.length === 2 && onZoomCamera) {
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        initialPinch = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        touchId = null;
+        return;
+      }
+
+      // Single-finger camera orbit
+      if (touchId === null && e.changedTouches.length > 0) {
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+        const t = e.changedTouches[0];
         touchId = t.identifier;
         prevX = t.clientX;
         prevY = t.clientY;
@@ -143,11 +159,24 @@ export const HUD: React.FC<HUDProps> = ({
     };
 
     const handleCameraTouchMove = (e: TouchEvent) => {
+      // 2-finger pinch zoom
+      if (e.touches.length === 2 && onZoomCamera && initialPinch > 10) {
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        const pinchDelta = (initialPinch - currentDist) * 0.02;
+        onZoomCamera(pinchDelta);
+        initialPinch = currentDist;
+        return;
+      }
+
       if (touchId === null) return;
       for (let i = 0; i < e.touches.length; i++) {
         const t = e.touches[i];
         if (t.identifier === touchId) {
-          e.preventDefault();
+          if (e.cancelable) e.preventDefault();
           e.stopPropagation();
           const deltaX = t.clientX - prevX;
           const deltaY = t.clientY - prevY;
@@ -160,20 +189,45 @@ export const HUD: React.FC<HUDProps> = ({
     };
 
     const handleCameraTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) {
+        initialPinch = 0;
+      }
       if (touchId !== null) {
-        let stillActive = false;
-        for (let i = 0; i < e.touches.length; i++) {
-          if (e.touches[i].identifier === touchId) {
-            stillActive = true;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === touchId) {
+            if (e.cancelable) e.preventDefault();
+            e.stopPropagation();
+            touchId = null;
             break;
           }
         }
-        if (!stillActive) {
-          e.preventDefault();
-          e.stopPropagation();
-          touchId = null;
-        }
       }
+    };
+
+    // --- Mouse Drag Handlers (PC / Laptop preview) ---
+    let isMouseDown = false;
+    let mousePrevX = 0;
+    let mousePrevY = 0;
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 0) {
+        isMouseDown = true;
+        mousePrevX = e.clientX;
+        mousePrevY = e.clientY;
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isMouseDown) return;
+      const deltaX = e.clientX - mousePrevX;
+      const deltaY = e.clientY - mousePrevY;
+      mousePrevX = e.clientX;
+      mousePrevY = e.clientY;
+      onRotateCamera(deltaX, deltaY);
+    };
+
+    const handleMouseUp = () => {
+      isMouseDown = false;
     };
 
     el.addEventListener('touchstart', handleCameraTouchStart, { passive: false });
@@ -181,13 +235,21 @@ export const HUD: React.FC<HUDProps> = ({
     window.addEventListener('touchend', handleCameraTouchEnd, { passive: false });
     window.addEventListener('touchcancel', handleCameraTouchEnd, { passive: false });
 
+    el.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
     return () => {
       el.removeEventListener('touchstart', handleCameraTouchStart);
       window.removeEventListener('touchmove', handleCameraTouchMove);
       window.removeEventListener('touchend', handleCameraTouchEnd);
       window.removeEventListener('touchcancel', handleCameraTouchEnd);
+
+      el.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [onRotateCamera]);
+  }, [onRotateCamera, onZoomCamera]);
 
   const activeQuest = quests.find((q) => !q.completed) || quests[quests.length - 1];
 
@@ -570,7 +632,7 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* Dedicated Transparent Touch Camera Drag Area (Right half of viewport, between top minimap and bottom buttons) */}
+      {/* Dedicated Transparent Touch Camera Drag Area (Entire Right Half of Viewport) */}
       <div
         ref={touchCameraRef}
         id="touch-camera-drag-area"
@@ -578,15 +640,23 @@ export const HUD: React.FC<HUDProps> = ({
           touchAction: 'none',
           userSelect: 'none',
           WebkitUserSelect: 'none',
+          pointerEvents: 'auto',
         }}
-        className="touch-camera-drag-area pointer-events-auto fixed top-16 right-0 w-[50vw] bottom-20 z-10 bg-transparent select-none"
-        title="Usap area ini untuk memutar sudut pandang kamera 3D"
+        className="touch-camera-drag-area pointer-events-auto fixed top-0 bottom-0 left-1/2 right-0 w-[50vw] h-full z-10 bg-transparent select-none cursor-grab active:cursor-grabbing"
+        title="Usap separuh kanan layar untuk memutar sudut pandang kamera 3D"
       />
 
-      {/* Mobile Compact Menu Strip (Tas, Toko, Status, Misi, Peta) - Sejajar Rapat di Bawah */}
+      {/* Mobile Compact Menu Strip (Tas, Toko, Status, Misi, Peta) - Centered neatly above Skill Bar */}
       <div
-        style={{ touchAction: 'none', userSelect: 'none', bottom: 15 }}
-        className="hud-mobile-nav-bar pointer-events-auto fixed bottom-[15px] left-1/2 -translate-x-1/2 md:hidden flex items-center gap-1 sm:gap-1.5 bg-stone-950/90 backdrop-blur-md px-2 py-1.5 rounded-2xl border border-stone-800/80 shadow-2xl z-30 select-none"
+        id="hud-mobile-nav-bar"
+        style={{
+          touchAction: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          pointerEvents: 'auto',
+          width: 'fit-content',
+        }}
+        className="hud-mobile-nav-bar pointer-events-auto fixed bottom-[72px] sm:bottom-[78px] left-1/2 -translate-x-1/2 md:hidden w-fit inline-flex items-center gap-1 bg-stone-950/85 backdrop-blur-md px-2 py-1 rounded-xl border border-stone-800/70 shadow-xl z-30 select-none"
       >
         <button
           type="button"
@@ -669,10 +739,17 @@ export const HUD: React.FC<HUDProps> = ({
         </button>
       </div>
 
-      {/* Combat Action Bar: Ergonomic in bottom-right corner (bottom: 15px; right: 15px;) */}
+      {/* Combat Action Bar: Centered snugly at bottom-center (fit-content) */}
       <div
-        style={{ touchAction: 'none', userSelect: 'none', pointerEvents: 'auto', bottom: 15, right: 15, zIndex: 9999 }}
-        className="hud-action-cluster touch-control-layer pointer-events-auto fixed md:absolute bottom-[15px] right-[15px] md:right-auto md:bottom-5 md:left-1/2 md:-translate-x-1/2 flex items-center gap-1 sm:gap-1.5 md:gap-2 bg-stone-950/90 backdrop-blur-md p-1 sm:p-1.5 md:p-2.5 rounded-2xl border border-stone-800/80 shadow-2xl z-[9999]"
+        id="hud-action-cluster"
+        style={{
+          touchAction: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          pointerEvents: 'auto',
+          width: 'fit-content',
+        }}
+        className="hud-action-cluster touch-control-layer pointer-events-auto fixed bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 w-fit max-w-[95vw] inline-flex items-center gap-1.5 sm:gap-2 bg-stone-950/85 backdrop-blur-md p-1.5 sm:p-2 rounded-2xl border border-stone-800/80 shadow-2xl z-40 select-none"
       >
         {/* Hunter Weapon Switcher (Belati <-> Busur) */}
         {stats.characterClass === 'rogue' && onSwitchHunterWeapon && (

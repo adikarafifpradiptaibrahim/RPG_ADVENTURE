@@ -151,21 +151,26 @@
   }
 
   .virtual-joystick-root {
-    bottom: 15px !important;
-    left: 15px !important;
-    transform: scale(0.85);
-    transform-origin: bottom left;
+    bottom: 16px !important;
+    left: 16px !important;
+    transform: none !important;
   }
 
   .hud-action-cluster {
-    bottom: 15px !important;
-    right: 15px !important;
-    transform: scale(0.80);
-    transform-origin: bottom right;
+    bottom: 12px !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    transform-origin: bottom center !important;
+    width: fit-content !important;
+    max-width: calc(100vw - 20px) !important;
   }
 
   .hud-mobile-nav-bar {
-    bottom: 15px !important;
+    bottom: 66px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: fit-content !important;
   }
 
   .hud-quest-tracker {
