@@ -52,11 +52,18 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Pengaturan Grafis"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200 font-sans"
     >
-      <div className="game-modal-card relative w-[90vw] max-w-lg max-h-[85vh] flex flex-col overflow-hidden rounded-2xl border-2 border-cyan-500/40 bg-gradient-to-b from-stone-900 via-stone-950 to-black shadow-2xl shadow-cyan-950/40 text-stone-200">
+      <div
+        style={{
+          maxHeight: '80vh',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+        }}
+        className="game-modal-card relative w-[90vw] max-w-lg max-h-[80vh] flex flex-col overflow-y-auto modal-scroll-area rounded-2xl border-2 border-cyan-500/40 bg-gradient-to-b from-stone-900 via-stone-950 to-black shadow-2xl shadow-cyan-950/40 text-stone-200"
+      >
         {/* Header */}
-        <div className="sticky top-0 z-10 shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-stone-800 bg-stone-950/95">
+        <div className="sticky top-0 z-20 shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-stone-800 bg-stone-950/95">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-cyan-950/60 border border-cyan-500/30 text-cyan-400">
               <Monitor className="w-5 h-5" />
@@ -72,7 +79,13 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition cursor-pointer active:scale-95"
+            style={{
+              position: 'sticky',
+              top: '10px',
+              right: '10px',
+              zIndex: 10000,
+            }}
+            className="modal-close-btn-sticky flex items-center justify-center p-2 rounded-xl bg-stone-900/90 hover:bg-red-950/80 text-stone-300 hover:text-red-300 border border-stone-700 hover:border-red-500/50 text-xs font-bold transition cursor-pointer active:scale-95 shadow-lg"
             title="Tutup (Esc)"
           >
             <X className="w-5 h-5" />

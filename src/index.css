@@ -72,17 +72,28 @@ canvas {
 }
 
 /* ========================================================================== */
-/* TOUCH CONTROL SYSTEM (ANALOG JOYSTICK & D-PAD)                             */
+/* TOUCH CONTROL SYSTEM (ANALOG JOYSTICK, D-PAD, AND CAMERA DRAG)            */
 /* ========================================================================== */
-.touch-control-layer {
+.touch-control-layer,
+.touch-camera-drag-area,
+.virtual-joystick-root,
+.touch-control-btn {
   touch-action: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
   pointer-events: auto !important;
-  z-index: 9999 !important;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
-/* Smooth custom touch scrollbar for modals */
+/* Sticky close button for mobile modals */
+.modal-close-btn-sticky {
+  position: sticky !important;
+  top: 10px !important;
+  right: 10px !important;
+  z-index: 10000 !important;
+}
+
+/* Smooth custom touch scrollbar for modals with touch momentum */
 .modal-scroll-area {
   overflow-y: auto !important;
   overscroll-behavior: contain !important;
@@ -109,20 +120,19 @@ canvas {
 }
 
 /* ========================================================================== */
-/* MOBILE & LANDSCAPE HP UI SCALING                                           */
+/* MOBILE & LANDSCAPE HP UI SCALING & ERGONOMICS                              */
 /* Media Query: Layar HP (< 768px width) atau Landscape HP (< 500px height)    */
-/* Memperkecil elemen HUD 20-30% agar luas pandang dunia 3D tetap lapang       */
 /* ========================================================================== */
 @media (max-width: 768px), (max-height: 500px) {
-  /* Skala status bar player (HP, MP, Level, Avatar) turun ~22-25% */
+  /* Skala status bar player (HP/MP) turun 25% agar layar lapang */
   .hud-player-status {
-    transform: scale(0.78);
+    transform: scale(0.75);
     transform-origin: top left;
   }
 
-  /* Skala MiniMap di pojok kanan atas turun ~24% */
+  /* Skala MiniMap di pojok kanan atas turun 25% */
   .hud-minimap-cluster {
-    transform: scale(0.76);
+    transform: scale(0.75);
     transform-origin: top right;
   }
 
@@ -131,28 +141,39 @@ canvas {
     display: none !important;
   }
 
-  /* Kluster tombol aksi mobile di pojok kanan bawah */
-  .hud-action-cluster {
+  /* D-Pad / Analog: tepat di pojok kiri bawah (bottom: 15px; left: 15px) */
+  .virtual-joystick-root {
+    bottom: 15px !important;
+    left: 15px !important;
     transform: scale(0.85);
+    transform-origin: bottom left;
+  }
+
+  /* Kluster tombol aksi mobile di pojok kanan bawah (bottom: 15px; right: 15px) */
+  .hud-action-cluster {
+    bottom: 15px !important;
+    right: 15px !important;
+    transform: scale(0.80);
     transform-origin: bottom right;
   }
 
-  /* Kontrol Joystick / D-Pad di pojok kiri bawah */
-  .virtual-joystick-root {
-    transform: scale(0.88);
-    transform-origin: bottom left;
+  /* Menu navigasi mobile sejajar rapat di bawah (bottom: 15px) */
+  .hud-mobile-nav-bar {
+    bottom: 15px !important;
   }
 
   /* Quest tracker ringkas di sisi kiri */
   .hud-quest-tracker {
-    transform: scale(0.78);
+    transform: scale(0.72);
     transform-origin: top left;
-    max-width: 200px;
+    max-width: 180px;
   }
 
-  /* Penyesuaian modal di layar HP landscape */
+  /* Penyesuaian modal di layar HP landscape: max-height 80vh dan smooth touch scroll */
   .game-modal-card {
-    max-height: 85vh !important;
+    max-height: 80vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
     padding: 0.75rem !important;
   }
 }

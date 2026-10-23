@@ -59,9 +59,16 @@ export const PauseModal: React.FC<PauseModalProps> = ({
       aria-label="Pause Menu"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200"
     >
-      <div className="game-modal-card relative w-[90vw] max-w-md max-h-[85vh] flex flex-col overflow-hidden rounded-2xl border-2 border-amber-500/40 bg-gradient-to-b from-stone-900 via-stone-950 to-black shadow-2xl shadow-black/90 text-stone-200">
+      <div
+        style={{
+          maxHeight: '80vh',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+        }}
+        className="game-modal-card relative w-[90vw] max-w-md max-h-[80vh] flex flex-col overflow-y-auto modal-scroll-area rounded-2xl border-2 border-amber-500/40 bg-gradient-to-b from-stone-900 via-stone-950 to-black shadow-2xl shadow-black/90 text-stone-200"
+      >
         {/* Sticky Header with Exit (X) Button */}
-        <div className="sticky top-0 z-10 shrink-0 flex items-center justify-between px-4 py-3 border-b border-stone-800 bg-stone-950/95">
+        <div className="sticky top-0 z-20 shrink-0 flex items-center justify-between px-4 py-3 border-b border-stone-800 bg-stone-950/95">
           <div className="flex items-center gap-2">
             <div
               className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-wider uppercase border ${
@@ -89,7 +96,13 @@ export const PauseModal: React.FC<PauseModalProps> = ({
 
           <button
             onClick={onResume}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-stone-800 hover:bg-red-950/80 text-stone-300 hover:text-red-300 border border-stone-700 hover:border-red-500/50 text-xs font-bold transition cursor-pointer active:scale-95"
+            style={{
+              position: 'sticky',
+              top: '10px',
+              right: '10px',
+              zIndex: 10000,
+            }}
+            className="modal-close-btn-sticky flex items-center gap-1 px-2.5 py-1 rounded-xl bg-stone-800 hover:bg-red-950/80 text-stone-300 hover:text-red-300 border border-stone-700 hover:border-red-500/50 text-xs font-bold transition cursor-pointer active:scale-95 shadow-md"
             title="Tutup Pengaturan (Esc)"
           >
             <X className="w-4 h-4" />

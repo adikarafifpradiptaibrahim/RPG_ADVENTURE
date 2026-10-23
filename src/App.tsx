@@ -891,6 +891,7 @@ export default function App() {
             onPerformAttack={() => engineRef.current?.performBasicAttack()}
             onCastSkill={(slot) => engineRef.current?.castSkill(slot)}
             onJump={() => engineRef.current?.jumpOrDodge()}
+            onRotateCamera={(dx, dy) => engineRef.current?.rotateCameraByDelta(dx, dy)}
             bossState={bossState}
             isMuted={isMuted}
             onToggleMute={() => {

@@ -1674,6 +1674,19 @@ export class GameEngine {
     }
   };
 
+  /**
+   * Public camera rotation method used by mobile transparent touch drag area
+   */
+  public rotateCameraByDelta(deltaX: number, deltaY: number) {
+    this.cameraAngleH -= deltaX * 0.0065;
+    this.cameraAngleV += deltaY * 0.005;
+    this.cameraAngleV = Math.max(0.08, Math.min(Math.PI / 2.15, this.cameraAngleV));
+  }
+
+  public zoomCameraByDelta(deltaZoom: number) {
+    this.cameraDistance = Math.max(3.5, Math.min(14, this.cameraDistance + deltaZoom));
+  }
+
   private handleResize = () => {
     if (!this.container) return;
     const w = this.container.clientWidth;

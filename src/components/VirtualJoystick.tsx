@@ -27,13 +27,17 @@ interface VirtualJoystickProps {
 }
 
 export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide }) => {
-  const baseRef = useRef<HTMLDivElement>(null);
+  const joystickBaseRef = useRef<HTMLDivElement>(null);
+  const dpadBaseRef = useRef<HTMLDivElement>(null);
+
   const [knobPos, setKnobPos] = useState({ x: 0, y: 0 });
   const [active, setActive] = useState(false);
   const [controlMode, setControlMode] = useState<TouchControlMode>(() => getSavedControlMode());
+
+  const activeTouchIdRef = useRef<number | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
 
-  // D-Pad active keys state
+  // D-Pad active states
   const dpadPressedRef = useRef<{ up: boolean; down: boolean; left: boolean; right: boolean }>({
     up: false,
     down: false,
@@ -42,10 +46,11 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
   });
   const [dpadVisual, setDpadVisual] = useState({ up: false, down: false, left: false, right: false });
 
-  const maxRadius = 46;
-  const DEADZONE = 8; // minimum pixel movement to register
+  // Compact dimensions for mobile landscape to prevent overlapping HP/MP bar
+  const maxRadius = 38;
+  const DEADZONE = 6;
 
-  // Dispatch current vector safely to parent
+  // Dispatch vector safely to parent
   const sendMove = useCallback(
     (vec: { x: number; y: number }) => {
       onMove(vec);
@@ -55,6 +60,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
 
   // Force stop all movement
   const stopAllMovement = useCallback(() => {
+    activeTouchIdRef.current = null;
     activePointerIdRef.current = null;
     setActive(false);
     setKnobPos({ x: 0, y: 0 });
@@ -63,7 +69,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
     sendMove({ x: 0, y: 0 });
   }, [sendMove]);
 
-  // Window global safety net: when finger or mouse lifts ANYWHERE in the window or window blurs
+  // Global safety release
   useEffect(() => {
     const handleGlobalRelease = () => {
       if (
@@ -95,11 +101,11 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
     };
   }, [active, stopAllMovement]);
 
-  // JOYSTICK: Touch/Pointer calculation
+  // JOYSTICK: Touch / Pointer position calculation
   const updateKnob = useCallback(
     (clientX: number, clientY: number) => {
-      if (!baseRef.current) return;
-      const rect = baseRef.current.getBoundingClientRect();
+      if (!joystickBaseRef.current) return;
+      const rect = joystickBaseRef.current.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
 
@@ -107,7 +113,6 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
       const dy = clientY - centerY;
       const dist = Math.hypot(dx, dy);
 
-      // Deadzone: prevent accidental micro-movements
       if (dist < DEADZONE) {
         setKnobPos({ x: 0, y: 0 });
         sendMove({ x: 0, y: 0 });
@@ -122,40 +127,82 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
 
       setKnobPos({ x: knobX, y: knobY });
 
-      // Normalize output (-1 to 1) with subtle linear-quadratic response for precision
       const normDist = (clampedDist - DEADZONE) / (maxRadius - DEADZONE);
       sendMove({
         x: Math.cos(angle) * normDist,
         y: Math.sin(angle) * normDist,
       });
     },
+    [sendMove, maxRadius, DEADZONE]
+  );
+
+  // DPAD: Continuous touch calculation from position relative to D-Pad center
+  const updateDpadFromCoords = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!dpadBaseRef.current) return;
+      const rect = dpadBaseRef.current.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      const dx = clientX - centerX;
+      const dy = clientY - centerY;
+      const dist = Math.hypot(dx, dy);
+
+      // Deadzone at center
+      if (dist < 10) {
+        dpadPressedRef.current = { up: false, down: false, left: false, right: false };
+        setDpadVisual({ up: false, down: false, left: false, right: false });
+        sendMove({ x: 0, y: 0 });
+        return;
+      }
+
+      const up = dy < -8;
+      const down = dy > 8;
+      const left = dx < -8;
+      const right = dx > 8;
+
+      dpadPressedRef.current = { up, down, left, right };
+      setDpadVisual({ up, down, left, right });
+
+      let x = 0;
+      let y = 0;
+      if (left) x -= 1;
+      if (right) x += 1;
+      if (up) y -= 1;
+      if (down) y += 1;
+
+      if (x !== 0 && y !== 0) {
+        x /= Math.SQRT2;
+        y /= Math.SQRT2;
+      }
+
+      sendMove({ x, y });
+    },
     [sendMove]
   );
 
-  // Native non-passive touch event listeners for instant touch response without browser scroll
+  // Native Non-Passive Listeners for Analog Joystick (Locks touch with e.targetTouches[0])
   useEffect(() => {
-    const el = baseRef.current;
+    const el = joystickBaseRef.current;
     if (!el || controlMode !== 'joystick') return;
-
-    let touchIdentifier: number | null = null;
 
     const handleNativeTouchStart = (e: TouchEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      if (e.touches.length > 0 && touchIdentifier === null) {
-        const touch = e.touches[0];
-        touchIdentifier = touch.identifier;
+      if (e.targetTouches.length > 0 && activeTouchIdRef.current === null) {
+        const touch = e.targetTouches[0];
+        activeTouchIdRef.current = touch.identifier;
         setActive(true);
         updateKnob(touch.clientX, touch.clientY);
       }
     };
 
     const handleNativeTouchMove = (e: TouchEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (touchIdentifier === null) return;
+      if (activeTouchIdRef.current === null) return;
       for (let i = 0; i < e.touches.length; i++) {
-        if (e.touches[i].identifier === touchIdentifier) {
+        if (e.touches[i].identifier === activeTouchIdRef.current) {
+          e.preventDefault();
+          e.stopPropagation();
           updateKnob(e.touches[i].clientX, e.touches[i].clientY);
           break;
         }
@@ -163,16 +210,17 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
     };
 
     const handleNativeTouchEnd = (e: TouchEvent) => {
-      if (touchIdentifier === null) return;
+      if (activeTouchIdRef.current === null) return;
       let stillPresent = false;
       for (let i = 0; i < e.touches.length; i++) {
-        if (e.touches[i].identifier === touchIdentifier) {
+        if (e.touches[i].identifier === activeTouchIdRef.current) {
           stillPresent = true;
           break;
         }
       }
       if (!stillPresent) {
-        touchIdentifier = null;
+        e.preventDefault();
+        e.stopPropagation();
         stopAllMovement();
       }
     };
@@ -190,9 +238,65 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
     };
   }, [controlMode, updateKnob, stopAllMovement]);
 
-  // Pointer events fallback for Desktop Mouse / Stylus
+  // Native Non-Passive Listeners for D-Pad (Continuous sliding across buttons)
+  useEffect(() => {
+    const el = dpadBaseRef.current;
+    if (!el || controlMode !== 'dpad') return;
+
+    const handleDpadTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.targetTouches.length > 0 && activeTouchIdRef.current === null) {
+        const touch = e.targetTouches[0];
+        activeTouchIdRef.current = touch.identifier;
+        updateDpadFromCoords(touch.clientX, touch.clientY);
+      }
+    };
+
+    const handleDpadTouchMove = (e: TouchEvent) => {
+      if (activeTouchIdRef.current === null) return;
+      for (let i = 0; i < e.touches.length; i++) {
+        if (e.touches[i].identifier === activeTouchIdRef.current) {
+          e.preventDefault();
+          e.stopPropagation();
+          updateDpadFromCoords(e.touches[i].clientX, e.touches[i].clientY);
+          break;
+        }
+      }
+    };
+
+    const handleDpadTouchEnd = (e: TouchEvent) => {
+      if (activeTouchIdRef.current === null) return;
+      let stillPresent = false;
+      for (let i = 0; i < e.touches.length; i++) {
+        if (e.touches[i].identifier === activeTouchIdRef.current) {
+          stillPresent = true;
+          break;
+        }
+      }
+      if (!stillPresent) {
+        e.preventDefault();
+        e.stopPropagation();
+        stopAllMovement();
+      }
+    };
+
+    el.addEventListener('touchstart', handleDpadTouchStart, { passive: false });
+    window.addEventListener('touchmove', handleDpadTouchMove, { passive: false });
+    window.addEventListener('touchend', handleDpadTouchEnd, { passive: false });
+    window.addEventListener('touchcancel', handleDpadTouchEnd, { passive: false });
+
+    return () => {
+      el.removeEventListener('touchstart', handleDpadTouchStart);
+      window.removeEventListener('touchmove', handleDpadTouchMove);
+      window.removeEventListener('touchend', handleDpadTouchEnd);
+      window.removeEventListener('touchcancel', handleDpadTouchEnd);
+    };
+  }, [controlMode, updateDpadFromCoords, stopAllMovement]);
+
+  // Pointer events fallback for Desktop Mouse / Stylus with setPointerCapture
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType === 'touch') return; // Handled by native touch listener
+    if (e.pointerType === 'touch') return;
     e.preventDefault();
     e.stopPropagation();
     try {
@@ -200,14 +304,23 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
     } catch {}
     activePointerIdRef.current = e.pointerId;
     setActive(true);
-    updateKnob(e.clientX, e.clientY);
+    if (controlMode === 'joystick') {
+      updateKnob(e.clientX, e.clientY);
+    } else {
+      updateDpadFromCoords(e.clientX, e.clientY);
+    }
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'touch') return;
-    if (!active || activePointerIdRef.current !== e.pointerId) return;
+    if (activePointerIdRef.current !== e.pointerId) return;
     e.preventDefault();
-    updateKnob(e.clientX, e.clientY);
+    e.stopPropagation();
+    if (controlMode === 'joystick') {
+      updateKnob(e.clientX, e.clientY);
+    } else {
+      updateDpadFromCoords(e.clientX, e.clientY);
+    }
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -220,28 +333,6 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
     }
   };
 
-  // DPAD: Button Handlers
-  const handleDpadButton = (dir: 'up' | 'down' | 'left' | 'right', isPressed: boolean) => {
-    dpadPressedRef.current[dir] = isPressed;
-    setDpadVisual({ ...dpadPressedRef.current });
-
-    let x = 0;
-    let y = 0;
-    if (dpadPressedRef.current.left) x -= 1;
-    if (dpadPressedRef.current.right) x += 1;
-    if (dpadPressedRef.current.up) y -= 1;
-    if (dpadPressedRef.current.down) y += 1;
-
-    // Normalize diagonal D-pad movement
-    if (x !== 0 && y !== 0) {
-      const mag = Math.SQRT2;
-      x /= mag;
-      y /= mag;
-    }
-
-    sendMove({ x, y });
-  };
-
   const switchMode = (mode: TouchControlMode) => {
     stopAllMovement();
     setControlMode(mode);
@@ -250,41 +341,51 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
 
   return (
     <div
-      style={{ touchAction: 'none', pointerEvents: 'auto', zIndex: 9999 }}
-      className="touch-control-layer virtual-joystick-root fixed bottom-4 left-4 sm:bottom-6 sm:left-6 z-[9999] select-none flex flex-col items-start gap-1.5"
+      style={{
+        touchAction: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        pointerEvents: 'auto',
+        bottom: 15,
+        left: 15,
+        zIndex: 9999,
+      }}
+      className="touch-control-layer virtual-joystick-root fixed bottom-[15px] left-[15px] z-[9999] select-none flex flex-col items-start gap-1"
     >
-      {/* Mode Switcher pill */}
-      <div className="flex items-center gap-1 bg-stone-950/90 backdrop-blur-md px-2 py-1 rounded-full border border-stone-800 text-[10px] text-stone-300 shadow-lg mb-1">
+      {/* Mode Switcher pill (Compact) */}
+      <div className="flex items-center gap-1 bg-stone-950/90 backdrop-blur-md px-1.5 py-0.5 rounded-full border border-stone-800 text-[9px] text-stone-300 shadow-lg">
         <button
           type="button"
           onTouchStart={(e) => {
             e.preventDefault();
+            e.stopPropagation();
             switchMode('joystick');
           }}
           onClick={() => switchMode('joystick')}
-          className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full transition-all cursor-pointer font-bold ${
+          className={`flex items-center gap-1 px-2 py-0.5 rounded-full transition-all cursor-pointer font-bold ${
             controlMode === 'joystick'
               ? 'bg-amber-500 text-stone-950 shadow-sm'
               : 'text-stone-400 hover:text-stone-200'
           }`}
         >
-          <Disc className="w-3 h-3" />
+          <Disc className="w-2.5 h-2.5" />
           <span>Analog</span>
         </button>
         <button
           type="button"
           onTouchStart={(e) => {
             e.preventDefault();
+            e.stopPropagation();
             switchMode('dpad');
           }}
           onClick={() => switchMode('dpad')}
-          className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full transition-all cursor-pointer font-bold ${
+          className={`flex items-center gap-1 px-2 py-0.5 rounded-full transition-all cursor-pointer font-bold ${
             controlMode === 'dpad'
               ? 'bg-amber-500 text-stone-950 shadow-sm'
               : 'text-stone-400 hover:text-stone-200'
           }`}
         >
-          <Crosshair className="w-3 h-3" />
+          <Crosshair className="w-2.5 h-2.5" />
           <span>D-Pad</span>
         </button>
         {onHide && (
@@ -292,6 +393,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
             type="button"
             onTouchStart={(e) => {
               e.preventDefault();
+              e.stopPropagation();
               stopAllMovement();
               onHide();
             }}
@@ -299,218 +401,111 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
               stopAllMovement();
               onHide();
             }}
-            title="Sembunyikan kontroler analog/D-pad"
-            className="flex items-center gap-1 ml-1 px-1.5 py-0.5 rounded-full bg-stone-800/80 hover:bg-stone-700 text-stone-400 hover:text-white border border-stone-700 transition cursor-pointer"
+            title="Sembunyikan kontroler layar"
+            className="flex items-center gap-0.5 ml-0.5 px-1 py-0.5 rounded-full bg-stone-800/80 hover:bg-stone-700 text-stone-400 hover:text-white border border-stone-700 transition cursor-pointer"
           >
-            <EyeOff className="w-3 h-3 text-stone-300" />
-            <span className="text-[9px]">Sembunyikan</span>
+            <EyeOff className="w-2.5 h-2.5 text-stone-300" />
+            <span className="text-[8px]">Tutup</span>
           </button>
         )}
       </div>
 
       {controlMode === 'joystick' ? (
-        /* Virtual Analog Stick */
+        /* Virtual Analog Stick (Compact 112px on mobile to avoid covering top vitals) */
         <div
-          ref={baseRef}
+          ref={joystickBaseRef}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          style={{ touchAction: 'none' }}
-          className={`relative w-36 h-36 rounded-full backdrop-blur-md border-2 shadow-2xl flex items-center justify-center transition-colors cursor-grab active:cursor-grabbing select-none ${
+          style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
+          className={`relative w-28 h-28 sm:w-32 sm:h-32 rounded-full backdrop-blur-md border-2 shadow-2xl flex items-center justify-center transition-colors cursor-grab active:cursor-grabbing select-none ${
             active
-              ? 'bg-amber-950/50 border-amber-500/90 shadow-amber-500/30'
+              ? 'bg-amber-950/60 border-amber-500/90 shadow-amber-500/40'
               : 'bg-stone-900/70 border-stone-700/80'
           }`}
         >
-          {/* Directional Accent Guides */}
-          <div className="absolute top-2 w-2 h-2 rounded-full bg-amber-500/60" />
-          <div className="absolute bottom-2 w-2 h-2 rounded-full bg-amber-500/60" />
-          <div className="absolute left-2 w-2 h-2 rounded-full bg-amber-500/60" />
-          <div className="absolute right-2 w-2 h-2 rounded-full bg-amber-500/60" />
+          {/* Directional Guides */}
+          <div className="absolute top-1.5 w-1.5 h-1.5 rounded-full bg-amber-500/60" />
+          <div className="absolute bottom-1.5 w-1.5 h-1.5 rounded-full bg-amber-500/60" />
+          <div className="absolute left-1.5 w-1.5 h-1.5 rounded-full bg-amber-500/60" />
+          <div className="absolute right-1.5 w-1.5 h-1.5 rounded-full bg-amber-500/60" />
 
           {/* Central Deadzone Ring */}
-          <div className="absolute w-10 h-10 rounded-full border border-dashed border-stone-600/50 pointer-events-none" />
+          <div className="absolute w-8 h-8 rounded-full border border-dashed border-stone-600/50 pointer-events-none" />
 
           {/* Joystick Knob */}
           <div
-            className={`w-14 h-14 rounded-full border-2 shadow-xl flex items-center justify-center pointer-events-none transition-shadow ${
+            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full border-2 shadow-xl flex items-center justify-center pointer-events-none transition-shadow ${
               active
-                ? 'bg-gradient-to-b from-amber-400 via-amber-500 to-amber-600 border-amber-200 shadow-amber-500/60 scale-105'
-                : 'bg-gradient-to-b from-stone-750 via-stone-800 to-stone-900 border-stone-500 shadow-black'
+                ? 'bg-gradient-to-b from-amber-400 via-amber-500 to-amber-600 border-amber-200 shadow-amber-500/70 scale-105'
+                : 'bg-gradient-to-b from-stone-700 via-stone-800 to-stone-900 border-stone-500 shadow-black'
             }`}
             style={{
               transform: `translate(${knobPos.x}px, ${knobPos.y}px)`,
-              transition: active ? 'none' : 'transform 0.14s cubic-bezier(0.18, 0.89, 0.32, 1.28)',
+              transition: active ? 'none' : 'transform 0.12s cubic-bezier(0.18, 0.89, 0.32, 1.28)',
             }}
           >
-            <div className="w-5 h-5 rounded-full bg-white/50 shadow-inner" />
+            <div className="w-4 h-4 rounded-full bg-white/50 shadow-inner" />
           </div>
         </div>
       ) : (
-        /* Discrete 4-Way D-Pad */
+        /* Discrete & Continuous 4-Way D-Pad */
         <div
-          style={{ touchAction: 'none' }}
-          className="relative w-36 h-36 bg-stone-900/80 backdrop-blur-md rounded-2xl border-2 border-stone-700/80 p-1 flex items-center justify-center shadow-2xl select-none"
+          ref={dpadBaseRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
+          className="relative w-28 h-28 sm:w-32 sm:h-32 bg-stone-900/80 backdrop-blur-md rounded-2xl border-2 border-stone-700/80 p-1 flex items-center justify-center shadow-2xl select-none"
         >
           {/* UP Button */}
-          <button
-            type="button"
-            onTouchStart={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleDpadButton('up', true);
-            }}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleDpadButton('up', false);
-            }}
-            onTouchCancel={(e) => {
-              e.preventDefault();
-              handleDpadButton('up', false);
-            }}
-            onPointerDown={(e) => {
-              e.currentTarget.setPointerCapture(e.pointerId);
-              handleDpadButton('up', true);
-            }}
-            onPointerUp={(e) => {
-              try {
-                e.currentTarget.releasePointerCapture(e.pointerId);
-              } catch {}
-              handleDpadButton('up', false);
-            }}
-            onPointerCancel={() => handleDpadButton('up', false)}
-            style={{ touchAction: 'none' }}
-            className={`absolute top-2 left-1/2 -translate-x-1/2 w-11 h-11 rounded-xl flex items-center justify-center border transition-all cursor-pointer ${
+          <div
+            className={`absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center border transition-all ${
               dpadVisual.up
                 ? 'bg-amber-500 text-stone-950 border-amber-300 shadow-md scale-95'
-                : 'bg-stone-800/90 text-stone-200 border-stone-600 hover:bg-stone-700'
+                : 'bg-stone-800/90 text-stone-200 border-stone-600'
             }`}
-            title="Maju (W / Atas)"
           >
-            <ArrowUp className="w-6 h-6" />
-          </button>
+            <ArrowUp className="w-5 h-5" />
+          </div>
 
           {/* DOWN Button */}
-          <button
-            type="button"
-            onTouchStart={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleDpadButton('down', true);
-            }}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleDpadButton('down', false);
-            }}
-            onTouchCancel={(e) => {
-              e.preventDefault();
-              handleDpadButton('down', false);
-            }}
-            onPointerDown={(e) => {
-              e.currentTarget.setPointerCapture(e.pointerId);
-              handleDpadButton('down', true);
-            }}
-            onPointerUp={(e) => {
-              try {
-                e.currentTarget.releasePointerCapture(e.pointerId);
-              } catch {}
-              handleDpadButton('down', false);
-            }}
-            onPointerCancel={() => handleDpadButton('down', false)}
-            style={{ touchAction: 'none' }}
-            className={`absolute bottom-2 left-1/2 -translate-x-1/2 w-11 h-11 rounded-xl flex items-center justify-center border transition-all cursor-pointer ${
+          <div
+            className={`absolute bottom-1.5 left-1/2 -translate-x-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center border transition-all ${
               dpadVisual.down
                 ? 'bg-amber-500 text-stone-950 border-amber-300 shadow-md scale-95'
-                : 'bg-stone-800/90 text-stone-200 border-stone-600 hover:bg-stone-700'
+                : 'bg-stone-800/90 text-stone-200 border-stone-600'
             }`}
-            title="Mundur (S / Bawah)"
           >
-            <ArrowDown className="w-6 h-6" />
-          </button>
+            <ArrowDown className="w-5 h-5" />
+          </div>
 
           {/* LEFT Button */}
-          <button
-            type="button"
-            onTouchStart={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleDpadButton('left', true);
-            }}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleDpadButton('left', false);
-            }}
-            onTouchCancel={(e) => {
-              e.preventDefault();
-              handleDpadButton('left', false);
-            }}
-            onPointerDown={(e) => {
-              e.currentTarget.setPointerCapture(e.pointerId);
-              handleDpadButton('left', true);
-            }}
-            onPointerUp={(e) => {
-              try {
-                e.currentTarget.releasePointerCapture(e.pointerId);
-              } catch {}
-              handleDpadButton('left', false);
-            }}
-            onPointerCancel={() => handleDpadButton('left', false)}
-            style={{ touchAction: 'none' }}
-            className={`absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-xl flex items-center justify-center border transition-all cursor-pointer ${
+          <div
+            className={`absolute left-1.5 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center border transition-all ${
               dpadVisual.left
                 ? 'bg-amber-500 text-stone-950 border-amber-300 shadow-md scale-95'
-                : 'bg-stone-800/90 text-stone-200 border-stone-600 hover:bg-stone-700'
+                : 'bg-stone-800/90 text-stone-200 border-stone-600'
             }`}
-            title="Kiri (A)"
           >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
+            <ArrowLeft className="w-5 h-5" />
+          </div>
 
           {/* RIGHT Button */}
-          <button
-            type="button"
-            onTouchStart={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleDpadButton('right', true);
-            }}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleDpadButton('right', false);
-            }}
-            onTouchCancel={(e) => {
-              e.preventDefault();
-              handleDpadButton('right', false);
-            }}
-            onPointerDown={(e) => {
-              e.currentTarget.setPointerCapture(e.pointerId);
-              handleDpadButton('right', true);
-            }}
-            onPointerUp={(e) => {
-              try {
-                e.currentTarget.releasePointerCapture(e.pointerId);
-              } catch {}
-              handleDpadButton('right', false);
-            }}
-            onPointerCancel={() => handleDpadButton('right', false)}
-            style={{ touchAction: 'none' }}
-            className={`absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-xl flex items-center justify-center border transition-all cursor-pointer ${
+          <div
+            className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center border transition-all ${
               dpadVisual.right
                 ? 'bg-amber-500 text-stone-950 border-amber-300 shadow-md scale-95'
-                : 'bg-stone-800/90 text-stone-200 border-stone-600 hover:bg-stone-700'
+                : 'bg-stone-800/90 text-stone-200 border-stone-600'
             }`}
-            title="Kanan (D)"
           >
-            <ArrowRight className="w-6 h-6" />
-          </button>
+            <ArrowRight className="w-5 h-5" />
+          </div>
 
           {/* Center Pivot Indicator */}
-          <div className="w-4 h-4 rounded-full bg-stone-700/80 border border-stone-500/50" />
+          <div className="w-3.5 h-3.5 rounded-full bg-stone-700/80 border border-stone-500/50" />
         </div>
       )}
     </div>

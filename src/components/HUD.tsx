@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   PlayerStats,
   Quest,
@@ -49,6 +49,7 @@ interface HUDProps {
   onPerformAttack: () => void;
   onCastSkill: (slot: 1 | 2 | 3) => void;
   onJump: () => void;
+  onRotateCamera?: (deltaX: number, deltaY: number) => void;
   bossState: {
     active: boolean;
     name?: string;
@@ -96,6 +97,7 @@ export const HUD: React.FC<HUDProps> = ({
   onPerformAttack,
   onCastSkill,
   onJump,
+  onRotateCamera,
   bossState,
   isMuted,
   onToggleMute,
@@ -118,6 +120,75 @@ export const HUD: React.FC<HUDProps> = ({
   onToggleFullscreen,
 }) => {
   const [dismissMobileTip, setDismissMobileTip] = useState(false);
+  const touchCameraRef = useRef<HTMLDivElement>(null);
+
+  // Dedicated smooth touch drag listener for 3D camera rotation on mobile
+  useEffect(() => {
+    const el = touchCameraRef.current;
+    if (!el || !onRotateCamera) return;
+
+    let touchId: number | null = null;
+    let prevX = 0;
+    let prevY = 0;
+
+    const handleCameraTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.targetTouches.length > 0 && touchId === null) {
+        const t = e.targetTouches[0];
+        touchId = t.identifier;
+        prevX = t.clientX;
+        prevY = t.clientY;
+      }
+    };
+
+    const handleCameraTouchMove = (e: TouchEvent) => {
+      if (touchId === null) return;
+      for (let i = 0; i < e.touches.length; i++) {
+        const t = e.touches[i];
+        if (t.identifier === touchId) {
+          e.preventDefault();
+          e.stopPropagation();
+          const deltaX = t.clientX - prevX;
+          const deltaY = t.clientY - prevY;
+          prevX = t.clientX;
+          prevY = t.clientY;
+          onRotateCamera(deltaX, deltaY);
+          break;
+        }
+      }
+    };
+
+    const handleCameraTouchEnd = (e: TouchEvent) => {
+      if (touchId !== null) {
+        let stillActive = false;
+        for (let i = 0; i < e.touches.length; i++) {
+          if (e.touches[i].identifier === touchId) {
+            stillActive = true;
+            break;
+          }
+        }
+        if (!stillActive) {
+          e.preventDefault();
+          e.stopPropagation();
+          touchId = null;
+        }
+      }
+    };
+
+    el.addEventListener('touchstart', handleCameraTouchStart, { passive: false });
+    window.addEventListener('touchmove', handleCameraTouchMove, { passive: false });
+    window.addEventListener('touchend', handleCameraTouchEnd, { passive: false });
+    window.addEventListener('touchcancel', handleCameraTouchEnd, { passive: false });
+
+    return () => {
+      el.removeEventListener('touchstart', handleCameraTouchStart);
+      window.removeEventListener('touchmove', handleCameraTouchMove);
+      window.removeEventListener('touchend', handleCameraTouchEnd);
+      window.removeEventListener('touchcancel', handleCameraTouchEnd);
+    };
+  }, [onRotateCamera]);
+
   const activeQuest = quests.find((q) => !q.completed) || quests[quests.length - 1];
 
   const hpPercent = Math.max(0, Math.min(100, (stats.hp / stats.maxHp) * 100));
@@ -499,20 +570,34 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* Mobile Compact Menu Strip (Tas, Toko, Status, Misi, Peta) */}
+      {/* Dedicated Transparent Touch Camera Drag Area (Right half of viewport, between top minimap and bottom buttons) */}
       <div
-        style={{ touchAction: 'none' }}
-        className="pointer-events-auto absolute bottom-20 right-2 sm:right-4 md:hidden flex items-center gap-1 bg-stone-950/85 backdrop-blur-md p-1 rounded-xl border border-stone-800/80 shadow-xl z-20"
+        ref={touchCameraRef}
+        id="touch-camera-drag-area"
+        style={{
+          touchAction: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+        }}
+        className="touch-camera-drag-area pointer-events-auto fixed top-16 right-0 w-[50vw] bottom-20 z-10 bg-transparent select-none"
+        title="Usap area ini untuk memutar sudut pandang kamera 3D"
+      />
+
+      {/* Mobile Compact Menu Strip (Tas, Toko, Status, Misi, Peta) - Sejajar Rapat di Bawah */}
+      <div
+        style={{ touchAction: 'none', userSelect: 'none', bottom: 15 }}
+        className="hud-mobile-nav-bar pointer-events-auto fixed bottom-[15px] left-1/2 -translate-x-1/2 md:hidden flex items-center gap-1 sm:gap-1.5 bg-stone-950/90 backdrop-blur-md px-2 py-1.5 rounded-2xl border border-stone-800/80 shadow-2xl z-30 select-none"
       >
         <button
+          type="button"
           onTouchStart={(e) => {
             e.preventDefault();
             e.stopPropagation();
             onOpenInventory();
           }}
           onClick={onOpenInventory}
-          style={{ touchAction: 'none' }}
-          className="flex flex-col items-center justify-center w-8 h-8 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-lg border border-stone-700 active:scale-95 transition"
+          style={{ touchAction: 'none', userSelect: 'none' }}
+          className="touch-control-btn flex flex-col items-center justify-center w-8 h-8 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
           title="Tas (I)"
         >
           <Backpack className="w-3.5 h-3.5 text-amber-400" />
@@ -520,14 +605,15 @@ export const HUD: React.FC<HUDProps> = ({
 
         {onOpenShop && (
           <button
+            type="button"
             onTouchStart={(e) => {
               e.preventDefault();
               e.stopPropagation();
               onOpenShop();
             }}
             onClick={onOpenShop}
-            style={{ touchAction: 'none' }}
-            className="flex flex-col items-center justify-center w-8 h-8 bg-stone-900/80 hover:bg-stone-800 text-amber-300 rounded-lg border border-amber-500/60 active:scale-95 transition"
+            style={{ touchAction: 'none', userSelect: 'none' }}
+            className="touch-control-btn flex flex-col items-center justify-center w-8 h-8 bg-stone-900/90 hover:bg-stone-800 text-amber-300 rounded-xl border border-amber-500/60 active:scale-90 transition cursor-pointer"
             title="Toko (B)"
           >
             <ShoppingBag className="w-3.5 h-3.5 text-yellow-400" />
@@ -535,55 +621,58 @@ export const HUD: React.FC<HUDProps> = ({
         )}
 
         <button
+          type="button"
           onTouchStart={(e) => {
             e.preventDefault();
             e.stopPropagation();
             onOpenStats();
           }}
           onClick={onOpenStats}
-          style={{ touchAction: 'none' }}
-          className="relative flex flex-col items-center justify-center w-8 h-8 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-lg border border-stone-700 active:scale-95 transition"
+          style={{ touchAction: 'none', userSelect: 'none' }}
+          className="touch-control-btn relative flex flex-col items-center justify-center w-8 h-8 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
           title="Status (C)"
         >
           <User className="w-3.5 h-3.5 text-blue-400" />
           {stats.statPoints > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border border-stone-900" />
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-stone-900 animate-ping" />
           )}
         </button>
 
         <button
+          type="button"
           onTouchStart={(e) => {
             e.preventDefault();
             e.stopPropagation();
             onOpenQuests();
           }}
           onClick={onOpenQuests}
-          style={{ touchAction: 'none' }}
-          className="flex flex-col items-center justify-center w-8 h-8 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-lg border border-stone-700 active:scale-95 transition"
+          style={{ touchAction: 'none', userSelect: 'none' }}
+          className="touch-control-btn flex flex-col items-center justify-center w-8 h-8 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
           title="Misi (L)"
         >
           <Scroll className="w-3.5 h-3.5 text-emerald-400" />
         </button>
 
         <button
+          type="button"
           onTouchStart={(e) => {
             e.preventDefault();
             e.stopPropagation();
             onOpenMap();
           }}
           onClick={onOpenMap}
-          style={{ touchAction: 'none' }}
-          className="flex flex-col items-center justify-center w-8 h-8 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-lg border border-stone-700 active:scale-95 transition"
+          style={{ touchAction: 'none', userSelect: 'none' }}
+          className="touch-control-btn flex flex-col items-center justify-center w-8 h-8 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
           title="Peta (M)"
         >
           <Map className="w-3.5 h-3.5 text-cyan-400" />
         </button>
       </div>
 
-      {/* Combat Action Bar: Ergonomic in bottom-right corner for Mobile, centered on desktop */}
+      {/* Combat Action Bar: Ergonomic in bottom-right corner (bottom: 15px; right: 15px;) */}
       <div
-        style={{ touchAction: 'none', pointerEvents: 'auto', zIndex: 9999 }}
-        className="hud-action-cluster touch-control-layer pointer-events-auto fixed md:absolute bottom-4 right-2 sm:right-4 md:right-auto md:bottom-5 md:left-1/2 md:-translate-x-1/2 flex items-center gap-1 sm:gap-1.5 md:gap-2.5 bg-stone-950/90 backdrop-blur-md p-1.5 md:p-2.5 rounded-2xl border border-stone-800/80 shadow-2xl z-[9999]"
+        style={{ touchAction: 'none', userSelect: 'none', pointerEvents: 'auto', bottom: 15, right: 15, zIndex: 9999 }}
+        className="hud-action-cluster touch-control-layer pointer-events-auto fixed md:absolute bottom-[15px] right-[15px] md:right-auto md:bottom-5 md:left-1/2 md:-translate-x-1/2 flex items-center gap-1 sm:gap-1.5 md:gap-2 bg-stone-950/90 backdrop-blur-md p-1 sm:p-1.5 md:p-2.5 rounded-2xl border border-stone-800/80 shadow-2xl z-[9999]"
       >
         {/* Hunter Weapon Switcher (Belati <-> Busur) */}
         {stats.characterClass === 'rogue' && onSwitchHunterWeapon && (
@@ -595,11 +684,11 @@ export const HUD: React.FC<HUDProps> = ({
               onSwitchHunterWeapon();
             }}
             onClick={onSwitchHunterWeapon}
-            style={{ touchAction: 'none' }}
-            className="group relative flex flex-col items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-gradient-to-b from-emerald-950 to-stone-950 hover:from-emerald-900 hover:to-stone-900 text-emerald-300 rounded-xl border border-emerald-500/80 shadow cursor-pointer active:scale-95 transition-all"
+            style={{ touchAction: 'none', userSelect: 'none' }}
+            className="touch-control-btn group relative flex flex-col items-center justify-center w-9 h-9 sm:w-10 sm:h-10 md:w-13 md:h-13 bg-gradient-to-b from-emerald-950 to-stone-950 hover:from-emerald-900 hover:to-stone-900 text-emerald-300 rounded-xl border border-emerald-500/80 shadow cursor-pointer active:scale-90 transition-all select-none"
             title={`Ganti Senjata: ${hunterWeaponMode === 'bow' ? 'Belati' : 'Busur'} (X)`}
           >
-            <span className="text-base md:text-xl">{hunterWeaponMode === 'bow' ? '🏹' : '🗡️'}</span>
+            <span className="text-sm sm:text-base md:text-xl">{hunterWeaponMode === 'bow' ? '🏹' : '🗡️'}</span>
             <span className="hidden md:inline text-[9px] font-bold text-emerald-200 line-clamp-1">
               {hunterWeaponMode === 'bow' ? 'Busur' : 'Belati'}
             </span>
@@ -609,7 +698,7 @@ export const HUD: React.FC<HUDProps> = ({
           </button>
         )}
 
-        {/* Basic Attack (Larger button for primary thumb action) */}
+        {/* Basic Attack (Slightly larger for primary thumb action) */}
         <button
           type="button"
           onTouchStart={(e) => {
@@ -618,11 +707,11 @@ export const HUD: React.FC<HUDProps> = ({
             onPerformAttack();
           }}
           onClick={onPerformAttack}
-          style={{ touchAction: 'none' }}
-          className="group relative flex flex-col items-center justify-center w-12 h-12 sm:w-13 sm:h-13 md:w-14 md:h-14 bg-gradient-to-b from-amber-600/80 via-stone-800 to-stone-900 hover:from-amber-500 hover:to-stone-800 text-stone-100 rounded-xl border-2 border-amber-400/70 shadow-lg cursor-pointer active:scale-90 transition-all"
+          style={{ touchAction: 'none', userSelect: 'none' }}
+          className="touch-control-btn group relative flex flex-col items-center justify-center w-11 h-11 sm:w-12 sm:h-12 md:w-15 md:h-15 bg-gradient-to-b from-amber-600/80 via-stone-800 to-stone-900 hover:from-amber-500 hover:to-stone-800 text-stone-100 rounded-xl border-2 border-amber-400/70 shadow-lg cursor-pointer active:scale-90 transition-all select-none"
           title={`${classSkills.basic.label} (Klik Kiri / J)`}
         >
-          <span className="text-xl md:text-2xl">{classSkills.basic.icon}</span>
+          <span className="text-lg sm:text-xl md:text-2xl">{classSkills.basic.icon}</span>
           <span className="hidden md:inline text-[9px] font-bold text-stone-300 line-clamp-1">{classSkills.basic.label}</span>
           <span className="absolute -top-1 -right-1 md:-top-1.5 md:-right-1.5 bg-amber-600 text-stone-950 font-bold text-[7px] md:text-[8px] font-mono px-1 rounded border border-amber-300">
             J
@@ -638,11 +727,11 @@ export const HUD: React.FC<HUDProps> = ({
             onCastSkill(1);
           }}
           onClick={() => onCastSkill(1)}
-          style={{ touchAction: 'none' }}
-          className={`group relative flex flex-col items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 rounded-xl border shadow cursor-pointer active:scale-90 transition-all ${classSkills.skill1.color}`}
+          style={{ touchAction: 'none', userSelect: 'none' }}
+          className={`touch-control-btn group relative flex flex-col items-center justify-center w-9 h-9 sm:w-10 sm:h-10 md:w-13 md:h-13 bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 rounded-xl border shadow cursor-pointer active:scale-90 transition-all select-none ${classSkills.skill1.color}`}
           title={`${classSkills.skill1.name} (Q)`}
         >
-          <span className="text-base md:text-xl">{classSkills.skill1.icon}</span>
+          <span className="text-sm sm:text-base md:text-xl">{classSkills.skill1.icon}</span>
           <span className="hidden md:inline text-[9px] font-bold line-clamp-1">{classSkills.skill1.name}</span>
           <span className="absolute -top-1 -right-1 md:-top-1.5 md:-right-1.5 bg-stone-800 text-white text-[7px] md:text-[8px] font-mono px-1 rounded border border-stone-600">
             {classSkills.skill1.key}
@@ -661,11 +750,11 @@ export const HUD: React.FC<HUDProps> = ({
             onCastSkill(2);
           }}
           onClick={() => onCastSkill(2)}
-          style={{ touchAction: 'none' }}
-          className={`group relative flex flex-col items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 rounded-xl border shadow cursor-pointer active:scale-90 transition-all ${classSkills.skill2.color}`}
+          style={{ touchAction: 'none', userSelect: 'none' }}
+          className={`touch-control-btn group relative flex flex-col items-center justify-center w-9 h-9 sm:w-10 sm:h-10 md:w-13 md:h-13 bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 rounded-xl border shadow cursor-pointer active:scale-90 transition-all select-none ${classSkills.skill2.color}`}
           title={`${classSkills.skill2.name} (E)`}
         >
-          <span className="text-base md:text-xl">{classSkills.skill2.icon}</span>
+          <span className="text-sm sm:text-base md:text-xl">{classSkills.skill2.icon}</span>
           <span className="hidden md:inline text-[9px] font-bold line-clamp-1">{classSkills.skill2.name}</span>
           <span className="absolute -top-1 -right-1 md:-top-1.5 md:-right-1.5 bg-stone-800 text-white text-[7px] md:text-[8px] font-mono px-1 rounded border border-stone-600">
             {classSkills.skill2.key}
@@ -684,11 +773,11 @@ export const HUD: React.FC<HUDProps> = ({
             onCastSkill(3);
           }}
           onClick={() => onCastSkill(3)}
-          style={{ touchAction: 'none' }}
-          className={`group relative flex flex-col items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 rounded-xl border shadow cursor-pointer active:scale-90 transition-all ${classSkills.skill3.color}`}
+          style={{ touchAction: 'none', userSelect: 'none' }}
+          className={`touch-control-btn group relative flex flex-col items-center justify-center w-9 h-9 sm:w-10 sm:h-10 md:w-13 md:h-13 bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 rounded-xl border shadow cursor-pointer active:scale-90 transition-all select-none ${classSkills.skill3.color}`}
           title={`${classSkills.skill3.name} (R)`}
         >
-          <span className="text-base md:text-xl">{classSkills.skill3.icon}</span>
+          <span className="text-sm sm:text-base md:text-xl">{classSkills.skill3.icon}</span>
           <span className="hidden md:inline text-[9px] font-bold line-clamp-1">{classSkills.skill3.name}</span>
           <span className="absolute -top-1 -right-1 md:-top-1.5 md:-right-1.5 bg-stone-800 text-white text-[7px] md:text-[8px] font-mono px-1 rounded border border-stone-600">
             {classSkills.skill3.key}
@@ -707,11 +796,11 @@ export const HUD: React.FC<HUDProps> = ({
             onJump();
           }}
           onClick={onJump}
-          style={{ touchAction: 'none' }}
-          className="group relative flex flex-col items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-gradient-to-b from-stone-800 to-stone-900 hover:from-stone-700 text-stone-200 rounded-xl border border-stone-600 shadow cursor-pointer active:scale-90 transition-all"
+          style={{ touchAction: 'none', userSelect: 'none' }}
+          className="touch-control-btn group relative flex flex-col items-center justify-center w-9 h-9 sm:w-10 sm:h-10 md:w-13 md:h-13 bg-gradient-to-b from-stone-800 to-stone-900 hover:from-stone-700 text-stone-200 rounded-xl border border-stone-600 shadow cursor-pointer active:scale-90 transition-all select-none"
           title="Lompat / Menghindar (Spasi)"
         >
-          <span className="text-base md:text-xl">🦘</span>
+          <span className="text-sm sm:text-base md:text-xl">🦘</span>
           <span className="hidden md:inline text-[9px] font-bold text-stone-400">Lompat</span>
           <span className="absolute -top-1 -right-1 md:-top-1.5 md:-right-1.5 bg-stone-700 text-stone-300 text-[7px] md:text-[8px] font-mono px-1 rounded border border-stone-500">
             Spasi
