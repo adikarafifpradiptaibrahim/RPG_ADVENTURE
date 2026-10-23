@@ -1,10 +1,14 @@
 @import "tailwindcss";
 
+/* ========================================================================== */
+/* CUSTOM KEYFRAMES & UTILITIES                                              */
+/* ========================================================================== */
 @keyframes fadeIn {
   from {
     opacity: 0;
     transform: scale(0.98);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -15,133 +19,137 @@
   0% {
     transform: rotate(0deg);
   }
+
   20% {
     transform: rotate(0deg);
   }
+
   50% {
     transform: rotate(-90deg);
   }
+
   80% {
     transform: rotate(-90deg);
   }
+
   100% {
     transform: rotate(0deg);
   }
 }
 
-.animate-fade-in {
+@utility animate-fade-in {
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.animate-rotate-phone {
+@utility animate-rotate-phone {
   animation: rotatePhone 2.6s ease-in-out infinite;
 }
 
 /* ========================================================================== */
-/* GLOBAL RESET FOR MOBILE TOUCH & GAMEPLAY                                   */
+/* GLOBAL BASE STYLES FOR CANVAS & MOBILE TOUCH                              */
 /* ========================================================================== */
-html,
-body,
-#root {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  overscroll-behavior: none;
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-  background-color: #0c0a09;
-  position: fixed;
-  inset: 0;
-}
+@layer base {
 
-button {
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-}
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    background-color: #0c0a09;
+    position: fixed;
+    inset: 0;
+  }
 
-canvas {
-  touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
-  display: block;
-}
+  button {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
 
-/* ========================================================================== */
-/* TOUCH CONTROL SYSTEM (ANALOG JOYSTICK, D-PAD, AND CAMERA DRAG)            */
-/* ========================================================================== */
-.touch-control-layer,
-.touch-camera-drag-area,
-.virtual-joystick-root,
-.touch-control-btn {
-  touch-action: none !important;
-  -webkit-user-select: none !important;
-  user-select: none !important;
-  -webkit-touch-callout: none !important;
-  pointer-events: auto !important;
-}
-
-/* Sticky close button for mobile modals */
-.modal-close-btn-sticky {
-  position: sticky !important;
-  top: 10px !important;
-  right: 10px !important;
-  z-index: 10000 !important;
-}
-
-/* Smooth custom touch scrollbar for modals with touch momentum */
-.modal-scroll-area {
-  overflow-y: auto !important;
-  overscroll-behavior: contain !important;
-  -webkit-overflow-scrolling: touch !important;
-}
-
-.modal-scroll-area::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-
-.modal-scroll-area::-webkit-scrollbar-track {
-  background: rgba(12, 10, 9, 0.5);
-  border-radius: 4px;
-}
-
-.modal-scroll-area::-webkit-scrollbar-thumb {
-  background: rgba(217, 119, 6, 0.45);
-  border-radius: 4px;
-}
-
-.modal-scroll-area::-webkit-scrollbar-thumb:hover {
-  background: rgba(245, 158, 11, 0.75);
+  canvas {
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    display: block;
+  }
 }
 
 /* ========================================================================== */
-/* MOBILE & LANDSCAPE HP UI SCALING & ERGONOMICS                              */
-/* Media Query: Layar HP (< 768px width) atau Landscape HP (< 500px height)    */
+/* TOUCH CONTROL SYSTEM & CUSTOM SCROLLBAR                                   */
 /* ========================================================================== */
-@media (max-width: 768px), (max-height: 500px) {
-  /* Skala status bar player (HP/MP) turun 25% agar layar lapang */
+@layer utilities {
+
+  .touch-control-layer,
+  .touch-camera-drag-area,
+  .virtual-joystick-root,
+  .touch-control-btn {
+    touch-action: none !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    -webkit-touch-callout: none !important;
+    pointer-events: auto !important;
+  }
+
+  .modal-close-btn-sticky {
+    position: sticky !important;
+    top: 10px !important;
+    right: 10px !important;
+    z-index: 10000 !important;
+  }
+
+  .modal-scroll-area {
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .modal-scroll-area::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  .modal-scroll-area::-webkit-scrollbar-track {
+    background: rgba(12, 10, 9, 0.5);
+    border-radius: 4px;
+  }
+
+  .modal-scroll-area::-webkit-scrollbar-thumb {
+    background: rgba(217, 119, 6, 0.45);
+    border-radius: 4px;
+  }
+
+  .modal-scroll-area::-webkit-scrollbar-thumb:hover {
+    background: rgba(245, 158, 11, 0.75);
+  }
+}
+
+/* ========================================================================== */
+/* MOBILE & LANDSCAPE HP UI SCALING & ERGONOMICS                             */
+/* ========================================================================== */
+@media (max-width: 768px),
+(max-height: 500px) {
   .hud-player-status {
     transform: scale(0.75);
     transform-origin: top left;
   }
 
-  /* Skala MiniMap di pojok kanan atas turun 25% */
   .hud-minimap-cluster {
     transform: scale(0.75);
     transform-origin: top right;
   }
 
-  /* Hotbar desktop disembunyikan saat mode sentuh agar layar bersih */
   .hud-desktop-hotbar {
     display: none !important;
   }
 
-  /* D-Pad / Analog: tepat di pojok kiri bawah (bottom: 15px; left: 15px) */
   .virtual-joystick-root {
     bottom: 15px !important;
     left: 15px !important;
@@ -149,7 +157,6 @@ canvas {
     transform-origin: bottom left;
   }
 
-  /* Kluster tombol aksi mobile di pojok kanan bawah (bottom: 15px; right: 15px) */
   .hud-action-cluster {
     bottom: 15px !important;
     right: 15px !important;
@@ -157,19 +164,16 @@ canvas {
     transform-origin: bottom right;
   }
 
-  /* Menu navigasi mobile sejajar rapat di bawah (bottom: 15px) */
   .hud-mobile-nav-bar {
     bottom: 15px !important;
   }
 
-  /* Quest tracker ringkas di sisi kiri */
   .hud-quest-tracker {
     transform: scale(0.72);
     transform-origin: top left;
     max-width: 180px;
   }
 
-  /* Penyesuaian modal di layar HP landscape: max-height 80vh dan smooth touch scroll */
   .game-modal-card {
     max-height: 80vh !important;
     overflow-y: auto !important;
@@ -179,7 +183,7 @@ canvas {
 }
 
 /* ========================================================================== */
-/* ORIENTATION PORTRAIT OVERLAY RULE                                          */
+/* ORIENTATION PORTRAIT OVERLAY RULE                                         */
 /* ========================================================================== */
 @media (orientation: portrait) and (max-width: 1024px) {
   .portrait-orientation-warning {
