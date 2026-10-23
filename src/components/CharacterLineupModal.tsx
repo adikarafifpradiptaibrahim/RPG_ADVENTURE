@@ -332,7 +332,7 @@ export const CharacterLineupModal: React.FC<CharacterLineupModalProps> = ({
     if (showcaseRef.current) {
       showcaseRef.current.triggerAllAttacks();
     }
-    soundManager.playSwordSlash();
+    soundManager.playSlash();
   };
 
   // Handle Assassin Weapon Switch
@@ -341,7 +341,7 @@ export const CharacterLineupModal: React.FC<CharacterLineupModalProps> = ({
     if (showcaseRef.current) {
       showcaseRef.current.switchAssassinWeapon(mode);
     }
-    soundManager.playEquip();
+    soundManager.playChestOpen();
   };
 
   if (!isOpen) return null;

@@ -117,8 +117,8 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/90 backdrop-blur-md animate-fade-in font-sans overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-gradient-to-b from-stone-900 to-stone-950 border-2 border-amber-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col text-stone-100 my-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-stone-950/90 backdrop-blur-md animate-fade-in font-sans">
+      <div className="game-modal-card relative w-full max-w-2xl max-h-[85vh] overflow-y-auto modal-scroll-area bg-gradient-to-b from-stone-900 to-stone-950 border-2 border-amber-500/40 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-2xl flex flex-col text-stone-100 my-auto">
         
         {/* Banner Header */}
         <div className="text-center mb-6">

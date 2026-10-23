@@ -40,7 +40,7 @@ export const MultiplayerChat: React.FC<MultiplayerChatProps> = ({
   };
 
   return (
-    <div className="fixed bottom-24 left-4 z-40 w-80 sm:w-96 bg-stone-950/95 border-2 border-amber-500/50 rounded-2xl shadow-2xl backdrop-blur-md flex flex-col overflow-hidden animate-fade-in font-sans">
+    <div className="fixed bottom-28 left-2 sm:left-4 z-40 w-[calc(100vw-1rem)] sm:w-96 max-w-sm max-h-[55vh] bg-stone-950/95 border-2 border-amber-500/50 rounded-2xl shadow-2xl backdrop-blur-md flex flex-col overflow-hidden animate-fade-in font-sans">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-amber-950/60 to-stone-900 border-b border-amber-500/30">
         <div className="flex items-center gap-2">
@@ -53,14 +53,15 @@ export const MultiplayerChat: React.FC<MultiplayerChatProps> = ({
         </div>
         <button
           onClick={onClose}
-          className="p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition"
+          className="flex items-center gap-1 p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition"
+          title="Tutup Chat"
         >
           <X className="w-4 h-4" />
         </button>
       </div>
 
       {/* Message List */}
-      <div className="flex-1 h-56 overflow-y-auto p-3 space-y-2 text-xs scrollbar-thin scrollbar-thumb-amber-500/30">
+      <div className="flex-1 max-h-48 overflow-y-auto modal-scroll-area p-3 space-y-2 text-xs">
         {messages.length === 0 ? (
           <div className="text-stone-500 text-center py-6 italic">
             Belum ada pesan di room {roomName}. Mulai percakapan dengan petualang lain!

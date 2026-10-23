@@ -122,10 +122,10 @@ export const ShopModal: React.FC<ShopModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/75 backdrop-blur-sm font-sans pointer-events-auto">
-      <div className="relative w-full max-w-4xl max-h-[92vh] bg-stone-950 border-2 border-amber-500/50 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-stone-100 animate-fade-in">
+      <div className="game-modal-card relative w-full max-w-4xl max-h-[85vh] bg-stone-950 border-2 border-amber-500/50 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-stone-100 animate-fade-in">
         
         {/* Top Header: Shop & NPC identity + Gold */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4 md:p-5 bg-stone-900/90 border-b border-stone-800">
+        <div className="sticky top-0 z-10 shrink-0 flex flex-wrap items-center justify-between gap-3 p-4 md:p-5 bg-stone-900/90 border-b border-stone-800">
           <div className="flex items-center gap-3.5">
             <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-amber-600/30 to-amber-950/80 border border-amber-500/60 flex items-center justify-center text-3xl shadow-inner shrink-0">
               {currentShop.avatarIcon}
@@ -274,7 +274,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
         </div>
 
         {/* Tab Content Container */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-3 scrollbar-thin scrollbar-thumb-stone-800">
+        <div className="flex-1 overflow-y-auto modal-scroll-area p-4 md:p-5 space-y-3">
           
           {/* ==================================================== */}
           {/* TAB 1: BELI (BUY ITEMS) */}

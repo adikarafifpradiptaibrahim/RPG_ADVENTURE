@@ -11,10 +11,35 @@
   }
 }
 
+@keyframes rotatePhone {
+  0% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-90deg);
+  }
+  80% {
+    transform: rotate(-90deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+.animate-rotate-phone {
+  animation: rotatePhone 2.6s ease-in-out infinite;
+}
+
+/* ========================================================================== */
+/* GLOBAL RESET FOR MOBILE TOUCH & GAMEPLAY                                   */
+/* ========================================================================== */
 html,
 body,
 #root {
@@ -27,10 +52,116 @@ body,
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
   background-color: #0c0a09;
+  position: fixed;
+  inset: 0;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 canvas {
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   display: block;
+}
+
+/* ========================================================================== */
+/* TOUCH CONTROL SYSTEM (ANALOG JOYSTICK & D-PAD)                             */
+/* ========================================================================== */
+.touch-control-layer {
+  touch-action: none !important;
+  pointer-events: auto !important;
+  z-index: 9999 !important;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Smooth custom touch scrollbar for modals */
+.modal-scroll-area {
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.modal-scroll-area::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.modal-scroll-area::-webkit-scrollbar-track {
+  background: rgba(12, 10, 9, 0.5);
+  border-radius: 4px;
+}
+
+.modal-scroll-area::-webkit-scrollbar-thumb {
+  background: rgba(217, 119, 6, 0.45);
+  border-radius: 4px;
+}
+
+.modal-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 158, 11, 0.75);
+}
+
+/* ========================================================================== */
+/* MOBILE & LANDSCAPE HP UI SCALING                                           */
+/* Media Query: Layar HP (< 768px width) atau Landscape HP (< 500px height)    */
+/* Memperkecil elemen HUD 20-30% agar luas pandang dunia 3D tetap lapang       */
+/* ========================================================================== */
+@media (max-width: 768px), (max-height: 500px) {
+  /* Skala status bar player (HP, MP, Level, Avatar) turun ~22-25% */
+  .hud-player-status {
+    transform: scale(0.78);
+    transform-origin: top left;
+  }
+
+  /* Skala MiniMap di pojok kanan atas turun ~24% */
+  .hud-minimap-cluster {
+    transform: scale(0.76);
+    transform-origin: top right;
+  }
+
+  /* Hotbar desktop disembunyikan saat mode sentuh agar layar bersih */
+  .hud-desktop-hotbar {
+    display: none !important;
+  }
+
+  /* Kluster tombol aksi mobile di pojok kanan bawah */
+  .hud-action-cluster {
+    transform: scale(0.85);
+    transform-origin: bottom right;
+  }
+
+  /* Kontrol Joystick / D-Pad di pojok kiri bawah */
+  .virtual-joystick-root {
+    transform: scale(0.88);
+    transform-origin: bottom left;
+  }
+
+  /* Quest tracker ringkas di sisi kiri */
+  .hud-quest-tracker {
+    transform: scale(0.78);
+    transform-origin: top left;
+    max-width: 200px;
+  }
+
+  /* Penyesuaian modal di layar HP landscape */
+  .game-modal-card {
+    max-height: 85vh !important;
+    padding: 0.75rem !important;
+  }
+}
+
+/* ========================================================================== */
+/* ORIENTATION PORTRAIT OVERLAY RULE                                          */
+/* ========================================================================== */
+@media (orientation: portrait) and (max-width: 1024px) {
+  .portrait-orientation-warning {
+    display: flex !important;
+  }
 }

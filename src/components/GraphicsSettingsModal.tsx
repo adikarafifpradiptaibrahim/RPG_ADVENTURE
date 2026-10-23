@@ -52,41 +52,41 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Pengaturan Grafis"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200"
     >
-      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border-2 border-cyan-500/40 bg-gradient-to-b from-stone-900 via-stone-950 to-black p-6 shadow-2xl shadow-cyan-950/40 text-stone-200">
-        {/* Ambient Glow */}
-        <div className="pointer-events-none absolute -top-24 left-1/2 h-44 w-72 -translate-x-1/2 rounded-full bg-cyan-500/15 blur-3xl" />
-
+      <div className="game-modal-card relative w-[90vw] max-w-lg max-h-[85vh] flex flex-col overflow-hidden rounded-2xl border-2 border-cyan-500/40 bg-gradient-to-b from-stone-900 via-stone-950 to-black shadow-2xl shadow-cyan-950/40 text-stone-200">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-stone-800">
+        <div className="sticky top-0 z-10 shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-stone-800 bg-stone-950/95">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-cyan-950/60 border border-cyan-500/30 text-cyan-400">
               <Monitor className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-amber-100 font-serif">
-                Pengaturan Grafis & Performa
+              <h2 className="text-base sm:text-lg font-black text-amber-100 font-serif">
+                Pengaturan Grafis
               </h2>
-              <p className="text-xs text-stone-400">
-                Optimasi FPS, resolusi, dan minimalisir latensi untuk semua jenis PC
+              <p className="text-[11px] text-stone-400">
+                Optimasi FPS & resolusi untuk HP dan PC
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition"
+            className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition cursor-pointer active:scale-95"
+            title="Tutup (Esc)"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Quick Presets */}
-        <div className="mt-4">
-          <label className="text-xs font-bold uppercase tracking-wider text-stone-400 flex items-center gap-1.5 mb-2">
-            <Zap className="w-3.5 h-3.5 text-amber-400" />
-            Pilihan Profil Cepat (Presets)
-          </label>
+        {/* Scrollable Content Body */}
+        <div className="flex-1 overflow-y-auto modal-scroll-area p-4 sm:p-6 space-y-4">
+          {/* Quick Presets */}
+          <div>
+            <label className="text-xs font-bold uppercase tracking-wider text-stone-400 flex items-center gap-1.5 mb-2">
+              <Zap className="w-3.5 h-3.5 text-amber-400" />
+              Pilihan Profil Cepat (Presets)
+            </label>
           <div className="grid grid-cols-3 gap-2">
             {/* Low / Potato */}
             <button
@@ -321,18 +321,19 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
             </div>
           </div>
         </div>
+        </div>
 
-        {/* Footer Actions */}
-        <div className="mt-5 flex items-center justify-end gap-2.5">
+        {/* Footer Actions (Sticky) */}
+        <div className="sticky bottom-0 z-10 shrink-0 flex items-center justify-end gap-2.5 px-4 sm:px-6 py-3 border-t border-stone-800 bg-stone-950/95">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl border border-stone-700 bg-stone-800 hover:bg-stone-700 text-xs font-semibold text-stone-300 transition"
+            className="px-4 py-2 rounded-xl border border-stone-700 bg-stone-800 hover:bg-stone-700 text-xs font-semibold text-stone-300 transition cursor-pointer"
           >
             Batal
           </button>
           <button
             onClick={handleSave}
-            className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-xs font-bold text-white shadow-lg shadow-cyan-900/40 transition active:scale-95 flex items-center gap-1.5"
+            className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-xs font-bold text-white shadow-lg shadow-cyan-900/40 transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
           >
             <Check className="w-4 h-4" />
             <span>Terapkan Pengaturan</span>

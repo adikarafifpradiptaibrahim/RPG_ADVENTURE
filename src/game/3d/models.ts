@@ -3666,4 +3666,158 @@ export function createImperialHeroStatueMesh(): THREE.Group {
   return statue;
 }
 
+// 24. Imperial Grand Throne of Aurelius
+export function createImperialThroneMesh(): THREE.Group {
+  const throne = new THREE.Group();
+
+  const goldMat = new THREE.MeshStandardMaterial({
+    color: 0xffd700,
+    metalness: 0.85,
+    roughness: 0.2,
+    emissive: 0x92400e,
+    emissiveIntensity: 0.15,
+  });
+  const velvetMat = new THREE.MeshStandardMaterial({
+    color: 0x881337,
+    roughness: 0.7,
+    metalness: 0.1,
+  });
+  const rubyMat = new THREE.MeshStandardMaterial({
+    color: 0xe11d48,
+    roughness: 0.1,
+    metalness: 0.9,
+    emissive: 0xbe123c,
+    emissiveIntensity: 0.4,
+  });
+
+  // Base platform & legs
+  const base = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.4, 1.8), goldMat);
+  base.position.set(0, 0.2, 0);
+  base.castShadow = true;
+  throne.add(base);
+
+  // Seat cushion
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.35, 1.4), velvetMat);
+  seat.position.set(0, 0.55, 0.1);
+  throne.add(seat);
+
+  // Backrest (high arch)
+  const back = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.6, 0.25), velvetMat);
+  back.position.set(0, 1.8, -0.6);
+  throne.add(back);
+
+  // Gold back frame & crest
+  const backFrameL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.8, 0.3), goldMat);
+  backFrameL.position.set(-0.85, 1.8, -0.6);
+  const backFrameR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.8, 0.3), goldMat);
+  backFrameR.position.set(0.85, 1.8, -0.6);
+  const crest = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.6, 4), goldMat);
+  crest.position.set(0, 3.4, -0.6);
+  crest.rotation.y = Math.PI / 4;
+  throne.add(backFrameL, backFrameR, crest);
+
+  // Armrests
+  [-0.9, 0.9].forEach((x) => {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.7, 1.4), goldMat);
+    arm.position.set(x, 0.8, 0.1);
+    const gem = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), rubyMat);
+    gem.position.set(x, 1.18, 0.7);
+    throne.add(arm, gem);
+  });
+
+  return throne;
+}
+
+// 25. Imperial Knight Honor Guard Statue
+export function createImperialKnightStatueMesh(): THREE.Group {
+  return createImperialHeroStatueMesh();
+}
+
+// 26. Imperial State Banquet Table
+export function createImperialBanquetTableMesh(): THREE.Group {
+  const table = new THREE.Group();
+
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.5 });
+  const clothMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.6 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.8, roughness: 0.2 });
+
+  // Tabletop (long table)
+  const top = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.15, 7.5), woodMat);
+  top.position.set(0, 0.85, 0);
+  top.castShadow = true;
+  table.add(top);
+
+  // Tablecloth runner
+  const cloth = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.16, 7.6), clothMat);
+  cloth.position.set(0, 0.86, 0);
+  table.add(cloth);
+
+  // Table legs
+  [-0.9, 0.9].forEach((x) => {
+    [-3.2, 3.2].forEach((z) => {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.85, 8), woodMat);
+      leg.position.set(x, 0.425, z);
+      leg.castShadow = true;
+      table.add(leg);
+    });
+  });
+
+  // Tableware (plates & chalices)
+  for (let z = -2.8; z <= 2.8; z += 1.4) {
+    [-0.55, 0.55].forEach((x) => {
+      const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.18, 0.03, 12), goldMat);
+      plate.position.set(x, 0.95, z);
+      const chalice = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.04, 0.16, 8), goldMat);
+      chalice.position.set(x + (x > 0 ? 0.2 : -0.2), 1.02, z + 0.15);
+      table.add(plate, chalice);
+    });
+  }
+
+  return table;
+}
+
+// 27. Imperial War Strategy & Council Table
+export function createImperialWarTableMesh(): THREE.Group {
+  const table = new THREE.Group();
+
+  const darkWoodMat = new THREE.MeshStandardMaterial({ color: 0x292524, roughness: 0.6 });
+  const mapMat = new THREE.MeshStandardMaterial({ color: 0x78716c, roughness: 0.8 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.7, roughness: 0.3 });
+  const markerRed = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.4 });
+  const markerBlue = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.4 });
+
+  // Massive Round Council Table
+  const tabletop = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.5, 0.2, 24), darkWoodMat);
+  tabletop.position.set(0, 0.85, 0);
+  tabletop.castShadow = true;
+  table.add(tabletop);
+
+  // Pedestal
+  const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.2, 0.85, 12), darkWoodMat);
+  pedestal.position.set(0, 0.425, 0);
+  table.add(pedestal);
+
+  // Eldoria 3D Relief Map Surface
+  const mapSurface = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.22, 24), mapMat);
+  mapSurface.position.set(0, 0.86, 0);
+  table.add(mapSurface);
+
+  // Miniatures & strategic markers
+  const markers = [
+    { x: -0.6, z: 0.4, mat: markerBlue },
+    { x: -0.4, z: -0.8, mat: markerBlue },
+    { x: 0.5, z: -0.5, mat: markerRed },
+    { x: 0.8, z: 0.6, mat: markerRed },
+    { x: 0.0, z: 0.9, mat: goldMat },
+  ];
+
+  markers.forEach((m) => {
+    const pin = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.35, 6), m.mat);
+    pin.position.set(m.x, 1.15, m.z);
+    table.add(pin);
+  });
+
+  return table;
+}
+
 

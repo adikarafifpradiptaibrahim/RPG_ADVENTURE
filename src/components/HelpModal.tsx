@@ -10,34 +10,38 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in font-sans">
-      <div className="relative w-full max-w-lg bg-stone-950/95 border border-stone-800 rounded-3xl p-6 shadow-2xl flex flex-col max-h-[85vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-stone-800 pb-4 mb-4">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">📖</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in font-sans">
+      <div className="game-modal-card relative w-full max-w-lg max-h-[85vh] bg-stone-950/95 border-2 border-stone-800/80 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+        {/* Sticky Header */}
+        <div className="sticky top-0 z-10 shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-stone-800 bg-stone-950/95">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <span className="text-xl sm:text-2xl">📖</span>
             <div>
-              <h2 className="text-xl font-black text-stone-100 tracking-wide">
+              <h2 className="text-base sm:text-xl font-black text-stone-100 tracking-wide">
                 Panduan Kontrol & Petualangan
               </h2>
-              <p className="text-xs text-stone-400">
+              <p className="text-[10px] sm:text-xs text-stone-400 hidden sm:block">
                 Cara bermain RPG 3D Eldoria
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-400 hover:text-white border border-stone-700 transition cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1 sm:p-2 rounded-xl bg-stone-900 hover:bg-red-950/80 text-stone-300 hover:text-red-300 border border-stone-700 hover:border-red-500/50 text-xs font-bold transition cursor-pointer active:scale-95"
+            title="Tutup Panduan (H / Esc)"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="sm:hidden">Exit</span>
           </button>
         </div>
 
-        {/* Control Keys Table */}
-        <div className="space-y-3 mb-5">
-          <div className="text-xs font-bold text-stone-400 uppercase tracking-wider">
-            Kontrol Keyboard & Mouse
-          </div>
+        {/* Scrollable Content Body */}
+        <div className="flex-1 overflow-y-auto modal-scroll-area p-4 sm:p-6 space-y-4">
+          {/* Control Keys Table */}
+          <div className="space-y-3 mb-2">
+            <div className="text-xs font-bold text-stone-400 uppercase tracking-wider">
+              Kontrol Keyboard & Mouse
+            </div>
 
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="flex items-center justify-between p-2.5 rounded-xl bg-stone-900/60 border border-stone-800">
@@ -165,6 +169,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           <p>
             5. <strong>Kawah Vulkanik Obsidian</strong>: Di utara terletak arena magma berbahaya tempat bersemayamnya Boss Obsidian Titan!
           </p>
+          </div>
         </div>
       </div>
     </div>

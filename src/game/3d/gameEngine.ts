@@ -255,6 +255,9 @@ export class GameEngine {
     this.renderer.setPixelRatio(this.graphicsSettings.renderScale * Math.min(dpr, 1.5));
     this.renderer.shadowMap.enabled = this.graphicsSettings.shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.domElement.style.touchAction = 'none';
+    this.renderer.domElement.style.userSelect = 'none';
+    (this.renderer.domElement.style as any).webkitUserSelect = 'none';
     container.appendChild(this.renderer.domElement);
 
     // 3. Build 3D World
@@ -1371,14 +1374,15 @@ export class GameEngine {
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
 
     const dom = this.renderer.domElement;
+    dom.style.touchAction = 'none';
     dom.addEventListener('mousedown', this.handleMouseDown);
     window.addEventListener('mousemove', this.handleMouseMove);
     window.addEventListener('mouseup', this.handleMouseUp);
     dom.addEventListener('wheel', this.handleWheel, { passive: false });
 
-    // Touch support for camera swipe & pinch zoom
-    dom.addEventListener('touchstart', this.handleTouchStart, { passive: true });
-    window.addEventListener('touchmove', this.handleTouchMove, { passive: true });
+    // Touch support for camera swipe & pinch zoom with non-passive preventDefault on mobile
+    dom.addEventListener('touchstart', this.handleTouchStart, { passive: false });
+    window.addEventListener('touchmove', this.handleTouchMove, { passive: false });
     window.addEventListener('touchend', this.handleTouchEnd, { passive: true });
     window.addEventListener('touchcancel', this.handleTouchEnd, { passive: true });
   }
@@ -1565,22 +1569,53 @@ export class GameEngine {
   private initialPinchDist = 0;
   private initialPinchCamDist = 7;
 
+  private getCanvasCameraTouches(touches: TouchList): Touch[] {
+    const valid: Touch[] = [];
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    for (let i = 0; i < touches.length; i++) {
+      const t = touches[i];
+      // 1. Abaikan zona Joystick di pojok kiri bawah (~220px x 230px)
+      const inJoystickZone = t.clientX < 220 && t.clientY > h - 230;
+      // 2. Abaikan zona Action Cluster di pojok kanan bawah (~220px x 230px)
+      const inActionZone = t.clientX > w - 220 && t.clientY > h - 230;
+      // 3. Abaikan bar atas HUD (~70px)
+      const inTopHud = t.clientY < 70;
+
+      if (!inJoystickZone && !inActionZone && !inTopHud) {
+        valid.push(t);
+      }
+    }
+    return valid;
+  }
+
   private handleTouchStart = (e: TouchEvent) => {
-    // If 2 touches are active on screen, handle pinch zoom
-    if (e.touches.length === 2) {
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
+    const camTouches = this.getCanvasCameraTouches(e.touches);
+    if (camTouches.length > 0 && e.cancelable) {
+      e.preventDefault();
+    }
+
+    // If 2 touches are active on camera area, handle pinch zoom
+    if (camTouches.length === 2) {
+      const t1 = camTouches[0];
+      const t2 = camTouches[1];
       this.initialPinchDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
       this.initialPinchCamDist = this.cameraDistance;
       return;
     }
 
-    // Capture touch for camera rotation: find touch on right half or top half (away from joystick on bottom-left)
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    // Capture touch for camera rotation: exclude joystick, action buttons, and top HUD
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
-      const isRightHalf = touch.clientX > window.innerWidth * 0.35;
-      const isTopArea = touch.clientY < window.innerHeight * 0.6;
-      if ((isRightHalf || isTopArea) && this.cameraTouchId === null) {
+      const inJoystickZone = touch.clientX < 220 && touch.clientY > h - 230;
+      const inActionZone = touch.clientX > w - 220 && touch.clientY > h - 230;
+      const inTopHud = touch.clientY < 70;
+
+      if (!inJoystickZone && !inActionZone && !inTopHud && this.cameraTouchId === null) {
         this.cameraTouchId = touch.identifier;
         this.isTouchingCamera = true;
         this.touchStartX = touch.clientX;
@@ -1591,10 +1626,15 @@ export class GameEngine {
   };
 
   private handleTouchMove = (e: TouchEvent) => {
+    const camTouches = this.getCanvasCameraTouches(e.touches);
+    if ((this.isTouchingCamera || camTouches.length === 2) && e.cancelable) {
+      e.preventDefault();
+    }
+
     // Pinch-to-zoom handler
-    if (e.touches.length === 2 && this.initialPinchDist > 10) {
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
+    if (camTouches.length === 2 && this.initialPinchDist > 10) {
+      const t1 = camTouches[0];
+      const t2 = camTouches[1];
       const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
       const pinchDelta = (this.initialPinchDist - currentDist) * 0.015;
       this.cameraDistance = Math.max(3.5, Math.min(14, this.initialPinchCamDist + pinchDelta));
@@ -1611,8 +1651,8 @@ export class GameEngine {
         this.touchStartX = touch.clientX;
         this.touchStartY = touch.clientY;
 
-        this.cameraAngleH -= deltaX * 0.007;
-        this.cameraAngleV += deltaY * 0.005;
+        this.cameraAngleH -= deltaX * 0.0055;
+        this.cameraAngleV += deltaY * 0.004;
         this.cameraAngleV = Math.max(0.08, Math.min(Math.PI / 2.15, this.cameraAngleV));
         break;
       }

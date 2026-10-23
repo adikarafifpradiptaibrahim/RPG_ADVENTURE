@@ -200,7 +200,7 @@ export const HUD: React.FC<HUDProps> = ({
       </div>
 
       {/* Top Left: Player Status Orb & Bars */}
-      <div className="pointer-events-auto absolute top-4 left-4 flex flex-col gap-2 max-w-xs md:max-w-sm">
+      <div className="hud-player-status pointer-events-auto absolute top-4 left-4 flex flex-col gap-2 max-w-xs md:max-w-sm">
         <div className="flex items-center gap-3 bg-stone-900/80 backdrop-blur-md p-3 rounded-2xl border border-stone-700/60 shadow-xl">
           {/* Avatar / Class Icon */}
           <div className="relative flex-shrink-0">
@@ -267,7 +267,7 @@ export const HUD: React.FC<HUDProps> = ({
       </div>
 
       {/* Top Right: MiniMap / Compass / Quest Tracker / Audio Controls */}
-      <div className="pointer-events-auto absolute top-4 right-4 flex flex-col items-end gap-2.5 max-w-xs">
+      <div className="hud-minimap-cluster pointer-events-auto absolute top-4 right-4 flex flex-col items-end gap-2.5 max-w-xs">
         {/* Audio & Settings Buttons */}
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
           {/* Game Mode Badge */}
@@ -417,7 +417,7 @@ export const HUD: React.FC<HUDProps> = ({
         {activeQuest && (
           <div
             onClick={onOpenQuests}
-            className="bg-stone-900/85 backdrop-blur-md p-3.5 rounded-2xl border border-stone-700/80 shadow-xl cursor-pointer hover:border-amber-500/50 transition-all text-left w-64 md:w-72"
+            className="hud-quest-tracker bg-stone-900/85 backdrop-blur-md p-3.5 rounded-2xl border border-stone-700/80 shadow-xl cursor-pointer hover:border-amber-500/50 transition-all text-left w-64 md:w-72"
           >
             <div className="flex items-center justify-between gap-2 mb-1.5">
               <span className="text-[11px] uppercase tracking-wider font-bold text-amber-400 flex items-center gap-1">
@@ -479,9 +479,18 @@ export const HUD: React.FC<HUDProps> = ({
 
       {/* Center Interactive Prompt (NPC / Chest) */}
       {nearbyPrompt && (
-        <div className="pointer-events-auto absolute bottom-28 md:bottom-24 left-1/2 -translate-x-1/2 flex items-center justify-center z-30">
+        <div
+          style={{ touchAction: 'none', pointerEvents: 'auto', zIndex: 9999 }}
+          className="pointer-events-auto fixed bottom-28 md:bottom-24 left-1/2 -translate-x-1/2 flex items-center justify-center z-[9999]"
+        >
           <button
+            onTouchStart={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onPromptClick?.();
+            }}
             onClick={onPromptClick}
+            style={{ touchAction: 'none' }}
             className="flex items-center gap-2 bg-gradient-to-r from-amber-600 to-yellow-600 text-stone-950 font-extrabold px-5 py-2.5 rounded-full shadow-2xl border-2 border-amber-300 cursor-pointer animate-pulse hover:scale-105 transition-transform"
           >
             <Sparkles className="w-4 h-4 text-stone-900" />
@@ -491,9 +500,18 @@ export const HUD: React.FC<HUDProps> = ({
       )}
 
       {/* Mobile Compact Menu Strip (Tas, Toko, Status, Misi, Peta) */}
-      <div className="pointer-events-auto absolute bottom-20 right-2 sm:right-4 md:hidden flex items-center gap-1 bg-stone-950/85 backdrop-blur-md p-1 rounded-xl border border-stone-800/80 shadow-xl z-20">
+      <div
+        style={{ touchAction: 'none' }}
+        className="pointer-events-auto absolute bottom-20 right-2 sm:right-4 md:hidden flex items-center gap-1 bg-stone-950/85 backdrop-blur-md p-1 rounded-xl border border-stone-800/80 shadow-xl z-20"
+      >
         <button
+          onTouchStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onOpenInventory();
+          }}
           onClick={onOpenInventory}
+          style={{ touchAction: 'none' }}
           className="flex flex-col items-center justify-center w-8 h-8 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-lg border border-stone-700 active:scale-95 transition"
           title="Tas (I)"
         >
@@ -502,7 +520,13 @@ export const HUD: React.FC<HUDProps> = ({
 
         {onOpenShop && (
           <button
+            onTouchStart={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onOpenShop();
+            }}
             onClick={onOpenShop}
+            style={{ touchAction: 'none' }}
             className="flex flex-col items-center justify-center w-8 h-8 bg-stone-900/80 hover:bg-stone-800 text-amber-300 rounded-lg border border-amber-500/60 active:scale-95 transition"
             title="Toko (B)"
           >
@@ -511,7 +535,13 @@ export const HUD: React.FC<HUDProps> = ({
         )}
 
         <button
+          onTouchStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onOpenStats();
+          }}
           onClick={onOpenStats}
+          style={{ touchAction: 'none' }}
           className="relative flex flex-col items-center justify-center w-8 h-8 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-lg border border-stone-700 active:scale-95 transition"
           title="Status (C)"
         >
@@ -522,7 +552,13 @@ export const HUD: React.FC<HUDProps> = ({
         </button>
 
         <button
+          onTouchStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onOpenQuests();
+          }}
           onClick={onOpenQuests}
+          style={{ touchAction: 'none' }}
           className="flex flex-col items-center justify-center w-8 h-8 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-lg border border-stone-700 active:scale-95 transition"
           title="Misi (L)"
         >
@@ -530,7 +566,13 @@ export const HUD: React.FC<HUDProps> = ({
         </button>
 
         <button
+          onTouchStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onOpenMap();
+          }}
           onClick={onOpenMap}
+          style={{ touchAction: 'none' }}
           className="flex flex-col items-center justify-center w-8 h-8 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-lg border border-stone-700 active:scale-95 transition"
           title="Peta (M)"
         >
@@ -538,12 +580,22 @@ export const HUD: React.FC<HUDProps> = ({
         </button>
       </div>
 
-      {/* Combat Action Bar: Centered on desktop, right-docked on mobile */}
-      <div className="pointer-events-auto absolute bottom-4 right-2 sm:right-4 md:right-auto md:bottom-5 md:left-1/2 md:-translate-x-1/2 flex items-center gap-1 sm:gap-1.5 md:gap-2.5 bg-stone-950/90 backdrop-blur-md p-1.5 md:p-2.5 rounded-2xl border border-stone-800/80 shadow-2xl z-20">
+      {/* Combat Action Bar: Ergonomic in bottom-right corner for Mobile, centered on desktop */}
+      <div
+        style={{ touchAction: 'none', pointerEvents: 'auto', zIndex: 9999 }}
+        className="hud-action-cluster touch-control-layer pointer-events-auto fixed md:absolute bottom-4 right-2 sm:right-4 md:right-auto md:bottom-5 md:left-1/2 md:-translate-x-1/2 flex items-center gap-1 sm:gap-1.5 md:gap-2.5 bg-stone-950/90 backdrop-blur-md p-1.5 md:p-2.5 rounded-2xl border border-stone-800/80 shadow-2xl z-[9999]"
+      >
         {/* Hunter Weapon Switcher (Belati <-> Busur) */}
         {stats.characterClass === 'rogue' && onSwitchHunterWeapon && (
           <button
+            type="button"
+            onTouchStart={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onSwitchHunterWeapon();
+            }}
             onClick={onSwitchHunterWeapon}
+            style={{ touchAction: 'none' }}
             className="group relative flex flex-col items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-gradient-to-b from-emerald-950 to-stone-950 hover:from-emerald-900 hover:to-stone-900 text-emerald-300 rounded-xl border border-emerald-500/80 shadow cursor-pointer active:scale-95 transition-all"
             title={`Ganti Senjata: ${hunterWeaponMode === 'bow' ? 'Belati' : 'Busur'} (X)`}
           >
@@ -557,9 +609,16 @@ export const HUD: React.FC<HUDProps> = ({
           </button>
         )}
 
-        {/* Basic Attack (Larger button) */}
+        {/* Basic Attack (Larger button for primary thumb action) */}
         <button
+          type="button"
+          onTouchStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onPerformAttack();
+          }}
           onClick={onPerformAttack}
+          style={{ touchAction: 'none' }}
           className="group relative flex flex-col items-center justify-center w-12 h-12 sm:w-13 sm:h-13 md:w-14 md:h-14 bg-gradient-to-b from-amber-600/80 via-stone-800 to-stone-900 hover:from-amber-500 hover:to-stone-800 text-stone-100 rounded-xl border-2 border-amber-400/70 shadow-lg cursor-pointer active:scale-90 transition-all"
           title={`${classSkills.basic.label} (Klik Kiri / J)`}
         >
@@ -572,7 +631,14 @@ export const HUD: React.FC<HUDProps> = ({
 
         {/* Skill 1 */}
         <button
+          type="button"
+          onTouchStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onCastSkill(1);
+          }}
           onClick={() => onCastSkill(1)}
+          style={{ touchAction: 'none' }}
           className={`group relative flex flex-col items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 rounded-xl border shadow cursor-pointer active:scale-90 transition-all ${classSkills.skill1.color}`}
           title={`${classSkills.skill1.name} (Q)`}
         >
@@ -588,7 +654,14 @@ export const HUD: React.FC<HUDProps> = ({
 
         {/* Skill 2 */}
         <button
+          type="button"
+          onTouchStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onCastSkill(2);
+          }}
           onClick={() => onCastSkill(2)}
+          style={{ touchAction: 'none' }}
           className={`group relative flex flex-col items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 rounded-xl border shadow cursor-pointer active:scale-90 transition-all ${classSkills.skill2.color}`}
           title={`${classSkills.skill2.name} (E)`}
         >
@@ -604,7 +677,14 @@ export const HUD: React.FC<HUDProps> = ({
 
         {/* Skill 3 */}
         <button
+          type="button"
+          onTouchStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onCastSkill(3);
+          }}
           onClick={() => onCastSkill(3)}
+          style={{ touchAction: 'none' }}
           className={`group relative flex flex-col items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 rounded-xl border shadow cursor-pointer active:scale-90 transition-all ${classSkills.skill3.color}`}
           title={`${classSkills.skill3.name} (R)`}
         >
@@ -620,7 +700,14 @@ export const HUD: React.FC<HUDProps> = ({
 
         {/* Jump / Dodge */}
         <button
+          type="button"
+          onTouchStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onJump();
+          }}
           onClick={onJump}
+          style={{ touchAction: 'none' }}
           className="group relative flex flex-col items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-gradient-to-b from-stone-800 to-stone-900 hover:from-stone-700 text-stone-200 rounded-xl border border-stone-600 shadow cursor-pointer active:scale-90 transition-all"
           title="Lompat / Menghindar (Spasi)"
         >
@@ -633,7 +720,7 @@ export const HUD: React.FC<HUDProps> = ({
       </div>
 
       {/* Desktop Bottom Right: Full Menu Navigation Buttons */}
-      <div className="pointer-events-auto absolute bottom-5 right-4 hidden md:flex items-center gap-2">
+      <div className="hud-desktop-hotbar pointer-events-auto absolute bottom-5 right-4 hidden md:flex items-center gap-2">
         <button
           onClick={onOpenInventory}
           className="flex flex-col items-center justify-center w-11 h-11 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 shadow cursor-pointer transition-all active:scale-95"

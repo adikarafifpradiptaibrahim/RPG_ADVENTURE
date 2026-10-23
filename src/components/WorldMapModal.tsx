@@ -51,48 +51,51 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
   const playerCoord = worldToPercent(playerPos.x, playerPos.z);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md animate-fade-in select-none">
-      <div className="relative w-full max-w-5xl h-[90vh] max-h-[720px] bg-stone-900/95 border-2 border-amber-600/60 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-stone-200">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-stone-800 bg-stone-950/80">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
-              <Compass className="w-6 h-6 animate-pulse" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/80 backdrop-blur-md animate-fade-in select-none">
+      <div className="game-modal-card relative w-full max-w-5xl max-h-[85vh] h-[85vh] bg-stone-900/95 border-2 border-amber-600/60 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-stone-200">
+        {/* Sticky Modal Header with prominent X */}
+        <div className="sticky top-0 z-20 shrink-0 flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 border-b border-stone-800 bg-stone-950/95">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+              <Compass className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
             </div>
             <div>
-              <h2 className="text-xl font-bold tracking-wide text-amber-300 flex items-center gap-2">
+              <h2 className="text-sm sm:text-lg md:text-xl font-bold tracking-wide text-amber-300 flex items-center gap-1.5 sm:gap-2">
                 Peta Benua Eldoria
-                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-950 border border-amber-700/60 text-amber-400 font-normal">
+                <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-amber-950 border border-amber-700/60 text-amber-400 font-normal">
                   Open World 3D
                 </span>
               </h2>
-              <p className="text-xs text-stone-400">
+              <p className="text-[10px] sm:text-xs text-stone-400 hidden sm:block">
                 Jelajahi berbagai wilayah: Pedesaan, Pantai & Laut, Reruntuhan Kuno, Hutan Mistis, dan Kawah Titan.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => setShowLegend(!showLegend)}
-              className="px-3 py-1.5 rounded-lg border border-stone-700 bg-stone-800/80 hover:bg-stone-700 text-xs font-semibold text-stone-300 flex items-center gap-1.5 transition-all"
+              className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-stone-700 bg-stone-800/80 hover:bg-stone-700 text-[11px] sm:text-xs font-semibold text-stone-300 flex items-center gap-1.5 transition-all"
             >
               <Layers className="w-3.5 h-3.5 text-amber-400" />
-              {showLegend ? 'Sembunyikan Legenda' : 'Tampilkan Legenda'}
+              <span className="hidden sm:inline">{showLegend ? 'Sembunyikan Legenda' : 'Tampilkan Legenda'}</span>
+              <span className="sm:hidden">Legenda</span>
             </button>
             <button
               onClick={onClose}
-              className="w-9 h-9 rounded-lg border border-stone-700 bg-stone-800/80 hover:bg-red-950/60 hover:border-red-500/60 flex items-center justify-center text-stone-400 hover:text-red-300 transition-all"
+              className="flex items-center gap-1 px-2.5 py-1 sm:w-9 sm:h-9 rounded-lg border border-stone-700 bg-stone-800/90 hover:bg-red-950/80 hover:border-red-500/60 justify-center text-stone-300 hover:text-red-300 text-xs font-bold transition-all cursor-pointer active:scale-95"
+              title="Tutup Peta (M / Esc)"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="sm:hidden">Exit</span>
             </button>
           </div>
         </div>
 
         {/* Content Body: Map Viewport + Sidebar Info */}
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
           {/* Main Map Canvas Area */}
-          <div className="relative flex-1 bg-stone-950/90 overflow-hidden flex items-center justify-center p-4">
+          <div className="relative flex-1 bg-stone-950/90 overflow-hidden flex items-center justify-center p-2 sm:p-4">
             {/* Topographical Map Container */}
             <div className="relative w-full h-full max-w-[620px] max-h-[580px] rounded-xl overflow-hidden border border-stone-700/60 shadow-inner bg-[#1e232a]">
               {/* Region Biome Background Layers */}
@@ -368,7 +371,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
           </div>
 
           {/* Sidebar Region & Waypoint Details */}
-          <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-stone-800 bg-stone-950/70 flex flex-col p-4 overflow-y-auto">
+          <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-stone-800 bg-stone-950/70 flex flex-col p-4 overflow-y-auto modal-scroll-area">
             {/* Selected Region Card */}
             <div className="p-4 rounded-xl bg-stone-900/80 border border-stone-800 mb-4">
               <div className="flex items-center gap-2 mb-2">

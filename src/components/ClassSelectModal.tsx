@@ -61,17 +61,17 @@ export const ClassSelectModal: React.FC<ClassSelectModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in font-sans">
-      <div className="relative w-full max-w-3xl bg-stone-950/95 border-2 border-amber-500/50 rounded-3xl p-6 md:p-8 shadow-2xl flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in font-sans">
+      <div className="game-modal-card relative w-full max-w-3xl max-h-[85vh] overflow-y-auto modal-scroll-area bg-stone-950/95 border-2 border-amber-500/50 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-2xl flex flex-col">
         {/* Title */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold uppercase tracking-wider mb-2">
+        <div className="text-center mb-4 sm:mb-6">
+          <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1 sm:mb-2">
             ✨ Petualangan Lembah Kuno 3D
           </div>
-          <h1 className="text-2xl md:text-3xl font-black text-stone-100 tracking-wide">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-stone-100 tracking-wide">
             Pilih Kelas Petualang
           </h1>
-          <p className="text-xs md:text-sm text-stone-400 mt-1 max-w-md mx-auto">
+          <p className="text-[10px] sm:text-xs md:text-sm text-stone-400 mt-0.5 sm:mt-1 max-w-md mx-auto">
             Tentukan jalan takdir pahlawanmu sebelum melangkah ke dunia Eldoria
           </p>
         </div>

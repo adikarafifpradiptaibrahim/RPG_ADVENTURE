@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Smartphone, Sparkles, Maximize2 } from 'lucide-react';
 import { GameEngine } from './game/3d/gameEngine';
 import { HUD } from './components/HUD';
 import { InventoryModal } from './components/InventoryModal';
@@ -136,6 +137,63 @@ export default function App() {
     });
   };
 
+  // Helper: Request Landscape Screen Orientation Lock (Paksa Landscape pada HP)
+  const lockLandscapeOrientation = useCallback(async () => {
+    try {
+      if (screen?.orientation && 'lock' in screen.orientation) {
+        await (screen.orientation as any).lock('landscape');
+      } else if ((screen as any)?.mozLockOrientation) {
+        (screen as any).mozLockOrientation('landscape');
+      } else if ((screen as any)?.msLockOrientation) {
+        (screen as any).msLockOrientation('landscape');
+      }
+    } catch {
+      // Browser may require fullscreen or user gesture first; handled gracefully
+    }
+  }, []);
+
+  // Portrait Detection State (Layar HP dalam posisi tegak / @media (orientation: portrait))
+  const [isPortrait, setIsPortrait] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const isPortraitMedia = window.matchMedia?.('(orientation: portrait)')?.matches ?? false;
+    return (isPortraitMedia || window.innerHeight > window.innerWidth) && window.innerWidth <= 1024;
+  });
+  const [bypassPortrait, setBypassPortrait] = useState<boolean>(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia?.('(orientation: portrait)');
+    const checkOrientation = () => {
+      const isPortraitMedia = mql?.matches ?? (window.innerHeight > window.innerWidth);
+      const portrait = isPortraitMedia && window.innerWidth <= 1024;
+      setIsPortrait(portrait);
+      if (!portrait) {
+        lockLandscapeOrientation();
+      }
+    };
+
+    checkOrientation();
+    mql?.addEventListener?.('change', checkOrientation);
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', checkOrientation);
+
+    // Kunci landscape saat interaksi sentuhan pertama kali
+    const handleFirstTouch = () => {
+      lockLandscapeOrientation();
+      window.removeEventListener('pointerdown', handleFirstTouch);
+      window.removeEventListener('touchstart', handleFirstTouch);
+    };
+    window.addEventListener('pointerdown', handleFirstTouch);
+    window.addEventListener('touchstart', handleFirstTouch);
+
+    return () => {
+      mql?.removeEventListener?.('change', checkOrientation);
+      window.removeEventListener('resize', checkOrientation);
+      window.removeEventListener('orientationchange', checkOrientation);
+      window.removeEventListener('pointerdown', handleFirstTouch);
+      window.removeEventListener('touchstart', handleFirstTouch);
+    };
+  }, [lockLandscapeOrientation]);
+
   // Fullscreen Support for Mobile & Desktop
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   useEffect(() => {
@@ -146,7 +204,9 @@ export default function App() {
 
   const handleToggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().then(() => {
+        lockLandscapeOrientation();
+      }).catch(() => {});
     } else {
       document.exitFullscreen().catch(() => {});
     }
@@ -986,6 +1046,66 @@ export default function App() {
         }}
         onClose={() => setIsSettingsOpen(false)}
       />
+
+      {/* ============================================================== */}
+      {/* PORTRAIT WARNING OVERLAY: PERINGATAN PUTAR HP KE LANDSCAPE     */}
+      {/* Muncul otomatis jika pengguna membuka game di HP dalam mode    */}
+      {/* portrait untuk memastikan kenyamanan kontrol sentuh dua jempol */}
+      {/* ============================================================== */}
+      {isPortrait && !bypassPortrait && (
+        <div
+          style={{ zIndex: 100000 }}
+          className="portrait-orientation-warning fixed inset-0 z-[100000] flex flex-col items-center justify-center p-6 bg-gradient-to-b from-stone-950 via-stone-900 to-black text-center backdrop-blur-2xl animate-fade-in font-sans select-none"
+        >
+          <div className="relative mb-6">
+            <div className="w-24 h-24 rounded-3xl bg-amber-500/10 border-2 border-amber-500/40 flex items-center justify-center shadow-2xl shadow-amber-500/20">
+              <Smartphone className="w-12 h-12 text-amber-400 animate-rotate-phone" />
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-amber-500 text-stone-950 flex items-center justify-center font-black text-xs shadow-lg">
+              ↻
+            </div>
+          </div>
+
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-bold uppercase tracking-wider mb-3">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Mode Landscape Diperlukan</span>
+          </div>
+
+          <h2 className="text-xl sm:text-2xl font-black text-amber-100 mb-2 max-w-sm tracking-wide">
+            Harap Putar HP Anda ke Posisi Miring (Landscape) untuk Memulai Permainan
+          </h2>
+
+          <p className="text-xs sm:text-sm text-stone-400 max-w-sm mb-6 leading-relaxed">
+            Untuk kenyamanan kontrol sentuh dua jempol tangan dan pandangan dunia 3D Eldoria yang luas, silakan putar perangkat Anda ke posisi horizontal (Landscape).
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-xs">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  if (!document.fullscreenElement) {
+                    await document.documentElement.requestFullscreen();
+                  }
+                  await lockLandscapeOrientation();
+                } catch {}
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-stone-950 font-black text-sm shadow-xl active:scale-95 transition cursor-pointer"
+            >
+              <Maximize2 className="w-4 h-4" />
+              <span>Layar Penuh (Landscape)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setBypassPortrait(true)}
+              className="w-full py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-400 hover:text-stone-200 border border-stone-800 text-xs font-semibold transition cursor-pointer"
+            >
+              Tetap Lanjut (Abaikan)
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

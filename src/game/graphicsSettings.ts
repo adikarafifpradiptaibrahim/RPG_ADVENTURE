@@ -5,6 +5,7 @@ export interface GraphicsSettings {
   particleDensity: 'low' | 'medium' | 'high';
   renderDistance: number; // 50, 90, 150
   targetFps: number; // 30, 60, 0 (unlimited)
+  fxaa?: boolean;
 }
 
 export const GRAPHICS_PRESETS: Record<'low' | 'medium' | 'high', GraphicsSettings> = {
