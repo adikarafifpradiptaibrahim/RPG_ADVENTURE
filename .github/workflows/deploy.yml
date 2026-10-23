@@ -3,7 +3,7 @@ name: Deploy Antigravity Web to Server
 on:
   push:
     branches:
-      - main  # Otomatis jalan setiap ada push ke branch main
+      - main
 
 jobs:
   deploy:
