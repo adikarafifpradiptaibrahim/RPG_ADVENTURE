@@ -3,7 +3,7 @@ name: Deploy Antigravity Web to Server
 on:
   push:
     branches:
-      - main
+      - main  # Otomatis jalan setiap ada push ke branch main
 
 jobs:
   deploy:
@@ -19,9 +19,9 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: srvgame.banteng-sargas.ts.net
-          username: root
-          key: ${{ secrets.SSH_KEY }}
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /var/www/git
             git remote set-url origin https://github.com/adikarafifpradiptaibrahim/RPG_ADVENTURE.git
@@ -29,4 +29,4 @@ jobs:
             git reset --hard origin/main
             npm install
             NODE_OPTIONS="--max-old-space-size=2048" npm run build
-            pm2 restart 0 --update-env 
+            pm2 restart 0 --update-env
