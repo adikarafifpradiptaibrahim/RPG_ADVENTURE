@@ -35,10 +35,10 @@ export const MiniMap: React.FC<MiniMapProps> = ({
         </span>
       </div>
 
-      {/* Circular Radar Canvas: 104px on mobile (20% smaller than 130px), 130px on desktop */}
+      {/* Circular Radar Canvas: 110px on mobile (15% reduction from 130px), 130px on desktop */}
       <div
         onClick={onOpenFullMap}
-        className="pointer-events-auto relative w-[104px] h-[104px] sm:w-[130px] sm:h-[130px] rounded-full overflow-hidden border-2 border-stone-700/90 bg-stone-950/85 shadow-2xl backdrop-blur-md cursor-pointer group hover:border-amber-500/80 transition-all flex-shrink-0"
+        className="pointer-events-auto relative w-[110px] h-[110px] sm:w-[130px] sm:h-[130px] rounded-full overflow-hidden border-2 border-stone-700/90 bg-stone-950/85 shadow-2xl backdrop-blur-md cursor-pointer group hover:border-amber-500/80 transition-all flex-shrink-0"
         title="Klik untuk membuka Peta Lengkap (M)"
       >
         {/* Terrain Background Tint based on region */}
@@ -117,7 +117,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({
       </div>
 
       {/* Coordinate & Hotkey readout */}
-      <div className="flex items-center justify-between w-[104px] sm:w-[130px] px-1.5 sm:px-2 py-0.5 bg-stone-900/80 border border-stone-800 rounded text-[9px] sm:text-[10px] text-stone-400 font-mono">
+      <div className="flex items-center justify-between w-[110px] sm:w-[130px] px-1.5 sm:px-2 py-0.5 bg-stone-900/80 border border-stone-800 rounded text-[9px] sm:text-[10px] text-stone-400 font-mono">
         <span className="truncate">
           X:{Math.round(playerPos.x)} Z:{Math.round(playerPos.z)}
         </span>

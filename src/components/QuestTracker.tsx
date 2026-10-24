@@ -37,7 +37,7 @@ export const QuestTracker: React.FC<QuestTrackerProps> = ({ activeQuest, onOpenQ
               setIsCollapsed(false);
             }
           }}
-          className="quest-tracker-card pointer-events-auto flex items-center gap-1.5 bg-stone-900/90 hover:bg-stone-800/95 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-amber-500/50 shadow-xl cursor-pointer text-[11px] font-bold text-amber-300 transition-all active:scale-95 select-none w-fit max-w-[220px]"
+          className="quest-tracker-card pointer-events-auto flex items-center gap-1.5 bg-stone-900/90 hover:bg-stone-800/95 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-amber-500/50 shadow-xl cursor-pointer text-[11px] font-bold text-amber-300 transition-all active:scale-95 select-none w-fit max-w-[200px]"
           title="Klik header untuk membuka detail Misi Petualangan"
         >
           <Compass className="w-3.5 h-3.5 text-amber-400 animate-pulse flex-shrink-0" />
@@ -58,7 +58,7 @@ export const QuestTracker: React.FC<QuestTrackerProps> = ({ activeQuest, onOpenQ
       ) : (
         /* Expanded quest card: compact and clean */
         <div
-          className="quest-tracker-card pointer-events-auto bg-stone-900/90 hover:bg-stone-900/95 backdrop-blur-md p-2.5 sm:p-3 rounded-2xl border border-stone-700/80 hover:border-amber-500/60 shadow-2xl transition-all duration-200 select-none w-52 sm:w-60 md:w-68 max-w-[220px] md:max-w-[280px] group text-[11px]"
+          className="quest-tracker-card pointer-events-auto bg-stone-900/90 hover:bg-stone-900/95 backdrop-blur-md p-2.5 sm:p-3 rounded-2xl border border-stone-700/80 hover:border-amber-500/60 shadow-2xl transition-all duration-200 select-none w-48 sm:w-52 md:w-68 max-w-[200px] md:max-w-[280px] group text-[11px]"
         >
           {/* Header row: Clicking title/chevron folds card */}
           <div

@@ -212,4 +212,5 @@ export const SkillBar: React.FC<SkillBarProps> = ({
   );
 };
 
+export const ActionBar = SkillBar;
 export default SkillBar;

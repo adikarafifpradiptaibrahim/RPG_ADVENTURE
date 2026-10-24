@@ -557,11 +557,12 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* Center Interactive Prompt (NPC / Chest) - Compact & Raised */}
+      {/* Center Interactive Prompt (NPC / Chest) - Compact & Raised to top: 38% */}
       {nearbyPrompt && (
         <div
-          style={{ touchAction: 'none' }}
-          className="pointer-events-none fixed bottom-36 sm:bottom-40 md:bottom-32 left-1/2 -translate-x-1/2 flex items-center justify-center z-50 select-none"
+          id="hud-interaction-prompt-container"
+          style={{ touchAction: 'none', top: '38%', left: '50%', transform: 'translate(-50%, -50%)' }}
+          className="pointer-events-none fixed flex items-center justify-center z-50 select-none max-w-[90vw]"
         >
           <button
             type="button"
@@ -572,10 +573,10 @@ export const HUD: React.FC<HUDProps> = ({
             }}
             onClick={onPromptClick}
             style={{ touchAction: 'none', userSelect: 'none' }}
-            className="pointer-events-auto flex items-center gap-1.5 bg-gradient-to-r from-amber-600/95 to-yellow-600/95 text-stone-950 font-bold px-3 py-1.5 sm:px-4 sm:py-2 rounded-full shadow-xl border border-amber-300 text-[11px] sm:text-xs cursor-pointer animate-pulse hover:scale-105 active:scale-95 transition-all"
+            className="pointer-events-auto flex items-center gap-1.5 bg-gradient-to-r from-amber-600/95 to-yellow-600/95 text-stone-950 font-bold px-3 py-1 rounded-full shadow-xl border border-amber-300 text-[10px] sm:text-[11px] cursor-pointer animate-pulse hover:scale-105 active:scale-95 transition-all truncate"
           >
-            <Sparkles className="w-3.5 h-3.5 text-stone-950 flex-shrink-0" />
-            <span className="tracking-wide">{nearbyPrompt}</span>
+            <Sparkles className="w-3 h-3 text-stone-950 flex-shrink-0" />
+            <span className="tracking-wide truncate">{nearbyPrompt}</span>
           </button>
         </div>
       )}

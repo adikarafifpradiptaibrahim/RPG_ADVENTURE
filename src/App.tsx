@@ -13,7 +13,7 @@ import { MainMenuModal, MultiplayerStartOptions } from './components/MainMenuMod
 import { PauseModal } from './components/PauseModal';
 import { GraphicsSettingsModal } from './components/GraphicsSettingsModal';
 import { MultiplayerChat } from './components/MultiplayerChat';
-import { VirtualJoystick } from './components/VirtualJoystick';
+import { VirtualJoystick } from './components/TouchControls';
 import { soundManager } from './game/audio';
 import { multiplayerClient, RemotePlayerData, ChatMessage } from './game/multiplayer';
 import { GraphicsSettings, loadGraphicsSettings } from './game/graphicsSettings';
