@@ -115,6 +115,30 @@
 /* ========================================================================== */
 @layer utilities {
 
+  /* Global UI Wrappers: strictly non-blocking to let 3D canvas receive pointer events */
+  #ui-root,
+  .hud-container,
+  .hud-minimap-cluster,
+  .hud-player-status,
+  .quest-tracker-container,
+  .touch-control-layer-wrapper {
+    pointer-events: none !important;
+  }
+
+  /* Active controls and interactive elements: explicit pointer-events: auto */
+  button,
+  input,
+  textarea,
+  select,
+  .pointer-events-auto,
+  .virtual-joystick-root,
+  .virtual-joystick-thumb,
+  .skill-btn,
+  .touch-control-btn,
+  .quest-tracker-card {
+    pointer-events: auto !important;
+  }
+
   .touch-control-layer,
   .virtual-joystick-root,
   .touch-control-btn {
@@ -126,29 +150,6 @@
     -webkit-user-drag: none !important;
     user-drag: none !important;
     -webkit-touch-callout: none !important;
-    pointer-events: auto !important;
-  }
-
-  /* Dedicated Touch Overlay Zone for 3D Camera Look (Right Screen Half) */
-  .touch-camera-drag-area {
-    position: fixed !important;
-    top: 0 !important;
-    bottom: 0 !important;
-    left: 50% !important;
-    right: 0 !important;
-    width: 50vw !important;
-    height: 100% !important;
-    z-index: 15 !important;
-    background: transparent !important;
-    touch-action: none !important;
-    -webkit-user-select: none !important;
-    -moz-user-select: none !important;
-    -ms-user-select: none !important;
-    user-select: none !important;
-    -webkit-user-drag: none !important;
-    user-drag: none !important;
-    -webkit-touch-callout: none !important;
-    pointer-events: auto !important;
   }
 
   /* Analog / D-Pad: Anchored firmly at bottom-left corner with z-index: 9999 */
@@ -159,11 +160,26 @@
     z-index: 9999 !important;
   }
 
-  /* Desktop Skill Bar: Centered neatly at bottom-center */
+  /* Quest Tracker: Positioned at right-center (top: 35%; right: 12px) */
+  .quest-tracker-container {
+    position: fixed !important;
+    top: 35% !important;
+    right: 12px !important;
+    transform: translateY(-50%) !important;
+    z-index: 30 !important;
+    pointer-events: none !important;
+    max-width: 280px !important;
+  }
+
+  .quest-tracker-card {
+    pointer-events: auto !important;
+  }
+
+  /* Desktop Skill Bar: Centered neatly at bottom-center (bottom: 15px; left: 50%; transform: translateX(-50%)) */
   @media (min-width: 769px) {
     .hud-action-cluster {
       position: fixed !important;
-      bottom: 14px !important;
+      bottom: 15px !important;
       left: 50% !important;
       right: auto !important;
       top: auto !important;
@@ -270,11 +286,20 @@
     transform: none !important;
   }
 
-  /* Mobile Skill Bar: Curved RPG Arc in Bottom-Right Corner */
+  /* Quest Tracker on Mobile: safely at right-center with slight scale */
+  .quest-tracker-container {
+    top: 35% !important;
+    right: 12px !important;
+    transform: translateY(-50%) scale(0.85) !important;
+    transform-origin: right center !important;
+    max-width: 220px !important;
+  }
+
+  /* Mobile Skill Bar: Curved RPG Arc in Bottom-Right Corner (bottom: 12px; right: 12px) */
   .hud-action-cluster {
     position: fixed !important;
-    bottom: 15px !important;
-    right: 15px !important;
+    bottom: 12px !important;
+    right: 12px !important;
     left: auto !important;
     top: auto !important;
     transform: none !important;
@@ -357,20 +382,6 @@
     transform: translateX(-50%) !important;
     width: fit-content !important;
     z-index: 35 !important;
-  }
-
-  /* Quest Tracker: Shifted higher up & beside the minimap on mobile so it never collides with skill buttons */
-  .hud-quest-tracker {
-    position: absolute !important;
-    top: 0px !important;
-    right: 155px !important;
-    max-width: 170px !important;
-    transform: scale(0.85) !important;
-    transform-origin: top right !important;
-    padding: 0.5rem 0.65rem !important;
-    border-radius: 0.85rem !important;
-    margin-top: 0 !important;
-    pointer-events: auto !important;
   }
 
   .game-modal-card {

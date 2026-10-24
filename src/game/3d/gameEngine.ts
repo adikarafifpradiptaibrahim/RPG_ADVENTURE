@@ -1548,9 +1548,12 @@ export class GameEngine {
     this.prevMouseX = e.clientX;
     this.prevMouseY = e.clientY;
 
-    this.cameraAngleH -= deltaX * 0.007;
-    this.cameraAngleV += deltaY * 0.005;
-    this.cameraAngleV = Math.max(0.08, Math.min(Math.PI / 2.15, this.cameraAngleV));
+    this.cameraAngleH = normalizeCameraYaw(
+      this.cameraAngleH - deltaX * CAMERA_CONFIG.MOUSE_LOOK_SENSITIVITY_H
+    );
+    this.cameraAngleV = clampCameraPitch(
+      this.cameraAngleV + deltaY * CAMERA_CONFIG.MOUSE_LOOK_SENSITIVITY_V
+    );
   };
 
   private handleMouseUp = (e: MouseEvent) => {
@@ -1564,8 +1567,7 @@ export class GameEngine {
 
   private handleWheel = (e: WheelEvent) => {
     e.preventDefault();
-    this.cameraDistance += e.deltaY * 0.006;
-    this.cameraDistance = Math.max(3.5, Math.min(14, this.cameraDistance));
+    this.cameraDistance = clampCameraDistance(this.cameraDistance + e.deltaY * 0.006);
   };
 
   private touchStartX = 0;
@@ -1577,19 +1579,14 @@ export class GameEngine {
 
   private getCanvasCameraTouches(touches: TouchList): Touch[] {
     const valid: Touch[] = [];
-    const w = window.innerWidth;
     const h = window.innerHeight;
 
     for (let i = 0; i < touches.length; i++) {
       const t = touches[i];
-      // 1. Abaikan zona Joystick di pojok kiri bawah (~220px x 230px)
-      const inJoystickZone = t.clientX < 220 && t.clientY > h - 230;
-      // 2. Abaikan zona Action Cluster di pojok kanan bawah (~220px x 230px)
-      const inActionZone = t.clientX > w - 220 && t.clientY > h - 230;
-      // 3. Abaikan bar atas HUD (~70px)
-      const inTopHud = t.clientY < 70;
+      // Only exclude the bottom-left joystick area (~160px x 160px)
+      const inJoystickZone = t.clientX < 160 && t.clientY > h - 160;
 
-      if (!inJoystickZone && !inActionZone && !inTopHud) {
+      if (!inJoystickZone) {
         valid.push(t);
       }
     }
@@ -1611,17 +1608,14 @@ export class GameEngine {
       return;
     }
 
-    const w = window.innerWidth;
     const h = window.innerHeight;
 
-    // Capture touch for camera rotation: exclude joystick, action buttons, and top HUD
+    // Capture touch for camera rotation: entire right screen and non-joystick areas pass through
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
-      const inJoystickZone = touch.clientX < 220 && touch.clientY > h - 230;
-      const inActionZone = touch.clientX > w - 220 && touch.clientY > h - 230;
-      const inTopHud = touch.clientY < 70;
+      const inJoystickZone = touch.clientX < 160 && touch.clientY > h - 160;
 
-      if (!inJoystickZone && !inActionZone && !inTopHud && this.cameraTouchId === null) {
+      if (!inJoystickZone && this.cameraTouchId === null) {
         this.cameraTouchId = touch.identifier;
         this.isTouchingCamera = true;
         this.touchStartX = touch.clientX;
@@ -1642,8 +1636,8 @@ export class GameEngine {
       const t1 = camTouches[0];
       const t2 = camTouches[1];
       const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-      const pinchDelta = (this.initialPinchDist - currentDist) * 0.015;
-      this.cameraDistance = Math.max(3.5, Math.min(14, this.initialPinchCamDist + pinchDelta));
+      const pinchDelta = (this.initialPinchDist - currentDist) * CAMERA_CONFIG.PINCH_ZOOM_SENSITIVITY;
+      this.cameraDistance = clampCameraDistance(this.initialPinchCamDist + pinchDelta);
       return;
     }
 
@@ -1657,9 +1651,12 @@ export class GameEngine {
         this.touchStartX = touch.clientX;
         this.touchStartY = touch.clientY;
 
-        this.cameraAngleH -= deltaX * 0.0055;
-        this.cameraAngleV += deltaY * 0.004;
-        this.cameraAngleV = Math.max(0.08, Math.min(Math.PI / 2.15, this.cameraAngleV));
+        this.cameraAngleH = normalizeCameraYaw(
+          this.cameraAngleH - deltaX * CAMERA_CONFIG.TOUCH_LOOK_SENSITIVITY_H
+        );
+        this.cameraAngleV = clampCameraPitch(
+          this.cameraAngleV + deltaY * CAMERA_CONFIG.TOUCH_LOOK_SENSITIVITY_V
+        );
         break;
       }
     }

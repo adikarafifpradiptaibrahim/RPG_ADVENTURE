@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { MiniMap } from './MiniMap';
 import { SkillBar } from './SkillBar';
+import { QuestTracker } from './QuestTracker';
 
 interface HUDProps {
   stats: PlayerStats;
@@ -123,169 +124,6 @@ export const HUD: React.FC<HUDProps> = ({
   onToggleFullscreen,
 }) => {
   const [dismissMobileTip, setDismissMobileTip] = useState(false);
-  const touchCameraRef = useRef<HTMLDivElement>(null);
-
-  // Dedicated smooth touch & mouse drag listener for 3D camera rotation on the right screen half
-  useEffect(() => {
-    const el = touchCameraRef.current;
-    if (!el || !onRotateCamera) return;
-
-    let primaryTouchId: number | null = null;
-    let secondaryTouchId: number | null = null;
-    let prevX = 0;
-    let prevY = 0;
-    let initialPinch = 0;
-
-    // --- Touch Handlers (Mobile / Tablet) ---
-    const handleCameraTouchStart = (e: TouchEvent) => {
-      // Find touches that began on this element
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const touch = e.changedTouches[i];
-        if (primaryTouchId === null) {
-          primaryTouchId = touch.identifier;
-          prevX = touch.clientX;
-          prevY = touch.clientY;
-        } else if (secondaryTouchId === null && onZoomCamera) {
-          secondaryTouchId = touch.identifier;
-          // Both fingers are in the touch camera zone -> initialize pinch zoom
-          let t1: Touch | undefined;
-          for (let j = 0; j < e.touches.length; j++) {
-            if (e.touches[j].identifier === primaryTouchId) {
-              t1 = e.touches[j];
-              break;
-            }
-          }
-          if (t1) {
-            initialPinch = Math.hypot(t1.clientX - touch.clientX, t1.clientY - touch.clientY);
-          }
-        }
-      }
-      if (primaryTouchId !== null && e.cancelable) {
-        e.preventDefault();
-      }
-    };
-
-    const handleCameraTouchMove = (e: TouchEvent) => {
-      if (primaryTouchId === null) return;
-      if (e.cancelable) e.preventDefault();
-
-      // If we have two fingers active in the camera zone, perform pinch-to-zoom
-      if (secondaryTouchId !== null && onZoomCamera && initialPinch > 10) {
-        let t1: Touch | undefined;
-        let t2: Touch | undefined;
-        for (let i = 0; i < e.touches.length; i++) {
-          if (e.touches[i].identifier === primaryTouchId) t1 = e.touches[i];
-          if (e.touches[i].identifier === secondaryTouchId) t2 = e.touches[i];
-        }
-        if (t1 && t2) {
-          const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-          const pinchDelta = (initialPinch - currentDist) * 0.02;
-          onZoomCamera(pinchDelta);
-          initialPinch = currentDist;
-        }
-        return;
-      }
-
-      // Single finger look / orbit
-      for (let i = 0; i < e.touches.length; i++) {
-        const t = e.touches[i];
-        if (t.identifier === primaryTouchId) {
-          const deltaX = t.clientX - prevX;
-          const deltaY = t.clientY - prevY;
-          prevX = t.clientX;
-          prevY = t.clientY;
-          onRotateCamera(deltaX, deltaY);
-          break;
-        }
-      }
-    };
-
-    const handleCameraTouchEnd = (e: TouchEvent) => {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const id = e.changedTouches[i].identifier;
-        if (id === secondaryTouchId) {
-          secondaryTouchId = null;
-          initialPinch = 0;
-        } else if (id === primaryTouchId) {
-          if (secondaryTouchId !== null) {
-            primaryTouchId = secondaryTouchId;
-            secondaryTouchId = null;
-            initialPinch = 0;
-            for (let j = 0; j < e.touches.length; j++) {
-              if (e.touches[j].identifier === primaryTouchId) {
-                prevX = e.touches[j].clientX;
-                prevY = e.touches[j].clientY;
-                break;
-              }
-            }
-          } else {
-            primaryTouchId = null;
-            initialPinch = 0;
-          }
-        }
-      }
-      if (e.touches.length === 0) {
-        primaryTouchId = null;
-        secondaryTouchId = null;
-        initialPinch = 0;
-      }
-    };
-
-    // --- Mouse Drag Handlers (PC / Laptop) ---
-    let isMouseDown = false;
-    let mousePrevX = 0;
-    let mousePrevY = 0;
-    let hasDragged = false;
-
-    const handleMouseDown = (e: MouseEvent) => {
-      if (e.button === 0) {
-        isMouseDown = true;
-        hasDragged = false;
-        mousePrevX = e.clientX;
-        mousePrevY = e.clientY;
-      }
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isMouseDown) return;
-      const deltaX = e.clientX - mousePrevX;
-      const deltaY = e.clientY - mousePrevY;
-      if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
-        hasDragged = true;
-      }
-      mousePrevX = e.clientX;
-      mousePrevY = e.clientY;
-      onRotateCamera(deltaX, deltaY);
-    };
-
-    const handleMouseUp = (e: MouseEvent) => {
-      if (isMouseDown && !hasDragged && e.button === 0) {
-        onPerformAttack?.();
-      }
-      isMouseDown = false;
-      hasDragged = false;
-    };
-
-    el.addEventListener('touchstart', handleCameraTouchStart, { passive: false });
-    window.addEventListener('touchmove', handleCameraTouchMove, { passive: false });
-    window.addEventListener('touchend', handleCameraTouchEnd, { passive: false });
-    window.addEventListener('touchcancel', handleCameraTouchEnd, { passive: false });
-
-    el.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      el.removeEventListener('touchstart', handleCameraTouchStart);
-      window.removeEventListener('touchmove', handleCameraTouchMove);
-      window.removeEventListener('touchend', handleCameraTouchEnd);
-      window.removeEventListener('touchcancel', handleCameraTouchEnd);
-
-      el.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [onRotateCamera, onZoomCamera, onPerformAttack]);
 
   const activeQuest = quests.find((q) => !q.completed) || quests[quests.length - 1];
 
@@ -312,7 +150,7 @@ export const HUD: React.FC<HUDProps> = ({
   const classBadge = getClassBadge();
 
   return (
-    <div className="pointer-events-none absolute inset-0 select-none overflow-hidden font-sans">
+    <div id="ui-root" className="hud-container pointer-events-none absolute inset-0 select-none overflow-hidden font-sans">
       {/* 3D Floating Numbers / Combat Text (Clean & Compact) */}
       <div className="absolute inset-0 pointer-events-none">
         {floatingTexts.map((ft) => (
@@ -545,31 +383,10 @@ export const HUD: React.FC<HUDProps> = ({
           markers={mapMarkers}
           onOpenFullMap={onOpenMap}
         />
-
-        {/* Active Quest Box */}
-        {activeQuest && (
-          <div
-            onClick={onOpenQuests}
-            className="hud-quest-tracker pointer-events-auto bg-stone-900/85 backdrop-blur-md p-3.5 rounded-2xl border border-stone-700/80 shadow-xl cursor-pointer hover:border-amber-500/50 transition-all text-left w-64 md:w-72"
-          >
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="text-[11px] uppercase tracking-wider font-bold text-amber-400 flex items-center gap-1">
-                <Compass className="w-3 h-3" /> Misi Petualangan
-              </span>
-              <span className="text-[10px] text-stone-400 font-mono">
-                {activeQuest.completed ? 'Selesai!' : `${activeQuest.currentCount}/${activeQuest.targetCount}`}
-              </span>
-            </div>
-            <h4 className="text-sm font-bold text-stone-100 line-clamp-1">{activeQuest.titleId}</h4>
-            <p className="text-xs text-stone-400 line-clamp-2 mt-0.5">{activeQuest.descriptionId}</p>
-            {activeQuest.completed && !activeQuest.claimed && (
-              <div className="mt-2 text-center text-xs font-bold text-emerald-400 bg-emerald-950/60 py-1 rounded-lg border border-emerald-500/40 animate-pulse">
-                Klik untuk Klaim Hadiah!
-              </div>
-            )}
-          </div>
-        )}
       </div>
+
+      {/* Independent Quest Tracker: Positioned safely at right-middle (top: 35%; right: 12px) */}
+      <QuestTracker activeQuest={activeQuest} onOpenQuests={onOpenQuests} />
 
       {/* Mobile Landscape Orientation Recommendation Banner */}
       {!dismissMobileTip && (
@@ -633,27 +450,6 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* Dedicated Transparent Touch Camera Drag Area (Entire Right Half of Viewport) */}
-      <div
-        ref={touchCameraRef}
-        id="touch-camera-drag-area"
-        style={{
-          touchAction: 'none',
-          userSelect: 'none',
-          WebkitUserSelect: 'none',
-          pointerEvents: 'auto',
-          left: '50%',
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: '50vw',
-          height: '100%',
-          position: 'fixed',
-          zIndex: 15,
-        }}
-        className="touch-camera-drag-area pointer-events-auto fixed top-0 bottom-0 left-1/2 right-0 w-[50vw] h-full z-[15] bg-transparent select-none cursor-grab active:cursor-grabbing"
-        title="Usap separuh kanan layar untuk memutar sudut pandang kamera 3D"
-      />
 
       {/* Mobile Compact Menu Strip (Tas, Toko, Status, Misi, Peta) - Centered neatly above Skill Bar */}
       <div
