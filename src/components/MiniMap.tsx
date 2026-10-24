@@ -1,5 +1,5 @@
 import React from 'react';
-import { Map, Compass, Navigation } from 'lucide-react';
+import { Map, Navigation } from 'lucide-react';
 import { MapMarker, RegionInfo } from '../types/game';
 
 interface MiniMapProps {
@@ -17,30 +17,28 @@ export const MiniMap: React.FC<MiniMapProps> = ({
 }) => {
   // Radar radius in world units
   const radarRadius = 38;
-  const mapSize = 130;
-  const center = mapSize / 2;
 
   return (
-    <div className="flex flex-col items-end gap-1.5 select-none pointer-events-none">
+    <div className="flex flex-col items-end gap-1 select-none pointer-events-none">
       {/* Current Region Badge */}
       <div
         onClick={onOpenFullMap}
-        className="pointer-events-auto flex items-center gap-1.5 px-3 py-1 bg-stone-900/90 border border-stone-700/80 rounded-full shadow-lg backdrop-blur-md cursor-pointer hover:border-amber-400/70 transition-all group"
+        className="pointer-events-auto flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-0.5 sm:py-1 bg-stone-900/90 border border-stone-700/80 rounded-full shadow-lg backdrop-blur-md cursor-pointer hover:border-amber-400/70 transition-all group max-w-[125px] sm:max-w-none truncate"
         title="Klik untuk membuka Peta Dunia (M)"
       >
-        <span className="text-sm">{currentRegion.icon}</span>
-        <span className="text-xs font-semibold tracking-wide text-amber-200 group-hover:text-amber-300">
+        <span className="text-xs sm:text-sm">{currentRegion.icon}</span>
+        <span className="text-[10px] sm:text-xs font-semibold tracking-wide text-amber-200 group-hover:text-amber-300 truncate">
           {currentRegion.nameId}
         </span>
-        <span className="text-[10px] px-1.5 py-0.5 bg-stone-800 text-stone-300 rounded font-mono">
+        <span className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.2 sm:py-0.5 bg-stone-800 text-stone-300 rounded font-mono flex-shrink-0">
           Lv.{currentRegion.recommendedLevel}
         </span>
       </div>
 
-      {/* Circular Radar Canvas */}
+      {/* Circular Radar Canvas: 104px on mobile (20% smaller than 130px), 130px on desktop */}
       <div
         onClick={onOpenFullMap}
-        className="pointer-events-auto relative w-[130px] h-[130px] rounded-full overflow-hidden border-2 border-stone-700/90 bg-stone-950/85 shadow-2xl backdrop-blur-md cursor-pointer group hover:border-amber-500/80 transition-all"
+        className="pointer-events-auto relative w-[104px] h-[104px] sm:w-[130px] sm:h-[130px] rounded-full overflow-hidden border-2 border-stone-700/90 bg-stone-950/85 shadow-2xl backdrop-blur-md cursor-pointer group hover:border-amber-500/80 transition-all flex-shrink-0"
         title="Klik untuk membuka Peta Lengkap (M)"
       >
         {/* Terrain Background Tint based on region */}
@@ -51,20 +49,20 @@ export const MiniMap: React.FC<MiniMapProps> = ({
 
         {/* Radar concentric rings */}
         <div className="absolute inset-0 rounded-full border border-stone-700/40" />
-        <div className="absolute inset-4 rounded-full border border-stone-700/30" />
-        <div className="absolute inset-8 rounded-full border border-stone-700/20" />
+        <div className="absolute inset-3 sm:inset-4 rounded-full border border-stone-700/30" />
+        <div className="absolute inset-6 sm:inset-8 rounded-full border border-stone-700/20" />
 
         {/* Cardinal directions */}
-        <span className="absolute top-1 left-1/2 -translate-x-1/2 text-[9px] font-bold text-amber-400/90">
+        <span className="absolute top-0.5 sm:top-1 left-1/2 -translate-x-1/2 text-[8px] sm:text-[9px] font-bold text-amber-400/90">
           N
         </span>
-        <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-bold text-stone-400">
+        <span className="absolute bottom-0.5 sm:bottom-1 left-1/2 -translate-x-1/2 text-[8px] sm:text-[9px] font-bold text-stone-400">
           S
         </span>
-        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-stone-400">
+        <span className="absolute left-1 sm:left-1.5 top-1/2 -translate-y-1/2 text-[8px] sm:text-[9px] font-bold text-stone-400">
           W
         </span>
-        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-stone-400">
+        <span className="absolute right-1 sm:right-1.5 top-1/2 -translate-y-1/2 text-[8px] sm:text-[9px] font-bold text-stone-400">
           E
         </span>
 
@@ -72,33 +70,30 @@ export const MiniMap: React.FC<MiniMapProps> = ({
         <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-stone-700/30 -translate-x-1/2" />
         <div className="absolute left-0 right-0 top-1/2 h-[1px] bg-stone-700/30 -translate-y-1/2" />
 
-        {/* Markers around player */}
+        {/* Markers around player - Percentage based scaling */}
         {markers.map((marker) => {
-          // Calculate relative position to player
-          // World X is East(+)/West(-), World Z is South(+)/North(-)
           const relX = marker.x - playerPos.x;
           const relZ = marker.z - playerPos.z;
           const dist = Math.hypot(relX, relZ);
 
           if (dist > radarRadius) return null;
 
-          const screenX = center + (relX / radarRadius) * (center - 8);
-          // In 3D: -Z is North (top of map), +Z is South (bottom of map)
-          const screenY = center + (relZ / radarRadius) * (center - 8);
+          const percentX = 50 + (relX / radarRadius) * 42;
+          const percentY = 50 + (relZ / radarRadius) * 42;
 
           return (
             <div
               key={marker.id}
               className="absolute w-2 h-2 -ml-1 -mt-1 rounded-full shadow-sm flex items-center justify-center transition-all"
               style={{
-                left: `${screenX}px`,
-                top: `${screenY}px`,
+                left: `${percentX}%`,
+                top: `${percentY}%`,
                 backgroundColor: marker.color || '#fff',
               }}
               title={marker.title}
             >
               {marker.type === 'boss' && (
-                <div className="absolute w-4 h-4 rounded-full border border-red-500 animate-ping opacity-75" />
+                <div className="absolute w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full border border-red-500 animate-ping opacity-75" />
               )}
             </div>
           );
@@ -111,24 +106,24 @@ export const MiniMap: React.FC<MiniMapProps> = ({
             transform: `rotate(${(playerPos.rotationY * 180) / Math.PI + 180}deg)`,
           }}
         >
-          <Navigation className="w-3.5 h-3.5 text-amber-400 fill-amber-400 drop-shadow-md" />
+          <Navigation className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-amber-400 fill-amber-400 drop-shadow-md" />
         </div>
 
         {/* Hover overlay hint */}
         <div className="absolute inset-0 bg-stone-900/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-amber-200">
-          <Map className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px] font-bold uppercase tracking-wider">Buka Peta (M)</span>
+          <Map className="w-4 sm:w-5 h-4 sm:h-5 mb-0.5" />
+          <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider">Buka Peta (M)</span>
         </div>
       </div>
 
       {/* Coordinate & Hotkey readout */}
-      <div className="flex items-center justify-between w-[130px] px-2 py-0.5 bg-stone-900/80 border border-stone-800 rounded text-[10px] text-stone-400 font-mono">
-        <span>
+      <div className="flex items-center justify-between w-[104px] sm:w-[130px] px-1.5 sm:px-2 py-0.5 bg-stone-900/80 border border-stone-800 rounded text-[9px] sm:text-[10px] text-stone-400 font-mono">
+        <span className="truncate">
           X:{Math.round(playerPos.x)} Z:{Math.round(playerPos.z)}
         </span>
         <button
           onClick={onOpenFullMap}
-          className="text-amber-400 font-bold hover:text-amber-300"
+          className="text-amber-400 font-bold hover:text-amber-300 ml-1"
         >
           [M]
         </button>
@@ -136,3 +131,5 @@ export const MiniMap: React.FC<MiniMapProps> = ({
     </div>
   );
 };
+
+export default MiniMap;

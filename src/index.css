@@ -160,10 +160,10 @@
     z-index: 9999 !important;
   }
 
-  /* Quest Tracker: Relocated to Left Screen, beneath HP/MP/Gold (left: 15px; top: 120px) */
+  /* Quest Tracker: Relocated to Left Screen, beneath HP/MP/Gold (left: 15px; top: 220px on PC) */
   .quest-tracker-container {
     position: fixed !important;
-    top: 120px !important;
+    top: 220px !important;
     left: 15px !important;
     right: auto !important;
     transform: none !important;
@@ -247,16 +247,16 @@
     }
   }
 
-  /* Mobile Skill Bar Arc: anchored at bottom: 15px; right: 15px */
+  /* Mobile Skill Bar Arc: anchored tightly at bottom: 10px; right: 10px */
   .hud-action-cluster-mobile {
     position: fixed !important;
-    bottom: 15px !important;
-    right: 15px !important;
+    bottom: 10px !important;
+    right: 10px !important;
     left: auto !important;
     top: auto !important;
     transform: none !important;
-    width: 220px !important;
-    height: 220px !important;
+    width: 200px !important;
+    height: 180px !important;
     background: transparent !important;
     backdrop-filter: none !important;
     border: none !important;
@@ -280,45 +280,45 @@
   .hud-action-cluster-mobile .skill-btn-attack {
     bottom: 0px !important;
     right: 0px !important;
-    width: 68px !important;
-    height: 68px !important;
+    width: 62px !important;
+    height: 62px !important;
     z-index: 45 !important;
     border-width: 2.5px !important;
   }
 
   .hud-action-cluster-mobile .skill-btn-3 {
-    bottom: 124px !important;
+    bottom: 92px !important;
     right: 8px !important;
-    width: 48px !important;
-    height: 48px !important;
+    width: 42px !important;
+    height: 42px !important;
   }
 
   .hud-action-cluster-mobile .skill-btn-2 {
-    bottom: 96px !important;
-    right: 72px !important;
-    width: 48px !important;
-    height: 48px !important;
+    bottom: 74px !important;
+    right: 62px !important;
+    width: 42px !important;
+    height: 42px !important;
   }
 
   .hud-action-cluster-mobile .skill-btn-1 {
-    bottom: 44px !important;
-    right: 106px !important;
-    width: 48px !important;
-    height: 48px !important;
+    bottom: 34px !important;
+    right: 90px !important;
+    width: 42px !important;
+    height: 42px !important;
   }
 
   .hud-action-cluster-mobile .skill-btn-jump {
     bottom: 0px !important;
-    right: 88px !important;
-    width: 48px !important;
-    height: 48px !important;
+    right: 74px !important;
+    width: 42px !important;
+    height: 42px !important;
   }
 
   .hud-action-cluster-mobile .skill-btn-switch {
-    bottom: 156px !important;
-    right: 64px !important;
-    width: 40px !important;
-    height: 40px !important;
+    bottom: 116px !important;
+    right: 54px !important;
+    width: 34px !important;
+    height: 34px !important;
   }
 
   .hud-mobile-nav-bar {
@@ -373,12 +373,11 @@
     transform-origin: top left;
   }
 
-  /* Minimap cluster at top-right: transparent container with pointer-events: none */
+  /* Minimap cluster at top-right: tightly positioned at top: 8px; right: 8px */
   .hud-minimap-cluster {
     top: 8px !important;
     right: 8px !important;
-    transform: scale(0.75) !important;
-    transform-origin: top right !important;
+    transform: none !important;
     gap: 4px !important;
     pointer-events: none !important;
   }
@@ -395,25 +394,26 @@
     transform: none !important;
   }
 
-  /* Quest Tracker on Mobile: Left screen beneath vitals (left: 12px; top: 110px) */
+  /* Quest Tracker on Mobile: Left screen beneath vitals (left: 12px; top: 105px) */
   .quest-tracker-container {
-    top: 110px !important;
+    top: 105px !important;
     left: 12px !important;
     right: auto !important;
     transform: none !important;
-    max-width: 230px !important;
+    max-width: 220px !important;
+    font-size: 11px !important;
   }
 
-  /* Mobile Skill Bar: Curved RPG Arc in Bottom-Right Corner (bottom: 15px; right: 15px) */
+  /* Mobile Skill Bar: Compact Curved RPG Arc in Bottom-Right Corner (bottom: 10px; right: 10px) */
   .hud-action-cluster:not(.hud-action-cluster-desktop) {
     position: fixed !important;
-    bottom: 15px !important;
-    right: 15px !important;
+    bottom: 10px !important;
+    right: 10px !important;
     left: auto !important;
     top: auto !important;
     transform: none !important;
-    width: 220px !important;
-    height: 220px !important;
+    width: 200px !important;
+    height: 180px !important;
     background: transparent !important;
     backdrop-filter: none !important;
     border: none !important;
@@ -438,50 +438,50 @@
   .hud-action-cluster:not(.hud-action-cluster-desktop) .skill-btn-attack {
     bottom: 0px !important;
     right: 0px !important;
-    width: 68px !important;
-    height: 68px !important;
+    width: 62px !important;
+    height: 62px !important;
     z-index: 45 !important;
     border-width: 2.5px !important;
   }
 
   /* Skill 3 (Cahaya / Benteng / Bom Asap): Top of the curve */
   .hud-action-cluster:not(.hud-action-cluster-desktop) .skill-btn-3 {
-    bottom: 124px !important;
+    bottom: 92px !important;
     right: 8px !important;
-    width: 48px !important;
-    height: 48px !important;
+    width: 42px !important;
+    height: 42px !important;
   }
 
   /* Skill 2 (Blink / Terjang / Siluman): Upper-left diagonal */
   .hud-action-cluster:not(.hud-action-cluster-desktop) .skill-btn-2 {
-    bottom: 96px !important;
-    right: 72px !important;
-    width: 48px !important;
-    height: 48px !important;
+    bottom: 74px !important;
+    right: 62px !important;
+    width: 42px !important;
+    height: 42px !important;
   }
 
   /* Skill 1 (Supernova / Pusaran / 1000 Belati): Left flank */
   .hud-action-cluster:not(.hud-action-cluster-desktop) .skill-btn-1 {
-    bottom: 44px !important;
-    right: 106px !important;
-    width: 48px !important;
-    height: 48px !important;
+    bottom: 34px !important;
+    right: 90px !important;
+    width: 42px !important;
+    height: 42px !important;
   }
 
   /* Jump / Dodge (Spasi): Lower-left of Attack */
   .hud-action-cluster:not(.hud-action-cluster-desktop) .skill-btn-jump {
     bottom: 0px !important;
-    right: 88px !important;
-    width: 48px !important;
-    height: 48px !important;
+    right: 74px !important;
+    width: 42px !important;
+    height: 42px !important;
   }
 
   /* Hunter Weapon Switcher (Belati <-> Busur) */
   .hud-action-cluster:not(.hud-action-cluster-desktop) .skill-btn-switch {
-    bottom: 156px !important;
-    right: 64px !important;
-    width: 40px !important;
-    height: 40px !important;
+    bottom: 116px !important;
+    right: 54px !important;
+    width: 34px !important;
+    height: 34px !important;
   }
 
   /* Mobile Nav Bar: Centered at bottom-center */
