@@ -16,6 +16,12 @@ import { createEnemyMesh, createPlayerMesh, createArrowMesh, PlayerMeshObjects }
 import { buildWorld, WorldObjects } from './world';
 import { RemotePlayerData } from '../multiplayer';
 import { GraphicsSettings, loadGraphicsSettings } from '../graphicsSettings';
+import {
+  clampCameraPitch,
+  clampCameraDistance,
+  normalizeCameraYaw,
+  CAMERA_CONFIG,
+} from '../CameraControls';
 
 export interface LootPickup {
   mesh: THREE.Group;
@@ -1678,15 +1684,16 @@ export class GameEngine {
    * Public camera rotation method used by mobile transparent touch drag area
    */
   public rotateCameraByDelta(deltaX: number, deltaY: number) {
-    this.cameraAngleH -= deltaX * 0.0065;
-    if (this.cameraAngleH > Math.PI * 2) this.cameraAngleH -= Math.PI * 2;
-    if (this.cameraAngleH < -Math.PI * 2) this.cameraAngleH += Math.PI * 2;
-    this.cameraAngleV += deltaY * 0.005;
-    this.cameraAngleV = Math.max(0.08, Math.min(Math.PI / 2.15, this.cameraAngleV));
+    this.cameraAngleH = normalizeCameraYaw(
+      this.cameraAngleH - deltaX * CAMERA_CONFIG.TOUCH_LOOK_SENSITIVITY_H
+    );
+    this.cameraAngleV = clampCameraPitch(
+      this.cameraAngleV + deltaY * CAMERA_CONFIG.TOUCH_LOOK_SENSITIVITY_V
+    );
   }
 
   public zoomCameraByDelta(deltaZoom: number) {
-    this.cameraDistance = Math.max(3.5, Math.min(14, this.cameraDistance + deltaZoom));
+    this.cameraDistance = clampCameraDistance(this.cameraDistance + deltaZoom);
   }
 
   private handleResize = () => {

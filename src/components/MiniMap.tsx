@@ -21,11 +21,11 @@ export const MiniMap: React.FC<MiniMapProps> = ({
   const center = mapSize / 2;
 
   return (
-    <div className="flex flex-col items-end gap-1.5 select-none pointer-events-auto">
+    <div className="flex flex-col items-end gap-1.5 select-none pointer-events-none">
       {/* Current Region Badge */}
       <div
         onClick={onOpenFullMap}
-        className="flex items-center gap-1.5 px-3 py-1 bg-stone-900/90 border border-stone-700/80 rounded-full shadow-lg backdrop-blur-md cursor-pointer hover:border-amber-400/70 transition-all group"
+        className="pointer-events-auto flex items-center gap-1.5 px-3 py-1 bg-stone-900/90 border border-stone-700/80 rounded-full shadow-lg backdrop-blur-md cursor-pointer hover:border-amber-400/70 transition-all group"
         title="Klik untuk membuka Peta Dunia (M)"
       >
         <span className="text-sm">{currentRegion.icon}</span>
@@ -40,7 +40,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({
       {/* Circular Radar Canvas */}
       <div
         onClick={onOpenFullMap}
-        className="relative w-[130px] h-[130px] rounded-full overflow-hidden border-2 border-stone-700/90 bg-stone-950/85 shadow-2xl backdrop-blur-md cursor-pointer group hover:border-amber-500/80 transition-all"
+        className="pointer-events-auto relative w-[130px] h-[130px] rounded-full overflow-hidden border-2 border-stone-700/90 bg-stone-950/85 shadow-2xl backdrop-blur-md cursor-pointer group hover:border-amber-500/80 transition-all"
         title="Klik untuk membuka Peta Lengkap (M)"
       >
         {/* Terrain Background Tint based on region */}

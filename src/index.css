@@ -159,21 +159,46 @@
     z-index: 9999 !important;
   }
 
-  /* Skill Bar: Centered neatly at bottom-center */
-  .hud-action-cluster {
-    position: fixed !important;
-    bottom: 12px !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    transform-origin: bottom center !important;
-    width: fit-content !important;
-    max-width: calc(100vw - 20px) !important;
-    z-index: 40 !important;
+  /* Desktop Skill Bar: Centered neatly at bottom-center */
+  @media (min-width: 769px) {
+    .hud-action-cluster {
+      position: fixed !important;
+      bottom: 14px !important;
+      left: 50% !important;
+      right: auto !important;
+      top: auto !important;
+      transform: translateX(-50%) !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 0.5rem !important;
+      background: rgba(12, 10, 9, 0.9) !important;
+      backdrop-filter: blur(12px) !important;
+      padding: 0.4rem 0.6rem !important;
+      border-radius: 1rem !important;
+      border: 1px solid rgba(68, 64, 60, 0.8) !important;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5) !important;
+      width: fit-content !important;
+      height: auto !important;
+      pointer-events: auto !important;
+      z-index: 40 !important;
+    }
+
+    .hud-action-cluster .skill-btn {
+      position: static !important;
+      width: 2.75rem !important;
+      height: 2.75rem !important;
+      border-radius: 0.75rem !important;
+    }
+
+    .hud-action-cluster .skill-btn-attack {
+      width: 3.25rem !important;
+      height: 3.25rem !important;
+    }
   }
 
   .hud-mobile-nav-bar {
     position: fixed !important;
-    bottom: 56px !important;
+    bottom: 12px !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     width: fit-content !important;
@@ -223,15 +248,21 @@
     transform-origin: top left;
   }
 
+  /* Minimap cluster at top-right: transparent container with pointer-events: none */
   .hud-minimap-cluster {
-    transform: scale(0.75);
-    transform-origin: top right;
+    top: 8px !important;
+    right: 8px !important;
+    transform: scale(0.75) !important;
+    transform-origin: top right !important;
+    gap: 4px !important;
+    pointer-events: none !important;
   }
 
   .hud-desktop-hotbar {
     display: none !important;
   }
 
+  /* Virtual Joystick: firmly in bottom-left corner */
   .virtual-joystick-root {
     bottom: 12px !important;
     left: 12px !important;
@@ -239,29 +270,107 @@
     transform: none !important;
   }
 
+  /* Mobile Skill Bar: Curved RPG Arc in Bottom-Right Corner */
   .hud-action-cluster {
-    bottom: 12px !important;
-    left: 50% !important;
-    right: auto !important;
-    transform: translateX(-50%) !important;
-    transform-origin: bottom center !important;
-    width: fit-content !important;
-    max-width: calc(100vw - 20px) !important;
+    position: fixed !important;
+    bottom: 15px !important;
+    right: 15px !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    width: 220px !important;
+    height: 220px !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    pointer-events: none !important;
     z-index: 40 !important;
   }
 
+  .hud-action-cluster .skill-btn {
+    position: absolute !important;
+    border-radius: 9999px !important;
+    pointer-events: auto !important;
+    box-shadow: 0 8px 16px -2px rgba(0, 0, 0, 0.7), 0 0 10px rgba(0, 0, 0, 0.5) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* Main Attack / Arcane Button: Largest in the bottom-right corner */
+  .hud-action-cluster .skill-btn-attack {
+    bottom: 0px !important;
+    right: 0px !important;
+    width: 68px !important;
+    height: 68px !important;
+    z-index: 45 !important;
+    border-width: 2.5px !important;
+  }
+
+  /* Skill 3 (Cahaya / Benteng / Bom Asap): Top of the curve */
+  .hud-action-cluster .skill-btn-3 {
+    bottom: 120px !important;
+    right: 6px !important;
+    width: 46px !important;
+    height: 46px !important;
+  }
+
+  /* Skill 2 (Blink / Terjang / Siluman): Upper-left diagonal */
+  .hud-action-cluster .skill-btn-2 {
+    bottom: 94px !important;
+    right: 70px !important;
+    width: 46px !important;
+    height: 46px !important;
+  }
+
+  /* Skill 1 (Supernova / Pusaran / 1000 Belati): Left flank */
+  .hud-action-cluster .skill-btn-1 {
+    bottom: 42px !important;
+    right: 106px !important;
+    width: 46px !important;
+    height: 46px !important;
+  }
+
+  /* Jump / Dodge (Spasi): Lower-left of Attack */
+  .hud-action-cluster .skill-btn-jump {
+    bottom: 0px !important;
+    right: 88px !important;
+    width: 46px !important;
+    height: 46px !important;
+  }
+
+  /* Hunter Weapon Switcher (Belati <-> Busur) */
+  .hud-action-cluster .skill-btn-switch {
+    bottom: 152px !important;
+    right: 64px !important;
+    width: 38px !important;
+    height: 38px !important;
+  }
+
+  /* Mobile Nav Bar: Centered at bottom-center */
   .hud-mobile-nav-bar {
-    bottom: 56px !important;
+    bottom: 12px !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     width: fit-content !important;
     z-index: 35 !important;
   }
 
+  /* Quest Tracker: Shifted higher up & beside the minimap on mobile so it never collides with skill buttons */
   .hud-quest-tracker {
-    transform: scale(0.72);
-    transform-origin: top left;
-    max-width: 180px;
+    position: absolute !important;
+    top: 0px !important;
+    right: 155px !important;
+    max-width: 170px !important;
+    transform: scale(0.85) !important;
+    transform-origin: top right !important;
+    padding: 0.5rem 0.65rem !important;
+    border-radius: 0.85rem !important;
+    margin-top: 0 !important;
+    pointer-events: auto !important;
   }
 
   .game-modal-card {
