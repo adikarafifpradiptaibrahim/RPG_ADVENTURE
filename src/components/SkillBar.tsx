@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { PlayerStats } from '../types/game';
 
 export interface SkillBarProps {
@@ -18,6 +18,20 @@ export const SkillBar: React.FC<SkillBarProps> = ({
   onJump,
   onSwitchHunterWeapon,
 }) => {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= 768 || ('ontouchstart' in window);
+  });
+
+  useEffect(() => {
+    const handleCheckMobile = () => {
+      setIsMobile(window.innerWidth <= 768 || ('ontouchstart' in window));
+    };
+    handleCheckMobile();
+    window.addEventListener('resize', handleCheckMobile);
+    return () => window.removeEventListener('resize', handleCheckMobile);
+  }, []);
+
   const getClassSkills = () => {
     switch (stats.characterClass) {
       case 'warrior':
@@ -58,7 +72,9 @@ export const SkillBar: React.FC<SkillBarProps> = ({
   return (
     <div
       id="hud-action-cluster"
-      className="hud-action-cluster touch-control-layer select-none"
+      className={`hud-action-cluster touch-control-layer select-none ${
+        isMobile ? 'hud-action-cluster-mobile' : 'hud-action-cluster-desktop'
+      }`}
     >
       {/* Hunter Weapon Switcher (Belati <-> Busur) */}
       {stats.characterClass === 'rogue' && onSwitchHunterWeapon && (
