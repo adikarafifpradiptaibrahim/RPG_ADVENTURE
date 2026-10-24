@@ -194,6 +194,17 @@ export default function App() {
     };
   }, [lockLandscapeOrientation]);
 
+  // Disable right-click context menu & long-press inspect globally
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+    document.addEventListener('contextmenu', handleContextMenu);
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+    };
+  }, []);
+
   // Fullscreen Support for Mobile & Desktop
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   useEffect(() => {

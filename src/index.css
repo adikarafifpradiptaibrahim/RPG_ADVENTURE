@@ -46,8 +46,15 @@
 }
 
 /* ========================================================================== */
-/* GLOBAL BASE STYLES FOR CANVAS & MOBILE TOUCH                              */
+/* GLOBAL BASE STYLES FOR CANVAS, UI & ANTI-INSPECT PROTECTION               */
 /* ========================================================================== */
+*,
+*::before,
+*::after {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
 @layer base {
 
   html,
@@ -61,7 +68,11 @@
     overscroll-behavior: none;
     -webkit-touch-callout: none;
     -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
     user-select: none;
+    -webkit-user-drag: none;
+    user-drag: none;
     -webkit-tap-highlight-color: transparent;
     background-color: #0c0a09;
     position: fixed;
@@ -71,13 +82,30 @@
   button {
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-user-drag: none;
+    user-drag: none;
+  }
+
+  canvas,
+  img,
+  svg,
+  video {
+    touch-action: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-user-drag: none;
+    user-drag: none;
+    -webkit-touch-callout: none;
   }
 
   canvas {
-    touch-action: none;
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
     display: block;
   }
 }
@@ -88,14 +116,68 @@
 @layer utilities {
 
   .touch-control-layer,
-  .touch-camera-drag-area,
   .virtual-joystick-root,
   .touch-control-btn {
     touch-action: none !important;
     -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
     user-select: none !important;
+    -webkit-user-drag: none !important;
+    user-drag: none !important;
     -webkit-touch-callout: none !important;
     pointer-events: auto !important;
+  }
+
+  /* Dedicated Touch Overlay Zone for 3D Camera Look (Right Screen Half) */
+  .touch-camera-drag-area {
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 50% !important;
+    right: 0 !important;
+    width: 50vw !important;
+    height: 100% !important;
+    z-index: 15 !important;
+    background: transparent !important;
+    touch-action: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+    -webkit-user-drag: none !important;
+    user-drag: none !important;
+    -webkit-touch-callout: none !important;
+    pointer-events: auto !important;
+  }
+
+  /* Analog / D-Pad: Anchored firmly at bottom-left corner with z-index: 9999 */
+  .virtual-joystick-root {
+    position: fixed !important;
+    bottom: 12px !important;
+    left: 12px !important;
+    z-index: 9999 !important;
+  }
+
+  /* Skill Bar: Centered neatly at bottom-center */
+  .hud-action-cluster {
+    position: fixed !important;
+    bottom: 12px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    transform-origin: bottom center !important;
+    width: fit-content !important;
+    max-width: calc(100vw - 20px) !important;
+    z-index: 40 !important;
+  }
+
+  .hud-mobile-nav-bar {
+    position: fixed !important;
+    bottom: 56px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: fit-content !important;
+    z-index: 35 !important;
   }
 
   .modal-close-btn-sticky {
@@ -151,8 +233,9 @@
   }
 
   .virtual-joystick-root {
-    bottom: 16px !important;
-    left: 16px !important;
+    bottom: 12px !important;
+    left: 12px !important;
+    z-index: 9999 !important;
     transform: none !important;
   }
 
@@ -164,13 +247,15 @@
     transform-origin: bottom center !important;
     width: fit-content !important;
     max-width: calc(100vw - 20px) !important;
+    z-index: 40 !important;
   }
 
   .hud-mobile-nav-bar {
-    bottom: 66px !important;
+    bottom: 56px !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     width: fit-content !important;
+    z-index: 35 !important;
   }
 
   .hud-quest-tracker {

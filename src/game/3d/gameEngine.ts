@@ -1679,6 +1679,8 @@ export class GameEngine {
    */
   public rotateCameraByDelta(deltaX: number, deltaY: number) {
     this.cameraAngleH -= deltaX * 0.0065;
+    if (this.cameraAngleH > Math.PI * 2) this.cameraAngleH -= Math.PI * 2;
+    if (this.cameraAngleH < -Math.PI * 2) this.cameraAngleH += Math.PI * 2;
     this.cameraAngleV += deltaY * 0.005;
     this.cameraAngleV = Math.max(0.08, Math.min(Math.PI / 2.15, this.cameraAngleV));
   }

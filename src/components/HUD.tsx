@@ -129,55 +129,66 @@ export const HUD: React.FC<HUDProps> = ({
     const el = touchCameraRef.current;
     if (!el || !onRotateCamera) return;
 
-    let touchId: number | null = null;
+    let primaryTouchId: number | null = null;
+    let secondaryTouchId: number | null = null;
     let prevX = 0;
     let prevY = 0;
     let initialPinch = 0;
 
     // --- Touch Handlers (Mobile / Tablet) ---
     const handleCameraTouchStart = (e: TouchEvent) => {
-      // 2-finger pinch zoom initialization
-      if (e.touches.length === 2 && onZoomCamera) {
-        if (e.cancelable) e.preventDefault();
-        e.stopPropagation();
-        const t1 = e.touches[0];
-        const t2 = e.touches[1];
-        initialPinch = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-        touchId = null;
-        return;
+      // Find touches that began on this element
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const touch = e.changedTouches[i];
+        if (primaryTouchId === null) {
+          primaryTouchId = touch.identifier;
+          prevX = touch.clientX;
+          prevY = touch.clientY;
+        } else if (secondaryTouchId === null && onZoomCamera) {
+          secondaryTouchId = touch.identifier;
+          // Both fingers are in the touch camera zone -> initialize pinch zoom
+          let t1: Touch | undefined;
+          for (let j = 0; j < e.touches.length; j++) {
+            if (e.touches[j].identifier === primaryTouchId) {
+              t1 = e.touches[j];
+              break;
+            }
+          }
+          if (t1) {
+            initialPinch = Math.hypot(t1.clientX - touch.clientX, t1.clientY - touch.clientY);
+          }
+        }
       }
-
-      // Single-finger camera orbit
-      if (touchId === null && e.changedTouches.length > 0) {
-        if (e.cancelable) e.preventDefault();
-        e.stopPropagation();
-        const t = e.changedTouches[0];
-        touchId = t.identifier;
-        prevX = t.clientX;
-        prevY = t.clientY;
+      if (primaryTouchId !== null && e.cancelable) {
+        e.preventDefault();
       }
     };
 
     const handleCameraTouchMove = (e: TouchEvent) => {
-      // 2-finger pinch zoom
-      if (e.touches.length === 2 && onZoomCamera && initialPinch > 10) {
-        if (e.cancelable) e.preventDefault();
-        e.stopPropagation();
-        const t1 = e.touches[0];
-        const t2 = e.touches[1];
-        const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-        const pinchDelta = (initialPinch - currentDist) * 0.02;
-        onZoomCamera(pinchDelta);
-        initialPinch = currentDist;
+      if (primaryTouchId === null) return;
+      if (e.cancelable) e.preventDefault();
+
+      // If we have two fingers active in the camera zone, perform pinch-to-zoom
+      if (secondaryTouchId !== null && onZoomCamera && initialPinch > 10) {
+        let t1: Touch | undefined;
+        let t2: Touch | undefined;
+        for (let i = 0; i < e.touches.length; i++) {
+          if (e.touches[i].identifier === primaryTouchId) t1 = e.touches[i];
+          if (e.touches[i].identifier === secondaryTouchId) t2 = e.touches[i];
+        }
+        if (t1 && t2) {
+          const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+          const pinchDelta = (initialPinch - currentDist) * 0.02;
+          onZoomCamera(pinchDelta);
+          initialPinch = currentDist;
+        }
         return;
       }
 
-      if (touchId === null) return;
+      // Single finger look / orbit
       for (let i = 0; i < e.touches.length; i++) {
         const t = e.touches[i];
-        if (t.identifier === touchId) {
-          if (e.cancelable) e.preventDefault();
-          e.stopPropagation();
+        if (t.identifier === primaryTouchId) {
           const deltaX = t.clientX - prevX;
           const deltaY = t.clientY - prevY;
           prevX = t.clientX;
@@ -189,29 +200,41 @@ export const HUD: React.FC<HUDProps> = ({
     };
 
     const handleCameraTouchEnd = (e: TouchEvent) => {
-      if (e.touches.length < 2) {
-        initialPinch = 0;
-      }
-      if (touchId !== null) {
-        for (let i = 0; i < e.changedTouches.length; i++) {
-          if (e.changedTouches[i].identifier === touchId) {
-            if (e.cancelable) e.preventDefault();
-            e.stopPropagation();
-            touchId = null;
-            break;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const id = e.changedTouches[i].identifier;
+        if (id === secondaryTouchId) {
+          secondaryTouchId = null;
+          initialPinch = 0;
+        } else if (id === primaryTouchId) {
+          if (secondaryTouchId !== null) {
+            primaryTouchId = secondaryTouchId;
+            secondaryTouchId = null;
+            initialPinch = 0;
+            for (let j = 0; j < e.touches.length; j++) {
+              if (e.touches[j].identifier === primaryTouchId) {
+                prevX = e.touches[j].clientX;
+                prevY = e.touches[j].clientY;
+                break;
+              }
+            }
+          } else {
+            primaryTouchId = null;
+            initialPinch = 0;
           }
         }
       }
     };
 
-    // --- Mouse Drag Handlers (PC / Laptop preview) ---
+    // --- Mouse Drag Handlers (PC / Laptop) ---
     let isMouseDown = false;
     let mousePrevX = 0;
     let mousePrevY = 0;
+    let hasDragged = false;
 
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button === 0) {
         isMouseDown = true;
+        hasDragged = false;
         mousePrevX = e.clientX;
         mousePrevY = e.clientY;
       }
@@ -221,13 +244,20 @@ export const HUD: React.FC<HUDProps> = ({
       if (!isMouseDown) return;
       const deltaX = e.clientX - mousePrevX;
       const deltaY = e.clientY - mousePrevY;
+      if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+        hasDragged = true;
+      }
       mousePrevX = e.clientX;
       mousePrevY = e.clientY;
       onRotateCamera(deltaX, deltaY);
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (e: MouseEvent) => {
+      if (isMouseDown && !hasDragged && e.button === 0) {
+        onPerformAttack?.();
+      }
       isMouseDown = false;
+      hasDragged = false;
     };
 
     el.addEventListener('touchstart', handleCameraTouchStart, { passive: false });
@@ -249,7 +279,7 @@ export const HUD: React.FC<HUDProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [onRotateCamera, onZoomCamera]);
+  }, [onRotateCamera, onZoomCamera, onPerformAttack]);
 
   const activeQuest = quests.find((q) => !q.completed) || quests[quests.length - 1];
 
@@ -333,8 +363,8 @@ export const HUD: React.FC<HUDProps> = ({
       </div>
 
       {/* Top Left: Player Status Orb & Bars */}
-      <div className="hud-player-status pointer-events-auto absolute top-4 left-4 flex flex-col gap-2 max-w-xs md:max-w-sm">
-        <div className="flex items-center gap-3 bg-stone-900/80 backdrop-blur-md p-3 rounded-2xl border border-stone-700/60 shadow-xl">
+      <div className="hud-player-status pointer-events-none absolute top-4 left-4 flex flex-col gap-2 max-w-xs md:max-w-sm z-30">
+        <div className="pointer-events-auto flex items-center gap-3 bg-stone-900/80 backdrop-blur-md p-3 rounded-2xl border border-stone-700/60 shadow-xl">
           {/* Avatar / Class Icon */}
           <div className="relative flex-shrink-0">
             <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl shadow-inner border border-stone-600 ${classBadge.color}`}>
@@ -382,7 +412,7 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
 
         {/* Currency & Stat Points Reminder */}
-        <div className="flex items-center gap-2 text-xs">
+        <div className="pointer-events-auto flex items-center gap-2 text-xs">
           <div className="flex items-center gap-1.5 bg-stone-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-500/30 text-amber-300 font-semibold shadow">
             <Coins className="w-3.5 h-3.5 text-amber-400" />
             <span>{stats.gold} Gold</span>
@@ -400,9 +430,9 @@ export const HUD: React.FC<HUDProps> = ({
       </div>
 
       {/* Top Right: MiniMap / Compass / Quest Tracker / Audio Controls */}
-      <div className="hud-minimap-cluster pointer-events-auto absolute top-4 right-4 flex flex-col items-end gap-2.5 max-w-xs">
+      <div className="hud-minimap-cluster pointer-events-none absolute top-4 right-4 flex flex-col items-end gap-2.5 max-w-xs z-30">
         {/* Audio & Settings Buttons */}
-        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+        <div className="pointer-events-auto flex items-center gap-1.5 flex-wrap justify-end">
           {/* Game Mode Badge */}
           {gameMode === 'singleplayer' ? (
             <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-950/80 border border-blue-500/40 text-blue-300 text-[11px] font-bold shadow">
@@ -550,7 +580,7 @@ export const HUD: React.FC<HUDProps> = ({
         {activeQuest && (
           <div
             onClick={onOpenQuests}
-            className="hud-quest-tracker bg-stone-900/85 backdrop-blur-md p-3.5 rounded-2xl border border-stone-700/80 shadow-xl cursor-pointer hover:border-amber-500/50 transition-all text-left w-64 md:w-72"
+            className="hud-quest-tracker pointer-events-auto bg-stone-900/85 backdrop-blur-md p-3.5 rounded-2xl border border-stone-700/80 shadow-xl cursor-pointer hover:border-amber-500/50 transition-all text-left w-64 md:w-72"
           >
             <div className="flex items-center justify-between gap-2 mb-1.5">
               <span className="text-[11px] uppercase tracking-wider font-bold text-amber-400 flex items-center gap-1">
@@ -592,7 +622,7 @@ export const HUD: React.FC<HUDProps> = ({
 
       {/* Center Top: Boss Health Bar when engaged */}
       {bossState.active && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 w-80 md:w-96 flex flex-col items-center gap-1 z-20">
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 w-80 md:w-96 flex flex-col items-center gap-1 z-20 pointer-events-none">
           <div className="text-sm font-black tracking-widest text-red-400 uppercase drop-shadow flex items-center gap-1.5">
             💀 {bossState.name || 'Ancient Titan Golem'}
           </div>
@@ -610,24 +640,25 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* Center Interactive Prompt (NPC / Chest) */}
+      {/* Center Interactive Prompt (NPC / Chest) - Compact & Raised */}
       {nearbyPrompt && (
         <div
-          style={{ touchAction: 'none', pointerEvents: 'auto', zIndex: 9999 }}
-          className="pointer-events-auto fixed bottom-28 md:bottom-24 left-1/2 -translate-x-1/2 flex items-center justify-center z-[9999]"
+          style={{ touchAction: 'none' }}
+          className="pointer-events-none fixed bottom-36 sm:bottom-40 md:bottom-32 left-1/2 -translate-x-1/2 flex items-center justify-center z-50 select-none"
         >
           <button
+            type="button"
             onTouchStart={(e) => {
               e.preventDefault();
               e.stopPropagation();
               onPromptClick?.();
             }}
             onClick={onPromptClick}
-            style={{ touchAction: 'none' }}
-            className="flex items-center gap-2 bg-gradient-to-r from-amber-600 to-yellow-600 text-stone-950 font-extrabold px-5 py-2.5 rounded-full shadow-2xl border-2 border-amber-300 cursor-pointer animate-pulse hover:scale-105 transition-transform"
+            style={{ touchAction: 'none', userSelect: 'none' }}
+            className="pointer-events-auto flex items-center gap-1.5 bg-gradient-to-r from-amber-600/95 to-yellow-600/95 text-stone-950 font-bold px-3 py-1.5 sm:px-4 sm:py-2 rounded-full shadow-xl border border-amber-300 text-[11px] sm:text-xs cursor-pointer animate-pulse hover:scale-105 active:scale-95 transition-all"
           >
-            <Sparkles className="w-4 h-4 text-stone-900" />
-            <span className="text-xs md:text-sm">{nearbyPrompt}</span>
+            <Sparkles className="w-3.5 h-3.5 text-stone-950 flex-shrink-0" />
+            <span className="tracking-wide">{nearbyPrompt}</span>
           </button>
         </div>
       )}
@@ -641,8 +672,16 @@ export const HUD: React.FC<HUDProps> = ({
           userSelect: 'none',
           WebkitUserSelect: 'none',
           pointerEvents: 'auto',
+          left: '50%',
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: '50vw',
+          height: '100%',
+          position: 'fixed',
+          zIndex: 15,
         }}
-        className="touch-camera-drag-area pointer-events-auto fixed top-0 bottom-0 left-1/2 right-0 w-[50vw] h-full z-10 bg-transparent select-none cursor-grab active:cursor-grabbing"
+        className="touch-camera-drag-area pointer-events-auto fixed top-0 bottom-0 left-1/2 right-0 w-[50vw] h-full z-[15] bg-transparent select-none cursor-grab active:cursor-grabbing"
         title="Usap separuh kanan layar untuk memutar sudut pandang kamera 3D"
       />
 
@@ -656,7 +695,7 @@ export const HUD: React.FC<HUDProps> = ({
           pointerEvents: 'auto',
           width: 'fit-content',
         }}
-        className="hud-mobile-nav-bar pointer-events-auto fixed bottom-[72px] sm:bottom-[78px] left-1/2 -translate-x-1/2 md:hidden w-fit inline-flex items-center gap-1 bg-stone-950/85 backdrop-blur-md px-2 py-1 rounded-xl border border-stone-800/70 shadow-xl z-30 select-none"
+        className="hud-mobile-nav-bar pointer-events-auto fixed bottom-[56px] sm:bottom-[60px] left-1/2 -translate-x-1/2 md:hidden w-fit inline-flex items-center gap-1 bg-stone-950/85 backdrop-blur-md px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-xl border border-stone-800/70 shadow-xl z-35 select-none"
       >
         <button
           type="button"
@@ -667,10 +706,10 @@ export const HUD: React.FC<HUDProps> = ({
           }}
           onClick={onOpenInventory}
           style={{ touchAction: 'none', userSelect: 'none' }}
-          className="touch-control-btn flex flex-col items-center justify-center w-8 h-8 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
+          className="touch-control-btn flex flex-col items-center justify-center w-7 h-7 sm:w-7.5 sm:h-7.5 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
           title="Tas (I)"
         >
-          <Backpack className="w-3.5 h-3.5 text-amber-400" />
+          <Backpack className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" />
         </button>
 
         {onOpenShop && (
@@ -683,10 +722,10 @@ export const HUD: React.FC<HUDProps> = ({
             }}
             onClick={onOpenShop}
             style={{ touchAction: 'none', userSelect: 'none' }}
-            className="touch-control-btn flex flex-col items-center justify-center w-8 h-8 bg-stone-900/90 hover:bg-stone-800 text-amber-300 rounded-xl border border-amber-500/60 active:scale-90 transition cursor-pointer"
+            className="touch-control-btn flex flex-col items-center justify-center w-7 h-7 sm:w-7.5 sm:h-7.5 bg-stone-900/90 hover:bg-stone-800 text-amber-300 rounded-xl border border-amber-500/60 active:scale-90 transition cursor-pointer"
             title="Toko (B)"
           >
-            <ShoppingBag className="w-3.5 h-3.5 text-yellow-400" />
+            <ShoppingBag className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-yellow-400" />
           </button>
         )}
 
@@ -699,10 +738,10 @@ export const HUD: React.FC<HUDProps> = ({
           }}
           onClick={onOpenStats}
           style={{ touchAction: 'none', userSelect: 'none' }}
-          className="touch-control-btn relative flex flex-col items-center justify-center w-8 h-8 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
+          className="touch-control-btn relative flex flex-col items-center justify-center w-7 h-7 sm:w-7.5 sm:h-7.5 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
           title="Status (C)"
         >
-          <User className="w-3.5 h-3.5 text-blue-400" />
+          <User className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-400" />
           {stats.statPoints > 0 && (
             <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-stone-900 animate-ping" />
           )}
@@ -717,10 +756,10 @@ export const HUD: React.FC<HUDProps> = ({
           }}
           onClick={onOpenQuests}
           style={{ touchAction: 'none', userSelect: 'none' }}
-          className="touch-control-btn flex flex-col items-center justify-center w-8 h-8 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
+          className="touch-control-btn flex flex-col items-center justify-center w-7 h-7 sm:w-7.5 sm:h-7.5 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
           title="Misi (L)"
         >
-          <Scroll className="w-3.5 h-3.5 text-emerald-400" />
+          <Scroll className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400" />
         </button>
 
         <button
@@ -732,14 +771,14 @@ export const HUD: React.FC<HUDProps> = ({
           }}
           onClick={onOpenMap}
           style={{ touchAction: 'none', userSelect: 'none' }}
-          className="touch-control-btn flex flex-col items-center justify-center w-8 h-8 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
+          className="touch-control-btn flex flex-col items-center justify-center w-7 h-7 sm:w-7.5 sm:h-7.5 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
           title="Peta (M)"
         >
-          <Map className="w-3.5 h-3.5 text-cyan-400" />
+          <Map className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-400" />
         </button>
       </div>
 
-      {/* Combat Action Bar: Centered snugly at bottom-center (fit-content) */}
+      {/* Combat Action Bar: Centered at bottom-center (reduced ~20% for anti-overlap) */}
       <div
         id="hud-action-cluster"
         style={{
@@ -749,7 +788,7 @@ export const HUD: React.FC<HUDProps> = ({
           pointerEvents: 'auto',
           width: 'fit-content',
         }}
-        className="hud-action-cluster touch-control-layer pointer-events-auto fixed bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 w-fit max-w-[95vw] inline-flex items-center gap-1.5 sm:gap-2 bg-stone-950/85 backdrop-blur-md p-1.5 sm:p-2 rounded-2xl border border-stone-800/80 shadow-2xl z-40 select-none"
+        className="hud-action-cluster touch-control-layer pointer-events-auto fixed bottom-[12px] left-1/2 -translate-x-1/2 w-fit max-w-[95vw] inline-flex items-center gap-1 sm:gap-1.5 bg-stone-950/90 backdrop-blur-md p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-stone-800/80 shadow-2xl z-40 select-none"
       >
         {/* Hunter Weapon Switcher (Belati <-> Busur) */}
         {stats.characterClass === 'rogue' && onSwitchHunterWeapon && (
@@ -762,20 +801,20 @@ export const HUD: React.FC<HUDProps> = ({
             }}
             onClick={onSwitchHunterWeapon}
             style={{ touchAction: 'none', userSelect: 'none' }}
-            className="touch-control-btn group relative flex flex-col items-center justify-center w-9 h-9 sm:w-10 sm:h-10 md:w-13 md:h-13 bg-gradient-to-b from-emerald-950 to-stone-950 hover:from-emerald-900 hover:to-stone-900 text-emerald-300 rounded-xl border border-emerald-500/80 shadow cursor-pointer active:scale-90 transition-all select-none"
+            className="touch-control-btn group relative flex flex-col items-center justify-center w-[30px] h-[30px] sm:w-[34px] sm:h-[34px] md:w-10 md:h-10 bg-gradient-to-b from-emerald-950 to-stone-950 hover:from-emerald-900 hover:to-stone-900 text-emerald-300 rounded-lg sm:rounded-xl border border-emerald-500/80 shadow cursor-pointer active:scale-90 transition-all select-none"
             title={`Ganti Senjata: ${hunterWeaponMode === 'bow' ? 'Belati' : 'Busur'} (X)`}
           >
-            <span className="text-sm sm:text-base md:text-xl">{hunterWeaponMode === 'bow' ? '🏹' : '🗡️'}</span>
-            <span className="hidden md:inline text-[9px] font-bold text-emerald-200 line-clamp-1">
+            <span className="text-xs sm:text-sm md:text-base">{hunterWeaponMode === 'bow' ? '🏹' : '🗡️'}</span>
+            <span className="hidden md:inline text-[8px] font-bold text-emerald-200 line-clamp-1">
               {hunterWeaponMode === 'bow' ? 'Busur' : 'Belati'}
             </span>
-            <span className="absolute -top-1 -right-1 md:-top-1.5 md:-right-1.5 bg-emerald-600 text-white text-[7px] md:text-[8px] font-mono px-1 rounded border border-emerald-400">
+            <span className="absolute -top-1 -right-1 bg-emerald-600 text-white text-[6px] md:text-[7px] font-mono px-0.5 rounded border border-emerald-400">
               X
             </span>
           </button>
         )}
 
-        {/* Basic Attack (Slightly larger for primary thumb action) */}
+        {/* Basic Attack (Scaled down ~20% from 44px to 36px) */}
         <button
           type="button"
           onTouchStart={(e) => {
@@ -785,12 +824,12 @@ export const HUD: React.FC<HUDProps> = ({
           }}
           onClick={onPerformAttack}
           style={{ touchAction: 'none', userSelect: 'none' }}
-          className="touch-control-btn group relative flex flex-col items-center justify-center w-11 h-11 sm:w-12 sm:h-12 md:w-15 md:h-15 bg-gradient-to-b from-amber-600/80 via-stone-800 to-stone-900 hover:from-amber-500 hover:to-stone-800 text-stone-100 rounded-xl border-2 border-amber-400/70 shadow-lg cursor-pointer active:scale-90 transition-all select-none"
+          className="touch-control-btn group relative flex flex-col items-center justify-center w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-gradient-to-b from-amber-600/80 via-stone-800 to-stone-900 hover:from-amber-500 hover:to-stone-800 text-stone-100 rounded-lg sm:rounded-xl border-2 border-amber-400/70 shadow-lg cursor-pointer active:scale-90 transition-all select-none"
           title={`${classSkills.basic.label} (Klik Kiri / J)`}
         >
-          <span className="text-lg sm:text-xl md:text-2xl">{classSkills.basic.icon}</span>
-          <span className="hidden md:inline text-[9px] font-bold text-stone-300 line-clamp-1">{classSkills.basic.label}</span>
-          <span className="absolute -top-1 -right-1 md:-top-1.5 md:-right-1.5 bg-amber-600 text-stone-950 font-bold text-[7px] md:text-[8px] font-mono px-1 rounded border border-amber-300">
+          <span className="text-base sm:text-lg md:text-xl">{classSkills.basic.icon}</span>
+          <span className="hidden md:inline text-[8px] font-bold text-stone-300 line-clamp-1">{classSkills.basic.label}</span>
+          <span className="absolute -top-1 -right-1 bg-amber-600 text-stone-950 font-bold text-[6px] md:text-[7px] font-mono px-0.5 rounded border border-amber-300">
             J
           </span>
         </button>
@@ -805,15 +844,15 @@ export const HUD: React.FC<HUDProps> = ({
           }}
           onClick={() => onCastSkill(1)}
           style={{ touchAction: 'none', userSelect: 'none' }}
-          className={`touch-control-btn group relative flex flex-col items-center justify-center w-9 h-9 sm:w-10 sm:h-10 md:w-13 md:h-13 bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 rounded-xl border shadow cursor-pointer active:scale-90 transition-all select-none ${classSkills.skill1.color}`}
+          className={`touch-control-btn group relative flex flex-col items-center justify-center w-[30px] h-[30px] sm:w-[34px] sm:h-[34px] md:w-10 md:h-10 bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 rounded-lg sm:rounded-xl border shadow cursor-pointer active:scale-90 transition-all select-none ${classSkills.skill1.color}`}
           title={`${classSkills.skill1.name} (Q)`}
         >
-          <span className="text-sm sm:text-base md:text-xl">{classSkills.skill1.icon}</span>
-          <span className="hidden md:inline text-[9px] font-bold line-clamp-1">{classSkills.skill1.name}</span>
-          <span className="absolute -top-1 -right-1 md:-top-1.5 md:-right-1.5 bg-stone-800 text-white text-[7px] md:text-[8px] font-mono px-1 rounded border border-stone-600">
+          <span className="text-xs sm:text-sm md:text-base">{classSkills.skill1.icon}</span>
+          <span className="hidden md:inline text-[8px] font-bold line-clamp-1">{classSkills.skill1.name}</span>
+          <span className="absolute -top-1 -right-1 bg-stone-800 text-white text-[6px] md:text-[7px] font-mono px-0.5 rounded border border-stone-600">
             {classSkills.skill1.key}
           </span>
-          <span className="hidden md:inline absolute -bottom-1 text-[7px] text-stone-400 font-mono font-bold bg-stone-900/90 px-0.5 rounded">
+          <span className="hidden md:inline absolute -bottom-1 text-[6px] text-stone-400 font-mono font-bold bg-stone-900/90 px-0.5 rounded">
             {classSkills.skill1.cost}
           </span>
         </button>
@@ -828,15 +867,15 @@ export const HUD: React.FC<HUDProps> = ({
           }}
           onClick={() => onCastSkill(2)}
           style={{ touchAction: 'none', userSelect: 'none' }}
-          className={`touch-control-btn group relative flex flex-col items-center justify-center w-9 h-9 sm:w-10 sm:h-10 md:w-13 md:h-13 bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 rounded-xl border shadow cursor-pointer active:scale-90 transition-all select-none ${classSkills.skill2.color}`}
+          className={`touch-control-btn group relative flex flex-col items-center justify-center w-[30px] h-[30px] sm:w-[34px] sm:h-[34px] md:w-10 md:h-10 bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 rounded-lg sm:rounded-xl border shadow cursor-pointer active:scale-90 transition-all select-none ${classSkills.skill2.color}`}
           title={`${classSkills.skill2.name} (E)`}
         >
-          <span className="text-sm sm:text-base md:text-xl">{classSkills.skill2.icon}</span>
-          <span className="hidden md:inline text-[9px] font-bold line-clamp-1">{classSkills.skill2.name}</span>
-          <span className="absolute -top-1 -right-1 md:-top-1.5 md:-right-1.5 bg-stone-800 text-white text-[7px] md:text-[8px] font-mono px-1 rounded border border-stone-600">
+          <span className="text-xs sm:text-sm md:text-base">{classSkills.skill2.icon}</span>
+          <span className="hidden md:inline text-[8px] font-bold line-clamp-1">{classSkills.skill2.name}</span>
+          <span className="absolute -top-1 -right-1 bg-stone-800 text-white text-[6px] md:text-[7px] font-mono px-0.5 rounded border border-stone-600">
             {classSkills.skill2.key}
           </span>
-          <span className="hidden md:inline absolute -bottom-1 text-[7px] text-stone-400 font-mono font-bold bg-stone-900/90 px-0.5 rounded">
+          <span className="hidden md:inline absolute -bottom-1 text-[6px] text-stone-400 font-mono font-bold bg-stone-900/90 px-0.5 rounded">
             {classSkills.skill2.cost}
           </span>
         </button>
@@ -851,15 +890,15 @@ export const HUD: React.FC<HUDProps> = ({
           }}
           onClick={() => onCastSkill(3)}
           style={{ touchAction: 'none', userSelect: 'none' }}
-          className={`touch-control-btn group relative flex flex-col items-center justify-center w-9 h-9 sm:w-10 sm:h-10 md:w-13 md:h-13 bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 rounded-xl border shadow cursor-pointer active:scale-90 transition-all select-none ${classSkills.skill3.color}`}
+          className={`touch-control-btn group relative flex flex-col items-center justify-center w-[30px] h-[30px] sm:w-[34px] sm:h-[34px] md:w-10 md:h-10 bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 rounded-lg sm:rounded-xl border shadow cursor-pointer active:scale-90 transition-all select-none ${classSkills.skill3.color}`}
           title={`${classSkills.skill3.name} (R)`}
         >
-          <span className="text-sm sm:text-base md:text-xl">{classSkills.skill3.icon}</span>
-          <span className="hidden md:inline text-[9px] font-bold line-clamp-1">{classSkills.skill3.name}</span>
-          <span className="absolute -top-1 -right-1 md:-top-1.5 md:-right-1.5 bg-stone-800 text-white text-[7px] md:text-[8px] font-mono px-1 rounded border border-stone-600">
+          <span className="text-xs sm:text-sm md:text-base">{classSkills.skill3.icon}</span>
+          <span className="hidden md:inline text-[8px] font-bold line-clamp-1">{classSkills.skill3.name}</span>
+          <span className="absolute -top-1 -right-1 bg-stone-800 text-white text-[6px] md:text-[7px] font-mono px-0.5 rounded border border-stone-600">
             {classSkills.skill3.key}
           </span>
-          <span className="hidden md:inline absolute -bottom-1 text-[7px] text-stone-400 font-mono font-bold bg-stone-900/90 px-0.5 rounded">
+          <span className="hidden md:inline absolute -bottom-1 text-[6px] text-stone-400 font-mono font-bold bg-stone-900/90 px-0.5 rounded">
             {classSkills.skill3.cost}
           </span>
         </button>
@@ -874,12 +913,12 @@ export const HUD: React.FC<HUDProps> = ({
           }}
           onClick={onJump}
           style={{ touchAction: 'none', userSelect: 'none' }}
-          className="touch-control-btn group relative flex flex-col items-center justify-center w-9 h-9 sm:w-10 sm:h-10 md:w-13 md:h-13 bg-gradient-to-b from-stone-800 to-stone-900 hover:from-stone-700 text-stone-200 rounded-xl border border-stone-600 shadow cursor-pointer active:scale-90 transition-all select-none"
+          className="touch-control-btn group relative flex flex-col items-center justify-center w-[30px] h-[30px] sm:w-[34px] sm:h-[34px] md:w-10 md:h-10 bg-gradient-to-b from-stone-800 to-stone-900 hover:from-stone-700 text-stone-200 rounded-lg sm:rounded-xl border border-stone-600 shadow cursor-pointer active:scale-90 transition-all select-none"
           title="Lompat / Menghindar (Spasi)"
         >
-          <span className="text-sm sm:text-base md:text-xl">🦘</span>
-          <span className="hidden md:inline text-[9px] font-bold text-stone-400">Lompat</span>
-          <span className="absolute -top-1 -right-1 md:-top-1.5 md:-right-1.5 bg-stone-700 text-stone-300 text-[7px] md:text-[8px] font-mono px-1 rounded border border-stone-500">
+          <span className="text-xs sm:text-sm md:text-base">🦘</span>
+          <span className="hidden md:inline text-[8px] font-bold text-stone-400">Lompat</span>
+          <span className="absolute -top-1 -right-1 bg-stone-700 text-stone-300 text-[6px] md:text-[7px] font-mono px-0.5 rounded border border-stone-500">
             Spasi
           </span>
         </button>
