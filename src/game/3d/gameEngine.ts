@@ -4766,10 +4766,21 @@ export class GameEngine {
         title: 'Pelabuhan Kapal Sanctuary',
         type: 'pier',
         x: 0,
-        z: 24,
+        z: 21,
         icon: '⛵',
         color: '#00b4d8',
-        description: 'Dermaga Sejajar & Kapal Dagang / Perang Berlabuh',
+        description: 'Dermaga Kayu Utama & Titian Pantai Sanctuary',
+      });
+
+      markers.push({
+        id: 'landmark_sanctuary_pier_head',
+        title: 'Anjungan Dermaga Laut Lepas',
+        type: 'pier',
+        x: 0,
+        z: 56,
+        icon: '⚓',
+        color: '#0284c7',
+        description: 'Ujung Dermaga Kayu Megah dengan Kapal Perang & Kapal Dagang Berlabuh',
       });
 
       // Reruntuhan Kuno Vael (Upstream Outskirts)

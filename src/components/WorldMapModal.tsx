@@ -416,9 +416,9 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 4. Sanctuary Harbor & Parallel Docks (X: 0, Z: 24) */}
+              {/* 4. Sanctuary Harbor & Coastal Docks (X: 0, Z: 21) */}
               {(() => {
-                const sp = worldToScreen(0, 24);
+                const sp = worldToScreen(0, 21);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -431,7 +431,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                       <span className="text-[8px] font-bold text-cyan-200 whitespace-nowrap">
                         Pelabuhan Sanctuary
                       </span>
-                      <span className="text-[7px] text-cyan-300/80 font-mono">Dermaga & Kapal Berlabuh</span>
+                      <span className="text-[7px] text-cyan-300/80 font-mono">Dermaga Kayu & Kapal Berlabuh</span>
                     </div>
                   </div>
                 );
@@ -458,9 +458,9 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 5. Sanctuary Village Plaza (X: 0, Z: 0) */}
+              {/* 5. Sanctuary Village Plaza (X: 0, Z: -4) */}
               {(() => {
-                const sp = worldToScreen(0, 0);
+                const sp = worldToScreen(0, -4);
                 if (!sp.visible) return null;
                 return (
                   <div

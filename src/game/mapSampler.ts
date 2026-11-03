@@ -31,24 +31,32 @@ function smoothstep(min: number, max: number, value: number): number {
 export function getProceduralContinentHeight(x: number, z: number): number {
   const distCenter = Math.hypot(x, z);
 
-  // 1. Starting Village: Desa Eldoria Center (x: -35..35, z: -35..35)
-  if (distCenter < 35) {
-    if (distCenter < 24) return 0.15;
-    const t = (distCenter - 24) / 11;
+  // 1. Starting Village: Desa Eldoria Mainland Foundation (z <= 16, |x| <= 36)
+  // Firm, level, elevated ground safely situated above ocean water
+  if (z <= 16 && Math.abs(x) <= 36 && z >= -34) {
+    if (Math.abs(x) <= 28 && z >= -26 && z <= 14) return 0.25;
+    const edgeX = Math.max(0, Math.abs(x) - 28) / 8;
+    const edgeZ = Math.max(0, Math.max(-26 - z, z - 14)) / 8;
+    const t = clamp(Math.max(edgeX, edgeZ), 0, 1);
     const meadow = Math.sin(x * 0.08) * 1.5 + Math.cos(z * 0.07) * 1.2;
-    return (1 - t) * 0.15 + t * meadow;
+    return (1 - t) * 0.25 + t * Math.max(0.2, meadow);
   }
 
-  // 1b. Clean Parallel Harbor Boardwalk & Pier Corridors (Deck height y = 1.825)
-  // Shoreline boardwalk: x: -24..24, z: 18..22
-  // West Pier: x: -12..-8, z: 20..54
-  // East Pier: x: 8..12, z: 20..54
-  if (
-    (Math.abs(x) <= 24 && z >= 18 && z <= 22) ||
-    (x >= -12 && x <= -8 && z >= 20 && z <= 54) ||
-    (x >= 8 && x <= 12 && z >= 20 && z <= 54)
-  ) {
-    return 1.825; // Walkable wooden pier deck height above water
+  // 1b. Sanctuary Coastal Beach Shoreline & Deep Harbor Water Basin
+  // Beach slopes naturally from dry sand (z = 16, y = 0.25) down through the waterline (z = 20, y = 0.0)
+  // and into deep ocean waters (z > 24, y = -1.5..-4.2)
+  if (z > 16 && Math.abs(x) <= 45) {
+    if (z <= 20) {
+      const t = (z - 16) / 4;
+      return 0.25 - t * 0.23;
+    } else if (z <= 26) {
+      const t = (z - 20) / 6;
+      return 0.02 - t * 1.82;
+    } else {
+      const depthDist = Math.min(30, z - 26);
+      const seaWave = Math.sin(x * 0.08) * 0.3;
+      return -1.8 - depthDist * 0.08 + seaWave;
+    }
   }
 
   // 1c. Ancient Sunken Ruins of Vael Terrace (x: -140..-95, z: 15..60)
@@ -304,22 +312,33 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   const distCenter = Math.hypot(x, z);
   const distValKragor = Math.hypot(x - 116, z - -17);
 
-  // 0. Parallel Coastal Harbor Docks (Boardwalk + West/East Piers)
+  // 0. Coastal Wooden Harbor Pier Network
+  // Main Central Pier: x: -2.2..2.2, z: 20..58
+  // End Platform: x: -7.5..7.5, z: 54..58
+  // West Pier: x: -13.8..-10.2, z: 20..52
+  // East Pier: x: 10.2..13.8, z: 20..52
+  // Shoreline Quay Boardwalk: x: -16.5..16.5, z: 18.5..21.5
+  // Connecting Cross-Walkway: z: 34.5..37.5, x: -13..13
   if (
-    (Math.abs(x) <= 24 && z >= 18 && z <= 22) ||
-    (x >= -12 && x <= -8 && z >= 20 && z <= 54) ||
-    (x >= 8 && x <= 12 && z >= 20 && z <= 54)
+    (Math.abs(x) <= 2.2 && z >= 20 && z <= 58) ||
+    (Math.abs(x) <= 7.5 && z >= 54 && z <= 58) ||
+    (x >= -13.8 && x <= -10.2 && z >= 20 && z <= 52) ||
+    (x >= 10.2 && x <= 13.8 && z >= 20 && z <= 52) ||
+    (Math.abs(x) <= 16.5 && z >= 18.5 && z <= 21.5) ||
+    (Math.abs(z - 36) <= 1.6 && x >= -13 && x <= 13)
   ) {
-    return { height: y, color: [141, 110, 99], biomeId: 'harbor_pier', isWater: false, isPath: true, slope: 0 };
+    return { height: 1.85, color: [141, 110, 99], biomeId: 'harbor_pier', isWater: false, isPath: true, slope: 0 };
   }
 
   // Moored Ships alongside piers in deep ocean water
-  // Galleon 1 [20, 38], Galleon 2 [-20, 38], Warship 1 [34, 44], Warship 2 [-34, 44]
   if (
-    (Math.abs(x - 20) <= 2.8 && Math.abs(z - 38) <= 7.5) ||
-    (Math.abs(x - -20) <= 2.8 && Math.abs(z - 38) <= 7.5) ||
-    (Math.abs(x - 34) <= 2.4 && Math.abs(z - 44) <= 7.5) ||
-    (Math.abs(x - -34) <= 2.4 && Math.abs(z - 44) <= 7.5)
+    (Math.abs(x - 20.5) <= 3.0 && Math.abs(z - 36) <= 8.5) ||
+    (Math.abs(x - -20.5) <= 3.0 && Math.abs(z - 36) <= 8.5) ||
+    (Math.abs(x - 34) <= 2.6 && Math.abs(z - 46) <= 8.0) ||
+    (Math.abs(x - -34) <= 2.6 && Math.abs(z - 46) <= 8.0) ||
+    (Math.abs(x - -6) <= 1.4 && Math.abs(z - 30) <= 2.6) ||
+    (Math.abs(x - 6) <= 1.4 && Math.abs(z - 30) <= 2.6) ||
+    (Math.abs(x - 6) <= 1.4 && Math.abs(z - 44) <= 2.6)
   ) {
     return { height: 1.0, color: [84, 53, 31], biomeId: 'ship_deck', isWater: false, isPath: false, slope: 0 };
   }
@@ -357,18 +376,30 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: y, color: [250, 204, 21], biomeId: 'astraea_road', isWater: false, isPath: true, slope };
   }
 
-  // 3. Desa Eldoria Village Cobblestones & Organized Paths
-  // North-South Promenade (from North Gate z: -22 down to Harbor Boardwalk z: 20)
-  if (Math.abs(x) <= 3.2 && z >= -22 && z <= 20) {
+  // 3. Desa Eldoria Village Cobblestones & Organized Street Grid
+  // North-South Promenade (from North Gate z: -24 down to Shoreline Quay z: 19)
+  if (Math.abs(x) <= 3.2 && z >= -24 && z <= 19) {
     return { height: y, color: [215, 204, 200], biomeId: 'eldoria_path', isWater: false, isPath: true, slope: 0 };
   }
-  // East-West Village Crossways (connecting Blacksmith, Shops & Residential Wards)
-  if (Math.abs(z) <= 3.0 && x >= -28 && x <= 28) {
-    return { height: y, color: [215, 204, 200], biomeId: 'eldoria_path', isWater: false, isPath: true, slope: 0 };
-  }
-  // Circular Center Plaza around fountain
-  if (distCenter < 7.5) {
+  // Central Plaza Circle around Fountain (at [0, -4])
+  if (Math.hypot(x, z - -4) <= 7.5) {
     return { height: y, color: [226, 218, 214], biomeId: 'eldoria_plaza', isWater: false, isPath: true, slope: 0 };
+  }
+  // West Residential Street (along x = -19, connecting houses)
+  if (Math.abs(x - -19) <= 2.2 && z >= -16 && z <= 12) {
+    return { height: y, color: [215, 204, 200], biomeId: 'eldoria_path', isWater: false, isPath: true, slope: 0 };
+  }
+  // East Residential Street (along x = 19, connecting houses)
+  if (Math.abs(x - 19) <= 2.2 && z >= -16 && z <= 12) {
+    return { height: y, color: [215, 204, 200], biomeId: 'eldoria_path', isWater: false, isPath: true, slope: 0 };
+  }
+  // Cross Street (connecting West & East across central plaza at z = -4)
+  if (Math.abs(z - -4) <= 2.2 && Math.abs(x) <= 25) {
+    return { height: y, color: [215, 204, 200], biomeId: 'eldoria_path', isWater: false, isPath: true, slope: 0 };
+  }
+  // South Cross Street (connecting Blacksmith & Shops to Residential Wards at z = 7)
+  if (Math.abs(z - 7) <= 2.2 && Math.abs(x) <= 25) {
+    return { height: y, color: [215, 204, 200], biomeId: 'eldoria_path', isWater: false, isPath: true, slope: 0 };
   }
 
   // 3b. Ancient Sunken Ruins of Vael Granite Flagstone Terrace (x: -140..-95, z: 15..60)

@@ -1765,41 +1765,152 @@ export function createVillageHouseMesh(): THREE.Group {
   return house;
 }
 
-// Ocean Pier / Dock
-export function createPierDockMesh(): THREE.Group {
-  const pier = new THREE.Group();
-  const woodMat = new THREE.MeshLambertMaterial({ color: 0x4e342e, flatShading: true });
-  const plankMat = new THREE.MeshLambertMaterial({ color: 0x6d4c41, flatShading: true });
+// Ocean Pier / Dock with authentic deep wooden stilts, heavy timber deck, and nautical detailing
+export interface PierDockOptions {
+  length?: number;
+  width?: number;
+  pileDepth?: number;
+  hasLantern?: boolean;
+  lanternSide?: 'left' | 'right' | 'both' | 'none';
+  hasMooringBollards?: boolean;
+  hasCrossBrace?: boolean;
+}
 
-  // Piles / support poles in water
-  const pileGeo = new THREE.CylinderGeometry(0.18, 0.18, 3.5, 6);
-  for (let z = 0; z <= 12; z += 3) {
-    const leftPile = new THREE.Mesh(pileGeo, woodMat);
-    leftPile.position.set(-1.2, 0.5, z);
-    const rightPile = new THREE.Mesh(pileGeo, woodMat);
-    rightPile.position.set(1.2, 0.5, z);
+export function createPierDockMesh(options?: PierDockOptions): THREE.Group {
+  const pier = new THREE.Group();
+  const length = options?.length ?? 14;
+  const width = options?.width ?? 3.2;
+  const pileDepth = options?.pileDepth ?? 6.8;
+  const hasLantern = options?.hasLantern ?? false;
+  const lanternSide = options?.lanternSide ?? 'right';
+  const hasMooringBollards = options?.hasMooringBollards ?? true;
+  const hasCrossBrace = options?.hasCrossBrace ?? true;
+
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x4e342e, flatShading: true });
+  const darkTimberMat = new THREE.MeshLambertMaterial({ color: 0x3e2723, flatShading: true });
+  const plankMat = new THREE.MeshLambertMaterial({ color: 0x6d4c41, flatShading: true });
+  const ropeMat = new THREE.MeshLambertMaterial({ color: 0xd7ccc8, flatShading: true });
+
+  const pileRadius = 0.20;
+  const pileSpacing = 3.5;
+  const halfWidth = width / 2;
+  const pileX = halfWidth - 0.22;
+  const pileY = 2.05 - pileDepth / 2;
+
+  // 1. Heavy Wooden Stilts / Piles plunging deep into ocean water & seabed
+  const pileGeo = new THREE.CylinderGeometry(pileRadius, pileRadius * 1.15, pileDepth, 8);
+  const capBeamGeo = new THREE.BoxGeometry(width + 0.3, 0.22, 0.34);
+
+  for (let z = 1.0; z <= length - 0.5; z += pileSpacing) {
+    // Left & Right Stilts
+    const leftPile = new THREE.Mesh(pileGeo, darkTimberMat);
+    leftPile.position.set(-pileX, pileY, z);
+    leftPile.castShadow = true;
+    leftPile.receiveShadow = true;
+
+    const rightPile = new THREE.Mesh(pileGeo, darkTimberMat);
+    rightPile.position.set(pileX, pileY, z);
+    rightPile.castShadow = true;
+    rightPile.receiveShadow = true;
+
     pier.add(leftPile, rightPile);
+
+    // If pier is wide (e.g. platform), add center support stilt
+    if (width >= 5.0) {
+      const centerPile = new THREE.Mesh(pileGeo, darkTimberMat);
+      centerPile.position.set(0, pileY, z);
+      pier.add(centerPile);
+    }
+
+    // Horizontal timber cap beam supporting the deck
+    const capBeam = new THREE.Mesh(capBeamGeo, woodMat);
+    capBeam.position.set(0, 1.96, z);
+    capBeam.castShadow = true;
+    pier.add(capBeam);
+
+    // Diagonal X-bracing between piles in water
+    if (hasCrossBrace && width <= 4.5) {
+      const braceSpan = Math.hypot(pileX * 2, 1.4);
+      const braceGeo = new THREE.BoxGeometry(0.12, braceSpan, 0.12);
+
+      const brace1 = new THREE.Mesh(braceGeo, woodMat);
+      brace1.position.set(0, 0.8, z);
+      brace1.rotation.z = Math.atan2(pileX * 2, 1.4);
+
+      const brace2 = new THREE.Mesh(braceGeo, woodMat);
+      brace2.position.set(0, 0.8, z);
+      brace2.rotation.z = -Math.atan2(pileX * 2, 1.4);
+
+      pier.add(brace1, brace2);
+    }
   }
 
-  // Walkway deck planks
-  const deckGeo = new THREE.BoxGeometry(2.8, 0.25, 13.5);
+  // 2. Walkway Deck Planks
+  const deckGeo = new THREE.BoxGeometry(width, 0.25, length);
   const deck = new THREE.Mesh(deckGeo, plankMat);
-  deck.position.set(0, 2.1, 6);
+  deck.position.set(0, 2.1, length / 2);
   deck.receiveShadow = true;
   deck.castShadow = true;
   pier.add(deck);
 
-  // Lantern on dock post
-  const lanternPost = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.5, 6), woodMat);
-  lanternPost.position.set(1.1, 2.8, 12);
-  pier.add(lanternPost);
+  // Raised edge curb logs / fender beams along pier flanks
+  const curbGeo = new THREE.BoxGeometry(0.18, 0.24, length);
+  const leftCurb = new THREE.Mesh(curbGeo, darkTimberMat);
+  leftCurb.position.set(-halfWidth + 0.09, 2.25, length / 2);
+  const rightCurb = new THREE.Mesh(curbGeo, darkTimberMat);
+  rightCurb.position.set(halfWidth - 0.09, 2.25, length / 2);
+  pier.add(leftCurb, rightCurb);
 
-  const lanternGlow = new THREE.Mesh(
-    new THREE.BoxGeometry(0.3, 0.35, 0.3),
-    new THREE.MeshBasicMaterial({ color: 0xffb74d })
-  );
-  lanternGlow.position.set(1.1, 3.4, 12);
-  pier.add(lanternGlow);
+  // 3. Mooring Bollards / Cleats with rope wraps
+  if (hasMooringBollards) {
+    const bollardGeo = new THREE.CylinderGeometry(0.12, 0.14, 0.5, 6);
+    const ropeRingGeo = new THREE.TorusGeometry(0.15, 0.04, 6, 10);
+    ropeRingGeo.rotateX(Math.PI / 2);
+
+    for (let bz = 2.5; bz < length; bz += 5.0) {
+      // Left bollard
+      const bLeft = new THREE.Mesh(bollardGeo, darkTimberMat);
+      bLeft.position.set(-halfWidth + 0.2, 2.45, bz);
+      const rLeft = new THREE.Mesh(ropeRingGeo, ropeMat);
+      rLeft.position.set(-halfWidth + 0.2, 2.4, bz);
+      pier.add(bLeft, rLeft);
+
+      // Right bollard
+      const bRight = new THREE.Mesh(bollardGeo, darkTimberMat);
+      bRight.position.set(halfWidth - 0.2, 2.45, bz);
+      const rRight = new THREE.Mesh(ropeRingGeo, ropeMat);
+      rRight.position.set(halfWidth - 0.2, 2.4, bz);
+      pier.add(bRight, rRight);
+    }
+  }
+
+  // 4. Harbor Lantern on Rustic Timber Post
+  if (hasLantern) {
+    const addLantern = (sideX: number) => {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 1.6, 6), woodMat);
+      post.position.set(sideX, 2.9, length - 0.6);
+
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.08, 0.08), woodMat);
+      arm.position.set(sideX > 0 ? sideX - 0.12 : sideX + 0.12, 3.65, length - 0.6);
+
+      const lampHousing = new THREE.Mesh(
+        new THREE.BoxGeometry(0.24, 0.32, 0.24),
+        new THREE.MeshLambertMaterial({ color: 0x1a1a1a })
+      );
+      lampHousing.position.set(sideX > 0 ? sideX - 0.22 : sideX + 0.22, 3.48, length - 0.6);
+
+      const glow = new THREE.Mesh(
+        new THREE.BoxGeometry(0.18, 0.22, 0.18),
+        new THREE.MeshBasicMaterial({ color: 0xffb74d })
+      );
+      glow.position.copy(lampHousing.position);
+
+      pier.add(post, arm, lampHousing, glow);
+    };
+
+    if (lanternSide === 'right' || lanternSide === 'both') addLantern(halfWidth - 0.22);
+    if (lanternSide === 'left' || lanternSide === 'both') addLantern(-halfWidth + 0.22);
+  }
 
   return pier;
 }

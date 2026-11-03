@@ -19,11 +19,11 @@ export interface MonsterSpawnConfig {
 
 /**
  * Checks if a world coordinate (x, z) is inside the Sanctuary Village & Harbor Safe Zone.
- * Radius: 55 units around village plaza + coastal harbor dock corridor (x: -32..32, z: 15..58).
+ * Radius: 55 units around village plaza + coastal harbor dock corridor (x: -45..45, z: 15..65).
  */
 export function isInsideSanctuarySafeZone(x: number, z: number): boolean {
   if (Math.hypot(x, z) < 55) return true;
-  if (Math.abs(x) <= 32 && z >= 15 && z <= 58) return true;
+  if (Math.abs(x) <= 45 && z >= 15 && z <= 65) return true;
   return false;
 }
 
