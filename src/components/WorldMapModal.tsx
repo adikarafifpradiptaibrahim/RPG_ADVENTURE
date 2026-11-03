@@ -41,24 +41,25 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
   const [selectedRegion, setSelectedRegion] = useState<RegionInfo>(currentRegion);
   const [showLegend, setShowLegend] = useState(true);
 
-  // Zoom & Pan state with pure 60 FPS hardware accelerated performance
-  const [zoom, setZoom] = useState<number>(1.0);
-  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [isInteracting, setIsInteracting] = useState<boolean>(false);
+  // Navigation state using uncontrolled Direct DOM (useRef) to ensure pure 60/120 FPS performance with zero React re-renders
+  const transformRef = useRef<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 1.0 });
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapPlaneRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const zoomLabelRef = useRef<HTMLDivElement | null>(null);
+  const navHintRef = useRef<HTMLSpanElement | null>(null);
 
-  const zoomRef = useRef<number>(1.0);
-  const panRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Drag interaction tracking (uncontrolled)
   const isDraggingRef = useRef<boolean>(false);
   const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  const dragRafRef = useRef<number | null>(null);
-  const wheelRafRef = useRef<number | null>(null);
+  // Single RAF rendering scheduler
+  const rafIdRef = useRef<number | null>(null);
   const wheelCommitTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const mapPlaneRef = useRef<HTMLDivElement | null>(null);
+  // HUD button state only (updated strictly on gesture settlement or button clicks)
+  const [hudScale, setHudScale] = useState<number>(1.0);
 
   // Map world coordinate boundaries for projection
   // 2.5x Expanded World bounds: X from -580 to +680 (width 1260), Z from -460 to +460 (height 920)
@@ -68,158 +69,238 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
   const maxZ = 460;
 
   // Clamped Pan Handler (prevents panning past the map boundaries at any zoom level)
-  const clampPan = useCallback((nx: number, ny: number, curZoom: number) => {
-    const maxPanX = (curZoom - 1.0) * 280;
-    const maxPanY = (curZoom - 1.0) * 210;
+  const clampPan = useCallback((nx: number, ny: number, curScale: number) => {
+    const maxPanX = (curScale - 1.0) * 280;
+    const maxPanY = (curScale - 1.0) * 210;
     return {
       x: Math.max(-maxPanX, Math.min(maxPanX, nx)),
       y: Math.max(-maxPanY, Math.min(maxPanY, ny)),
     };
   }, []);
 
-  // Direct DOM hardware transform update (runs on GPU, avoids layout thrashing and React VDOM re-renders)
-  const applyTransform = useCallback((px: number, py: number, z: number) => {
-    if (mapPlaneRef.current) {
-      mapPlaneRef.current.style.transform = `translate3d(${px}px, ${py}px, 0px) scale(${z})`;
-    }
+  // Hardware-accelerated RAF transform update (runs on monitor refresh rate cycle, 60/120 FPS)
+  const requestTransformUpdate = useCallback(() => {
+    if (rafIdRef.current !== null) return;
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      const { x, y, scale } = transformRef.current;
+      if (mapPlaneRef.current) {
+        mapPlaneRef.current.style.transform = `translate3d(${x}px, ${y}px, 0px) scale(${scale})`;
+      }
+      if (zoomLabelRef.current) {
+        zoomLabelRef.current.textContent = `${scale.toFixed(1)}x`;
+      }
+      if (navHintRef.current) {
+        navHintRef.current.textContent =
+          scale > 1.0 ? 'Tahan & Geser untuk Menjelajah' : 'Scroll / (+) untuk Memperbesar';
+      }
+      if (mapContainerRef.current) {
+        mapContainerRef.current.style.cursor = isDraggingRef.current
+          ? 'grabbing'
+          : scale > 1.0
+          ? 'grab'
+          : 'default';
+      }
+    });
   }, []);
 
-  // Center on player (instantly centers view onto player position)
+  // Center on player (centers view onto player position and zooms in if at default scale)
   const handleCenterOnPlayer = useCallback(() => {
-    const curZoom = zoomRef.current;
+    const curScale = Math.max(1.5, transformRef.current.scale);
+    transformRef.current.scale = curScale;
     const normX = (playerPos.x - minX) / (maxX - minX);
     const normZ = (playerPos.z - minZ) / (maxZ - minZ);
-    const targetPanX = -(normX - 0.5) * 560 * curZoom;
-    const targetPanY = -(normZ - 0.5) * 420 * curZoom;
-    const nextPan = clampPan(targetPanX, targetPanY, curZoom);
-    panRef.current = nextPan;
-    setPan(nextPan);
-    applyTransform(nextPan.x, nextPan.y, curZoom);
-  }, [playerPos.x, playerPos.z, clampPan, applyTransform]);
+    const targetPanX = -(normX - 0.5) * 560 * curScale;
+    const targetPanY = -(normZ - 0.5) * 420 * curScale;
+    const nextPan = clampPan(targetPanX, targetPanY, curScale);
+    transformRef.current.x = nextPan.x;
+    transformRef.current.y = nextPan.y;
+
+    if (mapPlaneRef.current) {
+      mapPlaneRef.current.style.transition = 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)';
+    }
+    requestTransformUpdate();
+    setHudScale(curScale);
+  }, [playerPos.x, playerPos.z, clampPan, requestTransformUpdate]);
 
   // Zoom In / Out Handlers with smooth GPU transitions
   const handleZoomIn = () => {
-    const next = Math.min(3.5, Math.round((zoomRef.current + 0.5) * 10) / 10);
-    zoomRef.current = next;
-    const nextPan = clampPan(panRef.current.x, panRef.current.y, next);
-    panRef.current = nextPan;
-    setZoom(next);
-    setPan(nextPan);
-    applyTransform(nextPan.x, nextPan.y, next);
+    const next = Math.min(3.5, Math.round((transformRef.current.scale + 0.5) * 10) / 10);
+    transformRef.current.scale = next;
+    const nextPan = clampPan(transformRef.current.x, transformRef.current.y, next);
+    transformRef.current.x = nextPan.x;
+    transformRef.current.y = nextPan.y;
+
+    if (mapPlaneRef.current) {
+      mapPlaneRef.current.style.transition = 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)';
+    }
+    requestTransformUpdate();
+    setHudScale(next);
   };
 
   const handleZoomOut = () => {
-    const next = Math.max(1.0, Math.round((zoomRef.current - 0.5) * 10) / 10);
-    zoomRef.current = next;
-    const nextPan = next === 1.0 ? { x: 0, y: 0 } : clampPan(panRef.current.x, panRef.current.y, next);
-    panRef.current = nextPan;
-    setZoom(next);
-    setPan(nextPan);
-    applyTransform(nextPan.x, nextPan.y, next);
+    const next = Math.max(1.0, Math.round((transformRef.current.scale - 0.5) * 10) / 10);
+    transformRef.current.scale = next;
+    const nextPan = next === 1.0 ? { x: 0, y: 0 } : clampPan(transformRef.current.x, transformRef.current.y, next);
+    transformRef.current.x = nextPan.x;
+    transformRef.current.y = nextPan.y;
+
+    if (mapPlaneRef.current) {
+      mapPlaneRef.current.style.transition = 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)';
+    }
+    requestTransformUpdate();
+    setHudScale(next);
   };
 
   const handleResetZoom = () => {
-    zoomRef.current = 1.0;
-    panRef.current = { x: 0, y: 0 };
-    setZoom(1.0);
-    setPan({ x: 0, y: 0 });
-    applyTransform(0, 0, 1.0);
-  };
-
-  // Mouse wheel zoom wrapped in requestAnimationFrame with zero layout thrashing
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.25 : -0.25;
-    const nextZoom = Math.max(1.0, Math.min(3.5, Math.round((zoomRef.current + delta) * 100) / 100));
-    zoomRef.current = nextZoom;
-
-    const nextPan = nextZoom === 1.0 ? { x: 0, y: 0 } : clampPan(panRef.current.x, panRef.current.y, nextZoom);
-    panRef.current = nextPan;
-
-    if (!isInteracting) setIsInteracting(true);
-
-    if (wheelRafRef.current == null) {
-      wheelRafRef.current = requestAnimationFrame(() => {
-        applyTransform(panRef.current.x, panRef.current.y, zoomRef.current);
-        wheelRafRef.current = null;
-      });
-    }
-
-    // Debounce syncing to React state when wheel scrolling settles
-    if (wheelCommitTimerRef.current) clearTimeout(wheelCommitTimerRef.current);
-    wheelCommitTimerRef.current = setTimeout(() => {
-      setZoom(zoomRef.current);
-      setPan({ ...panRef.current });
-      setIsInteracting(false);
-    }, 120);
-  };
-
-  // Unified pointer drag handler with pointer capture and direct RAF hardware transform for silky 60fps pan
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (zoomRef.current <= 1.0) return;
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      // ignore
-    }
-    isDraggingRef.current = true;
+    transformRef.current = { x: 0, y: 0, scale: 1.0 };
     if (mapPlaneRef.current) {
+      mapPlaneRef.current.style.transition = 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)';
+    }
+    requestTransformUpdate();
+    setHudScale(1.0);
+  };
+
+  // Optimized Native Non-Passive Event Listeners for smooth drag/zoom with zero gesture delay
+  useEffect(() => {
+    if (!isOpen) return;
+    const container = mapContainerRef.current;
+    if (!container) return;
+
+    // Reset view state when modal opens
+    transformRef.current = { x: 0, y: 0, scale: 1.0 };
+    setHudScale(1.0);
+    if (mapPlaneRef.current) {
+      mapPlaneRef.current.style.transform = 'translate3d(0px, 0px, 0px) scale(1)';
       mapPlaneRef.current.style.transition = 'none';
     }
-    e.currentTarget.style.cursor = 'grabbing';
-    dragStartRef.current = { x: e.clientX, y: e.clientY };
-    panStartRef.current = { ...panRef.current };
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDraggingRef.current || zoomRef.current <= 1.0) return;
-    const dx = e.clientX - dragStartRef.current.x;
-    const dy = e.clientY - dragStartRef.current.y;
-    const targetX = panStartRef.current.x + dx;
-    const targetY = panStartRef.current.y + dy;
-    const clamped = clampPan(targetX, targetY, zoomRef.current);
-    panRef.current = clamped;
-
-    if (dragRafRef.current == null) {
-      dragRafRef.current = requestAnimationFrame(() => {
-        applyTransform(panRef.current.x, panRef.current.y, zoomRef.current);
-        dragRafRef.current = null;
-      });
+    if (zoomLabelRef.current) {
+      zoomLabelRef.current.textContent = '1.0x';
     }
-  };
+    if (navHintRef.current) {
+      navHintRef.current.textContent = 'Scroll / (+) untuk Memperbesar';
+    }
+    container.style.cursor = 'default';
 
-  const handlePointerUp = (e: React.PointerEvent) => {
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      // ignore
-    }
-    if (dragRafRef.current != null) {
-      cancelAnimationFrame(dragRafRef.current);
-      dragRafRef.current = null;
-    }
-    if (isDraggingRef.current) {
-      isDraggingRef.current = false;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const delta = e.deltaY < 0 ? 0.25 : -0.25;
+      const prevScale = transformRef.current.scale;
+      const nextScale = Math.max(1.0, Math.min(3.5, Math.round((prevScale + delta) * 100) / 100));
+
+      if (nextScale === prevScale) return;
+
+      const nextPan = nextScale === 1.0 ? { x: 0, y: 0 } : clampPan(transformRef.current.x, transformRef.current.y, nextScale);
+
+      transformRef.current = {
+        x: nextPan.x,
+        y: nextPan.y,
+        scale: nextScale,
+      };
+
       if (mapPlaneRef.current) {
-        mapPlaneRef.current.style.transition = 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)';
+        mapPlaneRef.current.style.transition = 'transform 0.08s cubic-bezier(0.16, 1, 0.3, 1)';
       }
-      e.currentTarget.style.cursor = zoomRef.current > 1.0 ? 'grab' : 'default';
-      setPan({ ...panRef.current });
-    }
-  };
 
-  const handlePointerCancel = (e: React.PointerEvent) => {
-    handlePointerUp(e);
-  };
+      requestTransformUpdate();
 
-  // Cleanup RAF and timers on unmount
-  useEffect(() => {
-    return () => {
-      if (dragRafRef.current) cancelAnimationFrame(dragRafRef.current);
-      if (wheelRafRef.current) cancelAnimationFrame(wheelRafRef.current);
       if (wheelCommitTimerRef.current) clearTimeout(wheelCommitTimerRef.current);
+      wheelCommitTimerRef.current = setTimeout(() => {
+        setHudScale(nextScale);
+      }, 120);
     };
-  }, []);
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      if (transformRef.current.scale <= 1.0) return;
+
+      // Do not hijack clicks on waypoints or interactive buttons
+      const target = e.target as HTMLElement | null;
+      if (target && (target.closest('button') || target.closest('.cursor-pointer'))) {
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      try {
+        container.setPointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+
+      isDraggingRef.current = true;
+      dragStartRef.current = { x: e.clientX, y: e.clientY };
+      panStartRef.current = { x: transformRef.current.x, y: transformRef.current.y };
+
+      if (mapPlaneRef.current) {
+        mapPlaneRef.current.style.transition = 'none';
+      }
+      container.style.cursor = 'grabbing';
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!isDraggingRef.current || transformRef.current.scale <= 1.0) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const dx = e.clientX - dragStartRef.current.x;
+      const dy = e.clientY - dragStartRef.current.y;
+      const targetX = panStartRef.current.x + dx;
+      const targetY = panStartRef.current.y + dy;
+      const clamped = clampPan(targetX, targetY, transformRef.current.scale);
+
+      transformRef.current.x = clamped.x;
+      transformRef.current.y = clamped.y;
+
+      requestTransformUpdate();
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      try {
+        container.releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+        if (mapPlaneRef.current) {
+          mapPlaneRef.current.style.transition = 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)';
+        }
+        container.style.cursor = transformRef.current.scale > 1.0 ? 'grab' : 'default';
+      }
+    };
+
+    const onPointerCancel = (e: PointerEvent) => {
+      onPointerUp(e);
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    container.addEventListener('pointerdown', onPointerDown, { passive: false });
+    container.addEventListener('pointermove', onPointerMove, { passive: false });
+    container.addEventListener('pointerup', onPointerUp, { passive: false });
+    container.addEventListener('pointercancel', onPointerCancel, { passive: false });
+
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+      container.removeEventListener('pointerdown', onPointerDown);
+      container.removeEventListener('pointermove', onPointerMove);
+      container.removeEventListener('pointerup', onPointerUp);
+      container.removeEventListener('pointercancel', onPointerCancel);
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      if (wheelCommitTimerRef.current) {
+        clearTimeout(wheelCommitTimerRef.current);
+        wheelCommitTimerRef.current = null;
+      }
+    };
+  }, [isOpen, clampPan, requestTransformUpdate]);
 
   // Normalized World to screen percentage conversion (relative to the GPU transformed map plane)
   const worldToScreen = (wx: number, wz: number) => {
@@ -350,15 +431,13 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
           <div className="relative flex-1 bg-stone-950/90 overflow-hidden flex items-center justify-center p-2 sm:p-4">
             {/* Topographical Map Container with Zoom & Pan Viewport */}
             <div
-              onWheel={handleWheel}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerCancel}
+              ref={mapContainerRef}
               style={{
-                cursor: zoom > 1.0 ? 'grab' : 'default',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
                 touchAction: 'none',
-              }}
+                cursor: hudScale > 1.0 ? 'grab' : 'default',
+              } as React.CSSProperties}
               className="relative w-full h-full max-w-[620px] max-h-[580px] rounded-xl overflow-hidden border border-stone-700/60 shadow-inner bg-[#1e232a]"
             >
               {/* GPU Hardware Accelerated Continent Map Plane (translate3d + will-change: transform) */}
@@ -366,11 +445,15 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 ref={mapPlaneRef}
                 className="absolute inset-0 w-full h-full"
                 style={{
-                  transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoom})`,
+                  transform: `translate3d(${transformRef.current.x}px, ${transformRef.current.y}px, 0px) scale(${transformRef.current.scale})`,
                   transformOrigin: '50% 50%',
                   willChange: 'transform',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                  WebkitUserDrag: 'none',
+                  touchAction: 'none',
                   transition: 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-                }}
+                } as React.CSSProperties}
               >
               {/* Real-time Topographical Biome Canvas */}
               <canvas
@@ -378,7 +461,14 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 width={560}
                 height={420}
                 className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-                style={{ willChange: 'transform' }}
+                style={{
+                  pointerEvents: 'none',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                  WebkitUserDrag: 'none',
+                  touchAction: 'none',
+                  willChange: 'transform',
+                } as React.CSSProperties}
               />
 
               {/* DYNAMIC REGION CLICKABLE ZONES & LABELS */}
@@ -602,7 +692,15 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
               })()}
 
               {/* Coordinate Grid Overlay */}
-              <div className="absolute inset-0 pointer-events-none grid grid-cols-4 grid-rows-4 border border-stone-700/20 divide-x divide-y divide-stone-700/20" />
+              <div
+                className="absolute inset-0 pointer-events-none grid grid-cols-4 grid-rows-4 border border-stone-700/20 divide-x divide-y divide-stone-700/20"
+                style={{
+                  pointerEvents: 'none',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                  touchAction: 'none',
+                }}
+              />
 
               {/* WAYPOINTS WITH FAST TRAVEL BUTTONS */}
               {WAYPOINTS.map((wp) => {
@@ -687,18 +785,21 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
               <div className="absolute top-3 left-3 z-35 flex items-center gap-1.5 p-1 bg-stone-900/90 backdrop-blur-md border border-amber-600/60 rounded-xl shadow-xl pointer-events-auto">
                 <button
                   onClick={handleZoomIn}
-                  disabled={zoom >= 3.5}
+                  disabled={hudScale >= 3.5}
                   className="w-7 h-7 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-amber-300 flex items-center justify-center transition-all active:scale-95 cursor-pointer"
                   title="Perbesar Peta (+)"
                 >
                   <ZoomIn className="w-4 h-4" />
                 </button>
-                <div className="px-1.5 py-0.5 text-[11px] font-mono font-bold text-amber-200">
-                  {zoom.toFixed(1)}x
+                <div
+                  ref={zoomLabelRef}
+                  className="px-1.5 py-0.5 text-[11px] font-mono font-bold text-amber-200 min-w-[34px] text-center"
+                >
+                  {hudScale.toFixed(1)}x
                 </div>
                 <button
                   onClick={handleZoomOut}
-                  disabled={zoom <= 1.0}
+                  disabled={hudScale <= 1.0}
                   className="w-7 h-7 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-amber-300 flex items-center justify-center transition-all active:scale-95 cursor-pointer"
                   title="Perkecil Peta (-)"
                 >
@@ -707,7 +808,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 <div className="w-[1px] h-4 bg-stone-700 mx-0.5" />
                 <button
                   onClick={handleResetZoom}
-                  disabled={zoom === 1.0 && pan.x === 0 && pan.y === 0}
+                  disabled={hudScale === 1.0 && transformRef.current.x === 0 && transformRef.current.y === 0}
                   className="w-7 h-7 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-stone-300 hover:text-white flex items-center justify-center transition-all active:scale-95 cursor-pointer"
                   title="Reset Tampilan (1.0x)"
                 >
@@ -725,7 +826,9 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
               {/* Navigation Hint Pill (Bottom-Left) */}
               <div className="absolute bottom-3 left-3 z-35 px-2.5 py-1 bg-stone-950/80 backdrop-blur-xs border border-stone-800/80 rounded-lg text-[9px] font-mono text-stone-400 pointer-events-none flex items-center gap-1.5 shadow">
                 <span>🖱️</span>
-                <span>{zoom > 1.0 ? 'Tahan & Geser untuk Menjelajah' : 'Scroll / (+) untuk Memperbesar'}</span>
+                <span ref={navHintRef}>
+                  {hudScale > 1.0 ? 'Tahan & Geser untuk Menjelajah' : 'Scroll / (+) untuk Memperbesar'}
+                </span>
               </div>
 
               {/* Compass Rose Top-Right */}
