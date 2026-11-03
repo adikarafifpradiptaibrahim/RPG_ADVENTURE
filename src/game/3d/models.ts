@@ -2940,43 +2940,8 @@ export function createFortressKeepMesh(): THREE.Group {
 }
 
 // 5. Training Yard Target & Combat Dummy
-export function createTrainingDummyMesh(): THREE.Group {
-  const dummy = new THREE.Group();
-  const woodMat = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
-  const strawMat = new THREE.MeshLambertMaterial({ color: 0xfde047 });
-  const targetMat = new THREE.MeshLambertMaterial({ color: 0xef4444 });
-
-  // Wood Stand Post
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.0, 6), woodMat);
-  post.position.y = 1.0;
-  post.castShadow = true;
-  dummy.add(post);
-
-  // Cross arms
-  const cross = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.14, 0.14), woodMat);
-  cross.position.y = 1.4;
-  dummy.add(cross);
-
-  // Straw Body
-  const strawBody = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 1.0, 8), strawMat);
-  strawBody.position.y = 1.35;
-  strawBody.castShadow = true;
-  dummy.add(strawBody);
-
-  // Straw Head with iron helmet
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), strawMat);
-  head.position.y = 2.0;
-  const helm = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.25, 6), new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.8 }));
-  helm.position.y = 2.15;
-  dummy.add(head, helm);
-
-  // Target Bullseye Shield on chest
-  const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.05, 12), targetMat);
-  shield.position.set(0, 1.4, 0.32);
-  shield.rotation.x = Math.PI / 2;
-  dummy.add(shield);
-
-  return dummy;
+export function createAdvancedTrainingDummyMesh(): THREE.Group {
+  return createTrainingDummyMesh();
 }
 
 // 6. Roaring Bonfire with glowing embers
@@ -3526,7 +3491,7 @@ export function createImperialPalaceMesh(): THREE.Group {
 
   // Red Imperial Carpet extending straight out across the palace courtyard / pelataran istana
   // From bottom of stairs (z: 15.4) extending out to z: 34.0 (length 18.6m)
-  const courtyardCarpetLength = 18.6;
+  const courtyardCarpetLength = 5.6;
   const courtyardCarpet = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.04, courtyardCarpetLength), redCarpet);
   courtyardCarpet.position.set(0, 0.03, 15.4 + courtyardCarpetLength / 2);
   // Gold fringe borders along left and right edges
@@ -4625,4 +4590,528 @@ export function createDockStairRampMesh(width: number = 4.6, length: number = 4.
   group.add(postL, lanternL, postR, lanternR);
 
   return group;
+}
+
+// ==========================================
+// EXPANDED REGIONAL & INTER-ROAD 3D MODELS
+// ==========================================
+
+// Shoreline Boardwalk Apron (Menempel padat di pasir pantai, menghubungkan jalan batu ke tangga dermaga)
+export function createDockShorelineBoardwalkMesh(width: number = 14.0, length: number = 3.5): THREE.Group {
+  const group = new THREE.Group();
+  const timberMat = new THREE.MeshLambertMaterial({ color: 0x4e342e, flatShading: true });
+  const plankMat = new THREE.MeshLambertMaterial({ color: 0x6d4c41, flatShading: true });
+  const darkTimberMat = new THREE.MeshLambertMaterial({ color: 0x3e2723, flatShading: true });
+
+  // Sub-base ground mudsills buried in sand (prevent floating gaps)
+  const sillsGeo = new THREE.BoxGeometry(width + 0.4, 0.4, length + 0.4);
+  const sills = new THREE.Mesh(sillsGeo, darkTimberMat);
+  sills.position.set(0, -0.15, length / 2);
+  sills.receiveShadow = true;
+  group.add(sills);
+
+  // Surface timber planks
+  const deckGeo = new THREE.BoxGeometry(width, 0.16, length);
+  const deck = new THREE.Mesh(deckGeo, plankMat);
+  deck.position.set(0, 0.08, length / 2);
+  deck.receiveShadow = true;
+  group.add(deck);
+
+  // Side curbs
+  for (const bx of [-width / 2 + 0.1, width / 2 - 0.1]) {
+    const curb = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.24, length), timberMat);
+    curb.position.set(bx, 0.16, length / 2);
+    group.add(curb);
+  }
+
+  // Decorative rope bollards
+  for (const bx of [-width / 2 + 0.3, width / 2 - 0.3]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.8, 6), timberMat);
+    post.position.set(bx, 0.4, 0.3);
+    group.add(post);
+  }
+
+  return group;
+}
+
+// Fortress Soldier Barracks (Barak Prajurit Militer Val-Kragor)
+export function createBarracksMesh(): THREE.Group {
+  const barracks = new THREE.Group();
+  const stoneMat = new THREE.MeshLambertMaterial({ color: 0x334155, flatShading: true });
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x4e342e, flatShading: true });
+  const roofMat = new THREE.MeshLambertMaterial({ color: 0x1e293b, flatShading: true });
+  const windowGlow = new THREE.MeshBasicMaterial({ color: 0xfde047 });
+
+  // Stone Lower Level (Foundation & Lower Quarters)
+  const lowerGeo = new THREE.BoxGeometry(11.0, 3.2, 7.0);
+  const lower = new THREE.Mesh(lowerGeo, stoneMat);
+  lower.position.y = 1.6;
+  lower.castShadow = true;
+  lower.receiveShadow = true;
+  barracks.add(lower);
+
+  // Timber Upper Level
+  const upperGeo = new THREE.BoxGeometry(11.4, 2.6, 7.4);
+  const upper = new THREE.Mesh(upperGeo, woodMat);
+  upper.position.y = 4.5;
+  upper.castShadow = true;
+  barracks.add(upper);
+
+  // Gabled Slate Roof
+  const roofGeo = new THREE.ConeGeometry(7.2, 2.6, 4);
+  roofGeo.rotateY(Math.PI / 4);
+  const roof = new THREE.Mesh(roofGeo, roofMat);
+  roof.position.y = 6.9;
+  roof.scale.set(1.15, 1.0, 0.8);
+  roof.castShadow = true;
+  barracks.add(roof);
+
+  // Heavy Oak Door
+  const doorGeo = new THREE.BoxGeometry(1.6, 2.2, 0.2);
+  const door = new THREE.Mesh(doorGeo, new THREE.MeshLambertMaterial({ color: 0x271e1b }));
+  door.position.set(0, 1.1, 3.55);
+  barracks.add(door);
+
+  // Glowing Slit Windows
+  const winGeo = new THREE.BoxGeometry(0.6, 0.7, 0.15);
+  for (const wx of [-3.5, 3.5]) {
+    const wLow = new THREE.Mesh(winGeo, windowGlow);
+    wLow.position.set(wx, 1.8, 3.55);
+    const wHigh = new THREE.Mesh(winGeo, windowGlow);
+    wHigh.position.set(wx, 4.6, 3.75);
+    barracks.add(wLow, wHigh);
+  }
+
+  // Exterior Torch Lamp
+  const torch = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.5, 0.2), new THREE.MeshLambertMaterial({ color: 0x78350f }));
+  torch.position.set(1.2, 2.2, 3.65);
+  const flame = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), new THREE.MeshBasicMaterial({ color: 0xf59e0b }));
+  flame.position.set(1.2, 2.5, 3.65);
+  barracks.add(torch, flame);
+
+  return barracks;
+}
+
+// Archery Bullseye Target (Tempat Latihan Memanah)
+export function createArcheryTargetMesh(): THREE.Group {
+  const target = new THREE.Group();
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
+  const strawMat = new THREE.MeshLambertMaterial({ color: 0xd97706 });
+  const redMat = new THREE.MeshLambertMaterial({ color: 0xdc2626 });
+  const whiteMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
+  const goldMat = new THREE.MeshLambertMaterial({ color: 0xfacc15 });
+
+  // Tripod Stand
+  const legGeo = new THREE.CylinderGeometry(0.04, 0.05, 1.8, 4);
+  const legL = new THREE.Mesh(legGeo, woodMat);
+  legL.position.set(-0.35, 0.85, 0);
+  legL.rotation.z = -0.22;
+  const legR = new THREE.Mesh(legGeo, woodMat);
+  legR.position.set(0.35, 0.85, 0);
+  legR.rotation.z = 0.22;
+  const legBack = new THREE.Mesh(legGeo, woodMat);
+  legBack.position.set(0, 0.85, -0.45);
+  legBack.rotation.x = -0.32;
+  target.add(legL, legR, legBack);
+
+  // Round Straw Boss
+  const strawBoss = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.16, 16), strawMat);
+  strawBoss.rotation.x = Math.PI / 2 - 0.15;
+  strawBoss.position.set(0, 1.25, 0.02);
+  target.add(strawBoss);
+
+  // Concentric Rings
+  const ring1 = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.17, 16), whiteMat);
+  ring1.rotation.x = Math.PI / 2 - 0.15;
+  ring1.position.set(0, 1.25, 0.03);
+  const ring2 = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.18, 16), redMat);
+  ring2.rotation.x = Math.PI / 2 - 0.15;
+  ring2.position.set(0, 1.25, 0.04);
+  const bullseye = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.19, 16), goldMat);
+  bullseye.rotation.x = Math.PI / 2 - 0.15;
+  bullseye.position.set(0, 1.25, 0.05);
+  target.add(ring1, ring2, bullseye);
+
+  // Embedded Arrows
+  const arrowShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.6, 4), woodMat);
+  arrowShaft.position.set(0.08, 1.28, 0.3);
+  arrowShaft.rotation.x = Math.PI / 2;
+  target.add(arrowShaft);
+
+  return target;
+}
+
+// Combat Sparring Training Dummy (Dummy Target Latihan Prajurit)
+export function createTrainingDummyMesh(): THREE.Group {
+  const dummy = new THREE.Group();
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x4e342e });
+  const strawMat = new THREE.MeshLambertMaterial({ color: 0xca8a04 });
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7, roughness: 0.4 });
+  const redTrim = new THREE.MeshLambertMaterial({ color: 0xb91c1c });
+
+  // Base Stand
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.15, 0.9), woodMat);
+  base.position.y = 0.08;
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 1.9, 6), woodMat);
+  post.position.y = 0.95;
+  dummy.add(base, post);
+
+  // Straw Torso
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.28, 0.9, 8), strawMat);
+  torso.position.y = 1.35;
+  torso.castShadow = true;
+  dummy.add(torso);
+
+  // Crossbar Sparring Arms
+  const arms = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.5, 6), woodMat);
+  arms.position.set(0, 1.55, 0);
+  arms.rotation.z = Math.PI / 2;
+  dummy.add(arms);
+
+  // Padded Straw Forearms
+  for (const ax of [-0.65, 0.65]) {
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.4, 6), strawMat);
+    pad.position.set(ax, 1.55, 0);
+    pad.rotation.z = Math.PI / 2;
+    dummy.add(pad);
+  }
+
+  // Wooden Head with Painted Helmet & Target Cross
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.38, 0.35), ironMat);
+  head.position.y = 2.0;
+  head.castShadow = true;
+  const targetMark = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.36), redTrim);
+  targetMark.position.set(0, 2.0, 0.02);
+  dummy.add(head, targetMark);
+
+  return dummy;
+}
+
+// Timber Weapon Rack (Rak Persenjataan & Perisai)
+export function createWeaponRackMesh(): THREE.Group {
+  const rack = new THREE.Group();
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x3e2723 });
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.2 });
+  const shieldMat = new THREE.MeshLambertMaterial({ color: 0x1e3a8a });
+
+  // Frame uprights & horizontal shelf
+  for (const rx of [-1.1, 1.1]) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.6, 0.14), woodMat);
+    post.position.set(rx, 0.8, 0);
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.6), woodMat);
+    foot.position.set(rx, 0.06, 0);
+    rack.add(post, foot);
+  }
+  const topBar = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.12, 0.14), woodMat);
+  topBar.position.set(0, 1.45, 0);
+  const bottomBar = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.12, 0.25), woodMat);
+  bottomBar.position.set(0, 0.25, 0);
+  rack.add(topBar, bottomBar);
+
+  // Stored Halberds / Spears
+  for (let i = -3; i <= 3; i++) {
+    const spear = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 2.1, 4), woodMat);
+    spear.position.set(i * 0.32, 1.05, 0.02);
+    spear.rotation.z = (Math.random() - 0.5) * 0.08;
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.32, 4), ironMat);
+    tip.position.set(i * 0.32, 2.2, 0.02);
+    rack.add(spear, tip);
+  }
+
+  // Mounted Shield on front
+  const shield = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.85, 0.08), shieldMat);
+  shield.position.set(0, 0.8, 0.12);
+  rack.add(shield);
+
+  return rack;
+}
+
+// Grand Circular Stone Plaza (Bundaran Alun-Alun Marmer & Jalan Lingkar Astraea)
+export function createCircularPlazaMesh(outerRadius: number = 11.5, innerRadius: number = 4.8): THREE.Group {
+  const plaza = new THREE.Group();
+  const marbleMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.35, metalness: 0.1 });
+  const goldTrim = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85, roughness: 0.2 });
+  const darkStone = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7 });
+
+  // Outer Ringroad Paved Disk
+  const ringGeo = new THREE.RingGeometry(innerRadius, outerRadius, 32);
+  ringGeo.rotateX(-Math.PI / 2);
+  const ringMesh = new THREE.Mesh(ringGeo, marbleMat);
+  ringMesh.position.y = 0.02;
+  ringMesh.receiveShadow = true;
+  plaza.add(ringMesh);
+
+  // Concentric Gold Inlay Ring
+  const inlayGeo = new THREE.RingGeometry(innerRadius + 0.3, innerRadius + 0.5, 32);
+  inlayGeo.rotateX(-Math.PI / 2);
+  const inlay = new THREE.Mesh(inlayGeo, goldTrim);
+  inlay.position.y = 0.025;
+  plaza.add(inlay);
+
+  // Outer Perimeter Stone Curb
+  const curbGeo = new THREE.RingGeometry(outerRadius - 0.3, outerRadius, 32);
+  curbGeo.rotateX(-Math.PI / 2);
+  const curb = new THREE.Mesh(curbGeo, darkStone);
+  curb.position.y = 0.035;
+  plaza.add(curb);
+
+  // Radial Sunburst Rays
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    const rayLength = outerRadius - innerRadius - 0.8;
+    const ray = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.015, rayLength), goldTrim);
+    const midR = innerRadius + rayLength / 2 + 0.4;
+    ray.position.set(Math.cos(angle) * midR, 0.026, Math.sin(angle) * midR);
+    ray.rotation.y = -angle + Math.PI / 2;
+    plaza.add(ray);
+  }
+
+  // 8 Perimeter Lampposts
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    const postX = Math.cos(angle) * (outerRadius - 0.8);
+    const postZ = Math.sin(angle) * (outerRadius - 0.8);
+
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 3.2, 6), goldTrim);
+    post.position.set(postX, 1.6, postZ);
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 8), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+    orb.position.set(postX, 3.3, postZ);
+    plaza.add(post, orb);
+  }
+
+  return plaza;
+}
+
+// Ancient Gnarled Mangrove / Banyan Swamp Tree (Pohon Rawa Purba Shadowfen)
+export function createSwampMangroveTreeMesh(scale: number = 1.0): THREE.Group {
+  const tree = new THREE.Group();
+  tree.scale.setScalar(scale);
+
+  const barkMat = new THREE.MeshLambertMaterial({ color: 0x27272a, flatShading: true }); // Dark bogwood
+  const foliageMat = new THREE.MeshLambertMaterial({ color: 0x365314, flatShading: true }); // Mossy swamp green
+  const vineMat = new THREE.MeshLambertMaterial({ color: 0x14532d, flatShading: true });
+
+  // Curving Twisting Central Trunk
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.9, 5.0, 7), barkMat);
+  trunk.position.set(0.2, 2.5, 0);
+  trunk.rotation.z = -0.12;
+  trunk.castShadow = true;
+  tree.add(trunk);
+
+  // Stilt / Aerial Roots arching deep into bog water & mud
+  for (let i = 0; i < 5; i++) {
+    const angle = (i / 5) * Math.PI * 2;
+    const rootLen = 2.8;
+    const root = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.22, rootLen, 5), barkMat);
+    const rx = Math.cos(angle) * 1.5;
+    const rz = Math.sin(angle) * 1.5;
+    root.position.set(rx / 2, 1.2, rz / 2);
+    root.rotation.x = Math.sin(angle) * 0.45;
+    root.rotation.z = Math.cos(angle) * 0.45;
+    tree.add(root);
+  }
+
+  // Large Layered Weeping Canopy
+  const crownLevels = [
+    { y: 4.8, r: 3.2, h: 2.0 },
+    { y: 6.0, r: 2.6, h: 1.8 },
+    { y: 7.2, r: 1.8, h: 1.4 },
+  ];
+  crownLevels.forEach((lvl) => {
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(lvl.r, lvl.h, 7), foliageMat);
+    crown.position.y = lvl.y;
+    crown.castShadow = true;
+    tree.add(crown);
+  });
+
+  // Hanging Vine Tendrils
+  for (let v = 0; v < 6; v++) {
+    const vAngle = (v / 6) * Math.PI * 2;
+    const vineLen = 1.8 + Math.random() * 1.2;
+    const vine = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, vineLen, 4), vineMat);
+    vine.position.set(Math.cos(vAngle) * 2.2, 4.2 - vineLen / 2, Math.sin(vAngle) * 2.2);
+    tree.add(vine);
+  }
+
+  return tree;
+}
+
+// Mossy Swamp Boulder (Bebatuan Rawa Berlumut)
+export function createMossySwampBoulderMesh(scale: number = 1.0): THREE.Group {
+  const rock = new THREE.Group();
+  rock.scale.setScalar(scale);
+
+  const stoneMat = new THREE.MeshLambertMaterial({ color: 0x1f2937, flatShading: true });
+  const mossMat = new THREE.MeshLambertMaterial({ color: 0x4d7c0f, flatShading: true });
+
+  // Main irregular boulder
+  const geo = new THREE.DodecahedronGeometry(1.4, 1);
+  const mainRock = new THREE.Mesh(geo, stoneMat);
+  mainRock.position.y = 1.0;
+  mainRock.scale.set(1.4, 0.85, 1.1);
+  mainRock.castShadow = true;
+  mainRock.receiveShadow = true;
+  rock.add(mainRock);
+
+  // Top Moss cap
+  const mossGeo = new THREE.DodecahedronGeometry(1.2, 1);
+  const moss = new THREE.Mesh(mossGeo, mossMat);
+  moss.position.set(0.1, 1.35, 0.1);
+  moss.scale.set(1.3, 0.45, 1.0);
+  rock.add(moss);
+
+  return rock;
+}
+
+// Murky Green Swamp Water Pool (Rawa-Rawa Air Keruh Hijau)
+export function createMurkySwampPoolMesh(radius: number = 3.8): THREE.Group {
+  const pool = new THREE.Group();
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x14532d,
+    roughness: 0.15,
+    metalness: 0.3,
+    transparent: true,
+    opacity: 0.88,
+  });
+  const lilyMat = new THREE.MeshLambertMaterial({ color: 0x65a30d });
+  const mudRimMat = new THREE.MeshLambertMaterial({ color: 0x1c1917, flatShading: true });
+
+  // Muddy Rim depression
+  const rimGeo = new THREE.RingGeometry(radius - 0.4, radius + 0.6, 16);
+  rimGeo.rotateX(-Math.PI / 2);
+  const rim = new THREE.Mesh(rimGeo, mudRimMat);
+  rim.position.y = 0.01;
+  pool.add(rim);
+
+  // Murky Pool Disc
+  const waterGeo = new THREE.CircleGeometry(radius, 16);
+  waterGeo.rotateX(-Math.PI / 2);
+  const water = new THREE.Mesh(waterGeo, waterMat);
+  water.position.y = 0.02;
+  pool.add(water);
+
+  // Floating Lily Pads
+  for (let i = 0; i < 4; i++) {
+    const angle = (i / 4) * Math.PI * 2 + 0.3;
+    const dist = radius * 0.55;
+    const pad = new THREE.Mesh(new THREE.CircleGeometry(0.35, 8), lilyMat);
+    pad.rotateX(-Math.PI / 2);
+    pad.position.set(Math.cos(angle) * dist, 0.025, Math.sin(angle) * dist);
+    pool.add(pad);
+  }
+
+  return pool;
+}
+
+// Atmospheric Swamp Ground Mist Plane (Efek Kabut Tipis)
+export function createSwampMistPlaneMesh(width: number = 26, depth: number = 26): THREE.Mesh {
+  const mistGeo = new THREE.PlaneGeometry(width, depth, 4, 4);
+  mistGeo.rotateX(-Math.PI / 2);
+  const mistMat = new THREE.MeshBasicMaterial({
+    color: 0xa855f7,
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false,
+  });
+  const mist = new THREE.Mesh(mistGeo, mistMat);
+  mist.position.y = 0.45;
+  return mist;
+}
+
+// 3D Stone / Dirt Road Ribbon Mesh Generator
+// Creates visible continuous textured path ribbons conforming directly to terrain elevation!
+export function createStoneRoadRibbonMesh(
+  points: Array<[number, number]>,
+  width: number = 3.6,
+  yFunc: (x: number, z: number) => number,
+  roadColor: number = 0xb09e8a,
+  curbColor: number = 0x6d5745
+): THREE.Group {
+  const roadGroup = new THREE.Group();
+  if (points.length < 2) return roadGroup;
+
+  const halfW = width / 2;
+  const roadMat = new THREE.MeshStandardMaterial({
+    color: roadColor,
+    roughness: 0.9,
+    metalness: 0.05,
+    flatShading: true,
+  });
+  const curbMat = new THREE.MeshStandardMaterial({
+    color: curbColor,
+    roughness: 0.85,
+    metalness: 0.1,
+    flatShading: true,
+  });
+
+  const positions: number[] = [];
+  const curbPositionsL: number[] = [];
+  const curbPositionsR: number[] = [];
+
+  for (let i = 0; i < points.length; i++) {
+    const cur = points[i];
+    // Direction calculation
+    let dx = 0;
+    let dz = 0;
+    if (i < points.length - 1) {
+      dx = points[i + 1][0] - cur[0];
+      dz = points[i + 1][1] - cur[1];
+    } else {
+      dx = cur[0] - points[i - 1][0];
+      dz = cur[1] - points[i - 1][1];
+    }
+    const len = Math.hypot(dx, dz) || 1;
+    // Normal vector perpendicular to path direction
+    const nx = -dz / len;
+    const nz = dx / len;
+
+    const lx = cur[0] + nx * halfW;
+    const lz = cur[1] + nz * halfW;
+    const ly = yFunc(lx, lz) + 0.04;
+
+    const rx = cur[0] - nx * halfW;
+    const rz = cur[1] - nz * halfW;
+    const ry = yFunc(rx, rz) + 0.04;
+
+    positions.push(lx, ly, lz, rx, ry, rz);
+
+    // Side Curbs (Left & Right raised stones)
+    curbPositionsL.push(lx, ly + 0.05, lz, lx + nx * 0.28, ly + 0.07, lz + nz * 0.28);
+    curbPositionsR.push(rx, ry + 0.05, rz, rx - nx * 0.28, ry + 0.07, rz - nz * 0.28);
+  }
+
+  // Build Triangle Strip / Indexed Triangles for road
+  const indices: number[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const v0 = i * 2;
+    const v1 = i * 2 + 1;
+    const v2 = (i + 1) * 2;
+    const v3 = (i + 1) * 2 + 1;
+    indices.push(v0, v1, v2, v2, v1, v3);
+  }
+
+  const roadGeo = new THREE.BufferGeometry();
+  roadGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  roadGeo.setIndex(indices);
+  roadGeo.computeVertexNormals();
+
+  const roadMesh = new THREE.Mesh(roadGeo, roadMat);
+  roadMesh.receiveShadow = true;
+  roadGroup.add(roadMesh);
+
+  // Left Curb Mesh
+  const curbGeoL = new THREE.BufferGeometry();
+  curbGeoL.setAttribute('position', new THREE.Float32BufferAttribute(curbPositionsL, 3));
+  curbGeoL.setIndex(indices);
+  curbGeoL.computeVertexNormals();
+  roadGroup.add(new THREE.Mesh(curbGeoL, curbMat));
+
+  // Right Curb Mesh
+  const curbGeoR = new THREE.BufferGeometry();
+  curbGeoR.setAttribute('position', new THREE.Float32BufferAttribute(curbPositionsR, 3));
+  curbGeoR.setIndex(indices);
+  curbGeoR.computeVertexNormals();
+  roadGroup.add(new THREE.Mesh(curbGeoR, curbMat));
+
+  return roadGroup;
 }

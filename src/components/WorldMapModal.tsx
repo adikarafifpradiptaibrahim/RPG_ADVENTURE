@@ -468,9 +468,9 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 6. Desa Benteng Val-Kragor (X: 115, Z: -17) */}
+              {/* 6. Desa Benteng Val-Kragor (X: 158, Z: -16) */}
               {(() => {
-                const sp = worldToScreen(115, -17);
+                const sp = worldToScreen(158, -16);
                 if (!sp.visible) return null;
                 return (
                   <div

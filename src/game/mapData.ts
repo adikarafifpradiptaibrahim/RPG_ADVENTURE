@@ -81,8 +81,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A heavily fortified highland stronghold with stone ramparts, corner watchtowers, garrison keep, and spiked defense barricades.',
     descriptionId: 'Desa benteng pertahanan dataran tinggi timur! Dilengkapi tembok slate kokoh, menara pengawas baru, barikade runcing, dan markas Komandan Brann.',
     color: '#3b82f6',
-    bounds: { minX: 85, maxX: 155, minZ: -48, maxZ: 18 },
-    center: [116, -17],
+    bounds: { minX: 125, maxX: 195, minZ: -48, maxZ: 18 },
+    center: [158, -16],
     recommendedLevel: 4,
   },
   {
@@ -252,7 +252,7 @@ export const WAYPOINTS: {
     nameId: 'Alun-Alun Benteng Val-Kragor',
     regionId: 'desa_valkragor',
     icon: '🏰',
-    pos: [115, -18],
+    pos: [156, -16],
     desc: 'Desa benteng pertahanan di dataran tinggi timur, dekat Komandan Brann & pandai besi Goran',
   },
   {

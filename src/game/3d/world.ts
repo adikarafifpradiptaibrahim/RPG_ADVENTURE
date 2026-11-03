@@ -53,6 +53,16 @@ import {
   createWoodBarricadeMesh,
   createStoneBridgePierMesh,
   createDockStairRampMesh,
+  createDockShorelineBoardwalkMesh,
+  createBarracksMesh,
+  createArcheryTargetMesh,
+  createWeaponRackMesh,
+  createCircularPlazaMesh,
+  createSwampMangroveTreeMesh,
+  createMossySwampBoulderMesh,
+  createMurkySwampPoolMesh,
+  createSwampMistPlaneMesh,
+  createStoneRoadRibbonMesh,
 } from './models';
 
 export interface WorldCollider {
@@ -222,29 +232,40 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return 2.4 - sag;
     }
 
-    // 2. Coastal Wooden Harbor (Anti-Zigzag: 1 Wide Main Pier + 2 Straight Berthing Wings + Beach Ramp)
-    // Beach ramp & short stairs (smooth step-free transition from sand y=0.05 to pier y=1.85)
-    if (Math.abs(x) <= 2.4 && z >= 17.5 && z < 21.5) {
-      const t = (z - 17.5) / 4.0;
-      const sandY = getProceduralHeight(x, z);
-      return (1 - t) * sandY + t * 1.85;
+    // 2. Coastal Wooden Harbor (Seamless Beach Connection, Main Pier, 2 Tiers of Wings & Pier Head)
+    // 2a. Beach shoreline boardwalk apron (Menempel padat di tanah pasir pantai, z: 14.5..18.0)
+    if (Math.abs(x) <= 7.0 && z >= 14.5 && z < 18.0) {
+      const t = (z - 14.5) / 3.5;
+      return 0.25 - t * 0.10; // Smooth 0.25 -> 0.15 transition onto ramp foot
     }
-    // Main straight pier: x: -2.4..2.4, z: 21.5..52.5
-    // Main pier head: x: -4.6..4.6, z: 50.0..54.0
-    // West berthing wing: x: -13.8..-2.3, z: 36.2..39.8
-    // East berthing wing: x: 2.3..13.8, z: 36.2..39.8
+    // 2b. Wooden Beach Ramp & Short Stairs (z: 18.0..22.0, rises smoothly 0.15 -> 1.85)
+    if (Math.abs(x) <= 2.6 && z >= 18.0 && z < 22.0) {
+      const t = (z - 18.0) / 4.0;
+      return 0.15 + t * 1.70;
+    }
+    // 2c. Main Straight Pier (z: 22.0..58.0)
+    // 2d. Seaward Pier Head Platform (z: 58.0..64.0, x: -7.0..7.0)
+    // 2e. Inner Berthing Wings (z: 31.8..36.2, x: -16.0..16.0)
+    // 2f. Outer Berthing Wings (z: 45.8..50.2, x: -14.0..14.0)
     if (
-      (Math.abs(x) <= 2.4 && z >= 21.5 && z <= 52.5) ||
-      (Math.abs(x) <= 4.6 && z >= 50.0 && z <= 54.0) ||
-      (x >= -13.8 && x <= -2.3 && z >= 36.2 && z <= 39.8) ||
-      (x >= 2.3 && x <= 13.8 && z >= 36.2 && z <= 39.8)
+      (Math.abs(x) <= 2.6 && z >= 22.0 && z <= 58.0) ||
+      (Math.abs(x) <= 7.0 && z >= 58.0 && z <= 64.0) ||
+      (Math.abs(z - 34.0) <= 2.2 && Math.abs(x) <= 16.0) ||
+      (Math.abs(z - 48.0) <= 2.2 && Math.abs(x) <= 14.0)
     ) {
       return 1.85; // Solid wooden pier deck
     }
-    if (x >= 148 && x <= 212 && z >= -288 && z <= -232) return 6.0; // Astraea Imperial plateau
+
+    // 3. Relocated Fortress Val-Kragor Solid Courtyard (Center [158, -16], radius 34 at y = 3.2)
+    if (Math.hypot(x - 158, z - -16) <= 34) {
+      return 3.2;
+    }
+
+    // 4. Imperial Capital Astraea Elevated Plateau & Grand Esplanade (y = 6.0)
+    if (x >= 148 && x <= 212 && z >= -288 && z <= -232) return 6.0;
     if (x >= 174 && x <= 186 && z >= -340 && z <= -300) return 4.6; // Frozen Chasm ice bridge
 
-    // 3. Exact rendered polygon surface
+    // 5. Exact rendered polygon surface
     return getMeshSurfaceHeight(x, z);
   };
 
@@ -1521,7 +1542,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // A. Grand Imperial Sun Palace of Astraea (East End: X: 195, Z: -260)
   // Facing WEST (Direction: 270° / rotation.y = Math.PI * 1.5)
-  // Grand staircase and royal red carpet descend West towards the central fountain and West Gate!
+  // Grand staircase descends West to elevated marble entry esplanade (X: 174..180)
   const imperialPalace = createImperialPalaceMesh();
   imperialPalace.position.set(195, astraeaBaseY, -260);
   imperialPalace.rotation.y = Math.PI * 1.5;
@@ -1535,16 +1556,38 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     label: 'Istana Kerajaan Kaisar Astraea',
   });
 
-  // B. Celestial 3-Tier Fountain of Immortality (Central Sun Plaza, X: 175, Z: -260)
+  // B. Grand Circular Stone Plaza & Jalan Lingkar (Center: X: 164, Z: -260, Radius: 11.5m)
+  // Surrounds the central fountain with polished white marble and a sunburst ringroad!
+  const circularPlaza = createCircularPlazaMesh(11.5, 4.8);
+  circularPlaza.position.set(164, astraeaBaseY, -260);
+  scene.add(circularPlaza);
+
+  // B2. Celestial 3-Tier Fountain of Immortality (Relocated to Center of Circular Plaza at X: 164, Z: -260)
+  // Perfectly centered inside the circular stone roundabout, completely clear of the red carpet!
   const celestialFountain = createImperialFountainMesh();
-  celestialFountain.position.set(175, astraeaBaseY, -260);
+  celestialFountain.position.set(164, astraeaBaseY, -260);
   scene.add(celestialFountain);
   colliders.push({
     type: 'circle',
-    x: 175,
+    x: 164,
     z: -260,
     radius: 4.8,
-    label: 'Air Mancur Keabadian Astraea',
+    label: 'Air Mancur Keabadian Alun-Alun Astraea',
+  });
+
+  // B3. Four Golden Heroic Statues Guarding Cardinal Axes of Circular Plaza
+  const heroStatues = [
+    { x: 164, z: -272.5, ry: Math.PI }, // North
+    { x: 164, z: -247.5, ry: 0 },       // South
+    { x: 175.5, z: -260, ry: Math.PI * 1.5 }, // East (Facing palace entry esplanade)
+    { x: 152.5, z: -260, ry: Math.PI / 2 },   // West (Facing west gate)
+  ];
+  heroStatues.forEach((hs, idx) => {
+    const statue = createImperialHeroStatueMesh();
+    statue.position.set(hs.x, astraeaBaseY, hs.z);
+    statue.rotation.y = hs.ry;
+    scene.add(statue);
+    colliders.push({ type: 'circle', x: hs.x, z: hs.z, radius: 1.4, label: `Monumen Ksatria Emas ${idx + 1}` });
   });
 
   // C. West Imperial Gatehouse (West Entrance, X: 148, Z: -260)
@@ -1615,41 +1658,32 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     colliders.push({ type: 'circle', x: ct.x, z: ct.z, radius: 2.8, label: ct.label });
   });
 
-  // E. Grand Royal Bazaar Stalls flanking Central Plaza
+  // E. Symmetrical Grand Royal Bazaar Stalls Flanking North & South Promenades
+  // North Promenade (Facing South towards circular plaza):
   const astraeaStall1 = createImperialBazaarStallMesh(0x9333ea, 0xfacc15); // Celestial Potions (Lyra)
-  astraeaStall1.position.set(170, astraeaBaseY, -268);
-  astraeaStall1.rotation.y = Math.PI; // Facing South into plaza
+  astraeaStall1.position.set(159, astraeaBaseY, -273);
+  astraeaStall1.rotation.y = Math.PI;
   scene.add(astraeaStall1);
-  colliders.push({ type: 'box', minX: 168, maxX: 172, minZ: -270, maxZ: -266, label: 'Kios Alkimia Kerajaan' });
+  colliders.push({ type: 'box', minX: 157, maxX: 161, minZ: -275, maxZ: -271, label: 'Kios Alkimia Kerajaan' });
 
   const astraeaStall2 = createImperialBazaarStallMesh(0x2563eb, 0x38bdf8); // Masterwork Armory
-  astraeaStall2.position.set(180, astraeaBaseY, -268);
-  astraeaStall2.rotation.y = Math.PI; // Facing South into plaza
+  astraeaStall2.position.set(169, astraeaBaseY, -273);
+  astraeaStall2.rotation.y = Math.PI;
   scene.add(astraeaStall2);
-  colliders.push({ type: 'box', minX: 178, maxX: 182, minZ: -270, maxZ: -266, label: 'Kios Senjata Astraea' });
+  colliders.push({ type: 'box', minX: 167, maxX: 171, minZ: -275, maxZ: -271, label: 'Kios Senjata Astraea' });
 
+  // South Promenade (Facing North towards circular plaza):
   const astraeaStall3 = createImperialBazaarStallMesh(0xd97706, 0xfef08a); // Silk & Relics
-  astraeaStall3.position.set(170, astraeaBaseY, -252);
-  astraeaStall3.rotation.y = 0; // Facing North into plaza
+  astraeaStall3.position.set(159, astraeaBaseY, -247);
+  astraeaStall3.rotation.y = 0;
   scene.add(astraeaStall3);
-  colliders.push({ type: 'box', minX: 168, maxX: 172, minZ: -254, maxZ: -250, label: 'Kios Sutra Emas' });
+  colliders.push({ type: 'box', minX: 157, maxX: 161, minZ: -249, maxZ: -245, label: 'Kios Sutra Emas' });
 
   const astraeaStall4 = createImperialBazaarStallMesh(0x059669, 0xa7f3d0); // Royal Provisions
-  astraeaStall4.position.set(180, astraeaBaseY, -252);
-  astraeaStall4.rotation.y = 0; // Facing North into plaza
+  astraeaStall4.position.set(169, astraeaBaseY, -247);
+  astraeaStall4.rotation.y = 0;
   scene.add(astraeaStall4);
-  colliders.push({ type: 'box', minX: 178, maxX: 182, minZ: -254, maxZ: -250, label: 'Kios Perjamuan Kaisar' });
-
-  // F. Heroic Monuments Flanking Royal Avenue
-  const heroStatue1 = createImperialHeroStatueMesh();
-  heroStatue1.position.set(158, astraeaBaseY, -264);
-  scene.add(heroStatue1);
-  colliders.push({ type: 'circle', x: 158, z: -264, radius: 1.4, label: 'Monumen Pahlawan Astraea' });
-
-  const heroStatue2 = createImperialHeroStatueMesh();
-  heroStatue2.position.set(158, astraeaBaseY, -256);
-  scene.add(heroStatue2);
-  colliders.push({ type: 'circle', x: 158, z: -256, radius: 1.4, label: 'Monumen Ksatria Emas' });
+  colliders.push({ type: 'box', minX: 167, maxX: 171, minZ: -249, maxZ: -245, label: 'Kios Perjamuan Kaisar' });
 
   // G. Snowy Pine Trees along Avenue and Courtyard (Thematic Snow Alpine Vegetation)
   const astraeaCourtyardPineCoords = [
@@ -1688,7 +1722,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 14: Panglima Perang Vane (At Avenue Entry inside West Gate, facing West)
   const marshalGroup = createCustomNPCMesh('marshal');
-  const marshalPos: [number, number, number] = [154, astraeaBaseY, -257];
+  const marshalPos: [number, number, number] = [177, astraeaBaseY, -257];
   marshalGroup.position.set(...marshalPos);
   marshalGroup.rotation.y = Math.PI * 1.5;
   scene.add(marshalGroup);
@@ -1706,7 +1740,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 15: Saudagar Kerajaan Lyra (At Alchemy Stall, facing South into plaza)
   const lyraGroup = createCustomNPCMesh('alchemist');
-  const lyraPos: [number, number, number] = [170, astraeaBaseY, -266];
+  const lyraPos: [number, number, number] = [159, astraeaBaseY, -271];
   lyraGroup.position.set(...lyraPos);
   lyraGroup.rotation.y = Math.PI;
   scene.add(lyraGroup);

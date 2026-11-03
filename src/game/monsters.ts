@@ -27,6 +27,11 @@ export function isInsideSanctuarySafeZone(x: number, z: number): boolean {
   return false;
 }
 
+export function isInsideValKragorSafeZone(x: number, z: number): boolean {
+  return x >= 125 && x <= 190 && z >= -45 && z <= 15;
+}
+
+
 /**
  * 1. Meadow Slimes (Lv. 1)
  * Relocated to the Eastern Plains & Outer Meadows (> 85 units east from Sanctuary)
@@ -593,5 +598,92 @@ export const FROST_WOLF_SPAWNS: MonsterSpawnConfig[] = [
     pos: [135, -250],
     patrolRadius: 12,
     aggroRange: 14,
+  },
+];
+
+/**
+ * 9. Shadowfen Gloom Marsh Crawlers & Bog Lurkers (Lv. 4 - 6)
+ * Positioned across the murky swamp pools and glowing mushroom thickets
+ */
+export const SWAMP_CRAWLER_SPAWNS: MonsterSpawnConfig[] = [
+  {
+    id: 'swamp_crawler_0',
+    name: 'Toxic Marsh Crawler',
+    nameId: 'Monster Lintah Rawa Bayangan',
+    type: 'swamp_crawler',
+    level: 4,
+    hp: 110,
+    maxHp: 110,
+    attack: 18,
+    defense: 6,
+    expReward: 85,
+    goldReward: 48,
+    pos: [-95, 12],
+    patrolRadius: 10,
+    aggroRange: 14,
+  },
+  {
+    id: 'swamp_crawler_1',
+    name: 'Toxic Marsh Crawler',
+    nameId: 'Monster Lintah Rawa Bayangan',
+    type: 'swamp_crawler',
+    level: 4,
+    hp: 110,
+    maxHp: 110,
+    attack: 18,
+    defense: 6,
+    expReward: 85,
+    goldReward: 48,
+    pos: [-135, 22],
+    patrolRadius: 12,
+    aggroRange: 14,
+  },
+  {
+    id: 'swamp_crawler_2',
+    name: 'Gloomfen Bog Lurker',
+    nameId: 'Pemangsa Rawa Gelap Gloomfen',
+    type: 'swamp_crawler',
+    level: 5,
+    hp: 140,
+    maxHp: 140,
+    attack: 22,
+    defense: 8,
+    expReward: 105,
+    goldReward: 60,
+    pos: [-185, 15],
+    patrolRadius: 12,
+    aggroRange: 15,
+  },
+  {
+    id: 'swamp_crawler_3',
+    name: 'Gloomfen Bog Lurker',
+    nameId: 'Pemangsa Rawa Gelap Gloomfen',
+    type: 'swamp_crawler',
+    level: 5,
+    hp: 140,
+    maxHp: 140,
+    attack: 22,
+    defense: 8,
+    expReward: 105,
+    goldReward: 60,
+    pos: [-240, 32],
+    patrolRadius: 14,
+    aggroRange: 15,
+  },
+  {
+    id: 'swamp_crawler_4',
+    name: 'Ancient Abyssal Mire Fiend',
+    nameId: 'Iblis Rawa Purba Abyssal',
+    type: 'swamp_crawler',
+    level: 6,
+    hp: 175,
+    maxHp: 175,
+    attack: 26,
+    defense: 10,
+    expReward: 135,
+    goldReward: 78,
+    pos: [-285, 20],
+    patrolRadius: 15,
+    aggroRange: 16,
   },
 ];

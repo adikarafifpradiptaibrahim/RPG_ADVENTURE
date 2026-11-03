@@ -67,18 +67,18 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return (1 - t) * 1.6 + t * (0.8 + Math.sin(x * 0.08) * 0.5);
   }
 
-  // 2. Second Village: Desa Benteng Val-Kragor Expanded Plateau (x: 88..160, z: -48..15)
-  // Expanded 1.8x - 2x spacious flat fortress interior
-  const distValKragor = Math.hypot(x - 120, z - -17);
+  // 2. Second Village: Desa Benteng Val-Kragor Relocated East Plateau (x: 125..195, z: -48..15)
+  // Spacious flat fortress interior centered at (158, -16) well clear of suspension bridge
+  const distValKragor = Math.hypot(x - 158, z - -16);
   if (distValKragor < 46) {
-    if (distValKragor < 38) return 3.2; // Vast flat fortress courtyard
-    const t = (distValKragor - 38) / 8;
+    if (distValKragor < 34) return 3.2; // Vast flat fortress courtyard
+    const t = (distValKragor - 34) / 12;
     const baseMeadow = 1.8 + Math.sin(x * 0.08) * 0.8;
     return (1 - t) * 3.2 + t * baseMeadow;
   }
-  // Fortress western ramp / approach slope from bridge
-  if (x >= 84 && x <= 96 && z >= -24 && z <= -10) {
-    const t = (x - 84) / 12;
+  // Fortress western approach highway slope from bridge (x: 88..134)
+  if (x >= 88 && x <= 134 && Math.abs(z - -16) <= 4.0) {
+    const t = (x - 88) / 46;
     return 2.2 + t * 1.0;
   }
 
@@ -312,19 +312,19 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   const slope = clamp(Math.hypot(yRight - y, yDown - y) / delta, 0, 1);
 
   const distCenter = Math.hypot(x, z);
-  const distValKragor = Math.hypot(x - 116, z - -17);
+  const distValKragor = Math.hypot(x - 158, z - -16);
 
-  // 0. Simplified Straight Coastal Harbor (1 Wide Main Pier with 2 Straight Berthing Wings)
-  // Beach ramp & stairs: x: -2.4..2.4, z: 17.5..21.5
-  // Main straight pier: x: -2.4..2.4, z: 21.5..52.5
-  // Main pier head: x: -4.6..4.6, z: 50.0..54.0
-  // West berthing wing: x: -13.8..-2.3, z: 36.2..39.8
-  // East berthing wing: x: 2.3..13.8, z: 36.2..39.8
+  // 0. Expanded Coastal Naval Harbor (Seamless Beach Connection, 2 Tiers of Berthing Wings & Pier Head)
+  // Beach shoreline boardwalk apron (resting firmly on sand y = terrainHeight)
+  if (Math.abs(x) <= 7.0 && z >= 14.5 && z <= 18.0) {
+    return { height: y, color: [141, 110, 99], biomeId: 'harbor_boardwalk', isWater: false, isPath: true, slope: 0 };
+  }
+  // Beach ramp, wide main straight pier, 2-tier berthing wings, and seaward pier head
   if (
-    (Math.abs(x) <= 2.4 && z >= 17.5 && z <= 52.5) ||
-    (Math.abs(x) <= 4.6 && z >= 50.0 && z <= 54.0) ||
-    (x >= -13.8 && x <= -2.3 && z >= 36.2 && z <= 39.8) ||
-    (x >= 2.3 && x <= 13.8 && z >= 36.2 && z <= 39.8)
+    (Math.abs(x) <= 2.6 && z >= 18.0 && z <= 58.0) ||
+    (Math.abs(x) <= 7.0 && z >= 58.0 && z <= 64.0) ||
+    (Math.abs(z - 34.0) <= 2.2 && Math.abs(x) <= 16.0) ||
+    (Math.abs(z - 48.0) <= 2.2 && Math.abs(x) <= 14.0)
   ) {
     return { height: 1.85, color: [141, 110, 99], biomeId: 'harbor_pier', isWater: false, isPath: true, slope: 0 };
   }
@@ -355,11 +355,20 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
 
   // 2. Relocated Imperial Capital Astraea (North Frostpeak: Center [180, -260])
   if (x >= 148 && x <= 212 && z <= -232 && z >= -288) {
-    if (Math.abs(z - -260) <= 3.4 && x >= 148 && x <= 195) {
+    // Grand Circular Stone Plaza & Ringroad around Celestial Fountain at [164, -260]
+    const distPlaza = Math.hypot(x - 164, z - -260);
+    if (distPlaza <= 11.5 && distPlaza >= 4.8) {
+      return { height: y, color: [248, 250, 252], biomeId: 'astraea_plaza', isWater: false, isPath: true, slope };
+    }
+    // Main Imperial Golden Highway & Grand Esplanade (West Gate to Palace)
+    if (Math.abs(z - -260) <= 3.2 && x >= 148 && x <= 195) {
       return { height: y, color: [250, 204, 21], biomeId: 'astraea_gold_road', isWater: false, isPath: true, slope };
     }
+    // North and South Bazaar Market Promenades
+    if ((Math.abs(z - -273) <= 2.2 || Math.abs(z - -247) <= 2.2) && x >= 155 && x <= 178) {
+      return { height: y, color: [241, 245, 249], biomeId: 'astraea_bazaar', isWater: false, isPath: true, slope };
+    }
     const distPalace = Math.hypot(x - 195, z - -260);
-    const distPlaza = Math.hypot(x - 172, z - -260);
     if (distPalace < 18 || distPlaza < 14) {
       return { height: y, color: [241, 245, 249], biomeId: 'astraea_marble', isWater: false, isPath: false, slope };
     }
@@ -397,12 +406,37 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: y, color: [215, 204, 200], biomeId: 'eldoria_path', isWater: false, isPath: true, slope: 0 };
   }
 
-  // 3c. Main Inter-regional Highway: Desa Utama -> Jembatan Gantung -> Gerbang Benteng Val-Kragor
+  // 3c. Inter-regional Highway Network (Jaringan Jalan Utama Antar-Wilayah)
+  // Highway 1: Desa Utama -> Jembatan Gantung -> Benteng Val-Kragor (Timur)
   if (
     (Math.abs(z - -15) <= 2.8 && x >= 16 && x <= 88) ||
-    (Math.abs(z - (-15 - (x - 88) * 0.33)) <= 2.8 && x >= 88 && x <= 95)
+    (Math.abs(z - -16) <= 2.8 && x >= 88 && x <= 132)
   ) {
     return { height: y, color: [175, 155, 135], biomeId: 'valkragor_road', isWater: false, isPath: true, slope: 0 };
+  }
+
+  // Highway 2: Desa Utama -> Rawa Shadowfen (Barat)
+  if (x >= -180 && x <= -16) {
+    const roadZ = -4 + clamp((-x - 16) / 164, 0, 1) * 29;
+    if (Math.abs(z - roadZ) <= 2.8) {
+      return { height: y, color: [160, 145, 130], biomeId: 'shadowfen_road', isWater: false, isPath: true, slope: 0 };
+    }
+  }
+
+  // Highway 3: Benteng Val-Kragor -> Puncak Salju Frostpeak & Kerajaan Astraea (Utara)
+  if (z <= -40 && z >= -260) {
+    const roadX = 158 - clamp((-z - 40) / 220, 0, 1) * 10;
+    if (Math.abs(x - roadX) <= 2.8) {
+      return { height: y, color: [210, 218, 226], biomeId: 'frostpeak_highway', isWater: false, isPath: true, slope: 0 };
+    }
+  }
+
+  // Internal Val-Kragor Streets: Main thoroughfare and north/south barracks branches
+  if (
+    (Math.abs(z - -16) <= 2.4 && x >= 132 && x <= 180) ||
+    (Math.abs(x - 154) <= 2.2 && z >= -34 && z <= 0)
+  ) {
+    return { height: y, color: [148, 163, 184], biomeId: 'valkragor_street', isWater: false, isPath: true, slope: 0 };
   }
 
   // 3b. Ancient Sunken Ruins of Vael Granite Flagstone Terrace (x: -140..-95, z: 15..60)
