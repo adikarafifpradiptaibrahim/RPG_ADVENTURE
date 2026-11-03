@@ -9,8 +9,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A thriving coastal settlement with wooden cottages, busy harbor docks, merchant galleons, and rejuvenation fountain.',
     descriptionId: 'Pusat desa damai dengan rumah panggung kayu, pelabuhan kapal dagang dan kapal perang, bengkel tempa, serta air mancur suci.',
     color: '#4caf50',
-    bounds: { minX: -45, maxX: 45, minZ: -35, maxZ: 65 },
-    center: [0, -2],
+    bounds: { minX: -55, maxX: 55, minZ: -32, maxZ: 58 },
+    center: [0, 0],
     recommendedLevel: 1,
   },
   {
@@ -31,10 +31,10 @@ export const REGIONS: RegionInfo[] = [
     nameId: 'Reruntuhan Kuno Vael',
     icon: '🏛️',
     description: 'Forgotten stone monoliths, archways, and rune altars guarded by restless skeletons.',
-    descriptionId: 'Pilar-pilar batu megah peradaban kuno, gerbang rune misterius, dan peti pusaka yang dijaga pasukan tengkorak terkutuk.',
+    descriptionId: 'Pilar-pilar batu megah peradaban kuno di hulu barat, gerbang rune misterius, dan peti pusaka yang dijaga pasukan tengkorak terkutuk.',
     color: '#90a4ae',
-    bounds: { minX: -65, maxX: -16, minZ: -15, maxZ: 45 },
-    center: [-34, 18],
+    bounds: { minX: -145, maxX: -85, minZ: 12, maxZ: 65 },
+    center: [-118, 36],
     recommendedLevel: 3,
   },
   {
@@ -204,8 +204,8 @@ export const WAYPOINTS: {
     nameId: 'Dermaga & Pelabuhan Kapal Sanctuary',
     regionId: 'desa_eldoria',
     icon: '⛵',
-    pos: [6, 26],
-    desc: 'Pelabuhan utama desa dengan kapal dagang dan kapal perang berlayar',
+    pos: [0, 22],
+    desc: 'Gerbang titian pelabuhan pantai dengan dermaga rapi dan kapal berlabuh',
   },
   {
     id: 'wp_beach',
@@ -220,8 +220,8 @@ export const WAYPOINTS: {
     nameId: 'Gerbang Reruntuhan Kuno',
     regionId: 'reruntuhan_kuno',
     icon: '🏛️',
-    pos: [-28, 20],
-    desc: 'Kuil batu kuno penuh misteri dan peti harta karun',
+    pos: [-105, 32],
+    desc: 'Kuil pilar batu kuno Vael di hulu barat, jauh dari pemukiman desa',
   },
   {
     id: 'wp_forest',
@@ -410,9 +410,13 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
   if (z >= 18) {
     return REGIONS[1];
   }
-  // 12. Ancient Sunken Ruins (West)
-  if (x <= -16 && z >= -15 && z <= 35) {
+  // 12. Ancient Sunken Ruins (Far-West Outskirts: x: -145..-85, z: 12..65)
+  if (x <= -85 && x >= -145 && z >= 12 && z <= 65) {
     return REGIONS[2];
+  }
+  // Sanctuary Village & Harbor Safe Zone
+  if (Math.hypot(x, z) < 55 || (Math.abs(x) <= 32 && z >= 15 && z <= 58)) {
+    return REGIONS[0];
   }
   // 13. Whispering Mystic Forest (East)
   if (x >= 16 && x < 62 && z >= -30 && z <= 25) {

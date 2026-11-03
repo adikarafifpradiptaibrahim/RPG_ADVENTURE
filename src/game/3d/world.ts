@@ -220,11 +220,14 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return 2.4 - sag;
     }
 
-    // 2. Pier dock walkway deck planks and coastal harbor boardwalk network
-    if (x >= -28 && x <= 38 && z >= 17.5 && z <= 21.5) return 1.825; // Shoreline boardwalk
-    if (x >= 4.5 && x <= 7.5 && z >= 18.2 && z <= 52.5) return 1.825; // Main central pier
-    if (x >= -16.5 && x <= -13.5 && z >= 18.5 && z <= 44.0) return 1.825; // West pier
-    if (x >= 26.5 && x <= 29.5 && z >= 18.5 && z <= 44.0) return 1.825; // East pier
+    // 2. Parallel Harbor Boardwalk & Pier Walkway Deck Corridors
+    if (
+      (Math.abs(x) <= 24 && z >= 18 && z <= 22) ||
+      (x >= -12 && x <= -8 && z >= 20 && z <= 54) ||
+      (x >= 8 && x <= 12 && z >= 20 && z <= 54)
+    ) {
+      return 1.825; // Walkable wooden pier deck above ocean water
+    }
     if (x >= 148 && x <= 212 && z >= -288 && z <= -232) return 6.0; // Astraea Imperial plateau
     if (x >= 174 && x <= 186 && z >= -340 && z <= -300) return 4.6; // Frozen Chasm ice bridge
 
@@ -249,102 +252,109 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   scene.add(oceanMesh);
 
   // ==========================================
-  // 1b. EXPANDED SANCTUARY HARBOR & NAVAL BERTHS
-  // Multi-pier docks, moored merchant galleons, shielded viking warships & rowboats
+  // 1b. STRUCTURED SANCTUARY HARBOR & NAVAL BERTHS (Sea Shoreline at Z >= 20)
+  // Parallel timber piers extending south into ocean water with moored ships berthing alongside
   // ==========================================
-  // Main Central Pier (Extended out to sea)
-  const pier1 = createPierDockMesh();
-  pier1.position.set(6, -0.4, 25);
-  scene.add(pier1);
-  const pier1Outer = createPierDockMesh();
-  pier1Outer.position.set(6, -0.4, 42);
-  scene.add(pier1Outer);
-
-  // West Pier Dock
-  const pierWest = createPierDockMesh();
-  pierWest.position.set(-15, -0.4, 30);
-  scene.add(pierWest);
-
-  // East Pier Dock
-  const pierEast = createPierDockMesh();
-  pierEast.position.set(28, -0.4, 30);
-  scene.add(pierEast);
-
-  // Connecting Shoreline Boardwalk Walkways
+  // Shoreline Connecting Boardwalk (parallel to beach at z = 20, spanning x: -24..24)
   const bwLeft = createPierDockMesh();
-  bwLeft.position.set(-6, -0.4, 19.5);
+  bwLeft.position.set(-12, -0.4, 20);
   bwLeft.rotation.y = Math.PI / 2;
   scene.add(bwLeft);
+
+  const bwCenter = createPierDockMesh();
+  bwCenter.position.set(0, -0.4, 20);
+  bwCenter.rotation.y = Math.PI / 2;
+  scene.add(bwCenter);
+
   const bwRight = createPierDockMesh();
-  bwRight.position.set(17, -0.4, 19.5);
+  bwRight.position.set(12, -0.4, 20);
   bwRight.rotation.y = Math.PI / 2;
   scene.add(bwRight);
 
-  // Moored Merchant Galleons (Trading with Solaria and distant continents)
+  // Parallel Pier 1: West Pier (X: -10, Z: 20..52)
+  const pierWest1 = createPierDockMesh();
+  pierWest1.position.set(-10, -0.4, 28);
+  scene.add(pierWest1);
+  const pierWest2 = createPierDockMesh();
+  pierWest2.position.set(-10, -0.4, 44);
+  scene.add(pierWest2);
+
+  // Parallel Pier 2: East Pier (X: 10, Z: 20..52)
+  const pierEast1 = createPierDockMesh();
+  pierEast1.position.set(10, -0.4, 28);
+  scene.add(pierEast1);
+  const pierEast2 = createPierDockMesh();
+  pierEast2.position.set(10, -0.4, 44);
+  scene.add(pierEast2);
+
+  // Moored Merchant Galleons (Berthing alongside the piers in deep ocean water)
+  // Galleon 1: East of East Pier (X: 20, Z: 38, rot: 0)
   const galleon1 = createMerchantGalleonMesh();
-  galleon1.position.set(16, -0.3, 40);
-  galleon1.rotation.y = -0.35;
+  galleon1.position.set(20, -0.3, 38);
+  galleon1.rotation.y = 0;
   scene.add(galleon1);
 
+  // Galleon 2: West of West Pier (X: -20, Z: 38, rot: 0)
   const galleon2 = createMerchantGalleonMesh();
-  galleon2.position.set(-8, -0.3, 43);
-  galleon2.rotation.y = 0.35;
+  galleon2.position.set(-20, -0.3, 38);
+  galleon2.rotation.y = 0;
   scene.add(galleon2);
 
-  // Moored Shielded Wooden Warships (Sanctuary Naval Defense Fleet)
+  // Moored Shielded Wooden Warships (Berthing in deep outer waters)
+  // Warship 1: Outer East Anchorage (X: 34, Z: 44, rot: 0.15)
   const warship1 = createVikingWarshipMesh();
-  warship1.position.set(38, -0.3, 38);
-  warship1.rotation.y = -0.5;
+  warship1.position.set(34, -0.3, 44);
+  warship1.rotation.y = 0.15;
   scene.add(warship1);
 
+  // Warship 2: Outer West Anchorage (X: -34, Z: 44, rot: -0.15)
   const warship2 = createVikingWarshipMesh();
-  warship2.position.set(-24, -0.3, 33);
-  warship2.rotation.y = 0.6;
+  warship2.position.set(-34, -0.3, 44);
+  warship2.rotation.y = -0.15;
   scene.add(warship2);
 
-  // Moored Coastal Rowboats
+  // Moored Coastal Rowboats inside pier basin
   const rowboat1 = createRowboatMesh();
-  rowboat1.position.set(9.5, -0.25, 26);
-  rowboat1.rotation.y = 0.4;
+  rowboat1.position.set(-6, -0.25, 30);
+  rowboat1.rotation.y = 0.1;
   scene.add(rowboat1);
 
   const rowboat2 = createRowboatMesh();
-  rowboat2.position.set(-12, -0.25, 24);
-  rowboat2.rotation.y = -0.3;
+  rowboat2.position.set(6, -0.25, 30);
+  rowboat2.rotation.y = -0.1;
   scene.add(rowboat2);
 
   const rowboat3 = createRowboatMesh();
-  rowboat3.position.set(25, -0.25, 34);
+  rowboat3.position.set(6, -0.25, 42);
   rowboat3.rotation.y = 0.2;
   scene.add(rowboat3);
 
   // ==========================================
-  // 2. EXPANDED VILLAGE, STRUCTURES & COLLIDERS
+  // 2. ORGANIZED SANCTUARY VILLAGE & FACILITIES
+  // Clean central avenue, spacious plaza, distinct shop/craftsman facilities,
+  // and separated residential districts. Zero overlap!
   // ==========================================
   const colliders: WorldCollider[] = [];
   const npcs: WorldNPC[] = [];
 
-  // Expanded Harbor Pier rails and ship hull colliders
+  // Pier Handrail & Ship Hull Colliders
   colliders.push(
-    // Main Pier rails
-    { type: 'box', minX: 4.2, maxX: 4.8, minZ: 18.5, maxZ: 50.5, label: 'Dermaga Utama Pagar Kiri' },
-    { type: 'box', minX: 7.2, maxX: 7.8, minZ: 18.5, maxZ: 50.5, label: 'Dermaga Utama Pagar Kanan' },
     // West Pier rails
-    { type: 'box', minX: -16.8, maxX: -16.2, minZ: 18.5, maxZ: 41.5, label: 'Dermaga Barat Pagar Kiri' },
-    { type: 'box', minX: -13.8, maxX: -13.2, minZ: 18.5, maxZ: 41.5, label: 'Dermaga Barat Pagar Kanan' },
+    { type: 'box', minX: -11.8, maxX: -11.2, minZ: 20, maxZ: 52, label: 'Dermaga Barat Pagar Kiri' },
+    { type: 'box', minX: -8.8, maxX: -8.2, minZ: 20, maxZ: 52, label: 'Dermaga Barat Pagar Kanan' },
     // East Pier rails
-    { type: 'box', minX: 26.2, maxX: 26.8, minZ: 18.5, maxZ: 41.5, label: 'Dermaga Timur Pagar Kiri' },
-    { type: 'box', minX: 29.2, maxX: 29.8, minZ: 18.5, maxZ: 41.5, label: 'Dermaga Timur Pagar Kanan' },
-    // Ship hull colliders
-    { type: 'box', minX: 13.5, maxX: 18.5, minZ: 32, maxZ: 48, label: 'Lambung Kapal Dagang Emas 1' },
-    { type: 'box', minX: -10.5, maxX: -5.5, minZ: 35, maxZ: 51, label: 'Lambung Kapal Dagang Emas 2' },
-    { type: 'box', minX: 35.5, maxX: 40.5, minZ: 30, maxZ: 46, label: 'Kapal Perang Bershield 1' },
-    { type: 'box', minX: -26.5, maxX: -21.5, minZ: 25, maxZ: 41, label: 'Kapal Perang Bershield 2' }
+    { type: 'box', minX: 8.2, maxX: 8.8, minZ: 20, maxZ: 52, label: 'Dermaga Timur Pagar Kiri' },
+    { type: 'box', minX: 11.2, maxX: 11.8, minZ: 20, maxZ: 52, label: 'Dermaga Timur Pagar Kanan' },
+    // Ship hull colliders (Water boundaries)
+    { type: 'box', minX: 17.5, maxX: 22.5, minZ: 31, maxZ: 47, label: 'Lambung Kapal Dagang Emas 1' },
+    { type: 'box', minX: -22.5, maxX: -17.5, minZ: 31, maxZ: 47, label: 'Lambung Kapal Dagang Emas 2' },
+    { type: 'box', minX: 31.5, maxX: 36.5, minZ: 37, maxZ: 51, label: 'Kapal Perang Bershield 1' },
+    { type: 'box', minX: -36.5, maxX: -31.5, minZ: 37, maxZ: 51, label: 'Kapal Perang Bershield 2' }
   );
 
-  // 2.1 Northern Village Gateway Arch
+  // 2.1 Northern Village Gateway Arch (Start of Royal Avenue, Z: -22)
   const villageArch = createVillageArchMesh('GERBANG ELDORIA');
-  const archZ = -17;
+  const archZ = -22;
   villageArch.position.set(0, getTerrainHeight(0, archZ), archZ);
   scene.add(villageArch);
   colliders.push(
@@ -352,7 +362,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { type: 'circle', x: 3.5, z: archZ, radius: 0.6, label: 'Gerbang Pilar Kanan' }
   );
 
-  // 2.2 Sanctuary Fountain / Water Pond in Center Plaza
+  // 2.2 Sanctuary Fountain / Water Pond in Center Plaza (X: 0, Z: 0)
   const waterGeo = new THREE.CylinderGeometry(4.5, 4.5, 0.4, 16);
   const waterMat = new THREE.MeshStandardMaterial({
     color: 0x00b4d8,
@@ -362,7 +372,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     opacity: 0.85,
   });
   const waterMesh = new THREE.Mesh(waterGeo, waterMat);
-  waterMesh.position.set(0, 0.15, -4);
+  waterMesh.position.set(0, 0.15, 0);
   scene.add(waterMesh);
 
   const fountainRim = new THREE.Mesh(
@@ -370,36 +380,50 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     new THREE.MeshLambertMaterial({ color: 0xb0bec5, flatShading: true })
   );
   fountainRim.rotation.x = Math.PI / 2;
-  fountainRim.position.set(0, 0.3, -4);
+  fountainRim.position.set(0, 0.3, 0);
   scene.add(fountainRim);
 
-  // Center water jet spout
   const spoutMat = new THREE.MeshLambertMaterial({ color: 0x90a4ae });
   const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 1.6, 8), spoutMat);
-  spout.position.set(0, 0.8, -4);
+  spout.position.set(0, 0.8, 0);
   scene.add(spout);
-  colliders.push({ type: 'circle', x: 0, z: -4, radius: 4.8, label: 'Air Mancur Kuil' });
+  colliders.push({ type: 'circle', x: 0, z: 0, radius: 4.8, label: 'Air Mancur Kuil' });
 
-  // 2.3 Village Tavern: "Penginapan Eldoria" (North-East Plaza)
+  // 2.3 Kediaman Tetua Vaelen & Balai Pertemuan Desa (North-West Plaza: X: -14, Z: -12)
+  const house1 = createVillageHouseMesh();
+  const h1Pos = { x: -14, z: -12 };
+  house1.position.set(h1Pos.x, getTerrainHeight(h1Pos.x, h1Pos.z), h1Pos.z);
+  house1.rotation.y = Math.PI / 4;
+  scene.add(house1);
+  colliders.push({
+    type: 'box',
+    minX: h1Pos.x - 3.0,
+    maxX: h1Pos.x + 3.0,
+    minZ: h1Pos.z - 3.0,
+    maxZ: h1Pos.z + 3.0,
+    label: 'Kediaman Tetua Vaelen',
+  });
+
+  // 2.4 Village Tavern & Resting Inn: "Penginapan Eldoria" (North-East Plaza: X: 16, Z: -12)
   const tavern = createTavernMesh();
-  const tavernPos = { x: 12, z: -9 };
+  const tavernPos = { x: 16, z: -12 };
   tavern.position.set(tavernPos.x, getTerrainHeight(tavernPos.x, tavernPos.z), tavernPos.z);
-  tavern.rotation.y = -Math.PI / 8;
+  tavern.rotation.y = -Math.PI / 4;
   scene.add(tavern);
   colliders.push({
     type: 'box',
-    minX: tavernPos.x - 3.4,
-    maxX: tavernPos.x + 3.4,
-    minZ: tavernPos.z - 3.0,
-    maxZ: tavernPos.z + 3.0,
+    minX: tavernPos.x - 3.5,
+    maxX: tavernPos.x + 3.5,
+    minZ: tavernPos.z - 3.5,
+    maxZ: tavernPos.z + 3.5,
     label: 'Penginapan Eldoria',
   });
 
-  // 2.4 Master Torvald's Blacksmith Forge (West Plaza)
+  // 2.5 Master Torvald's Blacksmith Forge (West Commercial Facility: X: -16, Z: 4)
   const blacksmith = createBlacksmithMesh();
-  const forgePos = { x: -12, z: 3 };
+  const forgePos = { x: -16, z: 4 };
   blacksmith.position.set(forgePos.x, getTerrainHeight(forgePos.x, forgePos.z), forgePos.z);
-  blacksmith.rotation.y = Math.PI / 5;
+  blacksmith.rotation.y = Math.PI / 2; // Facing East towards the main promenade
   scene.add(blacksmith);
   colliders.push({
     type: 'box',
@@ -410,11 +434,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     label: 'Bengkel Pandai Besi',
   });
 
-  // 2.5 Anya's Alchemy & Potion Stall (East Plaza)
+  // 2.6 Anya's Alchemy & Potion Stall (East Commercial Facility: X: 14, Z: 2)
   const anyaStall = createMarketStallMesh(0x15803d);
-  const anyaPos = { x: 9.5, z: 4.5 };
+  const anyaPos = { x: 14, z: 2 };
   anyaStall.position.set(anyaPos.x, getTerrainHeight(anyaPos.x, anyaPos.z), anyaPos.z);
-  anyaStall.rotation.y = -Math.PI / 6;
+  anyaStall.rotation.y = -Math.PI / 2; // Facing West towards the main promenade
   scene.add(anyaStall);
   colliders.push({
     type: 'box',
@@ -425,11 +449,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     label: 'Kios Alkemis Anya',
   });
 
-  // 2.6 Maya's Armor & Equipment Shop Stall (South Plaza)
+  // 2.7 Maya's Armor & Equipment Shop Stall (East Commercial Facility: X: 14, Z: 10)
   const marketStall2 = createArmorStallMesh(0x1e3a8a);
-  const m2Pos = { x: 3.5, z: 8.5 };
+  const m2Pos = { x: 14, z: 10 };
   marketStall2.position.set(m2Pos.x, getTerrainHeight(m2Pos.x, m2Pos.z), m2Pos.z);
-  marketStall2.rotation.y = Math.PI / 4;
+  marketStall2.rotation.y = -Math.PI / 2; // Facing West towards the main promenade
   scene.add(marketStall2);
   colliders.push({
     type: 'box',
@@ -440,136 +464,102 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     label: 'Toko Zirah & Perlengkapan Maya',
   });
 
-  // 2.7 House 1: Sanctuary Elder Lodge (North-West)
-  const house1 = createVillageHouseMesh();
-  const h1Pos = { x: -9, z: -10 };
-  house1.position.set(h1Pos.x, getTerrainHeight(h1Pos.x, h1Pos.z), h1Pos.z);
-  house1.rotation.y = Math.PI / 6;
-  scene.add(house1);
-  colliders.push({
-    type: 'box',
-    minX: h1Pos.x - 2.8,
-    maxX: h1Pos.x + 2.8,
-    minZ: h1Pos.z - 2.6,
-    maxZ: h1Pos.z + 2.6,
-    label: 'Kediaman Tetua',
-  });
-
-  // 2.8 House 2: South-West Resident Cottage
+  // ==========================================
+  // 2.8 SPACIOUS RESIDENTIAL WARDS (West and East of the Village)
+  // Cleanly separated from commercial facilities with private gardens & orchards
+  // ==========================================
+  // West Residential Ward
   const house2 = createVillageHouseMesh();
-  const h2Pos = { x: -11, z: 13 };
+  const h2Pos = { x: -26, z: -10 };
   house2.position.set(h2Pos.x, getTerrainHeight(h2Pos.x, h2Pos.z), h2Pos.z);
-  house2.rotation.y = Math.PI / 3;
+  house2.rotation.y = Math.PI / 6;
   scene.add(house2);
   colliders.push({
     type: 'box',
-    minX: h2Pos.x - 2.8,
-    maxX: h2Pos.x + 2.8,
-    minZ: h2Pos.z - 2.6,
-    maxZ: h2Pos.z + 2.6,
-    label: 'Rumah Warga Barat',
+    minX: h2Pos.x - 2.8, maxX: h2Pos.x + 2.8, minZ: h2Pos.z - 2.6, maxZ: h2Pos.z + 2.6,
+    label: 'Rumah Pengrajin Barat',
   });
 
-  // 2.9 House 3: South-East Resident Cottage
-  const house3 = createVillageHouseMesh();
-  const h3Pos = { x: 12, z: 13 };
-  house3.position.set(h3Pos.x, getTerrainHeight(h3Pos.x, h3Pos.z), h3Pos.z);
-  house3.rotation.y = -Math.PI / 4;
-  scene.add(house3);
-  colliders.push({
-    type: 'box',
-    minX: h3Pos.x - 2.8,
-    maxX: h3Pos.x + 2.8,
-    minZ: h3Pos.z - 2.6,
-    maxZ: h3Pos.z + 2.6,
-    label: 'Rumah Warga Timur',
-  });
-
-  // 2.10 House 4: East Meadow Cottage
-  const house4 = createVillageHouseMesh();
-  const h4Pos = { x: 20, z: -12 };
-  house4.position.set(h4Pos.x, getTerrainHeight(h4Pos.x, h4Pos.z), h4Pos.z);
-  house4.rotation.y = -Math.PI / 3;
-  scene.add(house4);
-  colliders.push({
-    type: 'box',
-    minX: h4Pos.x - 2.8,
-    maxX: h4Pos.x + 2.8,
-    minZ: h4Pos.z - 2.6,
-    maxZ: h4Pos.z + 2.6,
-    label: 'Rumah Warga Padang Rumput Timur',
-  });
-
-  // 2.11 House 5: North Gatekeeper Cottage
-  const house5 = createVillageHouseMesh();
-  const h5Pos = { x: 5, z: -22 };
-  house5.position.set(h5Pos.x, getTerrainHeight(h5Pos.x, h5Pos.z), h5Pos.z);
-  house5.rotation.y = Math.PI / 6;
-  scene.add(house5);
-  colliders.push({
-    type: 'box',
-    minX: h5Pos.x - 2.8,
-    maxX: h5Pos.x + 2.8,
-    minZ: h5Pos.z - 2.6,
-    maxZ: h5Pos.z + 2.6,
-    label: 'Pondok Penjaga Gerbang Utara',
-  });
-
-  // 2.12 House 6: West Orchard Cottage
   const house6 = createVillageHouseMesh();
-  const h6Pos = { x: -22, z: -18 };
+  const h6Pos = { x: -26, z: 4 };
   house6.position.set(h6Pos.x, getTerrainHeight(h6Pos.x, h6Pos.z), h6Pos.z);
   house6.rotation.y = Math.PI / 4;
   scene.add(house6);
   colliders.push({
     type: 'box',
-    minX: h6Pos.x - 2.8,
-    maxX: h6Pos.x + 2.8,
-    minZ: h6Pos.z - 2.6,
-    maxZ: h6Pos.z + 2.6,
-    label: 'Rumah Kebun Barat',
+    minX: h6Pos.x - 2.8, maxX: h6Pos.x + 2.8, minZ: h6Pos.z - 2.6, maxZ: h6Pos.z + 2.6,
+    label: 'Rumah Kebun Apel Barat',
   });
 
-  // 2.13 House 7: West Herbalist Cottage
   const house7 = createVillageHouseMesh();
-  const h7Pos = { x: -26, z: 4 };
+  const h7Pos = { x: -26, z: 16 };
   house7.position.set(h7Pos.x, getTerrainHeight(h7Pos.x, h7Pos.z), h7Pos.z);
-  house7.rotation.y = -Math.PI / 8;
+  house7.rotation.y = Math.PI / 3;
   scene.add(house7);
   colliders.push({
     type: 'box',
-    minX: h7Pos.x - 2.8,
-    maxX: h7Pos.x + 2.8,
-    minZ: h7Pos.z - 2.6,
-    maxZ: h7Pos.z + 2.6,
+    minX: h7Pos.x - 2.8, maxX: h7Pos.x + 2.8, minZ: h7Pos.z - 2.6, maxZ: h7Pos.z + 2.6,
     label: 'Pondok Herbalis Barat',
   });
 
-  // 2.14 House 8: Coastal Fisher Cottage (Near West Pier)
+  // East Residential Ward
+  const house3 = createVillageHouseMesh();
+  const h3Pos = { x: 26, z: -10 };
+  house3.position.set(h3Pos.x, getTerrainHeight(h3Pos.x, h3Pos.z), h3Pos.z);
+  house3.rotation.y = -Math.PI / 6;
+  scene.add(house3);
+  colliders.push({
+    type: 'box',
+    minX: h3Pos.x - 2.8, maxX: h3Pos.x + 2.8, minZ: h3Pos.z - 2.6, maxZ: h3Pos.z + 2.6,
+    label: 'Rumah Petani Lembah Timur',
+  });
+
+  const house4 = createVillageHouseMesh();
+  const h4Pos = { x: 26, z: 4 };
+  house4.position.set(h4Pos.x, getTerrainHeight(h4Pos.x, h4Pos.z), h4Pos.z);
+  house4.rotation.y = -Math.PI / 4;
+  scene.add(house4);
+  colliders.push({
+    type: 'box',
+    minX: h4Pos.x - 2.8, maxX: h4Pos.x + 2.8, minZ: h4Pos.z - 2.6, maxZ: h4Pos.z + 2.6,
+    label: 'Rumah Padang Rumput Timur',
+  });
+
+  const house5 = createVillageHouseMesh();
+  const h5Pos = { x: 26, z: 16 };
+  house5.position.set(h5Pos.x, getTerrainHeight(h5Pos.x, h5Pos.z), h5Pos.z);
+  house5.rotation.y = -Math.PI / 3;
+  scene.add(house5);
+  colliders.push({
+    type: 'box',
+    minX: h5Pos.x - 2.8, maxX: h5Pos.x + 2.8, minZ: h5Pos.z - 2.6, maxZ: h5Pos.z + 2.6,
+    label: 'Pondok Penjaga Padang Timur',
+  });
+
+  // Coastal Fisherman Cottage (Overlooking the harbor on dry coastal elevation)
   const house8 = createVillageHouseMesh();
-  const h8Pos = { x: -15, z: 12 };
+  const h8Pos = { x: -16, z: 18 };
   house8.position.set(h8Pos.x, getTerrainHeight(h8Pos.x, h8Pos.z), h8Pos.z);
   house8.rotation.y = Math.PI / 2;
   scene.add(house8);
   colliders.push({
     type: 'box',
-    minX: h8Pos.x - 2.8,
-    maxX: h8Pos.x + 2.8,
-    minZ: h8Pos.z - 2.6,
-    maxZ: h8Pos.z + 2.6,
+    minX: h8Pos.x - 2.8, maxX: h8Pos.x + 2.8, minZ: h8Pos.z - 2.6, maxZ: h8Pos.z + 2.6,
     label: 'Pondok Nelayan Pesisir',
   });
 
-  // 2.10 Street Lamps along Village Cobblestones
+  // 2.9 Street Lamps along Promenade & Crossways
   const lampPositions = [
-    [-4, 0],
-    [4, 0],
-    [0, -13],
-    [-7, -5],
-    [7, -4],
-    [-5, 8],
-    [5, 8],
-    [5.5, 17], // Near Pier path
+    [0, -18],
+    [0, -10],
+    [-5, -4],
+    [5, -4],
+    [-5, 4],
+    [5, 4],
+    [-10, 0],
+    [10, 0],
+    [0, 10],
+    [0, 18], // Harbor entrance landing
   ];
   lampPositions.forEach(([lx, lz]) => {
     const lamp = createStreetLampMesh();
@@ -578,13 +568,13 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     colliders.push({ type: 'circle', x: lx, z: lz, radius: 0.35, label: 'Lampu Jalan' });
   });
 
-  // Village barrels & storage crates
+  // Village barrels & storage crates (Placed neatly by walls)
   const barrelPositions = [
-    [-6, -8],
-    [-6.8, -8],
-    [7, -6],
-    [-8, 6],
-    [4.2, 26], // on the pier
+    [-18, 2],
+    [16, 0],
+    [14, -14],
+    [-12, -14],
+    [-2, 20],
   ];
   barrelPositions.forEach(([bx, bz]) => {
     const barrel = createBarrelMesh();
@@ -594,11 +584,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // RANDOM NPCS OF ELDORIA
+  // SANCTUARY NPCS (Organized & Unobstructed Positions)
   // ==========================================
-  // NPC 1: Tetua Vaelen (Penjaga Kuil)
+  // NPC 1: Tetua Vaelen (Penjaga Kuil & Tetua Desa) - In front of his lodge
   const elderGroup = createNPCMesh();
-  const elderPos: [number, number, number] = [2.8, getTerrainHeight(2.8, -2), -2];
+  const elderPos: [number, number, number] = [-12.5, getTerrainHeight(-12.5, -8), -8];
   elderGroup.position.set(...elderPos);
   elderGroup.rotation.y = -Math.PI / 3;
   scene.add(elderGroup);
@@ -615,7 +605,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 2: Kapten Ronald (Panglima Penjaga Gerbang Utara)
   const guardGroup = createCustomNPCMesh('guard');
-  const guardPos: [number, number, number] = [0, getTerrainHeight(0, -15.5), -15.5];
+  const guardPos: [number, number, number] = [0, getTerrainHeight(0, -20.5), -20.5];
   guardGroup.position.set(...guardPos);
   scene.add(guardGroup);
   npcs.push({
@@ -629,11 +619,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     dialogueId: 'guard_intro',
   });
 
-  // NPC 3: Anya (Alkemis & Herbalis)
+  // NPC 3: Anya (Alkemis & Herbalis) - At her stall
   const anyaGroup = createCustomNPCMesh('alchemist');
-  const anyaNPCPos: [number, number, number] = [8.5, getTerrainHeight(8.5, 3.5), 3.5];
+  const anyaNPCPos: [number, number, number] = [12, getTerrainHeight(12, 2), 2];
   anyaGroup.position.set(...anyaNPCPos);
-  anyaGroup.rotation.y = -Math.PI / 4;
+  anyaGroup.rotation.y = -Math.PI / 2;
   scene.add(anyaGroup);
   npcs.push({
     id: 'alchemist_anya',
@@ -646,11 +636,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     dialogueId: 'alchemist_intro',
   });
 
-  // NPC 4: Master Torvald (Pandai Besi Kuat)
+  // NPC 4: Master Torvald (Pandai Besi Kuat) - At his forge
   const torvaldGroup = createCustomNPCMesh('blacksmith');
-  const torvaldPos: [number, number, number] = [-10.5, getTerrainHeight(-10.5, 3.5), 3.5];
+  const torvaldPos: [number, number, number] = [-12.5, getTerrainHeight(-12.5, 4), 4];
   torvaldGroup.position.set(...torvaldPos);
-  torvaldGroup.rotation.y = Math.PI / 4;
+  torvaldGroup.rotation.y = Math.PI / 2;
   scene.add(torvaldGroup);
   npcs.push({
     id: 'blacksmith_torvald',
@@ -663,11 +653,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     dialogueId: 'blacksmith_torvald',
   });
 
-  // NPC 5: Lyra the Wandering Bard (Near Tavern)
+  // NPC 5: Lyra the Wandering Bard - Outside tavern
   const bardGroup = createCustomNPCMesh('bard');
-  const bardPos: [number, number, number] = [9.5, getTerrainHeight(9.5, -6.5), -6.5];
+  const bardPos: [number, number, number] = [13.5, getTerrainHeight(13.5, -8), -8];
   bardGroup.position.set(...bardPos);
-  bardGroup.rotation.y = -Math.PI / 2.5;
+  bardGroup.rotation.y = -Math.PI / 3;
   scene.add(bardGroup);
   npcs.push({
     id: 'bard_lyra',
@@ -680,11 +670,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     dialogueId: 'bard_lyra',
   });
 
-  // NPC 6: Nelayan Pak Joko (Coastal Fisherman on pier)
+  // NPC 6: Nelayan Pak Joko (Coastal Fisherman on harbor landing)
   const jokoGroup = createCustomNPCMesh('fisherman');
-  const jokoPos: [number, number, number] = [4.8, 2.1, 23.5];
+  const jokoPos: [number, number, number] = [0, 1.825, 20.5];
   jokoGroup.position.set(...jokoPos);
-  jokoGroup.rotation.y = Math.PI / 2;
+  jokoGroup.rotation.y = Math.PI; // Facing South towards open sea
   scene.add(jokoGroup);
   npcs.push({
     id: 'fisherman_joko',
@@ -697,11 +687,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     dialogueId: 'fisherman_joko',
   });
 
-  // NPC 7: Kael (Warga Desa Muda)
+  // NPC 7: Kael (Warga Desa Muda) - By coastal alleyway
   const kaelGroup = createCustomNPCMesh('villager');
-  const kaelPos: [number, number, number] = [-3.5, getTerrainHeight(-3.5, 2.5), 2.5];
+  const kaelPos: [number, number, number] = [-8, getTerrainHeight(-8, 12), 12];
   kaelGroup.position.set(...kaelPos);
-  kaelGroup.rotation.y = Math.PI / 3;
+  kaelGroup.rotation.y = Math.PI / 4;
   scene.add(kaelGroup);
   npcs.push({
     id: 'villager_kael',
@@ -714,11 +704,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     dialogueId: 'villager_kael',
   });
 
-  // NPC 8: Maya (Toko Zirah & Perlengkapan Tempur)
+  // NPC 8: Maya (Toko Zirah & Perlengkapan Tempur) - At her stall
   const mayaGroup = createCustomNPCMesh('villager');
-  const mayaPos: [number, number, number] = [4.2, getTerrainHeight(4.2, 7.2), 7.2];
+  const mayaPos: [number, number, number] = [12, getTerrainHeight(12, 10), 10];
   mayaGroup.position.set(...mayaPos);
-  mayaGroup.rotation.y = -Math.PI / 3;
+  mayaGroup.rotation.y = -Math.PI / 2;
   scene.add(mayaGroup);
   npcs.push({
     id: 'villager_maya',
@@ -1177,29 +1167,30 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 3. ANCIENT RUINS (West)
+  // 3. ANCIENT SUNKEN RUINS OF VAEL (Upstream Far-West Outskirts: X: -105..-135, Z: 25..55)
+  // Separated far from village settlement border (> 100 units from village plaza)
   // ==========================================
-  // Monumental Ancient Archway Gate
+  // Monumental Ancient Archway Gate (West Entrance at X: -105, Z: 32)
   const ancientArch = createAncientArchMesh();
-  const archY = getTerrainHeight(-28, 16);
-  ancientArch.position.set(-28, archY, 16);
-  ancientArch.rotation.y = 0.3;
+  const archY = getTerrainHeight(-105, 32);
+  ancientArch.position.set(-105, archY, 32);
+  ancientArch.rotation.y = Math.PI / 2;
   scene.add(ancientArch);
   colliders.push(
-    { type: 'circle', x: -30.5, z: 16, radius: 0.9, label: 'Pilar Gapura Kuno Kiri' },
-    { type: 'circle', x: -25.5, z: 16, radius: 0.9, label: 'Pilar Gapura Kuno Kanan' }
+    { type: 'circle', x: -105, z: 29.5, radius: 0.9, label: 'Pilar Gapura Kuno Kiri' },
+    { type: 'circle', x: -105, z: 34.5, radius: 0.9, label: 'Pilar Gapura Kuno Kanan' }
   );
 
-  // Ancient Pillars
+  // Spatial Ancient Pillars scattered across the ruined sanctuary
   const ruinsPositions = [
-    { x: -24, z: 22 },
-    { x: -32, z: 25 },
-    { x: -22, z: 32 },
-    { x: -36, z: 16 },
-    { x: -42, z: 22 },
-    { x: -38, z: 28 },
-    { x: -46, z: 12 },
-    { x: -26, z: 8 },
+    { x: -112, z: 26 },
+    { x: -120, z: 32 },
+    { x: -115, z: 42 },
+    { x: -128, z: 24 },
+    { x: -135, z: 36 },
+    { x: -130, z: 48 },
+    { x: -122, z: 52 },
+    { x: -110, z: 48 },
   ];
   ruinsPositions.forEach((pos) => {
     const pillar = createAncientPillarMesh();
@@ -1811,8 +1802,8 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // ==========================================
   const chestData = [
     { id: 'chest_village', pos: [-4, 0, 4] as [number, number, number] },
-    { id: 'chest_beach', pos: [12, 0, 32] as [number, number, number] }, // By the ocean pier
-    { id: 'chest_ruins', pos: [-35, 0, 24] as [number, number, number] }, // Ancient ruins altar
+    { id: 'chest_beach', pos: [10, 1.825, 46] as [number, number, number] }, // East Pier Head Stash
+    { id: 'chest_ruins', pos: [-120, 0, 36] as [number, number, number] }, // Ancient ruins altar (Upstream Outskirts)
     { id: 'chest_forest', pos: [38, 0, 12] as [number, number, number] }, // Mystic deep forest
     { id: 'chest_boss_gateway', pos: [0, 0, -38] as [number, number, number] }, // Entrance to Titan Crater
     { id: 'chest_valkragor', pos: [134, 0, -22] as [number, number, number] }, // Fortress keep secret treasury

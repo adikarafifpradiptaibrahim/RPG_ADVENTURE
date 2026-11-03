@@ -1,8 +1,3 @@
-/**
- * Monster & Enemy Spawn Configurations
- * Manages monster placement across world biomes, including Frostpeak wilderness wolves.
- */
-
 import { EnemyData } from '../types/game';
 
 export interface MonsterSpawnConfig {
@@ -23,8 +18,499 @@ export interface MonsterSpawnConfig {
 }
 
 /**
- * Frostpeak Glacier Frostfang Wolves (Lv. 5)
- * Positioned across the sprawling snowy mountain wilderness between Val-Kragor
+ * Checks if a world coordinate (x, z) is inside the Sanctuary Village & Harbor Safe Zone.
+ * Radius: 55 units around village plaza + coastal harbor dock corridor (x: -32..32, z: 15..58).
+ */
+export function isInsideSanctuarySafeZone(x: number, z: number): boolean {
+  if (Math.hypot(x, z) < 55) return true;
+  if (Math.abs(x) <= 32 && z >= 15 && z <= 58) return true;
+  return false;
+}
+
+/**
+ * 1. Meadow Slimes (Lv. 1)
+ * Relocated to the Eastern Plains & Outer Meadows (> 85 units east from Sanctuary)
+ */
+export const MEADOW_SLIME_SPAWNS: MonsterSpawnConfig[] = [
+  {
+    id: 'slime_0',
+    name: 'Meadow Slime',
+    nameId: 'Slime Lembah Hijau',
+    type: 'slime',
+    level: 1,
+    hp: 45,
+    maxHp: 45,
+    attack: 7,
+    defense: 2,
+    expReward: 25,
+    goldReward: 12,
+    pos: [85, 24],
+    patrolRadius: 8,
+    aggroRange: 12,
+  },
+  {
+    id: 'slime_1',
+    name: 'Meadow Slime',
+    nameId: 'Slime Lembah Hijau',
+    type: 'slime',
+    level: 1,
+    hp: 45,
+    maxHp: 45,
+    attack: 7,
+    defense: 2,
+    expReward: 25,
+    goldReward: 12,
+    pos: [92, 32],
+    patrolRadius: 9,
+    aggroRange: 12,
+  },
+  {
+    id: 'slime_2',
+    name: 'Meadow Slime',
+    nameId: 'Slime Lembah Hijau',
+    type: 'slime',
+    level: 1,
+    hp: 45,
+    maxHp: 45,
+    attack: 7,
+    defense: 2,
+    expReward: 25,
+    goldReward: 12,
+    pos: [88, 16],
+    patrolRadius: 8,
+    aggroRange: 12,
+  },
+  {
+    id: 'slime_3',
+    name: 'Meadow Slime',
+    nameId: 'Slime Lembah Hijau',
+    type: 'slime',
+    level: 1,
+    hp: 45,
+    maxHp: 45,
+    attack: 7,
+    defense: 2,
+    expReward: 25,
+    goldReward: 12,
+    pos: [98, 28],
+    patrolRadius: 10,
+    aggroRange: 12,
+  },
+  {
+    id: 'slime_4',
+    name: 'Meadow Slime',
+    nameId: 'Slime Lembah Hijau',
+    type: 'slime',
+    level: 1,
+    hp: 45,
+    maxHp: 45,
+    attack: 7,
+    defense: 2,
+    expReward: 25,
+    goldReward: 12,
+    pos: [104, 38],
+    patrolRadius: 10,
+    aggroRange: 12,
+  },
+];
+
+/**
+ * 2. Northern Caldera Magma Slimes (Lv. 3)
+ * Relocated deep into northern volcanic crags (> 85 units north from village)
+ */
+export const MAGMA_SLIME_SPAWNS: MonsterSpawnConfig[] = [
+  {
+    id: 'magma_slime_0',
+    name: 'Magma Slime',
+    nameId: 'Slime Lava Pijar',
+    type: 'magma_slime',
+    level: 3,
+    hp: 95,
+    maxHp: 95,
+    attack: 16,
+    defense: 6,
+    expReward: 65,
+    goldReward: 35,
+    pos: [-14, -86],
+    patrolRadius: 8,
+    aggroRange: 14,
+  },
+  {
+    id: 'magma_slime_1',
+    name: 'Magma Slime',
+    nameId: 'Slime Lava Pijar',
+    type: 'magma_slime',
+    level: 3,
+    hp: 95,
+    maxHp: 95,
+    attack: 16,
+    defense: 6,
+    expReward: 65,
+    goldReward: 35,
+    pos: [16, -88],
+    patrolRadius: 8,
+    aggroRange: 14,
+  },
+  {
+    id: 'magma_slime_2',
+    name: 'Magma Slime',
+    nameId: 'Slime Lava Pijar',
+    type: 'magma_slime',
+    level: 3,
+    hp: 95,
+    maxHp: 95,
+    attack: 16,
+    defense: 6,
+    expReward: 65,
+    goldReward: 35,
+    pos: [-8, -98],
+    patrolRadius: 9,
+    aggroRange: 14,
+  },
+  {
+    id: 'magma_slime_3',
+    name: 'Magma Slime',
+    nameId: 'Slime Lava Pijar',
+    type: 'magma_slime',
+    level: 3,
+    hp: 95,
+    maxHp: 95,
+    attack: 16,
+    defense: 6,
+    expReward: 65,
+    goldReward: 35,
+    pos: [12, -104],
+    patrolRadius: 9,
+    aggroRange: 14,
+  },
+];
+
+/**
+ * 3. Ancient Ruins Skeleton Sentinels (Lv. 2)
+ * Relocated to the upstream outer Ancient Ruins of Vael (> 110 units west from village)
+ */
+export const SKELETON_SENTINEL_SPAWNS: MonsterSpawnConfig[] = [
+  {
+    id: 'skeleton_0',
+    name: 'Skeleton Sentinel',
+    nameId: 'Prajurit Tengkorak Kuno',
+    type: 'skeleton',
+    level: 2,
+    hp: 85,
+    maxHp: 85,
+    attack: 14,
+    defense: 5,
+    expReward: 55,
+    goldReward: 30,
+    pos: [-108, 28],
+    patrolRadius: 10,
+    aggroRange: 14,
+  },
+  {
+    id: 'skeleton_1',
+    name: 'Skeleton Sentinel',
+    nameId: 'Prajurit Tengkorak Kuno',
+    type: 'skeleton',
+    level: 2,
+    hp: 85,
+    maxHp: 85,
+    attack: 14,
+    defense: 5,
+    expReward: 55,
+    goldReward: 30,
+    pos: [-116, 36],
+    patrolRadius: 11,
+    aggroRange: 14,
+  },
+  {
+    id: 'skeleton_2',
+    name: 'Skeleton Sentinel',
+    nameId: 'Prajurit Tengkorak Kuno',
+    type: 'skeleton',
+    level: 2,
+    hp: 85,
+    maxHp: 85,
+    attack: 14,
+    defense: 5,
+    expReward: 55,
+    goldReward: 30,
+    pos: [-124, 44],
+    patrolRadius: 10,
+    aggroRange: 14,
+  },
+  {
+    id: 'skeleton_3',
+    name: 'Skeleton Sentinel',
+    nameId: 'Prajurit Tengkorak Kuno',
+    type: 'skeleton',
+    level: 2,
+    hp: 85,
+    maxHp: 85,
+    attack: 14,
+    defense: 5,
+    expReward: 55,
+    goldReward: 30,
+    pos: [-112, 50],
+    patrolRadius: 10,
+    aggroRange: 14,
+  },
+];
+
+/**
+ * 4. Deep Ruins Skeleton Necromancers (Lv. 4)
+ * Located deep inside the ancient ruined sanctuary (> 130 units west)
+ */
+export const SKELETON_MAGE_SPAWNS: MonsterSpawnConfig[] = [
+  {
+    id: 'skeleton_mage_0',
+    name: 'Necromancer Lich',
+    nameId: 'Penyihir Kematian Tengkorak',
+    type: 'skeleton_mage',
+    level: 4,
+    hp: 120,
+    maxHp: 120,
+    attack: 22,
+    defense: 4,
+    expReward: 90,
+    goldReward: 55,
+    pos: [-128, 26],
+    patrolRadius: 12,
+    aggroRange: 18,
+  },
+  {
+    id: 'skeleton_mage_1',
+    name: 'Necromancer Lich',
+    nameId: 'Penyihir Kematian Tengkorak',
+    type: 'skeleton_mage',
+    level: 4,
+    hp: 120,
+    maxHp: 120,
+    attack: 22,
+    defense: 4,
+    expReward: 90,
+    goldReward: 55,
+    pos: [-136, 38],
+    patrolRadius: 12,
+    aggroRange: 18,
+  },
+  {
+    id: 'skeleton_mage_2',
+    name: 'Necromancer Lich',
+    nameId: 'Penyihir Kematian Tengkorak',
+    type: 'skeleton_mage',
+    level: 4,
+    hp: 120,
+    maxHp: 120,
+    attack: 22,
+    defense: 4,
+    expReward: 90,
+    goldReward: 55,
+    pos: [-132, 52],
+    patrolRadius: 12,
+    aggroRange: 18,
+  },
+];
+
+/**
+ * 5. Outer Coast Beach Goblins (Lv. 2)
+ * Relocated along the distant coral coastline (> 110 units south-east)
+ */
+export const BEACH_GOBLIN_SPAWNS: MonsterSpawnConfig[] = [
+  {
+    id: 'beach_goblin_0',
+    name: 'Coast Crawler Goblin',
+    nameId: 'Goblin Penjarah Pantai',
+    type: 'goblin',
+    level: 2,
+    hp: 70,
+    maxHp: 70,
+    attack: 11,
+    defense: 4,
+    expReward: 40,
+    goldReward: 22,
+    pos: [88, 68],
+    patrolRadius: 10,
+    aggroRange: 13,
+  },
+  {
+    id: 'beach_goblin_1',
+    name: 'Coast Crawler Goblin',
+    nameId: 'Goblin Penjarah Pantai',
+    type: 'goblin',
+    level: 2,
+    hp: 70,
+    maxHp: 70,
+    attack: 11,
+    defense: 4,
+    expReward: 40,
+    goldReward: 22,
+    pos: [98, 76],
+    patrolRadius: 11,
+    aggroRange: 13,
+  },
+  {
+    id: 'beach_goblin_2',
+    name: 'Coast Crawler Goblin',
+    nameId: 'Goblin Penjarah Pantai',
+    type: 'goblin',
+    level: 2,
+    hp: 70,
+    maxHp: 70,
+    attack: 11,
+    defense: 4,
+    expReward: 40,
+    goldReward: 22,
+    pos: [82, 84],
+    patrolRadius: 10,
+    aggroRange: 13,
+  },
+  {
+    id: 'beach_goblin_3',
+    name: 'Coast Crawler Goblin',
+    nameId: 'Goblin Penjarah Pantai',
+    type: 'goblin',
+    level: 2,
+    hp: 70,
+    maxHp: 70,
+    attack: 11,
+    defense: 4,
+    expReward: 40,
+    goldReward: 22,
+    pos: [106, 88],
+    patrolRadius: 12,
+    aggroRange: 13,
+  },
+];
+
+/**
+ * 6. Mystic Forest Stone Golems (Lv. 4)
+ * Relocated deep into eastern ancient pine forest (> 95 units east)
+ */
+export const FOREST_GOLEM_SPAWNS: MonsterSpawnConfig[] = [
+  {
+    id: 'forest_golem_0',
+    name: 'Ancient Stone Guardian',
+    nameId: 'Golem Penjaga Hutan',
+    type: 'golem',
+    level: 4,
+    hp: 175,
+    maxHp: 175,
+    attack: 20,
+    defense: 12,
+    expReward: 110,
+    goldReward: 65,
+    pos: [88, -38],
+    patrolRadius: 10,
+    aggroRange: 15,
+  },
+  {
+    id: 'forest_golem_1',
+    name: 'Ancient Stone Guardian',
+    nameId: 'Golem Penjaga Hutan',
+    type: 'golem',
+    level: 4,
+    hp: 175,
+    maxHp: 175,
+    attack: 20,
+    defense: 12,
+    expReward: 110,
+    goldReward: 65,
+    pos: [96, -48],
+    patrolRadius: 11,
+    aggroRange: 15,
+  },
+  {
+    id: 'forest_golem_2',
+    name: 'Ancient Stone Guardian',
+    nameId: 'Golem Penjaga Hutan',
+    type: 'golem',
+    level: 4,
+    hp: 175,
+    maxHp: 175,
+    attack: 20,
+    defense: 12,
+    expReward: 110,
+    goldReward: 65,
+    pos: [92, -26],
+    patrolRadius: 10,
+    aggroRange: 15,
+  },
+];
+
+/**
+ * 7. Deep Pine Canopy Venomous Spiders (Lv. 3)
+ * Relocated deep into northern forest hollows (> 105 units north-east)
+ */
+export const FOREST_SPIDER_SPAWNS: MonsterSpawnConfig[] = [
+  {
+    id: 'forest_spider_0',
+    name: 'Venomfang Weaver',
+    nameId: 'Laba-laba Racun Belantara',
+    type: 'spider',
+    level: 3,
+    hp: 80,
+    maxHp: 80,
+    attack: 15,
+    defense: 3,
+    expReward: 60,
+    goldReward: 32,
+    pos: [82, -72],
+    patrolRadius: 10,
+    aggroRange: 16,
+  },
+  {
+    id: 'forest_spider_1',
+    name: 'Venomfang Weaver',
+    nameId: 'Laba-laba Racun Belantara',
+    type: 'spider',
+    level: 3,
+    hp: 80,
+    maxHp: 80,
+    attack: 15,
+    defense: 3,
+    expReward: 60,
+    goldReward: 32,
+    pos: [90, -80],
+    patrolRadius: 10,
+    aggroRange: 16,
+  },
+  {
+    id: 'forest_spider_2',
+    name: 'Venomfang Weaver',
+    nameId: 'Laba-laba Racun Belantara',
+    type: 'spider',
+    level: 3,
+    hp: 80,
+    maxHp: 80,
+    attack: 15,
+    defense: 3,
+    expReward: 60,
+    goldReward: 32,
+    pos: [96, -68],
+    patrolRadius: 11,
+    aggroRange: 16,
+  },
+  {
+    id: 'forest_spider_3',
+    name: 'Venomfang Weaver',
+    nameId: 'Laba-laba Racun Belantara',
+    type: 'spider',
+    level: 3,
+    hp: 80,
+    maxHp: 80,
+    attack: 15,
+    defense: 3,
+    expReward: 60,
+    goldReward: 32,
+    pos: [84, -88],
+    patrolRadius: 10,
+    aggroRange: 16,
+  },
+];
+
+/**
+ * 8. Frostpeak Glacier Frostfang Wolves (Lv. 5)
+ * Positioned across the snowy mountain wilderness between Val-Kragor
  * and the relocated northern citadel of Astraea.
  */
 export const FROST_WOLF_SPAWNS: MonsterSpawnConfig[] = [

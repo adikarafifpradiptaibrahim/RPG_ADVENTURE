@@ -16,7 +16,17 @@ import { createEnemyMesh, createPlayerMesh, createArrowMesh, PlayerMeshObjects }
 import { buildWorld, WorldObjects } from './world';
 import { RemotePlayerData } from '../multiplayer';
 import { GraphicsSettings, loadGraphicsSettings } from '../graphicsSettings';
-import { FROST_WOLF_SPAWNS } from '../monsters';
+import {
+  isInsideSanctuarySafeZone,
+  MEADOW_SLIME_SPAWNS,
+  MAGMA_SLIME_SPAWNS,
+  SKELETON_SENTINEL_SPAWNS,
+  SKELETON_MAGE_SPAWNS,
+  BEACH_GOBLIN_SPAWNS,
+  FOREST_GOLEM_SPAWNS,
+  FOREST_SPIDER_SPAWNS,
+  FROST_WOLF_SPAWNS,
+} from '../monsters';
 import {
   clampCameraPitch,
   clampCameraDistance,
@@ -679,36 +689,29 @@ export class GameEngine {
   }
 
   private spawnEnemies() {
-    // 1. Meadow Slimes (Green) (x: 12..28, z: 8..26)
-    const slimePositions: [number, number][] = [
-      [14, 12],
-      [18, 16],
-      [22, 10],
-      [12, 24],
-      [26, 20],
-    ];
-    slimePositions.forEach((pos, idx) => {
+    // 1. Meadow Slimes (Lv. 1) - Relocated to Eastern Plains (> 85 units east from Sanctuary)
+    MEADOW_SLIME_SPAWNS.forEach((sp) => {
       const { group, parts } = createEnemyMesh('slime');
-      const ey = this.world.getTerrainHeight(pos[0], pos[1]);
-      group.position.set(pos[0], ey, pos[1]);
+      const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
+      group.position.set(sp.pos[0], ey, sp.pos[1]);
       this.scene.add(group);
 
       const enemyData: EnemyData = {
-        id: `slime_${idx}`,
-        name: 'Meadow Slime',
-        nameId: 'Slime Lembah Hijau',
-        type: 'slime',
-        level: 1,
-        hp: 45,
-        maxHp: 45,
-        attack: 7,
-        defense: 2,
-        expReward: 25,
-        goldReward: 12,
+        id: sp.id,
+        name: sp.name,
+        nameId: sp.nameId,
+        type: sp.type,
+        level: sp.level,
+        hp: sp.hp,
+        maxHp: sp.maxHp,
+        attack: sp.attack,
+        defense: sp.defense,
+        expReward: sp.expReward,
+        goldReward: sp.goldReward,
         speed: 2.2,
         attackRange: 1.8,
-        detectRange: 12,
-        position: [pos[0], ey, pos[1]],
+        detectRange: sp.aggroRange,
+        position: [sp.pos[0], ey, sp.pos[1]],
         isDead: false,
         dropItems: [
           { item: CHEST_LOOT_POOL[3], chance: 0.35 }, // Health potion
@@ -725,35 +728,29 @@ export class GameEngine {
       });
     });
 
-    // 2. Northern Caldera Magma Slimes (Fiery Red) (x: -12..12, z: -30..-44)
-    const magmaSlimePositions: [number, number][] = [
-      [-10, -32],
-      [10, -32],
-      [-6, -42],
-      [8, -44],
-    ];
-    magmaSlimePositions.forEach((pos, idx) => {
+    // 2. Northern Caldera Magma Slimes (Lv. 3) - Relocated deep into volcanic crags (> 85 units north)
+    MAGMA_SLIME_SPAWNS.forEach((sp) => {
       const { group, parts } = createEnemyMesh('magma_slime');
-      const ey = this.world.getTerrainHeight(pos[0], pos[1]);
-      group.position.set(pos[0], ey, pos[1]);
+      const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
+      group.position.set(sp.pos[0], ey, sp.pos[1]);
       this.scene.add(group);
 
       const enemyData: EnemyData = {
-        id: `magma_slime_${idx}`,
-        name: 'Magma Slime',
-        nameId: 'Slime Lava Pijar',
-        type: 'magma_slime',
-        level: 3,
-        hp: 95,
-        maxHp: 95,
-        attack: 16,
-        defense: 6,
-        expReward: 65,
-        goldReward: 35,
+        id: sp.id,
+        name: sp.name,
+        nameId: sp.nameId,
+        type: sp.type,
+        level: sp.level,
+        hp: sp.hp,
+        maxHp: sp.maxHp,
+        attack: sp.attack,
+        defense: sp.defense,
+        expReward: sp.expReward,
+        goldReward: sp.goldReward,
         speed: 2.5,
         attackRange: 2.0,
-        detectRange: 14,
-        position: [pos[0], ey, pos[1]],
+        detectRange: sp.aggroRange,
+        position: [sp.pos[0], ey, sp.pos[1]],
         isDead: false,
         dropItems: [
           { item: CHEST_LOOT_POOL[4], chance: 0.4 }, // Mana potion
@@ -770,35 +767,29 @@ export class GameEngine {
       });
     });
 
-    // 3. Ancient Crypt Skeleton Sentinels (x: -18..-34, z: 12..32)
-    const skeletonPositions: [number, number][] = [
-      [-22, 18],
-      [-28, 22],
-      [-32, 28],
-      [-20, 29],
-    ];
-    skeletonPositions.forEach((pos, idx) => {
+    // 3. Ancient Crypt Skeleton Sentinels (Lv. 2) - Upstream Outer Ruins of Vael (> 110 units west)
+    SKELETON_SENTINEL_SPAWNS.forEach((sp) => {
       const { group, parts } = createEnemyMesh('skeleton');
-      const ey = this.world.getTerrainHeight(pos[0], pos[1]);
-      group.position.set(pos[0], ey, pos[1]);
+      const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
+      group.position.set(sp.pos[0], ey, sp.pos[1]);
       this.scene.add(group);
 
       const enemyData: EnemyData = {
-        id: `skeleton_${idx}`,
-        name: 'Skeleton Sentinel',
-        nameId: 'Prajurit Tengkorak Kuno',
-        type: 'skeleton',
-        level: 2,
-        hp: 85,
-        maxHp: 85,
-        attack: 14,
-        defense: 5,
-        expReward: 55,
-        goldReward: 30,
+        id: sp.id,
+        name: sp.name,
+        nameId: sp.nameId,
+        type: sp.type,
+        level: sp.level,
+        hp: sp.hp,
+        maxHp: sp.maxHp,
+        attack: sp.attack,
+        defense: sp.defense,
+        expReward: sp.expReward,
+        goldReward: sp.goldReward,
         speed: 3.0,
         attackRange: 2.2,
-        detectRange: 14,
-        position: [pos[0], ey, pos[1]],
+        detectRange: sp.aggroRange,
+        position: [sp.pos[0], ey, sp.pos[1]],
         isDead: false,
         dropItems: [
           { item: CHEST_LOOT_POOL[2], chance: 0.25 }, // Ring of swift wind
@@ -815,34 +806,29 @@ export class GameEngine {
       });
     });
 
-    // 4. Skeleton Necromancer Mages in Deep Ruins (x: -36..-44, z: 16..30)
-    const magePositions: [number, number][] = [
-      [-36, 18],
-      [-42, 24],
-      [-38, 30],
-    ];
-    magePositions.forEach((pos, idx) => {
+    // 4. Skeleton Necromancer Mages in Deep Outer Ruins (Lv. 4) (> 130 units west)
+    SKELETON_MAGE_SPAWNS.forEach((sp) => {
       const { group, parts } = createEnemyMesh('skeleton_mage');
-      const ey = this.world.getTerrainHeight(pos[0], pos[1]);
-      group.position.set(pos[0], ey, pos[1]);
+      const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
+      group.position.set(sp.pos[0], ey, sp.pos[1]);
       this.scene.add(group);
 
       const enemyData: EnemyData = {
-        id: `skeleton_mage_${idx}`,
-        name: 'Necromancer Lich',
-        nameId: 'Penyihir Kematian Tengkorak',
-        type: 'skeleton_mage',
-        level: 4,
-        hp: 120,
-        maxHp: 120,
-        attack: 22,
-        defense: 4,
-        expReward: 90,
-        goldReward: 55,
+        id: sp.id,
+        name: sp.name,
+        nameId: sp.nameId,
+        type: sp.type,
+        level: sp.level,
+        hp: sp.hp,
+        maxHp: sp.maxHp,
+        attack: sp.attack,
+        defense: sp.defense,
+        expReward: sp.expReward,
+        goldReward: sp.goldReward,
         speed: 2.3,
         attackRange: 6.0,
-        detectRange: 18,
-        position: [pos[0], ey, pos[1]],
+        detectRange: sp.aggroRange,
+        position: [sp.pos[0], ey, sp.pos[1]],
         isDead: false,
         dropItems: [
           { item: CHEST_LOOT_POOL[4], chance: 0.5 },
@@ -860,35 +846,29 @@ export class GameEngine {
       });
     });
 
-    // 5. Southern Shore Beach Goblins (x: -12..22, z: 24..34)
-    const beachPositions: [number, number][] = [
-      [14, 25],
-      [22, 30],
-      [-12, 28],
-      [-4, 32],
-    ];
-    beachPositions.forEach((pos, idx) => {
+    // 5. Distant Coast Beach Goblins (Lv. 2) - Far Rocky Coastline (> 110 units south-east)
+    BEACH_GOBLIN_SPAWNS.forEach((sp) => {
       const { group, parts } = createEnemyMesh('goblin');
-      const ey = this.world.getTerrainHeight(pos[0], pos[1]);
-      group.position.set(pos[0], ey, pos[1]);
+      const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
+      group.position.set(sp.pos[0], ey, sp.pos[1]);
       this.scene.add(group);
 
       const enemyData: EnemyData = {
-        id: `beach_goblin_${idx}`,
-        name: 'Coast Crawler Goblin',
-        nameId: 'Goblin Penjarah Pantai',
-        type: 'goblin',
-        level: 2,
-        hp: 70,
-        maxHp: 70,
-        attack: 11,
-        defense: 4,
-        expReward: 40,
-        goldReward: 22,
+        id: sp.id,
+        name: sp.name,
+        nameId: sp.nameId,
+        type: sp.type,
+        level: sp.level,
+        hp: sp.hp,
+        maxHp: sp.maxHp,
+        attack: sp.attack,
+        defense: sp.defense,
+        expReward: sp.expReward,
+        goldReward: sp.goldReward,
         speed: 2.8,
         attackRange: 2.0,
-        detectRange: 13,
-        position: [pos[0], ey, pos[1]],
+        detectRange: sp.aggroRange,
+        position: [sp.pos[0], ey, sp.pos[1]],
         isDead: false,
         dropItems: [
           { item: CHEST_LOOT_POOL[1], chance: 0.3 }, // Elven Cloak
@@ -905,34 +885,29 @@ export class GameEngine {
       });
     });
 
-    // 6. Mystic Forest Stone Golems (x: 26..38, z: -8..18)
-    const golemPositions: [number, number][] = [
-      [28, 2],
-      [34, -8],
-      [32, 16],
-    ];
-    golemPositions.forEach((pos, idx) => {
+    // 6. Mystic Forest Stone Golems (Lv. 4) - Deep Eastern Wilderness (> 95 units east)
+    FOREST_GOLEM_SPAWNS.forEach((sp) => {
       const { group, parts } = createEnemyMesh('golem');
-      const ey = this.world.getTerrainHeight(pos[0], pos[1]);
-      group.position.set(pos[0], ey, pos[1]);
+      const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
+      group.position.set(sp.pos[0], ey, sp.pos[1]);
       this.scene.add(group);
 
       const enemyData: EnemyData = {
-        id: `forest_golem_${idx}`,
-        name: 'Ancient Stone Guardian',
-        nameId: 'Golem Penjaga Hutan',
-        type: 'golem',
-        level: 4,
-        hp: 175,
-        maxHp: 175,
-        attack: 20,
-        defense: 12,
-        expReward: 110,
-        goldReward: 65,
+        id: sp.id,
+        name: sp.name,
+        nameId: sp.nameId,
+        type: sp.type,
+        level: sp.level,
+        hp: sp.hp,
+        maxHp: sp.maxHp,
+        attack: sp.attack,
+        defense: sp.defense,
+        expReward: sp.expReward,
+        goldReward: sp.goldReward,
         speed: 1.8,
         attackRange: 2.8,
-        detectRange: 15,
-        position: [pos[0], ey, pos[1]],
+        detectRange: sp.aggroRange,
+        position: [sp.pos[0], ey, sp.pos[1]],
         isDead: false,
         dropItems: [
           { item: CHEST_LOOT_POOL[0], chance: 0.2 },
@@ -950,35 +925,29 @@ export class GameEngine {
       });
     });
 
-    // 7. Mystic Deep Pine Forest Venomous Spiders (x: 22..38, z: -28..-14)
-    const spiderPositions: [number, number][] = [
-      [24, -18],
-      [32, -22],
-      [38, -14],
-      [26, -26],
-    ];
-    spiderPositions.forEach((pos, idx) => {
+    // 7. Mystic Forest Venomous Spiders (Lv. 3) - Dark Northern Canopy (> 105 units north-east)
+    FOREST_SPIDER_SPAWNS.forEach((sp) => {
       const { group, parts } = createEnemyMesh('spider');
-      const ey = this.world.getTerrainHeight(pos[0], pos[1]);
-      group.position.set(pos[0], ey, pos[1]);
+      const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
+      group.position.set(sp.pos[0], ey, sp.pos[1]);
       this.scene.add(group);
 
       const enemyData: EnemyData = {
-        id: `forest_spider_${idx}`,
-        name: 'Venomfang Weaver',
-        nameId: 'Laba-laba Racun Belantara',
-        type: 'spider',
-        level: 3,
-        hp: 80,
-        maxHp: 80,
-        attack: 15,
-        defense: 3,
-        expReward: 60,
-        goldReward: 32,
+        id: sp.id,
+        name: sp.name,
+        nameId: sp.nameId,
+        type: sp.type,
+        level: sp.level,
+        hp: sp.hp,
+        maxHp: sp.maxHp,
+        attack: sp.attack,
+        defense: sp.defense,
+        expReward: sp.expReward,
+        goldReward: sp.goldReward,
         speed: 3.5,
         attackRange: 2.2,
-        detectRange: 16,
-        position: [pos[0], ey, pos[1]],
+        detectRange: sp.aggroRange,
+        position: [sp.pos[0], ey, sp.pos[1]],
         isDead: false,
         dropItems: [
           { item: CHEST_LOOT_POOL[2], chance: 0.35 },
@@ -4290,6 +4259,17 @@ export class GameEngine {
         }
       }
 
+      // SAFE ZONE CHECK: Desa Utama & Pelabuhan Sanctuary adalah Zona Aman 100% bebas monster!
+      const playerInSafeZone = isInsideSanctuarySafeZone(this.playerPos.x, this.playerPos.z);
+      const enemyInSafeZone = isInsideSanctuarySafeZone(ePos.x, ePos.z);
+
+      if (playerInSafeZone || enemyInSafeZone) {
+        if (distFromSpawn > 1.2) {
+          enemy.isReturning = true;
+          return;
+        }
+      }
+
       // STATE 2: Deteksi batas wilayah (Jika player membawa monster terlalu jauh dari sarangnya)
       if (distFromSpawn > territoryRadius || distToPlayer > enemy.data.detectRange * 1.5) {
         if (distFromSpawn > 1.2) {
@@ -4785,11 +4765,23 @@ export class GameEngine {
         id: 'landmark_sanctuary_harbor',
         title: 'Pelabuhan Kapal Sanctuary',
         type: 'pier',
-        x: 6,
-        z: 35,
+        x: 0,
+        z: 24,
         icon: '⛵',
         color: '#00b4d8',
-        description: 'Dermaga & Kapal Dagang / Perang Berlabuh',
+        description: 'Dermaga Sejajar & Kapal Dagang / Perang Berlabuh',
+      });
+
+      // Reruntuhan Kuno Vael (Upstream Outskirts)
+      markers.push({
+        id: 'landmark_vael_ruins',
+        title: 'Reruntuhan Kuno Vael',
+        type: 'waypoint',
+        x: -118,
+        z: 36,
+        icon: '🏛️',
+        color: '#94a3b8',
+        description: 'Pilar Spasial Peradaban Kuno Vael',
       });
 
       // Benteng Pertahanan Val-Kragor (Highland)

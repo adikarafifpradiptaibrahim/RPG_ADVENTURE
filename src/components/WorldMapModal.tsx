@@ -416,13 +416,13 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 4. Sanctuary Harbor & Naval Docks (X: 6, Z: 35) */}
+              {/* 4. Sanctuary Harbor & Parallel Docks (X: 0, Z: 24) */}
               {(() => {
-                const sp = worldToScreen(6, 35);
+                const sp = worldToScreen(0, 24);
                 if (!sp.visible) return null;
                 return (
                   <div
-                    onClick={() => setSelectedRegion(REGIONS[1])}
+                    onClick={() => setSelectedRegion(REGIONS[0])}
                     style={{ left: sp.left, top: sp.top }}
                     className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
                   >
@@ -431,7 +431,28 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                       <span className="text-[8px] font-bold text-cyan-200 whitespace-nowrap">
                         Pelabuhan Sanctuary
                       </span>
-                      <span className="text-[7px] text-cyan-300/80 font-mono">Kapal Dagang & Perang</span>
+                      <span className="text-[7px] text-cyan-300/80 font-mono">Dermaga & Kapal Berlabuh</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 4b. Reruntuhan Kuno Vael (Upstream Outskirts: X: -118, Z: 36) */}
+              {(() => {
+                const sp = worldToScreen(-118, 36);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[2])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-stone-900/80 border border-stone-400/70 shadow-lg hover:border-stone-200 hover:scale-110 transition-transform">
+                      <span className="text-xs">🏛️</span>
+                      <span className="text-[8px] font-bold text-stone-200 whitespace-nowrap">
+                        {REGIONS[2].nameId}
+                      </span>
+                      <span className="text-[7px] text-stone-400 font-mono">Pilar Spasial Kuno</span>
                     </div>
                   </div>
                 );
