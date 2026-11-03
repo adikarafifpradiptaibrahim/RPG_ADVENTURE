@@ -16,6 +16,7 @@ import { createEnemyMesh, createPlayerMesh, createArrowMesh, PlayerMeshObjects }
 import { buildWorld, WorldObjects } from './world';
 import { RemotePlayerData } from '../multiplayer';
 import { GraphicsSettings, loadGraphicsSettings } from '../graphicsSettings';
+import { FROST_WOLF_SPAWNS } from '../monsters';
 import {
   clampCameraPitch,
   clampCameraDistance,
@@ -1032,36 +1033,29 @@ export class GameEngine {
       walkCycle: 0,
     });
 
-    // 9. Frostpeak Glacier Frostfang Wolves (Mountain Slopes & Glacial Wilderness)
-    const wolfPositions: [number, number][] = [
-      [104, -54],
-      [136, -58],
-      [144, -76],
-      [86, -88],
-      [82, -108],
-    ];
-    wolfPositions.forEach((pos, idx) => {
+    // 9. Frostpeak Glacier Frostfang Wolves (Spawned from src/game/monsters.ts)
+    FROST_WOLF_SPAWNS.forEach((spawn, idx) => {
       const { group, parts } = createEnemyMesh('frost_wolf');
-      const ey = this.world.getTerrainHeight(pos[0], pos[1]);
-      group.position.set(pos[0], ey, pos[1]);
+      const ey = this.world.getTerrainHeight(spawn.pos[0], spawn.pos[1]);
+      group.position.set(spawn.pos[0], ey, spawn.pos[1]);
       this.scene.add(group);
 
       const enemyData: EnemyData = {
-        id: `frost_wolf_${idx}`,
-        name: 'Frostfang Glacier Wolf',
-        nameId: 'Serigala Es Frostfang',
-        type: 'frost_wolf',
-        level: 5,
-        hp: 135,
-        maxHp: 135,
-        attack: 24,
-        defense: 7,
-        expReward: 105,
-        goldReward: 60,
+        id: spawn.id,
+        name: spawn.name,
+        nameId: spawn.nameId,
+        type: spawn.type,
+        level: spawn.level,
+        hp: spawn.hp,
+        maxHp: spawn.maxHp,
+        attack: spawn.attack,
+        defense: spawn.defense,
+        expReward: spawn.expReward,
+        goldReward: spawn.goldReward,
         speed: 3.6,
         attackRange: 2.2,
-        detectRange: 16,
-        position: [pos[0], ey, pos[1]],
+        detectRange: spawn.aggroRange,
+        position: [spawn.pos[0], ey, spawn.pos[1]],
         isDead: false,
         dropItems: [
           { item: CHEST_LOOT_POOL[4], chance: 0.4 }, // Mana elixir
@@ -3876,7 +3870,7 @@ export class GameEngine {
     }
 
     // Check quest discovery for Grand Imperial Kingdom of Astraea
-    if (nextX >= 90 && nextX <= 154 && nextZ <= -70 && nextZ >= -134) {
+    if (nextX >= 100 && nextX <= 170 && nextZ <= -82 && nextZ >= -138) {
       this.callbacks.onUpdateQuests((quests) => {
         return quests.map((q) => {
           if (q.id === 'quest_discover_astraea' && !q.completed) {
@@ -4760,6 +4754,30 @@ export class GameEngine {
         icon: '⚓',
         color: '#00b4d8',
         description: 'Perahu & Pemandangan Laut',
+      });
+
+      // Ibukota Kerajaan Emas Astraea & Istana Kaisar (Pusat Frostpeak)
+      markers.push({
+        id: 'landmark_astraea_palace',
+        title: 'Istana Kaisar Aurelius',
+        type: 'boss',
+        x: 148,
+        z: -110,
+        icon: '👑',
+        color: '#fbbf24',
+        description: 'Ibukota Kerajaan Emas Astraea (Frostpeak)',
+      });
+
+      // Benteng Pertahanan Val-Kragor (Highland)
+      markers.push({
+        id: 'landmark_valkragor_fortress',
+        title: 'Benteng Val-Kragor',
+        type: 'boss',
+        x: 116,
+        z: -17,
+        icon: '🏰',
+        color: '#3b82f6',
+        description: 'Benteng Dataran Tinggi Val-Kragor',
       });
 
       // Enemies

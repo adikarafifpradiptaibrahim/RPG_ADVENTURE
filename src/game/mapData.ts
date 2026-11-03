@@ -93,8 +93,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'Perpetually snow-covered mountain peaks with crystalline ice spires and an ancient frozen sanctuary.',
     descriptionId: 'Puncak gunung bersalju abadi di utara-timur jauh, dihuni Serigala Frostfang dan pilar kristal es bercahaya dengan altar kuno.',
     color: '#38bdf8',
-    bounds: { minX: 88, maxX: 155, minZ: -130, maxZ: -45 },
-    center: [122, -85],
+    bounds: { minX: 65, maxX: 180, minZ: -160, maxZ: -45 },
+    center: [115, -65],
     recommendedLevel: 5,
   },
   {
@@ -175,10 +175,10 @@ export const REGIONS: RegionInfo[] = [
     nameId: 'Ibukota Kerajaan Emas Astraea & Istana Kaisar',
     icon: '👑',
     description: 'A colossal imperial metropolis situated atop the eternal snow peak of Frostpeak, featuring the grand Sun Palace, towering marble colonnades, royal bazaar, and the Fountain of Immortality.',
-    descriptionId: 'Ibukota kerajaan megah nan luas di Puncak Salju Abadi Frostpeak! Berdiri megah di atas pondasi batu es raksasa dengan Istana Kaisar Aurelius berkubah emas, plaza marmer, gerbang benteng kembar menghadap selatan, air mancur keabadian, dan pasar kerajaan yang ramai.',
+    descriptionId: 'Ibukota kerajaan emas megah di pusat Puncak Salju Abadi Frostpeak! Gerbang Barat megah menghadap ke daratan barat, Istana Kaisar Aurelius berkubah emas, Air Mancur Keabadian, dan pasar kerajaan yang ramai.',
     color: '#fbbf24',
-    bounds: { minX: 90, maxX: 154, minZ: -134, maxZ: -70 },
-    center: [122, -95],
+    bounds: { minX: 100, maxX: 170, minZ: -138, maxZ: -82 },
+    center: [135, -110],
     recommendedLevel: 5,
   },
 ];
@@ -252,7 +252,7 @@ export const WAYPOINTS: {
     nameId: 'Kuil Es Puncak Frostpeak',
     regionId: 'puncak_frostpeak',
     icon: '❄️',
-    pos: [142, -95],
+    pos: [115, -65],
     desc: 'Altar puncak beku bersalju abadi dan peti kristal es legendaris',
   },
   {
@@ -305,17 +305,17 @@ export const WAYPOINTS: {
   },
   {
     id: 'wp_astraea',
-    nameId: 'Gerbang Kerajaan Emas Astraea & Istana Kaisar',
+    nameId: 'Gerbang Barat Kerajaan Emas Astraea & Istana Kaisar',
     regionId: 'kerajaan_astraea',
     icon: '👑',
-    pos: [122, -75],
-    desc: 'Gerbang megah selatan Ibukota Kerajaan Emas Astraea di Puncak Salju Frostpeak, menghadap jalur pendakian utama',
+    pos: [105, -110],
+    desc: 'Gerbang megah sebelah barat Ibukota Kerajaan Emas Astraea di pusat Puncak Salju Frostpeak, menghadap daratan barat',
   },
 ];
 
 export function getCurrentRegion(x: number, z: number): RegionInfo {
-  // 0. Grand Imperial Kingdom of Astraea (Frostpeak Summit: x between 90 and 154, z between -134 and -70)
-  if (x >= 90 && x <= 154 && z <= -70 && z >= -134) {
+  // 0. Grand Imperial Kingdom of Astraea (Frostpeak Center: x between 100 and 170, z between -138 and -82)
+  if (x >= 100 && x <= 170 && z <= -82 && z >= -138) {
     return REGIONS[14];
   }
   // 1. Dragonfang Caldera (Far North: z <= -95 && x between -45 and 85)
