@@ -2845,7 +2845,7 @@ export class GameEngine {
         this.attackType = 'basic_spin_360';
         this.attackDuration = 0.42;
         this.attackTimer = 0.42;
-        soundManager.playWarriorCleave();
+        soundManager.playSkillTebas360();
         this.spawn360BladeSpinVfx(0xfbbf24, 3.8);
         this.executeMeleeAttack({
           range: 3.8,
@@ -2947,8 +2947,7 @@ export class GameEngine {
 
         if (this.charClass === 'warrior') {
           // Warrior: Pusaran Badai Baja (Full 360° Whirlwind)
-          soundManager.playWarriorCleave();
-          soundManager.playHeavySkill();
+          soundManager.playSkillPusaran();
           this.spawnWarriorWhirlwindVfx();
           this.isAttacking = true;
           this.attackType = 'whirlwind';
@@ -3037,8 +3036,7 @@ export class GameEngine {
 
         if (this.charClass === 'warrior') {
           // Warrior: Terjangan Perisai Suci
-          soundManager.playWarriorShieldSlam();
-          soundManager.playDash();
+          soundManager.playSkillTerjang();
           this.isDashing = true;
           this.dashTimer = 0.35;
           this.attackType = 'shield_charge';
@@ -3130,8 +3128,7 @@ export class GameEngine {
 
         if (this.charClass === 'warrior') {
           // Warrior: Benteng Besi Suci
-          soundManager.playLevelUp();
-          soundManager.playWarriorShieldSlam();
+          soundManager.playSkillBenteng();
           this.spawnWarriorIronFortressVfx();
           this.isAttacking = true;
           this.attackType = 'iron_fortress';
@@ -3218,6 +3215,7 @@ export class GameEngine {
       if (this.charClass === 'warrior') {
         this.playerVel.y = 8.2;
         this.spawnFootstepVfx('dust');
+        soundManager.playSkillLompat();
       } else if (this.charClass === 'mage') {
         this.playerVel.y = 9.2; // Floaty celestial leap
         this.spawnShockwaveRing(this.playerPos, 0x38bdf8, 2.0, 0.35);
@@ -3500,7 +3498,8 @@ export class GameEngine {
   }
 
   private resetEnemyPose(enemy: (typeof this.enemies)[0]) {
-    enemy.mesh.scale.set(1, 1, 1);
+    const s = enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0);
+    enemy.mesh.scale.set(s, s, s);
     if (enemy.parts) {
       if (enemy.parts.leftLeg) enemy.parts.leftLeg.rotation.set(0, 0, 0);
       if (enemy.parts.rightLeg) enemy.parts.rightLeg.rotation.set(0, 0, 0);
@@ -3524,7 +3523,8 @@ export class GameEngine {
     const spawnY = this.world.getTerrainHeight(spawn.x, spawn.z);
     enemy.mesh.position.set(spawn.x, spawnY, spawn.z);
     enemy.mesh.rotation.set(0, 0, 0);
-    enemy.mesh.scale.set(1, 1, 1);
+    const s = enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0);
+    enemy.mesh.scale.set(s, s, s);
     enemy.mesh.visible = true;
     this.resetEnemyPose(enemy);
 
@@ -3671,6 +3671,10 @@ export class GameEngine {
       this.playerPos.y += this.playerVel.y * delta;
       const groundY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
       if (this.playerPos.y <= groundY) {
+        if (!this.isGrounded && this.playerVel.y < -3.5 && this.charClass === 'warrior') {
+          soundManager.playSkillLompatLand();
+          this.spawnFootstepVfx('dust');
+        }
         this.playerPos.y = groundY;
         this.playerVel.y = 0;
         this.isGrounded = true;
@@ -4203,6 +4207,13 @@ export class GameEngine {
         return;
       }
 
+      // Boss Titan & Golem permanent scale lock on update loop
+      if (enemy.data.type === 'boss') {
+        enemy.mesh.scale.set(3.5, 3.5, 3.5);
+      } else if (enemy.data.type === 'golem') {
+        enemy.mesh.scale.set(1.35, 1.35, 1.35);
+      }
+
       const ePos = enemy.mesh.position;
       const spawnPos = enemy.spawnPos || new THREE.Vector3(...enemy.data.position);
       const distFromSpawn = Math.hypot(ePos.x - spawnPos.x, ePos.z - spawnPos.z);
@@ -4333,6 +4344,13 @@ export class GameEngine {
           enemy.mesh.visible = false;
           return;
         }
+      }
+
+      // Boss Titan & Golem permanent scale lock in multiplayer loop
+      if (enemy.data.type === 'boss') {
+        enemy.mesh.scale.set(3.5, 3.5, 3.5);
+      } else if (enemy.data.type === 'golem') {
+        enemy.mesh.scale.set(1.35, 1.35, 1.35);
       }
 
       const ePos = enemy.mesh.position;

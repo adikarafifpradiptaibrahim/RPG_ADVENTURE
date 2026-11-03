@@ -233,8 +233,8 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     // 1. Suspension bridge walkable deck corridor (x: 62..88, centered straight at z = -16)
     if (Math.abs(z - -16) <= 2.2 && x >= 62 && x <= 88) {
       const bridgeT = (x - 62) / 26;
-      const sag = Math.sin(bridgeT * Math.PI) * 0.75;
-      return 2.4 - sag;
+      const sag = Math.sin(bridgeT * Math.PI) * 0.70;
+      return 2.0 - sag;
     }
 
     // 2. Coastal Wooden Harbor (Seamless Beach Connection, Extended Main Pier, Symmetrical Wings & Pier Head)
@@ -397,38 +397,8 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   const npcs: WorldNPC[] = [];
   const villageMainlandY = 0.25;
 
-  // 2.0 Continuous Pier Handrails & Moored Ship Boundaries (Anti-Jatuh & Akses Lancar)
+  // 2.0 Moored Ship Hull Solid Boundaries (Karakter bebas menjelajah & berjalan di atas dermaga kayu tanpa terhalang tembok gaib!)
   colliders.push(
-    // Main Pier Handrails (Leaving 4.0m openings at Z: 35.0..39.0 and Z: 51.0..55.0 for wings)
-    { type: 'box', minX: -2.55, maxX: -2.35, minZ: 21.5, maxZ: 35.0, label: 'Dermaga Utama Pagar Barat Segmen 1' },
-    { type: 'box', minX: -2.55, maxX: -2.35, minZ: 39.0, maxZ: 51.0, label: 'Dermaga Utama Pagar Barat Segmen 2' },
-    { type: 'box', minX: -2.55, maxX: -2.35, minZ: 55.0, maxZ: 69.5, label: 'Dermaga Utama Pagar Barat Segmen 3' },
-    { type: 'box', minX: 2.35, maxX: 2.55, minZ: 21.5, maxZ: 35.0, label: 'Dermaga Utama Pagar Timur Segmen 1' },
-    { type: 'box', minX: 2.35, maxX: 2.55, minZ: 39.0, maxZ: 51.0, label: 'Dermaga Utama Pagar Timur Segmen 2' },
-    { type: 'box', minX: 2.35, maxX: 2.55, minZ: 55.0, maxZ: 69.5, label: 'Dermaga Utama Pagar Timur Segmen 3' },
-
-    // Branch 1 Rails (Z = 37.0)
-    { type: 'box', minX: -15.4, maxX: -2.4, minZ: 34.8, maxZ: 35.2, label: 'Sayap Barat 1 Pagar Utara' },
-    { type: 'box', minX: -15.4, maxX: -2.4, minZ: 38.8, maxZ: 39.2, label: 'Sayap Barat 1 Pagar Selatan' },
-    { type: 'box', minX: 2.4, maxX: 15.4, minZ: 34.8, maxZ: 35.2, label: 'Sayap Timur 1 Pagar Utara' },
-    { type: 'box', minX: 2.4, maxX: 15.4, minZ: 38.8, maxZ: 39.2, label: 'Sayap Timur 1 Pagar Selatan' },
-
-    // Branch 2 Rails (Z = 53.0)
-    { type: 'box', minX: -15.4, maxX: -2.4, minZ: 50.8, maxZ: 51.2, label: 'Sayap Barat 2 Pagar Utara' },
-    { type: 'box', minX: -15.4, maxX: -2.4, minZ: 54.8, maxZ: 55.2, label: 'Sayap Barat 2 Pagar Selatan' },
-    { type: 'box', minX: -15.4, maxX: -15.0, minZ: 51.0, maxZ: 55.0, label: 'Sayap Barat 2 Pagar Ujung' },
-    { type: 'box', minX: 2.4, maxX: 15.4, minZ: 50.8, maxZ: 51.2, label: 'Sayap Timur 2 Pagar Utara' },
-    { type: 'box', minX: 2.4, maxX: 15.4, minZ: 54.8, maxZ: 55.2, label: 'Sayap Timur 2 Pagar Selatan' },
-    { type: 'box', minX: 15.0, maxX: 15.4, minZ: 51.0, maxZ: 55.0, label: 'Sayap Timur 2 Pagar Ujung' },
-
-    // Pier Head Platform Handrails (X: -5.0..5.0, Z: 69.5..75.5)
-    { type: 'box', minX: -5.1, maxX: -2.4, minZ: 69.4, maxZ: 69.7, label: 'Pagar Anjungan Barat Masuk' },
-    { type: 'box', minX: 2.4, maxX: 5.1, minZ: 69.4, maxZ: 69.7, label: 'Pagar Anjungan Timur Masuk' },
-    { type: 'box', minX: -5.2, maxX: -4.8, minZ: 69.5, maxZ: 75.5, label: 'Pagar Anjungan Sisi Barat' },
-    { type: 'box', minX: 4.8, maxX: 5.2, minZ: 69.5, maxZ: 75.5, label: 'Pagar Anjungan Sisi Timur' },
-    { type: 'box', minX: -5.0, maxX: -1.2, minZ: 75.3, maxZ: 75.6, label: 'Pagar Anjungan Laut Barat' },
-    { type: 'box', minX: 1.2, maxX: 5.0, minZ: 75.3, maxZ: 75.6, label: 'Pagar Anjungan Laut Timur' },
-
     // Ship Hull Colliders (Outer water boundaries)
     { type: 'box', minX: 17.5, maxX: 22.5, minZ: 30, maxZ: 44, label: 'Lambung Kapal Dagang Emas 1' },
     { type: 'box', minX: -22.5, maxX: -17.5, minZ: 30, maxZ: 44, label: 'Lambung Kapal Perang Bershield' }

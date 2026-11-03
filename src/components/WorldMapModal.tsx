@@ -154,7 +154,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
     }, 120);
   };
 
-  // Unified pointer drag handler with pointer capture and RAF hardware transform for silky 60fps pan
+  // Unified pointer drag handler with pointer capture and direct RAF hardware transform for silky 60fps pan
   const handlePointerDown = (e: React.PointerEvent) => {
     if (zoomRef.current <= 1.0) return;
     try {
@@ -163,7 +163,10 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
       // ignore
     }
     isDraggingRef.current = true;
-    setIsDragging(true);
+    if (mapPlaneRef.current) {
+      mapPlaneRef.current.style.transition = 'none';
+    }
+    e.currentTarget.style.cursor = 'grabbing';
     dragStartRef.current = { x: e.clientX, y: e.clientY };
     panStartRef.current = { ...panRef.current };
   };
@@ -197,7 +200,10 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
     }
     if (isDraggingRef.current) {
       isDraggingRef.current = false;
-      setIsDragging(false);
+      if (mapPlaneRef.current) {
+        mapPlaneRef.current.style.transition = 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)';
+      }
+      e.currentTarget.style.cursor = zoomRef.current > 1.0 ? 'grab' : 'default';
       setPan({ ...panRef.current });
     }
   };
@@ -350,7 +356,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerCancel}
               style={{
-                cursor: zoom > 1.0 ? (isDragging ? 'grabbing' : 'grab') : 'default',
+                cursor: zoom > 1.0 ? 'grab' : 'default',
                 touchAction: 'none',
               }}
               className="relative w-full h-full max-w-[620px] max-h-[580px] rounded-xl overflow-hidden border border-stone-700/60 shadow-inner bg-[#1e232a]"
@@ -363,7 +369,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                   transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoom})`,
                   transformOrigin: '50% 50%',
                   willChange: 'transform',
-                  transition: (isDragging || isInteracting) ? 'none' : 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                  transition: 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
                 }}
               >
               {/* Real-time Topographical Biome Canvas */}

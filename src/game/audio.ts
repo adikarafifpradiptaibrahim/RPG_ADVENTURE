@@ -204,6 +204,264 @@ class SoundManager {
     });
   }
 
+  // ==========================================
+  // EPIC CHARACTER ACTIVE SKILL AUDIO SYNTHESIZERS
+  // ==========================================
+
+  // 1. TEBAS 360° (Full 360° Greatsword Cleave Finisher)
+  // Concussive sub-bass punch (75Hz -> 26Hz) + high-velocity razor steel whoosh + resonant harmonic blade ring
+  public playSkillTebas360() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+
+    // A. Sub-bass kinetic body punch
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(75, now);
+    subOsc.frequency.exponentialRampToValueAtTime(26, now + 0.32);
+    subGain.gain.setValueAtTime(0.65, now);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+    subOsc.connect(subGain);
+    subGain.connect(this.sfxGain);
+    subOsc.start(now);
+    subOsc.stop(now + 0.33);
+
+    // B. High-velocity aerodynamic blade slice whoosh
+    this.playNoiseBurst({
+      duration: 0.32,
+      gain: 0.52,
+      filterType: 'bandpass',
+      freqStart: 3800,
+      freqEnd: 220,
+    });
+
+    // C. Resonating forged steel blade sing
+    const ringOsc = this.ctx.createOscillator();
+    const ringGain = this.ctx.createGain();
+    ringOsc.type = 'triangle';
+    ringOsc.frequency.setValueAtTime(1180, now + 0.03);
+    ringOsc.frequency.exponentialRampToValueAtTime(440, now + 0.38);
+    ringGain.gain.setValueAtTime(0.42, now + 0.03);
+    ringGain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+    ringOsc.connect(ringGain);
+    ringGain.connect(this.sfxGain);
+    ringOsc.start(now + 0.03);
+    ringOsc.stop(now + 0.39);
+  }
+
+  // 2. PUSARAN BADAI BAJA (Skill 1: Whirlwind Cyclone 360°)
+  // Roaring elemental tornado bass drone + multi-layer swirling wind vortex + rapid steel blade friction slices
+  public playSkillPusaran() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+
+    // A. Low-frequency cyclone rumble drone
+    const droneOsc = this.ctx.createOscillator();
+    const droneGain = this.ctx.createGain();
+    droneOsc.type = 'sawtooth';
+    droneOsc.frequency.setValueAtTime(85, now);
+    droneOsc.frequency.linearRampToValueAtTime(120, now + 0.25);
+    droneOsc.frequency.exponentialRampToValueAtTime(40, now + 0.55);
+    droneGain.gain.setValueAtTime(0.45, now);
+    droneGain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+    droneOsc.connect(droneGain);
+    droneGain.connect(this.sfxGain);
+    droneOsc.start(now);
+    droneOsc.stop(now + 0.56);
+
+    // B. Multi-burst swirling vortex whooshes (simulates 360-degree rotation)
+    [0, 0.1, 0.22, 0.34].forEach((delay, idx) => {
+      this.playNoiseBurst({
+        duration: 0.24,
+        gain: 0.42 - idx * 0.05,
+        filterType: 'bandpass',
+        freqStart: 1200 + idx * 400,
+        freqEnd: 300,
+        delay,
+      });
+
+      // Steel blade friction sweep
+      const sliceOsc = this.ctx!.createOscillator();
+      const sliceGain = this.ctx!.createGain();
+      sliceOsc.type = 'triangle';
+      sliceOsc.frequency.setValueAtTime(700 + idx * 180, now + delay);
+      sliceOsc.frequency.exponentialRampToValueAtTime(220, now + delay + 0.18);
+      sliceGain.gain.setValueAtTime(0.3, now + delay);
+      sliceGain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.18);
+      sliceOsc.connect(sliceGain);
+      sliceGain.connect(this.sfxGain!);
+      sliceOsc.start(now + delay);
+      sliceOsc.stop(now + delay + 0.19);
+    });
+  }
+
+  // 3. TERJANGAN PERISAI SUCI (Skill 2: Holy Shield Rush & Concussive Impact)
+  // Kinetic sonic charge whoosh + heavy 808 shield impact slam + resonant brass shield clang + compressed air blast
+  public playSkillTerjang() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+
+    // A. Kinetic charge sonic rush whoosh
+    this.playNoiseBurst({
+      duration: 0.22,
+      gain: 0.45,
+      filterType: 'lowpass',
+      freqStart: 500,
+      freqEnd: 1900,
+    });
+
+    // B. Heavy 808 sub-bass concussion slam on impact
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(175, now + 0.12);
+    subOsc.frequency.exponentialRampToValueAtTime(32, now + 0.42);
+    subGain.gain.setValueAtTime(0.72, now + 0.12);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+    subOsc.connect(subGain);
+    subGain.connect(this.sfxGain);
+    subOsc.start(now + 0.12);
+    subOsc.stop(now + 0.43);
+
+    // C. Resonating heavy metal buckler shield clang
+    const clangOsc = this.ctx.createOscillator();
+    const clangGain = this.ctx.createGain();
+    clangOsc.type = 'triangle';
+    clangOsc.frequency.setValueAtTime(820, now + 0.12);
+    clangOsc.frequency.exponentialRampToValueAtTime(180, now + 0.36);
+    clangGain.gain.setValueAtTime(0.55, now + 0.12);
+    clangGain.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+    clangOsc.connect(clangGain);
+    clangGain.connect(this.sfxGain);
+    clangOsc.start(now + 0.12);
+    clangOsc.stop(now + 0.37);
+
+    // D. Compressed shockwave air dispersion
+    this.playNoiseBurst({
+      duration: 0.25,
+      gain: 0.48,
+      filterType: 'bandpass',
+      freqStart: 2600,
+      freqEnd: 140,
+      delay: 0.12,
+    });
+  }
+
+  // 4. BENTENG BESI SUCI (Skill 3: Holy Iron Fortress & Divine Barrier Dome)
+  // Sacred divine cathedral bell harmony (528Hz + 792Hz) + heavy ground stake slam + radiant glowing forcefield aura shimmer
+  public playSkillBenteng() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+
+    // A. Heavy ground stake impact thump (sword stabbing earth)
+    const thumpOsc = this.ctx.createOscillator();
+    const thumpGain = this.ctx.createGain();
+    thumpOsc.type = 'sine';
+    thumpOsc.frequency.setValueAtTime(120, now);
+    thumpOsc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
+    thumpGain.gain.setValueAtTime(0.65, now);
+    thumpGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    thumpOsc.connect(thumpGain);
+    thumpGain.connect(this.sfxGain);
+    thumpOsc.start(now);
+    thumpOsc.stop(now + 0.31);
+
+    // B. Dual harmonic cathedral bell chimes (Solfeggio harmonic 528Hz root + 792Hz pure fifth)
+    [528, 792].forEach((freq, idx) => {
+      const bellOsc = this.ctx!.createOscillator();
+      const bellGain = this.ctx!.createGain();
+      bellOsc.type = 'sine';
+      bellOsc.frequency.setValueAtTime(freq, now + 0.05);
+      bellOsc.frequency.exponentialRampToValueAtTime(freq * 0.96, now + 0.65);
+      bellGain.gain.setValueAtTime(0.4 - idx * 0.1, now + 0.05);
+      bellGain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+      bellOsc.connect(bellGain);
+      bellGain.connect(this.sfxGain!);
+      bellOsc.start(now + 0.05);
+      bellOsc.stop(now + 0.66);
+    });
+
+    // C. Shimmering divine aura shimmer whoosh
+    this.playNoiseBurst({
+      duration: 0.55,
+      gain: 0.38,
+      filterType: 'highpass',
+      freqStart: 800,
+      freqEnd: 3600,
+      delay: 0.06,
+    });
+  }
+
+  // 5. LOMPAT & DENTUMAN TANAH (Jump & Heavy Ground Slam)
+  // Takeoff: kinetic spring leap whoosh + armor plate clatter
+  public playSkillLompat() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+
+    // Upward kinetic swoosh
+    const swooshOsc = this.ctx.createOscillator();
+    const swooshGain = this.ctx.createGain();
+    swooshOsc.type = 'sine';
+    swooshOsc.frequency.setValueAtTime(140, now);
+    swooshOsc.frequency.exponentialRampToValueAtTime(420, now + 0.18);
+    swooshGain.gain.setValueAtTime(0.35, now);
+    swooshGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    swooshOsc.connect(swooshGain);
+    swooshGain.connect(this.sfxGain);
+    swooshOsc.start(now);
+    swooshOsc.stop(now + 0.19);
+
+    // Armor rustle / step noise
+    this.playNoiseBurst({
+      duration: 0.14,
+      gain: 0.28,
+      filterType: 'bandpass',
+      freqStart: 1800,
+      freqEnd: 600,
+    });
+  }
+
+  // Ground Landing: Heavy seismic earth impact slam
+  public playSkillLompatLand() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+
+    // Heavy subterranean earth thud
+    const landOsc = this.ctx.createOscillator();
+    const landGain = this.ctx.createGain();
+    landOsc.type = 'sine';
+    landOsc.frequency.setValueAtTime(130, now);
+    landOsc.frequency.exponentialRampToValueAtTime(28, now + 0.28);
+    landGain.gain.setValueAtTime(0.68, now);
+    landGain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+    landOsc.connect(landGain);
+    landGain.connect(this.sfxGain);
+    landOsc.start(now);
+    landOsc.stop(now + 0.29);
+
+    // Shattering dust & gravel impact burst
+    this.playNoiseBurst({
+      duration: 0.22,
+      gain: 0.42,
+      filterType: 'lowpass',
+      freqStart: 1400,
+      freqEnd: 110,
+    });
+  }
+
   // --- MAGE SOUNDS (Crystalline, Astral, Ethereal) ---
   public playMageBolt() {
     if (this.isMuted) return;

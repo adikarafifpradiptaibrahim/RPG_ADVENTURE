@@ -76,21 +76,38 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     const baseMeadow = 1.8 + Math.sin(x * 0.08) * 0.8;
     return (1 - t) * 3.2 + t * baseMeadow;
   }
-  // 2b. Highway approaches to Suspension Bridge (x: 44..62 from West, and x: 88..134 to East)
-  // Highway approach to bridge from west (x: 44..62, z: -16)
-  // Rises smoothly from village level to meet bridge deck at y = 2.40 at x = 62 (zero gap!)
-  if (x >= 44 && x <= 62 && Math.abs(z - -16) <= 4.5) {
-    const t = (x - 44) / 18;
-    const smoothT = smoothstep(0, 1, t);
-    return 0.6 + smoothT * 1.8; // At x = 62, elevation is exactly 2.40
+  // 2b. West Bridgehead Riverbank Plateau & Smooth Flat Approach Path
+  // Wide riverbank plateau (x: 40..63, z: -34..2) completely removes any pointy knife-edge or sharp ridge!
+  if (x >= 40 && x <= 63 && z >= -34 && z <= 2) {
+    const roadDistZ = Math.abs(z - -16);
+    // Smooth, gentle ascent from village meadow y = 0.4 up to y = 2.0 at x = 55, then 100% FLAT landing to x = 63
+    const tX = clamp((x - 40) / 15, 0, 1);
+    const roadElev = 0.4 + smoothstep(0, 1, tX) * 1.6; // Exactly 2.00 at x >= 55..63
+    const bankElev = 0.6 + smoothstep(0, 1, clamp((x - 42) / 16, 0, 1)) * 1.4;
+
+    if (roadDistZ <= 6.0) {
+      return roadElev; // 12-meter wide flat path
+    }
+    const lateralT = clamp((roadDistZ - 6.0) / 10.0, 0, 1);
+    const sLat = smoothstep(0, 1, lateralT);
+    return (1 - sLat) * roadElev + sLat * bankElev;
   }
 
-  // Fortress western approach highway slope from bridge (x: 88..134, z: -16)
-  // Starts exactly at bridge deck y = 2.40 at x = 88 and ascends smoothly to fortress plateau y = 3.20 at x = 134
-  if (x >= 88 && x <= 134 && Math.abs(z - -16) <= 4.5) {
-    const t = (x - 88) / 46;
-    const smoothT = smoothstep(0, 1, t);
-    return 2.4 + smoothT * 0.8; // At x = 88, elevation is exactly 2.40
+  // 2c. East Bridgehead Fortress Approach Highway Slope
+  // Flat landing at x: 87..92 at y = 2.00, then smoothly ascends to fortress plateau y = 3.20 at x = 132
+  if (x >= 87 && x <= 134 && z >= -34 && z <= 2) {
+    const roadDistZ = Math.abs(z - -16);
+    let roadElev = 2.0;
+    if (x > 92) {
+      const tX = clamp((x - 92) / 40, 0, 1);
+      roadElev = 2.0 + smoothstep(0, 1, tX) * 1.2; // 2.0 -> 3.2
+    }
+    if (roadDistZ <= 6.0) {
+      return roadElev; // 12-meter wide flat path
+    }
+    const lateralT = clamp((roadDistZ - 6.0) / 10.0, 0, 1);
+    const sLat = smoothstep(0, 1, lateralT);
+    return (1 - sLat) * roadElev + sLat * 2.2;
   }
 
   // 3. Misty Chasm & Wooden Suspension Bridge (x: 63..87, z: -30..0)

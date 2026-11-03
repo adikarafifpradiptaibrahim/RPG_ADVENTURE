@@ -1384,7 +1384,7 @@ export function createEnemyMesh(
     group.add(eye1, eye2);
   } else if (type === 'boss') {
     // Ancient Colossal Obsidian Titan Boss!
-    group.scale.set(2.8, 2.8, 2.8);
+    group.scale.set(3.5, 3.5, 3.5);
 
     const titanStoneMat = new THREE.MeshStandardMaterial({
       color: 0x212121,
@@ -4273,11 +4273,7 @@ export function createMerchantGalleonMesh(): THREE.Group {
     }
   });
 
-  // Bowsprit pole
-  const bowsprit = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 4.5, 5), mastWood);
-  bowsprit.rotation.x = -Math.PI / 6;
-  bowsprit.position.set(0, 3.6, 11.5);
-  ship.add(bowsprit);
+  // (Bowsprit pole removed to ensure clean prow with zero mid-air floating timber)
 
   // Cargo crates & barrels on deck
   const crateMat = new THREE.MeshLambertMaterial({ color: 0x92400e });
