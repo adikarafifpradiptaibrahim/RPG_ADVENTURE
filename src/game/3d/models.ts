@@ -5115,3 +5115,222 @@ export function createStoneRoadRibbonMesh(
 
   return roadGroup;
 }
+
+// ==========================================
+// DRAGONFANG CALDERA & THUNDERPEAK 3D MODELS
+// ==========================================
+
+// Retakan Tanah Berlapis Lava Merah Menyala (Kaldera Naga)
+export function createLavaCrackMesh(radius: number = 3.5): THREE.Group {
+  const group = new THREE.Group();
+  const rimMat = new THREE.MeshLambertMaterial({ color: 0x18181b, flatShading: true });
+  const lavaMat = new THREE.MeshStandardMaterial({
+    color: 0xff3d00,
+    emissive: 0xff2200,
+    emissiveIntensity: 1.1,
+    roughness: 0.2,
+  });
+
+  // Basalt jagged crust rim
+  const rimGeo = new THREE.RingGeometry(radius * 0.4, radius, 12);
+  rimGeo.rotateX(-Math.PI / 2);
+  const rim = new THREE.Mesh(rimGeo, rimMat);
+  rim.position.y = 0.02;
+  group.add(rim);
+
+  // Glowing molten magma core
+  const coreGeo = new THREE.CircleGeometry(radius * 0.65, 12);
+  coreGeo.rotateX(-Math.PI / 2);
+  const core = new THREE.Mesh(coreGeo, lavaMat);
+  core.position.y = 0.025;
+  group.add(core);
+
+  // Radial crack veins
+  for (let i = 0; i < 5; i++) {
+    const angle = (i / 5) * Math.PI * 2 + Math.random() * 0.4;
+    const veinLen = radius * 0.85;
+    const vein = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, veinLen), lavaMat);
+    const midR = radius * 0.45;
+    vein.position.set(Math.cos(angle) * midR, 0.026, Math.sin(angle) * midR);
+    vein.rotation.y = -angle + Math.PI / 2;
+    group.add(vein);
+  }
+
+  const lavaLight = new THREE.PointLight(0xff3d00, 1.2, 10);
+  lavaLight.position.set(0, 0.6, 0);
+  group.add(lavaLight);
+
+  return group;
+}
+
+// Pilar Batu Vulkanik Berapi / Kolom Basalt (Kaldera Naga)
+export function createVolcanicPillarMesh(height: number = 6.0): THREE.Group {
+  const pillar = new THREE.Group();
+  const basaltMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.9, flatShading: true });
+  const magmaMat = new THREE.MeshStandardMaterial({
+    color: 0xff3d00,
+    emissive: 0xff2200,
+    emissiveIntensity: 0.9,
+  });
+  const fireMat = new THREE.MeshBasicMaterial({ color: 0xff5722 });
+
+  // Main hexagonal basalt column
+  const colGeo = new THREE.CylinderGeometry(0.7, 0.95, height, 6);
+  const col = new THREE.Mesh(colGeo, basaltMat);
+  col.position.y = height / 2;
+  col.castShadow = true;
+  col.receiveShadow = true;
+  pillar.add(col);
+
+  // Vertical glowing magma fissure vein along the side
+  const veinGeo = new THREE.BoxGeometry(0.12, height * 0.85, 0.16);
+  const vein = new THREE.Mesh(veinGeo, magmaMat);
+  vein.position.set(0.68, height / 2, 0);
+  pillar.add(vein);
+
+  // Top Flaming Fire Basin
+  const bowlGeo = new THREE.CylinderGeometry(1.0, 0.6, 0.6, 6);
+  const bowl = new THREE.Mesh(bowlGeo, basaltMat);
+  bowl.position.y = height + 0.3;
+  pillar.add(bowl);
+
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.65, 1.2, 6), fireMat);
+  flame.position.y = height + 0.9;
+  pillar.add(flame);
+
+  const flameLight = new THREE.PointLight(0xff5722, 1.5, 12);
+  flameLight.position.y = height + 1.1;
+  pillar.add(flameLight);
+
+  return pillar;
+}
+
+// Bebatuan Vulkanik Hitam Berurat Magma (Kaldera Naga)
+export function createVolcanicBasaltRockMesh(scale: number = 1.0): THREE.Group {
+  const rock = new THREE.Group();
+  rock.scale.setScalar(scale);
+
+  const basaltMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.85, flatShading: true });
+  const magmaMat = new THREE.MeshStandardMaterial({
+    color: 0xff3d00,
+    emissive: 0xff2200,
+    emissiveIntensity: 0.8,
+  });
+
+  const geo = new THREE.DodecahedronGeometry(1.3, 1);
+  const mainRock = new THREE.Mesh(geo, basaltMat);
+  mainRock.position.y = 0.9;
+  mainRock.scale.set(1.3, 0.85, 1.1);
+  mainRock.castShadow = true;
+  mainRock.receiveShadow = true;
+  rock.add(mainRock);
+
+  // Magma glowing seam
+  const seam = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.1, 0.9), magmaMat);
+  seam.position.set(0.2, 0.9, 0.1);
+  seam.rotation.z = 0.4;
+  rock.add(seam);
+
+  return rock;
+}
+
+// Kristal Petir Biru Bersinar (Puncak Halilintar / Thunderpeak)
+export function createLightningCrystalMesh(scale: number = 1.0): THREE.Group {
+  const group = new THREE.Group();
+  group.scale.setScalar(scale);
+
+  const crystalMat = new THREE.MeshStandardMaterial({
+    color: 0x38bdf8,
+    emissive: 0x00f0ff,
+    emissiveIntensity: 0.9,
+    roughness: 0.15,
+    metalness: 0.2,
+    transparent: true,
+    opacity: 0.88,
+    flatShading: true,
+  });
+  const darkStone = new THREE.MeshLambertMaterial({ color: 0x1e293b, flatShading: true });
+
+  // Stone base pedestal
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.4, 1.4), darkStone);
+  base.position.y = 0.2;
+  group.add(base);
+
+  // Tall central crystal spire
+  const mainSpire = new THREE.Mesh(new THREE.ConeGeometry(0.35, 3.2, 5), crystalMat);
+  mainSpire.position.set(0, 1.8, 0);
+  mainSpire.castShadow = true;
+  group.add(mainSpire);
+
+  // Clustered smaller crystals angled around base
+  for (let i = 0; i < 4; i++) {
+    const angle = (i / 4) * Math.PI * 2;
+    const subSpire = new THREE.Mesh(new THREE.ConeGeometry(0.22, 1.8, 5), crystalMat);
+    subSpire.position.set(Math.cos(angle) * 0.45, 1.0, Math.sin(angle) * 0.45);
+    subSpire.rotation.x = Math.sin(angle) * 0.35;
+    subSpire.rotation.z = Math.cos(angle) * 0.35;
+    group.add(subSpire);
+  }
+
+  // Floating lightning spark ring
+  const ringGeo = new THREE.TorusGeometry(0.7, 0.03, 6, 16);
+  ringGeo.rotateX(Math.PI / 2);
+  const sparkRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xbae6fd }));
+  sparkRing.position.y = 2.4;
+  group.add(sparkRing);
+
+  const light = new THREE.PointLight(0x00f0ff, 1.6, 12);
+  light.position.set(0, 2.2, 0);
+  group.add(light);
+
+  return group;
+}
+
+// Menara Ritual Purba Puncak Halilintar (Ancient Ritual Monolith Tower)
+export function createAncientRitualTowerMesh(): THREE.Group {
+  const tower = new THREE.Group();
+  const stoneMat = new THREE.MeshLambertMaterial({ color: 0x334155, flatShading: true });
+  const runeMat = new THREE.MeshStandardMaterial({
+    color: 0x38bdf8,
+    emissive: 0x00f0ff,
+    emissiveIntensity: 0.95,
+  });
+
+  // Stepped Plinth Foundation
+  const step1 = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.8, 6.5), stoneMat);
+  step1.position.y = 0.4;
+  const step2 = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.8, 5.2), stoneMat);
+  step2.position.y = 1.2;
+  tower.add(step1, step2);
+
+  // Main Obelisk / Ritual Monolith
+  const obelisk = new THREE.Mesh(new THREE.BoxGeometry(2.4, 7.5, 2.4), stoneMat);
+  obelisk.position.y = 5.2;
+  obelisk.castShadow = true;
+  obelisk.receiveShadow = true;
+  tower.add(obelisk);
+
+  // Pyramidion Spire Top
+  const top = new THREE.Mesh(new THREE.ConeGeometry(1.8, 2.6, 4), runeMat);
+  top.position.y = 9.8;
+  top.rotation.y = Math.PI / 4;
+  tower.add(top);
+
+  // Carved Glowing Lightning Rune Bands
+  for (const ry of [3.5, 5.5, 7.2]) {
+    const band = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.25, 2.5), runeMat);
+    band.position.y = ry;
+    tower.add(band);
+  }
+
+  // Floating Energy Aura Orb
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.65, 12, 12), runeMat);
+  orb.position.y = 11.6;
+  tower.add(orb);
+
+  const orbLight = new THREE.PointLight(0x00f0ff, 2.0, 18);
+  orbLight.position.y = 11.6;
+  tower.add(orbLight);
+
+  return tower;
+}

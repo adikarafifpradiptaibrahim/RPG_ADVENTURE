@@ -31,6 +31,18 @@ export function isInsideValKragorSafeZone(x: number, z: number): boolean {
   return x >= 125 && x <= 190 && z >= -45 && z <= 15;
 }
 
+export function isInsideAstraeaSafeZone(x: number, z: number): boolean {
+  return x >= 144 && x <= 214 && z >= -290 && z <= -230;
+}
+
+/**
+ * Global combined check for all inhabited civilization safe zones.
+ * Ensures monsters do not harass players inside Sanctuary, Val-Kragor, or Astraea Capital.
+ */
+export function isInsideSafeZone(x: number, z: number): boolean {
+  return isInsideSanctuarySafeZone(x, z) || isInsideValKragorSafeZone(x, z) || isInsideAstraeaSafeZone(x, z);
+}
+
 
 /**
  * 1. Meadow Slimes (Lv. 1)

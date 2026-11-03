@@ -17,7 +17,7 @@ import { buildWorld, WorldObjects } from './world';
 import { RemotePlayerData } from '../multiplayer';
 import { GraphicsSettings, loadGraphicsSettings } from '../graphicsSettings';
 import {
-  isInsideSanctuarySafeZone,
+  isInsideSafeZone,
   MEADOW_SLIME_SPAWNS,
   MAGMA_SLIME_SPAWNS,
   SKELETON_SENTINEL_SPAWNS,
@@ -4259,9 +4259,9 @@ export class GameEngine {
         }
       }
 
-      // SAFE ZONE CHECK: Desa Utama & Pelabuhan Sanctuary adalah Zona Aman 100% bebas monster!
-      const playerInSafeZone = isInsideSanctuarySafeZone(this.playerPos.x, this.playerPos.z);
-      const enemyInSafeZone = isInsideSanctuarySafeZone(ePos.x, ePos.z);
+      // SAFE ZONE CHECK: Desa Utama, Benteng Val-Kragor & Astraea adalah Zona Aman 100% bebas monster!
+      const playerInSafeZone = isInsideSafeZone(this.playerPos.x, this.playerPos.z);
+      const enemyInSafeZone = isInsideSafeZone(ePos.x, ePos.z);
 
       if (playerInSafeZone || enemyInSafeZone) {
         if (distFromSpawn > 1.2) {
