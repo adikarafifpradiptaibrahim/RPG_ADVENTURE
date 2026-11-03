@@ -3094,9 +3094,9 @@ export class GameEngine {
           const startPos = this.playerPos.clone();
           const targetPos = this.playerPos.clone().add(forward.clone().multiplyScalar(12));
 
-          // Clamp to full world boundaries (-215..315, -175..165)
-          let targetX = Math.max(-215, Math.min(315, targetPos.x));
-          let targetZ = Math.max(-175, Math.min(165, targetPos.z));
+          // Clamp to expanded world boundaries (-580..680, -460..460)
+          let targetX = Math.max(-580, Math.min(680, targetPos.x));
+          let targetZ = Math.max(-460, Math.min(460, targetPos.z));
 
           // Resolve collisions so player never blinks inside walls or buildings
           const resolved = this.resolveCollisions(targetX, targetZ);
@@ -3846,11 +3846,11 @@ export class GameEngine {
       this.playerVel.z *= 0.96;
     }
 
-    // Expanded World boundary constraints (Spans all biomes from X[-215..315] and Z[-175..165])
-    if (nextX < -215) nextX = -215;
-    if (nextX > 315) nextX = 315;
-    if (nextZ < -175) nextZ = -175;
-    if (nextZ > 165) nextZ = 165;
+    // Expanded World boundary constraints (Spans all biomes from X[-580..680] and Z[-460..460])
+    if (nextX < -580) nextX = -580;
+    if (nextX > 680) nextX = 680;
+    if (nextZ < -460) nextZ = -460;
+    if (nextZ > 460) nextZ = 460;
 
     this.playerPos.x = nextX;
     this.playerPos.z = nextZ;
@@ -4778,6 +4778,66 @@ export class GameEngine {
         icon: '🏰',
         color: '#3b82f6',
         description: 'Benteng Dataran Tinggi Val-Kragor',
+      });
+
+      // Secret Palm Oasis of Solaria (South-West)
+      markers.push({
+        id: 'landmark_solaria_oasis',
+        title: 'Oase Tersembunyi Solaria',
+        type: 'waypoint',
+        x: -340,
+        z: 260,
+        icon: '🌴',
+        color: '#06b6d4',
+        description: 'Oase Kolam Pirus & Palem Gurun',
+      });
+
+      // Outer Frostpeak Glacier Expanse (North-East)
+      markers.push({
+        id: 'landmark_frostpeak_glacier',
+        title: 'Gletser Beku Frostpeak',
+        type: 'waypoint',
+        x: 240,
+        z: -220,
+        icon: '🏔️',
+        color: '#38bdf8',
+        description: 'Menara Pengawas Gletser Terluar',
+      });
+
+      // Primal Dragon Magma Core (North)
+      markers.push({
+        id: 'landmark_dragon_core',
+        title: 'Inti Kawah Sarang Naga',
+        type: 'boss',
+        x: 35,
+        z: -280,
+        icon: '🔥',
+        color: '#ef4444',
+        description: 'Sarang Lahar Panas Naga Purba',
+      });
+
+      // Shadowfen Deep Hollow (West)
+      markers.push({
+        id: 'landmark_shadowfen_deep',
+        title: 'Lembah Jamur Abadi Shadowfen',
+        type: 'waypoint',
+        x: -300,
+        z: 25,
+        icon: '✨',
+        color: '#a855f7',
+        description: 'Grotto Rawa Terdalam',
+      });
+
+      // Celestial Bamboo Pavilion (South-East)
+      markers.push({
+        id: 'landmark_jade_sanctuary',
+        title: 'Paviliun Bambu Surgawi',
+        type: 'waypoint',
+        x: 310,
+        z: 210,
+        icon: '🪷',
+        color: '#10b981',
+        description: 'Kuil Pagoda Terluar Tenggara',
       });
 
       // Enemies

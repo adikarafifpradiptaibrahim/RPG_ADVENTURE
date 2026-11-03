@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { getProceduralContinentHeight, getContinentBiomeSample } from '../mapSampler';
 import {
   createTreeMesh,
   createAncientPillarMesh,
@@ -120,432 +121,33 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   dirLight.shadow.bias = -0.001;
   scene.add(dirLight);
 
-  // Expanded World Terrain specifications (Span: X[-260..360], Z[-220..220])
-  const terrainWidth = 620;
-  const terrainDepth = 440;
-  const segmentsX = 180;
-  const segmentsZ = 130;
+  // 2.5x - 3x Expanded World Terrain specifications (Span: X[-680..820], Z[-550..550])
+  const terrainWidth = 1500;
+  const terrainDepth = 1100;
+  const segmentsX = 250;
+  const segmentsZ = 200;
   const terrainGeo = new THREE.PlaneGeometry(terrainWidth, terrainDepth, segmentsX, segmentsZ);
   terrainGeo.rotateX(-Math.PI / 2);
-  terrainGeo.translate(50, 0, 0); // Shift center so Astraea (x: 180..330) has vast flat imperial land!
+  terrainGeo.translate(70, 0, 0); // Centered at x=70 so all vast expanded biomes fit seamlessly
 
-  // Height function for diverse biomes across the vast world
+  // Unified procedural height function from mapSampler
   const getProceduralHeight = (x: number, z: number): number => {
-    // 1. Starting Village: Desa Eldoria Center (x: -24..24, z: -24..24) -> Smooth flat plateau
-    const distCenter = Math.hypot(x, z);
-    if (distCenter < 24) {
-      if (distCenter < 17) {
-        return 0.15;
-      }
-      const t = (distCenter - 17) / 7;
-      const meadow = Math.sin(x * 0.08) * 1.6 + Math.cos(z * 0.07) * 1.4;
-      return (1 - t) * 0.15 + t * meadow;
-    }
-
-    // 2. Second Village: Desa Benteng Val-Kragor (x: 95..140, z: -38..5)
-    // Elevated highland fortress plateau at y = 3.2
-    const distValKragor = Math.hypot(x - 116, z - -17);
-    if (distValKragor < 28) {
-      if (distValKragor < 23) {
-        return 3.2; // Perfectly flat fortress plateau (covers Keep, Gates, all 4 watchtowers, blacksmith, tavern)
-      }
-      const t = (distValKragor - 23) / 5;
-      const baseMeadow = 1.8 + Math.sin(x * 0.08) * 0.8;
-      return (1 - t) * 3.2 + t * baseMeadow;
-    }
-    // Fortress western ramp / approach slope from bridge
-    if (x >= 86 && x <= 98 && z >= -24 && z <= -10) {
-      const t = (x - 86) / 12;
-      return 2.0 + t * 1.2;
-    }
-
-    // 2b. Frostpeak Mountain Biome & Grand Imperial Kingdom of Astraea
-    // Total redesign: Smooth elevation slopes, gradual terracing, rounded snow hills (bukit tumpul),
-    // and seamless integration without harsh rectangular cliffs or vertical drops.
-    if (x >= 45 && z <= -34 && (x >= 70 || z <= -45)) {
-      // 1. City Core Plateau: Flat y = 6.0 for Astraea walls, palace, and plaza
-      const astraeaMinX = 104;
-      const astraeaMaxX = 166;
-      const astraeaMinZ = -136;
-      const astraeaMaxZ = -84;
-
-      const dX = Math.max(0, astraeaMinX - x, x - astraeaMaxX);
-      const dZ = Math.max(0, astraeaMinZ - z, z - astraeaMaxZ);
-      const distToCity = Math.hypot(dX, dZ);
-
-      // 2. Continuous Western Slope (Melandai Alami ke Daratan Barat)
-      // Gradual slope from lower mainland (y ~ 1.8 at x = 45) up to Astraea (y = 6.0 at x = 104)
-      const tWest = Math.max(0, Math.min(1, (x - 45) / 59));
-      const sWest = tWest * tWest * (3 - 2 * tWest); // smoothstep
-      const westBaseElev = 1.8 + sWest * 4.2;
-
-      // 3. Continuous Southern Slope (Melandai Alami ke Val-Kragor)
-      // Gradual slope from Val-Kragor plateau (y = 3.2 at z = -35) up to Astraea (y = 6.0 at z = -84)
-      const tSouth = Math.max(0, Math.min(1, (-z - 35) / 49));
-      const sSouth = tSouth * tSouth * (3 - 2 * tSouth); // smoothstep
-      const southBaseElev = 3.2 + sSouth * 2.8;
-
-      // 4. Determine base regional elevation
-      let baseRegionalElev = 6.0;
-      if (x < astraeaMinX && z > astraeaMaxZ) {
-        // Southwest approach: smoothly blend western and southern slopes
-        const weightX = (astraeaMinX - x) / (astraeaMinX - 45);
-        const weightZ = (z - astraeaMaxZ) / (-35 - astraeaMaxZ);
-        const totalW = weightX + weightZ + 0.001;
-        baseRegionalElev = (weightX * westBaseElev + weightZ * southBaseElev) / totalW;
-      } else if (x < astraeaMinX) {
-        baseRegionalElev = westBaseElev;
-      } else if (z > astraeaMaxZ) {
-        baseRegionalElev = southBaseElev;
-      }
-
-      // 5. Rolling Snow Hills (Bukit-bukit salju kecil bersudut tumpul)
-      // Low spatial frequencies yield broad, soft mounds with blunt summits
-      const bluntHills =
-        Math.sin(x * 0.055) * 0.65 +
-        Math.cos(z * 0.048) * 0.55 +
-        Math.sin(x * 0.026 + z * 0.034) * 0.45;
-
-      // Hills smoothly fade near the city walls so structures sit flat
-      const hillInfluence = Math.max(0, Math.min(1, (distToCity - 6) / 16));
-      const sHill = hillInfluence * hillInfluence * (3 - 2 * hillInfluence);
-
-      // 6. Majestic Northern & Eastern Alpine Backdrop (Smooth quadratic rise)
-      let mountainBackdrop = 0;
-      if (z < -136) {
-        const dN = (-136 - z);
-        mountainBackdrop += Math.min(14, (dN * dN) * 0.012 + Math.sin(x * 0.08) * Math.min(2.5, dN * 0.1));
-      }
-      if (x > 166) {
-        const dE = (x - 166);
-        mountainBackdrop += Math.min(12, (dE * dE) * 0.014 + Math.cos(z * 0.07) * Math.min(2.2, dE * 0.1));
-      }
-
-      const outerElevation = baseRegionalElev + bluntHills * sHill + mountainBackdrop;
-
-      // 7. City Apron Blend: 100% flat at y=6.0 inside walls, smoothly blends to outer terrain
-      if (distToCity === 0) {
-        return 6.0;
-      } else if (distToCity < 12) {
-        const tCity = distToCity / 12;
-        const sCity = tCity * tCity * (3 - 2 * tCity);
-        return (1 - sCity) * 6.0 + sCity * outerElevation;
-      } else {
-        return outerElevation;
-      }
-    }
-
-    // 3. Misty Chasm & Wooden Suspension Bridge (x: 63..87, z: -30..0)
-    // Deep gorge canyon floor dividing east highland from central mainland
-    if (x >= 63 && x <= 87 && z >= -34 && z <= 2) {
-      const chasmCenter = 75;
-      const chasmDepth = Math.max(0, 1 - Math.abs(x - chasmCenter) / 12);
-      return 1.2 - chasmDepth * 5.2;
-    }
-
-    // 4b. Scenic Eastern Highlands & Meadows (old outer east)
-    if (x >= 180 && z >= -95 && z <= 65) {
-      return 3.2 + Math.sin(x * 0.05) * 1.2 + Math.cos(z * 0.06) * 1.0;
-    }
-
-    // 5. Solaria Golden Dunes & Sunken Pyramid (Far South-West: x < -105 && z > 35)
-    // Accessible desert highway corridor from ruins & mainland (x: -68..-115, z: 32..68)
-    if (x <= -68 && x >= -115 && z >= 32 && z <= 68) {
-      const prog = (-x - 68) / 47;
-      return 0.6 + prog * 0.8 + Math.sin(x * 0.06) * 0.3;
-    }
-    if (x < -105 && z > 35) {
-      const distPyramid = Math.hypot(x - -165, z - 110);
-      if (distPyramid < 25) {
-        if (distPyramid < 17) {
-          return 1.4; // Flat courtyard around pyramid & obelisks
-        }
-        const t = (distPyramid - 17) / 8;
-        const dunes = Math.sin(x * 0.07 + z * 0.05) * 2.2 + Math.cos(x * 0.04 - z * 0.06) * 1.4;
-        return (1 - t) * 1.4 + t * Math.max(1.4, 1.4 + dunes);
-      }
-      const dunes = Math.sin(x * 0.07 + z * 0.05) * 2.6 + Math.cos(x * 0.04 - z * 0.06) * 1.6;
-      return Math.max(0.6, 1.3 + dunes);
-    }
-
-    // 6. Thunderpeak Lightning Spire Sanctuary (Far North-West: x < -70 && z < -70)
-    // Accessible mountain winding trail from central meadow (x: -90..-140, z: -55..-85)
-    if (x <= -90 && x >= -140 && z <= -55 && z >= -85) {
-      const trailT = (-z - 55) / 30;
-      return 2.0 + trailT * 3.2 + Math.sin(x * 0.08) * 0.4;
-    }
-    if (x < -70 && z < -70) {
-      const distAltar = Math.hypot(x - -155, z - -135);
-      if (distAltar < 22) {
-        if (distAltar < 15) {
-          return 5.5; // Elevated storm altar plateau
-        }
-        const t = (distAltar - 15) / 7;
-        const crag = 4.0 + Math.sin(x * 0.1) * 2.0 + Math.cos(z * 0.09) * 1.6;
-        return (1 - t) * 5.5 + t * crag;
-      }
-      const cragSlope = 3.8 + Math.sin(x * 0.1) * 2.2 + Math.cos(z * 0.09) * 1.8;
-      return cragSlope;
-    }
-
-    // 7. Jade Bamboo Grove & Celestial Pagoda (Far South-East: x > 105 && z > 35)
-    // Accessible coastal stone causeway from Coral Cove / Val-Kragor (x: 85..125, z: 32..58)
-    if (x >= 85 && x <= 125 && z >= 32 && z <= 58) {
-      const prog = (x - 85) / 40;
-      return 1.4 + prog * 1.0 + Math.sin(z * 0.1) * 0.3;
-    }
-    if (x > 105 && z > 35) {
-      const distPagoda = Math.hypot(x - 165, z - 115);
-      if (distPagoda < 24) {
-        if (distPagoda < 16) {
-          return 2.5; // Level temple terrace
-        }
-        const t = (distPagoda - 16) / 8;
-        const hills = 1.6 + Math.sin(x * 0.08) * 1.4 + Math.cos(z * 0.08) * 1.0;
-        return (1 - t) * 2.5 + t * hills;
-      }
-      const hills = 1.6 + Math.sin(x * 0.08) * 1.5 + Math.cos(z * 0.08) * 1.2;
-      return hills;
-    }
-
-    // 8. Dragonfang Caldera & Inferno Archipelago (Far North: z < -90 && x >= -45 && x <= 85)
-    // Accessible volcanic corridor from Titan Caldera (x: 10..35, z: -85..-130)
-    if (x >= 10 && x <= 35 && z <= -85 && z >= -130) {
-      const trailT = (-z - 85) / 45;
-      return 1.6 - trailT * 1.3;
-    }
-    if (z < -90 && x >= -45 && x <= 85) {
-      const distDragonCaldera = Math.hypot(x - 20, z - -145);
-      if (distDragonCaldera < 24) {
-        if (distDragonCaldera < 16) {
-          return 0.2; // Solid flat caldera platform for boss battle & dragon fossil
-        }
-        const t = (distDragonCaldera - 16) / 8;
-        const ridge = 1.8 + Math.sin(x * 0.12) * 1.4;
-        return (1 - t) * 0.2 + t * ridge;
-      }
-      return 1.8 + Math.sin(x * 0.12) * 1.6 + Math.cos(z * 0.12) * 1.4;
-    }
-
-    // 9. Shadowfen Gloom Marsh (Far West: x < -65, z > -25 && z < 45)
-    if (x < -65 && z > -25 && z < 45) {
-      // Murky swamp with shallow puddles and mossy mounds
-      const swampWater = Math.sin(x * 0.16) * 0.6 + Math.cos(z * 0.14) * 0.5;
-      return Math.max(-0.25, 0.2 + swampWater);
-    }
-
-    // 10. Coral Cove & Ocean Beach (South-East: x > 48 && x <= 105, z > 20)
-    if (x > 48 && x <= 105 && z > 20) {
-      const coveDist = z - 20;
-      const beachSlope = coveDist * 0.11;
-      const seaWave = Math.sin(x * 0.12) * 0.35;
-      const height = 0.2 - beachSlope + seaWave;
-      if (height < -0.3) {
-        return Math.max(-4.2, -0.3 - (z - 30) * 0.16);
-      }
-      return height;
-    }
-
-    // 11. Azure Coast & Ocean (South, z > 18 && x <= 48 && x >= -68)
-    if (z > 18 && x <= 48 && x >= -68) {
-      const beachSlope = (z - 18) * 0.12;
-      const waveNoise = Math.sin(x * 0.15) * 0.4;
-      const height = 0.1 - beachSlope + waveNoise;
-      if (height < -0.4) {
-        return Math.max(-4.5, -0.4 - (z - 28) * 0.18);
-      }
-      return height;
-    }
-
-    // 12. Boss Arena at North Volcanic Caldera (z < -36 && z >= -90 && Math.abs(x) < 42)
-    if (z < -36 && z >= -90 && Math.abs(x) < 42) {
-      const craterDist = Math.hypot(x, z - -52);
-      if (craterDist < 16) {
-        return -0.8 + Math.sin(x * 0.3) * 0.3; // Flat arena floor inside crater
-      }
-      return 1.5 + Math.sin(x * 0.2) * 1.2;
-    }
-
-    // 13. Ancient Ruins (West, x: -65..-18, z: -15..35)
-    if (x < -18 && x > -65 && z > -15 && z < 35) {
-      return 1.2 + Math.sin(x * 0.1) * 1.5 + Math.cos(z * 0.1) * 0.8;
-    }
-
-    // 14. Mystic Pine Forest (East, x: 18..62, z: -30..25)
-    if (x > 18 && x < 62 && z > -30 && z < 25) {
-      return 0.8 + Math.sin(x * 0.12) * 2.2 + Math.cos(z * 0.1) * 1.4;
-    }
-
-    // General rolling meadow terrain across continent
-    let h =
-      Math.sin(x * 0.08) * 1.6 +
-      Math.cos(z * 0.07) * 1.4 +
-      Math.sin(x * 0.15 + z * 0.15) * 0.8;
-
-    // Edge boundary mountain walls around outer perimeter
-    const inAstraea = (x >= 170 && x <= 345 && z >= -95 && z <= 65);
-    if (!inAstraea && (distCenter > 235 || z < -185 || z > 180 || x < -235)) {
-      const edgeFactor = Math.min(Math.max(0, distCenter - 215) * 0.45, 20);
-      h += edgeFactor;
-    } else if (inAstraea && (x > 330 || z < -90 || z > 60)) {
-      const edgeFactor = Math.min(Math.max(0, Math.max(x - 315, Math.abs(z - -15) - 60)) * 0.5, 20);
-      h += edgeFactor;
-    }
-
-    return h;
+    return getProceduralContinentHeight(x, z);
   };
 
   const posAttr = terrainGeo.attributes.position;
   const vertexCount = posAttr.count;
 
-  // Vertex colors for rich biomes
+  // Vertex colors generated seamlessly from unified mapSampler
   const colors: number[] = [];
-  const colorGrass = new THREE.Color(0x689f38);
-  const colorPath = new THREE.Color(0xd7ccc8);
-  const colorFortressStone = new THREE.Color(0x475569); // Val-Kragor slate paving
-  const colorImperialMarble = new THREE.Color(0xf1f5f9); // Astraea white marble plaza
-  const colorImperialGoldRoad = new THREE.Color(0xfacc15); // Golden imperial trim road
-  const colorStone = new THREE.Color(0x64748b);
-  const colorVolcano = new THREE.Color(0x263238);
-  const colorSand = new THREE.Color(0xffe082); // Beach sand
-  const colorDesertSand = new THREE.Color(0xf6d365); // Warm golden dunes
-  const colorSeabed = new THREE.Color(0x80cbc4);
-  const colorSnow = new THREE.Color(0xf1f5f9); // Frostpeak snow
-  const colorIce = new THREE.Color(0xbae6fd);
-  const colorSwampMud = new THREE.Color(0x3f3d23);
-  const colorSwampMoss = new THREE.Color(0x2e381f);
-  const colorThunderBasalt = new THREE.Color(0x1e1b4b); // Deep indigo storm rock
-  const colorJadeBorders = new THREE.Color(0x059669); // Verdant jade emerald
-  const colorDragonScorched = new THREE.Color(0x450a0a); // Deep inferno rock
-  // Frostpeak multi-layered transition colors (Tanah berbatu, lelehan es, pasir bersalju, es abadi)
-  const colorFrostThaw = new THREE.Color(0x6b7c62); // Lelehan es / damp cold mossy earth
-  const colorColdGravel = new THREE.Color(0x76858f); // Tanah berbatu / frost-shattered slate gravel
-  const colorSnowDust = new THREE.Color(0xdce7ec); // Pasir bersalju / powdered frost on rock
-  const colorDeepSnow = new THREE.Color(0xf8fafc); // Crisp white alpine snow
-  const colorGlacialIce = new THREE.Color(0xb9e6fc); // Glacial crystalline ice
-
   for (let i = 0; i < vertexCount; i++) {
     const vx = posAttr.getX(i);
     const vz = posAttr.getZ(i);
     const vy = getProceduralHeight(vx, vz);
     posAttr.setY(i, vy);
 
-    const distCenter = Math.hypot(vx, vz);
-    const distValKragor = Math.hypot(vx - 116, vz - -17);
-
-    // 0. Grand Imperial Kingdom of Astraea (Center of Frostpeak: x: 104..166, z: -136..-84)
-    if (vx >= 104 && vx <= 166 && vz <= -84 && vz >= -136) {
-      const distPalace = Math.hypot(vx - 148, vz - -110);
-      const distPlaza = Math.hypot(vx - 125, vz - -110);
-      // Central Imperial Gold Avenue from West Gate (vx: 104) to Palace (vx: 148)
-      if (Math.abs(vz - -110) <= 3.2 && vx >= 104 && vx <= 148) {
-        colors.push(colorImperialGoldRoad.r, colorImperialGoldRoad.g, colorImperialGoldRoad.b);
-      } else if (distPalace < 18 || distPlaza < 14) {
-        colors.push(colorImperialMarble.r, colorImperialMarble.g, colorImperialMarble.b);
-      } else {
-        colors.push(colorImperialMarble.r * 0.92, colorImperialMarble.g * 0.92, colorImperialMarble.b * 0.92);
-      }
-    }
-    // Main Western Road leading out of West Gate
-    else if (vx >= 70 && vx < 104 && Math.abs(vz - -110) <= 3.5) {
-      colors.push(colorImperialGoldRoad.r, colorImperialGoldRoad.g, colorImperialGoldRoad.b);
-    }
-    // 1. Village Eldoria cobblestone
-    else if (distCenter < 14) {
-      colors.push(colorPath.r, colorPath.g, colorPath.b);
-    }
-    // 2. Desa Benteng Val-Kragor stone courtyard
-    else if (distValKragor < 18) {
-      colors.push(colorFortressStone.r, colorFortressStone.g, colorFortressStone.b);
-    }
-    // 3. Dragonfang Caldera (Far North)
-    else if (vz < -90 && vx >= -45 && vx <= 85) {
-      colors.push(colorDragonScorched.r, colorDragonScorched.g, colorDragonScorched.b);
-    }
-    // 4. Thunderpeak Lightning Plateau (North-West)
-    else if (vx < -70 && vz < -80) {
-      colors.push(colorThunderBasalt.r, colorThunderBasalt.g, colorThunderBasalt.b);
-    }
-    // 5. Solaria Golden Desert (South-West)
-    else if (vx < -105 && vz > 45) {
-      colors.push(colorDesertSand.r, colorDesertSand.g, colorDesertSand.b);
-    }
-    // 6. Jade Bamboo Grove (South-East)
-    else if (vx > 110 && vz > 50) {
-      colors.push(colorJadeBorders.r, colorJadeBorders.g, colorJadeBorders.b);
-    }
-    // 7. Frostpeak Mountain Glacier & Multi-Layered Natural Terrain Blending
-    // Gradual transition: Meadow -> Thawed Tundra (lelehan es) -> Cold Gravel (tanah berbatu) -> Snow Dust (pasir bersalju) -> Deep Snow / Ice
-    else if (vx >= 45 && vz <= -28 && !(vz < -95 && vx <= 75)) {
-      // West-East progress: vx from 45 to 90
-      const pX = Math.max(0, Math.min(1, (vx - 45) / 45));
-      // South-North progress: vz from -28 to -75
-      const pZ = Math.max(0, Math.min(1, (-vz - 28) / 47));
-      const baseFrostFactor = pX * pZ;
-
-      // Organic harmonic noise so the transition boundary meanders naturally along ridges
-      const snowNoise =
-        Math.sin(vx * 0.12) * 0.12 +
-        Math.cos(vz * 0.10) * 0.12 +
-        Math.sin((vx + vz) * 0.07) * 0.08;
-      const frostFactor = Math.max(0, Math.min(1, baseFrostFactor + snowNoise));
-
-      if (frostFactor > 0.0) {
-        const c = new THREE.Color();
-        if (frostFactor < 0.32) {
-          // Zone 1: Borderline / Thawed Tundra (Lelehan Es & Tanah Berbatu)
-          const t1 = frostFactor / 0.32;
-          c.copy(colorGrass).lerp(colorFrostThaw, t1 * 0.7).lerp(colorColdGravel, t1 * 0.3);
-        } else if (frostFactor < 0.68) {
-          // Zone 2: Snow Dusting & Pasir Bersalju (Frosted Gravel & Slush)
-          const t2 = (frostFactor - 0.32) / 0.36;
-          c.copy(colorColdGravel).lerp(colorSnowDust, t2);
-        } else {
-          // Zone 3: Full Frostpeak Snow & Glacial Ice
-          const t3 = (frostFactor - 0.68) / 0.32;
-          if (vy > 7.0 || (vz < -136 && vy > 6.5)) {
-            // High altitude peaks and glacial crags
-            c.copy(colorSnowDust).lerp(colorGlacialIce, t3);
-          } else {
-            // Deep crisp alpine snow
-            c.copy(colorSnowDust).lerp(colorDeepSnow, t3);
-          }
-        }
-        colors.push(c.r, c.g, c.b);
-      } else {
-        // Highland grass just outside snow line
-        colors.push(colorGrass.r, colorGrass.g, colorGrass.b);
-      }
-    }
-    // 8. Shadowfen Marsh Mud & Moss
-    else if (vx < -65 && vz > -25 && vz < 45) {
-      if (vy < 0.1) {
-        colors.push(colorSwampMud.r, colorSwampMud.g, colorSwampMud.b);
-      } else {
-        colors.push(colorSwampMoss.r, colorSwampMoss.g, colorSwampMoss.b);
-      }
-    }
-    // 9. Beach & Coral Cove & seabed
-    else if (vz > 18) {
-      if (vy < -0.3) {
-        colors.push(colorSeabed.r, colorSeabed.g, colorSeabed.b);
-      } else {
-        colors.push(colorSand.r, colorSand.g, colorSand.b);
-      }
-    }
-    // 10. Volcanic Crags (Titan Caldera)
-    else if (vz < -36 && Math.abs(vx) < 42) {
-      colors.push(colorVolcano.r, colorVolcano.g, colorVolcano.b);
-    }
-    // 11. Mountain cliffs & ruins
-    else if (vy > 3.0) {
-      colors.push(colorStone.r, colorStone.g, colorStone.b);
-    }
-    // 12. Green meadows
-    else {
-      const tint = (Math.sin(vx * 0.2) + Math.cos(vz * 0.2)) * 0.04;
-      colors.push(colorGrass.r + tint, colorGrass.g + tint, colorGrass.b);
-    }
+    const sample = getContinentBiomeSample(vx, vz);
+    colors.push(sample.color[0] / 255, sample.color[1] / 255, sample.color[2] / 255);
   }
 
   terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
@@ -564,10 +166,10 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // Exact 3D rendered surface height calculation via barycentric triangle interpolation:
   // Guarantees that physics, character foot stepping, and object grounding align 100% with the rendered terrain polygon.
-  const minTerrainX = -260; // 50 - 310
-  const maxTerrainX = 360;  // 50 + 310
-  const minTerrainZ = -220;
-  const maxTerrainZ = 220;
+  const minTerrainX = -680; // 70 - 750
+  const maxTerrainX = 820;  // 70 + 750
+  const minTerrainZ = -550;
+  const maxTerrainZ = 550;
   const gridCellW = terrainWidth / segmentsX;
   const gridCellD = terrainDepth / segmentsZ;
   const gridX1 = segmentsX + 1;
@@ -625,7 +227,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // ==========================================
   // 1. VAST AZURE OCEAN WATER PLANE
   // ==========================================
-  const oceanGeo = new THREE.PlaneGeometry(560, 320, 32, 32);
+  const oceanGeo = new THREE.PlaneGeometry(1400, 700, 32, 32);
   oceanGeo.rotateX(-Math.PI / 2);
   const oceanMat = new THREE.MeshStandardMaterial({
     color: 0x0096c7,
@@ -635,7 +237,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     opacity: 0.82,
   });
   const oceanMesh = new THREE.Mesh(oceanGeo, oceanMat);
-  oceanMesh.position.set(10, -0.25, 110);
+  oceanMesh.position.set(70, -0.25, 270);
   scene.add(oceanMesh);
 
   // Wooden Pier / Dock extending into ocean
@@ -1847,6 +1449,90 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
+  
+  // ==========================================
+  // 9. EXPANDED CONTINENT LANDMARKS & SECRET ZONES
+  // ==========================================
+
+  // 9.1 Secret Palm Oasis of Solaria ([-340, 260])
+  const oasisPoolGeo = new THREE.CylinderGeometry(14, 14, 0.4, 24);
+  const oasisPoolMat = new THREE.MeshStandardMaterial({
+    color: 0x06b6d4,
+    roughness: 0.08,
+    metalness: 0.35,
+    transparent: true,
+    opacity: 0.88,
+  });
+  const oasisPool = new THREE.Mesh(oasisPoolGeo, oasisPoolMat);
+  oasisPool.position.set(-340, 0.05, 260);
+  scene.add(oasisPool);
+
+  // Oasis Palm Ring
+  for (let a = 0; a < 8; a++) {
+    const angle = (a / 8) * Math.PI * 2;
+    const px = -340 + Math.cos(angle) * 17;
+    const pz = 260 + Math.sin(angle) * 17;
+    const py = getTerrainHeight(px, pz);
+    const palm = createDesertPalmMesh();
+    palm.position.set(px, py, pz);
+    palm.rotation.y = angle + 0.5;
+    scene.add(palm);
+    colliders.push({ type: 'circle', x: px, z: pz, radius: 0.65, label: 'Pohon Palem Oase' });
+  }
+
+  // Ancient sandstone arches at Oasis
+  const oasisArch = createAncientArchMesh();
+  oasisArch.position.set(-340, getTerrainHeight(-340, 242), 242);
+  scene.add(oasisArch);
+
+  // 9.2 Outer Frostpeak Glacier Watchtower & Ice Spire Ridge ([240, -220])
+  const glacierTower = createFortressWatchtowerMesh();
+  const gty = getTerrainHeight(240, -220);
+  glacierTower.position.set(240, gty, -220);
+  scene.add(glacierTower);
+  colliders.push({ type: 'circle', x: 240, z: -220, radius: 2.8, label: 'Menara Gletser Frostpeak' });
+
+  for (const gc of [{ x: 228, z: -212 }, { x: 252, z: -228 }, { x: 245, z: -205 }]) {
+    const cCluster = createIceCrystalClusterMesh(true);
+    cCluster.position.set(gc.x, getTerrainHeight(gc.x, gc.z), gc.z);
+    scene.add(cCluster);
+  }
+
+  // 9.3 Primal Dragon Magma Core ([35, -280])
+  const dragonSkullCore = createDragonSkullBonesMesh();
+  const dcy = getTerrainHeight(35, -280);
+  dragonSkullCore.position.set(35, dcy, -280);
+  dragonSkullCore.scale.set(1.4, 1.4, 1.4);
+  scene.add(dragonSkullCore);
+  colliders.push({ type: 'box', minX: 25, maxX: 45, minZ: -290, maxZ: -270, label: 'Kerangka Naga Inti' });
+
+  // 9.4 Shadowfen Deep Hollow ([ -300, 25 ])
+  const deepShrooms = [
+    { x: -300, z: 25, color: 0xa855f7, s: 1.8 },
+    { x: -312, z: 32, color: 0x06b6d4, s: 1.5 },
+    { x: -288, z: 18, color: 0x10b981, s: 1.4 },
+    { x: -295, z: 38, color: 0xec4899, s: 1.6 },
+  ];
+  deepShrooms.forEach((sc) => {
+    const shroom = createGiantMushroomMesh(sc.color);
+    shroom.position.set(sc.x, getTerrainHeight(sc.x, sc.z), sc.z);
+    shroom.scale.set(sc.s, sc.s, sc.s);
+    scene.add(shroom);
+    colliders.push({ type: 'circle', x: sc.x, z: sc.z, radius: 0.85, label: 'Jamur Raksasa Purba' });
+  });
+
+  // 9.5 Celestial Jade Bamboo Sanctuary ([310, 210])
+  const celestialTorii = createToriiGateMesh();
+  celestialTorii.position.set(310, getTerrainHeight(310, 210), 210);
+  scene.add(celestialTorii);
+  colliders.push({ type: 'box', minX: 306, maxX: 314, minZ: 208, maxZ: 212, label: 'Gerbang Torii Langit' });
+
+  const celestialPagodaOuter = createJadePagodaMesh();
+  celestialPagodaOuter.position.set(325, getTerrainHeight(325, 220), 220);
+  scene.add(celestialPagodaOuter);
+  colliders.push({ type: 'box', minX: 321, maxX: 329, minZ: 216, maxZ: 224, label: 'Paviliun Pagoda Langit' });
+
+  // ==========================================
   // 9. TREASURE CHESTS (Across all diverse regions!)
   // ==========================================
   const chestData = [
@@ -1864,6 +1550,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { id: 'chest_jadepagoda', pos: [165, 0, 115] as [number, number, number] }, // Celestial Pagoda Treasure
     { id: 'chest_dragoncaldera', pos: [20, 0, -145] as [number, number, number] }, // Dragon Hoard
     { id: 'chest_astraea', pos: [157, 0, -110] as [number, number, number] }, // Astraea Imperial Treasury
+    { id: 'chest_solaria_oasis', pos: [-340, 0, 260] as [number, number, number] }, // Secret Oasis Treasure
+    { id: 'chest_frostpeak_glacier', pos: [240, 0, -220] as [number, number, number] }, // Glacier Vault
+    { id: 'chest_dragon_core', pos: [35, 0, -280] as [number, number, number] }, // Primal Magma Core Relic
+    { id: 'chest_shadowfen_deep', pos: [-300, 0, 25] as [number, number, number] }, // Deep Hollow Cache
+    { id: 'chest_jade_sanctuary', pos: [325, 0, 220] as [number, number, number] }, // Celestial Sanctuary Gold
   ];
 
   const chests: WorldObjects['chests'] = [];

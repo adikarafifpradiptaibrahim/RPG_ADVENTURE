@@ -134,7 +134,7 @@ export interface RegionInfo {
 export interface MapMarker {
   id: string;
   title: string;
-  type: 'player' | 'npc' | 'enemy' | 'boss' | 'chest' | 'waypoint' | 'fountain' | 'pier';
+  type: 'player' | 'npc' | 'enemy' | 'boss' | 'chest' | 'waypoint' | 'fountain' | 'pier' | 'shrine' | 'quest';
   x: number;
   z: number;
   icon?: string;

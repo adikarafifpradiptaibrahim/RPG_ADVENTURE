@@ -9,7 +9,7 @@ export const REGIONS: RegionInfo[] = [
     description: 'A peaceful settlement with cottages, stone plazas, and a blessed rejuvenation fountain.',
     descriptionId: 'Pusat desa damai dengan rumah bertingkat kayu, air mancur pemulih suci, bengkel tempa Torvald, dan kedai.',
     color: '#4caf50',
-    bounds: { minX: -16, maxX: 16, minZ: -18, maxZ: 14 },
+    bounds: { minX: -24, maxX: 24, minZ: -24, maxZ: 20 },
     center: [0, -2],
     recommendedLevel: 1,
   },
@@ -19,9 +19,9 @@ export const REGIONS: RegionInfo[] = [
     nameId: 'Laut Biru & Pantai Pasir Azure',
     icon: '🌊',
     description: 'Sandy shores with gentle sea breezes, wooden docks, and shimmering ocean waves.',
-    descriptionId: 'Hamparan pasir pantai keemasan, dermaga kayu nelayan Pak Joko, perahu kayu, dan deburan ombak laut biru.',
+    descriptionId: 'Hamparan pasir pantai keemasan, dermaga kayu nelayan Pak Joko, perahu kayu, dan deburan ombak laut biru luas.',
     color: '#00b4d8',
-    bounds: { minX: -30, maxX: 50, minZ: 14, maxZ: 85 },
+    bounds: { minX: -95, maxX: 50, minZ: 14, maxZ: 440 },
     center: [6, 42],
     recommendedLevel: 2,
   },
@@ -69,7 +69,7 @@ export const REGIONS: RegionInfo[] = [
     description: 'A dizzying gorge splitting the continent, spanned by an enormous suspension rope bridge.',
     descriptionId: 'Jurang ngarai terjal dengan kabut tebal di bawahnya, dihubungkan oleh jembatan gantung kayu raksasa yang menantang.',
     color: '#78716c',
-    bounds: { minX: 62, maxX: 92, minZ: -35, maxZ: 10 },
+    bounds: { minX: 62, maxX: 95, minZ: -35, maxZ: 10 },
     center: [75, -15],
     recommendedLevel: 3,
   },
@@ -90,11 +90,11 @@ export const REGIONS: RegionInfo[] = [
     name: 'Frostpeak Glacier & Cryo Altar',
     nameId: 'Puncak Salju Abadi Frostpeak',
     icon: '❄️',
-    description: 'Perpetually snow-covered mountain peaks with crystalline ice spires and an ancient frozen sanctuary.',
-    descriptionId: 'Puncak gunung bersalju abadi di utara-timur jauh, dihuni Serigala Frostfang dan pilar kristal es bercahaya dengan altar kuno.',
+    description: 'Perpetually snow-covered mountain peaks with crystalline ice spires, vast glaciers, and an ancient frozen sanctuary.',
+    descriptionId: 'Pegunungan es luas bersalju abadi di utara-timur jauh, dihuni Serigala Frostfang, jurang gletser beku, dan menara pertahanan es terluar.',
     color: '#38bdf8',
-    bounds: { minX: 65, maxX: 180, minZ: -160, maxZ: -45 },
-    center: [115, -65],
+    bounds: { minX: 45, maxX: 520, minZ: -480, maxZ: -34 },
+    center: [200, -180],
     recommendedLevel: 5,
   },
   {
@@ -105,8 +105,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A murky twilight wetland filled with giant luminescent mushrooms, toxic waters, and hidden smuggler caches.',
     descriptionId: 'Rawa-rawa berkabut gelap di ujung barat terjauh! Dihuni monster rawa dan dihiasi jamur raksasa bercahaya ungu serta hijau neon.',
     color: '#a855f7',
-    bounds: { minX: -145, maxX: -65, minZ: -25, maxZ: 45 },
-    center: [-105, 12],
+    bounds: { minX: -550, maxX: -65, minZ: -75, maxZ: 140 },
+    center: [-240, 25],
     recommendedLevel: 4,
   },
   {
@@ -117,8 +117,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A tropical extension of the southern sea featuring sea rocks, a ruined pirate galleon, and buried sunken gold.',
     descriptionId: 'Pesisir karang tropis di tenggara dengan reruntuhan kapal bajak laut yang karam di atas karang laut serta peti emas tersembunyi.',
     color: '#f59e0b',
-    bounds: { minX: 52, maxX: 140, minZ: 25, maxZ: 85 },
-    center: [88, 55],
+    bounds: { minX: 52, maxX: 220, minZ: 22, maxZ: 220 },
+    center: [110, 85],
     recommendedLevel: 3,
   },
   {
@@ -126,11 +126,11 @@ export const REGIONS: RegionInfo[] = [
     name: 'Solaria Golden Dunes & Sunken Pyramid',
     nameId: 'Gurun Emas Solaria & Piramida Kuno',
     icon: '🏜️',
-    description: 'Endless rolling golden sand dunes, ancient desert obelisks, palm oasis, and a sunken pharaoh pyramid.',
-    descriptionId: 'Hamparan gurun pasir keemasan di barat daya terjauh! Dihiasi oase pohon kurma, pilar obelisk misterius, dan piramida kuno bertingkat dengan peti harta emas.',
+    description: 'Endless rolling golden sand dunes, ancient desert obelisks, secret palm oasis, and a sunken pharaoh pyramid.',
+    descriptionId: 'Hamparan padang pasir emas mahaluas di barat daya! Menampung bukit pasir raksasa, Oase Tersembunyi dengan kolam pirus, dan reruntuhan piramida pharaoh kuno.',
     color: '#eab308',
-    bounds: { minX: -225, maxX: -110, minZ: 45, maxZ: 175 },
-    center: [-165, 110],
+    bounds: { minX: -550, maxX: -95, minZ: 35, maxZ: 460 },
+    center: [-260, 200],
     recommendedLevel: 5,
   },
   {
@@ -141,8 +141,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A storm-wracked basalt plateau where perpetual lightning strikes ancient floating magnetic spires.',
     descriptionId: 'Dataran tinggi tebing basalt hitam di barat laut jauh! Diselimuti badai petir abadi, cincin batu magnetik melayang, dan menara kristal halilintar ungu menyala.',
     color: '#a855f7',
-    bounds: { minX: -225, maxX: -70, minZ: -190, maxZ: -85 },
-    center: [-155, -135],
+    bounds: { minX: -550, maxX: -70, minZ: -460, maxZ: -80 },
+    center: [-240, -180],
     recommendedLevel: 6,
   },
   {
@@ -151,10 +151,10 @@ export const REGIONS: RegionInfo[] = [
     nameId: 'Rumpun Bambu Giok & Kuil Pagoda Kuno',
     icon: '⛩️',
     description: 'A serene eastern sanctuary shaded by towering bamboo stalks, vermilion Torii gates, and a 3-tier celestial pagoda.',
-    descriptionId: 'Kawasan suci ketenangan di tenggara terjauh! Dihiasi gerbang Torii megah berwarna merah tua, rumpun bambu zamrud, jembatan kayu, dan kuil pagoda giok bertingkat tiga.',
+    descriptionId: 'Kawasan suci ketenangan di tenggara terjauh! Dihiasi gerbang Torii megah berwarna merah tua, rumpun bambu zamrud luas, jembatan dan paviliun langit.',
     color: '#10b981',
-    bounds: { minX: 110, maxX: 225, minZ: 55, maxZ: 175 },
-    center: [165, 115],
+    bounds: { minX: 105, maxX: 520, minZ: 35, maxZ: 460 },
+    center: [240, 160],
     recommendedLevel: 5,
   },
   {
@@ -163,10 +163,10 @@ export const REGIONS: RegionInfo[] = [
     nameId: 'Kaldera Sarang Naga & Kepulauan Api',
     icon: '🐉',
     description: 'A blistering volcanic hellscape of smoking magma pools, scorched arches, and monumental dragon fossil ribcages.',
-    descriptionId: 'Wilayah vulkanik paling berbahaya di utara terjauh! Aliran lahar pijar mendidih, fosil tengkorak dan rusuk naga raksasa purba, serta peti pusaka naga legendaris.',
+    descriptionId: 'Wilayah vulkanik paling berbahaya di utara terjauh! Aliran lahar pijar mendidih, kawah inti naga purba, serta kuburan fosil naga legendaris.',
     color: '#ef4444',
-    bounds: { minX: -45, maxX: 85, minZ: -190, maxZ: -90 },
-    center: [20, -145],
+    bounds: { minX: -120, maxX: 140, minZ: -480, maxZ: -85 },
+    center: [20, -220],
     recommendedLevel: 7,
   },
   {
@@ -256,12 +256,28 @@ export const WAYPOINTS: {
     desc: 'Altar puncak beku bersalju abadi dan peti kristal es legendaris',
   },
   {
+    id: 'wp_frostpeak_glacier',
+    nameId: 'Dataran Gletser Beku Frostpeak Luar',
+    regionId: 'puncak_frostpeak',
+    icon: '🏔️',
+    pos: [240, -220],
+    desc: 'Dataran tinggi es gletser abadi di utara-timur jauh luar Astraea',
+  },
+  {
     id: 'wp_shadowfen',
     nameId: 'Pusat Rawa Bayangan Purba',
     regionId: 'rawa_bayangan',
     icon: '🍄',
     pos: [-105, 12],
     desc: 'Gugusan jamur raksasa bercahaya di tengah rawa berkabut gelap barat',
+  },
+  {
+    id: 'wp_shadowfen_deep',
+    nameId: 'Lembah Jamur Abadi Shadowfen',
+    regionId: 'rawa_bayangan',
+    icon: '✨',
+    pos: [-300, 25],
+    desc: 'Grotto rahasia rawa terdalam dengan perairan luminesens ungu',
   },
   {
     id: 'wp_coralcove',
@@ -280,6 +296,14 @@ export const WAYPOINTS: {
     desc: 'Piramida kuno megah di tengah hamparan bukit pasir emas barat daya',
   },
   {
+    id: 'wp_solaria_oasis',
+    nameId: 'Oase Tersembunyi Solaria',
+    regionId: 'gurun_solaria',
+    icon: '🌴',
+    pos: [-340, 260],
+    desc: 'Oase rahasia berair jernih pirus dan pepohonan palem di pedalaman gurun luas',
+  },
+  {
     id: 'wp_thunderpeak',
     nameId: 'Altar Menara Puncak Halilintar',
     regionId: 'puncak_halilintar',
@@ -296,12 +320,28 @@ export const WAYPOINTS: {
     desc: 'Pagoda megah tiga tingkat beratap giok di tengah rumpun bambu tenggara',
   },
   {
+    id: 'wp_jade_sanctuary',
+    nameId: 'Paviliun Langit Bambu Surgawi',
+    regionId: 'hutan_pagoda_giok',
+    icon: '🪷',
+    pos: [310, 210],
+    desc: 'Kuil paviliun terbuka di perbukitan bambu timur terjauh',
+  },
+  {
     id: 'wp_dragoncaldera',
     nameId: 'Altar Kaldera Sarang Naga Purba',
     regionId: 'kaldera_naga_api',
     icon: '🐉',
     pos: [20, -145],
     desc: 'Lembah lava dan kuburan fosil naga raksasa di utara terjauh',
+  },
+  {
+    id: 'wp_dragon_core',
+    nameId: 'Inti Kawah Gunung Berapi Naga Purba',
+    regionId: 'kaldera_naga_api',
+    icon: '🔥',
+    pos: [35, -280],
+    desc: 'Kawah lava terdalam di jantung kaldera utara bersuhu ekstrem',
   },
   {
     id: 'wp_astraea',
@@ -318,32 +358,32 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
   if (x >= 100 && x <= 170 && z <= -82 && z >= -138) {
     return REGIONS[14];
   }
-  // 1. Dragonfang Caldera (Far North: z <= -95 && x between -45 and 85)
-  if (z <= -95 && x >= -45 && x <= 85) {
+  // 1. Dragonfang Caldera & Inferno Core (Far North: z <= -85 && x between -120 and 140)
+  if (z <= -85 && x >= -120 && x <= 140) {
     return REGIONS[13];
   }
-  // 2. Thunderpeak Lightning Spire (Far North-West: x <= -70 && z <= -80)
-  if (x <= -70 && z <= -80) {
+  // 2. Thunderpeak Lightning Spire (Far North-West: x <= -70 && z <= -70)
+  if (x <= -70 && z <= -70) {
     return REGIONS[11];
   }
-  // 3. Solaria Golden Dunes (Far South-West: x <= -105 && z >= 45)
-  if (x <= -105 && z >= 45) {
+  // 3. Solaria Golden Dunes & Oasis (Far South-West: x <= -95 && z >= 35)
+  if (x <= -95 && z >= 35) {
     return REGIONS[10];
   }
-  // 4. Jade Bamboo Grove & Pagoda (Far South-East: x >= 110 && z >= 50)
-  if (x >= 110 && z >= 50) {
+  // 4. Jade Bamboo Grove & Sanctuary (Far South-East: x >= 105 && z >= 35)
+  if (x >= 105 && z >= 35) {
     return REGIONS[12];
   }
-  // 5. Frostpeak Summit & Mountain Glacier (Far North-East)
-  if (x >= 75 && z <= -40) {
+  // 5. Frostpeak Summit & Mountain Glacier (Expanded Far North-East: x >= 45 && z <= -34)
+  if (x >= 45 && z <= -34 && (x >= 70 || z <= -45)) {
     return REGIONS[7];
   }
   // 6. Obsidian Volcanic Caldera (North)
   if (z <= -32 && Math.abs(x) < 85) {
     return REGIONS[4];
   }
-  // 7. Shadowfen Gloom Marsh (Mid-Far West)
-  if (x <= -65) {
+  // 7. Shadowfen Gloom Marsh (Mid-Far West: x <= -65 && z between -75 and 140)
+  if (x <= -65 && z >= -75 && z <= 140) {
     return REGIONS[8];
   }
   // 8. Fortress Village Val-Kragor (Far East Highland)

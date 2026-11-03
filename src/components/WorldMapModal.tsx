@@ -36,11 +36,11 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
   if (!isOpen) return null;
 
   // Map world coordinate boundaries for projection
-  // Expanded World bounds: X from -225 to +225 (width 450), Z from -190 to +175 (height 365)
-  const minX = -225;
-  const maxX = 225;
-  const minZ = -190;
-  const maxZ = 175;
+  // 2.5x Expanded World bounds: X from -580 to +680 (width 1260), Z from -460 to +460 (height 920)
+  const minX = -580;
+  const maxX = 680;
+  const minZ = -460;
+  const maxZ = 460;
 
   const worldToPercent = (wx: number, wz: number) => {
     const px = Math.min(100, Math.max(0, ((wx - minX) / (maxX - minX)) * 100));
@@ -67,7 +67,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 </span>
               </h2>
               <p className="text-[10px] sm:text-xs text-stone-400 hidden sm:block">
-                Jelajahi berbagai wilayah: Pedesaan, Pantai & Laut, Reruntuhan Kuno, Hutan Mistis, dan Kawah Titan.
+                Jelajahi benua raksasa Eldoria: Ibukota Astraea, Puncak Frostpeak, Gurun Solaria, Rawa Shadowfen, Kuil Pagoda, dan Sarang Naga Purba.
               </p>
             </div>
           </div>
