@@ -21,6 +21,7 @@ import {
   createFortressGatehouseMesh,
   createFortressWatchtowerMesh,
   createFortressKeepMesh,
+  createFortressWallMesh,
   createTrainingDummyMesh,
   createBonfireMesh,
   createGiantMushroomMesh,
@@ -154,23 +155,29 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return 2.0 + t * 1.2;
     }
 
-    // 2b. Grand Imperial Kingdom of Astraea (Far East: x: 180..335, z: -95..65)
-    // Connecting Royal Highway from Val-Kragor (x: 135..198, z: -28..-2)
-    if (x >= 135 && x <= 198 && z >= -28 && z <= -2) {
-      const highwayT = (x - 135) / 63;
-      return 3.2 + highwayT * 0.6; // Seamless paved highway rising gently to 3.8
+    // 2b. Mountain Trail from Val-Kragor up to Frostpeak & Astraea
+    // (x: 105..138, z: -40..-74)
+    if (x >= 105 && x <= 138 && z <= -40 && z >= -74) {
+      const trailT = Math.abs(z - -40) / 34;
+      return 3.2 + trailT * 4.8 + Math.sin(z * 0.18) * 0.35;
     }
-    if (x >= 180 && x <= 335 && z >= -95 && z <= 65) {
-      const distAstraeaCenter = Math.hypot(x - 245, z - -15);
-      if (distAstraeaCenter < 75) {
-        if (distAstraeaCenter < 58) {
-          return 3.8; // Vast flat marble imperial terrace
-        }
-        const t = (distAstraeaCenter - 58) / 17;
-        const outerGround = 3.2 + Math.sin(x * 0.05) * 0.6;
-        return (1 - t) * 3.8 + t * outerGround;
+
+    // 2c. Grand Imperial Kingdom of Astraea on Frostpeak Summit (x: 90..154, z: -72..-134)
+    if (x >= 90 && x <= 154 && z <= -72 && z >= -134) {
+      // Under the Grand Palace (x: 106..138, z: -104..-128): Elevated Raised Icy Platform
+      if (x >= 106 && x <= 138 && z <= -104 && z >= -128) {
+        return 9.2; // Majestic raised icy palace platform
       }
-      return 3.2 + Math.sin(x * 0.06) * 0.8;
+      // Palace transition ramp / steps zone
+      if (x >= 106 && x <= 138 && z < -98 && z > -104) {
+        const rampT = (-98 - z) / 6;
+        return 8.0 + rampT * 1.2;
+      }
+      // Central Sun Plaza, Avenue, and South Gate courtyard
+      if (x >= 94 && x <= 150 && z >= -132 && z <= -74) {
+        return 8.0; // Level marble imperial fortress plateau
+      }
+      return 7.6 + Math.sin(x * 0.08) * 0.4;
     }
 
     // 3. Misty Chasm & Wooden Suspension Bridge (x: 63..87, z: -30..0)
@@ -181,20 +188,19 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return 1.2 - chasmDepth * 5.2;
     }
 
-    // 4. Frostpeak Mountain Glacier (Far North-East: x > 85, z < -42)
-    if (x > 85 && z < -42) {
-      // Mountain climbing trail from Val-Kragor
-      if (x >= 95 && x <= 125 && z >= -65 && z <= -40) {
-        const trailT = Math.abs(z - -40) / 25;
-        return 3.2 + trailT * 2.6;
-      }
-      const peakDist = Math.hypot(x - 122, z - -85);
-      // Summit Cryo Altar
-      if (peakDist < 9) {
-        return 6.2;
-      }
-      const mountainSlope = Math.min(10.5, 3.2 + Math.abs(z - -42) * 0.09 + Math.sin(x * 0.12) * 2.0);
-      return mountainSlope;
+    // 4. Frostpeak Mountain Glacier & Snow Slopes (x > 75 && x < 180, z < -40)
+    if (x > 75 && x < 180 && z < -40) {
+      // Undulating snow-covered mountain ridges
+      const snowHills = 4.8 + Math.sin(x * 0.08) * 2.5 + Math.cos(z * 0.07) * 2.2;
+      // Towering background ice peaks and crags to the north and east
+      const backMountain = Math.max(0, -132 - z) * 0.55 + Math.max(0, x - 152) * 0.45;
+      const mountainPeaks = Math.sin(x * 0.12) * 3.5 + Math.cos(z * 0.11) * 3.0;
+      return Math.min(26, snowHills + backMountain + Math.max(0, mountainPeaks));
+    }
+
+    // 4b. Scenic Eastern Meadows & Highlands (old outer east)
+    if (x >= 180 && z >= -95 && z <= 65) {
+      return 3.2 + Math.sin(x * 0.05) * 1.2 + Math.cos(z * 0.06) * 1.0;
     }
 
     // 5. Solaria Golden Dunes & Sunken Pyramid (Far South-West: x < -105 && z > 35)
@@ -376,16 +382,17 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     const distCenter = Math.hypot(vx, vz);
     const distValKragor = Math.hypot(vx - 116, vz - -17);
 
-    // 0. Grand Imperial Kingdom of Astraea (Far East)
-    if (vx >= 180 && vx <= 335 && vz >= -95 && vz <= 65) {
-      const distPalace = Math.hypot(vx - 265, vz - -15);
-      const distPlaza = Math.hypot(vx - 230, vz - -15);
-      if (distPalace < 24 || distPlaza < 18) {
-        colors.push(colorImperialMarble.r, colorImperialMarble.g, colorImperialMarble.b);
-      } else if (Math.abs(vz - -15) <= 5.5) {
+    // 0. Grand Imperial Kingdom of Astraea (Now relocated to Frostpeak Summit)
+    if (vx >= 92 && vx <= 152 && vz <= -72 && vz >= -132) {
+      const distPalace = Math.hypot(vx - 122, vz - -116);
+      const distPlaza = Math.hypot(vx - 122, vz - -92);
+      // Central Imperial Gold Avenue from South Gate (z: -75) to Palace (z: -116)
+      if (Math.abs(vx - 122) <= 3.2 && vz >= -116 && vz <= -74) {
         colors.push(colorImperialGoldRoad.r, colorImperialGoldRoad.g, colorImperialGoldRoad.b);
+      } else if (distPalace < 18 || distPlaza < 14) {
+        colors.push(colorImperialMarble.r, colorImperialMarble.g, colorImperialMarble.b);
       } else {
-        colors.push(colorImperialMarble.r * 0.9, colorImperialMarble.g * 0.9, colorImperialMarble.b * 0.9);
+        colors.push(colorImperialMarble.r * 0.92, colorImperialMarble.g * 0.92, colorImperialMarble.b * 0.92);
       }
     }
     // 1. Village Eldoria cobblestone
@@ -412,9 +419,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     else if (vx > 110 && vz > 50) {
       colors.push(colorJadeBorders.r, colorJadeBorders.g, colorJadeBorders.b);
     }
-    // 7. Frostpeak Glacier & Snow
-    else if (vx > 85 && vz < -42) {
-      if (vy > 5.5) {
+    // 7. Frostpeak Mountain Glacier & Permanent Snow
+    else if (vx > 75 && vz < -40) {
+      if (vy > 6.0) {
         colors.push(colorSnow.r, colorSnow.g, colorSnow.b);
       } else {
         colors.push(colorIce.r, colorIce.g, colorIce.b);
@@ -922,6 +929,40 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     colliders.push({ type: 'circle', x: tc.x, z: tc.z, radius: 2.5, label: tc.label });
   });
 
+  // B2. Solid Fortress Rampart Walls Enclosing Val-Kragor Settlement
+  // North Wall (connecting NW Watchtower [104, -32] to NE Watchtower [132, -32])
+  const vkWallNorth = createFortressWallMesh(28);
+  vkWallNorth.position.set(118, valKragorBaseY, -32);
+  scene.add(vkWallNorth);
+  colliders.push({ type: 'box', minX: 104, maxX: 132, minZ: -33.5, maxZ: -30.5, label: 'Benteng Val-Kragor Utara' });
+
+  // South Wall (connecting SW Watchtower [104, -2] to SE Watchtower [132, -2])
+  const vkWallSouth = createFortressWallMesh(28);
+  vkWallSouth.position.set(118, valKragorBaseY, -2);
+  scene.add(vkWallSouth);
+  colliders.push({ type: 'box', minX: 104, maxX: 132, minZ: -3.5, maxZ: -0.5, label: 'Benteng Val-Kragor Selatan' });
+
+  // East Wall (connecting NE Watchtower [132, -32] to SE Watchtower [132, -2])
+  const vkWallEast = createFortressWallMesh(30);
+  vkWallEast.position.set(132, valKragorBaseY, -17);
+  vkWallEast.rotation.y = Math.PI / 2;
+  scene.add(vkWallEast);
+  colliders.push({ type: 'box', minX: 130.5, maxX: 133.5, minZ: -32, maxZ: -2, label: 'Benteng Val-Kragor Timur' });
+
+  // West Wall North Segment (connecting NW Watchtower to Gate North Bastion)
+  const vkWallWestN = createFortressWallMesh(11);
+  vkWallWestN.position.set(100, valKragorBaseY, -26.5);
+  vkWallWestN.rotation.y = Math.PI / 2;
+  scene.add(vkWallWestN);
+  colliders.push({ type: 'box', minX: 98.5, maxX: 101.5, minZ: -32, maxZ: -21, label: 'Benteng Val-Kragor Barat Laut' });
+
+  // West Wall South Segment (connecting SW Watchtower to Gate South Bastion)
+  const vkWallWestS = createFortressWallMesh(11);
+  vkWallWestS.position.set(100, valKragorBaseY, -7.5);
+  vkWallWestS.rotation.y = Math.PI / 2;
+  scene.add(vkWallWestS);
+  colliders.push({ type: 'box', minX: 98.5, maxX: 101.5, minZ: -13, maxZ: -2, label: 'Benteng Val-Kragor Barat Daya' });
+
   // D. Goran's Highland Armory & Mountain Forge
   const goranForge = createBlacksmithMesh();
   goranForge.position.set(122, valKragorBaseY, -28);
@@ -1065,17 +1106,17 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   );
 
   // ==========================================
-  // 2.10 FROSTPEAK MOUNTAIN & CRYO ALTAR
-  // (Far North-East Icy Mountain Summit)
+  // 2.10 FROSTPEAK GLACIER CRYO ALTAR & ICE RIDGE
+  // (Scenic eastern glacial ridge outside Astraea walls)
   // ==========================================
   const frostSpire1 = createIceCrystalSpireMesh();
-  frostSpire1.position.set(116, getTerrainHeight(116, -82), -82);
+  frostSpire1.position.set(142, getTerrainHeight(142, -95), -95);
   const frostSpire2 = createIceCrystalSpireMesh();
-  frostSpire2.position.set(128, getTerrainHeight(128, -88), -88);
+  frostSpire2.position.set(146, getTerrainHeight(146, -100), -100);
   frostSpire2.scale.set(1.4, 1.4, 1.4);
   scene.add(frostSpire1, frostSpire2);
 
-  // Ancient Ice Altar Circle
+  // Ancient Ice Altar Circle on glacier ridge
   const iceRing = new THREE.Mesh(
     new THREE.TorusGeometry(5.2, 0.4, 6, 16),
     new THREE.MeshStandardMaterial({
@@ -1087,9 +1128,18 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     })
   );
   iceRing.rotation.x = Math.PI / 2;
-  const altarY = getTerrainHeight(122, -85);
-  iceRing.position.set(122, altarY + 0.3, -85);
+  const altarY = getTerrainHeight(142, -95);
+  iceRing.position.set(142, altarY + 0.3, -95);
   scene.add(iceRing);
+  colliders.push({ type: 'circle', x: 142, z: -95, radius: 5.2, label: 'Altar Es Frostpeak' });
+
+  // Additional thematic glowing crystals on mountain trail
+  for (const cpos of [{ x: 106, z: -62 }, { x: 136, z: -60 }, { x: 88, z: -88 }, { x: 86, z: -112 }]) {
+    const crys = createIceCrystalSpireMesh();
+    crys.position.set(cpos.x, getTerrainHeight(cpos.x, cpos.z), cpos.z);
+    crys.scale.set(0.9, 1.1, 0.9);
+    scene.add(crys);
+  }
 
   // ==========================================
   // 2.11 SHADOWFEN GLOOM MARSH (Far West)
@@ -1360,116 +1410,188 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   }
 
   // ==========================================
-  // 8b. GRAND IMPERIAL KINGDOM OF ASTRAEA (Far East Metropolis)
-  // Vast royal city at X: 190..330, Z: -90..65
+  // 8b. GRAND IMPERIAL KINGDOM OF ASTRAEA (Frostpeak Summit Metropolis)
+  // Relocated to the Eternal Snow Peak (Level 5) with full fortress walls,
+  // South-facing Grand Gate, and raised icy foundation platform.
   // ==========================================
-  const astraeaBaseY = 3.8;
+  const astraeaBaseY = 8.0;
 
-  // A. Grand Imperial Sun Palace of Astraea (X: 266, Z: -15)
+  // A. Giant Raised Icy Stone Platform (Pondasi Batu Es Raksasa Landasan Istana)
+  const icyPlinthGeo = new THREE.BoxGeometry(34, 3.0, 32);
+  const icyPlinthMat = new THREE.MeshStandardMaterial({
+    color: 0xc8e6f9,
+    roughness: 0.3,
+    metalness: 0.2,
+    emissive: 0x0284c7,
+    emissiveIntensity: 0.15,
+  });
+  const palaceIcyPlatform = new THREE.Mesh(icyPlinthGeo, icyPlinthMat);
+  palaceIcyPlatform.position.set(122, 9.2 - 1.5, -116);
+  palaceIcyPlatform.receiveShadow = true;
+  scene.add(palaceIcyPlatform);
+
+  // Decorative Chiseled Frost Trim around platform
+  const icyTrim = new THREE.Mesh(
+    new THREE.BoxGeometry(34.8, 0.6, 32.8),
+    new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.7, roughness: 0.2 })
+  );
+  icyTrim.position.set(122, 9.2 - 0.1, -116);
+  scene.add(icyTrim);
+
+  // B. Grand Imperial Sun Palace of Astraea (Facing South / Direction: 180° towards plaza)
   const imperialPalace = createImperialPalaceMesh();
-  imperialPalace.position.set(266, astraeaBaseY, -15);
-  imperialPalace.rotation.y = -Math.PI / 2; // Facing west towards the plaza
+  imperialPalace.position.set(122, 9.2, -116);
+  imperialPalace.rotation.y = 0; // Perfectly facing South towards the central avenue and gate!
   scene.add(imperialPalace);
   colliders.push({
     type: 'box',
-    minX: 255,
-    maxX: 278,
-    minZ: -26,
-    maxZ: -4,
+    minX: 111,
+    maxX: 133,
+    minZ: -127,
+    maxZ: -105,
     label: 'Istana Kerajaan Astraea',
   });
 
-  // B. Celestial 3-Tier Fountain of Immortality (Central Sun Plaza, X: 230, Z: -15)
+  // C. Celestial 3-Tier Fountain of Immortality (Central Sun Plaza, X: 122, Z: -92)
   const celestialFountain = createImperialFountainMesh();
-  celestialFountain.position.set(230, astraeaBaseY, -15);
+  celestialFountain.position.set(122, astraeaBaseY, -92);
   scene.add(celestialFountain);
   colliders.push({
     type: 'circle',
-    x: 230,
-    z: -15,
+    x: 122,
+    z: -92,
     radius: 4.8,
     label: 'Air Mancur Keabadian Astraea',
   });
 
-  // C. Imperial City Gatehouse & Fortified Bastions (X: 195, Z: -15)
+  // D. South Imperial Gatehouse & Fortified Bastions (South Entrance, X: 122, Z: -75)
+  // Facing South (180° / rotation.y = 0) directly towards mountain climbing trail
   const imperialGatehouse = createImperialGatehouseMesh();
-  imperialGatehouse.position.set(195, astraeaBaseY, -15);
-  imperialGatehouse.rotation.y = Math.PI / 2;
+  imperialGatehouse.position.set(122, astraeaBaseY, -75);
+  imperialGatehouse.rotation.y = 0;
   scene.add(imperialGatehouse);
   colliders.push(
-    { type: 'box', minX: 192, maxX: 198, minZ: -23, maxZ: -17, label: 'Bastion Utara Gerbang Astraea' },
-    { type: 'box', minX: 192, maxX: 198, minZ: -13, maxZ: -7, label: 'Bastion Selatan Gerbang Astraea' }
+    { type: 'box', minX: 114, maxX: 119.5, minZ: -77.5, maxZ: -72.5, label: 'Bastion Barat Gerbang Astraea' },
+    { type: 'box', minX: 124.5, maxX: 130, minZ: -77.5, maxZ: -72.5, label: 'Bastion Timur Gerbang Astraea' }
   );
 
-  // Rampart Walls extending north and south from gate
-  const wallNorth = createImperialWallMesh(34);
-  wallNorth.position.set(195, astraeaBaseY, -40);
-  wallNorth.rotation.y = Math.PI / 2;
-  scene.add(wallNorth);
-  colliders.push({ type: 'box', minX: 193, maxX: 197, minZ: -57, maxZ: -23, label: 'Tembok Kerajaan Utara' });
+  // E. Solid Imperial Fortress Wall Perimeter (Melingkupi Seluruh Wilayah Ibukota)
+  // 1. South Wall - West Wing (from South Gate to SW corner [96, -75])
+  const wallSouthWest = createImperialWallMesh(20.5);
+  wallSouthWest.position.set(106.25, astraeaBaseY, -75);
+  scene.add(wallSouthWest);
+  colliders.push({ type: 'box', minX: 96, maxX: 116.5, minZ: -76.5, maxZ: -73.5, label: 'Benteng Astraea Selatan Barat' });
 
-  const wallSouth = createImperialWallMesh(34);
-  wallSouth.position.set(195, astraeaBaseY, 10);
-  wallSouth.rotation.y = Math.PI / 2;
-  scene.add(wallSouth);
-  colliders.push({ type: 'box', minX: 193, maxX: 197, minZ: -7, maxZ: 27, label: 'Tembok Kerajaan Selatan' });
+  // 2. South Wall - East Wing (from South Gate to SE corner [148, -75])
+  const wallSouthEast = createImperialWallMesh(20.5);
+  wallSouthEast.position.set(137.75, astraeaBaseY, -75);
+  scene.add(wallSouthEast);
+  colliders.push({ type: 'box', minX: 127.5, maxX: 148, minZ: -76.5, maxZ: -73.5, label: 'Benteng Astraea Selatan Timur' });
 
-  // D. Grand Royal Bazaar Stalls
-  const astraeaStall1 = createImperialBazaarStallMesh(0x9333ea, 0xfacc15); // Celestial Potions
-  astraeaStall1.position.set(226, astraeaBaseY, -27);
-  scene.add(astraeaStall1);
-  colliders.push({ type: 'box', minX: 224, maxX: 228, minZ: -29, maxZ: -25, label: 'Kios Alkimia Kerajaan' });
+  // 3. West Wall (length 57, from [96, -75] to [96, -132])
+  for (let w = 0; w < 3; w++) {
+    const wz = -84.5 - w * 19;
+    const wWall = createImperialWallMesh(19);
+    wWall.position.set(96, astraeaBaseY + (w === 2 ? 1.0 : 0), wz);
+    wWall.rotation.y = Math.PI / 2;
+    scene.add(wWall);
+  }
+  colliders.push({ type: 'box', minX: 94.5, maxX: 97.5, minZ: -132, maxZ: -75, label: 'Benteng Astraea Barat' });
 
-  const astraeaStall2 = createImperialBazaarStallMesh(0x2563eb, 0x38bdf8); // Masterwork Armory
-  astraeaStall2.position.set(238, astraeaBaseY, -27);
-  scene.add(astraeaStall2);
-  colliders.push({ type: 'box', minX: 236, maxX: 240, minZ: -29, maxZ: -25, label: 'Kios Senjata Astraea' });
+  // 4. East Wall (length 57, from [148, -75] to [148, -132])
+  for (let w = 0; w < 3; w++) {
+    const wz = -84.5 - w * 19;
+    const eWall = createImperialWallMesh(19);
+    eWall.position.set(148, astraeaBaseY + (w === 2 ? 1.0 : 0), wz);
+    eWall.rotation.y = Math.PI / 2;
+    scene.add(eWall);
+  }
+  colliders.push({ type: 'box', minX: 146.5, maxX: 149.5, minZ: -132, maxZ: -75, label: 'Benteng Astraea Timur' });
 
-  const astraeaStall3 = createImperialBazaarStallMesh(0xd97706, 0xfef08a); // Silk & Relics
-  astraeaStall3.position.set(226, astraeaBaseY, -3);
-  scene.add(astraeaStall3);
-  colliders.push({ type: 'box', minX: 224, maxX: 228, minZ: -5, maxZ: -1, label: 'Kios Sutra Emas' });
+  // 5. North Wall (behind Palace, from [96, -132] to [148, -132], length 52)
+  for (let w = 0; w < 2; w++) {
+    const wx = 109 + w * 26;
+    const nWall = createImperialWallMesh(26);
+    nWall.position.set(wx, astraeaBaseY + 1.2, -132);
+    scene.add(nWall);
+  }
+  colliders.push({ type: 'box', minX: 96, maxX: 148, minZ: -133.5, maxZ: -130.5, label: 'Benteng Astraea Utara' });
 
-  const astraeaStall4 = createImperialBazaarStallMesh(0x059669, 0xa7f3d0); // Royal Provisions
-  astraeaStall4.position.set(238, astraeaBaseY, -3);
-  scene.add(astraeaStall4);
-  colliders.push({ type: 'box', minX: 236, maxX: 240, minZ: -5, maxZ: -1, label: 'Kios Perjamuan Kaisar' });
-
-  // E. Heroic Monuments & Statues
-  const heroStatue1 = createImperialHeroStatueMesh();
-  heroStatue1.position.set(212, astraeaBaseY, -24);
-  scene.add(heroStatue1);
-  colliders.push({ type: 'circle', x: 212, z: -24, radius: 1.4, label: 'Monumen Pahlawan Astraea' });
-
-  const heroStatue2 = createImperialHeroStatueMesh();
-  heroStatue2.position.set(212, astraeaBaseY, -6);
-  scene.add(heroStatue2);
-  colliders.push({ type: 'circle', x: 212, z: -6, radius: 1.4, label: 'Monumen Ksatria Emas' });
-
-  // F. Imperial Cherry Blossom / Sakura Trees
-  const sakuraCoords = [
-    { x: 204, z: -22 }, { x: 214, z: -22 }, { x: 224, z: -22 },
-    { x: 204, z: -8 }, { x: 214, z: -8 }, { x: 224, z: -8 },
-    { x: 250, z: -29 }, { x: 260, z: -29 },
-    { x: 250, z: -1 }, { x: 260, z: -1 },
-    { x: 275, z: -28 }, { x: 275, z: -2 },
+  // 6. Four Sturdy Corner Bastion Towers
+  const cornerTowers = [
+    { x: 96, z: -75, y: astraeaBaseY, label: 'Menara Benteng Barat Daya' },
+    { x: 148, z: -75, y: astraeaBaseY, label: 'Menara Benteng Tenggara' },
+    { x: 96, z: -132, y: astraeaBaseY + 1.2, label: 'Menara Benteng Barat Laut' },
+    { x: 148, z: -132, y: astraeaBaseY + 1.2, label: 'Menara Benteng Timur Laut' },
   ];
-  sakuraCoords.forEach((sc) => {
-    const sTree = createCherryBlossomTreeMesh();
-    sTree.position.set(sc.x, getTerrainHeight(sc.x, sc.z), sc.z);
-    const s = 0.9 + Math.random() * 0.3;
-    sTree.scale.set(s, s, s);
-    sTree.rotation.y = Math.random() * Math.PI * 2;
-    scene.add(sTree);
-    colliders.push({ type: 'circle', x: sc.x, z: sc.z, radius: 0.65 * s, label: 'Pohon Sakura Astraea' });
+  cornerTowers.forEach((ct) => {
+    const tower = createFortressWatchtowerMesh();
+    tower.position.set(ct.x, ct.y, ct.z);
+    scene.add(tower);
+    colliders.push({ type: 'circle', x: ct.x, z: ct.z, radius: 2.8, label: ct.label });
   });
 
-  // G. Astraea Royal NPCs
-  // NPC 13: Kaisar Aurelius Astraea
+  // F. Grand Royal Bazaar Stalls
+  const astraeaStall1 = createImperialBazaarStallMesh(0x9333ea, 0xfacc15); // Celestial Potions (Lyra)
+  astraeaStall1.position.set(112, astraeaBaseY, -92);
+  astraeaStall1.rotation.y = Math.PI / 2;
+  scene.add(astraeaStall1);
+  colliders.push({ type: 'box', minX: 110, maxX: 114, minZ: -94, maxZ: -90, label: 'Kios Alkimia Kerajaan' });
+
+  const astraeaStall2 = createImperialBazaarStallMesh(0x2563eb, 0x38bdf8); // Masterwork Armory
+  astraeaStall2.position.set(112, astraeaBaseY, -84);
+  astraeaStall2.rotation.y = Math.PI / 2;
+  scene.add(astraeaStall2);
+  colliders.push({ type: 'box', minX: 110, maxX: 114, minZ: -86, maxZ: -82, label: 'Kios Senjata Astraea' });
+
+  const astraeaStall3 = createImperialBazaarStallMesh(0xd97706, 0xfef08a); // Silk & Relics
+  astraeaStall3.position.set(132, astraeaBaseY, -92);
+  astraeaStall3.rotation.y = -Math.PI / 2;
+  scene.add(astraeaStall3);
+  colliders.push({ type: 'box', minX: 130, maxX: 134, minZ: -94, maxZ: -90, label: 'Kios Sutra Emas' });
+
+  const astraeaStall4 = createImperialBazaarStallMesh(0x059669, 0xa7f3d0); // Royal Provisions
+  astraeaStall4.position.set(132, astraeaBaseY, -84);
+  astraeaStall4.rotation.y = -Math.PI / 2;
+  scene.add(astraeaStall4);
+  colliders.push({ type: 'box', minX: 130, maxX: 134, minZ: -86, maxZ: -82, label: 'Kios Perjamuan Kaisar' });
+
+  // G. Heroic Monuments Flanking Royal Avenue
+  const heroStatue1 = createImperialHeroStatueMesh();
+  heroStatue1.position.set(117, astraeaBaseY, -82);
+  scene.add(heroStatue1);
+  colliders.push({ type: 'circle', x: 117, z: -82, radius: 1.4, label: 'Monumen Pahlawan Astraea' });
+
+  const heroStatue2 = createImperialHeroStatueMesh();
+  heroStatue2.position.set(127, astraeaBaseY, -82);
+  scene.add(heroStatue2);
+  colliders.push({ type: 'circle', x: 127, z: -82, radius: 1.4, label: 'Monumen Ksatria Emas' });
+
+  // H. Snowy Pine Trees along Avenue and Courtyard (Thematic Snow Alpine Vegetation)
+  const snowyPineCoords = [
+    { x: 114, z: -78 }, { x: 130, z: -78 },
+    { x: 108, z: -86 }, { x: 136, z: -86 },
+    { x: 104, z: -98 }, { x: 140, z: -98 },
+    { x: 106, z: -110 }, { x: 138, z: -110 },
+    { x: 112, z: -124 }, { x: 132, z: -124 },
+    { x: 102, z: -124 }, { x: 142, z: -124 },
+  ];
+  snowyPineCoords.forEach((pc) => {
+    const pTree = createTreeMesh('pine');
+    const py = getTerrainHeight(pc.x, pc.z);
+    pTree.position.set(pc.x, py, pc.z);
+    const s = 0.95 + Math.random() * 0.35;
+    pTree.scale.set(s, s * 1.2, s);
+    scene.add(pTree);
+    colliders.push({ type: 'circle', x: pc.x, z: pc.z, radius: 0.7 * s, label: 'Pohon Pinus Salju Astraea' });
+  });
+
+  // I. Astraea Royal NPCs
+  // NPC 13: Kaisar Aurelius Astraea (Standing majestically on Throne Portico at entrance)
   const emperorGroup = createCustomNPCMesh('emperor');
-  const emperorPos: [number, number, number] = [255, astraeaBaseY, -15];
+  const emperorPos: [number, number, number] = [122, 9.2 + 1.6, -108.2];
   emperorGroup.position.set(...emperorPos);
-  emperorGroup.rotation.y = -Math.PI / 2;
+  emperorGroup.rotation.y = 0; // Facing South down the royal carpet and stairs
   scene.add(emperorGroup);
   npcs.push({
     id: 'emperor_aurelius',
@@ -1483,11 +1605,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     icon: '👑',
   });
 
-  // NPC 14: Panglima Perang Vane (Grand Marshal)
+  // NPC 14: Panglima Perang Vane (Grand Marshal at Avenue Entry)
   const marshalGroup = createCustomNPCMesh('marshal');
-  const marshalPos: [number, number, number] = [201, astraeaBaseY, -11];
+  const marshalPos: [number, number, number] = [126, astraeaBaseY, -79];
   marshalGroup.position.set(...marshalPos);
-  marshalGroup.rotation.y = -Math.PI / 2;
+  marshalGroup.rotation.y = 0;
   scene.add(marshalGroup);
   npcs.push({
     id: 'marshal_vane',
@@ -1503,9 +1625,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 15: Saudagar Kerajaan Lyra (Royal Merchant)
   const lyraGroup = createCustomNPCMesh('alchemist');
-  const lyraPos: [number, number, number] = [226, astraeaBaseY, -25];
+  const lyraPos: [number, number, number] = [112, astraeaBaseY, -90];
   lyraGroup.position.set(...lyraPos);
-  lyraGroup.rotation.y = 0;
+  lyraGroup.rotation.y = Math.PI / 2;
   scene.add(lyraGroup);
   npcs.push({
     id: 'merchant_lyra',
@@ -1519,11 +1641,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     icon: '💎',
   });
 
-  // NPC 16: Penjaga Gerbang Emas Astraea (Imperial Sentinel)
+  // NPC 16: Penjaga Gerbang Emas Astraea (Imperial Sentinel at South Gate)
   const astraeaGuardGroup = createCustomNPCMesh('guard');
-  const astraeaGuardPos: [number, number, number] = [198, astraeaBaseY, -19];
+  const astraeaGuardPos: [number, number, number] = [119, astraeaBaseY, -73.5];
   astraeaGuardGroup.position.set(...astraeaGuardPos);
-  astraeaGuardGroup.rotation.y = -Math.PI / 2;
+  astraeaGuardGroup.rotation.y = 0; // Facing South guarding entrance
   scene.add(astraeaGuardGroup);
   npcs.push({
     id: 'guard_astraea',
@@ -1547,14 +1669,14 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { id: 'chest_forest', pos: [38, 0, 12] as [number, number, number] }, // Mystic deep forest
     { id: 'chest_boss_gateway', pos: [0, 0, -38] as [number, number, number] }, // Entrance to Titan Crater
     { id: 'chest_valkragor', pos: [134, 0, -22] as [number, number, number] }, // Fortress keep secret treasury
-    { id: 'chest_frostpeak', pos: [122, 0, -85] as [number, number, number] }, // Cryo Altar Summit
+    { id: 'chest_frostpeak', pos: [142, 0, -95] as [number, number, number] }, // Cryo Altar Summit
     { id: 'chest_shadowfen', pos: [-110, 0, 12] as [number, number, number] }, // Shadowfen smuggler cache
     { id: 'chest_coralcove', pos: [86, 0, 56] as [number, number, number] }, // Shipwreck pirate gold
     { id: 'chest_solaria', pos: [-165, 0, 110] as [number, number, number] }, // Solaria Pharaoh Gold
     { id: 'chest_thunderpeak', pos: [-155, 0, -135] as [number, number, number] }, // Storm Altar Relic
     { id: 'chest_jadepagoda', pos: [165, 0, 115] as [number, number, number] }, // Celestial Pagoda Treasure
     { id: 'chest_dragoncaldera', pos: [20, 0, -145] as [number, number, number] }, // Dragon Hoard
-    { id: 'chest_astraea', pos: [274, 0, -15] as [number, number, number] }, // Astraea Imperial Treasury
+    { id: 'chest_astraea', pos: [122, 0, -125] as [number, number, number] }, // Astraea Imperial Treasury
   ];
 
   const chests: WorldObjects['chests'] = [];

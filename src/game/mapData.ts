@@ -174,12 +174,12 @@ export const REGIONS: RegionInfo[] = [
     name: 'Grand Imperial Kingdom of Astraea',
     nameId: 'Ibukota Kerajaan Emas Astraea & Istana Kaisar',
     icon: '👑',
-    description: 'A colossal imperial metropolis far to the east, featuring the grand Sun Palace, towering marble colonnades, royal bazaar, and the Fountain of Immortality.',
-    descriptionId: 'Ibukota kerajaan megah nan luas di timur terjauh! Membentang luas dengan Istana Kaisar Aurelius berkubah emas, plaza marmer, gerbang benteng kembar, air mancur keabadian, dan pasar kerajaan yang ramai.',
+    description: 'A colossal imperial metropolis situated atop the eternal snow peak of Frostpeak, featuring the grand Sun Palace, towering marble colonnades, royal bazaar, and the Fountain of Immortality.',
+    descriptionId: 'Ibukota kerajaan megah nan luas di Puncak Salju Abadi Frostpeak! Berdiri megah di atas pondasi batu es raksasa dengan Istana Kaisar Aurelius berkubah emas, plaza marmer, gerbang benteng kembar menghadap selatan, air mancur keabadian, dan pasar kerajaan yang ramai.',
     color: '#fbbf24',
-    bounds: { minX: 180, maxX: 330, minZ: -100, maxZ: 70 },
-    center: [255, -15],
-    recommendedLevel: 25,
+    bounds: { minX: 90, maxX: 154, minZ: -134, maxZ: -70 },
+    center: [122, -95],
+    recommendedLevel: 5,
   },
 ];
 
@@ -252,7 +252,7 @@ export const WAYPOINTS: {
     nameId: 'Kuil Es Puncak Frostpeak',
     regionId: 'puncak_frostpeak',
     icon: '❄️',
-    pos: [122, -85],
+    pos: [142, -95],
     desc: 'Altar puncak beku bersalju abadi dan peti kristal es legendaris',
   },
   {
@@ -308,14 +308,14 @@ export const WAYPOINTS: {
     nameId: 'Gerbang Kerajaan Emas Astraea & Istana Kaisar',
     regionId: 'kerajaan_astraea',
     icon: '👑',
-    pos: [215, -15],
-    desc: 'Ibukota megah kerajaan emas di timur jauh, dekat Istana Kaisar Aurelius dan Plaza Air Mancur Keabadian',
+    pos: [122, -75],
+    desc: 'Gerbang megah selatan Ibukota Kerajaan Emas Astraea di Puncak Salju Frostpeak, menghadap jalur pendakian utama',
   },
 ];
 
 export function getCurrentRegion(x: number, z: number): RegionInfo {
-  // 0. Grand Imperial Kingdom of Astraea (Far East: x >= 180)
-  if (x >= 180) {
+  // 0. Grand Imperial Kingdom of Astraea (Frostpeak Summit: x between 90 and 154, z between -134 and -70)
+  if (x >= 90 && x <= 154 && z <= -70 && z >= -134) {
     return REGIONS[14];
   }
   // 1. Dragonfang Caldera (Far North: z <= -95 && x between -45 and 85)
@@ -334,8 +334,8 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
   if (x >= 110 && z >= 50) {
     return REGIONS[12];
   }
-  // 5. Frostpeak Summit (Far North-East)
-  if (x >= 85 && z <= -45) {
+  // 5. Frostpeak Summit & Mountain Glacier (Far North-East)
+  if (x >= 75 && z <= -40) {
     return REGIONS[7];
   }
   // 6. Obsidian Volcanic Caldera (North)

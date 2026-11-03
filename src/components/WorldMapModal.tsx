@@ -125,17 +125,23 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 </div>
               </div>
 
-              {/* 1. Frostpeak Glacier Summit (North-East) */}
+              {/* 1. Frostpeak Glacier Summit & Grand Imperial Astraea (North-East) */}
               <div
-                onClick={() => setSelectedRegion(REGIONS[7])}
+                onClick={() => setSelectedRegion(REGIONS[14])}
                 className="absolute top-0 right-0 w-[35%] h-[32%] bg-gradient-to-bl from-[#0c4a6e] via-[#0284c7]/40 to-transparent border-l border-b border-sky-400/40 cursor-pointer hover:brightness-125 transition-all z-10"
               >
-                <div className="absolute top-2 right-2 text-[10px] font-bold text-sky-200 flex items-center gap-1 text-right">
-                  <span>❄️</span> {REGIONS[7].nameId} (Lv.{REGIONS[7].recommendedLevel})
+                <div className="absolute top-2 right-2 text-[10px] font-bold text-amber-300 flex items-center gap-1 text-right">
+                  <span>👑</span> {REGIONS[14].nameId}
                 </div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center opacity-80 pointer-events-none">
-                  <span className="text-base">🏔️</span>
-                  <span className="text-[8px] text-sky-300 font-bold">Cryo Altar</span>
+                <div 
+                  onClick={(e) => { e.stopPropagation(); setSelectedRegion(REGIONS[7]); }}
+                  className="absolute top-7 right-2 text-[8px] font-semibold text-sky-200 hover:text-white bg-sky-950/70 px-1.5 py-0.5 rounded border border-sky-500/40 cursor-pointer"
+                >
+                  ❄️ {REGIONS[7].nameId}
+                </div>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center opacity-90 pointer-events-none">
+                  <span className="text-base">🏰</span>
+                  <span className="text-[8px] text-amber-200 font-bold">Istana & Benteng Astraea</span>
                 </div>
               </div>
 

@@ -2672,6 +2672,54 @@ export function createFortressGatehouseMesh(): THREE.Group {
   return gate;
 }
 
+// 2b. Highland Fortress Rampart Wall Section (Benteng Pertahanan Val-Kragor)
+export function createFortressWallMesh(length: number = 20): THREE.Group {
+  const wall = new THREE.Group();
+  const stoneMat = new THREE.MeshLambertMaterial({ color: 0x334155, flatShading: true }); // Dark rugged slate
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x4e342e, flatShading: true }); // Sturdy timber
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.85, roughness: 0.3 });
+
+  // Main Slate Stone Wall Body
+  const body = new THREE.Mesh(new THREE.BoxGeometry(length, 5.5, 2.6), stoneMat);
+  body.position.set(0, 2.75, 0);
+  body.castShadow = true;
+  body.receiveShadow = true;
+
+  // Deep Sub-Terrain Foundation (never sinks or floats)
+  const foundation = new THREE.Mesh(new THREE.BoxGeometry(length + 0.4, 3.5, 3.0), stoneMat);
+  foundation.position.set(0, -1.75, 0);
+  wall.add(body, foundation);
+
+  // Wooden Walkway on inner edge
+  const walkway = new THREE.Mesh(new THREE.BoxGeometry(length, 0.4, 1.2), woodMat);
+  walkway.position.set(0, 5.3, -0.6);
+  wall.add(walkway);
+
+  // Stone Merlons & Defensive Crenellations on outer edge
+  const merlonCount = Math.floor(length / 2.0);
+  for (let i = 0; i < merlonCount; i++) {
+    const x = -length / 2 + 1.0 + i * 2.0;
+    const merlon = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.0, 0.6), stoneMat);
+    merlon.position.set(x, 6.0, 0.9);
+    wall.add(merlon);
+  }
+
+  // Iron Wall Braziers / Torches along wall length
+  const brazierCount = Math.max(1, Math.floor(length / 9));
+  for (let b = 1; b <= brazierCount; b++) {
+    const bx = -length / 2 + (length / (brazierCount + 1)) * b;
+    const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.5), ironMat);
+    bracket.position.set(bx, 4.2, 1.5);
+    const fireBowl = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.15, 0.35, 6), ironMat);
+    fireBowl.position.set(bx, 4.4, 1.7);
+    const flame = new THREE.Mesh(new THREE.SphereGeometry(0.2, 6, 6), new THREE.MeshBasicMaterial({ color: 0xff6d00 }));
+    flame.position.set(bx, 4.65, 1.7);
+    wall.add(bracket, fireBowl, flame);
+  }
+
+  return wall;
+}
+
 // 3. Fortress Watchtower (Menara Pengawas Batu)
 export function createFortressWatchtowerMesh(): THREE.Group {
   const tower = new THREE.Group();
@@ -3305,23 +3353,76 @@ export function createImperialPalaceMesh(): THREE.Group {
     roughness: 0.1,
   });
   const redCarpet = new THREE.MeshLambertMaterial({ color: 0x991b1b });
+  const goldFringe = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8, roughness: 0.2 });
 
-  // Elevated Marble Foundation Podium
+  // Elevated Marble Foundation Podium with deep sub-base (zero gaps)
   const podium = new THREE.Mesh(new THREE.BoxGeometry(22, 1.6, 18), whiteMarble);
   podium.position.set(0, 0.8, 0);
-  palace.add(podium);
+  const podiumSubBase = new THREE.Mesh(new THREE.BoxGeometry(22.6, 3.2, 18.6), whiteMarble);
+  podiumSubBase.position.set(0, -1.6, 0);
+  palace.add(podium, podiumSubBase);
 
-  // Grand Entrance Steps (Leading to +Z)
-  for (let s = 1; s <= 4; s++) {
-    const step = new THREE.Mesh(new THREE.BoxGeometry(10 - s * 0.6, 0.35, 1.2), whiteMarble);
-    step.position.set(0, 0.18 * s, 9 + s * 1.0);
-    palace.add(step);
+  // Grand Entrance Steps (Leading from podium z: 9.0, y: 1.6 smoothly down to ground y: 0.0, z: 15.4)
+  // 8 progressive solid marble steps with deep foundation interlocking down to y: -1.5 (zero gaps)
+  const stepCount = 8;
+  const stepRise = 1.6 / stepCount; // 0.2m per step
+  const stepRun = 0.8; // 0.8m per step
+  const stairWidth = 11.0;
+
+  for (let s = 0; s < stepCount; s++) {
+    const stepTopY = 1.6 - (s + 1) * stepRise; // from 1.4 down to 0.0
+    const stepZ = 9.0 + s * stepRun + stepRun / 2;
+    // Step box extends from stepTopY down to -1.5 so there are NEVER floating gaps
+    const stepHeight = stepTopY - (-1.5);
+    const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(stairWidth, stepHeight, stepRun), whiteMarble);
+    stepMesh.position.set(0, -1.5 + stepHeight / 2, stepZ);
+    palace.add(stepMesh);
+
+    // Red Carpet runner on this step tread
+    const carpetStep = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.04, stepRun), redCarpet);
+    carpetStep.position.set(0, stepTopY + 0.02, stepZ);
+    palace.add(carpetStep);
+
+    // Red Carpet runner on this step riser (front face)
+    const riserHeight = stepRise;
+    const carpetRiser = new THREE.Mesh(new THREE.BoxGeometry(3.6, riserHeight, 0.04), redCarpet);
+    carpetRiser.position.set(0, stepTopY + riserHeight / 2, 9.0 + s * stepRun);
+    palace.add(carpetRiser);
   }
 
-  // Red Imperial Carpet on Steps and Portico
-  const carpet = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.05, 16), redCarpet);
-  carpet.position.set(0, 1.63, 6);
-  palace.add(carpet);
+  // Marble Balustrades & Handrails flanking stairs
+  for (const bx of [-stairWidth / 2 - 0.4, stairWidth / 2 + 0.4]) {
+    const balustrade = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.2, stepCount * stepRun + 0.6), whiteMarble);
+    balustrade.position.set(bx, 1.4, 9.0 + (stepCount * stepRun) / 2);
+    balustrade.rotation.x = Math.atan2(1.6, stepCount * stepRun);
+    const postBottom = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.6, 0.8), whiteMarble);
+    postBottom.position.set(bx, 0.8, 9.0 + stepCount * stepRun + 0.4);
+    const postTop = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.6, 0.8), whiteMarble);
+    postTop.position.set(bx, 2.4, 9.0 - 0.4);
+    const finialBottom = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 12), goldTrim);
+    finialBottom.position.set(bx, 1.8, 9.0 + stepCount * stepRun + 0.4);
+    const finialTop = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 12), goldTrim);
+    finialTop.position.set(bx, 3.4, 9.0 - 0.4);
+    palace.add(balustrade, postBottom, postTop, finialBottom, finialTop);
+  }
+
+  // Red Imperial Carpet on Portico (from doorway z: 6.8 to podium edge z: 9.0)
+  const porticoCarpet = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.04, 2.2), redCarpet);
+  porticoCarpet.position.set(0, 1.62, 7.9);
+  palace.add(porticoCarpet);
+
+  // Red Imperial Carpet extending straight out across the palace courtyard / pelataran istana
+  // From bottom of stairs (z: 15.4) extending out to z: 34.0 (length 18.6m)
+  const courtyardCarpetLength = 18.6;
+  const courtyardCarpet = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.04, courtyardCarpetLength), redCarpet);
+  courtyardCarpet.position.set(0, 0.03, 15.4 + courtyardCarpetLength / 2);
+  // Gold fringe borders along left and right edges
+  for (const fx of [-1.85, 1.85]) {
+    const fringe = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, courtyardCarpetLength), goldFringe);
+    fringe.position.set(fx, 0.035, 15.4 + courtyardCarpetLength / 2);
+    palace.add(fringe);
+  }
+  palace.add(courtyardCarpet);
 
   // Main Palace Central Hall
   const mainHall = new THREE.Mesh(new THREE.BoxGeometry(18, 9, 14), whiteMarble);
@@ -3509,10 +3610,12 @@ export function createImperialWallMesh(length: number = 18): THREE.Group {
   body.position.set(0, 3.25, 0);
   wall.add(body);
 
-  // Base Plinth
+  // Base Plinth with deep sub-base into ground (never floats or sinks)
   const plinth = new THREE.Mesh(new THREE.BoxGeometry(length + 0.4, 0.8, 2.9), stoneTrim);
   plinth.position.set(0, 0.4, 0);
-  wall.add(plinth);
+  const deepFoundation = new THREE.Mesh(new THREE.BoxGeometry(length + 0.4, 3.5, 3.0), stoneTrim);
+  deepFoundation.position.set(0, -1.75, 0);
+  wall.add(plinth, deepFoundation);
 
   // Walkway Parapet on top
   const battlementCount = Math.floor(length / 2.2);

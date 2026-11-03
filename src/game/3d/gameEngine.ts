@@ -1032,13 +1032,13 @@ export class GameEngine {
       walkCycle: 0,
     });
 
-    // 9. Frostpeak Glacier Frostfang Wolves (Far North-East)
+    // 9. Frostpeak Glacier Frostfang Wolves (Mountain Slopes & Glacial Wilderness)
     const wolfPositions: [number, number][] = [
-      [108, -62],
-      [118, -70],
-      [125, -78],
-      [132, -66],
-      [114, -84],
+      [104, -54],
+      [136, -58],
+      [144, -76],
+      [86, -88],
+      [82, -108],
     ];
     wolfPositions.forEach((pos, idx) => {
       const { group, parts } = createEnemyMesh('frost_wolf');
@@ -3876,7 +3876,7 @@ export class GameEngine {
     }
 
     // Check quest discovery for Grand Imperial Kingdom of Astraea
-    if (nextX >= 195 && Math.abs(nextZ - -15) <= 40) {
+    if (nextX >= 90 && nextX <= 154 && nextZ <= -70 && nextZ >= -134) {
       this.callbacks.onUpdateQuests((quests) => {
         return quests.map((q) => {
           if (q.id === 'quest_discover_astraea' && !q.completed) {
