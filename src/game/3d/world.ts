@@ -41,6 +41,10 @@ import {
   createImperialBazaarStallMesh,
   createCherryBlossomTreeMesh,
   createImperialHeroStatueMesh,
+  createSnowyPineTreeMesh,
+  createIceBoulderMesh,
+  createSnowDriftMoundMesh,
+  createIceCrystalClusterMesh,
 } from './models';
 
 export interface WorldCollider {
@@ -155,27 +159,80 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return 2.0 + t * 1.2;
     }
 
-    // 2b. Mountain Buffer Zone between Val-Kragor and Astraea (z: -35 to -84, x: 80 to 170)
-    // Melandai alami dari dataran Val-Kragor (y = 3.2) ke ketinggian Ibukota Astraea (y = 6.0)
-    if (x >= 80 && x <= 170 && z <= -35 && z > -84) {
-      const progZ = (-35 - z) / 49; // 0 at z=-35, 1 at z=-84
-      const baseSlope = 3.2 + progZ * 2.8;
-      // Soft natural undulating snow hills
-      const snowWaves = (Math.sin(x * 0.09) * 0.75 + Math.cos(z * 0.08) * 0.65) * (1 - progZ * 0.35);
-      return baseSlope + snowWaves;
-    }
+    // 2b. Frostpeak Mountain Biome & Grand Imperial Kingdom of Astraea
+    // Total redesign: Smooth elevation slopes, gradual terracing, rounded snow hills (bukit tumpul),
+    // and seamless integration without harsh rectangular cliffs or vertical drops.
+    if (x >= 45 && z <= -34 && (x >= 70 || z <= -45)) {
+      // 1. City Core Plateau: Flat y = 6.0 for Astraea walls, palace, and plaza
+      const astraeaMinX = 104;
+      const astraeaMaxX = 166;
+      const astraeaMinZ = -136;
+      const astraeaMaxZ = -84;
 
-    // 2c. Grand Imperial Kingdom of Astraea Center Plateau (Frostpeak Center: x: 104..166, z: -136..-84)
-    // Seluruh Ibukota berdiri pas di atas tanah rata y = 6.0 (zero gap / zero sinking)
-    if (x >= 104 && x <= 166 && z <= -84 && z >= -136) {
-      return 6.0;
-    }
+      const dX = Math.max(0, astraeaMinX - x, x - astraeaMaxX);
+      const dZ = Math.max(0, astraeaMinZ - z, z - astraeaMaxZ);
+      const distToCity = Math.hypot(dX, dZ);
 
-    // 2d. Main Royal Highway exiting West Gate (x: 70..104, z: -116..-104)
-    // Melandai secara alami ke arah daratan barat
-    if (x >= 70 && x < 104 && Math.abs(z - -110) <= 6.0) {
-      const roadT = (x - 70) / 34; // 0 at x=70, 1 at x=104
-      return 3.6 + roadT * 2.4; // Smooth descent from 6.0 to 3.6 westward
+      // 2. Continuous Western Slope (Melandai Alami ke Daratan Barat)
+      // Gradual slope from lower mainland (y ~ 1.8 at x = 45) up to Astraea (y = 6.0 at x = 104)
+      const tWest = Math.max(0, Math.min(1, (x - 45) / 59));
+      const sWest = tWest * tWest * (3 - 2 * tWest); // smoothstep
+      const westBaseElev = 1.8 + sWest * 4.2;
+
+      // 3. Continuous Southern Slope (Melandai Alami ke Val-Kragor)
+      // Gradual slope from Val-Kragor plateau (y = 3.2 at z = -35) up to Astraea (y = 6.0 at z = -84)
+      const tSouth = Math.max(0, Math.min(1, (-z - 35) / 49));
+      const sSouth = tSouth * tSouth * (3 - 2 * tSouth); // smoothstep
+      const southBaseElev = 3.2 + sSouth * 2.8;
+
+      // 4. Determine base regional elevation
+      let baseRegionalElev = 6.0;
+      if (x < astraeaMinX && z > astraeaMaxZ) {
+        // Southwest approach: smoothly blend western and southern slopes
+        const weightX = (astraeaMinX - x) / (astraeaMinX - 45);
+        const weightZ = (z - astraeaMaxZ) / (-35 - astraeaMaxZ);
+        const totalW = weightX + weightZ + 0.001;
+        baseRegionalElev = (weightX * westBaseElev + weightZ * southBaseElev) / totalW;
+      } else if (x < astraeaMinX) {
+        baseRegionalElev = westBaseElev;
+      } else if (z > astraeaMaxZ) {
+        baseRegionalElev = southBaseElev;
+      }
+
+      // 5. Rolling Snow Hills (Bukit-bukit salju kecil bersudut tumpul)
+      // Low spatial frequencies yield broad, soft mounds with blunt summits
+      const bluntHills =
+        Math.sin(x * 0.055) * 0.65 +
+        Math.cos(z * 0.048) * 0.55 +
+        Math.sin(x * 0.026 + z * 0.034) * 0.45;
+
+      // Hills smoothly fade near the city walls so structures sit flat
+      const hillInfluence = Math.max(0, Math.min(1, (distToCity - 6) / 16));
+      const sHill = hillInfluence * hillInfluence * (3 - 2 * hillInfluence);
+
+      // 6. Majestic Northern & Eastern Alpine Backdrop (Smooth quadratic rise)
+      let mountainBackdrop = 0;
+      if (z < -136) {
+        const dN = (-136 - z);
+        mountainBackdrop += Math.min(14, (dN * dN) * 0.012 + Math.sin(x * 0.08) * Math.min(2.5, dN * 0.1));
+      }
+      if (x > 166) {
+        const dE = (x - 166);
+        mountainBackdrop += Math.min(12, (dE * dE) * 0.014 + Math.cos(z * 0.07) * Math.min(2.2, dE * 0.1));
+      }
+
+      const outerElevation = baseRegionalElev + bluntHills * sHill + mountainBackdrop;
+
+      // 7. City Apron Blend: 100% flat at y=6.0 inside walls, smoothly blends to outer terrain
+      if (distToCity === 0) {
+        return 6.0;
+      } else if (distToCity < 12) {
+        const tCity = distToCity / 12;
+        const sCity = tCity * tCity * (3 - 2 * tCity);
+        return (1 - sCity) * 6.0 + sCity * outerElevation;
+      } else {
+        return outerElevation;
+      }
     }
 
     // 3. Misty Chasm & Wooden Suspension Bridge (x: 63..87, z: -30..0)
@@ -184,15 +241,6 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       const chasmCenter = 75;
       const chasmDepth = Math.max(0, 1 - Math.abs(x - chasmCenter) / 12);
       return 1.2 - chasmDepth * 5.2;
-    }
-
-    // 4. Frostpeak Mountain Glacier & Snow Slopes (x > 65 && x < 185, z < -35)
-    if (x > 65 && x < 185 && z < -35) {
-      const snowHills = 4.0 + Math.sin(x * 0.08) * 2.2 + Math.cos(z * 0.07) * 2.0;
-      // Towering background ice mountain crags (North z < -136, East x > 166)
-      const backCrag = Math.max(0, -136 - z) * 0.55 + Math.max(0, x - 166) * 0.5;
-      const peaks = Math.sin(x * 0.12) * 3.0 + Math.cos(z * 0.1) * 2.5;
-      return Math.min(24, snowHills + backCrag + Math.max(0, peaks));
     }
 
     // 4b. Scenic Eastern Highlands & Meadows (old outer east)
@@ -369,6 +417,12 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   const colorThunderBasalt = new THREE.Color(0x1e1b4b); // Deep indigo storm rock
   const colorJadeBorders = new THREE.Color(0x059669); // Verdant jade emerald
   const colorDragonScorched = new THREE.Color(0x450a0a); // Deep inferno rock
+  // Frostpeak multi-layered transition colors (Tanah berbatu, lelehan es, pasir bersalju, es abadi)
+  const colorFrostThaw = new THREE.Color(0x6b7c62); // Lelehan es / damp cold mossy earth
+  const colorColdGravel = new THREE.Color(0x76858f); // Tanah berbatu / frost-shattered slate gravel
+  const colorSnowDust = new THREE.Color(0xdce7ec); // Pasir bersalju / powdered frost on rock
+  const colorDeepSnow = new THREE.Color(0xf8fafc); // Crisp white alpine snow
+  const colorGlacialIce = new THREE.Color(0xb9e6fc); // Glacial crystalline ice
 
   for (let i = 0; i < vertexCount; i++) {
     const vx = posAttr.getX(i);
@@ -420,12 +474,47 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     else if (vx > 110 && vz > 50) {
       colors.push(colorJadeBorders.r, colorJadeBorders.g, colorJadeBorders.b);
     }
-    // 7. Frostpeak Mountain Glacier & Permanent Snow
-    else if (vx > 75 && vz < -40) {
-      if (vy > 6.0) {
-        colors.push(colorSnow.r, colorSnow.g, colorSnow.b);
+    // 7. Frostpeak Mountain Glacier & Multi-Layered Natural Terrain Blending
+    // Gradual transition: Meadow -> Thawed Tundra (lelehan es) -> Cold Gravel (tanah berbatu) -> Snow Dust (pasir bersalju) -> Deep Snow / Ice
+    else if (vx >= 45 && vz <= -28 && !(vz < -95 && vx <= 75)) {
+      // West-East progress: vx from 45 to 90
+      const pX = Math.max(0, Math.min(1, (vx - 45) / 45));
+      // South-North progress: vz from -28 to -75
+      const pZ = Math.max(0, Math.min(1, (-vz - 28) / 47));
+      const baseFrostFactor = pX * pZ;
+
+      // Organic harmonic noise so the transition boundary meanders naturally along ridges
+      const snowNoise =
+        Math.sin(vx * 0.12) * 0.12 +
+        Math.cos(vz * 0.10) * 0.12 +
+        Math.sin((vx + vz) * 0.07) * 0.08;
+      const frostFactor = Math.max(0, Math.min(1, baseFrostFactor + snowNoise));
+
+      if (frostFactor > 0.0) {
+        const c = new THREE.Color();
+        if (frostFactor < 0.32) {
+          // Zone 1: Borderline / Thawed Tundra (Lelehan Es & Tanah Berbatu)
+          const t1 = frostFactor / 0.32;
+          c.copy(colorGrass).lerp(colorFrostThaw, t1 * 0.7).lerp(colorColdGravel, t1 * 0.3);
+        } else if (frostFactor < 0.68) {
+          // Zone 2: Snow Dusting & Pasir Bersalju (Frosted Gravel & Slush)
+          const t2 = (frostFactor - 0.32) / 0.36;
+          c.copy(colorColdGravel).lerp(colorSnowDust, t2);
+        } else {
+          // Zone 3: Full Frostpeak Snow & Glacial Ice
+          const t3 = (frostFactor - 0.68) / 0.32;
+          if (vy > 7.0 || (vz < -136 && vy > 6.5)) {
+            // High altitude peaks and glacial crags
+            c.copy(colorSnowDust).lerp(colorGlacialIce, t3);
+          } else {
+            // Deep crisp alpine snow
+            c.copy(colorSnowDust).lerp(colorDeepSnow, t3);
+          }
+        }
+        colors.push(c.r, c.g, c.b);
       } else {
-        colors.push(colorIce.r, colorIce.g, colorIce.b);
+        // Highland grass just outside snow line
+        colors.push(colorGrass.r, colorGrass.g, colorGrass.b);
       }
     }
     // 8. Shadowfen Marsh Mud & Moss
@@ -1107,8 +1196,8 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   );
 
   // ==========================================
-  // 2.10 FROSTPEAK GLACIER CRYO ALTAR & ICE RIDGE
-  // (Puncak Salju Frostpeak Summit ridge between Val-Kragor and Astraea)
+  // 2.10 FROSTPEAK GLACIER CRYO ALTAR & RICH WILDERNESS DECORATIONS
+  // (Puncak Salju Frostpeak Summit ridge, outer Astraea wilderness, snowy pines, ice boulders, glowing crystals, rounded snowdrifts)
   // ==========================================
   const frostSpire1 = createIceCrystalSpireMesh();
   frostSpire1.position.set(112, getTerrainHeight(112, -65), -65);
@@ -1134,13 +1223,131 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   scene.add(iceRing);
   colliders.push({ type: 'circle', x: 115, z: -65, radius: 5.2, label: 'Altar Es Frostpeak' });
 
-  // Additional thematic glowing crystals in Frostpeak wilderness
-  for (const cpos of [{ x: 104, z: -55 }, { x: 126, z: -58 }, { x: 88, z: -78 }, { x: 86, z: -105 }]) {
-    const crys = createIceCrystalSpireMesh();
-    crys.position.set(cpos.x, getTerrainHeight(cpos.x, cpos.z), cpos.z);
-    crys.scale.set(0.9, 1.1, 0.9);
+  // 1. Glowing Ice Crystal Clusters & Spires (Pilar Kristal Es Bercahaya)
+  const crystalCoords = [
+    { x: 104, z: -55, scale: 1.0, light: true },
+    { x: 126, z: -58, scale: 1.1, light: false },
+    { x: 88, z: -78, scale: 1.0, light: true },
+    { x: 74, z: -108, scale: 1.2, light: true },
+    { x: 92, z: -98, scale: 0.95, light: false },
+    { x: 86, z: -124, scale: 1.15, light: true },
+    { x: 112, z: -146, scale: 1.2, light: false },
+    { x: 136, z: -146, scale: 1.3, light: true },
+    { x: 154, z: -142, scale: 1.1, light: false },
+    { x: 172, z: -110, scale: 1.25, light: true },
+  ];
+  crystalCoords.forEach((cc) => {
+    const crys = createIceCrystalClusterMesh(cc.light);
+    const cy = getTerrainHeight(cc.x, cc.z);
+    crys.position.set(cc.x, cy, cc.z);
+    crys.scale.set(cc.scale, cc.scale, cc.scale);
     scene.add(crys);
-  }
+    colliders.push({ type: 'circle', x: cc.x, z: cc.z, radius: 0.8, label: 'Pilar Kristal Es' });
+  });
+
+  // 2. Snowy Alpine Pine Trees (Pohon Pinus Bersalju Frostpeak)
+  const frostpeakPineCoords = [
+    // Western approach & flanking royal descent road
+    { x: 72, z: -104, scale: 1.1 },
+    { x: 76, z: -118, scale: 0.95 },
+    { x: 82, z: -102, scale: 1.2 },
+    { x: 85, z: -116, scale: 1.05 },
+    { x: 92, z: -104, scale: 1.15 },
+    { x: 95, z: -120, scale: 0.9 },
+    { x: 100, z: -102, scale: 1.25 },
+    // Southern mountain pass & valley (between Val-Kragor and Astraea)
+    { x: 92, z: -45, scale: 1.0 },
+    { x: 102, z: -48, scale: 1.1 },
+    { x: 118, z: -46, scale: 1.2 },
+    { x: 132, z: -44, scale: 0.95 },
+    { x: 96, z: -60, scale: 1.05 },
+    { x: 128, z: -58, scale: 1.15 },
+    { x: 142, z: -56, scale: 1.0 },
+    { x: 90, z: -72, scale: 1.2 },
+    { x: 138, z: -70, scale: 1.1 },
+    // Cryo altar grove
+    { x: 105, z: -68, scale: 1.05 },
+    { x: 124, z: -66, scale: 1.1 },
+    { x: 112, z: -55, scale: 0.9 },
+    { x: 120, z: -56, scale: 1.0 },
+    // Outer northern & western slopes
+    { x: 86, z: -88, scale: 1.15 },
+    { x: 82, z: -128, scale: 1.05 },
+    { x: 90, z: -138, scale: 1.2 },
+    { x: 100, z: -145, scale: 1.1 },
+    { x: 115, z: -148, scale: 1.25 },
+    { x: 130, z: -147, scale: 1.0 },
+    { x: 145, z: -146, scale: 1.15 },
+    { x: 160, z: -144, scale: 1.05 },
+  ];
+  frostpeakPineCoords.forEach((p, idx) => {
+    const pine = createSnowyPineTreeMesh(p.scale);
+    const py = getTerrainHeight(p.x, p.z);
+    pine.position.set(p.x, py, p.z);
+    pine.rotation.y = (idx * 1.37) % (Math.PI * 2);
+    scene.add(pine);
+    colliders.push({ type: 'circle', x: p.x, z: p.z, radius: 0.5 * p.scale, label: 'Pohon Pinus Bersalju' });
+  });
+
+  // 3. Slick Glacial Ice Boulders (Batu Es Licin Frostpeak)
+  const iceBoulders = [
+    // Western approach
+    { x: 78, z: -110, scale: 1.1 },
+    { x: 88, z: -122, scale: 1.3 },
+    { x: 98, z: -118, scale: 0.9 },
+    { x: 100, z: -96, scale: 1.2 },
+    // Southern pass & Cryo ridge
+    { x: 108, z: -58, scale: 1.4 },
+    { x: 122, z: -60, scale: 1.1 },
+    { x: 135, z: -66, scale: 1.3 },
+    { x: 104, z: -76, scale: 1.0 },
+    { x: 126, z: -78, scale: 1.2 },
+    { x: 146, z: -80, scale: 1.5 },
+    // Northern alpine foothills
+    { x: 108, z: -142, scale: 1.3 },
+    { x: 125, z: -144, scale: 1.5 },
+    { x: 138, z: -142, scale: 1.2 },
+    { x: 155, z: -140, scale: 1.4 },
+    // Eastern glacier crags
+    { x: 170, z: -98, scale: 1.6 },
+    { x: 172, z: -120, scale: 1.4 },
+  ];
+  iceBoulders.forEach((b, idx) => {
+    const boulder = createIceBoulderMesh(b.scale);
+    const by = getTerrainHeight(b.x, b.z);
+    boulder.position.set(b.x, by, b.z);
+    boulder.rotation.y = (idx * 1.61) % (Math.PI * 2);
+    scene.add(boulder);
+    colliders.push({ type: 'circle', x: b.x, z: b.z, radius: 0.85 * b.scale, label: 'Batu Es Licin' });
+  });
+
+  // 4. Rounded Blunt Snow Drift Mounds (Bukit Salju Bersudut Tumpul)
+  const snowDrifts = [
+    // Outer Southern Fortress Wall base
+    { x: 112, z: -82, rx: 4.2, rz: 3.2, h: 0.9 },
+    { x: 128, z: -82, rx: 4.5, rz: 3.5, h: 1.1 },
+    { x: 144, z: -82, rx: 4.0, rz: 3.0, h: 0.8 },
+    { x: 158, z: -82, rx: 3.8, rz: 3.0, h: 0.9 },
+    // Outer Northern Fortress Wall base
+    { x: 112, z: -138, rx: 4.0, rz: 3.0, h: 0.9 },
+    { x: 126, z: -138, rx: 4.8, rz: 3.4, h: 1.2 },
+    { x: 142, z: -138, rx: 4.2, rz: 3.2, h: 1.0 },
+    { x: 156, z: -138, rx: 3.6, rz: 2.8, h: 0.8 },
+    // Flanking West Gate outer entrance
+    { x: 102, z: -118, rx: 4.0, rz: 3.2, h: 1.0 },
+    { x: 102, z: -102, rx: 4.0, rz: 3.2, h: 1.0 },
+    // Open Valley hummocks
+    { x: 115, z: -74, rx: 5.0, rz: 4.0, h: 1.2 },
+    { x: 132, z: -72, rx: 4.5, rz: 3.5, h: 1.0 },
+    { x: 85, z: -82, rx: 4.2, rz: 3.5, h: 1.1 },
+    { x: 90, z: -125, rx: 4.6, rz: 3.8, h: 1.2 },
+  ];
+  snowDrifts.forEach((sd) => {
+    const drift = createSnowDriftMoundMesh(sd.rx, sd.rz, sd.h);
+    const dy = getTerrainHeight(sd.x, sd.z);
+    drift.position.set(sd.x, dy, sd.z);
+    scene.add(drift);
+  });
 
   // ==========================================
   // 2.11 SHADOWFEN GLOOM MARSH (Far West)
@@ -1551,20 +1758,19 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   colliders.push({ type: 'circle', x: 113, z: -106, radius: 1.4, label: 'Monumen Ksatria Emas' });
 
   // G. Snowy Pine Trees along Avenue and Courtyard (Thematic Snow Alpine Vegetation)
-  const snowyPineCoords = [
+  const astraeaCourtyardPineCoords = [
     { x: 110, z: -118 }, { x: 110, z: -102 },
     { x: 138, z: -118 }, { x: 138, z: -102 },
     { x: 116, z: -128 }, { x: 116, z: -92 },
     { x: 144, z: -128 }, { x: 144, z: -92 },
     { x: 156, z: -128 }, { x: 156, z: -92 },
   ];
-  snowyPineCoords.forEach((pc) => {
-    const pTree = createTreeMesh('pine');
-    pTree.position.set(pc.x, astraeaBaseY, pc.z);
+  astraeaCourtyardPineCoords.forEach((pc) => {
     const s = 0.95 + Math.random() * 0.35;
-    pTree.scale.set(s, s * 1.2, s);
+    const pTree = createSnowyPineTreeMesh(s);
+    pTree.position.set(pc.x, astraeaBaseY, pc.z);
     scene.add(pTree);
-    colliders.push({ type: 'circle', x: pc.x, z: pc.z, radius: 0.7 * s, label: 'Pohon Pinus Salju Astraea' });
+    colliders.push({ type: 'circle', x: pc.x, z: pc.z, radius: 0.6 * s, label: 'Pohon Pinus Salju Astraea' });
   });
 
   // H. Astraea Royal NPCs

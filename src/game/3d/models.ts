@@ -3923,4 +3923,192 @@ export function createImperialWarTableMesh(): THREE.Group {
   return table;
 }
 
+// 28. Snowy Alpine Pine Tree (Pohon Pinus Bersalju Frostpeak)
+export function createSnowyPineTreeMesh(scale = 1.0): THREE.Group {
+  const group = new THREE.Group();
 
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x3e2723, flatShading: true });
+  const needleMat = new THREE.MeshLambertMaterial({ color: 0x1b4332, flatShading: true });
+  const snowMat = new THREE.MeshStandardMaterial({
+    color: 0xf8fafc,
+    roughness: 0.9,
+    flatShading: true,
+  });
+
+  // Main Trunk with deep root anchor
+  const trunkGeo = new THREE.CylinderGeometry(0.22, 0.38, 2.8, 6);
+  const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+  trunk.position.y = 0.8; // Extends down to -0.6
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  // Root flare anchor
+  const root = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.65, 0.8, 6), trunkMat);
+  root.position.y = -0.3;
+  group.add(root);
+
+  // Base snow drift mound around trunk
+  const baseMound = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.2, 0.35, 7), snowMat);
+  baseMound.position.y = 0.05;
+  baseMound.receiveShadow = true;
+  group.add(baseMound);
+
+  // 3-tiered pine foliage cones with heavy snow mantle caps
+  const tiers = [
+    { rNeedle: 1.5, hNeedle: 1.6, yNeedle: 1.9, rSnow: 1.55, hSnow: 0.65, ySnow: 2.35 },
+    { rNeedle: 1.2, hNeedle: 1.4, yNeedle: 2.8, rSnow: 1.25, hSnow: 0.58, ySnow: 3.2 },
+    { rNeedle: 0.8, hNeedle: 1.2, yNeedle: 3.6, rSnow: 0.85, hSnow: 0.62, ySnow: 4.0 },
+  ];
+
+  tiers.forEach((t) => {
+    // Dark green pine foliage cone
+    const needleCone = new THREE.Mesh(new THREE.ConeGeometry(t.rNeedle, t.hNeedle, 7), needleMat);
+    needleCone.position.y = t.yNeedle;
+    needleCone.castShadow = true;
+    group.add(needleCone);
+
+    // Thick snow cap cone resting on top of foliage tier
+    const snowCap = new THREE.Mesh(new THREE.ConeGeometry(t.rSnow, t.hSnow, 7), snowMat);
+    snowCap.position.y = t.ySnow;
+    snowCap.castShadow = true;
+    group.add(snowCap);
+  });
+
+  if (scale !== 1.0) {
+    group.scale.set(scale, scale, scale);
+  }
+
+  return group;
+}
+
+// 29. Slick Glacial Ice Boulder (Batu Es Licin Frostpeak)
+export function createIceBoulderMesh(scale = 1.0): THREE.Group {
+  const group = new THREE.Group();
+
+  const iceMat = new THREE.MeshStandardMaterial({
+    color: 0x7dd3fc,
+    emissive: 0x0284c7,
+    emissiveIntensity: 0.22,
+    roughness: 0.16,
+    metalness: 0.45,
+    flatShading: true,
+  });
+
+  const snowMat = new THREE.MeshStandardMaterial({
+    color: 0xf8fafc,
+    roughness: 0.9,
+    flatShading: true,
+  });
+
+  // Faceted ice core rock
+  const boulderGeo = new THREE.DodecahedronGeometry(1.3, 0);
+  const boulder = new THREE.Mesh(boulderGeo, iceMat);
+  boulder.scale.set(1.15, 0.95, 1.05);
+  boulder.position.y = 0.85;
+  boulder.castShadow = true;
+  group.add(boulder);
+
+  // Deep anchor foundation
+  const foundation = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.4, 1.0, 7), iceMat);
+  foundation.position.y = 0.0;
+  group.add(foundation);
+
+  // Snow cap on top of boulder
+  const snowCap = new THREE.Mesh(new THREE.DodecahedronGeometry(0.9, 0), snowMat);
+  snowCap.scale.set(1.1, 0.35, 1.05);
+  snowCap.position.y = 1.6;
+  snowCap.castShadow = true;
+  group.add(snowCap);
+
+  if (scale !== 1.0) {
+    group.scale.set(scale, scale, scale);
+  }
+
+  return group;
+}
+
+// 30. Rounded Blunt Snow Drift Mound (Bukit Salju Bersudut Tumpul)
+export function createSnowDriftMoundMesh(radiusX = 3.5, radiusZ = 2.8, height = 0.8): THREE.Group {
+  const group = new THREE.Group();
+
+  const snowMat = new THREE.MeshStandardMaterial({
+    color: 0xf1f5f9,
+    roughness: 0.9,
+    flatShading: true,
+  });
+
+  // Soft rounded dome
+  const domeGeo = new THREE.SphereGeometry(1.0, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+  const dome = new THREE.Mesh(domeGeo, snowMat);
+  dome.scale.set(radiusX, height, radiusZ);
+  dome.receiveShadow = true;
+  group.add(dome);
+
+  // Sub-surface skirt to avoid floating on uneven mountain slopes
+  const skirtGeo = new THREE.CylinderGeometry(0.95, 1.05, 0.8, 10);
+  const skirt = new THREE.Mesh(skirtGeo, snowMat);
+  skirt.scale.set(radiusX, 1.0, radiusZ);
+  skirt.position.y = -0.4;
+  group.add(skirt);
+
+  return group;
+}
+
+// 31. Glowing Ice Crystal Cluster (Pilar Kristal Es Bercahaya)
+export function createIceCrystalClusterMesh(hasLight = false): THREE.Group {
+  const cluster = new THREE.Group();
+
+  const crystalMat = new THREE.MeshStandardMaterial({
+    color: 0x38bdf8,
+    emissive: 0x0284c7,
+    emissiveIntensity: 0.65,
+    roughness: 0.12,
+    metalness: 0.8,
+    transparent: true,
+    opacity: 0.9,
+    flatShading: true,
+  });
+
+  const snowBaseMat = new THREE.MeshStandardMaterial({
+    color: 0xf1f5f9,
+    roughness: 0.9,
+    flatShading: true,
+  });
+
+  // Base frosty crust
+  const baseCrust = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.2, 0.4, 6), snowBaseMat);
+  baseCrust.position.y = 0.1;
+  cluster.add(baseCrust);
+
+  // Central tall obelisk
+  const centralSpire = new THREE.Mesh(new THREE.OctahedronGeometry(0.9, 0), crystalMat);
+  centralSpire.scale.set(0.65, 2.8, 0.65);
+  centralSpire.position.y = 1.9;
+  centralSpire.castShadow = true;
+  cluster.add(centralSpire);
+
+  // Offset side crystal shards at varying tilt angles
+  const shards = [
+    { ox: -0.5, oz: 0.35, rotX: 0.2, rotZ: 0.35, sY: 1.8, sR: 0.45 },
+    { ox: 0.55, oz: -0.3, rotX: -0.15, rotZ: -0.38, sY: 1.6, sR: 0.4 },
+    { ox: 0.2, oz: 0.55, rotX: 0.35, rotZ: -0.15, sY: 1.3, sR: 0.35 },
+  ];
+
+  shards.forEach((s) => {
+    const shard = new THREE.Mesh(new THREE.OctahedronGeometry(s.sR, 0), crystalMat);
+    shard.scale.set(1.0, s.sY, 1.0);
+    shard.position.set(s.ox, s.sY * 0.5 + 0.2, s.oz);
+    shard.rotation.x = s.rotX;
+    shard.rotation.z = s.rotZ;
+    shard.castShadow = true;
+    cluster.add(shard);
+  });
+
+  if (hasLight) {
+    const light = new THREE.PointLight(0x38bdf8, 0.9, 8);
+    light.position.y = 1.8;
+    cluster.add(light);
+  }
+
+  return cluster;
+}
