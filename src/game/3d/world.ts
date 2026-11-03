@@ -230,35 +230,37 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return getProceduralHeight(x, z);
     }
 
-    // 1. Suspension bridge walkable deck corridor (x: 62..88, z: -17..-13)
-    if (Math.abs(z - -15) <= 2.2 && x >= 62 && x <= 88) {
+    // 1. Suspension bridge walkable deck corridor (x: 62..88, centered straight at z = -16)
+    if (Math.abs(z - -16) <= 2.2 && x >= 62 && x <= 88) {
       const bridgeT = (x - 62) / 26;
       const sag = Math.sin(bridgeT * Math.PI) * 0.75;
       return 2.4 - sag;
     }
 
-    // 2. Coastal Wooden Harbor (Seamless Beach Connection, Main Pier, 2 Tiers of Wings & Pier Head)
-    // 2a. Beach shoreline boardwalk apron (Menempel padat di tanah pasir pantai, z: 14.5..18.0)
-    if (Math.abs(x) <= 7.0 && z >= 14.5 && z < 18.0) {
-      const t = (z - 14.5) / 3.5;
+    // 2. Coastal Wooden Harbor (Seamless Beach Connection, Extended Main Pier, Symmetrical Wings & Pier Head)
+    // 2a. Beach shoreline boardwalk apron (z: 14.0..18.0)
+    if (Math.abs(x) <= 3.5 && z >= 14.0 && z < 18.0) {
+      const t = (z - 14.0) / 4.0;
       return 0.25 - t * 0.10; // Smooth 0.25 -> 0.15 transition onto ramp foot
     }
-    // 2b. Wooden Beach Ramp & Short Stairs (z: 18.0..22.0, rises smoothly 0.15 -> 1.85)
-    if (Math.abs(x) <= 2.6 && z >= 18.0 && z < 22.0) {
-      const t = (z - 18.0) / 4.0;
+    // 2b. Wooden Beach Ramp & Short Stairs (z: 17.5..21.5, rises smoothly 0.15 -> 1.85)
+    if (Math.abs(x) <= 2.6 && z >= 17.5 && z < 21.5) {
+      const t = (z - 17.5) / 4.0;
       return 0.15 + t * 1.70;
     }
-    // 2c. Main Straight Pier (z: 22.0..58.0)
-    // 2d. Seaward Pier Head Platform (z: 58.0..64.0, x: -7.0..7.0)
-    // 2e. Inner Berthing Wings (z: 31.8..36.2, x: -16.0..16.0)
-    // 2f. Outer Berthing Wings (z: 45.8..50.2, x: -14.0..14.0)
+    // 2c. Extended Main Straight Pier (z: 21.5..69.5, |x| <= 2.6)
+    // 2d. Seaward Pier Head Platform (z: 69.5..75.5, |x| <= 5.2)
+    // 2e. Inner Symmetrical Berthing Wings (z: 34.8..39.2, |x| <= 15.0)
+    // 2f. Outer Symmetrical Berthing Wings (z: 50.8..55.2, |x| <= 15.0)
+    // 2g. Boarding Gangways to Ships (|x|: 14.4..18.5, z: 35.8..38.2)
     if (
-      (Math.abs(x) <= 2.6 && z >= 22.0 && z <= 58.0) ||
-      (Math.abs(x) <= 7.0 && z >= 58.0 && z <= 64.0) ||
-      (Math.abs(z - 34.0) <= 2.2 && Math.abs(x) <= 16.0) ||
-      (Math.abs(z - 48.0) <= 2.2 && Math.abs(x) <= 14.0)
+      (Math.abs(x) <= 2.6 && z >= 21.5 && z <= 69.5) ||
+      (Math.abs(x) <= 5.2 && z >= 69.5 && z <= 75.5) ||
+      (Math.abs(z - 37.0) <= 2.2 && Math.abs(x) <= 15.0) ||
+      (Math.abs(z - 53.0) <= 2.2 && Math.abs(x) <= 15.0) ||
+      (Math.abs(z - 37.0) <= 1.2 && Math.abs(x) >= 14.4 && Math.abs(x) <= 18.5)
     ) {
-      return 1.85; // Solid wooden pier deck
+      return 1.85; // Solid continuous wooden pier deck
     }
 
     // 3. Relocated Fortress Val-Kragor Solid Courtyard (Center [158, -16], radius 34 at y = 3.2)
@@ -291,90 +293,99 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   scene.add(oceanMesh);
 
   // ==========================================
-  // 1b. SIMPLIFIED STRAIGHT COASTAL HARBOR (Sea Shoreline at Z >= 17.5)
-  // Anti-zigzag: 1 Wide Straight Main Pier + 2 Straight Berthing Wings + Sloping Beach Ramp & Stairs.
-  // Ships berth cleanly alongside the straight wooden piers in deep ocean water.
+  // 1b. EXTENDED CONTINUOUS COASTAL HARBOR (Sea Shoreline at Z >= 17.5)
+  // Dermaga Kayu Utama Diperpanjang Lurus ke Arah Laut Terbuka (Z: 14.0..75.5)
+  // Sambungan padat dari pangkal tangga hingga anjungan laut lepas TANPA CELAH air di tengah jalan!
+  // Dua pasang cabang bersandar kapal yang simetris, presisi, dan kokoh di sisi kiri dan kanan.
   // ==========================================
   const dockY = -0.375; // Aligns top of 2.1m deck + 0.125m plank exactly at y = 1.85
 
-  // 0. Shoreline Boardwalk (Menghubungkan jalan setapak tanah desa ke bibir pantai tanpa celah melayang, Z: 13.5..17.5)
+  // 0. Shoreline Boardwalk Apron (Z: 14.0..18.0, menghubungkan jalan setapak tanah desa ke pangkal tangga)
   const shorelineBoardwalk = createDockShorelineBoardwalkMesh(5.6, 4.0);
-  shorelineBoardwalk.position.set(0, 0.22, 15.5);
+  shorelineBoardwalk.position.set(0, 0.22, 14.0);
   scene.add(shorelineBoardwalk);
 
-  // 1. Wooden Beach Ramp & Short Stairs (Menyentuh pasir pantai secara mulus tanpa melompat, Z: 17.5..21.5)
-  const beachRamp = createDockStairRampMesh(4.6, 4.0, 1.8);
+  // 1. Wooden Beach Ramp & Short Stairs (Z: 17.5..21.5, menanjak mulus 0.15 -> 1.85)
+  const beachRamp = createDockStairRampMesh(4.8, 4.0, 1.8);
   beachRamp.position.set(0, 0.05, 17.5);
   scene.add(beachRamp);
 
-  // 2. Wide Main Straight Pier (Dermaga Kayu Utama membentang lurus ke laut lepas, lebar 4.6m)
-  // Section 1: Beach approach to berthing junction (X: 0, Z: 21.5..37.5, length 16m)
-  const pierMain1 = createPierDockMesh({ length: 16, width: 4.6, pileDepth: 6.8, hasMooringBollards: true });
+  // 2. Extended Main Straight Pier (Dermaga Utama Lebar 4.8m Membentang Lurus ke Laut Lepas)
+  // Section 1: Pangkal tangga ke cabang bersandar dalam (X: 0, Z: 21.5..37.5, panjang 16m)
+  const pierMain1 = createPierDockMesh({ length: 16.0, width: 4.8, pileDepth: 7.0, hasMooringBollards: true });
   pierMain1.position.set(0, dockY, 21.5);
   scene.add(pierMain1);
 
-  // Section 2: Junction to pier head (X: 0, Z: 37.5..50.0, length 12.5m)
-  const pierMain2 = createPierDockMesh({ length: 12.5, width: 4.6, pileDepth: 7.2, hasMooringBollards: true });
+  // Section 2: Cabang dalam ke cabang luar (X: 0, Z: 37.5..53.5, panjang 16m)
+  const pierMain2 = createPierDockMesh({ length: 16.0, width: 4.8, pileDepth: 7.5, hasMooringBollards: true });
   pierMain2.position.set(0, dockY, 37.5);
   scene.add(pierMain2);
 
-  // Section 3: Seaward Pier Head Platform (Ujung Dermaga Utama: X: -4.5..4.5, Z: 50.0..54.0, length 4.0, width 9.2m)
-  const pierHeadPlatform = createPierDockMesh({ length: 4.0, width: 9.2, pileDepth: 7.5, hasLantern: true, lanternSide: 'both', hasMooringBollards: true });
-  pierHeadPlatform.position.set(0, dockY, 50.0);
+  // Section 3: Jalur laut lepas ke anjungan (X: 0, Z: 53.5..69.5, panjang 16m)
+  const pierMain3 = createPierDockMesh({ length: 16.0, width: 4.8, pileDepth: 8.0, hasMooringBollards: true });
+  pierMain3.position.set(0, dockY, 53.5);
+  scene.add(pierMain3);
+
+  // Section 4: Anjungan Ujung Dermaga Laut Lepas (Seaward Pier Head Platform: X: -5.0..5.0, Z: 69.5..75.5, lebar 10m)
+  const pierHeadPlatform = createPierDockMesh({ length: 6.0, width: 10.0, pileDepth: 8.5, hasLantern: true, lanternSide: 'both', hasMooringBollards: true });
+  pierHeadPlatform.position.set(0, dockY, 69.5);
   scene.add(pierHeadPlatform);
 
-  // 3. Two Straight Berthing Wings on Left and Right (Dua Cabang Lurus Pendek di Sisi Kiri & Kanan at Z = 38)
-  // West Straight Berthing Wing (X: -13.5..-2.3, width 3.6m, length 11.2m)
-  const wingWest = createPierDockMesh({ length: 11.2, width: 3.6, pileDepth: 7.0, hasLantern: true, lanternSide: 'left', hasMooringBollards: true });
-  wingWest.position.set(-8.0, dockY, 38.0);
-  wingWest.rotation.y = Math.PI / 2;
-  scene.add(wingWest);
+  // 3. Two Symmetrical Pairs of Berthing Wings (Dua Pasang Cabang Tempat Bersandar Kapal Simetris)
+  // Branch 1: Inner Symmetrical Berthing Wings (Z = 37.0, Lebar 4.0m, Panjang 13.0m)
+  // Sayap Barat 1 (Kiri: menempel padat dari X = -2.4 menjulur ke X = -15.4 tanpa celah!)
+  const wingWest1 = createPierDockMesh({ length: 13.0, width: 4.0, pileDepth: 7.2, hasLantern: true, lanternSide: 'left', hasMooringBollards: true });
+  wingWest1.position.set(-2.4, dockY, 37.0);
+  wingWest1.rotation.y = Math.PI * 1.5;
+  scene.add(wingWest1);
 
-  // East Straight Berthing Wing (X: 2.3..13.5, width 3.6m, length 11.2m)
-  const wingEast = createPierDockMesh({ length: 11.2, width: 3.6, pileDepth: 7.0, hasLantern: true, lanternSide: 'right', hasMooringBollards: true });
-  wingEast.position.set(8.0, dockY, 38.0);
-  wingEast.rotation.y = Math.PI / 2;
-  scene.add(wingEast);
+  // Sayap Timur 1 (Kanan: menempel padat dari X = 2.4 menjulur ke X = 15.4 tanpa celah!)
+  const wingEast1 = createPierDockMesh({ length: 13.0, width: 4.0, pileDepth: 7.2, hasLantern: true, lanternSide: 'right', hasMooringBollards: true });
+  wingEast1.position.set(2.4, dockY, 37.0);
+  wingEast1.rotation.y = Math.PI / 2;
+  scene.add(wingEast1);
 
-  // 3b. Additional Inner Berthing Wings (Dua Jalur Dermaga Cabang Bersandar Tambahan di Z = 28)
-  const wingWestInner = createPierDockMesh({ length: 8.5, width: 3.4, pileDepth: 6.8, hasMooringBollards: true });
-  wingWestInner.position.set(-6.5, dockY, 28.0);
-  wingWestInner.rotation.y = Math.PI / 2;
-  scene.add(wingWestInner);
+  // Branch 2: Outer Symmetrical Berthing Wings (Z = 53.0, Lebar 4.0m, Panjang 13.0m)
+  // Sayap Barat 2 (Kiri luar: menempel padat dari X = -2.4 menjulur ke X = -15.4)
+  const wingWest2 = createPierDockMesh({ length: 13.0, width: 4.0, pileDepth: 7.8, hasLantern: true, lanternSide: 'left', hasMooringBollards: true });
+  wingWest2.position.set(-2.4, dockY, 53.0);
+  wingWest2.rotation.y = Math.PI * 1.5;
+  scene.add(wingWest2);
 
-  const wingEastInner = createPierDockMesh({ length: 8.5, width: 3.4, pileDepth: 6.8, hasMooringBollards: true });
-  wingEastInner.position.set(6.5, dockY, 28.0);
-  wingEastInner.rotation.y = Math.PI / 2;
-  scene.add(wingEastInner);
+  // Sayap Timur 2 (Kanan luar: menempel padat dari X = 2.4 menjulur ke X = 15.4)
+  const wingEast2 = createPierDockMesh({ length: 13.0, width: 4.0, pileDepth: 7.8, hasLantern: true, lanternSide: 'right', hasMooringBollards: true });
+  wingEast2.position.set(2.4, dockY, 53.0);
+  wingEast2.rotation.y = Math.PI / 2;
+  scene.add(wingEast2);
 
-  // 4. Moored Main Ships (Bertambat Rapi di Samping Dermaga Kayu di Atas Air Laut Dalam, Y = -0.25)
-  // Grand Merchant Galleon 1 (Bertambat rapi di samping Sayap Timur, X: 18.5, Z: 38)
+  // 4. Moored Main Ships & Boarding Gangways
+  // Grand Merchant Galleon 1 (Bertambat rapi di samping Sayap Timur 1, X: 19.5, Z: 37.0)
   const galleon1 = createMerchantGalleonMesh();
-  galleon1.position.set(18.5, -0.25, 38.0);
+  galleon1.position.set(19.5, -0.25, 37.0);
   galleon1.rotation.y = 0;
   scene.add(galleon1);
 
-  // Viking Shielded Warship 2 (Bertambat rapi di samping Sayap Barat, X: -18.5, Z: 38)
+  // Viking Shielded Warship 2 (Bertambat rapi di samping Sayap Barat 1, X: -19.5, Z: 37.0)
   const warship2 = createVikingWarshipMesh();
-  warship2.position.set(-18.5, -0.25, 38.0);
+  warship2.position.set(-19.5, -0.25, 37.0);
   warship2.rotation.y = 0;
   scene.add(warship2);
 
-  // Perahu Nelayan Pak Joko (Bertambat rapi di ujung anjungan dermaga utama, X: 0, Z: 55.5)
+  // Perahu Nelayan Pak Joko (Bertambat rapi di ujung anjungan dermaga utama, X: 0, Z: 77.0)
   const rowboatJoko = createRowboatMesh();
-  rowboatJoko.position.set(0, -0.25, 55.5);
+  rowboatJoko.position.set(0, -0.25, 77.0);
   rowboatJoko.rotation.y = Math.PI / 2;
   scene.add(rowboatJoko);
 
-  // Timber boarding gangway bridging East Wing to Galleon 1
+  // Timber boarding gangway bridging East Wing 1 to Galleon 1
   const gangwayMat = new THREE.MeshLambertMaterial({ color: 0x5d4037, flatShading: true });
-  const gangwayEast = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.16, 1.4), gangwayMat);
-  gangwayEast.position.set(15.0, 1.86, 38.0);
+  const gangwayEast = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.16, 1.6), gangwayMat);
+  gangwayEast.position.set(16.9, 1.86, 37.0);
   scene.add(gangwayEast);
 
-  // Timber boarding gangway bridging West Wing to Warship 2
-  const gangwayWest = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.16, 1.4), gangwayMat);
-  gangwayWest.position.set(-15.0, 1.86, 38.0);
+  // Timber boarding gangway bridging West Wing 1 to Warship 2
+  const gangwayWest = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.16, 1.6), gangwayMat);
+  gangwayWest.position.set(-16.9, 1.86, 37.0);
   scene.add(gangwayWest);
 
   // ==========================================
@@ -386,29 +397,41 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   const npcs: WorldNPC[] = [];
   const villageMainlandY = 0.25;
 
-  // 2.0 Precise Pier Handrails & Moored Ship Boundaries (Anti-Tembus & Anti-Tembok Gaib)
+  // 2.0 Continuous Pier Handrails & Moored Ship Boundaries (Anti-Jatuh & Akses Lancar)
   colliders.push(
-    // Main Pier Handrails (Only on outer edges, leaving opening at z: 36.2..39.8 for left/right wings)
-    { type: 'box', minX: -2.45, maxX: -2.25, minZ: 21.5, maxZ: 36.2, label: 'Dermaga Utama Pagar Barat Utara' },
-    { type: 'box', minX: -2.45, maxX: -2.25, minZ: 39.8, maxZ: 50.0, label: 'Dermaga Utama Pagar Barat Selatan' },
-    { type: 'box', minX: 2.25, maxX: 2.45, minZ: 21.5, maxZ: 36.2, label: 'Dermaga Utama Pagar Timur Utara' },
-    { type: 'box', minX: 2.25, maxX: 2.45, minZ: 39.8, maxZ: 50.0, label: 'Dermaga Utama Pagar Timur Selatan' },
-    // West Wing North/South Rails
-    { type: 'box', minX: -13.5, maxX: -2.3, minZ: 36.0, maxZ: 36.3, label: 'Sayap Barat Pagar Utara' },
-    { type: 'box', minX: -13.5, maxX: -2.3, minZ: 39.7, maxZ: 40.0, label: 'Sayap Barat Pagar Selatan' },
-    // East Wing North/South Rails
-    { type: 'box', minX: 2.3, maxX: 13.5, minZ: 36.0, maxZ: 36.3, label: 'Sayap Timur Pagar Utara' },
-    { type: 'box', minX: 2.3, maxX: 13.5, minZ: 39.7, maxZ: 40.0, label: 'Sayap Timur Pagar Selatan' },
-    // Inner Wings Rails
-    { type: 'box', minX: -10.8, maxX: -2.3, minZ: 26.2, maxZ: 26.5, label: 'Sayap Tambatan Barat Dalam Utara' },
-    { type: 'box', minX: -10.8, maxX: -2.3, minZ: 29.5, maxZ: 29.8, label: 'Sayap Tambatan Barat Dalam Selatan' },
-    { type: 'box', minX: 2.3, maxX: 10.8, minZ: 26.2, maxZ: 26.5, label: 'Sayap Tambatan Timur Dalam Utara' },
-    { type: 'box', minX: 2.3, maxX: 10.8, minZ: 29.5, maxZ: 29.8, label: 'Sayap Tambatan Timur Dalam Selatan' },
-    // Pier Head Seaward Handrail
-    { type: 'box', minX: -4.5, maxX: 4.5, minZ: 53.8, maxZ: 54.2, label: 'Pagar Anjungan Ujung Dermaga' },
+    // Main Pier Handrails (Leaving 4.0m openings at Z: 35.0..39.0 and Z: 51.0..55.0 for wings)
+    { type: 'box', minX: -2.55, maxX: -2.35, minZ: 21.5, maxZ: 35.0, label: 'Dermaga Utama Pagar Barat Segmen 1' },
+    { type: 'box', minX: -2.55, maxX: -2.35, minZ: 39.0, maxZ: 51.0, label: 'Dermaga Utama Pagar Barat Segmen 2' },
+    { type: 'box', minX: -2.55, maxX: -2.35, minZ: 55.0, maxZ: 69.5, label: 'Dermaga Utama Pagar Barat Segmen 3' },
+    { type: 'box', minX: 2.35, maxX: 2.55, minZ: 21.5, maxZ: 35.0, label: 'Dermaga Utama Pagar Timur Segmen 1' },
+    { type: 'box', minX: 2.35, maxX: 2.55, minZ: 39.0, maxZ: 51.0, label: 'Dermaga Utama Pagar Timur Segmen 2' },
+    { type: 'box', minX: 2.35, maxX: 2.55, minZ: 55.0, maxZ: 69.5, label: 'Dermaga Utama Pagar Timur Segmen 3' },
+
+    // Branch 1 Rails (Z = 37.0)
+    { type: 'box', minX: -15.4, maxX: -2.4, minZ: 34.8, maxZ: 35.2, label: 'Sayap Barat 1 Pagar Utara' },
+    { type: 'box', minX: -15.4, maxX: -2.4, minZ: 38.8, maxZ: 39.2, label: 'Sayap Barat 1 Pagar Selatan' },
+    { type: 'box', minX: 2.4, maxX: 15.4, minZ: 34.8, maxZ: 35.2, label: 'Sayap Timur 1 Pagar Utara' },
+    { type: 'box', minX: 2.4, maxX: 15.4, minZ: 38.8, maxZ: 39.2, label: 'Sayap Timur 1 Pagar Selatan' },
+
+    // Branch 2 Rails (Z = 53.0)
+    { type: 'box', minX: -15.4, maxX: -2.4, minZ: 50.8, maxZ: 51.2, label: 'Sayap Barat 2 Pagar Utara' },
+    { type: 'box', minX: -15.4, maxX: -2.4, minZ: 54.8, maxZ: 55.2, label: 'Sayap Barat 2 Pagar Selatan' },
+    { type: 'box', minX: -15.4, maxX: -15.0, minZ: 51.0, maxZ: 55.0, label: 'Sayap Barat 2 Pagar Ujung' },
+    { type: 'box', minX: 2.4, maxX: 15.4, minZ: 50.8, maxZ: 51.2, label: 'Sayap Timur 2 Pagar Utara' },
+    { type: 'box', minX: 2.4, maxX: 15.4, minZ: 54.8, maxZ: 55.2, label: 'Sayap Timur 2 Pagar Selatan' },
+    { type: 'box', minX: 15.0, maxX: 15.4, minZ: 51.0, maxZ: 55.0, label: 'Sayap Timur 2 Pagar Ujung' },
+
+    // Pier Head Platform Handrails (X: -5.0..5.0, Z: 69.5..75.5)
+    { type: 'box', minX: -5.1, maxX: -2.4, minZ: 69.4, maxZ: 69.7, label: 'Pagar Anjungan Barat Masuk' },
+    { type: 'box', minX: 2.4, maxX: 5.1, minZ: 69.4, maxZ: 69.7, label: 'Pagar Anjungan Timur Masuk' },
+    { type: 'box', minX: -5.2, maxX: -4.8, minZ: 69.5, maxZ: 75.5, label: 'Pagar Anjungan Sisi Barat' },
+    { type: 'box', minX: 4.8, maxX: 5.2, minZ: 69.5, maxZ: 75.5, label: 'Pagar Anjungan Sisi Timur' },
+    { type: 'box', minX: -5.0, maxX: -1.2, minZ: 75.3, maxZ: 75.6, label: 'Pagar Anjungan Laut Barat' },
+    { type: 'box', minX: 1.2, maxX: 5.0, minZ: 75.3, maxZ: 75.6, label: 'Pagar Anjungan Laut Timur' },
+
     // Ship Hull Colliders (Outer water boundaries)
-    { type: 'box', minX: 16.5, maxX: 21.5, minZ: 31, maxZ: 45, label: 'Lambung Kapal Dagang Emas 1' },
-    { type: 'box', minX: -21.5, maxX: -16.5, minZ: 31, maxZ: 45, label: 'Lambung Kapal Perang Bershield' }
+    { type: 'box', minX: 17.5, maxX: 22.5, minZ: 30, maxZ: 44, label: 'Lambung Kapal Dagang Emas 1' },
+    { type: 'box', minX: -22.5, maxX: -17.5, minZ: 30, maxZ: 44, label: 'Lambung Kapal Perang Bershield' }
   );
 
   // 2.1 Northern Village Gateway Arch (Start of Royal Avenue at Z = -24)
@@ -740,9 +763,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     dialogueId: 'bard_lyra',
   });
 
-  // NPC 6: Nelayan Pak Joko (Coastal Fisherman on harbor dock landing)
+  // NPC 6: Nelayan Pak Joko (Coastal Fisherman on extended seaward pier head platform)
   const jokoGroup = createCustomNPCMesh('fisherman');
-  const jokoPos: [number, number, number] = [0, 1.85, 52.0]; // At seaward pier head looking out to open sea
+  const jokoPos: [number, number, number] = [1.8, 1.85, 73.0]; // At seaward pier head looking out to open sea
   jokoGroup.position.set(...jokoPos);
   jokoGroup.rotation.y = Math.PI; // Facing South towards open ocean
   scene.add(jokoGroup);
@@ -1127,40 +1150,51 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // ==========================================
   // 2.9 MISTY CHASM & SOLID SUSPENSION BRIDGE
-  // Spanning the chasm at X: 75, Z: -15
-  // Grounded firmly on cliffs with massive stone masonry pier rising from river floor
+  // Membentang lurus menghubungkan jalur dari Desa Utama (Barat) menuju Benteng Val-Kragor (Timur) pada Z = -16.
+  // Pilar penyangga batu berdiri kokoh di dasar jurang/sungai tanpa menembus papan lantai jembatan!
   // ==========================================
   const bridge = createSuspensionBridgeMesh(26);
-  bridge.position.set(75, 2.4, -15);
+  bridge.position.set(75, 2.4, -16);
   scene.add(bridge);
 
-  // Massive Stone Masonry Pier in the bottom of the river/chasm to support the bridge
-  const chasmStonePier = createStoneBridgePierMesh(7.5);
-  chasmStonePier.position.set(75, -0.6, -15);
+  // Pilar Penyangga Batu Kokoh (Tinggi 4.4m, duduk di dasar jurang y = -4.0, corbel capital menopang tepat di bawah dek y = 1.40)
+  // Tidak menembus atau menyembul ke atas permukaan lantai kayu jembatan!
+  const chasmStonePier = createStoneBridgePierMesh(4.4);
+  chasmStonePier.position.set(75, -1.2, -16);
   scene.add(chasmStonePier);
 
-  // Bridge side barrier colliders
+  // Pagar Pengaman Jembatan Gantung (Membentang lurus di Z = -18.2 dan Z = -13.8)
   colliders.push(
-    { type: 'box', minX: 62, maxX: 88, minZ: -17.5, maxZ: -16.5, label: 'Pagar Jembatan Kiri' },
-    { type: 'box', minX: 62, maxX: 88, minZ: -13.5, maxZ: -12.5, label: 'Pagar Jembatan Kanan' }
+    { type: 'box', minX: 62, maxX: 88, minZ: -18.2, maxZ: -17.4, label: 'Pagar Jembatan Kiri' },
+    { type: 'box', minX: 62, maxX: 88, minZ: -14.6, maxZ: -13.8, label: 'Pagar Jembatan Kanan' }
   );
 
-  // 2.9b Highway Waymarkers: Desa Utama -> Jembatan Gantung -> Gerbang Benteng Val-Kragor (Timur)
-  const highwayLampCoords = [
-    { x: 22, z: -15 },
-    { x: 36, z: -15 },
-    { x: 50, z: -15 },
-    { x: 60, z: -15 }, // Bridge West Anchor
-    { x: 90, z: -16 }, // Bridge East Anchor
-    { x: 104, z: -16 }, // Highway across eastern plateau slope
-    { x: 116, z: -16 }, // Highway ascent
-    { x: 126, z: -16 }, // Approach to West Gatehouse
+  // 2.9b Highway Waymarkers: Jalan Raya Desa Utama -> Jembatan Gantung -> Gerbang Benteng Val-Kragor
+  // Tiang-tiang lampu jalan dipindahkan ke sisi pinggir kiri (Z = -18.5) dan kanan (Z = -13.5).
+  // Alur jalan tanah (dirt path) di tengah Z = -16 selebar 4 meter 100% BERSIH, BEBAS HAMBATAN, dan TIDAK TERHALANG!
+  const highwayLampPairs = [
+    { x: 24, zL: -18.5, zR: -13.5 },
+    { x: 40, zL: -18.5, zR: -13.5 },
+    { x: 56, zL: -18.5, zR: -13.5 },
+    { x: 60, zL: -18.5, zR: -13.5 }, // Pintu Masuk Barat Jembatan
+    { x: 90, zL: -18.5, zR: -13.5 }, // Pintu Keluar Timur Jembatan
+    { x: 104, zL: -18.5, zR: -13.5 }, // Lereng Dataran Tinggi
+    { x: 116, zL: -18.5, zR: -13.5 }, // Tanjakan Menuju Benteng
+    { x: 126, zL: -18.5, zR: -13.5 }, // Depan Gerbang Barat Benteng Val-Kragor
   ];
-  highwayLampCoords.forEach(hlc => {
-    const lamp = createStreetLampMesh();
-    lamp.position.set(hlc.x, getTerrainHeight(hlc.x, hlc.z), hlc.z);
-    scene.add(lamp);
-    colliders.push({ type: 'circle', x: hlc.x, z: hlc.z, radius: 0.35, label: 'Lampu Jalan Antar-Wilayah' });
+
+  highwayLampPairs.forEach(pair => {
+    // Tiang Lampu Pinggir Kiri
+    const lampLeft = createStreetLampMesh();
+    lampLeft.position.set(pair.x, getTerrainHeight(pair.x, pair.zL), pair.zL);
+    scene.add(lampLeft);
+    colliders.push({ type: 'circle', x: pair.x, z: pair.zL, radius: 0.35, label: 'Lampu Pinggir Jalan Kiri' });
+
+    // Tiang Lampu Pinggir Kanan
+    const lampRight = createStreetLampMesh();
+    lampRight.position.set(pair.x, getTerrainHeight(pair.x, pair.zR), pair.zR);
+    scene.add(lampRight);
+    colliders.push({ type: 'circle', x: pair.x, z: pair.zR, radius: 0.35, label: 'Lampu Pinggir Jalan Kanan' });
   });
 
   // ==========================================
@@ -2231,7 +2265,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // ==========================================
   const chestData = [
     { id: 'chest_village', pos: [-4, 0, 4] as [number, number, number] },
-    { id: 'chest_beach', pos: [3.5, 1.85, 52] as [number, number, number] }, // Seaward Pier Head Platform Stash
+    { id: 'chest_beach', pos: [-3.0, 1.85, 73] as [number, number, number] }, // Seaward Pier Head Platform Stash
     { id: 'chest_ruins', pos: [-120, 0, 36] as [number, number, number] }, // Ancient ruins altar (Upstream Outskirts)
     { id: 'chest_forest', pos: [38, 0, 12] as [number, number, number] }, // Mystic deep forest
     { id: 'chest_boss_gateway', pos: [0, 0, -38] as [number, number, number] }, // Entrance to Titan Crater

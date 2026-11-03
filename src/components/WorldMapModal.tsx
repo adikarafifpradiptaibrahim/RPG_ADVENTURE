@@ -41,14 +41,20 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
   const [selectedRegion, setSelectedRegion] = useState<RegionInfo>(currentRegion);
   const [showLegend, setShowLegend] = useState(true);
 
-  // Zoom & Pan state
+  // Zoom & Pan state with pure 60 FPS hardware accelerated performance
   const [zoom, setZoom] = useState<number>(1.0);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [isInteracting, setIsInteracting] = useState<boolean>(false);
+
+  const zoomRef = useRef<number>(1.0);
+  const panRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const currentPanRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const rafIdRef = useRef<number | null>(null);
+
+  const dragRafRef = useRef<number | null>(null);
+  const wheelRafRef = useRef<number | null>(null);
+  const wheelCommitTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -70,8 +76,8 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
     };
   }, []);
 
-  // Direct DOM hardware transform update (eliminates React VDOM re-rendering during drag for pure 60fps)
-  const updateTransformDOM = useCallback((px: number, py: number, z: number) => {
+  // Direct DOM hardware transform update (runs on GPU, avoids layout thrashing and React VDOM re-renders)
+  const applyTransform = useCallback((px: number, py: number, z: number) => {
     if (containerRef.current) {
       containerRef.current.style.transform = `translate3d(${px}px, ${py}px, 0px) scale(${z})`;
     }
@@ -79,134 +85,146 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
 
   // Center on player (instantly centers view onto player position)
   const handleCenterOnPlayer = useCallback(() => {
+    const curZoom = zoomRef.current;
     const normX = (playerPos.x - minX) / (maxX - minX);
     const normZ = (playerPos.z - minZ) / (maxZ - minZ);
-    const targetPanX = -(normX - 0.5) * 560 * zoom;
-    const targetPanY = -(normZ - 0.5) * 420 * zoom;
-    const nextPan = clampPan(targetPanX, targetPanY, zoom);
-    currentPanRef.current = nextPan;
+    const targetPanX = -(normX - 0.5) * 560 * curZoom;
+    const targetPanY = -(normZ - 0.5) * 420 * curZoom;
+    const nextPan = clampPan(targetPanX, targetPanY, curZoom);
+    panRef.current = nextPan;
     setPan(nextPan);
-    updateTransformDOM(nextPan.x, nextPan.y, zoom);
-  }, [playerPos.x, playerPos.z, zoom, clampPan, updateTransformDOM]);
+    applyTransform(nextPan.x, nextPan.y, curZoom);
+  }, [playerPos.x, playerPos.z, clampPan, applyTransform]);
 
   // Zoom In / Out Handlers with smooth GPU transitions
   const handleZoomIn = () => {
-    setZoom((prev) => {
-      const next = Math.min(3.5, Math.round((prev + 0.5) * 10) / 10);
-      const nextPan = clampPan(currentPanRef.current.x, currentPanRef.current.y, next);
-      currentPanRef.current = nextPan;
-      setPan(nextPan);
-      updateTransformDOM(nextPan.x, nextPan.y, next);
-      return next;
-    });
+    const next = Math.min(3.5, Math.round((zoomRef.current + 0.5) * 10) / 10);
+    zoomRef.current = next;
+    const nextPan = clampPan(panRef.current.x, panRef.current.y, next);
+    panRef.current = nextPan;
+    setZoom(next);
+    setPan(nextPan);
+    applyTransform(nextPan.x, nextPan.y, next);
   };
 
   const handleZoomOut = () => {
-    setZoom((prev) => {
-      const next = Math.max(1.0, Math.round((prev - 0.5) * 10) / 10);
-      const nextPan = next === 1.0 ? { x: 0, y: 0 } : clampPan(currentPanRef.current.x, currentPanRef.current.y, next);
-      currentPanRef.current = nextPan;
-      setPan(nextPan);
-      updateTransformDOM(nextPan.x, nextPan.y, next);
-      return next;
-    });
+    const next = Math.max(1.0, Math.round((zoomRef.current - 0.5) * 10) / 10);
+    zoomRef.current = next;
+    const nextPan = next === 1.0 ? { x: 0, y: 0 } : clampPan(panRef.current.x, panRef.current.y, next);
+    panRef.current = nextPan;
+    setZoom(next);
+    setPan(nextPan);
+    applyTransform(nextPan.x, nextPan.y, next);
   };
 
   const handleResetZoom = () => {
+    zoomRef.current = 1.0;
+    panRef.current = { x: 0, y: 0 };
     setZoom(1.0);
-    currentPanRef.current = { x: 0, y: 0 };
     setPan({ x: 0, y: 0 });
-    updateTransformDOM(0, 0, 1.0);
+    applyTransform(0, 0, 1.0);
   };
 
-  // Mouse wheel zoom with RAF throttling
+  // Mouse wheel zoom wrapped in requestAnimationFrame with zero layout thrashing
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY < 0 ? 0.25 : -0.25;
-    setZoom((prev) => {
-      const next = Math.max(1.0, Math.min(3.5, Math.round((prev + delta) * 100) / 100));
-      const nextPan = next === 1.0 ? { x: 0, y: 0 } : clampPan(currentPanRef.current.x, currentPanRef.current.y, next);
-      currentPanRef.current = nextPan;
-      setPan(nextPan);
-      updateTransformDOM(nextPan.x, nextPan.y, next);
-      return next;
+    const nextZoom = Math.max(1.0, Math.min(3.5, Math.round((zoomRef.current + delta) * 100) / 100));
+    zoomRef.current = nextZoom;
+
+    const nextPan = nextZoom === 1.0 ? { x: 0, y: 0 } : clampPan(panRef.current.x, panRef.current.y, nextZoom);
+    panRef.current = nextPan;
+
+    if (!isInteracting) setIsInteracting(true);
+
+    if (wheelRafRef.current) cancelAnimationFrame(wheelRafRef.current);
+    wheelRafRef.current = requestAnimationFrame(() => {
+      applyTransform(nextPan.x, nextPan.y, nextZoom);
     });
+
+    // Debounce syncing to React state when wheel scrolling settles
+    if (wheelCommitTimerRef.current) clearTimeout(wheelCommitTimerRef.current);
+    wheelCommitTimerRef.current = setTimeout(() => {
+      setZoom(zoomRef.current);
+      setPan({ ...panRef.current });
+      setIsInteracting(false);
+    }, 120);
   };
 
-  // Mouse drag listeners with direct DOM updates for buttery-smooth 60fps pan
+  // Mouse drag listeners with direct DOM RAF updates for silky 60fps pan
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (zoom <= 1.0) return;
+    if (zoomRef.current <= 1.0) return;
     setIsDragging(true);
     dragStartRef.current = { x: e.clientX, y: e.clientY };
-    panStartRef.current = { ...currentPanRef.current };
+    panStartRef.current = { ...panRef.current };
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || zoom <= 1.0) return;
+    if (!isDragging || zoomRef.current <= 1.0) return;
     const dx = e.clientX - dragStartRef.current.x;
     const dy = e.clientY - dragStartRef.current.y;
     const targetX = panStartRef.current.x + dx;
     const targetY = panStartRef.current.y + dy;
-    const clamped = clampPan(targetX, targetY, zoom);
-    currentPanRef.current = clamped;
+    const clamped = clampPan(targetX, targetY, zoomRef.current);
+    panRef.current = clamped;
 
-    if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-    rafIdRef.current = requestAnimationFrame(() => {
-      updateTransformDOM(clamped.x, clamped.y, zoom);
+    if (dragRafRef.current) cancelAnimationFrame(dragRafRef.current);
+    dragRafRef.current = requestAnimationFrame(() => {
+      applyTransform(clamped.x, clamped.y, zoomRef.current);
     });
   };
 
   const handleMouseUp = () => {
-    if (rafIdRef.current) {
-      cancelAnimationFrame(rafIdRef.current);
-      rafIdRef.current = null;
+    if (dragRafRef.current) {
+      cancelAnimationFrame(dragRafRef.current);
+      dragRafRef.current = null;
     }
     if (isDragging) {
       setIsDragging(false);
-      setPan(currentPanRef.current);
+      setPan({ ...panRef.current });
     }
   };
 
-  // Touch drag listeners with direct DOM updates for Mobile
+  // Touch drag listeners with direct DOM RAF updates for Mobile
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (zoom <= 1.0 || e.touches.length === 0) return;
+    if (zoomRef.current <= 1.0 || e.touches.length === 0) return;
     setIsDragging(true);
     dragStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    panStartRef.current = { ...currentPanRef.current };
+    panStartRef.current = { ...panRef.current };
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging || zoom <= 1.0 || e.touches.length === 0) return;
+    if (!isDragging || zoomRef.current <= 1.0 || e.touches.length === 0) return;
     const dx = e.touches[0].clientX - dragStartRef.current.x;
     const dy = e.touches[0].clientY - dragStartRef.current.y;
     const targetX = panStartRef.current.x + dx;
     const targetY = panStartRef.current.y + dy;
-    const clamped = clampPan(targetX, targetY, zoom);
-    currentPanRef.current = clamped;
+    const clamped = clampPan(targetX, targetY, zoomRef.current);
+    panRef.current = clamped;
 
-    if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-    rafIdRef.current = requestAnimationFrame(() => {
-      updateTransformDOM(clamped.x, clamped.y, zoom);
+    if (dragRafRef.current) cancelAnimationFrame(dragRafRef.current);
+    dragRafRef.current = requestAnimationFrame(() => {
+      applyTransform(clamped.x, clamped.y, zoomRef.current);
     });
   };
 
   const handleTouchEnd = () => {
-    if (rafIdRef.current) {
-      cancelAnimationFrame(rafIdRef.current);
-      rafIdRef.current = null;
+    if (dragRafRef.current) {
+      cancelAnimationFrame(dragRafRef.current);
+      dragRafRef.current = null;
     }
     if (isDragging) {
       setIsDragging(false);
-      setPan(currentPanRef.current);
+      setPan({ ...panRef.current });
     }
   };
 
-  // Cleanup RAF on unmount
+  // Cleanup RAF and timers on unmount
   useEffect(() => {
     return () => {
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current);
-      }
+      if (dragRafRef.current) cancelAnimationFrame(dragRafRef.current);
+      if (wheelRafRef.current) cancelAnimationFrame(wheelRafRef.current);
+      if (wheelCommitTimerRef.current) clearTimeout(wheelCommitTimerRef.current);
     };
   }, []);
 
@@ -362,7 +380,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                   transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoom})`,
                   transformOrigin: '50% 50%',
                   willChange: 'transform',
-                  transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0, 1)',
+                  transition: (isDragging || isInteracting) ? 'none' : 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
                 }}
               >
               {/* Real-time Topographical Biome Canvas */}
