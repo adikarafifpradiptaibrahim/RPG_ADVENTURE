@@ -4112,3 +4112,323 @@ export function createIceCrystalClusterMesh(hasLight = false): THREE.Group {
 
   return cluster;
 }
+
+// 32. Large Ocean Merchant Galleon (Kapal Dagang Pelabuhan)
+export function createMerchantGalleonMesh(): THREE.Group {
+  const ship = new THREE.Group();
+
+  const hullWood = new THREE.MeshLambertMaterial({ color: 0x4a2e18, flatShading: true });
+  const deckWood = new THREE.MeshLambertMaterial({ color: 0x8d6e63, flatShading: true });
+  const trimGold = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.7, roughness: 0.3 });
+  const sailMat = new THREE.MeshLambertMaterial({ color: 0xf5f5f4, flatShading: true });
+  const mastWood = new THREE.MeshLambertMaterial({ color: 0x3e2723, flatShading: true });
+
+  // Main Hull Body
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(4.8, 3.2, 14), hullWood);
+  hull.position.y = 1.6;
+  hull.castShadow = true;
+  ship.add(hull);
+
+  // Bow prow taper
+  const bow = new THREE.Mesh(new THREE.ConeGeometry(2.4, 4.5, 4), hullWood);
+  bow.rotateX(Math.PI / 2);
+  bow.position.set(0, 1.6, 8.5);
+  bow.castShadow = true;
+  ship.add(bow);
+
+  // Stern Castle (Raised rear cabin)
+  const sternCabin = new THREE.Mesh(new THREE.BoxGeometry(4.6, 2.2, 4.5), hullWood);
+  sternCabin.position.set(0, 3.8, -4.5);
+  sternCabin.castShadow = true;
+  ship.add(sternCabin);
+
+  // Upper Deck Floor
+  const mainDeck = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.2, 13), deckWood);
+  mainDeck.position.set(0, 3.2, 0);
+  ship.add(mainDeck);
+
+  // Gold Trim Railing
+  const railing = new THREE.Mesh(new THREE.BoxGeometry(4.7, 0.5, 13.5), trimGold);
+  railing.position.set(0, 3.5, 0);
+  ship.add(railing);
+
+  // Masts
+  const mastCoords = [
+    { z: 1.5, h: 11, r: 0.28 },
+    { z: -2.5, h: 9.5, r: 0.24 },
+  ];
+
+  mastCoords.forEach((m) => {
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(m.r * 0.7, m.r, m.h, 6), mastWood);
+    mast.position.set(0, m.h * 0.5 + 3.0, m.z);
+    mast.castShadow = true;
+    ship.add(mast);
+
+    // Yardarms & Furled Sails
+    for (let sy = 5.5; sy <= m.h + 1; sy += 3.2) {
+      const yardarm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 4.2, 5), mastWood);
+      yardarm.rotation.z = Math.PI / 2;
+      yardarm.position.set(0, sy + 3.0, m.z);
+      ship.add(yardarm);
+
+      // Furled Sail Roll
+      const sail = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 3.8, 6), sailMat);
+      sail.rotation.z = Math.PI / 2;
+      sail.position.set(0, sy + 2.7, m.z + 0.15);
+      sail.castShadow = true;
+      ship.add(sail);
+    }
+  });
+
+  // Bowsprit pole
+  const bowsprit = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 4.5, 5), mastWood);
+  bowsprit.rotation.x = -Math.PI / 6;
+  bowsprit.position.set(0, 3.6, 11.5);
+  ship.add(bowsprit);
+
+  // Cargo crates & barrels on deck
+  const crateMat = new THREE.MeshLambertMaterial({ color: 0x92400e });
+  for (let c = 0; c < 4; c++) {
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.9), crateMat);
+    crate.position.set(c % 2 === 0 ? 1.0 : -1.0, 3.75, 4.0 - Math.floor(c / 2) * 1.4);
+    ship.add(crate);
+  }
+
+  return ship;
+}
+
+// 33. Wooden Warship with Shields (Kapal Perang Kayu Ber-Shield)
+export function createVikingWarshipMesh(): THREE.Group {
+  const warship = new THREE.Group();
+
+  const darkOak = new THREE.MeshLambertMaterial({ color: 0x332211, flatShading: true });
+  const lightDeck = new THREE.MeshLambertMaterial({ color: 0x6d4c41, flatShading: true });
+  const redShield = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.5, metalness: 0.4 });
+  const blueShield = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.5, metalness: 0.4 });
+  const goldBoss = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.8, roughness: 0.2 });
+  const mastWood = new THREE.MeshLambertMaterial({ color: 0x271911, flatShading: true });
+
+  // Sleek Longship Hull
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2.2, 16), darkOak);
+  hull.position.y = 1.1;
+  hull.castShadow = true;
+  warship.add(hull);
+
+  // High curving prow (Bow)
+  const prow = new THREE.Mesh(new THREE.ConeGeometry(1.8, 4.8, 5), darkOak);
+  prow.rotation.x = Math.PI / 2.3;
+  prow.position.set(0, 2.2, 9.2);
+  prow.castShadow = true;
+  warship.add(prow);
+
+  // High curving stern
+  const stern = new THREE.Mesh(new THREE.ConeGeometry(1.6, 4.2, 5), darkOak);
+  stern.rotation.x = -Math.PI / 2.3;
+  stern.position.set(0, 2.0, -9.0);
+  stern.castShadow = true;
+  warship.add(stern);
+
+  // Walkable deck
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.2, 14.8), lightDeck);
+  deck.position.set(0, 2.1, 0);
+  warship.add(deck);
+
+  // Center War Mast & Furled War Sail
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.28, 9.5, 6), mastWood);
+  mast.position.set(0, 6.5, 0);
+  mast.castShadow = true;
+  warship.add(mast);
+
+  const yardarm = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 5.0, 5), mastWood);
+  yardarm.rotation.z = Math.PI / 2;
+  yardarm.position.set(0, 10.0, 0);
+  warship.add(yardarm);
+
+  // War Pennant at top of mast
+  const pennant = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.6, 3), redShield);
+  pennant.rotation.z = Math.PI / 2;
+  pennant.position.set(0.9, 11.0, 0);
+  warship.add(pennant);
+
+  // Shields mounted along both gunwales (Left & Right)
+  for (let s = -5.5; s <= 5.5; s += 1.4) {
+    const isRed = Math.abs(Math.round(s * 10)) % 2 === 0;
+    const shieldMat = isRed ? redShield : blueShield;
+
+    // Left gunwale shield
+    const leftShield = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.1, 12), shieldMat);
+    leftShield.rotation.z = Math.PI / 2;
+    leftShield.position.set(-1.85, 2.3, s);
+    leftShield.castShadow = true;
+    warship.add(leftShield);
+
+    const leftBoss = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), goldBoss);
+    leftBoss.position.set(-1.92, 2.3, s);
+    warship.add(leftBoss);
+
+    // Right gunwale shield
+    const rightShield = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.1, 12), shieldMat);
+    rightShield.rotation.z = Math.PI / 2;
+    rightShield.position.set(1.85, 2.3, s);
+    rightShield.castShadow = true;
+    warship.add(rightShield);
+
+    const rightBoss = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), goldBoss);
+    rightBoss.position.set(1.92, 2.3, s);
+    warship.add(rightBoss);
+  }
+
+  return warship;
+}
+
+// 34. Small Rowboat with Dual Oars (Perahu Dayung Kayu)
+export function createRowboatMesh(): THREE.Group {
+  const boat = new THREE.Group();
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x5d4037, flatShading: true });
+  const seatMat = new THREE.MeshLambertMaterial({ color: 0x8d6e63, flatShading: true });
+  const oarMat = new THREE.MeshLambertMaterial({ color: 0xbcaaa4 });
+
+  // Hull
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.7, 4.0), woodMat);
+  hull.position.y = 0.35;
+  hull.castShadow = true;
+  boat.add(hull);
+
+  // Bow & stern points
+  const bow = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.4, 4), woodMat);
+  bow.rotateX(Math.PI / 2);
+  bow.position.set(0, 0.35, 2.4);
+  boat.add(bow);
+
+  const stern = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.2, 4), woodMat);
+  stern.rotateX(-Math.PI / 2);
+  stern.position.set(0, 0.35, -2.3);
+  boat.add(stern);
+
+  // Benches
+  for (const bz of [-0.9, 0.2, 1.2]) {
+    const bench = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.1, 0.45), seatMat);
+    bench.position.set(0, 0.55, bz);
+    boat.add(bench);
+  }
+
+  // Wooden Oars resting on gunwales
+  const leftOar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.8, 4), oarMat);
+  leftOar.rotation.z = -0.55;
+  leftOar.rotation.y = 0.3;
+  leftOar.position.set(-1.1, 0.65, 0.2);
+  boat.add(leftOar);
+
+  const rightOar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.8, 4), oarMat);
+  rightOar.rotation.z = 0.55;
+  rightOar.rotation.y = -0.3;
+  rightOar.position.set(1.1, 0.65, 0.2);
+  boat.add(rightOar);
+
+  return boat;
+}
+
+// 35. Ancient Ice Crystal Mountain Peak (Pegunungan Kristal Es Purba)
+export function createIceSpikeMountainMesh(scale = 1.0): THREE.Group {
+  const peak = new THREE.Group();
+
+  const crystalMat = new THREE.MeshStandardMaterial({
+    color: 0x38bdf8,
+    emissive: 0x0284c7,
+    emissiveIntensity: 0.55,
+    roughness: 0.1,
+    metalness: 0.75,
+    transparent: true,
+    opacity: 0.9,
+    flatShading: true,
+  });
+
+  const frostRockMat = new THREE.MeshStandardMaterial({
+    color: 0x64748b,
+    roughness: 0.8,
+    flatShading: true,
+  });
+
+  // Base mountain crag
+  const baseCrag = new THREE.Mesh(new THREE.ConeGeometry(5.5, 9.0, 7), frostRockMat);
+  baseCrag.position.y = 4.5;
+  baseCrag.castShadow = true;
+  peak.add(baseCrag);
+
+  // Main soaring central crystal shard
+  const mainShard = new THREE.Mesh(new THREE.OctahedronGeometry(2.6, 0), crystalMat);
+  mainShard.scale.set(1.0, 5.5, 1.0);
+  mainShard.position.y = 12.0;
+  mainShard.castShadow = true;
+  peak.add(mainShard);
+
+  // Flanking angled shards
+  const shardConfigs = [
+    { ox: -2.8, oz: 1.4, sY: 4.2, rX: 0.25, rZ: 0.35, sR: 1.8 },
+    { ox: 2.6, oz: -1.8, sY: 4.0, rX: -0.2, rZ: -0.38, sR: 1.6 },
+    { ox: 1.2, oz: 2.8, sY: 3.6, rX: 0.32, rZ: -0.15, sR: 1.5 },
+  ];
+
+  shardConfigs.forEach((sc) => {
+    const shard = new THREE.Mesh(new THREE.OctahedronGeometry(sc.sR, 0), crystalMat);
+    shard.scale.set(1.0, sc.sY, 1.0);
+    shard.position.set(sc.ox, 8.0, sc.oz);
+    shard.rotation.x = sc.rX;
+    shard.rotation.z = sc.rZ;
+    shard.castShadow = true;
+    peak.add(shard);
+  });
+
+  if (scale !== 1.0) {
+    peak.scale.set(scale, scale, scale);
+  }
+
+  return peak;
+}
+
+// 36. Defensive Spiked Wood & Stone Barricade (Barikade Benteng Val-Kragor)
+export function createWoodBarricadeMesh(length = 6): THREE.Group {
+  const barricade = new THREE.Group();
+
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x4e342e, flatShading: true });
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.3 });
+  const stoneMat = new THREE.MeshLambertMaterial({ color: 0x64748b, flatShading: true });
+
+  // Stone base bollards
+  for (const bx of [-length / 2 + 0.5, length / 2 - 0.5]) {
+    const stone = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 1.2), stoneMat);
+    stone.position.set(bx, 0.7, 0);
+    stone.castShadow = true;
+    barricade.add(stone);
+  }
+
+  // Cross timber beams
+  const beam1 = new THREE.Mesh(new THREE.BoxGeometry(length, 0.35, 0.35), woodMat);
+  beam1.position.set(0, 0.6, 0);
+  barricade.add(beam1);
+
+  const beam2 = new THREE.Mesh(new THREE.BoxGeometry(length, 0.35, 0.35), woodMat);
+  beam2.position.set(0, 1.3, 0);
+  barricade.add(beam2);
+
+  // Sharpened angled wooden stakes
+  const stakeCount = Math.floor(length * 1.5);
+  const step = (length - 0.8) / (stakeCount - 1);
+  for (let i = 0; i < stakeCount; i++) {
+    const sx = -length / 2 + 0.4 + i * step;
+    const stake = new THREE.Mesh(new THREE.ConeGeometry(0.14, 2.2, 5), woodMat);
+    // Angle forward towards attackers
+    stake.rotation.x = (i % 2 === 0 ? 0.45 : -0.35);
+    stake.position.set(sx, 1.0, (i % 2 === 0 ? 0.3 : -0.2));
+    stake.castShadow = true;
+    barricade.add(stake);
+
+    // Iron reinforcement band
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.1, 6), ironMat);
+    band.rotation.x = stake.rotation.x;
+    band.position.set(sx, 0.9, stake.position.z);
+    barricade.add(band);
+  }
+
+  return barricade;
+}

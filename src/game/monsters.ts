@@ -24,8 +24,8 @@ export interface MonsterSpawnConfig {
 
 /**
  * Frostpeak Glacier Frostfang Wolves (Lv. 5)
- * Positioned in the snowy mountain wilderness outside the walls of Ibukota Astraea
- * (roaming the mountain trails between Val-Kragor and Astraea, and the eastern crags).
+ * Positioned across the sprawling snowy mountain wilderness between Val-Kragor
+ * and the relocated northern citadel of Astraea.
  */
 export const FROST_WOLF_SPAWNS: MonsterSpawnConfig[] = [
   {
@@ -40,7 +40,7 @@ export const FROST_WOLF_SPAWNS: MonsterSpawnConfig[] = [
     defense: 12,
     expReward: 65,
     goldReward: 35,
-    pos: [102, -58],
+    pos: [115, -75],
     patrolRadius: 10,
     aggroRange: 14,
   },
@@ -56,7 +56,7 @@ export const FROST_WOLF_SPAWNS: MonsterSpawnConfig[] = [
     defense: 10,
     expReward: 55,
     goldReward: 28,
-    pos: [128, -62],
+    pos: [135, -120],
     patrolRadius: 12,
     aggroRange: 14,
   },
@@ -72,7 +72,7 @@ export const FROST_WOLF_SPAWNS: MonsterSpawnConfig[] = [
     defense: 11,
     expReward: 58,
     goldReward: 30,
-    pos: [142, -72],
+    pos: [142, -170],
     patrolRadius: 11,
     aggroRange: 14,
   },
@@ -88,7 +88,7 @@ export const FROST_WOLF_SPAWNS: MonsterSpawnConfig[] = [
     defense: 10,
     expReward: 52,
     goldReward: 26,
-    pos: [84, -76],
+    pos: [122, -220],
     patrolRadius: 10,
     aggroRange: 13,
   },
@@ -104,7 +104,7 @@ export const FROST_WOLF_SPAWNS: MonsterSpawnConfig[] = [
     defense: 11,
     expReward: 56,
     goldReward: 28,
-    pos: [86, -100],
+    pos: [135, -250],
     patrolRadius: 12,
     aggroRange: 14,
   },

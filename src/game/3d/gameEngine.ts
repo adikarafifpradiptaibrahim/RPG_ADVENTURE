@@ -3869,8 +3869,8 @@ export class GameEngine {
       });
     }
 
-    // Check quest discovery for Grand Imperial Kingdom of Astraea
-    if (nextX >= 100 && nextX <= 170 && nextZ <= -82 && nextZ >= -138) {
+    // Check quest discovery for Grand Imperial Kingdom of Astraea (North Frostpeak)
+    if (nextX >= 140 && nextX <= 220 && nextZ <= -225 && nextZ >= -295) {
       this.callbacks.onUpdateQuests((quests) => {
         return quests.map((q) => {
           if (q.id === 'quest_discover_astraea' && !q.completed) {
@@ -4756,16 +4756,40 @@ export class GameEngine {
         description: 'Perahu & Pemandangan Laut',
       });
 
-      // Ibukota Kerajaan Emas Astraea & Istana Kaisar (Pusat Frostpeak)
+      // Ibukota Kerajaan Emas Astraea & Istana Kaisar (Ujung Utara Frostpeak)
       markers.push({
         id: 'landmark_astraea_palace',
         title: 'Istana Kaisar Aurelius',
         type: 'boss',
-        x: 148,
-        z: -110,
+        x: 195,
+        z: -260,
         icon: '👑',
         color: '#fbbf24',
-        description: 'Ibukota Kerajaan Emas Astraea (Frostpeak)',
+        description: 'Ibukota Kerajaan Emas Astraea (Utara Frostpeak)',
+      });
+
+      // Jurang Es Purba (North of Astraea)
+      markers.push({
+        id: 'landmark_frozen_chasm',
+        title: 'Jurang Es Purba',
+        type: 'waypoint',
+        x: 180,
+        z: -320,
+        icon: '❄️',
+        color: '#38bdf8',
+        description: 'Jurang Gletser Es Alami Frostpeak',
+      });
+
+      // Pelabuhan Kapal Sanctuary
+      markers.push({
+        id: 'landmark_sanctuary_harbor',
+        title: 'Pelabuhan Kapal Sanctuary',
+        type: 'pier',
+        x: 6,
+        z: 35,
+        icon: '⛵',
+        color: '#00b4d8',
+        description: 'Dermaga & Kapal Dagang / Perang Berlabuh',
       });
 
       // Benteng Pertahanan Val-Kragor (Highland)

@@ -3,13 +3,13 @@ import { RegionInfo, MapMarker } from '../types/game';
 export const REGIONS: RegionInfo[] = [
   {
     id: 'desa_eldoria',
-    name: 'Sanctuary Village',
-    nameId: 'Desa Utama Sanctuary Eldoria',
+    name: 'Sanctuary Village & Harbor',
+    nameId: 'Desa Utama & Pelabuhan Sanctuary',
     icon: '🏡',
-    description: 'A peaceful settlement with cottages, stone plazas, and a blessed rejuvenation fountain.',
-    descriptionId: 'Pusat desa damai dengan rumah bertingkat kayu, air mancur pemulih suci, bengkel tempa Torvald, dan kedai.',
+    description: 'A thriving coastal settlement with wooden cottages, busy harbor docks, merchant galleons, and rejuvenation fountain.',
+    descriptionId: 'Pusat desa damai dengan rumah panggung kayu, pelabuhan kapal dagang dan kapal perang, bengkel tempa, serta air mancur suci.',
     color: '#4caf50',
-    bounds: { minX: -24, maxX: 24, minZ: -24, maxZ: 20 },
+    bounds: { minX: -45, maxX: 45, minZ: -35, maxZ: 65 },
     center: [0, -2],
     recommendedLevel: 1,
   },
@@ -78,23 +78,23 @@ export const REGIONS: RegionInfo[] = [
     name: 'Fortress Village Val-Kragor',
     nameId: 'Desa Benteng Val-Kragor',
     icon: '🏰',
-    description: 'A fortified highland village with stone ramparts, watchtowers, garrison keep, and elite smithies.',
-    descriptionId: 'Desa benteng dataran tinggi megah yang berjarak jauh di timur! Dilengkapi gerbang pertahanan kokoh, menara pengawas, kedai serigala, perapian hangat, dan markas Komandan Brann.',
+    description: 'A heavily fortified highland stronghold with stone ramparts, corner watchtowers, garrison keep, and spiked defense barricades.',
+    descriptionId: 'Desa benteng pertahanan dataran tinggi timur! Dilengkapi tembok slate kokoh, menara pengawas baru, barikade runcing, dan markas Komandan Brann.',
     color: '#3b82f6',
-    bounds: { minX: 95, maxX: 145, minZ: -42, maxZ: 10 },
-    center: [115, -18],
+    bounds: { minX: 85, maxX: 155, minZ: -48, maxZ: 18 },
+    center: [116, -17],
     recommendedLevel: 4,
   },
   {
     id: 'puncak_frostpeak',
-    name: 'Frostpeak Glacier & Cryo Altar',
+    name: 'Frostpeak Glacier & Frozen Chasm',
     nameId: 'Puncak Salju Abadi Frostpeak',
     icon: '❄️',
     description: 'Perpetually snow-covered mountain peaks with crystalline ice spires, vast glaciers, and an ancient frozen sanctuary.',
     descriptionId: 'Pegunungan es luas bersalju abadi di utara-timur jauh, dihuni Serigala Frostfang, jurang gletser beku, dan menara pertahanan es terluar.',
     color: '#38bdf8',
     bounds: { minX: 45, maxX: 520, minZ: -480, maxZ: -34 },
-    center: [200, -180],
+    center: [180, -180],
     recommendedLevel: 5,
   },
   {
@@ -174,11 +174,11 @@ export const REGIONS: RegionInfo[] = [
     name: 'Grand Imperial Kingdom of Astraea',
     nameId: 'Ibukota Kerajaan Emas Astraea & Istana Kaisar',
     icon: '👑',
-    description: 'A colossal imperial metropolis situated atop the eternal snow peak of Frostpeak, featuring the grand Sun Palace, towering marble colonnades, royal bazaar, and the Fountain of Immortality.',
-    descriptionId: 'Ibukota kerajaan emas megah di pusat Puncak Salju Abadi Frostpeak! Gerbang Barat megah menghadap ke daratan barat, Istana Kaisar Aurelius berkubah emas, Air Mancur Keabadian, dan pasar kerajaan yang ramai.',
+    description: 'A colossal imperial metropolis situated atop the eternal north snow plateau of Frostpeak, featuring the grand Sun Palace, towering marble colonnades, royal bazaar, and the Fountain of Immortality.',
+    descriptionId: 'Ibukota kerajaan emas megah di ujung utara Puncak Salju Abadi Frostpeak, terpisah jauh dari Val-Kragor! Gerbang Utama menghadap lurus ke Barat (270°), Istana Kaisar Aurelius, dan jurang es purba di utara.',
     color: '#fbbf24',
-    bounds: { minX: 100, maxX: 170, minZ: -138, maxZ: -82 },
-    center: [135, -110],
+    bounds: { minX: 140, maxX: 220, minZ: -295, maxZ: -225 },
+    center: [180, -260],
     recommendedLevel: 5,
   },
 ];
@@ -198,6 +198,14 @@ export const WAYPOINTS: {
     icon: '⛲',
     pos: [0, -3],
     desc: 'Pusat desa awal, dekat Tetua Vaelen dan air mancur suci',
+  },
+  {
+    id: 'wp_harbor',
+    nameId: 'Dermaga & Pelabuhan Kapal Sanctuary',
+    regionId: 'desa_eldoria',
+    icon: '⛵',
+    pos: [6, 26],
+    desc: 'Pelabuhan utama desa dengan kapal dagang dan kapal perang berlayar',
   },
   {
     id: 'wp_beach',
@@ -245,7 +253,7 @@ export const WAYPOINTS: {
     regionId: 'desa_valkragor',
     icon: '🏰',
     pos: [115, -18],
-    desc: 'Desa kedua di dataran tinggi timur, dekat Komandan Brann & pandai besi Goran',
+    desc: 'Desa benteng pertahanan di dataran tinggi timur, dekat Komandan Brann & pandai besi Goran',
   },
   {
     id: 'wp_frostpeak',
@@ -348,14 +356,14 @@ export const WAYPOINTS: {
     nameId: 'Gerbang Barat Kerajaan Emas Astraea & Istana Kaisar',
     regionId: 'kerajaan_astraea',
     icon: '👑',
-    pos: [105, -110],
-    desc: 'Gerbang megah sebelah barat Ibukota Kerajaan Emas Astraea di pusat Puncak Salju Frostpeak, menghadap daratan barat',
+    pos: [148, -260],
+    desc: 'Gerbang Barat Ibukota Kerajaan Emas Astraea di utara Frostpeak, menghadap lurus ke arah barat (270°)',
   },
 ];
 
 export function getCurrentRegion(x: number, z: number): RegionInfo {
-  // 0. Grand Imperial Kingdom of Astraea (Frostpeak Center: x between 100 and 170, z between -138 and -82)
-  if (x >= 100 && x <= 170 && z <= -82 && z >= -138) {
+  // 0. Grand Imperial Kingdom of Astraea (North Frostpeak Citadel: x between 140 and 220, z between -295 and -225)
+  if (x >= 140 && x <= 220 && z <= -225 && z >= -295) {
     return REGIONS[14];
   }
   // 1. Dragonfang Caldera & Inferno Core (Far North: z <= -85 && x between -120 and 140)
@@ -387,11 +395,11 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
     return REGIONS[8];
   }
   // 8. Fortress Village Val-Kragor (Far East Highland)
-  if (x >= 95 && z >= -45 && z <= 12) {
+  if (x >= 85 && x <= 155 && z >= -48 && z <= 18) {
     return REGIONS[6];
   }
   // 9. Misty Chasm & Suspension Bridge (Mid East)
-  if (x >= 62 && x < 95 && z >= -35 && z <= 12) {
+  if (x >= 62 && x < 85 && z >= -35 && z <= 12) {
     return REGIONS[5];
   }
   // 10. Coral Cove (South-East Coast)

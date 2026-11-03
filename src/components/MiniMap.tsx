@@ -40,8 +40,10 @@ export const MiniMap: React.FC<MiniMapProps> = ({
     return new Set<string>();
   });
 
-  // Radar coverage radius in world units
-  const radarRadius = 46;
+  // Radar coverage zoom levels: 28 (close detail), 46 (standard), 75 (wide radar)
+  const [zoomLevelIdx, setZoomLevelIdx] = useState<number>(1);
+  const zoomRadii = [28, 46, 75];
+  const radarRadius = zoomRadii[zoomLevelIdx];
 
   // Update discovered chunks around player
   useEffect(() => {
@@ -239,7 +241,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({
 
     ctx.restore();
     ctx.restore();
-  }, [playerPos.x, playerPos.z, playerPos.rotationY, discoveredChunks]);
+  }, [playerPos.x, playerPos.z, playerPos.rotationY, discoveredChunks, radarRadius]);
 
   return (
     <div className="flex flex-col items-end gap-1 select-none pointer-events-none">
@@ -258,12 +260,40 @@ export const MiniMap: React.FC<MiniMapProps> = ({
         </span>
       </div>
 
-      {/* Genshin/Minecraft Style Circular Topographical Minimap Container */}
-      <div
-        onClick={onOpenFullMap}
-        className="pointer-events-auto relative w-[115px] h-[115px] sm:w-[136px] sm:h-[136px] rounded-full overflow-hidden border-[3px] border-amber-600/85 bg-stone-950 shadow-[0_10px_25px_rgba(0,0,0,0.85)] backdrop-blur-md cursor-pointer group hover:border-amber-400 transition-all flex-shrink-0"
-        title="Klik untuk membuka Peta Lengkap (M)"
-      >
+      {/* Genshin/Minecraft Style Circular Topographical Minimap Container with Zoom Controls */}
+      <div className="flex items-center gap-1.5 pointer-events-auto">
+        {/* Quick Zoom In/Out Buttons (+ / -) */}
+        <div className="flex flex-col gap-1 z-20">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setZoomLevelIdx((prev) => Math.max(0, prev - 1));
+            }}
+            disabled={zoomLevelIdx === 0}
+            className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-stone-900/95 hover:bg-stone-800 disabled:opacity-40 border border-amber-600/70 text-amber-300 font-bold text-xs flex items-center justify-center shadow-lg transition-transform active:scale-90 cursor-pointer"
+            title="Perbesar Radar Minimap (+)"
+          >
+            +
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setZoomLevelIdx((prev) => Math.min(zoomRadii.length - 1, prev + 1));
+            }}
+            disabled={zoomLevelIdx === zoomRadii.length - 1}
+            className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-stone-900/95 hover:bg-stone-800 disabled:opacity-40 border border-amber-600/70 text-amber-300 font-bold text-xs flex items-center justify-center shadow-lg transition-transform active:scale-90 cursor-pointer"
+            title="Perkecil Radar Minimap (-)"
+          >
+            -
+          </button>
+        </div>
+
+        {/* Circular Minimap Viewport */}
+        <div
+          onClick={onOpenFullMap}
+          className="relative w-[115px] h-[115px] sm:w-[136px] sm:h-[136px] rounded-full overflow-hidden border-[3px] border-amber-600/85 bg-stone-950 shadow-[0_10px_25px_rgba(0,0,0,0.85)] backdrop-blur-md cursor-pointer group hover:border-amber-400 transition-all flex-shrink-0"
+          title="Klik untuk membuka Peta Lengkap (M)"
+        >
         {/* Real-time Topographical Render Canvas */}
         <canvas
           ref={canvasRef}
@@ -361,6 +391,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({
           <span>Z: {Math.round(playerPos.z)}</span>
         </div>
       </div>
+    </div>
     </div>
   );
 };

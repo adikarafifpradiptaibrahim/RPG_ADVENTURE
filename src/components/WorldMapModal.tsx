@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   X,
   MapPin,
@@ -9,9 +9,14 @@ import {
   Shield,
   Layers,
   HelpCircle,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Crosshair,
 } from 'lucide-react';
 import { MapMarker, RegionInfo } from '../types/game';
 import { REGIONS, WAYPOINTS } from '../game/mapData';
+import { getContinentBiomeSample } from '../game/mapSampler';
 
 interface WorldMapModalProps {
   isOpen: boolean;
@@ -33,7 +38,15 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
   const [selectedRegion, setSelectedRegion] = useState<RegionInfo>(currentRegion);
   const [showLegend, setShowLegend] = useState(true);
 
-  if (!isOpen) return null;
+  // Zoom & Pan state
+  const [zoom, setZoom] = useState<number>(1.0);
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Map world coordinate boundaries for projection
   // 2.5x Expanded World bounds: X from -580 to +680 (width 1260), Z from -460 to +460 (height 920)
@@ -42,18 +55,198 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
   const minZ = -460;
   const maxZ = 460;
 
-  const worldToPercent = (wx: number, wz: number) => {
-    const px = Math.min(100, Math.max(0, ((wx - minX) / (maxX - minX)) * 100));
-    const pz = Math.min(100, Math.max(0, ((wz - minZ) / (maxZ - minZ)) * 100));
-    return { left: `${px}%`, top: `${pz}%` };
+  // Clamped Pan Handler
+  const clampPan = useCallback((nx: number, ny: number, curZoom: number) => {
+    const maxPanX = (curZoom - 1.0) * 280;
+    const maxPanY = (curZoom - 1.0) * 210;
+    return {
+      x: Math.max(-maxPanX, Math.min(maxPanX, nx)),
+      y: Math.max(-maxPanY, Math.min(maxPanY, ny)),
+    };
+  }, []);
+
+  // Center on player
+  const handleCenterOnPlayer = useCallback(() => {
+    const normX = (playerPos.x - minX) / (maxX - minX);
+    const normZ = (playerPos.z - minZ) / (maxZ - minZ);
+    const targetPanX = -(normX - 0.5) * 560 * zoom;
+    const targetPanY = -(normZ - 0.5) * 420 * zoom;
+    setPan(clampPan(targetPanX, targetPanY, zoom));
+  }, [playerPos.x, playerPos.z, zoom, clampPan]);
+
+  // Zoom In / Out Handlers
+  const handleZoomIn = () => {
+    setZoom((prev) => {
+      const next = Math.min(3.5, Math.round((prev + 0.5) * 10) / 10);
+      setPan((p) => clampPan(p.x, p.y, next));
+      return next;
+    });
   };
 
-  const playerCoord = worldToPercent(playerPos.x, playerPos.z);
+  const handleZoomOut = () => {
+    setZoom((prev) => {
+      const next = Math.max(1.0, Math.round((prev - 0.5) * 10) / 10);
+      if (next === 1.0) {
+        setPan({ x: 0, y: 0 });
+      } else {
+        setPan((p) => clampPan(p.x, p.y, next));
+      }
+      return next;
+    });
+  };
+
+  const handleResetZoom = () => {
+    setZoom(1.0);
+    setPan({ x: 0, y: 0 });
+  };
+
+  // Mouse wheel zoom
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.25 : -0.25;
+    setZoom((prev) => {
+      const next = Math.max(1.0, Math.min(3.5, Math.round((prev + delta) * 100) / 100));
+      if (next === 1.0) {
+        setPan({ x: 0, y: 0 });
+      } else {
+        setPan((p) => clampPan(p.x, p.y, next));
+      }
+      return next;
+    });
+  };
+
+  // Mouse drag listeners
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (zoom <= 1.0) return;
+    setIsDragging(true);
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    panStartRef.current = { ...pan };
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || zoom <= 1.0) return;
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
+    setPan(clampPan(panStartRef.current.x + dx, panStartRef.current.y + dy, zoom));
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // Touch drag listeners for Mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (zoom <= 1.0 || e.touches.length === 0) return;
+    setIsDragging(true);
+    dragStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    panStartRef.current = { ...pan };
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging || zoom <= 1.0 || e.touches.length === 0) return;
+    const dx = e.touches[0].clientX - dragStartRef.current.x;
+    const dy = e.touches[0].clientY - dragStartRef.current.y;
+    setPan(clampPan(panStartRef.current.x + dx, panStartRef.current.y + dy, zoom));
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+  };
+
+  // World to screen percentage conversion
+  const worldToScreen = (wx: number, wz: number) => {
+    const normX = (wx - minX) / (maxX - minX);
+    const normZ = (wz - minZ) / (maxZ - minZ);
+    const leftPercent = 50 + (normX - 0.5) * 100 * zoom + (pan.x / 560) * 100;
+    const topPercent = 50 + (normZ - 0.5) * 100 * zoom + (pan.y / 420) * 100;
+    const isVisible = leftPercent >= -15 && leftPercent <= 115 && topPercent >= -15 && topPercent <= 115;
+    return { left: `${leftPercent}%`, top: `${topPercent}%`, visible: isVisible };
+  };
+
+  const playerScreen = worldToScreen(playerPos.x, playerPos.z);
+
+  // Render Real-time Topographical Landscape on Canvas
+  useEffect(() => {
+    if (!isOpen) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.clearRect(0, 0, width, height);
+
+    const imgData = ctx.createImageData(width, height);
+    const pixels = imgData.data;
+
+    // Direct pixel block sampling
+    const step = zoom >= 2.5 ? 2 : (zoom >= 1.5 ? 3 : 3);
+
+    for (let py = 0; py < height; py += step) {
+      const v = py / height;
+      const screenV = (v - 0.5) / zoom - (pan.y / height) / zoom + 0.5;
+      const wz = minZ + screenV * (maxZ - minZ);
+
+      for (let px = 0; px < width; px += step) {
+        const u = px / width;
+        const screenU = (u - 0.5) / zoom - (pan.x / width) / zoom + 0.5;
+        const wx = minX + screenU * (maxX - minX);
+
+        if (screenU < 0 || screenU > 1 || screenV < 0 || screenV > 1) {
+          // Off-map deep abyss void
+          for (let dy = 0; dy < step && py + dy < height; dy++) {
+            const rowOff = (py + dy) * width * 4;
+            for (let dx = 0; dx < step && px + dx < width; dx++) {
+              const idx = rowOff + (px + dx) * 4;
+              pixels[idx] = 12;
+              pixels[idx + 1] = 16;
+              pixels[idx + 2] = 22;
+              pixels[idx + 3] = 255;
+            }
+          }
+          continue;
+        }
+
+        const sample = getContinentBiomeSample(wx, wz);
+        let [r, g, b] = sample.color;
+
+        // Dynamic hillshade sun angle
+        const sunDot = 1.0 + (sample.slope * 0.45 * (screenU - screenV));
+        const shade = Math.max(0.65, Math.min(1.35, sunDot));
+        r = Math.min(255, Math.max(0, Math.round(r * shade)));
+        g = Math.min(255, Math.max(0, Math.round(g * shade)));
+        b = Math.min(255, Math.max(0, Math.round(b * shade)));
+
+        // Topographical elevation contours
+        if (sample.height > 0.5 && Math.abs(sample.height % 3.0) < 0.28) {
+          r = Math.min(255, r + 40);
+          g = Math.min(255, g + 40);
+          b = Math.min(255, b + 50);
+        }
+
+        for (let dy = 0; dy < step && py + dy < height; dy++) {
+          const rowOff = (py + dy) * width * 4;
+          for (let dx = 0; dx < step && px + dx < width; dx++) {
+            const idx = rowOff + (px + dx) * 4;
+            pixels[idx] = r;
+            pixels[idx + 1] = g;
+            pixels[idx + 2] = b;
+            pixels[idx + 3] = 255;
+          }
+        }
+      }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+  }, [isOpen, zoom, pan.x, pan.y]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/80 backdrop-blur-md animate-fade-in select-none">
-      <div className="game-modal-card relative w-full max-w-5xl max-h-[85vh] h-[85vh] bg-stone-900/95 border-2 border-amber-600/60 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-stone-200">
-        {/* Sticky Modal Header with prominent X */}
+      <div className="game-modal-card relative w-full max-w-5xl max-h-[88vh] h-[88vh] bg-stone-900/95 border-2 border-amber-600/60 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-stone-200">
+        {/* Sticky Modal Header */}
         <div className="sticky top-0 z-20 shrink-0 flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 border-b border-stone-800 bg-stone-950/95">
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
@@ -67,7 +260,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 </span>
               </h2>
               <p className="text-[10px] sm:text-xs text-stone-400 hidden sm:block">
-                Jelajahi benua raksasa Eldoria: Ibukota Astraea, Puncak Frostpeak, Gurun Solaria, Rawa Shadowfen, Kuil Pagoda, dan Sarang Naga Purba.
+                Jelajahi benua raksasa Eldoria: Ibukota Astraea Utara, Jurang Es Frostpeak, Gurun Solaria, Rawa Shadowfen, Kuil Pagoda, dan Pelabuhan Sanctuary.
               </p>
             </div>
           </div>
@@ -96,219 +289,294 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
         <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
           {/* Main Map Canvas Area */}
           <div className="relative flex-1 bg-stone-950/90 overflow-hidden flex items-center justify-center p-2 sm:p-4">
-            {/* Topographical Map Container */}
-            <div className="relative w-full h-full max-w-[620px] max-h-[580px] rounded-xl overflow-hidden border border-stone-700/60 shadow-inner bg-[#1e232a]">
-              {/* Region Biome Background Layers */}
-              {/* 0. Dragonfang Caldera & Inferno Archipelago (Far North Center) */}
-              <div
-                onClick={() => setSelectedRegion(REGIONS[13])}
-                className="absolute top-0 left-[34%] w-[32%] h-[18%] bg-gradient-to-b from-[#450a0a] via-[#7f1d1d]/60 to-transparent border-b border-red-500/50 cursor-pointer hover:brightness-125 transition-all z-15"
-              >
-                <div className="absolute top-1 left-2 text-[9px] font-bold text-red-300 flex items-center gap-1">
-                  <span>🐉</span> {REGIONS[13].nameId} (Lv.{REGIONS[13].recommendedLevel})
-                </div>
-                <div className="absolute bottom-1 right-2 text-[8px] text-red-400 font-mono">
-                  Sarang Naga
-                </div>
-              </div>
+            {/* Topographical Map Container with Zoom & Pan */}
+            <div
+              ref={containerRef}
+              onWheel={handleWheel}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              style={{
+                cursor: zoom > 1.0 ? (isDragging ? 'grabbing' : 'grab') : 'default',
+              }}
+              className="relative w-full h-full max-w-[620px] max-h-[580px] rounded-xl overflow-hidden border border-stone-700/60 shadow-inner bg-[#1e232a]"
+            >
+              {/* Real-time Topographical Biome Canvas */}
+              <canvas
+                ref={canvasRef}
+                width={560}
+                height={420}
+                className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+              />
 
-              {/* 0.1. Thunderpeak Lightning Spire (Far North-West) */}
-              <div
-                onClick={() => setSelectedRegion(REGIONS[11])}
-                className="absolute top-0 left-0 w-[30%] h-[20%] bg-gradient-to-br from-[#1e1b4b] via-[#312e81]/60 to-transparent border-r border-b border-indigo-500/40 cursor-pointer hover:brightness-125 transition-all z-15"
-              >
-                <div className="absolute top-1 left-2 text-[9px] font-bold text-indigo-200 flex items-center gap-1">
-                  <span>⚡</span> {REGIONS[11].nameId} (Lv.{REGIONS[11].recommendedLevel})
-                </div>
-                <div className="absolute bottom-1 left-2 text-[8px] text-indigo-300">
-                  Altar Halilintar
-                </div>
-              </div>
-
-              {/* 1. Frostpeak Glacier Summit & Grand Imperial Astraea (North-East) */}
-              <div
-                onClick={() => setSelectedRegion(REGIONS[14])}
-                className="absolute top-0 right-0 w-[35%] h-[32%] bg-gradient-to-bl from-[#0c4a6e] via-[#0284c7]/40 to-transparent border-l border-b border-sky-400/40 cursor-pointer hover:brightness-125 transition-all z-10"
-              >
-                <div className="absolute top-2 right-2 text-[10px] font-bold text-amber-300 flex items-center gap-1 text-right">
-                  <span>👑</span> {REGIONS[14].nameId}
-                </div>
-                <div 
-                  onClick={(e) => { e.stopPropagation(); setSelectedRegion(REGIONS[7]); }}
-                  className="absolute top-7 right-2 text-[8px] font-semibold text-sky-200 hover:text-white bg-sky-950/70 px-1.5 py-0.5 rounded border border-sky-500/40 cursor-pointer"
+              {/* FLOATING ZOOM & CAMERA CONTROLS (Top-Left HUD) */}
+              <div className="absolute top-3 left-3 z-35 flex items-center gap-1.5 p-1 bg-stone-900/90 backdrop-blur-md border border-amber-600/60 rounded-xl shadow-xl pointer-events-auto">
+                <button
+                  onClick={handleZoomIn}
+                  disabled={zoom >= 3.5}
+                  className="w-7 h-7 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-amber-300 flex items-center justify-center transition-all active:scale-95"
+                  title="Perbesar Peta (+)"
                 >
-                  ❄️ {REGIONS[7].nameId}
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <div className="px-1.5 py-0.5 text-[11px] font-mono font-bold text-amber-200">
+                  {zoom.toFixed(1)}x
                 </div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center opacity-90 pointer-events-none">
-                  <span className="text-base">🏰</span>
-                  <span className="text-[8px] text-amber-200 font-bold">Istana & Benteng Astraea</span>
-                </div>
+                <button
+                  onClick={handleZoomOut}
+                  disabled={zoom <= 1.0}
+                  className="w-7 h-7 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-amber-300 flex items-center justify-center transition-all active:scale-95"
+                  title="Perkecil Peta (-)"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <div className="w-[1px] h-4 bg-stone-700 mx-0.5" />
+                <button
+                  onClick={handleResetZoom}
+                  disabled={zoom === 1.0 && pan.x === 0 && pan.y === 0}
+                  className="w-7 h-7 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-stone-300 hover:text-white flex items-center justify-center transition-all active:scale-95"
+                  title="Reset Tampilan (1.0x)"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={handleCenterOnPlayer}
+                  className="w-7 h-7 rounded-lg bg-amber-600/30 hover:bg-amber-600/60 border border-amber-500/50 text-amber-300 flex items-center justify-center transition-all active:scale-95"
+                  title="Pusatkan Kamera ke Posisi Pemain"
+                >
+                  <Crosshair className="w-3.5 h-3.5" />
+                </button>
               </div>
 
-              {/* 2. Volcanic Crater Zone (North Center) */}
-              <div
-                onClick={() => setSelectedRegion(REGIONS[4])}
-                className="absolute top-[18%] left-[26%] w-[39%] h-[26%] bg-gradient-to-b from-[#211210] via-[#2d1815] to-transparent border-b border-red-900/40 cursor-pointer hover:brightness-110 transition-all z-5"
-              >
-                <div className="absolute top-2 left-2 text-[10px] font-bold text-red-400/90 flex items-center gap-1">
-                  <span>🌋</span> {REGIONS[4].nameId} (Lv.{REGIONS[4].recommendedLevel})
-                </div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full border border-red-500/40 bg-red-950/40 flex items-center justify-center pointer-events-none">
-                  <div className="w-8 h-8 rounded-full bg-red-600/30 blur-sm animate-pulse" />
-                  <span className="text-sm">💀</span>
-                </div>
+              {/* Navigation Hint Pill (Bottom-Left) */}
+              <div className="absolute bottom-3 left-3 z-35 px-2.5 py-1 bg-stone-950/80 backdrop-blur-xs border border-stone-800/80 rounded-lg text-[9px] font-mono text-stone-400 pointer-events-none flex items-center gap-1.5 shadow">
+                <span>🖱️</span>
+                <span>{zoom > 1.0 ? 'Tahan & Geser untuk Menjelajah' : 'Scroll / (+) untuk Memperbesar'}</span>
               </div>
 
-              {/* 0.2. Solaria Golden Dunes & Sunken Pyramid (South-West) */}
-              <div
-                onClick={() => setSelectedRegion(REGIONS[10])}
-                className="absolute bottom-0 left-0 w-[32%] h-[26%] bg-gradient-to-tr from-[#713f12] via-[#ca8a04]/40 to-transparent border-t border-r border-yellow-500/40 cursor-pointer hover:brightness-125 transition-all z-15"
-              >
-                <div className="absolute bottom-2 left-2 text-[9px] font-bold text-yellow-300 flex items-center gap-1">
-                  <span>🏜️</span> {REGIONS[10].nameId} (Lv.{REGIONS[10].recommendedLevel})
-                </div>
-                <div className="absolute top-2 left-3 text-[8px] text-yellow-200">
-                  Piramida Emas
-                </div>
-              </div>
+              {/* DYNAMIC REGION CLICKABLE ZONES & LABELS */}
+              {/* 1. Grand Imperial Astraea (Far North Frostpeak, X: 180, Z: -260) */}
+              {(() => {
+                const sp = worldToScreen(180, -260);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[14])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1.5 rounded-xl bg-stone-950/75 border border-amber-400/80 shadow-2xl backdrop-blur-xs hover:border-amber-300 hover:scale-110 transition-transform">
+                      <span className="text-sm sm:text-base">👑</span>
+                      <span className="text-[9px] font-bold text-amber-300 tracking-wide whitespace-nowrap">
+                        {REGIONS[14].nameId}
+                      </span>
+                      <span className="text-[7px] text-amber-200/80 font-mono">Ibukota Kerajaan</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
-              {/* 0.3. Jade Bamboo Grove & Pagoda (South-East) */}
-              <div
-                onClick={() => setSelectedRegion(REGIONS[12])}
-                className="absolute bottom-0 right-0 w-[32%] h-[26%] bg-gradient-to-tl from-[#064e3b] via-[#059669]/40 to-transparent border-t border-l border-emerald-500/40 cursor-pointer hover:brightness-125 transition-all z-15"
-              >
-                <div className="absolute bottom-2 right-2 text-[9px] font-bold text-emerald-300 flex items-center gap-1 text-right">
-                  <span>⛩️</span> {REGIONS[12].nameId} (Lv.{REGIONS[12].recommendedLevel})
-                </div>
-                <div className="absolute top-2 right-3 text-[8px] text-emerald-200">
-                  Pagoda Giok
-                </div>
-              </div>
+              {/* 2. Frostpeak Glacier Summit (Lv.5, X: 115, Z: -65) */}
+              {(() => {
+                const sp = worldToScreen(115, -65);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[7])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-sky-950/75 border border-sky-400/60 shadow-xl backdrop-blur-xs hover:border-sky-300 hover:scale-110 transition-transform">
+                      <span className="text-xs">❄️</span>
+                      <span className="text-[8px] font-bold text-sky-200 whitespace-nowrap">
+                        {REGIONS[7].nameId}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
-              {/* 3. Shadowfen Gloom Marsh (Far West) */}
-              <div
-                onClick={() => setSelectedRegion(REGIONS[8])}
-                className="absolute top-[20%] left-0 w-[26%] h-[50%] bg-gradient-to-r from-[#2e1065]/90 via-[#3b0764]/60 to-transparent border-r border-purple-900/40 cursor-pointer hover:brightness-110 transition-all z-10"
-              >
-                <div className="absolute top-2 left-2 text-[10px] font-bold text-purple-300 flex items-center gap-1">
-                  <span>🍄</span> {REGIONS[8].nameId} (Lv.{REGIONS[8].recommendedLevel})
-                </div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center opacity-70 pointer-events-none">
-                  <span className="text-base">🧪</span>
-                  <span className="text-[8px] text-purple-300">Rawa Gelap</span>
-                </div>
-              </div>
+              {/* 3. Jurang Es Purba / Frozen Chasm (X: 180, Z: -320) */}
+              {(() => {
+                const sp = worldToScreen(180, -320);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-15 pointer-events-none flex flex-col items-center"
+                  >
+                    <span className="text-[7px] px-1.5 py-0.2 bg-blue-950/80 border border-blue-400/50 rounded text-cyan-200 font-bold whitespace-nowrap shadow">
+                      ❄️ Jurang Es Purba
+                    </span>
+                  </div>
+                );
+              })()}
 
-              {/* 4. Ancient Ruins (West Center) */}
-              <div
-                onClick={() => setSelectedRegion(REGIONS[2])}
-                className="absolute top-[32%] left-[26%] w-[20%] h-[38%] bg-gradient-to-r from-[#263238]/80 to-transparent border-r border-cyan-900/30 cursor-pointer hover:brightness-110 transition-all"
-              >
-                <div className="absolute top-2 left-2 text-[10px] font-bold text-cyan-300/90 flex items-center gap-1">
-                  <span>🏛️</span> {REGIONS[2].nameId}
-                </div>
-                <div className="absolute bottom-3 left-3 text-stone-400/70 text-xs flex gap-1 pointer-events-none">
-                  <span>🏛️</span>
-                  <span>⚔️</span>
-                </div>
-              </div>
+              {/* 4. Sanctuary Harbor & Naval Docks (X: 6, Z: 35) */}
+              {(() => {
+                const sp = worldToScreen(6, 35);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[1])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-blue-950/80 border border-cyan-400/70 shadow-lg hover:border-cyan-300 hover:scale-110 transition-transform">
+                      <span className="text-xs">⛵</span>
+                      <span className="text-[8px] font-bold text-cyan-200 whitespace-nowrap">
+                        Pelabuhan Sanctuary
+                      </span>
+                      <span className="text-[7px] text-cyan-300/80 font-mono">Kapal Dagang & Perang</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
-              {/* 5. Sanctuary Village (Center) */}
-              <div
-                onClick={() => setSelectedRegion(REGIONS[0])}
-                className="absolute top-[34%] left-[46%] w-[16%] h-[28%] rounded-xl bg-amber-950/40 border border-amber-600/40 cursor-pointer hover:brightness-110 transition-all flex flex-col items-center justify-center z-10"
-              >
-                <span className="text-lg">⛲</span>
-                <span className="text-[10px] font-bold text-amber-300">
-                  Desa Sanctuary
-                </span>
-                <span className="text-[8px] text-amber-200/70">Pusat Desa</span>
-              </div>
+              {/* 5. Sanctuary Village Plaza (X: 0, Z: 0) */}
+              {(() => {
+                const sp = worldToScreen(0, 0);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[0])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1.5 rounded-xl bg-amber-950/80 border border-amber-500/70 shadow-lg hover:border-amber-300 hover:scale-110 transition-transform">
+                      <span className="text-sm">⛲</span>
+                      <span className="text-[9px] font-bold text-amber-200 whitespace-nowrap">
+                        {REGIONS[0].nameId}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
-              {/* 6. Mystic Forest (East Center) */}
-              <div
-                onClick={() => setSelectedRegion(REGIONS[3])}
-                className="absolute top-[32%] left-[62%] w-[16%] h-[34%] bg-gradient-to-l from-[#1b3022]/80 to-transparent cursor-pointer hover:brightness-110 transition-all"
-              >
-                <div className="absolute top-2 right-1 text-[10px] font-bold text-emerald-300/90 flex items-center gap-1 text-right">
-                  <span>🌲</span> Hutan Pinus
-                </div>
-                <div className="absolute bottom-3 right-3 text-emerald-500/70 text-xs flex gap-1 pointer-events-none">
-                  <span>🌲</span>
-                  <span>🔮</span>
-                </div>
-              </div>
+              {/* 6. Desa Benteng Val-Kragor (X: 115, Z: -17) */}
+              {(() => {
+                const sp = worldToScreen(115, -17);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[6])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-blue-950/80 border border-blue-400/60 shadow-lg hover:border-blue-300 hover:scale-110 transition-transform">
+                      <span className="text-xs">🛡️</span>
+                      <span className="text-[8px] font-bold text-blue-200 whitespace-nowrap">
+                        {REGIONS[6].nameId}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
-              {/* 7. Misty Chasm & Suspension Bridge (Mid-East) */}
-              <div
-                onClick={() => setSelectedRegion(REGIONS[5])}
-                className="absolute top-[34%] left-[78%] w-[9%] h-[30%] bg-stone-800/40 border-l border-r border-stone-600/30 cursor-pointer hover:brightness-125 transition-all flex flex-col items-center justify-center z-5"
-              >
-                <span className="text-xs">🌉</span>
-                <span className="text-[7px] text-stone-300 font-bold text-center leading-tight">Jembatan Gantung</span>
-              </div>
+              {/* 7. Dragonfang Caldera (Far North, X: 20, Z: -280) */}
+              {(() => {
+                const sp = worldToScreen(20, -280);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[13])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-red-950/80 border border-red-500/70 shadow-lg hover:border-red-400 hover:scale-110 transition-transform">
+                      <span className="text-xs">🐉</span>
+                      <span className="text-[8px] font-bold text-red-300 whitespace-nowrap">
+                        {REGIONS[13].nameId}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
-              {/* 8. Fortress Village Val-Kragor (Far East Highland) */}
-              <div
-                onClick={() => setSelectedRegion(REGIONS[6])}
-                className="absolute top-[28%] right-0 w-[22%] h-[40%] bg-gradient-to-l from-[#1e3a8a]/80 via-[#1e40af]/40 to-transparent border-l border-blue-500/40 cursor-pointer hover:brightness-110 transition-all z-10 flex flex-col justify-between p-2"
-              >
-                <div className="text-[10px] font-bold text-blue-300 flex items-center gap-1 justify-end">
-                  <span>🏰</span> Val-Kragor (Lv.{REGIONS[6].recommendedLevel})
-                </div>
-                <div className="flex flex-col items-center pointer-events-none">
-                  <span className="text-base">🛡️</span>
-                  <span className="text-[8px] text-blue-200 font-bold">Benteng Dataran Tinggi</span>
-                </div>
-              </div>
+              {/* 8. Gurun Emas Solaria (South-West, X: -240, Z: 180) */}
+              {(() => {
+                const sp = worldToScreen(-240, 180);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[10])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-yellow-950/80 border border-yellow-500/70 shadow-lg hover:border-yellow-400 hover:scale-110 transition-transform">
+                      <span className="text-xs">🏜️</span>
+                      <span className="text-[8px] font-bold text-yellow-300 whitespace-nowrap">
+                        {REGIONS[10].nameId}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
-              {/* 9. Coral Cove & Shipwreck (South East Coast) */}
-              <div
-                onClick={() => setSelectedRegion(REGIONS[9])}
-                className="absolute bottom-0 right-0 w-[42%] h-[30%] bg-gradient-to-t from-[#78350f]/80 via-[#0284c7]/40 to-transparent border-t border-amber-500/30 cursor-pointer hover:brightness-110 transition-all z-10"
-              >
-                <div className="absolute bottom-2 right-3 text-[10px] font-bold text-amber-300 flex items-center gap-1 justify-end">
-                  <span>🏴‍☠️</span> {REGIONS[9].nameId}
-                </div>
-                <div className="absolute top-2 right-1/3 text-xs flex items-center gap-1 text-amber-200 pointer-events-none">
-                  <span>🏝️</span>
-                  <span>⛵ Karam</span>
-                </div>
-              </div>
+              {/* 9. Shadowfen Gloom Marsh (West, X: -200, Z: 20) */}
+              {(() => {
+                const sp = worldToScreen(-200, 20);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[8])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-purple-950/80 border border-purple-500/70 shadow-lg hover:border-purple-400 hover:scale-110 transition-transform">
+                      <span className="text-xs">🍄</span>
+                      <span className="text-[8px] font-bold text-purple-300 whitespace-nowrap">
+                        {REGIONS[8].nameId}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
-              {/* 10. Azure Coast & Ocean (South) */}
-              <div
-                onClick={() => setSelectedRegion(REGIONS[1])}
-                className="absolute bottom-0 left-0 w-[58%] h-[30%] bg-gradient-to-t from-[#023e8a] via-[#0077b6] to-[#0096c7]/60 border-t border-cyan-400/30 cursor-pointer hover:brightness-110 transition-all"
-              >
-                {/* Sandy Beach Ribbon */}
-                <div className="absolute top-0 left-0 right-0 h-3 bg-[#fde047]/30 border-b border-yellow-500/30" />
-                <div className="absolute bottom-2 left-3 text-[10px] font-bold text-cyan-200 flex items-center gap-1">
-                  <span>🌊</span> {REGIONS[1].nameId} (Lv.{REGIONS[1].recommendedLevel})
-                </div>
-                <div className="absolute top-2 left-1/3 text-cyan-100/90 text-xs flex items-center gap-2 pointer-events-none">
-                  <span>⚓ Dermaga</span>
-                </div>
-              </div>
+              {/* 10. Jade Bamboo Grove & Pagoda (South-East, X: 240, Z: 180) */}
+              {(() => {
+                const sp = worldToScreen(240, 180);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[12])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-emerald-950/80 border border-emerald-500/70 shadow-lg hover:border-emerald-400 hover:scale-110 transition-transform">
+                      <span className="text-xs">⛩️</span>
+                      <span className="text-[8px] font-bold text-emerald-300 whitespace-nowrap">
+                        {REGIONS[12].nameId}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
-              {/* Coordinate Grid Lines */}
+              {/* Coordinate Grid Overlay */}
               <div className="absolute inset-0 pointer-events-none grid grid-cols-4 grid-rows-4 border border-stone-700/20 divide-x divide-y divide-stone-700/20" />
 
-              {/* Waypoints with Fast Travel Buttons */}
+              {/* WAYPOINTS WITH FAST TRAVEL BUTTONS */}
               {WAYPOINTS.map((wp) => {
-                const pos = worldToPercent(wp.pos[0], wp.pos[1]);
+                const sp = worldToScreen(wp.pos[0], wp.pos[1]);
+                if (!sp.visible) return null;
                 return (
                   <div
                     key={wp.id}
-                    style={pos}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 group"
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-25 group"
                   >
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         onFastTravel(wp.pos[0], wp.pos[1]);
                         onClose();
                       }}
-                      className="w-7 h-7 rounded-full bg-cyan-600/90 hover:bg-cyan-500 border-2 border-white shadow-lg flex items-center justify-center text-xs transition-transform hover:scale-125"
+                      className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-cyan-600/90 hover:bg-cyan-500 border-2 border-white shadow-lg flex items-center justify-center text-[10px] sm:text-xs transition-transform hover:scale-125 cursor-pointer pointer-events-auto"
                       title={`Fast Travel ke: ${wp.nameId}`}
                     >
                       {wp.icon}
@@ -316,26 +584,27 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                     {/* Tooltip on hover */}
                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center z-30 pointer-events-none">
                       <div className="px-2 py-1 bg-stone-900/95 border border-cyan-400/80 rounded-md shadow-xl text-center whitespace-nowrap">
-                        <p className="text-[11px] font-bold text-cyan-200">{wp.nameId}</p>
-                        <p className="text-[9px] text-stone-300">Klik untuk Teleportasi</p>
+                        <p className="text-[10px] sm:text-[11px] font-bold text-cyan-200">{wp.nameId}</p>
+                        <p className="text-[8px] sm:text-[9px] text-stone-300">Klik untuk Teleportasi</p>
                       </div>
                     </div>
                   </div>
                 );
               })}
 
-              {/* Dynamic Map Markers (NPC, Chests, Boss) */}
+              {/* DYNAMIC MAP MARKERS (NPC, Chests, Bosses) */}
               {markers.map((marker) => {
-                const pos = worldToPercent(marker.x, marker.z);
+                const sp = worldToScreen(marker.x, marker.z);
+                if (!sp.visible) return null;
                 return (
                   <div
                     key={marker.id}
-                    style={pos}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-15 pointer-events-none"
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none"
                     title={marker.title}
                   >
                     <div
-                      className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] shadow-md"
+                      className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] shadow-md border border-stone-900"
                       style={{ backgroundColor: marker.color || '#fff' }}
                     >
                       {marker.icon || '•'}
@@ -344,34 +613,36 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 );
               })}
 
-              {/* LIVE PLAYER PIN */}
-              <div
-                style={playerCoord}
-                className="absolute -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none flex flex-col items-center"
-              >
-                <div className="relative flex items-center justify-center">
-                  <div className="absolute w-7 h-7 rounded-full bg-amber-400/30 animate-ping" />
-                  <div
-                    className="w-6 h-6 rounded-full bg-amber-400 border-2 border-white shadow-2xl flex items-center justify-center"
-                    style={{
-                      transform: `rotate(${(playerPos.rotationY * 180) / Math.PI + 180}deg)`,
-                    }}
-                  >
-                    <Navigation className="w-3.5 h-3.5 text-stone-900 fill-stone-900" />
+              {/* LIVE PLAYER PIN WITH HEADING ARROW */}
+              {playerScreen.visible && (
+                <div
+                  style={{ left: playerScreen.left, top: playerScreen.top }}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none flex flex-col items-center"
+                >
+                  <div className="relative flex items-center justify-center">
+                    <div className="absolute w-7 h-7 rounded-full bg-amber-400/30 animate-ping" />
+                    <div
+                      className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-400 border-2 border-white shadow-2xl flex items-center justify-center"
+                      style={{
+                        transform: `rotate(${(playerPos.rotationY * 180) / Math.PI + 180}deg)`,
+                      }}
+                    >
+                      <Navigation className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-stone-900 fill-stone-900" />
+                    </div>
                   </div>
+                  <span className="mt-0.5 px-1.5 py-0.2 bg-black/85 border border-amber-400/70 rounded text-[8px] sm:text-[9px] font-bold text-amber-300 whitespace-nowrap shadow">
+                    Kamu Disini
+                  </span>
                 </div>
-                <span className="mt-0.5 px-1.5 py-0.2 bg-black/85 border border-amber-400/70 rounded text-[9px] font-bold text-amber-300 whitespace-nowrap shadow">
-                  Kamu Disini
-                </span>
-              </div>
+              )}
 
               {/* Compass Rose Top-Right */}
-              <div className="absolute top-3 right-3 p-1.5 bg-stone-900/85 border border-stone-700/80 rounded-lg flex flex-col items-center pointer-events-none">
-                <span className="text-[10px] font-bold text-amber-400">U</span>
-                <div className="w-3 h-3 rounded-full border border-stone-600 flex items-center justify-center text-[7px] text-stone-400">
+              <div className="absolute top-3 right-3 p-1 sm:p-1.5 bg-stone-900/85 border border-stone-700/80 rounded-lg flex flex-col items-center pointer-events-none z-30">
+                <span className="text-[9px] sm:text-[10px] font-bold text-amber-400">U</span>
+                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full border border-stone-600 flex items-center justify-center text-[7px] text-stone-400">
                   +
                 </div>
-                <span className="text-[9px] text-stone-500">S</span>
+                <span className="text-[8px] sm:text-[9px] text-stone-500">S</span>
               </div>
             </div>
           </div>
@@ -427,7 +698,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                         onFastTravel(wp.pos[0], wp.pos[1]);
                         onClose();
                       }}
-                      className="px-2.5 py-1 rounded bg-cyan-700/80 hover:bg-cyan-600 text-[10px] font-bold text-white shadow transition-colors"
+                      className="px-2.5 py-1 rounded bg-cyan-700/80 hover:bg-cyan-600 text-[10px] font-bold text-white shadow transition-colors cursor-pointer"
                     >
                       Teleport
                     </button>
