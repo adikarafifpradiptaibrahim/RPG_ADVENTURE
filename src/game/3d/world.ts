@@ -1536,10 +1536,13 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     const tx = Math.cos(angle) * dist;
     const tz = Math.sin(angle) * dist;
 
-    // Strict Anti-Overlap Exclusion: Prevent ANY wild trees from spawning inside Sanctuary Village or Harbor/Ocean
+    // Strict Anti-Overlap Exclusion: Prevent ANY wild trees from spawning inside Sanctuary Village, Harbor/Ocean, Suspension Bridge, Highway, or Val-Kragor
     const inSanctuaryMainland = (Math.abs(tx) <= 35 && tz >= -32 && tz <= 16);
     const inSanctuaryHarborOcean = (Math.abs(tx) <= 50 && tz > 16);
-    if (inSanctuaryMainland || inSanctuaryHarborOcean) continue;
+    const inBridgeHighwayCorridor = (tx >= 42 && tx <= 138 && Math.abs(tz - -16) <= 9.0);
+    const inMistyChasm = (tx >= 58 && tx <= 92 && tz >= -35 && tz <= 5);
+    const inValKragor = (tx >= 125 && tx <= 195 && tz >= -48 && tz <= 15);
+    if (inSanctuaryMainland || inSanctuaryHarborOcean || inBridgeHighwayCorridor || inMistyChasm || inValKragor) continue;
     // Avoid boss arena center
     if (tz < -35 && Math.abs(tx) < 26) continue;
 
@@ -1840,13 +1843,13 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // Facing WEST (Direction: 270° / rotation.y = Math.PI * 1.5)
   // Grand staircase descends West to elevated marble entry esplanade (X: 174..180)
   const imperialPalace = createImperialPalaceMesh();
-  imperialPalace.position.set(195, astraeaBaseY, -260);
+  imperialPalace.position.set(200, astraeaBaseY, -260);
   imperialPalace.rotation.y = Math.PI * 1.5;
   scene.add(imperialPalace);
   colliders.push({
     type: 'box',
-    minX: 186,
-    maxX: 206,
+    minX: 191,
+    maxX: 211,
     minZ: -271,
     maxZ: -249,
     label: 'Istana Kerajaan Kaisar Astraea',
@@ -1890,14 +1893,22 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // B4. Tiang Lampu Emas Kerajaan di Sepanjang Pinggir Jalan Lingkar & Flanking Alur Istana
   // Seluruh tiang lampu berada di pinggir alur jalan (Z = -264 & Z = -256), alur jalan tengah Z = -260 tetap lapang!
   const astraeaStreetlamps = [
-    // Jalan lingkar bundaran air mancur
-    { x: 158, z: -266 }, { x: 170, z: -266 },
-    { x: 158, z: -254 }, { x: 170, z: -254 },
-    // Menuju Gerbang Barat
-    { x: 152, z: -264 }, { x: 152, z: -256 },
-    // Flanking Alur Karpet Merah Megah Istana Kaisar
-    { x: 178, z: -264 }, { x: 178, z: -256 },
-    { x: 184, z: -264 }, { x: 184, z: -256 },
+    // North Parallel Row (Flanking Bazaar Stalls outside plaza circle, Z = -274)
+    { x: 152, z: -274 },
+    { x: 164, z: -274 },
+    { x: 176, z: -274 },
+    // South Parallel Row (Flanking Bazaar Stalls outside plaza circle, Z = -246)
+    { x: 152, z: -246 },
+    { x: 164, z: -246 },
+    { x: 176, z: -246 },
+    // Avenue from West Gate towards Plaza (Flanking Z = -260 avenue)
+    { x: 150, z: -264.5 },
+    { x: 150, z: -255.5 },
+    // Grand Esplanade approaching Palace Stairs (Flanking open carpet promenade)
+    { x: 178, z: -265.0 },
+    { x: 178, z: -255.0 },
+    { x: 186, z: -265.0 },
+    { x: 186, z: -255.0 },
   ];
   astraeaStreetlamps.forEach((sl) => {
     const lamp = createStreetLampMesh();
@@ -1975,31 +1986,31 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // E. Symmetrical Grand Royal Bazaar Stalls Flanking North & South Promenades
-  // North Promenade (Facing South towards circular plaza):
+  // North Promenade (Facing South towards circular plaza at Z = -274):
   const astraeaStall1 = createImperialBazaarStallMesh(0x9333ea, 0xfacc15); // Celestial Potions (Lyra)
-  astraeaStall1.position.set(159, astraeaBaseY, -273);
+  astraeaStall1.position.set(158, astraeaBaseY, -274);
   astraeaStall1.rotation.y = Math.PI;
   scene.add(astraeaStall1);
-  colliders.push({ type: 'box', minX: 157, maxX: 161, minZ: -275, maxZ: -271, label: 'Kios Alkimia Kerajaan' });
+  colliders.push({ type: 'box', minX: 156, maxX: 160, minZ: -276, maxZ: -272, label: 'Kios Alkimia Kerajaan' });
 
   const astraeaStall2 = createImperialBazaarStallMesh(0x2563eb, 0x38bdf8); // Masterwork Armory
-  astraeaStall2.position.set(169, astraeaBaseY, -273);
+  astraeaStall2.position.set(170, astraeaBaseY, -274);
   astraeaStall2.rotation.y = Math.PI;
   scene.add(astraeaStall2);
-  colliders.push({ type: 'box', minX: 167, maxX: 171, minZ: -275, maxZ: -271, label: 'Kios Senjata Astraea' });
+  colliders.push({ type: 'box', minX: 168, maxX: 172, minZ: -276, maxZ: -272, label: 'Kios Senjata Astraea' });
 
-  // South Promenade (Facing North towards circular plaza):
+  // South Promenade (Facing North towards circular plaza at Z = -246):
   const astraeaStall3 = createImperialBazaarStallMesh(0xd97706, 0xfef08a); // Silk & Relics
-  astraeaStall3.position.set(159, astraeaBaseY, -247);
+  astraeaStall3.position.set(158, astraeaBaseY, -246);
   astraeaStall3.rotation.y = 0;
   scene.add(astraeaStall3);
-  colliders.push({ type: 'box', minX: 157, maxX: 161, minZ: -249, maxZ: -245, label: 'Kios Sutra Emas' });
+  colliders.push({ type: 'box', minX: 156, maxX: 160, minZ: -248, maxZ: -244, label: 'Kios Sutra Emas' });
 
   const astraeaStall4 = createImperialBazaarStallMesh(0x059669, 0xa7f3d0); // Royal Provisions
-  astraeaStall4.position.set(169, astraeaBaseY, -247);
+  astraeaStall4.position.set(170, astraeaBaseY, -246);
   astraeaStall4.rotation.y = 0;
   scene.add(astraeaStall4);
-  colliders.push({ type: 'box', minX: 167, maxX: 171, minZ: -249, maxZ: -245, label: 'Kios Perjamuan Kaisar' });
+  colliders.push({ type: 'box', minX: 168, maxX: 172, minZ: -248, maxZ: -244, label: 'Kios Perjamuan Kaisar' });
 
   // G. Snowy Pine Trees along Avenue and Courtyard (Thematic Snow Alpine Vegetation)
   const astraeaCourtyardPineCoords = [
@@ -2020,7 +2031,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // H. Astraea Royal NPCs
   // NPC 13: Kaisar Aurelius Astraea (Standing on Throne Portico at entrance, facing West down the carpet)
   const emperorGroup = createCustomNPCMesh('emperor');
-  const emperorPos: [number, number, number] = [187.2, astraeaBaseY + 1.6, -260];
+  const emperorPos: [number, number, number] = [192.2, astraeaBaseY + 1.6, -260];
   emperorGroup.position.set(...emperorPos);
   emperorGroup.rotation.y = Math.PI * 1.5; // Facing West towards royal carpet and plaza
   scene.add(emperorGroup);
@@ -2038,7 +2049,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 14: Panglima Perang Vane (Standing with dignity flanking the royal avenue entrance)
   const marshalGroup = createCustomNPCMesh('marshal');
-  const marshalPos: [number, number, number] = [176, astraeaBaseY, -256];
+  const marshalPos: [number, number, number] = [179, astraeaBaseY, -255];
   marshalGroup.position.set(...marshalPos);
   marshalGroup.rotation.y = Math.PI * 1.5;
   scene.add(marshalGroup);
@@ -2277,7 +2288,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { id: 'chest_thunderpeak', pos: [-155, 0, -135] as [number, number, number] }, // Storm Altar Relic
     { id: 'chest_jadepagoda', pos: [165, 0, 115] as [number, number, number] }, // Celestial Pagoda Treasure
     { id: 'chest_dragoncaldera', pos: [20, 0, -145] as [number, number, number] }, // Dragon Hoard
-    { id: 'chest_astraea', pos: [202, 0, -260] as [number, number, number] }, // Astraea Imperial Vault
+    { id: 'chest_astraea', pos: [204, 0, -260] as [number, number, number] }, // Astraea Imperial Vault
     { id: 'chest_frozen_chasm', pos: [180, 0, -325] as [number, number, number] }, // Ancient Chasm Relic Chest
     { id: 'chest_harbor_galleon', pos: [16, 0, 42] as [number, number, number] }, // Harbor Galleon Stash
     { id: 'chest_solaria_oasis', pos: [-340, 0, 260] as [number, number, number] }, // Secret Oasis Treasure

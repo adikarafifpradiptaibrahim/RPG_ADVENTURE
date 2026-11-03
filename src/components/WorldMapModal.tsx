@@ -49,6 +49,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
 
   const zoomRef = useRef<number>(1.0);
   const panRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const isDraggingRef = useRef<boolean>(false);
   const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
@@ -57,7 +58,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
   const wheelCommitTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapPlaneRef = useRef<HTMLDivElement | null>(null);
 
   // Map world coordinate boundaries for projection
   // 2.5x Expanded World bounds: X from -580 to +680 (width 1260), Z from -460 to +460 (height 920)
@@ -78,8 +79,8 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
 
   // Direct DOM hardware transform update (runs on GPU, avoids layout thrashing and React VDOM re-renders)
   const applyTransform = useCallback((px: number, py: number, z: number) => {
-    if (containerRef.current) {
-      containerRef.current.style.transform = `translate3d(${px}px, ${py}px, 0px) scale(${z})`;
+    if (mapPlaneRef.current) {
+      mapPlaneRef.current.style.transform = `translate3d(${px}px, ${py}px, 0px) scale(${z})`;
     }
   }, []);
 
@@ -137,10 +138,12 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
 
     if (!isInteracting) setIsInteracting(true);
 
-    if (wheelRafRef.current) cancelAnimationFrame(wheelRafRef.current);
-    wheelRafRef.current = requestAnimationFrame(() => {
-      applyTransform(nextPan.x, nextPan.y, nextZoom);
-    });
+    if (wheelRafRef.current == null) {
+      wheelRafRef.current = requestAnimationFrame(() => {
+        applyTransform(panRef.current.x, panRef.current.y, zoomRef.current);
+        wheelRafRef.current = null;
+      });
+    }
 
     // Debounce syncing to React state when wheel scrolling settles
     if (wheelCommitTimerRef.current) clearTimeout(wheelCommitTimerRef.current);
@@ -151,16 +154,22 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
     }, 120);
   };
 
-  // Mouse drag listeners with direct DOM RAF updates for silky 60fps pan
-  const handleMouseDown = (e: React.MouseEvent) => {
+  // Unified pointer drag handler with pointer capture and RAF hardware transform for silky 60fps pan
+  const handlePointerDown = (e: React.PointerEvent) => {
     if (zoomRef.current <= 1.0) return;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+    isDraggingRef.current = true;
     setIsDragging(true);
     dragStartRef.current = { x: e.clientX, y: e.clientY };
     panStartRef.current = { ...panRef.current };
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || zoomRef.current <= 1.0) return;
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current || zoomRef.current <= 1.0) return;
     const dx = e.clientX - dragStartRef.current.x;
     const dy = e.clientY - dragStartRef.current.y;
     const targetX = panStartRef.current.x + dx;
@@ -168,55 +177,33 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
     const clamped = clampPan(targetX, targetY, zoomRef.current);
     panRef.current = clamped;
 
-    if (dragRafRef.current) cancelAnimationFrame(dragRafRef.current);
-    dragRafRef.current = requestAnimationFrame(() => {
-      applyTransform(clamped.x, clamped.y, zoomRef.current);
-    });
+    if (dragRafRef.current == null) {
+      dragRafRef.current = requestAnimationFrame(() => {
+        applyTransform(panRef.current.x, panRef.current.y, zoomRef.current);
+        dragRafRef.current = null;
+      });
+    }
   };
 
-  const handleMouseUp = () => {
-    if (dragRafRef.current) {
+  const handlePointerUp = (e: React.PointerEvent) => {
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+    if (dragRafRef.current != null) {
       cancelAnimationFrame(dragRafRef.current);
       dragRafRef.current = null;
     }
-    if (isDragging) {
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false;
       setIsDragging(false);
       setPan({ ...panRef.current });
     }
   };
 
-  // Touch drag listeners with direct DOM RAF updates for Mobile
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (zoomRef.current <= 1.0 || e.touches.length === 0) return;
-    setIsDragging(true);
-    dragStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    panStartRef.current = { ...panRef.current };
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging || zoomRef.current <= 1.0 || e.touches.length === 0) return;
-    const dx = e.touches[0].clientX - dragStartRef.current.x;
-    const dy = e.touches[0].clientY - dragStartRef.current.y;
-    const targetX = panStartRef.current.x + dx;
-    const targetY = panStartRef.current.y + dy;
-    const clamped = clampPan(targetX, targetY, zoomRef.current);
-    panRef.current = clamped;
-
-    if (dragRafRef.current) cancelAnimationFrame(dragRafRef.current);
-    dragRafRef.current = requestAnimationFrame(() => {
-      applyTransform(clamped.x, clamped.y, zoomRef.current);
-    });
-  };
-
-  const handleTouchEnd = () => {
-    if (dragRafRef.current) {
-      cancelAnimationFrame(dragRafRef.current);
-      dragRafRef.current = null;
-    }
-    if (isDragging) {
-      setIsDragging(false);
-      setPan({ ...panRef.current });
-    }
+  const handlePointerCancel = (e: React.PointerEvent) => {
+    handlePointerUp(e);
   };
 
   // Cleanup RAF and timers on unmount
@@ -357,15 +344,11 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
           <div className="relative flex-1 bg-stone-950/90 overflow-hidden flex items-center justify-center p-2 sm:p-4">
             {/* Topographical Map Container with Zoom & Pan Viewport */}
             <div
-              ref={containerRef}
               onWheel={handleWheel}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerCancel}
               style={{
                 cursor: zoom > 1.0 ? (isDragging ? 'grabbing' : 'grab') : 'default',
                 touchAction: 'none',
@@ -374,7 +357,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
             >
               {/* GPU Hardware Accelerated Continent Map Plane (translate3d + will-change: transform) */}
               <div
-                ref={containerRef}
+                ref={mapPlaneRef}
                 className="absolute inset-0 w-full h-full"
                 style={{
                   transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoom})`,
@@ -389,6 +372,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 width={560}
                 height={420}
                 className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                style={{ willChange: 'transform' }}
               />
 
               {/* DYNAMIC REGION CLICKABLE ZONES & LABELS */}

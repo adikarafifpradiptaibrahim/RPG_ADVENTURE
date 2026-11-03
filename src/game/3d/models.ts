@@ -1784,7 +1784,7 @@ export function createPierDockMesh(options?: PierDockOptions): THREE.Group {
   const hasLantern = options?.hasLantern ?? false;
   const lanternSide = options?.lanternSide ?? 'right';
   const hasMooringBollards = options?.hasMooringBollards ?? true;
-  const hasCrossBrace = options?.hasCrossBrace ?? true;
+  const hasCrossBrace = options?.hasCrossBrace ?? false;
 
   const woodMat = new THREE.MeshLambertMaterial({ color: 0x4e342e, flatShading: true });
   const darkTimberMat = new THREE.MeshLambertMaterial({ color: 0x3e2723, flatShading: true });
@@ -2667,6 +2667,21 @@ export function createSuspensionBridgeMesh(length: number = 28): THREE.Group {
     const beam = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.55, 5.4), timberMat);
     beam.position.set(x, 4.4, 0);
     bridge.add(beam);
+
+    // Solid stone abutment foundation block & flush approach ramp (menempel padat di tanah, zero gap!)
+    const isWest = x < 0;
+    const abutmentX = isWest ? x - 0.8 : x + 0.8;
+    const abutment = new THREE.Mesh(new THREE.BoxGeometry(2.4, 3.6, 4.4), pylonMat);
+    abutment.position.set(abutmentX, -1.2, 0);
+    abutment.receiveShadow = true;
+    abutment.castShadow = true;
+    bridge.add(abutment);
+
+    const ramp = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.22, 3.6), timberMat);
+    ramp.position.set(abutmentX, -0.06, 0);
+    ramp.rotation.z = isWest ? 0.08 : -0.08;
+    ramp.receiveShadow = true;
+    bridge.add(ramp);
   }
 
   // Bridge Deck Planks with natural slight sag in middle
@@ -3491,7 +3506,7 @@ export function createImperialPalaceMesh(): THREE.Group {
 
   // Red Imperial Carpet extending straight out across the palace courtyard / pelataran istana
   // From bottom of stairs (z: 15.4) extending out to z: 34.0 (length 18.6m)
-  const courtyardCarpetLength = 5.6;
+  const courtyardCarpetLength = 8.6;
   const courtyardCarpet = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.04, courtyardCarpetLength), redCarpet);
   courtyardCarpet.position.set(0, 0.03, 15.4 + courtyardCarpetLength / 2);
   // Gold fringe borders along left and right edges
@@ -4390,17 +4405,15 @@ export function createRowboatMesh(): THREE.Group {
     boat.add(bench);
   }
 
-  // Wooden Oars resting on gunwales
-  const leftOar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.8, 4), oarMat);
-  leftOar.rotation.z = -0.55;
-  leftOar.rotation.y = 0.3;
-  leftOar.position.set(-1.1, 0.65, 0.2);
+  // Wooden Oars stowed flat inside the boat hull (no floating/slanted sticks in the air!)
+  const leftOar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 4), oarMat);
+  leftOar.rotation.x = Math.PI / 2;
+  leftOar.position.set(-0.45, 0.42, 0);
   boat.add(leftOar);
 
-  const rightOar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.8, 4), oarMat);
-  rightOar.rotation.z = 0.55;
-  rightOar.rotation.y = -0.3;
-  rightOar.position.set(1.1, 0.65, 0.2);
+  const rightOar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 4), oarMat);
+  rightOar.rotation.x = Math.PI / 2;
+  rightOar.position.set(0.45, 0.42, 0);
   boat.add(rightOar);
 
   return boat;
@@ -4866,18 +4879,7 @@ export function createCircularPlazaMesh(outerRadius: number = 11.5, innerRadius:
     plaza.add(ray);
   }
 
-  // 8 Perimeter Lampposts
-  for (let i = 0; i < 8; i++) {
-    const angle = (i / 8) * Math.PI * 2;
-    const postX = Math.cos(angle) * (outerRadius - 0.8);
-    const postZ = Math.sin(angle) * (outerRadius - 0.8);
-
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 3.2, 6), goldTrim);
-    post.position.set(postX, 1.6, postZ);
-    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 8), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
-    orb.position.set(postX, 3.3, postZ);
-    plaza.add(post, orb);
-  }
+  // (Perimeter lampposts are curated and placed cleanly with colliders in world.ts to avoid blocking walkways)
 
   return plaza;
 }

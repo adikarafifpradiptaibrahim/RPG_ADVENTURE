@@ -76,10 +76,21 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     const baseMeadow = 1.8 + Math.sin(x * 0.08) * 0.8;
     return (1 - t) * 3.2 + t * baseMeadow;
   }
-  // Fortress western approach highway slope from bridge (x: 88..134)
-  if (x >= 88 && x <= 134 && Math.abs(z - -16) <= 4.0) {
+  // 2b. Highway approaches to Suspension Bridge (x: 44..62 from West, and x: 88..134 to East)
+  // Highway approach to bridge from west (x: 44..62, z: -16)
+  // Rises smoothly from village level to meet bridge deck at y = 2.40 at x = 62 (zero gap!)
+  if (x >= 44 && x <= 62 && Math.abs(z - -16) <= 4.5) {
+    const t = (x - 44) / 18;
+    const smoothT = smoothstep(0, 1, t);
+    return 0.6 + smoothT * 1.8; // At x = 62, elevation is exactly 2.40
+  }
+
+  // Fortress western approach highway slope from bridge (x: 88..134, z: -16)
+  // Starts exactly at bridge deck y = 2.40 at x = 88 and ascends smoothly to fortress plateau y = 3.20 at x = 134
+  if (x >= 88 && x <= 134 && Math.abs(z - -16) <= 4.5) {
     const t = (x - 88) / 46;
-    return 2.2 + t * 1.0;
+    const smoothT = smoothstep(0, 1, t);
+    return 2.4 + smoothT * 0.8; // At x = 88, elevation is exactly 2.40
   }
 
   // 3. Misty Chasm & Wooden Suspension Bridge (x: 63..87, z: -30..0)
@@ -104,7 +115,7 @@ export function getProceduralContinentHeight(x: number, z: number): number {
 
     // 4.2 Relocated Grand Imperial Kingdom of Astraea (Pusat Utara Frostpeak: Center [180, -260])
     const astraeaMinX = 148;
-    const astraeaMaxX = 212;
+    const astraeaMaxX = 218;
     const astraeaMinZ = -288;
     const astraeaMaxZ = -232;
 
