@@ -51,6 +51,8 @@ import {
   createRowboatMesh,
   createIceSpikeMountainMesh,
   createWoodBarricadeMesh,
+  createStoneBridgePierMesh,
+  createDockStairRampMesh,
 } from './models';
 
 export interface WorldCollider {
@@ -220,22 +222,24 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return 2.4 - sag;
     }
 
-    // 2. Coastal Wooden Harbor Pier Network Walkway Decks (Deck height y = 1.85)
-    // Main Central Pier: x: -2.2..2.2, z: 19.5..58.5
-    // End Observation Platform: x: -7.5..7.5, z: 53.5..58.5
-    // West Berthing Pier: x: -13.8..-10.2, z: 19.5..52.5
-    // East Berthing Pier: x: 10.2..13.8, z: 19.5..52.5
-    // Shoreline Quay Boardwalk: x: -16.5..16.5, z: 18.5..21.5
-    // Connecting Cross-Walkway: z: 34.5..37.5, x: -13.5..13.5
+    // 2. Coastal Wooden Harbor (Anti-Zigzag: 1 Wide Main Pier + 2 Straight Berthing Wings + Beach Ramp)
+    // Beach ramp & short stairs (smooth step-free transition from sand y=0.05 to pier y=1.85)
+    if (Math.abs(x) <= 2.4 && z >= 17.5 && z < 21.5) {
+      const t = (z - 17.5) / 4.0;
+      const sandY = getProceduralHeight(x, z);
+      return (1 - t) * sandY + t * 1.85;
+    }
+    // Main straight pier: x: -2.4..2.4, z: 21.5..52.5
+    // Main pier head: x: -4.6..4.6, z: 50.0..54.0
+    // West berthing wing: x: -13.8..-2.3, z: 36.2..39.8
+    // East berthing wing: x: 2.3..13.8, z: 36.2..39.8
     if (
-      (Math.abs(x) <= 2.2 && z >= 19.5 && z <= 58.5) ||
-      (Math.abs(x) <= 7.5 && z >= 53.5 && z <= 58.5) ||
-      (x >= -13.8 && x <= -10.2 && z >= 19.5 && z <= 52.5) ||
-      (x >= 10.2 && x <= 13.8 && z >= 19.5 && z <= 52.5) ||
-      (Math.abs(x) <= 16.5 && z >= 18.5 && z <= 21.5) ||
-      (Math.abs(z - 36) <= 1.6 && x >= -13.5 && x <= 13.5)
+      (Math.abs(x) <= 2.4 && z >= 21.5 && z <= 52.5) ||
+      (Math.abs(x) <= 4.6 && z >= 50.0 && z <= 54.0) ||
+      (x >= -13.8 && x <= -2.3 && z >= 36.2 && z <= 39.8) ||
+      (x >= 2.3 && x <= 13.8 && z >= 36.2 && z <= 39.8)
     ) {
-      return 1.85; // Walkable wooden pier deck elevated above ocean water
+      return 1.85; // Solid wooden pier deck
     }
     if (x >= 148 && x <= 212 && z >= -288 && z <= -232) return 6.0; // Astraea Imperial plateau
     if (x >= 174 && x <= 186 && z >= -340 && z <= -300) return 4.6; // Frozen Chasm ice bridge
@@ -261,125 +265,75 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   scene.add(oceanMesh);
 
   // ==========================================
-  // 1b. COASTAL WOODEN DOCKS & NAVAL HARBOR (Sea Shoreline at Z >= 20)
-  // Traditional timber pier network standing on deep wooden stilts anchored into the seabed,
-  // stretching straight from the sandy beach out into open ocean waters.
-  // Ships berth neatly alongside the wooden piers in deep water.
+  // 1b. SIMPLIFIED STRAIGHT COASTAL HARBOR (Sea Shoreline at Z >= 17.5)
+  // Anti-zigzag: 1 Wide Straight Main Pier + 2 Straight Berthing Wings + Sloping Beach Ramp & Stairs.
+  // Ships berth cleanly alongside the straight wooden piers in deep ocean water.
   // ==========================================
   const dockY = -0.375; // Aligns top of 2.1m deck + 0.125m plank exactly at y = 1.85
 
-  // 1. Shoreline Connecting Quay Boardwalk (At beach edge Z = 20, spanning X: -16..16)
-  const bwWest = createPierDockMesh({ length: 16, width: 3.2, pileDepth: 5.5, hasLantern: true, lanternSide: 'left' });
-  bwWest.position.set(-8, dockY, 20);
-  bwWest.rotation.y = Math.PI / 2;
-  scene.add(bwWest);
+  // 1. Wooden Beach Ramp & Short Stairs (Menyentuh pasir pantai secara mulus tanpa melompat, Z: 17.5..21.5)
+  const beachRamp = createDockStairRampMesh(4.6, 4.0, 1.8);
+  beachRamp.position.set(0, 0.05, 17.5);
+  scene.add(beachRamp);
 
-  const bwEast = createPierDockMesh({ length: 16, width: 3.2, pileDepth: 5.5, hasLantern: true, lanternSide: 'right' });
-  bwEast.position.set(8, dockY, 20);
-  bwEast.rotation.y = Math.PI / 2;
-  scene.add(bwEast);
+  // 2. Wide Main Straight Pier (Dermaga Kayu Utama membentang lurus ke laut lepas, lebar 4.6m)
+  // Section 1: Beach approach to berthing junction (X: 0, Z: 21.5..37.5, length 16m)
+  const pierMain1 = createPierDockMesh({ length: 16, width: 4.6, pileDepth: 6.8, hasMooringBollards: true });
+  pierMain1.position.set(0, dockY, 21.5);
+  scene.add(pierMain1);
 
-  // 2. Grand Central Main Pier (Dermaga Utama membentang lurus dari bibir pantai meluas ke laut lepas)
-  // Section 1: Shoreline to inner junction (X: 0, Z: 20..38, length 18, width 3.6m)
-  const pierCenter1 = createPierDockMesh({ length: 18, width: 3.6, pileDepth: 6.8, hasMooringBollards: true });
-  pierCenter1.position.set(0, dockY, 20);
-  scene.add(pierCenter1);
+  // Section 2: Junction to pier head (X: 0, Z: 37.5..50.0, length 12.5m)
+  const pierMain2 = createPierDockMesh({ length: 12.5, width: 4.6, pileDepth: 7.2, hasMooringBollards: true });
+  pierMain2.position.set(0, dockY, 37.5);
+  scene.add(pierMain2);
 
-  // Section 2: Inner junction to deep seaward pier (X: 0, Z: 38..54, length 16, width 3.6m)
-  const pierCenter2 = createPierDockMesh({ length: 16, width: 3.6, pileDepth: 7.2, hasMooringBollards: true });
-  pierCenter2.position.set(0, dockY, 38);
-  scene.add(pierCenter2);
+  // Section 3: Seaward Pier Head Platform (Ujung Dermaga Utama: X: -4.5..4.5, Z: 50.0..54.0, length 4.0, width 9.2m)
+  const pierHeadPlatform = createPierDockMesh({ length: 4.0, width: 9.2, pileDepth: 7.5, hasLantern: true, lanternSide: 'both', hasMooringBollards: true });
+  pierHeadPlatform.position.set(0, dockY, 50.0);
+  scene.add(pierHeadPlatform);
 
-  // Section 3: Seaward End Observation Platform / Quay Head (X: -6.5..6.5, Z: 54..58, length 4.5, width 13.0m)
-  const pierEndPlatform = createPierDockMesh({ length: 4.5, width: 13.0, pileDepth: 7.5, hasLantern: true, lanternSide: 'both', hasMooringBollards: true });
-  pierEndPlatform.position.set(0, dockY, 54);
-  scene.add(pierEndPlatform);
+  // 3. Two Straight Berthing Wings on Left and Right (Dua Cabang Lurus Pendek di Sisi Kiri & Kanan at Z = 38)
+  // West Straight Berthing Wing (X: -13.5..-2.3, width 3.6m, length 11.2m)
+  const wingWest = createPierDockMesh({ length: 11.2, width: 3.6, pileDepth: 7.0, hasLantern: true, lanternSide: 'left', hasMooringBollards: true });
+  wingWest.position.set(-8.0, dockY, 38.0);
+  wingWest.rotation.y = Math.PI / 2;
+  scene.add(wingWest);
 
-  // 3. Parallel West Berthing Pier (Dermaga Sayap Barat: X: -12, Z: 20..52)
-  const pierWest1 = createPierDockMesh({ length: 16, width: 3.2, pileDepth: 6.8, hasLantern: true, lanternSide: 'left' });
-  pierWest1.position.set(-12, dockY, 20);
-  scene.add(pierWest1);
+  // East Straight Berthing Wing (X: 2.3..13.5, width 3.6m, length 11.2m)
+  const wingEast = createPierDockMesh({ length: 11.2, width: 3.6, pileDepth: 7.0, hasLantern: true, lanternSide: 'right', hasMooringBollards: true });
+  wingEast.position.set(8.0, dockY, 38.0);
+  wingEast.rotation.y = Math.PI / 2;
+  scene.add(wingEast);
 
-  const pierWest2 = createPierDockMesh({ length: 16, width: 3.2, pileDepth: 7.2, hasLantern: true, lanternSide: 'left' });
-  pierWest2.position.set(-12, dockY, 36);
-  scene.add(pierWest2);
-
-  // 4. Parallel East Berthing Pier (Dermaga Sayap Timur: X: 12, Z: 20..52)
-  const pierEast1 = createPierDockMesh({ length: 16, width: 3.2, pileDepth: 6.8, hasLantern: true, lanternSide: 'right' });
-  pierEast1.position.set(12, dockY, 20);
-  scene.add(pierEast1);
-
-  const pierEast2 = createPierDockMesh({ length: 16, width: 3.2, pileDepth: 7.2, hasLantern: true, lanternSide: 'right' });
-  pierEast2.position.set(12, dockY, 36);
-  scene.add(pierEast2);
-
-  // 5. Interconnecting Cross-Walkway at Z = 36 (Spans between West Pier, Central Pier, and East Pier)
-  const crossWest = createPierDockMesh({ length: 12, width: 2.8, pileDepth: 7.0, hasMooringBollards: false });
-  crossWest.position.set(-6, dockY, 36);
-  crossWest.rotation.y = Math.PI / 2;
-  scene.add(crossWest);
-
-  const crossEast = createPierDockMesh({ length: 12, width: 2.8, pileDepth: 7.0, hasMooringBollards: false });
-  crossEast.position.set(6, dockY, 36);
-  crossEast.rotation.y = Math.PI / 2;
-  scene.add(crossEast);
-
-  // 6. Moored Ships Berthing Neatly in Deep Ocean Water (Water Level Y = -0.25)
-  // Grand Merchant Galleon 1 (Berthing alongside East Pier in deep sea, X: 20.5, Z: 36)
+  // 4. Moored Main Ships (Bertambat Rapi di Samping Dermaga Kayu di Atas Air Laut Dalam, Y = -0.25)
+  // Grand Merchant Galleon 1 (Bertambat rapi di samping Sayap Timur, X: 18.5, Z: 38)
   const galleon1 = createMerchantGalleonMesh();
-  galleon1.position.set(20.5, -0.25, 36);
+  galleon1.position.set(18.5, -0.25, 38.0);
   galleon1.rotation.y = 0;
   scene.add(galleon1);
 
-  // Grand Merchant Galleon 2 (Berthing alongside West Pier in deep sea, X: -20.5, Z: 36)
-  const galleon2 = createMerchantGalleonMesh();
-  galleon2.position.set(-20.5, -0.25, 36);
-  galleon2.rotation.y = 0;
-  scene.add(galleon2);
-
-  // Viking Shielded Warship 1 (Outer East deep roadstead anchorage, X: 34, Z: 46)
-  const warship1 = createVikingWarshipMesh();
-  warship1.position.set(34, -0.25, 46);
-  warship1.rotation.y = 0.1;
-  scene.add(warship1);
-
-  // Viking Shielded Warship 2 (Outer West deep roadstead anchorage, X: -34, Z: 46)
+  // Viking Shielded Warship 2 (Bertambat rapi di samping Sayap Barat, X: -18.5, Z: 38)
   const warship2 = createVikingWarshipMesh();
-  warship2.position.set(-34, -0.25, 46);
-  warship2.rotation.y = -0.1;
+  warship2.position.set(-18.5, -0.25, 38.0);
+  warship2.rotation.y = 0;
   scene.add(warship2);
 
-  // Moored Coastal Rowboats inside calm inner pier slips
-  const rowboat1 = createRowboatMesh();
-  rowboat1.position.set(-6, -0.25, 30);
-  rowboat1.rotation.y = 0.05;
-  scene.add(rowboat1);
+  // Perahu Nelayan Pak Joko (Bertambat rapi di ujung anjungan dermaga utama, X: 0, Z: 55.5)
+  const rowboatJoko = createRowboatMesh();
+  rowboatJoko.position.set(0, -0.25, 55.5);
+  rowboatJoko.rotation.y = Math.PI / 2;
+  scene.add(rowboatJoko);
 
-  const rowboat2 = createRowboatMesh();
-  rowboat2.position.set(6, -0.25, 30);
-  rowboat2.rotation.y = -0.05;
-  scene.add(rowboat2);
-
-  const rowboat3 = createRowboatMesh();
-  rowboat3.position.set(6, -0.25, 44);
-  rowboat3.rotation.y = 0.1;
-  scene.add(rowboat3);
-
-  const rowboat4 = createRowboatMesh();
-  rowboat4.position.set(-4.5, -0.25, 54);
-  rowboat4.rotation.y = -0.15;
-  scene.add(rowboat4);
-
-  // Timber boarding gangway bridging East Pier to Galleon 1
+  // Timber boarding gangway bridging East Wing to Galleon 1
   const gangwayMat = new THREE.MeshLambertMaterial({ color: 0x5d4037, flatShading: true });
-  const gangway1 = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.16, 1.4), gangwayMat);
-  gangway1.position.set(16.0, 1.86, 36);
-  scene.add(gangway1);
+  const gangwayEast = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.16, 1.4), gangwayMat);
+  gangwayEast.position.set(15.0, 1.86, 38.0);
+  scene.add(gangwayEast);
 
-  // Timber boarding gangway bridging West Pier to Galleon 2
-  const gangway2 = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.16, 1.4), gangwayMat);
-  gangway2.position.set(-16.0, 1.86, 36);
-  scene.add(gangway2);
+  // Timber boarding gangway bridging West Wing to Warship 2
+  const gangwayWest = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.16, 1.4), gangwayMat);
+  gangwayWest.position.set(-15.0, 1.86, 38.0);
+  scene.add(gangwayWest);
 
   // ==========================================
   // 2. ORGANIZED SANCTUARY VILLAGE & FACILITIES
@@ -390,23 +344,24 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   const npcs: WorldNPC[] = [];
   const villageMainlandY = 0.25;
 
-  // 2.0 Pier Rails & Moored Ship Boundaries Colliders
+  // 2.0 Precise Pier Handrails & Moored Ship Boundaries (Anti-Tembus & Anti-Tembok Gaib)
   colliders.push(
-    // West Pier Handrails (leaving open slip for gangway at z = 36)
-    { type: 'box', minX: -13.8, maxX: -13.4, minZ: 20, maxZ: 52, label: 'Dermaga Barat Pagar Kiri' },
-    { type: 'box', minX: -10.6, maxX: -10.2, minZ: 20, maxZ: 34, label: 'Dermaga Barat Pagar Kanan Utara' },
-    { type: 'box', minX: -10.6, maxX: -10.2, minZ: 38, maxZ: 52, label: 'Dermaga Barat Pagar Kanan Selatan' },
-    // East Pier Handrails (leaving open slip for gangway at z = 36)
-    { type: 'box', minX: 10.2, maxX: 10.6, minZ: 20, maxZ: 34, label: 'Dermaga Timur Pagar Kiri Utara' },
-    { type: 'box', minX: 10.2, maxX: 10.6, minZ: 38, maxZ: 52, label: 'Dermaga Timur Pagar Kiri Selatan' },
-    { type: 'box', minX: 13.4, maxX: 13.8, minZ: 20, maxZ: 52, label: 'Dermaga Timur Pagar Kanan' },
-    // Seaward End Platform Rails
-    { type: 'box', minX: -6.5, maxX: 6.5, minZ: 57.5, maxZ: 58.2, label: 'Ujung Anjungan Dermaga Utama' },
-    // Ship Hull Colliders (Floating in water)
-    { type: 'box', minX: 18.0, maxX: 23.0, minZ: 29, maxZ: 43, label: 'Lambung Kapal Dagang Emas 1' },
-    { type: 'box', minX: -23.0, maxX: -18.0, minZ: 29, maxZ: 43, label: 'Lambung Kapal Dagang Emas 2' },
-    { type: 'box', minX: 31.5, maxX: 36.5, minZ: 39, maxZ: 53, label: 'Kapal Perang Bershield 1' },
-    { type: 'box', minX: -36.5, maxX: -31.5, minZ: 39, maxZ: 53, label: 'Kapal Perang Bershield 2' }
+    // Main Pier Handrails (Only on outer edges, leaving opening at z: 36.2..39.8 for left/right wings)
+    { type: 'box', minX: -2.45, maxX: -2.25, minZ: 21.5, maxZ: 36.2, label: 'Dermaga Utama Pagar Barat Utara' },
+    { type: 'box', minX: -2.45, maxX: -2.25, minZ: 39.8, maxZ: 50.0, label: 'Dermaga Utama Pagar Barat Selatan' },
+    { type: 'box', minX: 2.25, maxX: 2.45, minZ: 21.5, maxZ: 36.2, label: 'Dermaga Utama Pagar Timur Utara' },
+    { type: 'box', minX: 2.25, maxX: 2.45, minZ: 39.8, maxZ: 50.0, label: 'Dermaga Utama Pagar Timur Selatan' },
+    // West Wing North/South Rails
+    { type: 'box', minX: -13.5, maxX: -2.3, minZ: 36.0, maxZ: 36.3, label: 'Sayap Barat Pagar Utara' },
+    { type: 'box', minX: -13.5, maxX: -2.3, minZ: 39.7, maxZ: 40.0, label: 'Sayap Barat Pagar Selatan' },
+    // East Wing North/South Rails
+    { type: 'box', minX: 2.3, maxX: 13.5, minZ: 36.0, maxZ: 36.3, label: 'Sayap Timur Pagar Utara' },
+    { type: 'box', minX: 2.3, maxX: 13.5, minZ: 39.7, maxZ: 40.0, label: 'Sayap Timur Pagar Selatan' },
+    // Pier Head Seaward Handrail
+    { type: 'box', minX: -4.5, maxX: 4.5, minZ: 53.8, maxZ: 54.2, label: 'Pagar Anjungan Ujung Dermaga' },
+    // Ship Hull Colliders (Outer water boundaries)
+    { type: 'box', minX: 16.5, maxX: 21.5, minZ: 31, maxZ: 45, label: 'Lambung Kapal Dagang Emas 1' },
+    { type: 'box', minX: -21.5, maxX: -16.5, minZ: 31, maxZ: 45, label: 'Lambung Kapal Perang Bershield' }
   );
 
   // 2.1 Northern Village Gateway Arch (Start of Royal Avenue at Z = -24)
@@ -740,7 +695,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 6: Nelayan Pak Joko (Coastal Fisherman on harbor dock landing)
   const jokoGroup = createCustomNPCMesh('fisherman');
-  const jokoPos: [number, number, number] = [0, 1.85, 21.0];
+  const jokoPos: [number, number, number] = [0, 1.85, 52.0]; // At seaward pier head looking out to open sea
   jokoGroup.position.set(...jokoPos);
   jokoGroup.rotation.y = Math.PI; // Facing South towards open ocean
   scene.add(jokoGroup);
@@ -790,41 +745,42 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 2.8 SECOND VILLAGE: DESA BENTENG VAL-KRAGOR
-  // (Far-East Highland Fortress Village)
+  // 2.8 SECOND VILLAGE: EXPANDED DESA BENTENG VAL-KRAGOR
+  // (Highland Fortress Village expanded ~2x: Courtyard X: 94..146, Z: -39..5)
+  // Clean front entrance, unobstructed bridge approach road, massive stone chasm pier.
   // ==========================================
   const valKragorBaseY = 3.2;
 
-  // A. Grand Fortress Gatehouse (West Entrance)
+  // A. Grand Fortress Gatehouse (West Entrance at X = 94, Z = -17)
   const fortressGate = createFortressGatehouseMesh();
-  fortressGate.position.set(98, valKragorBaseY, -17);
+  fortressGate.position.set(94, valKragorBaseY, -17);
   fortressGate.rotation.y = Math.PI / 2;
   scene.add(fortressGate);
   colliders.push(
-    { type: 'box', minX: 95.5, maxX: 100.5, minZ: -22.5, maxZ: -19.5, label: 'Menara Gerbang Val-Kragor Kiri' },
-    { type: 'box', minX: 95.5, maxX: 100.5, minZ: -14.5, maxZ: -11.5, label: 'Menara Gerbang Val-Kragor Kanan' }
+    { type: 'box', minX: 91.5, maxX: 96.5, minZ: -22.5, maxZ: -19.5, label: 'Menara Gerbang Val-Kragor Kiri' },
+    { type: 'box', minX: 91.5, maxX: 96.5, minZ: -14.5, maxZ: -11.5, label: 'Menara Gerbang Val-Kragor Kanan' }
   );
 
-  // B. Grand Fortress Citadel / Command Keep
+  // B. Grand Fortress Citadel / Command Keep (East End of Courtyard at X = 144, Z = -17)
   const fortressKeep = createFortressKeepMesh();
-  fortressKeep.position.set(134, valKragorBaseY, -17);
+  fortressKeep.position.set(144, valKragorBaseY, -17);
   fortressKeep.rotation.y = -Math.PI / 2;
   scene.add(fortressKeep);
   colliders.push({
     type: 'box',
-    minX: 129,
-    maxX: 139,
+    minX: 139,
+    maxX: 149,
     minZ: -23,
     maxZ: -11,
     label: 'Kastil Komando Val-Kragor',
   });
 
-  // C. Four Sturdy Watchtowers
+  // C. Four Expanded Corner Watchtowers
   const towerCoords = [
-    { x: 104, z: -32, label: 'Menara Barat Laut' },
-    { x: 104, z: -2, label: 'Menara Barat Daya' },
-    { x: 132, z: -32, label: 'Menara Timur Laut' },
-    { x: 132, z: -2, label: 'Menara Timur Daya' },
+    { x: 94, z: -39, label: 'Menara Sudut Barat Laut' },
+    { x: 94, z: 5, label: 'Menara Sudut Barat Daya' },
+    { x: 146, z: -39, label: 'Menara Sudut Timur Laut' },
+    { x: 146, z: 5, label: 'Menara Sudut Timur Daya' },
   ];
   towerCoords.forEach((tc) => {
     const tower = createFortressWatchtowerMesh();
@@ -833,46 +789,46 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     colliders.push({ type: 'circle', x: tc.x, z: tc.z, radius: 2.5, label: tc.label });
   });
 
-  // B2. Solid Fortress Rampart Walls Enclosing Val-Kragor Settlement
-  // North Wall (connecting NW Watchtower [104, -32] to NE Watchtower [132, -32])
-  const vkWallNorth = createFortressWallMesh(28);
-  vkWallNorth.position.set(118, valKragorBaseY, -32);
+  // B2. Solid Rampart Walls Enclosing Expanded Courtyard (X: 94..146, Z: -39..5)
+  // North Wall (length 52, centered at X: 120, Z: -39)
+  const vkWallNorth = createFortressWallMesh(52);
+  vkWallNorth.position.set(120, valKragorBaseY, -39);
   scene.add(vkWallNorth);
-  colliders.push({ type: 'box', minX: 104, maxX: 132, minZ: -33.5, maxZ: -30.5, label: 'Benteng Val-Kragor Utara' });
+  colliders.push({ type: 'box', minX: 94, maxX: 146, minZ: -40.5, maxZ: -37.5, label: 'Benteng Val-Kragor Utara' });
 
-  // South Wall (connecting SW Watchtower [104, -2] to SE Watchtower [132, -2])
-  const vkWallSouth = createFortressWallMesh(28);
-  vkWallSouth.position.set(118, valKragorBaseY, -2);
+  // South Wall (length 52, centered at X: 120, Z: 5)
+  const vkWallSouth = createFortressWallMesh(52);
+  vkWallSouth.position.set(120, valKragorBaseY, 5);
   scene.add(vkWallSouth);
-  colliders.push({ type: 'box', minX: 104, maxX: 132, minZ: -3.5, maxZ: -0.5, label: 'Benteng Val-Kragor Selatan' });
+  colliders.push({ type: 'box', minX: 94, maxX: 146, minZ: 3.5, maxZ: 6.5, label: 'Benteng Val-Kragor Selatan' });
 
-  // East Wall (connecting NE Watchtower [132, -32] to SE Watchtower [132, -2])
-  const vkWallEast = createFortressWallMesh(30);
-  vkWallEast.position.set(132, valKragorBaseY, -17);
+  // East Wall (length 44, centered at X: 146, Z: -17)
+  const vkWallEast = createFortressWallMesh(44);
+  vkWallEast.position.set(146, valKragorBaseY, -17);
   vkWallEast.rotation.y = Math.PI / 2;
   scene.add(vkWallEast);
-  colliders.push({ type: 'box', minX: 130.5, maxX: 133.5, minZ: -32, maxZ: -2, label: 'Benteng Val-Kragor Timur' });
+  colliders.push({ type: 'box', minX: 144.5, maxX: 147.5, minZ: -39, maxZ: 5, label: 'Benteng Val-Kragor Timur' });
 
   // West Wall North Segment (connecting NW Watchtower to Gate North Bastion)
-  const vkWallWestN = createFortressWallMesh(11);
-  vkWallWestN.position.set(100, valKragorBaseY, -26.5);
+  const vkWallWestN = createFortressWallMesh(17);
+  vkWallWestN.position.set(94, valKragorBaseY, -30.5);
   vkWallWestN.rotation.y = Math.PI / 2;
   scene.add(vkWallWestN);
-  colliders.push({ type: 'box', minX: 98.5, maxX: 101.5, minZ: -32, maxZ: -21, label: 'Benteng Val-Kragor Barat Laut' });
+  colliders.push({ type: 'box', minX: 92.5, maxX: 95.5, minZ: -39, maxZ: -22, label: 'Benteng Val-Kragor Barat Laut' });
 
   // West Wall South Segment (connecting SW Watchtower to Gate South Bastion)
-  const vkWallWestS = createFortressWallMesh(11);
-  vkWallWestS.position.set(100, valKragorBaseY, -7.5);
+  const vkWallWestS = createFortressWallMesh(17);
+  vkWallWestS.position.set(94, valKragorBaseY, -3.5);
   vkWallWestS.rotation.y = Math.PI / 2;
   scene.add(vkWallWestS);
-  colliders.push({ type: 'box', minX: 98.5, maxX: 101.5, minZ: -13, maxZ: -2, label: 'Benteng Val-Kragor Barat Daya' });
+  colliders.push({ type: 'box', minX: 92.5, maxX: 95.5, minZ: -12, maxZ: 5, label: 'Benteng Val-Kragor Barat Daya' });
 
-  // B3. Outer Perimeter Watchtowers (Extended Surveillance Perimeter)
+  // B3. Outer Perimeter Watchtowers (Surveillance Perimeter)
   const outerVkTowers = [
-    { x: 88, z: -45, label: 'Menara Pengawas Luar Barat Laut Val-Kragor' },
-    { x: 150, z: -45, label: 'Menara Pengawas Luar Timur Laut Val-Kragor' },
-    { x: 88, z: 12, label: 'Menara Pengawas Luar Barat Daya Val-Kragor' },
-    { x: 150, z: 12, label: 'Menara Pengawas Luar Timur Daya Val-Kragor' },
+    { x: 84, z: -48, label: 'Menara Pengawas Luar Barat Laut' },
+    { x: 156, z: -48, label: 'Menara Pengawas Luar Timur Laut' },
+    { x: 84, z: 15, label: 'Menara Pengawas Luar Barat Daya' },
+    { x: 156, z: 15, label: 'Menara Pengawas Luar Timur Daya' },
   ];
   outerVkTowers.forEach((ot) => {
     const oTower = createFortressWatchtowerMesh();
@@ -881,86 +837,84 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     colliders.push({ type: 'circle', x: ot.x, z: ot.z, radius: 2.5, label: ot.label });
   });
 
-  // B4. Heavy Spiked Wooden & Stone Barricades Guarding Approaches
-  // Approach 1: Western mountain pass entrance
-  const vkBarricadeWest = createWoodBarricadeMesh(12);
-  vkBarricadeWest.position.set(92, valKragorBaseY, -18);
-  vkBarricadeWest.rotation.y = Math.PI / 2;
-  scene.add(vkBarricadeWest);
-  colliders.push({ type: 'box', minX: 90.5, maxX: 93.5, minZ: -24, maxZ: -12, label: 'Barikade Gerbang Barat Val-Kragor' });
-
-  // Approach 2: Southern highland mountain slope
-  const vkBarricadeSouth = createWoodBarricadeMesh(14);
-  vkBarricadeSouth.position.set(118, valKragorBaseY, 8);
-  scene.add(vkBarricadeSouth);
-  colliders.push({ type: 'box', minX: 111, maxX: 125, minZ: 6.8, maxZ: 9.2, label: 'Barikade Lereng Selatan Val-Kragor' });
-
-  // Approach 3: Northern frost pass
+  // B4. Heavy Spiked Barricades (Cleaned from Gate Entrance! Shifted to outer mountain flanks)
+  // Northern cliff defensive barrier (away from main road)
   const vkBarricadeNorth = createWoodBarricadeMesh(12);
-  vkBarricadeNorth.position.set(118, valKragorBaseY, -42);
+  vkBarricadeNorth.position.set(88, valKragorBaseY, -32);
+  vkBarricadeNorth.rotation.y = Math.PI / 2;
   scene.add(vkBarricadeNorth);
-  colliders.push({ type: 'box', minX: 112, maxX: 124, minZ: -43.2, maxZ: -40.8, label: 'Barikade Lereng Utara Val-Kragor' });
+  colliders.push({ type: 'box', minX: 86.5, maxX: 89.5, minZ: -38, maxZ: -26, label: 'Barikade Lereng Utara' });
 
-  // D. Goran's Highland Armory & Mountain Forge
+  // Southern mountain slope barrier (away from main road)
+  const vkBarricadeSouth = createWoodBarricadeMesh(12);
+  vkBarricadeSouth.position.set(88, valKragorBaseY, -2);
+  vkBarricadeSouth.rotation.y = Math.PI / 2;
+  scene.add(vkBarricadeSouth);
+  colliders.push({ type: 'box', minX: 86.5, maxX: 89.5, minZ: -8, maxZ: 4, label: 'Barikade Lereng Selatan' });
+
+  // Notice: The main entrance approach at Z = -17 to -15 from bridge (X: 88..94) is 100% CLEAN and UNOBSTRUCTED!
+
+  // D. Goran's Highland Armory & Mountain Forge (North Courtyard: X: 124, Z: -28)
   const goranForge = createBlacksmithMesh();
-  goranForge.position.set(122, valKragorBaseY, -28);
+  goranForge.position.set(124, valKragorBaseY, -28);
   goranForge.rotation.y = 0;
   scene.add(goranForge);
   colliders.push({
     type: 'box',
-    minX: 119,
-    maxX: 125,
+    minX: 121,
+    maxX: 127,
     minZ: -31,
     maxZ: -25,
     label: 'Bengkel Tempa Gunung Goran',
   });
 
-  // E. Frostwolf Tavern / Highland Longhouse (Kedai Serigala Salju)
+  // E. Frostwolf Tavern / Highland Longhouse (South Courtyard: X: 124, Z: -5)
   const frostwolfLodge = createTavernMesh();
-  frostwolfLodge.position.set(120, valKragorBaseY, -5);
+  frostwolfLodge.position.set(124, valKragorBaseY, -5);
   frostwolfLodge.rotation.y = Math.PI;
   scene.add(frostwolfLodge);
   colliders.push({
     type: 'box',
-    minX: 116,
-    maxX: 124,
+    minX: 120,
+    maxX: 128,
     minZ: -8.5,
     maxZ: -1.5,
     label: 'Kedai Serigala Salju',
   });
 
-  // F. Training Yard with Combat Dummies & Weapon Racks
+  // F. Spacious Training Yard with Combat Dummies & Weapon Racks
   const dummy1 = createTrainingDummyMesh();
-  dummy1.position.set(110, valKragorBaseY, -26);
+  dummy1.position.set(108, valKragorBaseY, -28);
   dummy1.rotation.y = Math.PI / 4;
   const dummy2 = createTrainingDummyMesh();
-  dummy2.position.set(114, valKragorBaseY, -26);
+  dummy2.position.set(114, valKragorBaseY, -28);
   dummy2.rotation.y = -Math.PI / 6;
   scene.add(dummy1, dummy2);
   colliders.push(
-    { type: 'circle', x: 110, z: -26, radius: 0.6, label: 'Target Latihan 1' },
-    { type: 'circle', x: 114, z: -26, radius: 0.6, label: 'Target Latihan 2' }
+    { type: 'circle', x: 108, z: -28, radius: 0.6, label: 'Target Latihan 1' },
+    { type: 'circle', x: 114, z: -28, radius: 0.6, label: 'Target Latihan 2' }
   );
 
-  // G. Central Plaza Roaring Bonfire (Pusat Perapian Benteng)
+  // G. Central Courtyard Roaring Bonfire (Pusat Perapian Lapang)
   const fortressFire = createBonfireMesh();
-  fortressFire.position.set(116, valKragorBaseY, -17);
+  fortressFire.position.set(118, valKragorBaseY, -17);
   scene.add(fortressFire);
-  colliders.push({ type: 'circle', x: 116, z: -17, radius: 1.2, label: 'Perapian Utama Benteng' });
+  colliders.push({ type: 'circle', x: 118, z: -17, radius: 1.2, label: 'Perapian Utama Benteng' });
 
-  // H. Iron Streetlamps with warm light
-  for (const lx of [106, 126]) {
-    for (const lz of [-22, -12]) {
+  // H. Courtyard Iron Streetlamps
+  for (const lx of [104, 134]) {
+    for (const lz of [-26, -8]) {
       const lamp = createStreetLampMesh();
       lamp.position.set(lx, valKragorBaseY, lz);
       scene.add(lamp);
+      colliders.push({ type: 'circle', x: lx, z: lz, radius: 0.35, label: 'Lampu Benteng' });
     }
   }
 
   // --- NPCS OF DESA BENTENG VAL-KRAGOR ---
   // NPC 9: Komandan Brann (Highland Fortress Commander)
   const brannGroup = createCustomNPCMesh('commander');
-  const brannPos: [number, number, number] = [118, valKragorBaseY, -15];
+  const brannPos: [number, number, number] = [120, valKragorBaseY, -15];
   brannGroup.position.set(...brannPos);
   brannGroup.rotation.y = -Math.PI / 2;
   scene.add(brannGroup);
@@ -978,7 +932,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 10: Peramal Elora (Astrologer & Seer)
   const eloraGroup = createCustomNPCMesh('seer');
-  const eloraPos: [number, number, number] = [124, valKragorBaseY, -10];
+  const eloraPos: [number, number, number] = [128, valKragorBaseY, -10];
   eloraGroup.position.set(...eloraPos);
   eloraGroup.rotation.y = -Math.PI / 3;
   scene.add(eloraGroup);
@@ -996,7 +950,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 11: Goran Pandai Besi Dataran Tinggi (Highland Smith)
   const goranGroup = createCustomNPCMesh('frostsmith');
-  const goranPos: [number, number, number] = [120, valKragorBaseY, -26];
+  const goranPos: [number, number, number] = [122, valKragorBaseY, -26];
   goranGroup.position.set(...goranPos);
   goranGroup.rotation.y = Math.PI;
   scene.add(goranGroup);
@@ -1012,9 +966,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     icon: '🔨',
   });
 
-  // NPC 12: Fortress Gate Sentinel (Penjaga Gerbang)
+  // NPC 12: Fortress Gate Sentinel (Penjaga Gerbang Bersih)
   const fGuardGroup = createCustomNPCMesh('guard');
-  const fGuardPos: [number, number, number] = [101, valKragorBaseY, -14];
+  const fGuardPos: [number, number, number] = [97, valKragorBaseY, -14];
   fGuardGroup.position.set(...fGuardPos);
   fGuardGroup.rotation.y = Math.PI / 2;
   scene.add(fGuardGroup);
@@ -1031,17 +985,40 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 2.9 MISTY CHASM & SUSPENSION BRIDGE
+  // 2.9 MISTY CHASM & SOLID SUSPENSION BRIDGE
   // Spanning the chasm at X: 75, Z: -15
+  // Grounded firmly on cliffs with massive stone masonry pier rising from river floor
   // ==========================================
   const bridge = createSuspensionBridgeMesh(26);
   bridge.position.set(75, 2.4, -15);
   scene.add(bridge);
+
+  // Massive Stone Masonry Pier in the bottom of the river/chasm to support the bridge
+  const chasmStonePier = createStoneBridgePierMesh(7.5);
+  chasmStonePier.position.set(75, -0.6, -15);
+  scene.add(chasmStonePier);
+
   // Bridge side barrier colliders
   colliders.push(
     { type: 'box', minX: 62, maxX: 88, minZ: -17.5, maxZ: -16.5, label: 'Pagar Jembatan Kiri' },
     { type: 'box', minX: 62, maxX: 88, minZ: -13.5, maxZ: -12.5, label: 'Pagar Jembatan Kanan' }
   );
+
+  // 2.9b Highway Waymarkers: Desa Utama -> Jembatan Gantung -> Gerbang Benteng Val-Kragor
+  const highwayLampCoords = [
+    { x: 22, z: -15 },
+    { x: 36, z: -15 },
+    { x: 50, z: -15 },
+    { x: 60, z: -15 }, // Bridge West Anchor
+    { x: 90, z: -16 }, // Bridge East Anchor
+    { x: 93, z: -17 }, // Gate entrance approach
+  ];
+  highwayLampCoords.forEach(hlc => {
+    const lamp = createStreetLampMesh();
+    lamp.position.set(hlc.x, getTerrainHeight(hlc.x, hlc.z), hlc.z);
+    scene.add(lamp);
+    colliders.push({ type: 'circle', x: hlc.x, z: hlc.z, radius: 0.35, label: 'Lampu Jalan Antar-Wilayah' });
+  });
 
   // ==========================================
   // 2.10 FROSTPEAK GLACIER CRYO ALTAR & RICH WILDERNESS DECORATIONS
@@ -1127,6 +1104,27 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { x: 130, z: -147, scale: 1.0 },
     { x: 145, z: -146, scale: 1.15 },
     { x: 160, z: -144, scale: 1.05 },
+    // Expanded Northern Frostpeak Wilderness (Anti-Polos)
+    { x: 110, z: -175, scale: 1.2 },
+    { x: 125, z: -190, scale: 1.1 },
+    { x: 140, z: -170, scale: 1.25 },
+    { x: 155, z: -185, scale: 1.15 },
+    { x: 170, z: -195, scale: 1.3 },
+    { x: 185, z: -175, scale: 1.05 },
+    { x: 120, z: -215, scale: 1.2 },
+    { x: 135, z: -225, scale: 1.15 },
+    { x: 150, z: -210, scale: 1.25 },
+    { x: 165, z: -220, scale: 1.3 },
+    { x: 105, z: -245, scale: 1.15 },
+    { x: 120, z: -255, scale: 1.2 },
+    { x: 135, z: -240, scale: 1.25 },
+    { x: 100, z: -270, scale: 1.1 },
+    { x: 115, z: -280, scale: 1.2 },
+    { x: 130, z: -275, scale: 1.3 },
+    { x: 195, z: -220, scale: 1.1 },
+    { x: 210, z: -235, scale: 1.25 },
+    { x: 200, z: -275, scale: 1.2 },
+    { x: 215, z: -285, scale: 1.15 },
   ];
   frostpeakPineCoords.forEach((p, idx) => {
     const pine = createSnowyPineTreeMesh(p.scale);
@@ -1159,6 +1157,17 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     // Eastern glacier crags
     { x: 170, z: -98, scale: 1.6 },
     { x: 172, z: -120, scale: 1.4 },
+    // Expanded Frostpeak Wilderness Boulders (Anti-Polos)
+    { x: 115, z: -180, scale: 1.5 },
+    { x: 130, z: -195, scale: 1.3 },
+    { x: 145, z: -175, scale: 1.6 },
+    { x: 160, z: -190, scale: 1.4 },
+    { x: 125, z: -220, scale: 1.5 },
+    { x: 140, z: -230, scale: 1.2 },
+    { x: 110, z: -250, scale: 1.4 },
+    { x: 125, z: -265, scale: 1.6 },
+    { x: 205, z: -225, scale: 1.5 },
+    { x: 215, z: -270, scale: 1.7 },
   ];
   iceBoulders.forEach((b, idx) => {
     const boulder = createIceBoulderMesh(b.scale);
@@ -1906,7 +1915,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // ==========================================
   const chestData = [
     { id: 'chest_village', pos: [-4, 0, 4] as [number, number, number] },
-    { id: 'chest_beach', pos: [4.5, 1.85, 56] as [number, number, number] }, // Seaward End Observation Platform Stash
+    { id: 'chest_beach', pos: [3.5, 1.85, 52] as [number, number, number] }, // Seaward Pier Head Platform Stash
     { id: 'chest_ruins', pos: [-120, 0, 36] as [number, number, number] }, // Ancient ruins altar (Upstream Outskirts)
     { id: 'chest_forest', pos: [38, 0, 12] as [number, number, number] }, // Mystic deep forest
     { id: 'chest_boss_gateway', pos: [0, 0, -38] as [number, number, number] }, // Entrance to Titan Crater

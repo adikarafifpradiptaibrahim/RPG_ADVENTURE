@@ -25,6 +25,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({
   onOpenFullMap,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const landscapeCacheRef = useRef<{ imgData: ImageData; px: number; pz: number; radius: number } | null>(null);
 
   // Fog of war set stored as string "chunkX,chunkZ"
   const [discoveredChunks, setDiscoveredChunks] = useState<Set<string>>(() => {
@@ -96,75 +97,89 @@ export const MiniMap: React.FC<MiniMapProps> = ({
     ctx.arc(halfSize, halfSize, halfSize - 2, 0, Math.PI * 2);
     ctx.clip();
 
-    // Render resolution: sample grid of 48x48 points across the radar area
-    const gridRes = 48;
-    const cellSize = size / gridRes;
-    const worldStep = (radarRadius * 2) / gridRes;
+    // Check if cached landscape ImageData can be reused (eliminates recalculations during camera turning)
+    let imgData: ImageData;
+    const cache = landscapeCacheRef.current;
+    if (
+      cache &&
+      cache.radius === radarRadius &&
+      Math.abs(cache.px - playerPos.x) < 0.4 &&
+      Math.abs(cache.pz - playerPos.z) < 0.4
+    ) {
+      imgData = cache.imgData;
+    } else {
+      imgData = ctx.createImageData(size, size);
+      const pixels = imgData.data;
 
-    const imgData = ctx.createImageData(size, size);
-    const pixels = imgData.data;
+      // Fill background with deep map void
+      for (let p = 0; p < pixels.length; p += 4) {
+        pixels[p] = 20;
+        pixels[p + 1] = 24;
+        pixels[p + 2] = 30;
+        pixels[p + 3] = 255;
+      }
 
-    // Fill background with deep map void
-    for (let p = 0; p < pixels.length; p += 4) {
-      pixels[p] = 20;
-      pixels[p + 1] = 24;
-      pixels[p + 2] = 30;
-      pixels[p + 3] = 255;
-    }
+      // Direct pixel buffer rendering
+      for (let py = 0; py < size; py += 3) {
+        const v = (py / size - 0.5) * 2; // -1 to 1
+        for (let px = 0; px < size; px += 3) {
+          const u = (px / size - 0.5) * 2; // -1 to 1
+          const radDist = Math.hypot(u, v);
+          if (radDist > 0.98) continue; // outside circle
 
-    // Direct pixel buffer rendering
-    for (let py = 0; py < size; py += 3) {
-      const v = (py / size - 0.5) * 2; // -1 to 1
-      for (let px = 0; px < size; px += 3) {
-        const u = (px / size - 0.5) * 2; // -1 to 1
-        const radDist = Math.hypot(u, v);
-        if (radDist > 0.98) continue; // outside circle
+          // World coordinates
+          const wx = playerPos.x + u * radarRadius;
+          const wz = playerPos.z + v * radarRadius;
 
-        // World coordinates
-        const wx = playerPos.x + u * radarRadius;
-        const wz = playerPos.z + v * radarRadius;
+          // Check fog of war
+          const chunkKey = `${getChunkCoord(wx)},${getChunkCoord(wz)}`;
+          const isExplored = discoveredChunks.has(chunkKey);
 
-        // Check fog of war
-        const chunkKey = `${getChunkCoord(wx)},${getChunkCoord(wz)}`;
-        const isExplored = discoveredChunks.has(chunkKey);
+          const sample = getContinentBiomeSample(wx, wz);
+          let [r, g, b] = sample.color;
 
-        const sample = getContinentBiomeSample(wx, wz);
-        let [r, g, b] = sample.color;
+          // Apply hillshading (sun from North-West)
+          const sunDot = 1.0 + (sample.slope * 0.45 * (u - v));
+          const shade = Math.max(0.65, Math.min(1.35, sunDot));
+          r = Math.round(r * shade);
+          g = Math.round(g * shade);
+          b = Math.round(b * shade);
 
-        // Apply hillshading (sun from North-West)
-        const sunDot = 1.0 + (sample.slope * 0.45 * (u - v));
-        const shade = Math.max(0.65, Math.min(1.35, sunDot));
-        r = Math.round(r * shade);
-        g = Math.round(g * shade);
-        b = Math.round(b * shade);
+          // Elevation contour lines (every 2.5 meters)
+          if (sample.height > 0.5 && Math.abs(sample.height % 2.5) < 0.22) {
+            r = Math.min(255, r + 45);
+            g = Math.min(255, g + 45);
+            b = Math.min(255, b + 55);
+          }
 
-        // Elevation contour lines (every 2.5 meters)
-        if (sample.height > 0.5 && Math.abs(sample.height % 2.5) < 0.22) {
-          r = Math.min(255, r + 45);
-          g = Math.min(255, g + 45);
-          b = Math.min(255, b + 55);
-        }
+          // Fog of War effect: Unexplored lands shrouded in parchment mist
+          if (!isExplored) {
+            // Dim into dark ancient map parchment
+            r = Math.round(r * 0.22 + 15);
+            g = Math.round(g * 0.22 + 20);
+            b = Math.round(b * 0.25 + 32);
+          }
 
-        // Fog of War effect: Unexplored lands shrouded in parchment mist
-        if (!isExplored) {
-          // Dim into dark ancient map parchment
-          r = Math.round(r * 0.22 + 15);
-          g = Math.round(g * 0.22 + 20);
-          b = Math.round(b * 0.25 + 32);
-        }
-
-        // Write 3x3 pixel block
-        for (let dy = 0; dy < 3 && py + dy < size; dy++) {
-          const rowOff = (py + dy) * size * 4;
-          for (let dx = 0; dx < 3 && px + dx < size; dx++) {
-            const idx = rowOff + (px + dx) * 4;
-            pixels[idx] = r;
-            pixels[idx + 1] = g;
-            pixels[idx + 2] = b;
-            pixels[idx + 3] = 255;
+          // Write 3x3 pixel block
+          for (let dy = 0; dy < 3 && py + dy < size; dy++) {
+            const rowOff = (py + dy) * size * 4;
+            for (let dx = 0; dx < 3 && px + dx < size; dx++) {
+              const idx = rowOff + (px + dx) * 4;
+              pixels[idx] = r;
+              pixels[idx + 1] = g;
+              pixels[idx + 2] = b;
+              pixels[idx + 3] = 255;
+            }
           }
         }
       }
+
+      landscapeCacheRef.current = {
+        imgData,
+        px: playerPos.x,
+        pz: playerPos.z,
+        radius: radarRadius,
+      };
     }
 
     ctx.putImageData(imgData, 0, 0);

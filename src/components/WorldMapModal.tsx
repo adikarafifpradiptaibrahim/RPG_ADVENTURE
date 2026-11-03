@@ -18,6 +18,9 @@ import { MapMarker, RegionInfo } from '../types/game';
 import { REGIONS, WAYPOINTS } from '../game/mapData';
 import { getContinentBiomeSample } from '../game/mapSampler';
 
+// Persistent continent map cached image data to eliminate all lag on open & pan
+let cachedMapImageData: ImageData | null = null;
+
 interface WorldMapModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -44,6 +47,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const rafIdRef = useRef<number | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -55,7 +59,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
   const minZ = -460;
   const maxZ = 460;
 
-  // Clamped Pan Handler
+  // Clamped Pan Handler (prevents panning past the map boundaries at any zoom level)
   const clampPan = useCallback((nx: number, ny: number, curZoom: number) => {
     const maxPanX = (curZoom - 1.0) * 280;
     const maxPanY = (curZoom - 1.0) * 210;
@@ -65,7 +69,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
     };
   }, []);
 
-  // Center on player
+  // Center on player (instantly centers view onto player position)
   const handleCenterOnPlayer = useCallback(() => {
     const normX = (playerPos.x - minX) / (maxX - minX);
     const normZ = (playerPos.z - minZ) / (maxZ - minZ);
@@ -74,7 +78,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
     setPan(clampPan(targetPanX, targetPanY, zoom));
   }, [playerPos.x, playerPos.z, zoom, clampPan]);
 
-  // Zoom In / Out Handlers
+  // Zoom In / Out Handlers with smooth GPU transitions
   const handleZoomIn = () => {
     setZoom((prev) => {
       const next = Math.min(3.5, Math.round((prev + 0.5) * 10) / 10);
@@ -115,7 +119,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
     });
   };
 
-  // Mouse drag listeners
+  // Mouse drag listeners with requestAnimationFrame throttling for silky 60fps pan
   const handleMouseDown = (e: React.MouseEvent) => {
     if (zoom <= 1.0) return;
     setIsDragging(true);
@@ -127,14 +131,24 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
     if (!isDragging || zoom <= 1.0) return;
     const dx = e.clientX - dragStartRef.current.x;
     const dy = e.clientY - dragStartRef.current.y;
-    setPan(clampPan(panStartRef.current.x + dx, panStartRef.current.y + dy, zoom));
+    const targetX = panStartRef.current.x + dx;
+    const targetY = panStartRef.current.y + dy;
+
+    if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+    rafIdRef.current = requestAnimationFrame(() => {
+      setPan(clampPan(targetX, targetY, zoom));
+    });
   };
 
   const handleMouseUp = () => {
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
     setIsDragging(false);
   };
 
-  // Touch drag listeners for Mobile
+  // Touch drag listeners with requestAnimationFrame throttling for Mobile
   const handleTouchStart = (e: React.TouchEvent) => {
     if (zoom <= 1.0 || e.touches.length === 0) return;
     setIsDragging(true);
@@ -146,26 +160,46 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
     if (!isDragging || zoom <= 1.0 || e.touches.length === 0) return;
     const dx = e.touches[0].clientX - dragStartRef.current.x;
     const dy = e.touches[0].clientY - dragStartRef.current.y;
-    setPan(clampPan(panStartRef.current.x + dx, panStartRef.current.y + dy, zoom));
+    const targetX = panStartRef.current.x + dx;
+    const targetY = panStartRef.current.y + dy;
+
+    if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+    rafIdRef.current = requestAnimationFrame(() => {
+      setPan(clampPan(targetX, targetY, zoom));
+    });
   };
 
   const handleTouchEnd = () => {
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
     setIsDragging(false);
   };
 
-  // World to screen percentage conversion
+  // Cleanup RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+    };
+  }, []);
+
+  // Normalized World to screen percentage conversion (relative to the GPU transformed map plane)
   const worldToScreen = (wx: number, wz: number) => {
     const normX = (wx - minX) / (maxX - minX);
     const normZ = (wz - minZ) / (maxZ - minZ);
-    const leftPercent = 50 + (normX - 0.5) * 100 * zoom + (pan.x / 560) * 100;
-    const topPercent = 50 + (normZ - 0.5) * 100 * zoom + (pan.y / 420) * 100;
-    const isVisible = leftPercent >= -15 && leftPercent <= 115 && topPercent >= -15 && topPercent <= 115;
-    return { left: `${leftPercent}%`, top: `${topPercent}%`, visible: isVisible };
+    return {
+      left: `${normX * 100}%`,
+      top: `${normZ * 100}%`,
+      visible: true,
+    };
   };
 
   const playerScreen = worldToScreen(playerPos.x, playerPos.z);
 
-  // Render Real-time Topographical Landscape on Canvas
+  // Render Topographical Continent Landscape once (cached for instant reopening and zero-lag dragging)
   useEffect(() => {
     if (!isOpen) return;
     const canvas = canvasRef.current;
@@ -175,44 +209,33 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
 
     const width = canvas.width;
     const height = canvas.height;
-    ctx.clearRect(0, 0, width, height);
 
+    // Use cached image data if already generated
+    if (cachedMapImageData && cachedMapImageData.width === width && cachedMapImageData.height === height) {
+      ctx.putImageData(cachedMapImageData, 0, 0);
+      return;
+    }
+
+    ctx.clearRect(0, 0, width, height);
     const imgData = ctx.createImageData(width, height);
     const pixels = imgData.data;
 
-    // Direct pixel block sampling
-    const step = zoom >= 2.5 ? 2 : (zoom >= 1.5 ? 3 : 3);
+    // Direct pixel block sampling across the entire continent
+    const step = 2; // Crisp resolution
 
     for (let py = 0; py < height; py += step) {
       const v = py / height;
-      const screenV = (v - 0.5) / zoom - (pan.y / height) / zoom + 0.5;
-      const wz = minZ + screenV * (maxZ - minZ);
+      const wz = minZ + v * (maxZ - minZ);
 
       for (let px = 0; px < width; px += step) {
         const u = px / width;
-        const screenU = (u - 0.5) / zoom - (pan.x / width) / zoom + 0.5;
-        const wx = minX + screenU * (maxX - minX);
-
-        if (screenU < 0 || screenU > 1 || screenV < 0 || screenV > 1) {
-          // Off-map deep abyss void
-          for (let dy = 0; dy < step && py + dy < height; dy++) {
-            const rowOff = (py + dy) * width * 4;
-            for (let dx = 0; dx < step && px + dx < width; dx++) {
-              const idx = rowOff + (px + dx) * 4;
-              pixels[idx] = 12;
-              pixels[idx + 1] = 16;
-              pixels[idx + 2] = 22;
-              pixels[idx + 3] = 255;
-            }
-          }
-          continue;
-        }
+        const wx = minX + u * (maxX - minX);
 
         const sample = getContinentBiomeSample(wx, wz);
         let [r, g, b] = sample.color;
 
-        // Dynamic hillshade sun angle
-        const sunDot = 1.0 + (sample.slope * 0.45 * (screenU - screenV));
+        // Dynamic hillshade sun angle (sun from North-West)
+        const sunDot = 1.0 + (sample.slope * 0.45 * (u - v));
         const shade = Math.max(0.65, Math.min(1.35, sunDot));
         r = Math.min(255, Math.max(0, Math.round(r * shade)));
         g = Math.min(255, Math.max(0, Math.round(g * shade)));
@@ -238,8 +261,9 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
       }
     }
 
+    cachedMapImageData = imgData;
     ctx.putImageData(imgData, 0, 0);
-  }, [isOpen, zoom, pan.x, pan.y]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -289,7 +313,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
         <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
           {/* Main Map Canvas Area */}
           <div className="relative flex-1 bg-stone-950/90 overflow-hidden flex items-center justify-center p-2 sm:p-4">
-            {/* Topographical Map Container with Zoom & Pan */}
+            {/* Topographical Map Container with Zoom & Pan Viewport */}
             <div
               ref={containerRef}
               onWheel={handleWheel}
@@ -302,9 +326,20 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
               onTouchEnd={handleTouchEnd}
               style={{
                 cursor: zoom > 1.0 ? (isDragging ? 'grabbing' : 'grab') : 'default',
+                touchAction: 'none',
               }}
               className="relative w-full h-full max-w-[620px] max-h-[580px] rounded-xl overflow-hidden border border-stone-700/60 shadow-inner bg-[#1e232a]"
             >
+              {/* GPU Hardware Accelerated Continent Map Plane (translate3d + will-change: transform) */}
+              <div
+                className="absolute inset-0 w-full h-full"
+                style={{
+                  transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoom})`,
+                  transformOrigin: '50% 50%',
+                  willChange: 'transform',
+                  transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0, 0, 1)',
+                }}
+              >
               {/* Real-time Topographical Biome Canvas */}
               <canvas
                 ref={canvasRef}
@@ -312,51 +347,6 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 height={420}
                 className="absolute inset-0 w-full h-full object-cover pointer-events-none"
               />
-
-              {/* FLOATING ZOOM & CAMERA CONTROLS (Top-Left HUD) */}
-              <div className="absolute top-3 left-3 z-35 flex items-center gap-1.5 p-1 bg-stone-900/90 backdrop-blur-md border border-amber-600/60 rounded-xl shadow-xl pointer-events-auto">
-                <button
-                  onClick={handleZoomIn}
-                  disabled={zoom >= 3.5}
-                  className="w-7 h-7 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-amber-300 flex items-center justify-center transition-all active:scale-95"
-                  title="Perbesar Peta (+)"
-                >
-                  <ZoomIn className="w-4 h-4" />
-                </button>
-                <div className="px-1.5 py-0.5 text-[11px] font-mono font-bold text-amber-200">
-                  {zoom.toFixed(1)}x
-                </div>
-                <button
-                  onClick={handleZoomOut}
-                  disabled={zoom <= 1.0}
-                  className="w-7 h-7 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-amber-300 flex items-center justify-center transition-all active:scale-95"
-                  title="Perkecil Peta (-)"
-                >
-                  <ZoomOut className="w-4 h-4" />
-                </button>
-                <div className="w-[1px] h-4 bg-stone-700 mx-0.5" />
-                <button
-                  onClick={handleResetZoom}
-                  disabled={zoom === 1.0 && pan.x === 0 && pan.y === 0}
-                  className="w-7 h-7 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-stone-300 hover:text-white flex items-center justify-center transition-all active:scale-95"
-                  title="Reset Tampilan (1.0x)"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={handleCenterOnPlayer}
-                  className="w-7 h-7 rounded-lg bg-amber-600/30 hover:bg-amber-600/60 border border-amber-500/50 text-amber-300 flex items-center justify-center transition-all active:scale-95"
-                  title="Pusatkan Kamera ke Posisi Pemain"
-                >
-                  <Crosshair className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Navigation Hint Pill (Bottom-Left) */}
-              <div className="absolute bottom-3 left-3 z-35 px-2.5 py-1 bg-stone-950/80 backdrop-blur-xs border border-stone-800/80 rounded-lg text-[9px] font-mono text-stone-400 pointer-events-none flex items-center gap-1.5 shadow">
-                <span>🖱️</span>
-                <span>{zoom > 1.0 ? 'Tahan & Geser untuk Menjelajah' : 'Scroll / (+) untuk Memperbesar'}</span>
-              </div>
 
               {/* DYNAMIC REGION CLICKABLE ZONES & LABELS */}
               {/* 1. Grand Imperial Astraea (Far North Frostpeak, X: 180, Z: -260) */}
@@ -656,6 +646,54 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                   </span>
                 </div>
               )}
+
+              </div>
+              {/* END GPU Hardware Accelerated Continent Map Plane */}
+
+              {/* FLOATING ZOOM & CAMERA CONTROLS (Top-Left HUD) */}
+              <div className="absolute top-3 left-3 z-35 flex items-center gap-1.5 p-1 bg-stone-900/90 backdrop-blur-md border border-amber-600/60 rounded-xl shadow-xl pointer-events-auto">
+                <button
+                  onClick={handleZoomIn}
+                  disabled={zoom >= 3.5}
+                  className="w-7 h-7 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-amber-300 flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+                  title="Perbesar Peta (+)"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <div className="px-1.5 py-0.5 text-[11px] font-mono font-bold text-amber-200">
+                  {zoom.toFixed(1)}x
+                </div>
+                <button
+                  onClick={handleZoomOut}
+                  disabled={zoom <= 1.0}
+                  className="w-7 h-7 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-amber-300 flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+                  title="Perkecil Peta (-)"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <div className="w-[1px] h-4 bg-stone-700 mx-0.5" />
+                <button
+                  onClick={handleResetZoom}
+                  disabled={zoom === 1.0 && pan.x === 0 && pan.y === 0}
+                  className="w-7 h-7 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-stone-300 hover:text-white flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+                  title="Reset Tampilan (1.0x)"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={handleCenterOnPlayer}
+                  className="w-7 h-7 rounded-lg bg-amber-600/30 hover:bg-amber-600/60 border border-amber-500/50 text-amber-300 flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+                  title="Pusatkan Kamera ke Posisi Pemain"
+                >
+                  <Crosshair className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Navigation Hint Pill (Bottom-Left) */}
+              <div className="absolute bottom-3 left-3 z-35 px-2.5 py-1 bg-stone-950/80 backdrop-blur-xs border border-stone-800/80 rounded-lg text-[9px] font-mono text-stone-400 pointer-events-none flex items-center gap-1.5 shadow">
+                <span>🖱️</span>
+                <span>{zoom > 1.0 ? 'Tahan & Geser untuk Menjelajah' : 'Scroll / (+) untuk Memperbesar'}</span>
+              </div>
 
               {/* Compass Rose Top-Right */}
               <div className="absolute top-3 right-3 p-1 sm:p-1.5 bg-stone-900/85 border border-stone-700/80 rounded-lg flex flex-col items-center pointer-events-none z-30">

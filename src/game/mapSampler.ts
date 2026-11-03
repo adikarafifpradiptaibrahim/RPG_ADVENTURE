@@ -67,18 +67,19 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return (1 - t) * 1.6 + t * (0.8 + Math.sin(x * 0.08) * 0.5);
   }
 
-  // 2. Second Village: Desa Benteng Val-Kragor (x: 88..155, z: -48..15)
-  const distValKragor = Math.hypot(x - 116, z - -17);
-  if (distValKragor < 38) {
-    if (distValKragor < 30) return 3.2; // Expanded flat fortress plateau
-    const t = (distValKragor - 30) / 8;
+  // 2. Second Village: Desa Benteng Val-Kragor Expanded Plateau (x: 88..160, z: -48..15)
+  // Expanded 1.8x - 2x spacious flat fortress interior
+  const distValKragor = Math.hypot(x - 120, z - -17);
+  if (distValKragor < 46) {
+    if (distValKragor < 38) return 3.2; // Vast flat fortress courtyard
+    const t = (distValKragor - 38) / 8;
     const baseMeadow = 1.8 + Math.sin(x * 0.08) * 0.8;
     return (1 - t) * 3.2 + t * baseMeadow;
   }
   // Fortress western ramp / approach slope from bridge
-  if (x >= 84 && x <= 98 && z >= -26 && z <= -8) {
-    const t = (x - 84) / 14;
-    return 2.0 + t * 1.2;
+  if (x >= 84 && x <= 96 && z >= -24 && z <= -10) {
+    const t = (x - 84) / 12;
+    return 2.2 + t * 1.0;
   }
 
   // 3. Misty Chasm & Wooden Suspension Bridge (x: 63..87, z: -30..0)
@@ -141,19 +142,20 @@ export function getProceduralContinentHeight(x: number, z: number): number {
       baseRegionalElev = southBaseElev;
     }
 
-    // Soft rolling snow mounds (bukit tumpul)
+    // Soft rolling snow mounds with natural gentle slopes (anti-tebing curam)
     const bluntHills =
-      Math.sin(x * 0.055) * 0.65 +
-      Math.cos(z * 0.048) * 0.55 +
-      Math.sin(x * 0.026 + z * 0.034) * 0.45;
+      Math.sin(x * 0.045) * 0.55 +
+      Math.cos(z * 0.042) * 0.45 +
+      Math.sin(x * 0.022 + z * 0.028) * 0.35;
 
-    const hillInfluence = smoothstep(6, 22, distToCity);
+    const hillInfluence = smoothstep(4, 25, distToCity);
 
     // Far-North Ancient Ice Crystal Mountain Range & Glaciers (z < -340 or x > 215)
     let outerGlacier = 0;
     if (z < -340 || x > 215) {
       const distOuter = Math.hypot(Math.max(0, x - 215), Math.max(0, -340 - z));
-      outerGlacier = Math.min(22, distOuter * 0.07 + Math.sin(x * 0.06 + z * 0.05) * 3.8);
+      const sOuter = smoothstep(0, 20, distOuter);
+      outerGlacier = sOuter * Math.min(20, distOuter * 0.06 + Math.sin(x * 0.05 + z * 0.04) * 2.8);
     }
 
     const outerElevation = baseRegionalElev + bluntHills * hillInfluence + outerGlacier;
@@ -312,33 +314,26 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   const distCenter = Math.hypot(x, z);
   const distValKragor = Math.hypot(x - 116, z - -17);
 
-  // 0. Coastal Wooden Harbor Pier Network
-  // Main Central Pier: x: -2.2..2.2, z: 20..58
-  // End Platform: x: -7.5..7.5, z: 54..58
-  // West Pier: x: -13.8..-10.2, z: 20..52
-  // East Pier: x: 10.2..13.8, z: 20..52
-  // Shoreline Quay Boardwalk: x: -16.5..16.5, z: 18.5..21.5
-  // Connecting Cross-Walkway: z: 34.5..37.5, x: -13..13
+  // 0. Simplified Straight Coastal Harbor (1 Wide Main Pier with 2 Straight Berthing Wings)
+  // Beach ramp & stairs: x: -2.4..2.4, z: 17.5..21.5
+  // Main straight pier: x: -2.4..2.4, z: 21.5..52.5
+  // Main pier head: x: -4.6..4.6, z: 50.0..54.0
+  // West berthing wing: x: -13.8..-2.3, z: 36.2..39.8
+  // East berthing wing: x: 2.3..13.8, z: 36.2..39.8
   if (
-    (Math.abs(x) <= 2.2 && z >= 20 && z <= 58) ||
-    (Math.abs(x) <= 7.5 && z >= 54 && z <= 58) ||
-    (x >= -13.8 && x <= -10.2 && z >= 20 && z <= 52) ||
-    (x >= 10.2 && x <= 13.8 && z >= 20 && z <= 52) ||
-    (Math.abs(x) <= 16.5 && z >= 18.5 && z <= 21.5) ||
-    (Math.abs(z - 36) <= 1.6 && x >= -13 && x <= 13)
+    (Math.abs(x) <= 2.4 && z >= 17.5 && z <= 52.5) ||
+    (Math.abs(x) <= 4.6 && z >= 50.0 && z <= 54.0) ||
+    (x >= -13.8 && x <= -2.3 && z >= 36.2 && z <= 39.8) ||
+    (x >= 2.3 && x <= 13.8 && z >= 36.2 && z <= 39.8)
   ) {
     return { height: 1.85, color: [141, 110, 99], biomeId: 'harbor_pier', isWater: false, isPath: true, slope: 0 };
   }
 
-  // Moored Ships alongside piers in deep ocean water
+  // Moored Main Ships (1 Galleon at East Wing, 1 Warship at West Wing, 1 Rowboat at Pier Head)
   if (
-    (Math.abs(x - 20.5) <= 3.0 && Math.abs(z - 36) <= 8.5) ||
-    (Math.abs(x - -20.5) <= 3.0 && Math.abs(z - 36) <= 8.5) ||
-    (Math.abs(x - 34) <= 2.6 && Math.abs(z - 46) <= 8.0) ||
-    (Math.abs(x - -34) <= 2.6 && Math.abs(z - 46) <= 8.0) ||
-    (Math.abs(x - -6) <= 1.4 && Math.abs(z - 30) <= 2.6) ||
-    (Math.abs(x - 6) <= 1.4 && Math.abs(z - 30) <= 2.6) ||
-    (Math.abs(x - 6) <= 1.4 && Math.abs(z - 44) <= 2.6)
+    (Math.abs(x - 18.5) <= 2.8 && Math.abs(z - 38) <= 7.5) ||
+    (Math.abs(x - -18.5) <= 2.8 && Math.abs(z - 38) <= 7.5) ||
+    (Math.abs(x) <= 1.5 && Math.abs(z - 55.5) <= 2.8)
   ) {
     return { height: 1.0, color: [84, 53, 31], biomeId: 'ship_deck', isWater: false, isPath: false, slope: 0 };
   }
@@ -400,6 +395,14 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   // South Cross Street (connecting Blacksmith & Shops to Residential Wards at z = 7)
   if (Math.abs(z - 7) <= 2.2 && Math.abs(x) <= 25) {
     return { height: y, color: [215, 204, 200], biomeId: 'eldoria_path', isWater: false, isPath: true, slope: 0 };
+  }
+
+  // 3c. Main Inter-regional Highway: Desa Utama -> Jembatan Gantung -> Gerbang Benteng Val-Kragor
+  if (
+    (Math.abs(z - -15) <= 2.8 && x >= 16 && x <= 88) ||
+    (Math.abs(z - (-15 - (x - 88) * 0.33)) <= 2.8 && x >= 88 && x <= 95)
+  ) {
+    return { height: y, color: [175, 155, 135], biomeId: 'valkragor_road', isWater: false, isPath: true, slope: 0 };
   }
 
   // 3b. Ancient Sunken Ruins of Vael Granite Flagstone Terrace (x: -140..-95, z: 15..60)

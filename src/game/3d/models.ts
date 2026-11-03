@@ -2653,16 +2653,18 @@ export function createSuspensionBridgeMesh(length: number = 28): THREE.Group {
   const ropeMat = new THREE.MeshLambertMaterial({ color: 0x78533b, flatShading: true });
   const pylonMat = new THREE.MeshLambertMaterial({ color: 0x475569, flatShading: true });
 
-  // Anchor Stone Pylons on both sides
+  // Anchor Stone Pylons on both sides with deep grounding plinths (menempel padat di tanah)
   for (const x of [-length / 2, length / 2]) {
     for (const z of [-2.4, 2.4]) {
-      const pylon = new THREE.Mesh(new THREE.BoxGeometry(1.4, 5.5, 1.4), pylonMat);
-      pylon.position.set(x, 2.2, z);
+      // 8.5 unit tall stone pylon reaching deep into terrain foundation
+      const pylon = new THREE.Mesh(new THREE.BoxGeometry(1.6, 8.5, 1.6), pylonMat);
+      pylon.position.set(x, 0.8, z);
       pylon.castShadow = true;
+      pylon.receiveShadow = true;
       bridge.add(pylon);
     }
     // Cross timber beam between pylons
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 5.4), timberMat);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.55, 5.4), timberMat);
     beam.position.set(x, 4.4, 0);
     bridge.add(beam);
   }
@@ -4542,4 +4544,85 @@ export function createWoodBarricadeMesh(length = 6): THREE.Group {
   }
 
   return barricade;
+}
+
+// Stone Bridge Pier rising from the bottom of the chasm/river to support suspension bridge
+export function createStoneBridgePierMesh(height: number = 7.5): THREE.Group {
+  const pier = new THREE.Group();
+  const stoneMat = new THREE.MeshLambertMaterial({ color: 0x475569, flatShading: true });
+  const darkStoneMat = new THREE.MeshLambertMaterial({ color: 0x334155, flatShading: true });
+
+  // Deep underwater/bottom foundation plinth
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(3.8, 2.2, 4.6), darkStoneMat);
+  plinth.position.y = -height / 2 + 1.1;
+  plinth.receiveShadow = true;
+  pier.add(plinth);
+
+  // Main vertical stone masonry pillar
+  const pillar = new THREE.Mesh(new THREE.BoxGeometry(2.8, height - 1.5, 3.6), stoneMat);
+  pillar.position.y = 0.5;
+  pillar.castShadow = true;
+  pillar.receiveShadow = true;
+  pier.add(pillar);
+
+  // Capital / supporting corbel ledge under bridge deck
+  const capital = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.8, 4.4), darkStoneMat);
+  capital.position.y = height / 2;
+  capital.castShadow = true;
+  pier.add(capital);
+
+  return pier;
+}
+
+// Wooden Dock Beach Ramp & Short Stairs connecting sand beach to pier deck
+export function createDockStairRampMesh(width: number = 4.6, length: number = 4.0, height: number = 1.8): THREE.Group {
+  const group = new THREE.Group();
+  const timberMat = new THREE.MeshLambertMaterial({ color: 0x4e342e, flatShading: true });
+  const plankMat = new THREE.MeshLambertMaterial({ color: 0x6d4c41, flatShading: true });
+  const darkTimberMat = new THREE.MeshLambertMaterial({ color: 0x3e2723, flatShading: true });
+
+  // Sloping deck planks
+  const slopeGeo = new THREE.BoxGeometry(width, 0.22, Math.hypot(length, height));
+  const slope = new THREE.Mesh(slopeGeo, plankMat);
+  slope.position.set(0, height / 2, length / 2);
+  slope.rotation.x = -Math.atan2(height, length);
+  slope.receiveShadow = true;
+  group.add(slope);
+
+  // Stepped wooden treads for character grip
+  const stepCount = 5;
+  for (let s = 1; s <= stepCount; s++) {
+    const sz = (s / (stepCount + 1)) * length;
+    const sy = (s / (stepCount + 1)) * height;
+    const stepPlank = new THREE.Mesh(new THREE.BoxGeometry(width - 0.2, 0.12, 0.35), timberMat);
+    stepPlank.position.set(0, sy + 0.08, sz);
+    group.add(stepPlank);
+  }
+
+  // Left & right side stringer curb timbers
+  const curbGeo = new THREE.BoxGeometry(0.24, 0.4, Math.hypot(length, height));
+  const curbL = new THREE.Mesh(curbGeo, darkTimberMat);
+  curbL.position.set(-width / 2 + 0.12, height / 2 + 0.1, length / 2);
+  curbL.rotation.x = -Math.atan2(height, length);
+
+  const curbR = new THREE.Mesh(curbGeo, darkTimberMat);
+  curbR.position.set(width / 2 - 0.12, height / 2 + 0.1, length / 2);
+  curbR.rotation.x = -Math.atan2(height, length);
+
+  group.add(curbL, curbR);
+
+  // Lantern posts at beach foot
+  const postL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 1.4, 6), timberMat);
+  postL.position.set(-width / 2 + 0.15, 0.8, 0.3);
+  const lanternL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.26, 0.22), new THREE.MeshBasicMaterial({ color: 0xffb74d }));
+  lanternL.position.set(-width / 2 + 0.15, 1.4, 0.3);
+
+  const postR = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 1.4, 6), timberMat);
+  postR.position.set(width / 2 - 0.15, 0.8, 0.3);
+  const lanternR = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.26, 0.22), new THREE.MeshBasicMaterial({ color: 0xffb74d }));
+  lanternR.position.set(width / 2 - 0.15, 1.4, 0.3);
+
+  group.add(postL, lanternL, postR, lanternR);
+
+  return group;
 }

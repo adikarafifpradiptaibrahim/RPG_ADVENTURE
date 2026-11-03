@@ -212,8 +212,8 @@ export const WAYPOINTS: {
     nameId: 'Anjungan Dermaga Utama Laut Lepas',
     regionId: 'pantai_azure',
     icon: '⚓',
-    pos: [0, 56],
-    desc: 'Anjungan dermaga utama membentang ke laut lepas dengan pemandangan kapal perang dan kapal dagang',
+    pos: [0, 52],
+    desc: 'Anjungan ujung dermaga utama membentang ke laut lepas dengan pemandangan kapal perang dan kapal dagang',
   },
   {
     id: 'wp_ruins',

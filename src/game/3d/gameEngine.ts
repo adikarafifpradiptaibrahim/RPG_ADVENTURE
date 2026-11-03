@@ -4777,7 +4777,7 @@ export class GameEngine {
         title: 'Anjungan Dermaga Laut Lepas',
         type: 'pier',
         x: 0,
-        z: 56,
+        z: 52,
         icon: '⚓',
         color: '#0284c7',
         description: 'Ujung Dermaga Kayu Megah dengan Kapal Perang & Kapal Dagang Berlabuh',
