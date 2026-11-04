@@ -27,6 +27,7 @@ interface WorldMapModalProps {
   playerPos: { x: number; z: number; rotationY: number };
   currentRegion: RegionInfo;
   markers: MapMarker[];
+  unlockedCheckpoints?: string[];
   onFastTravel: (x: number, z: number) => void;
 }
 
@@ -36,6 +37,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
   playerPos,
   currentRegion,
   markers,
+  unlockedCheckpoints = ['wp_village'],
   onFastTravel,
 }) => {
   const [selectedRegion, setSelectedRegion] = useState<RegionInfo>(currentRegion);
@@ -706,6 +708,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
               {WAYPOINTS.map((wp) => {
                 const sp = worldToScreen(wp.pos[0], wp.pos[1]);
                 if (!sp.visible) return null;
+                const isUnlocked = unlockedCheckpoints.includes(wp.id);
                 return (
                   <div
                     key={wp.id}
@@ -715,19 +718,32 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        onFastTravel(wp.pos[0], wp.pos[1]);
-                        onClose();
+                        if (isUnlocked) {
+                          onFastTravel(wp.pos[0], wp.pos[1]);
+                          onClose();
+                        }
                       }}
-                      className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-cyan-600/90 hover:bg-cyan-500 border-2 border-white shadow-lg flex items-center justify-center text-[10px] sm:text-xs transition-transform hover:scale-125 cursor-pointer pointer-events-auto"
-                      title={`Fast Travel ke: ${wp.nameId}`}
+                      disabled={!isUnlocked}
+                      className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full border-2 shadow-lg flex items-center justify-center text-[10px] sm:text-xs transition-transform hover:scale-125 pointer-events-auto ${
+                        isUnlocked
+                          ? 'bg-cyan-600/90 hover:bg-cyan-500 border-white text-white cursor-pointer shadow-cyan-500/50'
+                          : 'bg-stone-800/80 border-stone-600/60 text-stone-400 opacity-60 cursor-not-allowed'
+                      }`}
+                      title={isUnlocked ? `Fast Travel ke: ${wp.nameId}` : `🔒 Checkpoint Terkunci: ${wp.nameId} (Kunjungi lokasi terlebih dahulu)`}
                     >
-                      {wp.icon}
+                      {isUnlocked ? wp.icon : '🔒'}
                     </button>
                     {/* Tooltip on hover */}
                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center z-30 pointer-events-none">
-                      <div className="px-2 py-1 bg-stone-900/95 border border-cyan-400/80 rounded-md shadow-xl text-center whitespace-nowrap">
-                        <p className="text-[10px] sm:text-[11px] font-bold text-cyan-200">{wp.nameId}</p>
-                        <p className="text-[8px] sm:text-[9px] text-stone-300">Klik untuk Teleportasi</p>
+                      <div className={`px-2 py-1 bg-stone-900/95 border rounded-md shadow-xl text-center whitespace-nowrap ${
+                        isUnlocked ? 'border-cyan-400/80' : 'border-stone-700'
+                      }`}>
+                        <p className={`text-[10px] sm:text-[11px] font-bold ${
+                          isUnlocked ? 'text-cyan-200' : 'text-stone-400'
+                        }`}>{wp.nameId}</p>
+                        <p className="text-[8px] sm:text-[9px] text-stone-300">
+                          {isUnlocked ? 'Klik untuk Teleportasi' : '🔒 Belum Terbuka (Kunjungi lokasi ini)'}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -874,31 +890,49 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 Titik Teleportasi (Fast Travel)
               </h4>
               <div className="space-y-2">
-                {WAYPOINTS.map((wp) => (
-                  <div
-                    key={wp.id}
-                    className="p-2.5 rounded-lg bg-stone-900/60 border border-stone-800 hover:border-cyan-500/60 flex items-center justify-between transition-all group"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">{wp.icon}</span>
-                      <div>
-                        <p className="text-xs font-semibold text-stone-200 group-hover:text-cyan-300">
-                          {wp.nameId}
-                        </p>
-                        <p className="text-[10px] text-stone-500">{wp.desc}</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        onFastTravel(wp.pos[0], wp.pos[1]);
-                        onClose();
-                      }}
-                      className="px-2.5 py-1 rounded bg-cyan-700/80 hover:bg-cyan-600 text-[10px] font-bold text-white shadow transition-colors cursor-pointer"
+                {WAYPOINTS.map((wp) => {
+                  const isUnlocked = unlockedCheckpoints.includes(wp.id);
+                  return (
+                    <div
+                      key={wp.id}
+                      className={`p-2.5 rounded-lg border flex items-center justify-between transition-all group ${
+                        isUnlocked
+                          ? 'bg-stone-900/60 border-stone-800 hover:border-cyan-500/60'
+                          : 'bg-stone-950/40 border-stone-900/60 opacity-60'
+                      }`}
                     >
-                      Teleport
-                    </button>
-                  </div>
-                ))}
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{isUnlocked ? wp.icon : '🔒'}</span>
+                        <div>
+                          <p className={`text-xs font-semibold ${
+                            isUnlocked ? 'text-stone-200 group-hover:text-cyan-300' : 'text-stone-500'
+                          }`}>
+                            {wp.nameId}
+                          </p>
+                          <p className="text-[10px] text-stone-500">
+                            {isUnlocked ? wp.desc : 'Kunjungi lokasi ini untuk membuka Fast Travel'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (isUnlocked) {
+                            onFastTravel(wp.pos[0], wp.pos[1]);
+                            onClose();
+                          }
+                        }}
+                        disabled={!isUnlocked}
+                        className={`px-2.5 py-1 rounded text-[10px] font-bold shadow transition-colors ${
+                          isUnlocked
+                            ? 'bg-cyan-700/80 hover:bg-cyan-600 text-white cursor-pointer'
+                            : 'bg-stone-800 text-stone-500 border border-stone-700 cursor-not-allowed'
+                        }`}
+                      >
+                        {isUnlocked ? 'Teleport' : 'Terkunci'}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

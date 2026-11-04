@@ -38,6 +38,7 @@ import {
   createImperialPalaceMesh,
   createImperialFountainMesh,
   createImperialGatehouseMesh,
+  createCheckpointMonumentMesh,
   createImperialWallMesh,
   createImperialBazaarStallMesh,
   createCherryBlossomTreeMesh,
@@ -94,6 +95,21 @@ export interface WorldNPC {
   icon?: string;
 }
 
+
+export interface WorldCheckpoint {
+  id: string;
+  name: string;
+  nameId: string;
+  group: THREE.Group;
+  crystal: THREE.Mesh;
+  auraRings: THREE.Mesh[];
+  light: THREE.PointLight;
+  beacon: THREE.Mesh;
+  position: [number, number, number];
+  unlocked: boolean;
+  setUnlocked: (unlocked: boolean) => void;
+}
+
 export interface WorldObjects {
   scene: THREE.Scene;
   terrainMesh: THREE.Mesh;
@@ -113,6 +129,7 @@ export interface WorldObjects {
   npcs: WorldNPC[];
   colliders: WorldCollider[];
   floatingCrystals: THREE.Mesh[];
+  checkpoints: WorldCheckpoint[];
   particles: THREE.Points;
   lavaParticles?: THREE.Points;
   getTerrainHeight: (x: number, z: number) => number;
@@ -2317,6 +2334,108 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   bossLight.position.set(0, getTerrainHeight(0, bz) + 4.5, bz);
   scene.add(bossLight);
 
+
+  // 11. REGIONAL CHECKPOINT & WAYPOINT TELEPORTATION MONUMENTS
+  const checkpoints: WorldCheckpoint[] = [];
+
+  const CHECKPOINT_DEFINITIONS: {
+    id: string;
+    name: string;
+    nameId: string;
+    pos: [number, number];
+  }[] = [
+    {
+      id: 'wp_village',
+      name: 'Sanctuary Village Plaza',
+      nameId: 'Alun-Alun Desa Sanctuary',
+      pos: [0, -8],
+    },
+    {
+      id: 'wp_harbor',
+      name: 'Sanctuary Coastal Harbor',
+      nameId: 'Dermaga Pelabuhan Sanctuary',
+      pos: [0, 24],
+    },
+    {
+      id: 'wp_valkragor',
+      name: 'Val-Kragor Fortress Plaza',
+      nameId: 'Alun-Alun Benteng Val-Kragor',
+      pos: [156, -10],
+    },
+    {
+      id: 'wp_astraea',
+      name: 'Grand Imperial Capital Astraea',
+      nameId: 'Alun-Alun Ibukota Emas Astraea',
+      pos: [164, -248],
+    },
+    {
+      id: 'wp_shadowfen',
+      name: 'Shadowfen Ancient Marsh',
+      nameId: 'Pusat Rawa Bayangan Purba',
+      pos: [-105, 14],
+    },
+    {
+      id: 'wp_solaria',
+      name: 'Solaria Golden Desert Pyramid',
+      nameId: 'Piramida Emas Gurun Solaria',
+      pos: [-165, 110],
+    },
+    {
+      id: 'wp_jadepagoda',
+      name: 'Jade Bamboo Pagoda Shrine',
+      nameId: 'Kuil Pagoda Giok & Bambu',
+      pos: [165, 115],
+    },
+    {
+      id: 'wp_frostpeak',
+      name: 'Frostpeak Glacier Summit',
+      nameId: 'Kuil Es Puncak Frostpeak',
+      pos: [115, -65],
+    },
+    {
+      id: 'wp_thunderpeak',
+      name: 'Thunderpeak Basalt Altar',
+      nameId: 'Altar Menara Puncak Halilintar',
+      pos: [-155, -135],
+    },
+    {
+      id: 'wp_dragoncaldera',
+      name: 'Primal Dragonfang Caldera',
+      nameId: 'Altar Kaldera Sarang Naga Purba',
+      pos: [20, -125],
+    },
+  ];
+
+  CHECKPOINT_DEFINITIONS.forEach((cpDef) => {
+    const cy = getTerrainHeight(cpDef.pos[0], cpDef.pos[1]);
+    const { group, crystal, auraRings, light, beacon, setUnlocked } = createCheckpointMonumentMesh(false);
+    group.position.set(cpDef.pos[0], cy, cpDef.pos[1]);
+    scene.add(group);
+
+    // Solid collision for base
+    colliders.push({
+      type: 'circle',
+      x: cpDef.pos[0],
+      z: cpDef.pos[1],
+      radius: 1.6,
+      label: 'checkpoint_' + cpDef.id,
+    });
+
+    checkpoints.push({
+      id: cpDef.id,
+      name: cpDef.name,
+      nameId: cpDef.nameId,
+      group,
+      crystal,
+      auraRings,
+      light,
+      beacon,
+      position: [cpDef.pos[0], cy, cpDef.pos[1]],
+      unlocked: false,
+      setUnlocked,
+    });
+  });
+
   // Ambient Forest / Valley Fireflies
   const particleGeo = new THREE.BufferGeometry();
   const particleCount = 200;
@@ -2351,6 +2470,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     npcs,
     colliders,
     floatingCrystals,
+    checkpoints,
     particles,
     getTerrainHeight,
   };

@@ -879,13 +879,460 @@ export function createNPCMesh(): THREE.Group {
   return group;
 }
 
+
+/**
+ * Colossal Quadrupedal Winged Dragon Boss: Ignis, Sang Naga Purba
+ * Menacing winged obsidian dragon with magma underbelly, serpentine neck, horned skull, and articulated wings & tail
+ */
+export function createDragonBossMesh(): {
+  group: THREE.Group;
+  parts: Record<string, any>;
+} {
+  const group = new THREE.Group();
+  const parts: Record<string, any> = {};
+
+  // Colossal scale lock for intimidating presence in Dragonfang Caldera
+  group.scale.set(4.2, 4.2, 4.2);
+
+  // Materials
+  const dragonScaleMat = new THREE.MeshStandardMaterial({
+    color: 0x181515,
+    roughness: 0.65,
+    metalness: 0.35,
+    flatShading: true,
+  });
+
+  const dragonLavaMat = new THREE.MeshStandardMaterial({
+    color: 0xd32f2f,
+    emissive: 0xff3d00,
+    emissiveIntensity: 0.85,
+    roughness: 0.35,
+    flatShading: true,
+  });
+
+  const dragonHornMat = new THREE.MeshStandardMaterial({
+    color: 0x0f0e0e,
+    roughness: 0.4,
+    metalness: 0.6,
+    flatShading: true,
+  });
+
+  const dragonEyeMat = new THREE.MeshBasicMaterial({
+    color: 0xffeb3b,
+  });
+
+  const dragonWingMat = new THREE.MeshStandardMaterial({
+    color: 0x5c1010,
+    emissive: 0x220505,
+    emissiveIntensity: 0.35,
+    side: THREE.DoubleSide,
+    roughness: 0.6,
+    flatShading: true,
+  });
+
+  // 1. Torso / Muscular Chest
+  const torsoGroup = new THREE.Group();
+  torsoGroup.position.set(0, 1.3, 0);
+
+  const chestGeo = new THREE.CylinderGeometry(0.55, 0.75, 1.6, 8);
+  chestGeo.rotateX(Math.PI / 2);
+  const chest = new THREE.Mesh(chestGeo, dragonScaleMat);
+  chest.castShadow = true;
+  torsoGroup.add(chest);
+
+  // Magma Glowing Belly Plates
+  const bellyGeo = new THREE.CylinderGeometry(0.42, 0.6, 1.45, 6, 1, false, Math.PI * 0.7, Math.PI * 0.6);
+  bellyGeo.rotateX(Math.PI / 2);
+  const belly = new THREE.Mesh(bellyGeo, dragonLavaMat);
+  belly.position.set(0, -0.15, 0);
+  torsoGroup.add(belly);
+
+  // Dorsal Spines along spine
+  for (let i = -0.6; i <= 0.6; i += 0.3) {
+    const spineGeo = new THREE.ConeGeometry(0.12, 0.45, 4);
+    spineGeo.rotateX(-0.3);
+    const spine = new THREE.Mesh(spineGeo, dragonLavaMat);
+    spine.position.set(0, 0.55, i);
+    torsoGroup.add(spine);
+  }
+
+  group.add(torsoGroup);
+  parts.torso = torsoGroup;
+
+  // 2. Long Arching Neck & Dragon Head
+  const neckGroup = new THREE.Group();
+  neckGroup.position.set(0, 1.65, 0.7);
+
+  const neckSegment1 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.48, 0.7, 7), dragonScaleMat);
+  neckSegment1.rotation.x = -0.55;
+  neckSegment1.position.set(0, 0.25, 0.2);
+  neckGroup.add(neckSegment1);
+
+  const neckSegment2 = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.35, 0.7, 7), dragonScaleMat);
+  neckSegment2.rotation.x = -0.25;
+  neckSegment2.position.set(0, 0.7, 0.45);
+  neckGroup.add(neckSegment2);
+
+  const throat = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.8, 0.15), dragonLavaMat);
+  throat.position.set(0, 0.45, 0.4);
+  throat.rotation.x = -0.4;
+  neckGroup.add(throat);
+
+  // Dragon Skull Head
+  const headGroup = new THREE.Group();
+  headGroup.position.set(0, 1.05, 0.6);
+
+  const skullGeo = new THREE.BoxGeometry(0.48, 0.38, 0.75);
+  const skull = new THREE.Mesh(skullGeo, dragonScaleMat);
+  skull.position.set(0, 0, 0.25);
+  headGroup.add(skull);
+
+  const snoutGeo = new THREE.ConeGeometry(0.32, 0.7, 5);
+  snoutGeo.rotateX(Math.PI / 2);
+  const snout = new THREE.Mesh(snoutGeo, dragonScaleMat);
+  snout.position.set(0, -0.05, 0.75);
+  headGroup.add(snout);
+
+  const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), dragonEyeMat);
+  leftEye.position.set(0.22, 0.12, 0.38);
+  const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), dragonEyeMat);
+  rightEye.position.set(-0.22, 0.12, 0.38);
+  headGroup.add(leftEye, rightEye);
+
+  // Majestic Swept-Back Horns
+  const hornGeo = new THREE.ConeGeometry(0.12, 1.1, 5);
+  hornGeo.rotateX(-0.8);
+  const leftHorn = new THREE.Mesh(hornGeo, dragonHornMat);
+  leftHorn.position.set(0.24, 0.3, -0.15);
+  leftHorn.rotation.z = -0.25;
+
+  const rightHorn = new THREE.Mesh(hornGeo, dragonHornMat);
+  rightHorn.position.set(-0.24, 0.3, -0.15);
+  rightHorn.rotation.z = 0.25;
+  headGroup.add(leftHorn, rightHorn);
+
+  const cheekGeo = new THREE.ConeGeometry(0.08, 0.4, 4);
+  cheekGeo.rotateZ(1.2);
+  const leftCheek = new THREE.Mesh(cheekGeo, dragonHornMat);
+  leftCheek.position.set(0.28, -0.05, 0.1);
+  const rightCheek = new THREE.Mesh(cheekGeo, dragonHornMat);
+  rightCheek.position.set(-0.28, -0.05, 0.1);
+  rightCheek.rotation.y = Math.PI;
+  headGroup.add(leftCheek, rightCheek);
+
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.14, 0.65), dragonScaleMat);
+  jaw.position.set(0, -0.18, 0.35);
+  headGroup.add(jaw);
+
+  const flameCore = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), dragonLavaMat);
+  flameCore.position.set(0, -0.05, 0.5);
+  headGroup.add(flameCore);
+  parts.flameCore = flameCore;
+
+  neckGroup.add(headGroup);
+  group.add(neckGroup);
+  parts.neck = neckGroup;
+  parts.head = headGroup;
+
+  // 3. Colossal Wings (Articulated Left & Right Wings)
+  const createWing = (isLeft: boolean) => {
+    const wingRoot = new THREE.Group();
+    const sign = isLeft ? 1 : -1;
+    wingRoot.position.set(sign * 0.55, 1.8, 0.2);
+
+    const humerusGeo = new THREE.CylinderGeometry(0.12, 0.16, 1.4, 6);
+    humerusGeo.rotateZ(sign * (Math.PI / 4));
+    const humerus = new THREE.Mesh(humerusGeo, dragonScaleMat);
+    humerus.position.set(sign * 0.5, 0.4, 0);
+    wingRoot.add(humerus);
+
+    const forearmGroup = new THREE.Group();
+    forearmGroup.position.set(sign * 1.0, 0.85, 0);
+
+    const radiusGeo = new THREE.CylinderGeometry(0.09, 0.12, 1.8, 6);
+    radiusGeo.rotateZ(sign * (-Math.PI / 6));
+    const radiusMesh = new THREE.Mesh(radiusGeo, dragonScaleMat);
+    radiusMesh.position.set(sign * 0.7, 0.4, 0);
+    forearmGroup.add(radiusMesh);
+
+    const finger1 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.08, 2.2, 5), dragonScaleMat);
+    finger1.position.set(sign * 1.2, 0.2, -0.4);
+    finger1.rotation.set(0.3, 0, sign * (-0.4));
+    forearmGroup.add(finger1);
+
+    const finger2 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.07, 2.5, 5), dragonScaleMat);
+    finger2.position.set(sign * 1.4, -0.1, -0.9);
+    finger2.rotation.set(0.5, 0, sign * (-0.7));
+    forearmGroup.add(finger2);
+
+    const membraneShape = new THREE.Shape();
+    membraneShape.moveTo(0, 0);
+    membraneShape.lineTo(sign * 1.1, 0.9);
+    membraneShape.lineTo(sign * 2.4, 0.8);
+    membraneShape.lineTo(sign * 2.2, -0.6);
+    membraneShape.lineTo(sign * 1.5, -1.2);
+    membraneShape.lineTo(sign * 0.6, -1.0);
+    membraneShape.lineTo(0, -0.4);
+    membraneShape.closePath();
+
+    const membraneGeo = new THREE.ShapeGeometry(membraneShape);
+    const membrane = new THREE.Mesh(membraneGeo, dragonWingMat);
+    membrane.position.set(0, 0, -0.05);
+    forearmGroup.add(membrane);
+
+    wingRoot.add(forearmGroup);
+    wingRoot.rotation.y = sign * 0.2;
+    wingRoot.rotation.x = -0.2;
+    return { wingRoot, forearmGroup };
+  };
+
+  const leftWing = createWing(true);
+  const rightWing = createWing(false);
+  group.add(leftWing.wingRoot);
+  group.add(rightWing.wingRoot);
+  parts.leftWing = leftWing.wingRoot;
+  parts.rightWing = rightWing.wingRoot;
+
+  // 4. Quadrupedal Sturdy Dragon Legs
+  const createForeleg = (isLeft: boolean) => {
+    const sign = isLeft ? 1 : -1;
+    const legGroup = new THREE.Group();
+    legGroup.position.set(sign * 0.65, 1.2, 0.55);
+
+    const upperLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 0.8, 6), dragonScaleMat);
+    upperLeg.position.set(0, -0.3, 0);
+    upperLeg.rotation.z = sign * 0.15;
+    legGroup.add(upperLeg);
+
+    const lowerLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 0.8, 6), dragonScaleMat);
+    lowerLeg.position.set(0, -0.85, 0.08);
+    lowerLeg.rotation.x = -0.2;
+    legGroup.add(lowerLeg);
+
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.16, 0.5), dragonScaleMat);
+    foot.position.set(0, -1.2, 0.2);
+    legGroup.add(foot);
+
+    for (let c = -0.12; c <= 0.12; c += 0.12) {
+      const claw = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.22, 4), dragonHornMat);
+      claw.rotateX(Math.PI / 2);
+      claw.position.set(c, -1.2, 0.45);
+      legGroup.add(claw);
+    }
+
+    return legGroup;
+  };
+
+  const frontLeftLeg = createForeleg(true);
+  const frontRightLeg = createForeleg(false);
+  group.add(frontLeftLeg, frontRightLeg);
+  parts.frontLeftLeg = frontLeftLeg;
+  parts.frontRightLeg = frontRightLeg;
+
+  const createHindLeg = (isLeft: boolean) => {
+    const sign = isLeft ? 1 : -1;
+    const legGroup = new THREE.Group();
+    legGroup.position.set(sign * 0.68, 1.3, -0.55);
+
+    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.32, 0.9, 7), dragonScaleMat);
+    thigh.position.set(0, -0.35, 0);
+    thigh.rotation.x = 0.35;
+    legGroup.add(thigh);
+
+    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.85, 6), dragonScaleMat);
+    shin.position.set(0, -0.85, -0.15);
+    shin.rotation.x = -0.35;
+    legGroup.add(shin);
+
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.18, 0.55), dragonScaleMat);
+    foot.position.set(0, -1.25, 0.1);
+    legGroup.add(foot);
+
+    for (let c = -0.14; c <= 0.14; c += 0.14) {
+      const claw = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.26, 4), dragonHornMat);
+      claw.rotateX(Math.PI / 2);
+      claw.position.set(c, -1.25, 0.38);
+      legGroup.add(claw);
+    }
+
+    return legGroup;
+  };
+
+  const hindLeftLeg = createHindLeg(true);
+  const hindRightLeg = createHindLeg(false);
+  group.add(hindLeftLeg, hindRightLeg);
+  parts.leftLeg = hindLeftLeg;
+  parts.rightLeg = hindRightLeg;
+
+  // 5. Segmented Long Dragon Tail with Spiked Blade Tip
+  const tailGroup = new THREE.Group();
+  tailGroup.position.set(0, 1.25, -0.75);
+
+  const tailSeg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 0.9, 7), dragonScaleMat);
+  tailSeg1.rotation.x = -Math.PI / 3;
+  tailSeg1.position.set(0, -0.2, -0.35);
+  tailGroup.add(tailSeg1);
+
+  const tailSeg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.35, 1.1, 6), dragonScaleMat);
+  tailSeg2.rotation.x = -Math.PI / 4;
+  tailSeg2.position.set(0, -0.55, -1.05);
+  tailGroup.add(tailSeg2);
+
+  const tailSeg3 = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.22, 1.3, 5), dragonScaleMat);
+  tailSeg3.rotation.x = -0.4;
+  tailSeg3.position.set(0, -0.75, -1.9);
+  tailGroup.add(tailSeg3);
+
+  const tailBlade = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.8, 4), dragonHornMat);
+  tailBlade.rotateX(-Math.PI / 2);
+  tailBlade.position.set(0, -0.85, -2.6);
+  tailGroup.add(tailBlade);
+
+  group.add(tailGroup);
+  parts.tail = tailGroup;
+
+  return { group, parts };
+}
+
+/**
+ * 3D Monumen Checkpoint / Waypoint
+ * Altar batu kuno dengan kristal mengambang bersinar, cincin aura partikel, dan tiang cahaya vertikal
+ */
+export function createCheckpointMonumentMesh(unlocked: boolean = false): {
+  group: THREE.Group;
+  crystal: THREE.Mesh;
+  auraRings: THREE.Mesh[];
+  light: THREE.PointLight;
+  beacon: THREE.Mesh;
+  setUnlocked: (unlocked: boolean) => void;
+} {
+  const group = new THREE.Group();
+
+  // 1. Tiered Ancient Stone Altar Base
+  const stoneBaseMat = new THREE.MeshStandardMaterial({
+    color: 0x3e3835,
+    roughness: 0.85,
+    metalness: 0.2,
+    flatShading: true,
+  });
+
+  const baseLower = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.9, 0.4, 8), stoneBaseMat);
+  baseLower.position.y = 0.2;
+  baseLower.castShadow = true;
+  baseLower.receiveShadow = true;
+  group.add(baseLower);
+
+  const baseUpper = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.45, 0.35, 8), stoneBaseMat);
+  baseUpper.position.y = 0.55;
+  baseUpper.castShadow = true;
+  group.add(baseUpper);
+
+  // 2. Perimeter Rune Focus Obelisks
+  const obeliskMat = new THREE.MeshStandardMaterial({
+    color: 0x252321,
+    roughness: 0.7,
+    metalness: 0.3,
+  });
+
+  for (let i = 0; i < 4; i++) {
+    const angle = (i * Math.PI) / 2;
+    const obelisk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.18, 1.2, 4), obeliskMat);
+    obelisk.position.set(Math.cos(angle) * 1.15, 1.15, Math.sin(angle) * 1.15);
+    obelisk.rotation.y = angle + Math.PI / 4;
+    group.add(obelisk);
+
+    const tipMat = new THREE.MeshBasicMaterial({
+      color: unlocked ? 0x00e5ff : 0xff9100,
+    });
+    const tip = new THREE.Mesh(new THREE.OctahedronGeometry(0.12, 0), tipMat);
+    tip.position.set(Math.cos(angle) * 1.15, 1.82, Math.sin(angle) * 1.15);
+    group.add(tip);
+  }
+
+  // 3. Central Hovering Faceted Grand Crystal
+  const crystalMat = new THREE.MeshStandardMaterial({
+    color: unlocked ? 0x00e5ff : 0xffa000,
+    emissive: unlocked ? 0x00e5ff : 0xff8f00,
+    emissiveIntensity: unlocked ? 1.25 : 0.45,
+    roughness: 0.15,
+    metalness: 0.4,
+    transparent: true,
+    opacity: 0.92,
+  });
+
+  const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.62, 0), crystalMat);
+  crystal.position.y = 2.2;
+  crystal.scale.set(1, 1.45, 1);
+  group.add(crystal);
+
+  // 4. Rotating Magical Aura Rings
+  const auraRings: THREE.Mesh[] = [];
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: unlocked ? 0x80d8ff : 0xffd54f,
+    transparent: true,
+    opacity: unlocked ? 0.75 : 0.35,
+    side: THREE.DoubleSide,
+  });
+
+  const ring1 = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.035, 8, 32), ringMat);
+  ring1.position.y = 2.2;
+  ring1.rotation.x = Math.PI / 3;
+  group.add(ring1);
+  auraRings.push(ring1);
+
+  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.03, 8, 32), ringMat);
+  ring2.position.y = 2.2;
+  ring2.rotation.x = -Math.PI / 4;
+  ring2.rotation.y = Math.PI / 6;
+  group.add(ring2);
+  auraRings.push(ring2);
+
+  // 5. Vertical Celestial Light Beacon
+  const beaconMat = new THREE.MeshBasicMaterial({
+    color: unlocked ? 0x00e5ff : 0xffb300,
+    transparent: true,
+    opacity: unlocked ? 0.28 : 0.06,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+  });
+  const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 8.0, 16, 1, true), beaconMat);
+  beacon.position.y = 4.5;
+  group.add(beacon);
+
+  // 6. Dynamic Point Light
+  const light = new THREE.PointLight(unlocked ? 0x00e5ff : 0xff9100, unlocked ? 2.4 : 0.7, 15);
+  light.position.set(0, 2.3, 0);
+  group.add(light);
+
+  const setUnlocked = (isUnlocked: boolean) => {
+    crystalMat.color.setHex(isUnlocked ? 0x00e5ff : 0xffa000);
+    crystalMat.emissive.setHex(isUnlocked ? 0x00e5ff : 0xff8f00);
+    crystalMat.emissiveIntensity = isUnlocked ? 1.25 : 0.45;
+
+    ringMat.color.setHex(isUnlocked ? 0x80d8ff : 0xffd54f);
+    ringMat.opacity = isUnlocked ? 0.75 : 0.35;
+
+    beaconMat.color.setHex(isUnlocked ? 0x00e5ff : 0xffb300);
+    beaconMat.opacity = isUnlocked ? 0.28 : 0.06;
+
+    light.color.setHex(isUnlocked ? 0x00e5ff : 0xff9100);
+    light.intensity = isUnlocked ? 2.4 : 0.7;
+  };
+
+  return { group, crystal, auraRings, light, beacon, setUnlocked };
+}
+
 // Enemy models: Slime, Magma Slime, Skeleton, Skeleton Mage, Goblin, Golem, Spider, Frost Wolf, Swamp Crawler, Boss
 export function createEnemyMesh(
-  type: 'slime' | 'magma_slime' | 'skeleton' | 'skeleton_mage' | 'goblin' | 'golem' | 'spider' | 'frost_wolf' | 'swamp_crawler' | 'boss'
+  type: 'slime' | 'magma_slime' | 'skeleton' | 'skeleton_mage' | 'goblin' | 'golem' | 'spider' | 'frost_wolf' | 'swamp_crawler' | 'boss' | 'dragon'
 ): {
   group: THREE.Group;
   parts: Record<string, any>;
 } {
+  if (type === 'dragon') {
+    return createDragonBossMesh();
+  }
+
   const group = new THREE.Group();
   const parts: Record<string, any> = {};
 

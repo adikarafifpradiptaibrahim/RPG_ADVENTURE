@@ -1228,6 +1228,151 @@ class SoundManager {
   public getMusicPlaying() {
     return this.isMusicPlaying;
   }
+
+  // Checkpoint Waypoint Unlock Chime
+  public playCheckpointUnlock() {
+    this.initContext();
+    if (this.isMuted || !this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+    const chimeFrequencies = [523.25, 659.25, 783.99, 1046.5, 1318.51]; // C5, E5, G5, C6, E6
+    chimeFrequencies.forEach((freq, idx) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      const noteTime = now + idx * 0.08;
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, noteTime);
+
+      gain.gain.setValueAtTime(0.001, noteTime);
+      gain.gain.linearRampToValueAtTime(0.18, noteTime + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 1.2);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain!);
+
+      osc.start(noteTime);
+      osc.stop(noteTime + 1.25);
+    });
+  }
+
+  // Primal Dragon Ignis Roar
+  public playDragonRoar() {
+    this.initContext();
+    if (this.isMuted || !this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'sawtooth';
+    subOsc.frequency.setValueAtTime(65, now);
+    subOsc.frequency.exponentialRampToValueAtTime(140, now + 0.4);
+    subOsc.frequency.exponentialRampToValueAtTime(50, now + 1.5);
+
+    subGain.gain.setValueAtTime(0.001, now);
+    subGain.gain.linearRampToValueAtTime(0.4, now + 0.15);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+
+    subOsc.connect(subGain);
+    subGain.connect(this.sfxGain);
+    subOsc.start(now);
+    subOsc.stop(now + 1.65);
+
+    this.playNoiseBurst({
+      duration: 1.5,
+      gain: 0.35,
+      filterType: 'bandpass',
+      freqStart: 450,
+      freqEnd: 180,
+    });
+  }
+
+  // Dragon Fire Breath Flamethrower
+  public playDragonFireBreath() {
+    this.initContext();
+    if (this.isMuted || !this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+
+    this.playNoiseBurst({
+      duration: 1.8,
+      gain: 0.32,
+      filterType: 'lowpass',
+      freqStart: 850,
+      freqEnd: 280,
+    });
+
+    const fireOsc = this.ctx.createOscillator();
+    const fireGain = this.ctx.createGain();
+    fireOsc.type = 'triangle';
+    fireOsc.frequency.setValueAtTime(110, now);
+    fireOsc.frequency.linearRampToValueAtTime(75, now + 1.8);
+
+    fireGain.gain.setValueAtTime(0.001, now);
+    fireGain.gain.linearRampToValueAtTime(0.2, now + 0.1);
+    fireGain.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+
+    fireOsc.connect(fireGain);
+    fireGain.connect(this.sfxGain);
+    fireOsc.start(now);
+    fireOsc.stop(now + 1.85);
+  }
+
+  // Meteor Strike Impact Explosion
+  public playMeteorImpact() {
+    this.initContext();
+    if (this.isMuted || !this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(160, now);
+    osc.frequency.exponentialRampToValueAtTime(32, now + 0.7);
+
+    gain.gain.setValueAtTime(0.5, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.95);
+
+    this.playNoiseBurst({
+      duration: 0.8,
+      gain: 0.45,
+      filterType: 'lowpass',
+      freqStart: 600,
+      freqEnd: 70,
+    });
+  }
+
+  // Ancient Titan Colossal Ground Slam
+  public playTitanGroundSlam() {
+    this.initContext();
+    if (this.isMuted || !this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(120, now);
+    osc.frequency.exponentialRampToValueAtTime(28, now + 0.8);
+
+    gain.gain.setValueAtTime(0.48, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.9);
+
+    this.playNoiseBurst({
+      duration: 0.7,
+      gain: 0.38,
+      filterType: 'bandpass',
+      freqStart: 380,
+      freqEnd: 60,
+    });
+  }
 }
 
 export const soundManager = new SoundManager();

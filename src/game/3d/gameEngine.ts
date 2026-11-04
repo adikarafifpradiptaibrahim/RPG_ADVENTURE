@@ -13,7 +13,8 @@ import { soundManager } from '../audio';
 import { CHEST_LOOT_POOL, MONSTER_MATERIALS } from '../data';
 import { getCurrentRegion } from '../mapData';
 import { createEnemyMesh, createPlayerMesh, createArrowMesh, PlayerMeshObjects } from './models';
-import { buildWorld, WorldObjects } from './world';
+import { buildWorld, WorldObjects, WorldCheckpoint } from './world';
+import { BossManager } from '../BossManager';
 import { RemotePlayerData } from '../multiplayer';
 import { GraphicsSettings, loadGraphicsSettings } from '../graphicsSettings';
 import {
@@ -67,6 +68,7 @@ export interface GameEngineCallbacks {
   onEnemyStatsUpdate: (enemies: { id: string; name: string; hp: number; maxHp: number; level: number }[]) => void;
   onBossEncounter: (bossActive: boolean, bossName?: string, bossHp?: number, bossMaxHp?: number) => void;
   onHunterWeaponSwitch?: (mode: 'dagger' | 'bow') => void;
+  onCheckpointUnlocked?: (id: string, nameId: string, pos: [number, number]) => void;
   onPlayerPositionUpdate?: (data: {
     x: number;
     z: number;
@@ -110,6 +112,8 @@ export class GameEngine {
   private renderer: THREE.WebGLRenderer;
   private animationFrameId: number | null = null;
   private callbacks: GameEngineCallbacks;
+  private bossManager: BossManager;
+  private unlockedCheckpoints: Set<string> = new Set();
 
   // World and Player
   private world: WorldObjects;
@@ -279,6 +283,38 @@ export class GameEngine {
 
     // 3. Build 3D World
     this.world = buildWorld(this.scene);
+
+    // Initialize Boss Manager
+    this.bossManager = new BossManager(
+      this.scene,
+      (x, z) => this.world.getTerrainHeight(x, z),
+      {
+        onAddFloatingText: (text, color, type) => this.callbacks.onAddFloatingText(text, color, type),
+        onUpdateStats: (updater) => this.callbacks.onUpdateStats(updater),
+        onCameraShake: (amount) => { this.cameraShake = Math.max(this.cameraShake, amount); },
+      }
+    );
+
+    // Initialize Checkpoints from saved state
+    try {
+      const saved = localStorage.getItem('eldoria_unlocked_checkpoints');
+      if (saved) {
+        const list = JSON.parse(saved);
+        if (Array.isArray(list)) {
+          list.forEach((id: string) => this.unlockedCheckpoints.add(id));
+        }
+      }
+    } catch {}
+    this.unlockedCheckpoints.add('wp_village');
+
+    if (this.world.checkpoints) {
+      this.world.checkpoints.forEach((cp) => {
+        if (this.unlockedCheckpoints.has(cp.id)) {
+          cp.unlocked = true;
+          cp.setUnlocked(true);
+        }
+      });
+    }
 
     // Apply shadow & distance culling settings
     this.applyGraphicsSettings(this.graphicsSettings);
@@ -1269,28 +1305,28 @@ export class GameEngine {
       });
     });
 
-    // Dragonfang Super Boss: Sang Naga Tulang Neraka (Inferno Bone Wyrm Titan)
+    // Dragonfang Super Boss: Ignis, Sang Naga Purba (Colossal Winged Dragon)
     const wyrmPos: [number, number] = [20, -145];
-    const { group: wyrmGroup, parts: wyrmParts } = createEnemyMesh('boss');
+    const { group: wyrmGroup, parts: wyrmParts } = createEnemyMesh('dragon');
     const wyrmY = this.world.getTerrainHeight(wyrmPos[0], wyrmPos[1]);
     wyrmGroup.position.set(wyrmPos[0], wyrmY, wyrmPos[1]);
     this.scene.add(wyrmGroup);
 
     const wyrmData: EnemyData = {
       id: 'boss_dragonfang',
-      name: 'Infernal Dragonfang Colossus',
-      nameId: 'Raksasa Tulang Naga Neraka',
+      name: 'Ignis, The Primal Dragon',
+      nameId: 'Ignis, Sang Naga Purba',
       type: 'boss',
-      level: 8,
-      hp: 680,
-      maxHp: 680,
-      attack: 38,
-      defense: 18,
-      expReward: 700,
-      goldReward: 500,
-      speed: 2.6,
-      attackRange: 5.0,
-      detectRange: 28,
+      level: 12,
+      hp: 1200,
+      maxHp: 1200,
+      attack: 46,
+      defense: 22,
+      expReward: 1200,
+      goldReward: 850,
+      speed: 2.8,
+      attackRange: 5.5,
+      detectRange: 32,
       position: [wyrmPos[0], wyrmY, wyrmPos[1]],
       isDead: false,
       dropItems: [
@@ -1320,6 +1356,28 @@ export class GameEngine {
   }
 
   // Fast travel / teleport from map
+
+  public unlockCheckpoint(cp: WorldCheckpoint) {
+    this.unlockedCheckpoints.add(cp.id);
+    cp.unlocked = true;
+    cp.setUnlocked(true);
+    try {
+      localStorage.setItem(
+        'eldoria_unlocked_checkpoints',
+        JSON.stringify(Array.from(this.unlockedCheckpoints))
+      );
+    } catch {}
+    soundManager.playCheckpointUnlock();
+    this.callbacks.onAddFloatingText(`🌟 Checkpoint Wilayah Terbuka: ${cp.nameId}!`, '#00e5ff', 'crit');
+    if (this.callbacks.onCheckpointUnlocked) {
+      this.callbacks.onCheckpointUnlocked(cp.id, cp.nameId, [cp.position[0], cp.position[2]]);
+    }
+  }
+
+  public getUnlockedCheckpoints(): string[] {
+    return Array.from(this.unlockedCheckpoints);
+  }
+
   public teleportTo(x: number, z: number) {
     const y = Math.max(0.5, this.world.getTerrainHeight(x, z) + 0.5);
     this.playerPos.set(x, y, z);
@@ -3471,6 +3529,27 @@ export class GameEngine {
   }
 
   private animateEnemyWalk(enemy: (typeof this.enemies)[0], delta: number) {
+    if (enemy.data.id === 'boss_dragonfang') {
+      if (enemy.parts.leftWing && enemy.parts.rightWing) {
+        enemy.parts.leftWing.rotation.z = Math.sin(enemy.walkCycle * 2) * 0.35;
+        enemy.parts.rightWing.rotation.z = -Math.sin(enemy.walkCycle * 2) * 0.35;
+      }
+      if (enemy.parts.tail) {
+        enemy.parts.tail.rotation.y = Math.sin(enemy.walkCycle * 0.8) * 0.4;
+      }
+      if (enemy.parts.frontLeftLeg && enemy.parts.frontRightLeg) {
+        enemy.parts.frontLeftLeg.rotation.x = Math.sin(enemy.walkCycle * 0.8) * 0.35;
+        enemy.parts.frontRightLeg.rotation.x = -Math.sin(enemy.walkCycle * 0.8) * 0.35;
+      }
+      if (enemy.parts.leftLeg && enemy.parts.rightLeg) {
+        enemy.parts.leftLeg.rotation.x = -Math.sin(enemy.walkCycle * 0.8) * 0.35;
+        enemy.parts.rightLeg.rotation.x = Math.sin(enemy.walkCycle * 0.8) * 0.35;
+      }
+      if (enemy.parts.neck) {
+        enemy.parts.neck.rotation.x = Math.sin(enemy.walkCycle * 0.6) * 0.1;
+      }
+      return;
+    }
     if (enemy.data.type === 'slime' || enemy.data.type === 'magma_slime') {
       enemy.mesh.position.y += Math.abs(Math.sin(enemy.walkCycle)) * 0.45;
       const stretch = 1 + Math.sin(enemy.walkCycle * 2) * 0.15;
@@ -3498,7 +3577,7 @@ export class GameEngine {
   }
 
   private resetEnemyPose(enemy: (typeof this.enemies)[0]) {
-    const s = enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0);
+    const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0));
     enemy.mesh.scale.set(s, s, s);
     if (enemy.parts) {
       if (enemy.parts.leftLeg) enemy.parts.leftLeg.rotation.set(0, 0, 0);
@@ -3523,7 +3602,7 @@ export class GameEngine {
     const spawnY = this.world.getTerrainHeight(spawn.x, spawn.z);
     enemy.mesh.position.set(spawn.x, spawnY, spawn.z);
     enemy.mesh.rotation.set(0, 0, 0);
-    const s = enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0);
+    const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0));
     enemy.mesh.scale.set(s, s, s);
     enemy.mesh.visible = true;
     this.resetEnemyPose(enemy);
@@ -3562,6 +3641,21 @@ export class GameEngine {
     }
 
     // Check Chests distance
+    // Check nearby Checkpoint Monuments (radius <= 5.0)
+    if (this.world.checkpoints) {
+      for (const cp of this.world.checkpoints) {
+        const dist = Math.hypot(this.playerPos.x - cp.position[0], this.playerPos.z - cp.position[2]);
+        if (dist <= 5.0) {
+          if (!this.unlockedCheckpoints.has(cp.id)) {
+            this.unlockCheckpoint(cp);
+          } else {
+            this.callbacks.onNearbyPrompt('📍 Checkpoint ' + cp.nameId + ' Aktif (Tekan [M] untuk Teleportasi)');
+            return;
+          }
+        }
+      }
+    }
+
     for (const chest of this.world.chests) {
       if (!chest.opened) {
         const dist = this.playerPos.distanceTo(
@@ -3717,6 +3811,12 @@ export class GameEngine {
     // 3. Compose world-space movement vector
     let moveDirX = fwdX * inputForward + rightX * inputRight;
     let moveDirZ = fwdZ * inputForward + rightZ * inputRight;
+    if (this.bossManager?.playerDebuffs?.isStunned) {
+      this.playerVel.x = 0;
+      this.playerVel.z = 0;
+      return;
+    }
+
     const inputMagnitude = Math.hypot(moveDirX, moveDirZ);
     const isMoving = inputMagnitude > 0.08;
 
@@ -4178,6 +4278,7 @@ export class GameEngine {
   private updateMonsterSinglePlayer(delta: number) {
     let bossInView = false;
     let activeBoss: EnemyData | null = null;
+    this.bossManager.update(delta, this.playerPos, this.playerVel, this.isDashing);
 
     this.enemies.forEach((enemy) => {
       // 1. Mayat Monster & Hitung Mundur Hilangnya Mayat (Corpse Decay)
@@ -4207,8 +4308,10 @@ export class GameEngine {
         return;
       }
 
-      // Boss Titan & Golem permanent scale lock on update loop
-      if (enemy.data.type === 'boss') {
+      // Boss Titan & Dragon permanent scale lock on update loop
+      if (enemy.data.id === 'boss_dragonfang') {
+        enemy.mesh.scale.set(4.2, 4.2, 4.2);
+      } else if (enemy.data.type === 'boss') {
         enemy.mesh.scale.set(3.5, 3.5, 3.5);
       } else if (enemy.data.type === 'golem') {
         enemy.mesh.scale.set(1.35, 1.35, 1.35);
@@ -4289,6 +4392,14 @@ export class GameEngine {
         }
       }
 
+      // STATE 2.5: Boss Specialized Attack Skills & Ground Telegraph Danger Zones
+      if (enemy.data.type === 'boss') {
+        const isCasting = this.bossManager.updateBossBehavior(enemy, this.playerPos, delta);
+        if (isCasting) {
+          return;
+        }
+      }
+
       // STATE 3: Jika player dalam jarak deteksi dan monster masih di dalam wilayahnya -> kejar & serang
       if (distToPlayer <= enemy.data.detectRange && distFromSpawn <= territoryRadius) {
         const toPlayer = new THREE.Vector3().subVectors(this.playerPos, ePos).normalize();
@@ -4346,8 +4457,10 @@ export class GameEngine {
         }
       }
 
-      // Boss Titan & Golem permanent scale lock in multiplayer loop
-      if (enemy.data.type === 'boss') {
+      // Boss Titan & Dragon permanent scale lock in multiplayer loop
+      if (enemy.data.id === 'boss_dragonfang') {
+        enemy.mesh.scale.set(4.2, 4.2, 4.2);
+      } else if (enemy.data.type === 'boss') {
         enemy.mesh.scale.set(3.5, 3.5, 3.5);
       } else if (enemy.data.type === 'golem') {
         enemy.mesh.scale.set(1.35, 1.35, 1.35);
@@ -4651,6 +4764,18 @@ export class GameEngine {
         this.scene.remove(proj.object);
         this.activeProjectiles.splice(i, 1);
       }
+    }
+
+    // Animate Checkpoint Monuments
+    if (this.world.checkpoints) {
+      this.world.checkpoints.forEach((cp, idx) => {
+        cp.crystal.rotation.y = elapsed * (cp.unlocked ? 1.6 : 0.8) + idx;
+        cp.crystal.position.y = 2.2 + Math.sin(elapsed * 2.5 + idx) * 0.25;
+        cp.auraRings.forEach((ring, rIdx) => {
+          ring.rotation.x = elapsed * (rIdx % 2 === 0 ? 1.5 : -1.5) + rIdx;
+          ring.rotation.z = elapsed * (rIdx % 2 === 0 ? -1.0 : 1.0);
+        });
+      });
     }
 
     // Floating crystal spin

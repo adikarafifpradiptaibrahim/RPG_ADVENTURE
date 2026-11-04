@@ -699,3 +699,144 @@ export const SWAMP_CRAWLER_SPAWNS: MonsterSpawnConfig[] = [
     aggroRange: 16,
   },
 ];
+
+export interface BossSkill {
+  id: string;
+  name: string;
+  nameId: string;
+  description: string;
+  telegraphType: 'cone' | 'circle' | 'line';
+  telegraphDuration: number;
+  cooldown: number;
+  damage: number;
+  effect?: 'burn' | 'stun' | 'knockback';
+  effectDuration?: number;
+}
+
+export interface BossConfig {
+  id: string;
+  name: string;
+  nameId: string;
+  title: string;
+  titleId: string;
+  type: 'dragon' | 'titan';
+  level: number;
+  hp: number;
+  maxHp: number;
+  attack: number;
+  defense: number;
+  speed: number;
+  attackRange: number;
+  detectRange: number;
+  expReward: number;
+  goldReward: number;
+  pos: [number, number];
+  scale: [number, number, number];
+  skills: BossSkill[];
+}
+
+export const IGNIS_DRAGON_BOSS_CONFIG: BossConfig = {
+  id: 'boss_dragonfang',
+  name: 'Ignis, The Primal Dragon',
+  nameId: 'Ignis, Sang Naga Purba',
+  title: 'Sovereign of the Molten Caldera',
+  titleId: 'Penguasa Kaldera Lahar Purba',
+  type: 'dragon',
+  level: 12,
+  hp: 1200,
+  maxHp: 1200,
+  attack: 46,
+  defense: 22,
+  speed: 2.8,
+  attackRange: 5.5,
+  detectRange: 32,
+  expReward: 1200,
+  goldReward: 850,
+  pos: [20, -145],
+  scale: [4.2, 4.2, 4.2],
+  skills: [
+    {
+      id: 'fire_breath',
+      name: 'Fire Breath',
+      nameId: 'Semburan Api Lahar',
+      description: 'Menyemburkan gelombang api kerucut (Cone AOE) ke depan yang memberikan damage beruntun (Burn effect)',
+      telegraphType: 'cone',
+      telegraphDuration: 1.3,
+      cooldown: 8.0,
+      damage: 24,
+      effect: 'burn',
+      effectDuration: 4.0,
+    },
+    {
+      id: 'tail_swipe',
+      name: 'Tail Swipe',
+      nameId: 'Sabetan Ekor Naga',
+      description: 'Menyabetkan ekor besar ke arah belakang dengan putaran cepat jika pemain menyerang dari belakang (Knockback)',
+      telegraphType: 'circle',
+      telegraphDuration: 0.8,
+      cooldown: 6.0,
+      damage: 28,
+      effect: 'knockback',
+      effectDuration: 0.4,
+    },
+    {
+      id: 'meteor_strike',
+      name: 'Meteor Strike',
+      nameId: 'Hujan Meteor Neraka',
+      description: 'Meraung dan memunculkan lingkaran merah di tanah sebelum meteor api raksasa menghantam area tersebut',
+      telegraphType: 'circle',
+      telegraphDuration: 1.6,
+      cooldown: 14.0,
+      damage: 38,
+      effect: 'burn',
+      effectDuration: 3.5,
+    },
+  ],
+};
+
+export const ANCIENT_TITAN_BOSS_CONFIG: BossConfig = {
+  id: 'boss_titan',
+  name: 'Obsidian Titan Golem',
+  nameId: 'Sang Titan Kuno Obsidian',
+  title: 'Ancient Colossus of the Northern Crags',
+  titleId: 'Raksasa Purba Kawah Vulkanik',
+  type: 'titan',
+  level: 8,
+  hp: 850,
+  maxHp: 850,
+  attack: 36,
+  defense: 18,
+  speed: 2.3,
+  attackRange: 4.5,
+  detectRange: 26,
+  expReward: 800,
+  goldReward: 550,
+  pos: [0, -52],
+  scale: [3.5, 3.5, 3.5],
+  skills: [
+    {
+      id: 'ground_slam',
+      name: 'Ground Slam',
+      nameId: 'Hantaman Tanah Gempa',
+      description: 'Mengangkat kedua tangan batu raksasa dan menghantam tanah dengan lingkaran AOE luas yang memberikan efek Stun 1.5 detik',
+      telegraphType: 'circle',
+      telegraphDuration: 1.4,
+      cooldown: 9.0,
+      damage: 32,
+      effect: 'stun',
+      effectDuration: 1.5,
+    },
+    {
+      id: 'charge_attack',
+      name: 'Charge / Dash Attack',
+      nameId: 'Terjangan Tubruk Raksasa',
+      description: 'Bersiap dalam jalur bahaya lalu melesat kencang menabrak pemain ke depan (Knockback)',
+      telegraphType: 'line',
+      telegraphDuration: 1.2,
+      cooldown: 12.0,
+      damage: 30,
+      effect: 'knockback',
+      effectDuration: 0.5,
+    },
+  ],
+};

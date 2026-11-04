@@ -8,10 +8,19 @@ export interface PlayerMovementInput {
   joyY?: number;
 }
 
+export interface PlayerStatusDebuffs {
+  isStunned: boolean;
+  stunTimer: number;
+  isBurned: boolean;
+  burnTimer: number;
+  burnTickTimer: number;
+}
+
 export interface PlayerMovementConfig {
   charClass: CharacterClass;
   isDashing: boolean;
   speedBuffTimer: number;
+  isStunned?: boolean;
 }
 
 /**
@@ -41,6 +50,7 @@ export class PlayerController {
   }
 
   public static getTargetSpeed(config: PlayerMovementConfig): number {
+    if (config.isStunned) return 0;
     let speed = this.getBaseSpeed(config.charClass);
     if (config.speedBuffTimer > 0) {
       speed += 3.2;
@@ -112,8 +122,14 @@ export class PlayerController {
     moveDirX: number,
     moveDirZ: number,
     targetSpeed: number,
-    analogScale: number
+    analogScale: number,
+    isStunned?: boolean
   ): void {
+    if (isStunned) {
+      currentVel.x = 0;
+      currentVel.z = 0;
+      return;
+    }
     if (isMoving) {
       // Immediate responsive velocity: no sluggish ramp-up delay
       currentVel.x = moveDirX * targetSpeed * analogScale;

@@ -96,6 +96,18 @@ export default function App() {
     node: null,
   });
 
+  // Regional Checkpoints & Waypoint Teleportation State
+  const [unlockedCheckpoints, setUnlockedCheckpoints] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('eldoria_unlocked_checkpoints');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return ['wp_village'];
+  });
+
   // World Map & Minimap Live Position State
   const [playerPos, setPlayerPos] = useState({ x: 0, z: 4, rotationY: 0 });
   const [currentRegion, setCurrentRegion] = useState<RegionInfo>(REGIONS[0]);
@@ -442,6 +454,16 @@ export default function App() {
       },
       onHunterWeaponSwitch: (mode) => {
         setHunterWeaponMode(mode);
+      },
+      onCheckpointUnlocked: (id, nameId) => {
+        setUnlockedCheckpoints((prev) => {
+          if (prev.includes(id)) return prev;
+          const next = [...prev, id];
+          try {
+            localStorage.setItem('eldoria_unlocked_checkpoints', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
       },
       onLocalPlayerMove: (moveData) => {
         if (gameModeRef.current === 'multiplayer') {
@@ -1004,6 +1026,7 @@ export default function App() {
         playerPos={playerPos}
         currentRegion={currentRegion}
         markers={mapMarkers}
+        unlockedCheckpoints={unlockedCheckpoints}
         onFastTravel={(x, z) => {
           engineRef.current?.teleportTo(x, z);
           addFloatingText('Teleportasi Berhasil!', '#00e5ff', 'crit');
