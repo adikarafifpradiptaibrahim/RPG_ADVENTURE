@@ -161,16 +161,16 @@ export class BossManager {
     if (currentState === 'telegraph' || currentState === 'executing') {
       if (isIgnis) {
         // Flap wings and arch neck back while telegraphing
-        if (enemy.parts.neck) {
+        if (enemy.parts?.neck) {
           enemy.parts.neck.rotation.x = -0.3 + Math.sin(stateTimer * 8) * 0.15;
         }
-        if (enemy.parts.leftWing && enemy.parts.rightWing) {
+        if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
           enemy.parts.leftWing.rotation.z = Math.sin(stateTimer * 10) * 0.3;
           enemy.parts.rightWing.rotation.z = -Math.sin(stateTimer * 10) * 0.3;
         }
       } else if (isTitan) {
         // Raise stone fists high in wind-up
-        if (enemy.parts.leftArm && enemy.parts.rightArm) {
+        if (enemy.parts?.leftArm && enemy.parts?.rightArm) {
           enemy.parts.leftArm.rotation.x = -Math.PI * 0.7 + Math.sin(stateTimer * 8) * 0.1;
           enemy.parts.rightArm.rotation.x = -Math.PI * 0.7 - Math.sin(stateTimer * 8) * 0.1;
         }
@@ -599,3 +599,4 @@ export class BossManager {
     this.playerDebuffs.isBurned = false;
   }
 }
+

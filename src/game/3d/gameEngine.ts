@@ -4766,6 +4766,9 @@ export class GameEngine {
       }
     }
 
+    // Global animation time for world elements & props
+    const elapsed = this.clock.getElapsedTime();
+
     // Animate Checkpoint Monuments
     if (this.world.checkpoints) {
       this.world.checkpoints.forEach((cp, idx) => {
@@ -4779,7 +4782,6 @@ export class GameEngine {
     }
 
     // Floating crystal spin
-    const elapsed = this.clock.getElapsedTime();
     this.world.floatingCrystals.forEach((c, idx) => {
       c.rotation.y = elapsed * 0.8 + idx;
       c.position.y = 1.8 + Math.sin(elapsed * 2 + idx) * 0.2;

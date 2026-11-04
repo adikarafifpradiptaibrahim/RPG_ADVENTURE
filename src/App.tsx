@@ -499,7 +499,14 @@ export default function App() {
       engine.destroy();
       engineRef.current = null;
     };
-  }, [hasStarted, characterClass, addFloatingText]);
+  }, [hasStarted, addFloatingText]);
+
+  // Synchronize player character class model if changed dynamically
+  useEffect(() => {
+    if (engineRef.current && hasStarted) {
+      engineRef.current.setCharacterClass(characterClass);
+    }
+  }, [characterClass, hasStarted]);
 
   // Connect to Socket.io when entering Multiplayer Mode
   useEffect(() => {
