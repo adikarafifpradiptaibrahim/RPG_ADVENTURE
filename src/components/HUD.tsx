@@ -30,6 +30,7 @@ import {
   Gamepad2,
   Maximize2,
   Minimize2,
+  Camera,
   Smartphone,
 } from 'lucide-react';
 import { MiniMap } from './MiniMap';
@@ -83,6 +84,9 @@ interface HUDProps {
   onToggleTouchControls?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+  isSpectatorMode?: boolean;
+  onToggleSpectator?: () => void;
+  onLandSpectator?: () => void;
 }
 
 export const HUD: React.FC<HUDProps> = ({
@@ -122,6 +126,9 @@ export const HUD: React.FC<HUDProps> = ({
   onToggleTouchControls,
   isFullscreen = false,
   onToggleFullscreen,
+  isSpectatorMode = false,
+  onToggleSpectator,
+  onLandSpectator,
 }) => {
   const [dismissMobileTip, setDismissMobileTip] = useState(false);
   const [isMobileSystemMenuOpen, setIsMobileSystemMenuOpen] = useState(false);
@@ -312,6 +319,24 @@ export const HUD: React.FC<HUDProps> = ({
             </button>
           )}
 
+
+          {onToggleSpectator && (
+            <button
+              onClick={onToggleSpectator}
+              title={
+                isSpectatorMode
+                  ? 'Keluar Mode Spektator (F3)'
+                  : 'Mode Spektator / Kamera Bebas (F3)'
+              }
+              className={`pointer-events-auto p-2 rounded-xl backdrop-blur-md border transition-all cursor-pointer shadow active:scale-95 ${
+                isSpectatorMode
+                  ? 'bg-sky-950/90 border-sky-400 text-sky-300 ring-2 ring-sky-400/50'
+                  : 'bg-stone-900/80 border-stone-700 text-stone-400 hover:text-white'
+              }`}
+            >
+              <Camera className="w-4 h-4 text-sky-400" />
+            </button>
+          )}
           {onToggleFullscreen && (
             <button
               onClick={onToggleFullscreen}

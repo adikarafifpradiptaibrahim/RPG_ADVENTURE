@@ -67,6 +67,7 @@ export interface GameEngineCallbacks {
   onNearbyPrompt: (prompt: string | null, action?: () => void) => void;
   onEnemyStatsUpdate: (enemies: { id: string; name: string; hp: number; maxHp: number; level: number }[]) => void;
   onBossEncounter: (bossActive: boolean, bossName?: string, bossHp?: number, bossMaxHp?: number) => void;
+  onSpectatorModeChange?: (active: boolean) => void;
   onHunterWeaponSwitch?: (mode: 'dagger' | 'bow') => void;
   onCheckpointUnlocked?: (id: string, nameId: string, pos: [number, number]) => void;
   onPlayerPositionUpdate?: (data: {
@@ -151,11 +152,11 @@ const TOWN_ZONES: TownZoneTrigger[] = [
     id: 'town_solaria',
     waypointId: 'wp_solaria_village',
     name: 'Desa & Istana Gurun Solaria',
-    x: -240,
-    z: 175,
-    radius: 46,
-    respawnX: -238,
-    respawnZ: 175,
+    x: -350,
+    z: 350,
+    radius: 48,
+    respawnX: -348,
+    respawnZ: 350,
   },
 ];
 
@@ -255,6 +256,14 @@ export class GameEngine {
     blastRadius?: number;
     rotationAxis?: THREE.Vector3;
   }[] = [];
+
+  // Spectator / Freecam Mode (Minecraft-Style Fly Cam)
+  public isSpectatorMode = false;
+  private spectatorPos = new THREE.Vector3();
+  private spectatorYaw = 0;
+  private spectatorPitch = 0;
+  private spectatorSpeed = 22.0; // units/sec, adjustable 4.0 to 90.0 via scroll wheel
+  private savedPlayerPos = new THREE.Vector3();
 
   // Camera Orbit
   private cameraDistance = 7.5;
@@ -1611,6 +1620,130 @@ export class GameEngine {
     return false;
   }
 
+  /**
+   * Toggle Spectator / Freecam Mode (Minecraft-Style Fly Cam)
+   * When enabled, player mesh is invisible, collisions disabled, and camera flies freely via WASD + Space + Shift.
+   */
+  public toggleSpectatorMode(targetState?: boolean, landAtCamera = false): boolean {
+    const nextState = targetState !== undefined ? targetState : !this.isSpectatorMode;
+    if (this.isSpectatorMode === nextState) return this.isSpectatorMode;
+
+    this.isSpectatorMode = nextState;
+
+    if (this.isSpectatorMode) {
+      this.savedPlayerPos.copy(this.playerPos);
+      this.spectatorPos.copy(this.camera.position);
+      this.spectatorYaw = this.cameraAngleH;
+      this.spectatorPitch = -this.cameraAngleV;
+      this.playerMesh.group.visible = false;
+
+      this.callbacks.onAddFloatingText(
+        'Mode Spektator Aktif (WASD / Space / Shift / Scroll Speed)',
+        '#38bdf8',
+        'info'
+      );
+    } else {
+      if (landAtCamera) {
+        this.playerPos.x = this.spectatorPos.x;
+        this.playerPos.z = this.spectatorPos.z;
+        this.playerPos.y = this.world.getTerrainHeight(this.spectatorPos.x, this.spectatorPos.z);
+        this.playerVel.set(0, 0, 0);
+        this.playerMesh.group.position.copy(this.playerPos);
+        this.callbacks.onAddFloatingText('Mendarat di Titik Spektator', '#38bdf8', 'info');
+      } else {
+        this.playerPos.copy(this.savedPlayerPos);
+        this.playerVel.set(0, 0, 0);
+        this.playerMesh.group.position.copy(this.playerPos);
+        this.callbacks.onAddFloatingText('Kembali ke Posisi Karakter', '#94a3b8', 'info');
+      }
+
+      this.playerMesh.group.visible = true;
+      this.cameraAngleH = this.spectatorYaw;
+      this.cameraAngleV = clampCameraPitch(-this.spectatorPitch);
+    }
+
+    if (this.callbacks.onSpectatorModeChange) {
+      this.callbacks.onSpectatorModeChange(this.isSpectatorMode);
+    }
+
+    return this.isSpectatorMode;
+  }
+
+  private updateSpectatorMovement(delta: number) {
+    const cosPitch = Math.cos(this.spectatorPitch);
+    const sinPitch = Math.sin(this.spectatorPitch);
+    const sinYaw = Math.sin(this.spectatorYaw);
+    const cosYaw = Math.cos(this.spectatorYaw);
+
+    const fwdX = -sinYaw * cosPitch;
+    const fwdY = sinPitch;
+    const fwdZ = -cosYaw * cosPitch;
+
+    const rightX = cosYaw;
+    const rightY = 0;
+    const rightZ = -sinYaw;
+
+    const upX = 0;
+    const upY = 1;
+    const upZ = 0;
+
+    const moveDist = this.spectatorSpeed * delta;
+    let moveX = 0;
+    let moveY = 0;
+    let moveZ = 0;
+
+    const isFwd = this.isKeyPressed('w', 'keyw', 'arrowup');
+    const isBack = this.isKeyPressed('s', 'keys', 'arrowdown');
+    const isRight = this.isKeyPressed('d', 'keyd', 'arrowright');
+    const isLeft = this.isKeyPressed('a', 'keya', 'arrowleft');
+    const isUp = this.isKeyPressed(' ', 'space');
+    const isDown = this.isKeyPressed('shift', 'shiftleft', 'shiftright');
+
+    if (isFwd) {
+      moveX += fwdX;
+      moveY += fwdY;
+      moveZ += fwdZ;
+    }
+    if (isBack) {
+      moveX -= fwdX;
+      moveY -= fwdY;
+      moveZ -= fwdZ;
+    }
+    if (isRight) {
+      moveX += rightX;
+      moveY += rightY;
+      moveZ += rightZ;
+    }
+    if (isLeft) {
+      moveX -= rightX;
+      moveY -= rightY;
+      moveZ -= rightZ;
+    }
+    if (isUp) {
+      moveX += upX;
+      moveY += upY;
+      moveZ += upZ;
+    }
+    if (isDown) {
+      moveX -= upX;
+      moveY -= upY;
+      moveZ -= upZ;
+    }
+
+    const len = Math.hypot(moveX, moveY, moveZ);
+    if (len > 0.001) {
+      this.spectatorPos.x += (moveX / len) * moveDist;
+      this.spectatorPos.y += (moveY / len) * moveDist;
+      this.spectatorPos.z += (moveZ / len) * moveDist;
+    }
+
+    this.camera.position.copy(this.spectatorPos);
+    const lookTarget = this.spectatorPos.clone().add(new THREE.Vector3(fwdX, fwdY, fwdZ));
+    this.camera.lookAt(lookTarget);
+
+
+  }
+
   private handleKeyDown = (e: KeyboardEvent) => {
     // Check if user is typing in an input, textarea, or contentEditable element
     const activeElement = document.activeElement as HTMLElement | null;
@@ -1627,6 +1760,19 @@ export class GameEngine {
 
     this.keys[key] = true;
     this.keys[code] = true;
+    if (e.key === 'F3' || e.code === 'F3') {
+      e.preventDefault();
+      this.toggleSpectatorMode();
+      return;
+    }
+
+    if (this.isSpectatorMode) {
+      if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'space', 'shift'].includes(code) || ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'shift'].includes(key)) {
+        e.preventDefault();
+      }
+      return;
+    }
+
 
     // Prevent scrolling with arrows or space
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'space'].includes(code) || ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) {
@@ -1719,6 +1865,17 @@ export class GameEngine {
     this.prevMouseX = e.clientX;
     this.prevMouseY = e.clientY;
 
+    if (this.isSpectatorMode) {
+      this.spectatorYaw = normalizeCameraYaw(
+        this.spectatorYaw - deltaX * CAMERA_CONFIG.MOUSE_LOOK_SENSITIVITY_H
+      );
+      this.spectatorPitch = Math.max(
+        -Math.PI / 2.05,
+        Math.min(Math.PI / 2.05, this.spectatorPitch - deltaY * CAMERA_CONFIG.MOUSE_LOOK_SENSITIVITY_V)
+      );
+      return;
+    }
+
     this.cameraAngleH = normalizeCameraYaw(
       this.cameraAngleH - deltaX * CAMERA_CONFIG.MOUSE_LOOK_SENSITIVITY_H
     );
@@ -1728,6 +1885,11 @@ export class GameEngine {
   };
 
   private handleMouseUp = (e: MouseEvent) => {
+    if (this.isSpectatorMode) {
+      this.isMouseDown = false;
+      this.isDraggingCamera = false;
+      return;
+    }
     // If left-click and user didn't drag the camera, perform normal attack
     if (this.isMouseDown && !this.isDraggingCamera && e.button === 0) {
       this.performBasicAttack();
@@ -1738,6 +1900,12 @@ export class GameEngine {
 
   private handleWheel = (e: WheelEvent) => {
     e.preventDefault();
+    if (this.isSpectatorMode) {
+      const delta = -Math.sign(e.deltaY) * 3.0;
+      this.spectatorSpeed = Math.max(4.0, Math.min(90.0, this.spectatorSpeed + delta));
+      this.callbacks.onAddFloatingText(`Kecepatan Terbang: ${Math.round(this.spectatorSpeed)} m/s`, '#38bdf8', 'info');
+      return;
+    }
     this.cameraDistance = clampCameraDistance(this.cameraDistance + e.deltaY * 0.006);
   };
 
@@ -1852,6 +2020,16 @@ export class GameEngine {
    * Public camera rotation method used by mobile transparent touch drag area
    */
   public rotateCameraByDelta(deltaX: number, deltaY: number) {
+    if (this.isSpectatorMode) {
+      this.spectatorYaw = normalizeCameraYaw(
+        this.spectatorYaw - deltaX * CAMERA_CONFIG.TOUCH_LOOK_SENSITIVITY_H
+      );
+      this.spectatorPitch = Math.max(
+        -Math.PI / 2.05,
+        Math.min(Math.PI / 2.05, this.spectatorPitch - deltaY * CAMERA_CONFIG.TOUCH_LOOK_SENSITIVITY_V)
+      );
+      return;
+    }
     this.cameraAngleH = normalizeCameraYaw(
       this.cameraAngleH - deltaX * CAMERA_CONFIG.TOUCH_LOOK_SENSITIVITY_H
     );
@@ -1861,6 +2039,12 @@ export class GameEngine {
   }
 
   public zoomCameraByDelta(deltaZoom: number) {
+    if (this.isSpectatorMode) {
+      const delta = -Math.sign(deltaZoom) * 3.0;
+      this.spectatorSpeed = Math.max(4.0, Math.min(90.0, this.spectatorSpeed + delta));
+      this.callbacks.onAddFloatingText(`Kecepatan Terbang: ${Math.round(this.spectatorSpeed)} m/s`, '#38bdf8', 'info');
+      return;
+    }
     this.cameraDistance = clampCameraDistance(this.cameraDistance + deltaZoom);
   }
 
@@ -3899,6 +4083,10 @@ export class GameEngine {
   }
 
   private updatePlayer(delta: number) {
+    if (this.isSpectatorMode) {
+      this.updateSpectatorMovement(delta);
+      return;
+    }
     if (this.isControlsLocked) {
       this.playerVel.x = 0;
       this.playerVel.z = 0;
@@ -4882,6 +5070,7 @@ export class GameEngine {
   }
 
   private updateCamera(delta = 0.016) {
+    if (this.isSpectatorMode) return;
     // Orbit camera calculation
     const offsetX = Math.sin(this.cameraAngleH) * Math.cos(this.cameraAngleV) * this.cameraDistance;
     const offsetZ = Math.cos(this.cameraAngleH) * Math.cos(this.cameraAngleV) * this.cameraDistance;
@@ -5308,6 +5497,18 @@ export class GameEngine {
         description: 'Benteng Dataran Tinggi Val-Kragor',
       });
 
+      // Desa & Istana Gurun Solaria (South-West Desert Oasis Metropolis)
+      markers.push({
+        id: 'landmark_solaria_village',
+        title: 'Desa & Istana Gurun Solaria',
+        type: 'waypoint',
+        x: -350,
+        z: 350,
+        icon: '🕌',
+        color: '#f59e0b',
+        description: 'Pemukiman Megah Berkubah Emas & Bazaar Gurun Solaria',
+      });
+
       // Secret Palm Oasis of Solaria (South-West)
       markers.push({
         id: 'landmark_solaria_oasis',
@@ -5398,11 +5599,14 @@ export class GameEngine {
         }
       });
 
-      const currentReg = getCurrentRegion(this.playerPos.x, this.playerPos.z);
+      const targetPosX = this.isSpectatorMode ? this.spectatorPos.x : this.playerPos.x;
+      const targetPosZ = this.isSpectatorMode ? this.spectatorPos.z : this.playerPos.z;
+      const targetRotY = this.isSpectatorMode ? this.spectatorYaw : this.playerRotationY;
+      const currentReg = getCurrentRegion(targetPosX, targetPosZ);
       this.callbacks.onPlayerPositionUpdate({
-        x: this.playerPos.x,
-        z: this.playerPos.z,
-        rotationY: this.playerRotationY,
+        x: targetPosX,
+        z: targetPosZ,
+        rotationY: targetRotY,
         region: currentReg,
         markers,
       });

@@ -31,7 +31,7 @@ interface WorldMapModalProps {
   onFastTravel: (x: number, z: number) => void;
 }
 
-export const WorldMapModal: React.FC<WorldMapModalProps> = ({
+const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
   isOpen,
   onClose,
   playerPos,
@@ -991,3 +991,19 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
     </div>
   );
 };
+
+export const WorldMapModal = React.memo(WorldMapModalComponent, (prev, next) => {
+  // If modal is closed and remains closed, do not re-render
+  if (!prev.isOpen && !next.isOpen) return true;
+  // If modal open state toggled, must re-render
+  if (prev.isOpen !== next.isOpen) return false;
+  // If current region or checkpoints changed, re-render
+  if (prev.currentRegion.id !== next.currentRegion.id) return false;
+  if (prev.unlockedCheckpoints?.length !== next.unlockedCheckpoints?.length) return false;
+  if (prev.markers.length !== next.markers.length) return false;
+  // If player moved only slightly (< 1.2 units), avoid re-rendering entire modal tree during active interaction
+  const dPos = Math.hypot(prev.playerPos.x - next.playerPos.x, prev.playerPos.z - next.playerPos.z);
+  const dRot = Math.abs(prev.playerPos.rotationY - next.playerPos.rotationY);
+  if (dPos < 1.2 && dRot < 0.1) return true;
+  return false;
+});

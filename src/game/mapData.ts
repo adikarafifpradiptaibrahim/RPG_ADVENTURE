@@ -300,7 +300,7 @@ export const WAYPOINTS: {
     nameId: 'Alun-Alun Desa & Istana Gurun Solaria',
     regionId: 'gurun_solaria',
     icon: '🕌',
-    pos: [-240, 175],
+    pos: [-350, 350],
     desc: 'Pemukiman megah berarsitektur tanah liat, bazaar rempah eksotis, dan Istana Emas Sultan Solaria',
   },
   {

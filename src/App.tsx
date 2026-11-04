@@ -108,6 +108,9 @@ export default function App() {
     return ['wp_village'];
   });
 
+  // Spectator Mode State
+  const [isSpectatorMode, setIsSpectatorMode] = useState(false);
+
   // World Map & Minimap Live Position State
   const [playerPos, setPlayerPos] = useState({ x: 0, z: 4, rotationY: 0 });
   const [currentRegion, setCurrentRegion] = useState<RegionInfo>(REGIONS[0]);
@@ -419,6 +422,12 @@ export default function App() {
     addFloatingText('Terputus dari server. Kembali ke Menu Utama.', '#f59e0b', 'info');
   };
 
+  const handleToggleSpectator = useCallback((landAtCamera = false) => {
+    if (!engineRef.current) return;
+    const nextState = engineRef.current.toggleSpectatorMode(undefined, landAtCamera);
+    setIsSpectatorMode(nextState);
+  }, []);
+
   // Initialize Three.js engine when canvas container mounts
   useEffect(() => {
     if (!hasStarted || !containerRef.current) return;
@@ -447,10 +456,22 @@ export default function App() {
       onBossEncounter: (active, name, hp, maxHp) => {
         setBossState({ active, name, hp, maxHp });
       },
+      onSpectatorModeChange: (active) => {
+        setIsSpectatorMode(active);
+      },
       onPlayerPositionUpdate: (posData) => {
-        setPlayerPos({ x: posData.x, z: posData.z, rotationY: posData.rotationY });
-        setCurrentRegion(posData.region);
-        setMapMarkers(posData.markers);
+        setPlayerPos((prev) => {
+          if (
+            Math.abs(prev.x - posData.x) < 0.08 &&
+            Math.abs(prev.z - posData.z) < 0.08 &&
+            Math.abs(prev.rotationY - posData.rotationY) < 0.05
+          ) {
+            return prev;
+          }
+          return { x: posData.x, z: posData.z, rotationY: posData.rotationY };
+        });
+        setCurrentRegion((prev) => (prev.id === posData.region.id ? prev : posData.region));
+        setMapMarkers((prev) => (prev.length === posData.markers.length ? prev : posData.markers));
       },
       onHunterWeaponSwitch: (mode) => {
         setHunterWeaponMode(mode);
@@ -862,6 +883,12 @@ export default function App() {
       }
 
       // 4. Shortcut toggles
+      if (e.key === 'F3' || e.code === 'F3') {
+        e.preventDefault();
+        handleToggleSpectator(false);
+        return;
+      }
+
       const key = e.key.toLowerCase();
       if (key === 'i') {
         setIsInventoryOpen((prev) => !prev);
@@ -950,6 +977,9 @@ export default function App() {
             mapMarkers={mapMarkers}
             hunterWeaponMode={hunterWeaponMode}
             onSwitchHunterWeapon={() => engineRef.current?.switchHunterWeapon()}
+            isSpectatorMode={isSpectatorMode}
+            onToggleSpectator={() => handleToggleSpectator(false)}
+            onLandSpectator={() => handleToggleSpectator(true)}
             gameMode={gameMode}
             multiplayerInfo={
               gameMode === 'multiplayer' && multiplayerConfig

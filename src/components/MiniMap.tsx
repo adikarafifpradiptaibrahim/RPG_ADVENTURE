@@ -399,12 +399,24 @@ export const MiniMap: React.FC<MiniMapProps> = ({
           );
         })}
 
-        {/* Coordinate HUD strip at bottom */}
-        <div className="absolute bottom-0 inset-x-0 bg-stone-950/80 backdrop-blur-xs py-0.2 flex items-center justify-center gap-1.5 text-[8px] font-mono text-amber-200/90 pointer-events-none border-t border-stone-800/60">
-          <span>X: {Math.round(playerPos.x)}</span>
-          <span className="text-stone-500">|</span>
-          <span>Z: {Math.round(playerPos.z)}</span>
-        </div>
+      </div>
+      {/* Coordinate HUD Pill placed outside below the circular Minimap */}
+      <div
+        style={{
+          marginTop: '6px',
+          textAlign: 'center',
+          background: 'rgba(0,0,0,0.7)',
+          color: '#fff',
+          padding: '2px 8px',
+          borderRadius: '4px',
+          fontSize: '11px',
+          fontWeight: 'bold',
+        }}
+        className="pointer-events-none flex items-center justify-center gap-2 font-mono mx-auto shadow-md border border-stone-800/80 w-fit"
+      >
+        <span>X: {Math.round(playerPos.x)}</span>
+        <span className="text-stone-400">|</span>
+        <span>Z: {Math.round(playerPos.z)}</span>
       </div>
     </div>
     </div>
