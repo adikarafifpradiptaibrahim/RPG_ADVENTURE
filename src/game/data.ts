@@ -1126,6 +1126,57 @@ export const DIALOGUES: Record<string, DialogueNode> = {
       },
     ],
   },
+  // --- MAGE TOWER PUNCAK HALILINTAR NPCS ---
+  grand_mage_eldrin: {
+    id: 'grand_mage_eldrin',
+    speaker: 'Grand Mage Eldrin',
+    speakerTitle: 'Penjaga Kitab Halilintar Purba',
+    text: 'Greetings, traveler. You stand within the multi-level spire of Thunderpeak. Let the lightning grant you wisdom and resilience.',
+    textId: 'Salam, pengelana. Kau berada di dalam Menara Puncak Halilintar. Di lantai 1 ini tersimpan pustaka kitab kuno dan altar teleportasi. Lantai 2 merupakan laboratorium alkimia, dan di puncak terdapat observatorium bintang.',
+    avatarIcon: '🧙‍♂️',
+    options: [
+      {
+        label: 'Seek the Grand Mage’s blessing (Restore HP & MP).',
+        labelId: 'Mohon berkah pemulihan energi sihir (Pulihkan HP & MP).',
+        action: 'heal',
+      },
+      {
+        label: 'Thank you for your guidance, Grand Mage Eldrin.',
+        labelId: 'Terima kasih atas bimbinganmu, Grand Mage Eldrin.',
+        action: 'close',
+      },
+    ],
+  },
+  sorceress_maya: {
+    id: 'sorceress_maya',
+    speaker: 'Sorceress Maya',
+    speakerTitle: 'Pengkaji Kitab Kuno & Astrologi',
+    text: 'The ancient grimoires here chronicle the birth of our continent and the mystical flow of primal lightning.',
+    textId: 'Kitab-kitab di perpustakaan ini mencatat asal mula benua dan aliran sihir petir purba. Pelajarilah lembarannya bila kau ingin memahami rahasia alam semesta.',
+    avatarIcon: '✨',
+    options: [
+      {
+        label: 'Your library is truly mesmerizing, Maya.',
+        labelId: 'Perpustakaan ini sungguh menakjubkan dan sarat ilmu, Maya.',
+        action: 'close',
+      },
+    ],
+  },
+  archmage_pyro: {
+    id: 'archmage_pyro',
+    speaker: 'Archmage Pyro',
+    speakerTitle: 'Ahli Alkimia & Penghancur Elemen Api',
+    text: 'Careful around the crystal table! Primal lightning and volatile alchemical brews do not forgive a careless step.',
+    textId: 'Berhati-hatilah di sekitar meja eksperimen! Campuran alkimia dan energi kristal petir purba ini sangat kuat. Kami sedang meneliti cara menstabilkan inti halilintar untuk melindungi kerajaan.',
+    avatarIcon: '🔥',
+    options: [
+      {
+        label: 'Keep up the great research, Archmage Pyro.',
+        labelId: 'Lanjutkan penelitian hebatmu, Archmage Pyro.',
+        action: 'close',
+      },
+    ],
+  },
 };
 
 export interface RoleSkillDef {

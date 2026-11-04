@@ -300,8 +300,8 @@ export const WAYPOINTS: {
     nameId: 'Desa Bazaar Gurun Solaria',
     regionId: 'gurun_solaria',
     icon: '🎪',
-    pos: [-375, 350],
-    desc: 'Pemukiman megah tanah liat, bazaar rempah eksotis, dan sumur oase Solaria',
+    pos: [-305, 350],
+    desc: 'Pemukiman megah tanah liat, bazaar rempah eksotis, peristirahatan unta, dan sumur oase Solaria',
   },
   {
     id: 'wp_solaria_palace',
@@ -329,11 +329,11 @@ export const WAYPOINTS: {
   },
   {
     id: 'wp_thunderpeak',
-    nameId: 'Altar Menara Puncak Halilintar',
+    nameId: 'Mage Tower Puncak Halilintar',
     regionId: 'puncak_halilintar',
-    icon: '⚡',
+    icon: '🧙‍♂️',
     pos: [-155, -135],
-    desc: 'Tebing basalt petir berkilau di barat laut dengan kristal energi abadi',
+    desc: 'Menara penyihir megah dengan interior bertingkat, perpustakaan kuno, laboratorium alkimia, dan observatorium petir',
   },
   {
     id: 'wp_jadepagoda',

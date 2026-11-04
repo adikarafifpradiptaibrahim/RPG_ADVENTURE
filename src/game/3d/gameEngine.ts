@@ -33,6 +33,9 @@ import {
   clampCameraDistance,
   normalizeCameraYaw,
   CAMERA_CONFIG,
+  SPECTATOR_CONFIG,
+  calculateSpectatorSpeed,
+  clampSpectatorSpeed,
 } from '../CameraControls';
 
 export interface LootPickup {
@@ -152,11 +155,21 @@ const TOWN_ZONES: TownZoneTrigger[] = [
     id: 'town_solaria',
     waypointId: 'wp_solaria_village',
     name: 'Desa & Istana Gurun Solaria',
-    x: -390,
+    x: -350,
     z: 350,
-    radius: 65,
-    respawnX: -375,
+    radius: 110,
+    respawnX: -305,
     respawnZ: 346,
+  },
+  {
+    id: 'town_thunderpeak',
+    waypointId: 'wp_thunderpeak',
+    name: 'Mage Tower Puncak Halilintar',
+    x: -155,
+    z: -135,
+    radius: 45,
+    respawnX: -155,
+    respawnZ: -123,
   },
 ];
 
@@ -1726,7 +1739,14 @@ export class GameEngine {
     const upY = 1;
     const upZ = 0;
 
-    const moveDist = this.spectatorSpeed * delta;
+    // Variable Speed Spectator Freecam:
+    // - Tahan [Shift] untuk Sprint Fly (3x lipat)
+    // - Tahan [Ctrl] atau [Alt] untuk Slow Precision Fly (0.3x lipat)
+    const isSprint = this.isKeyPressed('shift', 'shiftleft', 'shiftright');
+    const isSlow = this.isKeyPressed('control', 'controlleft', 'controlright', 'alt', 'altleft', 'altright');
+
+    const { speed: currentSpeed } = calculateSpectatorSpeed(this.spectatorSpeed, isSprint, isSlow);
+    const moveDist = currentSpeed * delta;
     let moveX = 0;
     let moveY = 0;
     let moveZ = 0;
@@ -1736,7 +1756,8 @@ export class GameEngine {
     const isRight = this.isKeyPressed('d', 'keyd', 'arrowright');
     const isLeft = this.isKeyPressed('a', 'keya', 'arrowleft');
     const isUp = this.isKeyPressed(' ', 'space');
-    const isDown = this.isKeyPressed('shift', 'shiftleft', 'shiftright');
+    // Descend: Q, E, C
+    const isDown = this.isKeyPressed('q', 'keyq', 'e', 'keye', 'c', 'keyc');
 
     if (isFwd) {
       moveX += fwdX;
@@ -1940,13 +1961,31 @@ export class GameEngine {
   private handleWheel = (e: WheelEvent) => {
     e.preventDefault();
     if (this.isSpectatorMode) {
-      const delta = -Math.sign(e.deltaY) * 3.0;
-      this.spectatorSpeed = Math.max(4.0, Math.min(90.0, this.spectatorSpeed + delta));
-      this.callbacks.onAddFloatingText(`Kecepatan Terbang: ${Math.round(this.spectatorSpeed)} m/s`, '#38bdf8', 'info');
+      const delta = -Math.sign(e.deltaY) * SPECTATOR_CONFIG.SCROLL_STEP;
+      this.spectatorSpeed = clampSpectatorSpeed(this.spectatorSpeed + delta);
+      this.callbacks.onAddFloatingText(
+        `Kecepatan Terbang: ${Math.round(this.spectatorSpeed)} m/s (Shift: ${Math.round(this.spectatorSpeed * SPECTATOR_CONFIG.SPRINT_MULTIPLIER)} | Ctrl: ${(this.spectatorSpeed * SPECTATOR_CONFIG.SLOW_MULTIPLIER).toFixed(1)})`,
+        '#38bdf8',
+        'info'
+      );
       return;
     }
     this.cameraDistance = clampCameraDistance(this.cameraDistance + e.deltaY * 0.006);
   };
+
+  public adjustSpectatorSpeed(delta: number) {
+    if (!this.isSpectatorMode) return;
+    this.spectatorSpeed = clampSpectatorSpeed(this.spectatorSpeed + delta);
+    this.callbacks.onAddFloatingText(
+      `Kecepatan Terbang: ${Math.round(this.spectatorSpeed)} m/s`,
+      '#38bdf8',
+      'info'
+    );
+  }
+
+  public getSpectatorSpeed(): number {
+    return this.spectatorSpeed;
+  }
 
   private touchStartX = 0;
   private touchStartY = 0;
@@ -4145,9 +4184,13 @@ export class GameEngine {
       this.playerVel.y -= 22 * delta;
       this.playerPos.y += this.playerVel.y * delta;
       const inThroneRoomLocked = this.playerPos.y < -10 && this.playerPos.x >= -435 && this.playerPos.x <= -395 && this.playerPos.z >= 335 && this.playerPos.z <= 365;
-      const groundY = inThroneRoomLocked
-        ? ((this.playerPos.x <= -424 && Math.abs(this.playerPos.z - 350) <= 6) ? -24.4 : -25.0)
-        : this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+      const inMageTowerLocked = this.playerPos.y < -15 && Math.hypot(this.playerPos.x - -155, this.playerPos.z - -135) <= 12;
+      let groundY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+      if (inThroneRoomLocked) {
+        groundY = (this.playerPos.x <= -424 && Math.abs(this.playerPos.z - 350) <= 6) ? -24.4 : -25.0;
+      } else if (inMageTowerLocked) {
+        groundY = this.playerPos.y > -33.5 ? -30.0 : this.playerPos.y > -41.5 ? -37.5 : -45.0;
+      }
       if (this.playerPos.y <= groundY) {
         if (!this.isGrounded && this.playerVel.y < -3.5 && this.charClass === 'warrior') {
           soundManager.playSkillLompatLand();
@@ -4347,12 +4390,32 @@ export class GameEngine {
     this.playerVel.y -= 22 * delta;
     this.playerPos.y += this.playerVel.y * delta;
 
-    // Check if player is inside the Solaria Palace Throne Room Interior Cell
+    // Check if player is inside an Interior Cell (Solaria Throne Room or Mage Tower)
     const inThroneRoom = this.playerPos.y < -10 && this.playerPos.x >= -435 && this.playerPos.x <= -395 && this.playerPos.z >= 335 && this.playerPos.z <= 365;
+    const inMageTower = this.playerPos.y < -15 && Math.hypot(this.playerPos.x - -155, this.playerPos.z - -135) <= 12;
+
     if (inThroneRoom) {
       const throneFloorY = (this.playerPos.x <= -424 && Math.abs(this.playerPos.z - 350) <= 6) ? -24.4 : -25.0;
       if (this.playerPos.y <= throneFloorY) {
         this.playerPos.y = throneFloorY;
+        this.playerVel.y = 0;
+        this.isGrounded = true;
+      }
+    } else if (inMageTower) {
+      // 3-Tier Multi-Floor Interior Cell for Mage Tower:
+      // - Level 3 (Y: -30.0): Observatory
+      // - Level 2 (Y: -37.5): Alchemy Lab
+      // - Level 1 (Y: -45.0): Ancient Library
+      let mageFloorY = -45.0;
+      if (this.playerPos.y > -33.5) {
+        mageFloorY = -30.0;
+      } else if (this.playerPos.y > -41.5) {
+        mageFloorY = -37.5;
+      } else {
+        mageFloorY = -45.0;
+      }
+      if (this.playerPos.y <= mageFloorY) {
+        this.playerPos.y = mageFloorY;
         this.playerVel.y = 0;
         this.isGrounded = true;
       }
@@ -4614,6 +4677,84 @@ export class GameEngine {
       });
       return;
     }
+
+    // 0c. Check Mage Tower Entrance (Overworld -> Level 1 Library)
+    const distToMageTowerDoor = Math.hypot(this.playerPos.x - -155, this.playerPos.z - -127);
+    if (distToMageTowerDoor < 4.5 && this.playerPos.y > -10) {
+      this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Mage Tower Puncak Halilintar ⚡', () => {
+        this.playerPos.set(-155, -45 + 0.5, -129);
+        this.playerVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.playerMesh.group.position.copy(this.playerPos);
+        this.camera.position.set(-155, -45 + 2.8, -123);
+        this.camera.lookAt(-155, -45 + 1.8, -135);
+        soundManager.playCheckpointUnlock();
+        this.callbacks.onAddFloatingText('Memasuki Mage Tower: Perpustakaan Kitab Kuno (Lantai 1)', '#38bdf8', 'info');
+      });
+      return;
+    }
+
+    // 0d. Check Mage Tower Exit Door (Level 1 Library -> Overworld)
+    const distToMageTowerExit = Math.hypot(this.playerPos.x - -155, this.playerPos.z - -128);
+    if (distToMageTowerExit < 3.8 && this.playerPos.y <= -42 && this.playerPos.y >= -48) {
+      this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Puncak Halilintar 🚪', () => {
+        const outY = Math.max(0.5, this.world.getTerrainHeight(-155, -124) + 0.5);
+        this.playerPos.set(-155, outY, -124);
+        this.playerVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.playerMesh.group.position.copy(this.playerPos);
+        this.camera.position.set(-155, outY + 3.2, -114);
+        this.camera.lookAt(-155, outY + 2.2, -135);
+        soundManager.playCheckpointUnlock();
+        this.callbacks.onAddFloatingText('Kembali ke Pelataran Puncak Halilintar', '#38bdf8', 'info');
+      });
+      return;
+    }
+
+    // 0e. Check Mage Tower Multi-Floor Altar Transits (Lantai 1 <-> Lantai 2 <-> Lantai 3)
+    const distToTowerCenter = Math.hypot(this.playerPos.x - -155, this.playerPos.z - -135);
+    if (distToTowerCenter < 4.2 && this.playerPos.y < -15) {
+      if (this.playerPos.y <= -42) {
+        // Lantai 1 -> Naik ke Lantai 2 (Laboratorium)
+        this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 2 (Laboratorium Alkimia) 🧪', () => {
+          this.playerPos.set(-155, -37.5 + 0.5, -135);
+          this.playerVel.set(0, 0, 0);
+          this.isGrounded = true;
+          this.playerMesh.group.position.copy(this.playerPos);
+          this.camera.position.set(-155, -37.5 + 2.5, -129);
+          this.camera.lookAt(-155, -37.5 + 1.8, -135);
+          soundManager.playCheckpointUnlock();
+          this.callbacks.onAddFloatingText('Lantai 2: Laboratorium Alkimia & Kristal Petir', '#10b981', 'info');
+        });
+        return;
+      } else if (this.playerPos.y > -42 && this.playerPos.y <= -34) {
+        // Lantai 2 -> Naik ke Lantai 3 (Observatorium)
+        this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 3 (Anjungan Observatorium) 🌌', () => {
+          this.playerPos.set(-155, -30.0 + 0.5, -135);
+          this.playerVel.set(0, 0, 0);
+          this.isGrounded = true;
+          this.playerMesh.group.position.copy(this.playerPos);
+          this.camera.position.set(-155, -30.0 + 2.5, -129);
+          this.camera.lookAt(-155, -30.0 + 1.8, -135);
+          soundManager.playCheckpointUnlock();
+          this.callbacks.onAddFloatingText('Lantai 3: Anjungan Puncak Observatorium', '#38bdf8', 'info');
+        });
+        return;
+      } else if (this.playerPos.y > -34) {
+        // Lantai 3 -> Turun ke Lantai 2 (Laboratorium)
+        this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh: Turun ke Lantai 2 (Laboratorium Alkimia) 🧪', () => {
+          this.playerPos.set(-155, -37.5 + 0.5, -135);
+          this.playerVel.set(0, 0, 0);
+          this.isGrounded = true;
+          this.playerMesh.group.position.copy(this.playerPos);
+          this.camera.position.set(-155, -37.5 + 2.5, -129);
+          this.camera.lookAt(-155, -37.5 + 1.8, -135);
+          soundManager.playCheckpointUnlock();
+          this.callbacks.onAddFloatingText('Lantai 2: Laboratorium Alkimia & Kristal Petir', '#10b981', 'info');
+        });
+        return;
+      }
+    }
     // Check all village NPCs
     if (this.world.npcs && this.world.npcs.length > 0) {
       for (const npc of this.world.npcs) {
@@ -4656,6 +4797,12 @@ export class GameEngine {
             prompt = `Tekan [F] / Sentuh: Kios Karpet & Sutra Pengrajin Zahra 🧕`;
           } else if (npc.id === 'guard_solaria' || npc.id === 'guard_throne_1' || npc.id === 'guard_throne_2') {
             prompt = `Tekan [F] / Sentuh: Prajurit Pengawal Gurun Solaria 🛡️`;
+          } else if (npc.id === 'grand_mage_eldrin') {
+            prompt = `Tekan [F] / Sentuh: Grand Mage Eldrin (Penjaga Kitab Halilintar) 🧙‍♂️`;
+          } else if (npc.id === 'archmage_pyro') {
+            prompt = `Tekan [F] / Sentuh: Archmage Pyro (Ahli Alkimia Api) 🔥`;
+          } else if (npc.id === 'sorceress_maya') {
+            prompt = `Tekan [F] / Sentuh: Sorceress Maya (Pengkaji Kitab Kuno) ✨`;
           }
 
           this.callbacks.onNearbyPrompt(prompt, () => {
@@ -5609,16 +5756,28 @@ export class GameEngine {
         description: 'Benteng Dataran Tinggi Val-Kragor',
       });
 
-      // Desa Bazaar Gurun Solaria (South-West)
+      // Desa Bazaar Gurun Solaria (South-West: Berjarak 87 unit dari Istana)
       markers.push({
         id: 'landmark_solaria_village',
         title: 'Desa Bazaar Gurun Solaria',
         type: 'waypoint',
-        x: -375,
+        x: -305,
         z: 350,
         icon: '🎪',
         color: '#f59e0b',
-        description: 'Bazaar Ramai, Kerajinan Tenda Sutra & Sumur Oase Solaria',
+        description: 'Bazaar Ramai, Peristirahatan Unta, Rumah Bertingkat & Sumur Oase Solaria',
+      });
+
+      // Mage Tower Puncak Halilintar (North-West)
+      markers.push({
+        id: 'landmark_thunderpeak_magetower',
+        title: 'Mage Tower Puncak Halilintar',
+        type: 'waypoint',
+        x: -155,
+        z: -135,
+        icon: '🧙‍♂️',
+        color: '#38bdf8',
+        description: 'Menara Penyihir Bertingkat, Pustaka Kuno, Laboratorium Alkimia & Observatorium',
       });
 
       // Istana Taj Mahal Sultan Solaria (West of Village)

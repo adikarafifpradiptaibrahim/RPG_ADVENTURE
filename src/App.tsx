@@ -14,6 +14,7 @@ import { PauseModal } from './components/PauseModal';
 import { GraphicsSettingsModal } from './components/GraphicsSettingsModal';
 import { MultiplayerChat } from './components/MultiplayerChat';
 import { VirtualJoystick } from './components/TouchControls';
+import { CameraControls } from './components/CameraControls';
 import { soundManager } from './game/audio';
 import { multiplayerClient, RemotePlayerData, ChatMessage } from './game/multiplayer';
 import { GraphicsSettings, loadGraphicsSettings } from './game/graphicsSettings';
@@ -110,6 +111,7 @@ export default function App() {
 
   // Spectator Mode State
   const [isSpectatorMode, setIsSpectatorMode] = useState(false);
+  const [spectatorSpeed, setSpectatorSpeed] = useState(22);
 
   // World Map & Minimap Live Position State
   const [playerPos, setPlayerPos] = useState({ x: 0, z: 4, rotationY: 0 });
@@ -426,6 +428,9 @@ export default function App() {
     if (!engineRef.current) return;
     const nextState = engineRef.current.toggleSpectatorMode(undefined, landAtCamera);
     setIsSpectatorMode(nextState);
+    if (nextState) {
+      setSpectatorSpeed(engineRef.current.getSpectatorSpeed());
+    }
   }, []);
 
   // Initialize Three.js engine when canvas container mounts
@@ -458,6 +463,9 @@ export default function App() {
       },
       onSpectatorModeChange: (active) => {
         setIsSpectatorMode(active);
+        if (engineRef.current) {
+          setSpectatorSpeed(engineRef.current.getSpectatorSpeed());
+        }
       },
       onPlayerPositionUpdate: (posData) => {
         setPlayerPos((prev) => {
@@ -1002,6 +1010,20 @@ export default function App() {
             onToggleTouchControls={handleToggleTouchControls}
             isFullscreen={isFullscreen}
             onToggleFullscreen={handleToggleFullscreen}
+          />
+
+          {/* Spectator Freecam HUD & Speed Controls Overlay */}
+          <CameraControls
+            isSpectatorMode={isSpectatorMode}
+            spectatorSpeed={spectatorSpeed}
+            onToggleSpectator={() => handleToggleSpectator(false)}
+            onLandSpectator={() => handleToggleSpectator(true)}
+            onAdjustSpeed={(delta) => {
+              engineRef.current?.adjustSpectatorSpeed(delta);
+              if (engineRef.current) {
+                setSpectatorSpeed(engineRef.current.getSpectatorSpeed());
+              }
+            }}
           />
 
           {/* Multiplayer In-Game Chat Box */}

@@ -7351,3 +7351,593 @@ export function createDesertPavedRoadMesh(startX = -400, endX = -354, z = 350, w
 
   return group;
 }
+
+// ==========================================
+// SOLARIA CAMEL RESTING AREA & ENHANCED ASSETS
+// ==========================================
+
+/**
+ * Creates a Desert Camel Rest Area with timber canopy, straw bedding,
+ * water trough, and 2 resting low-poly camels in the shade.
+ */
+export function createCamelRestAreaMesh(): THREE.Group {
+  const group = new THREE.Group();
+
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x5c3d28, roughness: 0.85 });
+  const fabricMat = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.75 });
+  const goldStripeMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.75 });
+  const hayMat = new THREE.MeshLambertMaterial({ color: 0xeab308 });
+  const waterMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.2, metalness: 0.6 });
+  const camelFurMat = new THREE.MeshLambertMaterial({ color: 0xc29b6e });
+  const darkCamelMat = new THREE.MeshLambertMaterial({ color: 0xa17c52 });
+  const blanketMat1 = new THREE.MeshLambertMaterial({ color: 0x9333ea });
+  const blanketMat2 = new THREE.MeshLambertMaterial({ color: 0x059669 });
+  const stoneMat = new THREE.MeshLambertMaterial({ color: 0xdeb887, flatShading: true });
+
+  // 1. Low Sandstone Plinth
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(11, 0.3, 8.5), stoneMat);
+  plinth.position.y = 0.15;
+  plinth.receiveShadow = true;
+  group.add(plinth);
+
+  // 2. Timber Canopy Posts & Beams
+  const postCoords = [
+    { x: -4.8, z: -3.6 },
+    { x: 4.8, z: -3.6 },
+    { x: -4.8, z: 3.6 },
+    { x: 4.8, z: 3.6 },
+  ];
+  postCoords.forEach((p) => {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 3.8, 6), woodMat);
+    post.position.set(p.x, 1.9, p.z);
+    post.castShadow = true;
+    group.add(post);
+  });
+
+  // Longitudinal & Cross Beams
+  const beam1 = new THREE.Mesh(new THREE.BoxGeometry(10.2, 0.25, 0.25), woodMat);
+  beam1.position.set(0, 3.8, -3.6);
+  const beam2 = new THREE.Mesh(new THREE.BoxGeometry(10.2, 0.25, 0.25), woodMat);
+  beam2.position.set(0, 3.8, 3.6);
+  const beamCross1 = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 7.4), woodMat);
+  beamCross1.position.set(-4.8, 3.8, 0);
+  const beamCross2 = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 7.4), woodMat);
+  beamCross2.position.set(4.8, 3.8, 0);
+  group.add(beam1, beam2, beamCross1, beamCross2);
+
+  // Striped Canopy Cloth Roof
+  for (let s = -4.6; s <= 4.6; s += 0.8) {
+    const isGold = Math.round(s * 10) % 2 === 0;
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.08, 7.6), isGold ? goldStripeMat : fabricMat);
+    stripe.position.set(s, 3.9, 0);
+    stripe.castShadow = true;
+    group.add(stripe);
+  }
+
+  // 3. Wooden Water Trough & Hay Feeding Box
+  const troughFrame = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.65, 1.1), woodMat);
+  troughFrame.position.set(0, 0.5, -2.8);
+  const water = new THREE.Mesh(new THREE.BoxGeometry(3.9, 0.1, 0.8), waterMat);
+  water.position.set(0, 0.72, -2.8);
+  group.add(troughFrame, water);
+
+  // Hay Bales in the Corner
+  const hayBale1 = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.7, 0.9), hayMat);
+  hayBale1.position.set(-3.6, 0.55, -2.6);
+  hayBale1.rotation.y = 0.2;
+  const hayBale2 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.65, 0.8), hayMat);
+  hayBale2.position.set(-3.4, 1.2, -2.6);
+  hayBale2.rotation.y = -0.3;
+  group.add(hayBale1, hayBale2);
+
+  // 4. Two Resting Low-Poly Camels
+  const createSittingCamel = (furMat: THREE.Material, blanketMat: THREE.Material, rotationY: number) => {
+    const camel = new THREE.Group();
+
+    // Body (resting on folded legs)
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.85, 0.95), furMat);
+    body.position.y = 0.65;
+    body.castShadow = true;
+    camel.add(body);
+
+    // Folded Legs Base
+    const legsLeft = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 0.3), darkCamelMat);
+    legsLeft.position.set(0, 0.2, 0.55);
+    const legsRight = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 0.3), darkCamelMat);
+    legsRight.position.set(0, 0.2, -0.55);
+    camel.add(legsLeft, legsRight);
+
+    // Single Desert Hump
+    const hump = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.65, 6), furMat);
+    hump.position.set(-0.15, 1.35, 0);
+    hump.castShadow = true;
+    camel.add(hump);
+
+    // Elegant Neck leaning forward and up
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 1.1, 6), furMat);
+    neck.position.set(0.75, 1.25, 0);
+    neck.rotation.z = -0.45;
+    camel.add(neck);
+
+    // Head with Muzzle & Ears
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.28, 0.48), furMat);
+    head.position.set(1.15, 1.7, 0);
+    const ear1 = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.18, 4), darkCamelMat);
+    ear1.position.set(1.05, 1.9, 0.2);
+    const ear2 = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.18, 4), darkCamelMat);
+    ear2.position.set(1.05, 1.9, -0.2);
+    camel.add(head, ear1, ear2);
+
+    // Decorative Silk Saddle Blanket & Tassels
+    const blanket = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.88, 1.05), blanketMat);
+    blanket.position.set(0, 0.72, 0);
+    camel.add(blanket);
+
+    camel.rotation.y = rotationY;
+    return camel;
+  };
+
+  const camel1 = createSittingCamel(camelFurMat, blanketMat1, 0.35);
+  camel1.position.set(-1.8, 0.2, 0.8);
+  const camel2 = createSittingCamel(darkCamelMat, blanketMat2, -0.3);
+  camel2.position.set(2.0, 0.2, 0.6);
+  group.add(camel1, camel2);
+
+  return group;
+}
+
+// ==========================================
+// MAGE TOWER 3D MODELS (PUNCAK HALILINTAR & INTERIOR)
+// ==========================================
+
+/**
+ * Creates the exterior 3D structure for the Mage Tower at Puncak Halilintar:
+ * Octagonal basalt foundation, rune-inscribed tower shaft, stained-glass windows,
+ * observatory balcony, gothic spire, and floating lightning core.
+ */
+export function createMageTowerExteriorMesh(): THREE.Group {
+  const tower = new THREE.Group();
+
+  const stoneMat = new THREE.MeshStandardMaterial({
+    color: 0x1e293b,
+    roughness: 0.85,
+    metalness: 0.2,
+    flatShading: true,
+  });
+  const trimMat = new THREE.MeshStandardMaterial({
+    color: 0x334155,
+    roughness: 0.7,
+    metalness: 0.3,
+  });
+  const runeMat = new THREE.MeshStandardMaterial({
+    color: 0x38bdf8,
+    emissive: 0x00f0ff,
+    emissiveIntensity: 0.85,
+    roughness: 0.3,
+  });
+  const windowMat = new THREE.MeshStandardMaterial({
+    color: 0x0284c7,
+    emissive: 0x38bdf8,
+    emissiveIntensity: 0.65,
+    roughness: 0.2,
+  });
+  const doorMat = new THREE.MeshStandardMaterial({
+    color: 0x271911,
+    roughness: 0.8,
+  });
+  const goldRuneMat = new THREE.MeshStandardMaterial({
+    color: 0xf59e0b,
+    emissive: 0xd97706,
+    emissiveIntensity: 0.5,
+  });
+
+  // 1. Stepped Octagonal Plinth Foundation
+  const baseStep1 = new THREE.Mesh(new THREE.CylinderGeometry(8.5, 9.2, 1.2, 8), stoneMat);
+  baseStep1.position.y = 0.6;
+  baseStep1.receiveShadow = true;
+  const baseStep2 = new THREE.Mesh(new THREE.CylinderGeometry(7.4, 8.2, 1.2, 8), trimMat);
+  baseStep2.position.y = 1.8;
+  baseStep2.receiveShadow = true;
+  tower.add(baseStep1, baseStep2);
+
+  // 2. Tower Lower Shaft (Level 1 Library)
+  const shaft1 = new THREE.Mesh(new THREE.CylinderGeometry(6.4, 7.2, 8.5, 8), stoneMat);
+  shaft1.position.y = 6.0;
+  shaft1.castShadow = true;
+  shaft1.receiveShadow = true;
+  tower.add(shaft1);
+
+  // Entrance Portal on South side (+Z)
+  const portalArch = new THREE.Mesh(new THREE.BoxGeometry(3.4, 4.2, 1.2), trimMat);
+  portalArch.position.set(0, 3.8, 6.8);
+  const portalDoor = new THREE.Mesh(new THREE.BoxGeometry(2.4, 3.4, 0.4), doorMat);
+  portalDoor.position.set(0, 3.4, 7.2);
+  const runeDoorFrame = new THREE.Mesh(new THREE.BoxGeometry(2.8, 3.8, 0.2), runeMat);
+  runeDoorFrame.position.set(0, 3.6, 7.05);
+  tower.add(portalArch, portalDoor, runeDoorFrame);
+
+  // Entrance Steps
+  const entranceSteps = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.6, 2.2), stoneMat);
+  entranceSteps.position.set(0, 0.3, 8.0);
+  tower.add(entranceSteps);
+
+  // Rune Belt 1
+  const runeBelt1 = new THREE.Mesh(new THREE.CylinderGeometry(6.6, 6.6, 0.45, 8), runeMat);
+  runeBelt1.position.y = 10.2;
+  tower.add(runeBelt1);
+
+  // 3. Tower Middle Shaft (Level 2 Alchemy Lab)
+  const shaft2 = new THREE.Mesh(new THREE.CylinderGeometry(5.4, 6.2, 8.0, 8), stoneMat);
+  shaft2.position.y = 14.2;
+  shaft2.castShadow = true;
+  tower.add(shaft2);
+
+  // Arched Windows on Middle Shaft
+  const windowAngles = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
+  windowAngles.forEach((ang) => {
+    const win = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.4, 0.3), windowMat);
+    const wx = Math.sin(ang) * 5.7;
+    const wz = Math.cos(ang) * 5.7;
+    win.position.set(wx, 14.5, wz);
+    win.rotation.y = ang;
+    tower.add(win);
+  });
+
+  // Rune Belt 2
+  const runeBelt2 = new THREE.Mesh(new THREE.CylinderGeometry(5.6, 5.6, 0.45, 8), goldRuneMat);
+  runeBelt2.position.y = 18.2;
+  tower.add(runeBelt2);
+
+  // 4. Tower Upper Shaft & Observatory Balcony (Level 3)
+  const shaft3 = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 5.2, 7.5, 8), stoneMat);
+  shaft3.position.y = 21.8;
+  shaft3.castShadow = true;
+  tower.add(shaft3);
+
+  // Balcony Ring Platform
+  const balconyRing = new THREE.Mesh(new THREE.CylinderGeometry(6.2, 5.0, 1.2, 8), trimMat);
+  balconyRing.position.y = 25.8;
+  const balustrade = new THREE.Mesh(new THREE.CylinderGeometry(6.2, 6.2, 0.9, 8), runeMat);
+  balustrade.position.y = 26.8;
+  tower.add(balconyRing, balustrade);
+
+  // 4 Corner Pinnacles with Glowing Mini Crystals
+  const pinnacleOffsets = [
+    { x: -4.4, z: -4.4 },
+    { x: 4.4, z: -4.4 },
+    { x: -4.4, z: 4.4 },
+    { x: 4.4, z: 4.4 },
+  ];
+  pinnacleOffsets.forEach((po) => {
+    const pin = new THREE.Mesh(new THREE.ConeGeometry(0.45, 3.2, 4), trimMat);
+    pin.position.set(po.x, 28.2, po.z);
+    const pinCrys = new THREE.Mesh(new THREE.OctahedronGeometry(0.35), runeMat);
+    pinCrys.position.set(po.x, 30.0, po.z);
+    tower.add(pin, pinCrys);
+  });
+
+  // 5. Gothic Observatory Spire Roof
+  const spire = new THREE.Mesh(new THREE.ConeGeometry(4.2, 8.5, 8), stoneMat);
+  spire.position.y = 30.2;
+  spire.castShadow = true;
+  tower.add(spire);
+
+  // Apex Levitating Giant Lightning Crystal Core
+  const coreMesh = new THREE.Mesh(new THREE.OctahedronGeometry(1.2), runeMat);
+  coreMesh.position.y = 35.4;
+  tower.add(coreMesh);
+
+  // Pulsing Arcane Light Beacon
+  const coreLight = new THREE.PointLight(0x00f0ff, 2.6, 38);
+  coreLight.position.y = 35.4;
+  tower.add(coreLight);
+
+  return tower;
+}
+
+/**
+ * Creates the Multi-floor Interior Cell for Mage Tower:
+ * - Level 1 (Y: 0, World Y: -45): Ancient Grimoire Library & Teleport Altar
+ * - Level 2 (Y: 7.5, World Y: -37.5): Alchemy Lab & Crackling Lightning Crystals
+ * - Level 3 (Y: 15.0, World Y: -30.0): Celestial Observatory with Brass Orrery & Giant Crystal
+ */
+export function createMageTowerInteriorMesh(): THREE.Group {
+  const interior = new THREE.Group();
+
+  const slateMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.85, metalness: 0.2 });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9, flatShading: true });
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.8 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.35, metalness: 0.8 });
+  const runeMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x00f0ff, emissiveIntensity: 0.9 });
+  const brassMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.3, metalness: 0.85 });
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.85 });
+
+  // Outer Circular Wall Enclosing the 3 Floors (Height: 23 units, Radius: 9.8 units)
+  const outerWall = new THREE.Mesh(new THREE.CylinderGeometry(9.8, 9.8, 23, 24, 1, true), wallMat);
+  outerWall.position.y = 11.5;
+  interior.add(outerWall);
+
+  // ==========================================
+  // LEVEL 1: LIBRARY & TELEPORT ALTAR (Y = 0)
+  // ==========================================
+  const floor1 = new THREE.Mesh(new THREE.CylinderGeometry(9.6, 9.6, 0.6, 24), slateMat);
+  floor1.position.y = -0.3;
+  floor1.receiveShadow = true;
+  interior.add(floor1);
+
+  // Inlaid Teleportation Ritual Circle on Floor 1
+  const ritualRing = new THREE.Mesh(new THREE.RingGeometry(1.8, 3.2, 24), runeMat);
+  ritualRing.rotation.x = -Math.PI / 2;
+  ritualRing.position.y = 0.02;
+  const innerRing = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.8, 16), goldMat);
+  innerRing.rotation.x = -Math.PI / 2;
+  innerRing.position.y = 0.03;
+  interior.add(ritualRing, innerRing);
+
+  // 4 Corner Runic Pedestals around Teleport Altar
+  const altarAngles = [Math.PI / 4, (Math.PI * 3) / 4, (Math.PI * 5) / 4, (Math.PI * 7) / 4];
+  altarAngles.forEach((ang) => {
+    const ped = new THREE.Mesh(new THREE.BoxGeometry(0.65, 1.2, 0.65), woodMat);
+    const px = Math.sin(ang) * 3.6;
+    const pz = Math.cos(ang) * 3.6;
+    ped.position.set(px, 0.6, pz);
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), runeMat);
+    orb.position.set(px, 1.35, pz);
+    interior.add(ped, orb);
+  });
+
+  // Arched Ancient Bookcases along North, East, and West walls
+  const bookcaseConfigs = [
+    { x: 0, z: -8.2, rot: 0 },
+    { x: -3.8, z: -7.4, rot: 0.4 },
+    { x: 3.8, z: -7.4, rot: -0.4 },
+    { x: -7.8, z: -2.5, rot: Math.PI / 2 },
+    { x: -7.8, z: 2.5, rot: Math.PI / 2 },
+    { x: 7.8, z: -2.5, rot: -Math.PI / 2 },
+    { x: 7.8, z: 2.5, rot: -Math.PI / 2 },
+  ];
+  bookcaseConfigs.forEach((bc) => {
+    const bookcase = new THREE.Mesh(new THREE.BoxGeometry(3.6, 5.2, 0.8), woodMat);
+    bookcase.position.set(bc.x, 2.6, bc.z);
+    bookcase.rotation.y = bc.rot;
+    interior.add(bookcase);
+
+    // Shelf books rows (colored books)
+    for (let row = 0; row < 4; row++) {
+      const bookStrip = new THREE.Mesh(
+        new THREE.BoxGeometry(3.2, 0.7, 0.4),
+        new THREE.MeshLambertMaterial({ color: row % 2 === 0 ? 0x991b1b : 0x1e3a8a })
+      );
+      bookStrip.position.set(bc.x, 0.9 + row * 1.1, bc.z);
+      bookStrip.rotation.y = bc.rot;
+      interior.add(bookStrip);
+    }
+  });
+
+  // Scholar Reading Lectern with Floating Open Grimoire
+  const lectern = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.35, 1.2, 6), woodMat);
+  lectern.position.set(0, 0.6, -4.5);
+  const openGrimoire = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.1, 0.65), runeMat);
+  openGrimoire.position.set(0, 1.28, -4.5);
+  openGrimoire.rotation.x = 0.35;
+  interior.add(lectern, openGrimoire);
+
+  // Level 1 Arcane Ambient Light
+  const lightL1 = new THREE.PointLight(0x38bdf8, 2.2, 18);
+  lightL1.position.set(0, 4.0, 0);
+  interior.add(lightL1);
+
+  // ==========================================
+  // LEVEL 2: ALCHEMY LAB & LIGHTNING CRYSTAL TABLE (Y = 7.5)
+  // ==========================================
+  const floor2 = new THREE.Mesh(new THREE.CylinderGeometry(9.6, 9.6, 0.5, 24), slateMat);
+  floor2.position.y = 7.5 - 0.25;
+  interior.add(floor2);
+
+  // Central Alchemy Experimentation Slab
+  const expTable = new THREE.Mesh(new THREE.BoxGeometry(4.8, 1.1, 3.2), stoneMat);
+  expTable.position.set(0, 7.5 + 0.55, 0);
+  interior.add(expTable);
+
+  // Crackling Blue Lightning Crystals on Slab
+  const crys1 = new THREE.Mesh(new THREE.OctahedronGeometry(0.7), runeMat);
+  crys1.position.set(-1.0, 7.5 + 1.6, 0);
+  const crys2 = new THREE.Mesh(new THREE.OctahedronGeometry(0.55), runeMat);
+  crys2.position.set(0.8, 7.5 + 1.5, -0.4);
+  const crys3 = new THREE.Mesh(new THREE.OctahedronGeometry(0.48), goldMat);
+  crys3.position.set(0.6, 7.5 + 1.45, 0.5);
+  interior.add(crys1, crys2, crys3);
+
+  // Alchemical Distillation Racks & Retorts
+  const benchNorth = new THREE.Mesh(new THREE.BoxGeometry(5.2, 1.0, 1.2), woodMat);
+  benchNorth.position.set(0, 7.5 + 0.5, -7.5);
+  interior.add(benchNorth);
+
+  // Cauldron with Glowing Emerald Brew
+  const cauldron = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.7, 0.9, 12), woodMat);
+  cauldron.position.set(-4.5, 7.5 + 0.45, -4.5);
+  const brew = new THREE.Mesh(new THREE.CircleGeometry(0.8, 12), new THREE.MeshBasicMaterial({ color: 0x10b981 }));
+  brew.rotation.x = -Math.PI / 2;
+  brew.position.set(-4.5, 7.5 + 0.92, -4.5);
+  interior.add(cauldron, brew);
+
+  // Level 2 Light
+  const lightL2 = new THREE.PointLight(0x10b981, 2.0, 18);
+  lightL2.position.set(0, 7.5 + 4.2, 0);
+  interior.add(lightL2);
+
+  // ==========================================
+  // LEVEL 3: CELESTIAL OBSERVATORY (Y = 15.0)
+  // ==========================================
+  const floor3 = new THREE.Mesh(new THREE.CylinderGeometry(9.6, 9.6, 0.5, 24), slateMat);
+  floor3.position.y = 15.0 - 0.25;
+  interior.add(floor3);
+
+  // Brass Orrery / Armillary Sphere in Center
+  const orreryPillar = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 1.4, 8), brassMat);
+  orreryPillar.position.set(0, 15.0 + 0.7, 0);
+  const armRing1 = new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.06, 8, 24), brassMat);
+  armRing1.position.set(0, 15.0 + 2.1, 0);
+  armRing1.rotation.x = 0.5;
+  const armRing2 = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.05, 8, 24), goldMat);
+  armRing2.position.set(0, 15.0 + 2.1, 0);
+  armRing2.rotation.y = 0.8;
+  const armSun = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 12), runeMat);
+  armSun.position.set(0, 15.0 + 2.1, 0);
+  interior.add(orreryPillar, armRing1, armRing2, armSun);
+
+  // Large Brass Celestial Telescope
+  const teleTripod = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.6, 1.6, 6), brassMat);
+  teleTripod.position.set(0, 15.0 + 0.8, -5.2);
+  const teleBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.18, 3.2, 8), brassMat);
+  teleBarrel.position.set(0, 15.0 + 2.2, -5.2);
+  teleBarrel.rotation.x = -0.55;
+  interior.add(teleTripod, teleBarrel);
+
+  // Level 3 Light (Star Arcane Glow)
+  const lightL3 = new THREE.PointLight(0x38bdf8, 2.5, 22);
+  lightL3.position.set(0, 15.0 + 4.5, 0);
+  interior.add(lightL3);
+
+  return interior;
+}
+
+// ==========================================
+// MAGE TOWER UNIQUE NPC MESHES
+// ==========================================
+
+/**
+ * Grand Mage Eldrin: Purple wizard robe with gold runes, silver beard,
+ * pointed wizard hat with sapphire gem, and glowing lightning staff.
+ */
+export function createGrandMageEldrinMesh(): THREE.Group {
+  const group = new THREE.Group();
+
+  const skinMat = new THREE.MeshLambertMaterial({ color: 0xffd180, flatShading: true });
+  const robeMat = new THREE.MeshStandardMaterial({ color: 0x581c87, roughness: 0.75 });
+  const goldRuneMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xd97706, emissiveIntensity: 0.4 });
+  const hairMat = new THREE.MeshLambertMaterial({ color: 0xe2e8f0 });
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x3f2e18 });
+  const crystalMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x00f0ff, emissiveIntensity: 0.95 });
+
+  // Robe Body
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.6, 1.3, 8), robeMat);
+  body.position.y = 0.9;
+  body.castShadow = true;
+  const hemTrim = new THREE.Mesh(new THREE.CylinderGeometry(0.61, 0.62, 0.15, 8), goldRuneMat);
+  hemTrim.position.y = 0.35;
+  group.add(body, hemTrim);
+
+  // Head & Majestic White Beard
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), skinMat);
+  head.position.y = 1.75;
+  const beard = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.65, 5), hairMat);
+  beard.position.set(0, 1.45, 0.24);
+  beard.rotation.x = 0.2;
+  group.add(head, beard);
+
+  // Wizard Hat with Star Brim & Sapphire Gem
+  const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.06, 8), robeMat);
+  hatBrim.position.y = 1.98;
+  const hatCone = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.85, 6), robeMat);
+  hatCone.position.set(0, 2.45, -0.05);
+  hatCone.rotation.x = -0.15;
+  const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), crystalMat);
+  gem.position.set(0, 2.05, 0.35);
+  group.add(hatBrim, hatCone, gem);
+
+  // Grand Lightning Staff in Right Hand
+  const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.5, 6), woodMat);
+  staff.position.set(0.6, 1.25, 0.2);
+  const staffOrb = new THREE.Mesh(new THREE.OctahedronGeometry(0.22), crystalMat);
+  staffOrb.position.set(0.6, 2.55, 0.2);
+  const staffLight = new THREE.PointLight(0x00f0ff, 1.4, 8);
+  staffLight.position.set(0.6, 2.55, 0.2);
+  group.add(staff, staffOrb, staffLight);
+
+  return group;
+}
+
+/**
+ * Archmage Pyro: Dark battlemage robe with fiery crimson trims,
+ * flame-tipped staff, and glowing fire particle aura.
+ */
+export function createArchmagePyroMesh(): THREE.Group {
+  const group = new THREE.Group();
+
+  const skinMat = new THREE.MeshLambertMaterial({ color: 0xf5b780, flatShading: true });
+  const robeMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, roughness: 0.8 });
+  const flameTrimMat = new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xff3d00, emissiveIntensity: 0.6 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.7 });
+  const fireCrystalMat = new THREE.MeshStandardMaterial({ color: 0xff3d00, emissive: 0xff6d00, emissiveIntensity: 1.0 });
+
+  // Robe Torso
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.58, 1.3, 8), robeMat);
+  body.position.y = 0.9;
+  body.castShadow = true;
+  group.add(body);
+
+  // Dark Fiery Pauldrons
+  const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.25, 0.32), darkMat);
+  p1.position.set(0.48, 1.5, 0);
+  const p2 = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.25, 0.32), darkMat);
+  p2.position.set(-0.48, 1.5, 0);
+  group.add(p1, p2);
+
+  // Head & Dark Cowl
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), skinMat);
+  head.position.y = 1.75;
+  const cowl = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.52, 0.52), robeMat);
+  cowl.position.set(0, 1.82, -0.06);
+  group.add(head, cowl);
+
+  // Blazing Fire Staff in Hand
+  const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 2.4, 6), darkMat);
+  staff.position.set(0.55, 1.2, 0.25);
+  const flameTip = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.5, 5), fireCrystalMat);
+  flameTip.position.set(0.55, 2.5, 0.25);
+  const flameLight = new THREE.PointLight(0xff3d00, 1.6, 9);
+  flameLight.position.set(0.55, 2.5, 0.25);
+  group.add(staff, flameTip, flameLight);
+
+  return group;
+}
+
+/**
+ * Sorceress Maya: Celestial star-blue scholar robe, silver tiara,
+ * and open floating grimoire emitting starlight.
+ */
+export function createSorceressMayaMesh(): THREE.Group {
+  const group = new THREE.Group();
+
+  const skinMat = new THREE.MeshLambertMaterial({ color: 0xffd180, flatShading: true });
+  const robeMat = new THREE.MeshStandardMaterial({ color: 0x0369a1, roughness: 0.75 });
+  const silverMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.3, metalness: 0.85 });
+  const hairMat = new THREE.MeshLambertMaterial({ color: 0x1e1b4b });
+  const bookMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.75 });
+
+  // Slender Gown Body
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.52, 1.35, 8), robeMat);
+  body.position.y = 0.9;
+  body.castShadow = true;
+  group.add(body);
+
+  // Head, Flowing Hair, Silver Tiara
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), skinMat);
+  head.position.y = 1.75;
+  const hair = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.7, 0.46), hairMat);
+  hair.position.set(0, 1.68, -0.08);
+  const tiara = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.08, 8), silverMat);
+  tiara.position.set(0, 1.96, 0);
+  group.add(head, hair, tiara);
+
+  // Floating Starlight Grimoire in front of her hands
+  const grimoire = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.08, 0.45), bookMat);
+  grimoire.position.set(0, 1.25, 0.45);
+  grimoire.rotation.x = 0.4;
+  const starlight = new THREE.PointLight(0x38bdf8, 1.2, 7);
+  starlight.position.set(0, 1.3, 0.45);
+  group.add(grimoire, starlight);
+
+  return group;
+}
