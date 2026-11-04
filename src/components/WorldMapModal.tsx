@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   X,
   MapPin,
@@ -62,6 +62,23 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
 
   // HUD button state only (updated strictly on gesture settlement or button clicks)
   const [hudScale, setHudScale] = useState<number>(1.0);
+
+  // Filtered Important Markers: Hapus seluruh ikon/pin monster biasa (mob/trash monsters)
+  // Sisakan HANYA pin lokasi utama (Desa, Istana, Benteng, Reruntuhan) dan Boss Raksasa (Titan, Naga Ignis, Cacing Jarrus)
+  const importantMarkers = useMemo(() => {
+    return markers.filter((marker) => {
+      // 1. Hapus seluruh monster biasa / trash mobs
+      if (marker.type === 'enemy') return false;
+
+      // 2. Boss Raksasa (Titan Kuno, Naga Purba Ignis, Cacing Purba Jarrus)
+      if (marker.type === 'boss') return true;
+
+      // 3. Lokasi Utama (Desa, Istana, Benteng, Reruntuhan, Pelabuhan)
+      if (marker.type === 'waypoint' || marker.id.startsWith('landmark_')) return true;
+
+      return false;
+    });
+  }, [markers]);
 
   // Map world coordinate boundaries for projection
   // 2.5x Expanded World bounds: X from -580 to +680 (width 1260), Z from -460 to +460 (height 920)
@@ -750,23 +767,33 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })}
 
-              {/* DYNAMIC MAP MARKERS (NPC, Chests, Bosses) */}
-              {markers.map((marker) => {
+              {/* IMPORTANT MAP MARKERS ONLY (Boss Raksasa & Lokasi Utama) */}
+              {importantMarkers.map((marker) => {
                 const sp = worldToScreen(marker.x, marker.z);
                 if (!sp.visible) return null;
+                const isBoss = marker.type === 'boss';
                 return (
                   <div
                     key={marker.id}
                     style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none"
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-22 pointer-events-none"
                     title={marker.title}
                   >
-                    <div
-                      className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] shadow-md border border-stone-900"
-                      style={{ backgroundColor: marker.color || '#fff' }}
-                    >
-                      {marker.icon || '•'}
-                    </div>
+                    {isBoss ? (
+                      <div className="relative flex items-center justify-center">
+                        <div className="absolute w-5 h-5 rounded-full bg-red-600/40 animate-ping" />
+                        <div className="w-5 h-5 rounded-full bg-red-600 border border-white shadow-xl flex items-center justify-center text-[10px] text-white font-bold drop-shadow">
+                          {marker.icon || '💀'}
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] shadow-md border border-stone-900"
+                        style={{ backgroundColor: marker.color || '#fff' }}
+                      >
+                        {marker.icon || '•'}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1000,7 +1027,10 @@ export const WorldMapModal = React.memo(WorldMapModalComponent, (prev, next) => 
   // If current region or checkpoints changed, re-render
   if (prev.currentRegion.id !== next.currentRegion.id) return false;
   if (prev.unlockedCheckpoints?.length !== next.unlockedCheckpoints?.length) return false;
-  if (prev.markers.length !== next.markers.length) return false;
+  // Ignore trash mob length changes completely (only re-render if important markers change)
+  const prevImp = prev.markers.filter((m) => m.type === 'boss' || m.type === 'waypoint' || m.id.startsWith('landmark_')).length;
+  const nextImp = next.markers.filter((m) => m.type === 'boss' || m.type === 'waypoint' || m.id.startsWith('landmark_')).length;
+  if (prevImp !== nextImp) return false;
   // If player moved only slightly (< 1.2 units), avoid re-rendering entire modal tree during active interaction
   const dPos = Math.hypot(prev.playerPos.x - next.playerPos.x, prev.playerPos.z - next.playerPos.z);
   const dRot = Math.abs(prev.playerPos.rotationY - next.playerPos.rotationY);

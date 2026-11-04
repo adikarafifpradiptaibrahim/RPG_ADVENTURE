@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Map, Navigation } from 'lucide-react';
 import { MapMarker, RegionInfo } from '../types/game';
 import { getContinentBiomeSample } from '../game/mapSampler';
@@ -258,11 +258,17 @@ export const MiniMap: React.FC<MiniMapProps> = ({
     ctx.restore();
   }, [playerPos.x, playerPos.z, playerPos.rotationY, discoveredChunks, radarRadius]);
 
-  // Memoized visible blips calculation to eliminate stutter / re-render overhead when moving in vast zones
-  const visibleBlips = useMemo(() => {
+    /**
+   * updateMinimapIcons():
+   * Membersihkan (clear / filter out) penanda waypoint/quest lama dari wilayah lain
+   * yang tidak lagi aktif saat pemain berpindah wilayah, serta menghapus seluruh mob biasa.
+   */
+  const updateMinimapIcons = useCallback(() => {
     const px = playerPos.x;
     const pz = playerPos.z;
-    const maxDistSq = radarRadius * radarRadius;
+    const maxRadarDist = radarRadius * 0.90; // Batasi sedikit di dalam lingkaran agar tidak nyangkut di bibir minimap
+    const maxDistSq = maxRadarDist * maxRadarDist;
+    const regionId = currentRegion.id;
 
     const blips: {
       id: string;
@@ -276,11 +282,37 @@ export const MiniMap: React.FC<MiniMapProps> = ({
 
     for (let i = 0; i < markers.length; i++) {
       const marker = markers[i];
+
+      // 1. Filter out trash mob / ordinary enemies (hanya boss atau npc/waypoint yang diproses)
+      if (marker.type === 'enemy') continue;
+
+      // 2. Strict distance check: pastikan tidak berada di luar jangkauan radar
       const relX = marker.x - px;
       const relZ = marker.z - pz;
       const distSq = relX * relX + relZ * relZ;
-
       if (distSq > maxDistSq) continue;
+
+      // 3. Filter pin belah ketupat waypoint/quest lama yang nyangkut dari wilayah lain saat pemain berpindah wilayah:
+      if (marker.type === 'waypoint' || marker.type === 'quest') {
+        const mId = marker.id.toLowerCase();
+        // Bila pemain berada di Gurun Solaria, bersihkan seluruh waypoint lama dari Rawa Shadowfen, Astraea, Benteng, dll.
+        if (regionId === 'gurun_solaria') {
+          const isSolaria = mId.includes('solaria') || mId.includes('jarrus');
+          if (!isSolaria && Math.sqrt(distSq) > 30) continue;
+        } else if (regionId === 'desa_eldoria') {
+          const isEldoria = mId.includes('sanctuary') || mId.includes('vael') || mId.includes('village') || mId.includes('harbor');
+          if (!isEldoria && Math.sqrt(distSq) > 30) continue;
+        } else if (regionId === 'benteng_valkragor') {
+          const isValkragor = mId.includes('valkragor');
+          if (!isValkragor && Math.sqrt(distSq) > 30) continue;
+        } else if (regionId.includes('frostpeak') || regionId.includes('astraea') || regionId.includes('gletser')) {
+          const isNorth = mId.includes('astraea') || mId.includes('chasm') || mId.includes('glacier') || mId.includes('frostpeak');
+          if (!isNorth && Math.sqrt(distSq) > 30) continue;
+        } else if (regionId.includes('shadowfen') || regionId.includes('rawa')) {
+          const isShadowfen = mId.includes('shadowfen');
+          if (!isShadowfen && Math.sqrt(distSq) > 30) continue;
+        }
+      }
 
       const percentX = 50 + (relX / radarRadius) * 44;
       const percentY = 50 + (relZ / radarRadius) * 44;
@@ -297,7 +329,9 @@ export const MiniMap: React.FC<MiniMapProps> = ({
     }
 
     return blips;
-  }, [markers, Math.round(playerPos.x * 2) / 2, Math.round(playerPos.z * 2) / 2, radarRadius]);
+  }, [markers, Math.round(playerPos.x * 2) / 2, Math.round(playerPos.z * 2) / 2, radarRadius, currentRegion.id]);
+
+  const visibleBlips = useMemo(() => updateMinimapIcons(), [updateMinimapIcons]);
 
   return (
     <div className="flex flex-col items-end gap-1 select-none pointer-events-none">
@@ -408,10 +442,13 @@ export const MiniMap: React.FC<MiniMapProps> = ({
                   </div>
                 )}
 
-                {/* Waypoint Teleport Pin */}
+                {/* Waypoint Teleport Pin (Pin Belah Ketupat Bersih Sesuai Wilayah) */}
                 {isWaypoint && (
-                  <div className="w-3 h-3 bg-cyan-400 rotate-45 border border-white shadow-lg flex items-center justify-center text-[7px]">
-                    <div className="w-1.5 h-1.5 bg-blue-700" />
+                  <div
+                    className="w-3 h-3 rotate-45 border border-white shadow-lg flex items-center justify-center text-[7px]"
+                    style={{ backgroundColor: marker.color || '#00e5ff' }}
+                  >
+                    <div className="w-1.5 h-1.5 bg-white/90" />
                   </div>
                 )}
 

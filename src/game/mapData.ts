@@ -300,7 +300,7 @@ export const WAYPOINTS: {
     nameId: 'Desa Bazaar Gurun Solaria',
     regionId: 'gurun_solaria',
     icon: '🎪',
-    pos: [-350, 350],
+    pos: [-375, 350],
     desc: 'Pemukiman megah tanah liat, bazaar rempah eksotis, dan sumur oase Solaria',
   },
   {

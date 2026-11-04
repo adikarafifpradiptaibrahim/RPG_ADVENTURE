@@ -7221,3 +7221,133 @@ export function createInstancedDesertPalms(items: InstancedItemTransform[]): THR
   group.add(canopyInstanced);
   return group;
 }
+
+/**
+ * Creates Sandstone Tiered Fortified Battlements & Outer Golden Minarets
+ * encircling the Sultan's Palace compound.
+ */
+export function createDesertPalaceFortressWallMesh(): THREE.Group {
+  const group = new THREE.Group();
+
+  const sandStoneMat = new THREE.MeshLambertMaterial({ color: 0xddb892, flatShading: true });
+  const sandStoneDark = new THREE.MeshLambertMaterial({ color: 0xb5835a, flatShading: true });
+  const goldMat = new THREE.MeshStandardMaterial({
+    color: 0xfbbf24,
+    metalness: 0.85,
+    roughness: 0.2,
+    emissive: 0xd97706,
+    emissiveIntensity: 0.25,
+  });
+
+  // 1. West Curtain Wall (Rear of Palace: X = -436, Z from 326 to 374)
+  const westWall = new THREE.Mesh(new THREE.BoxGeometry(2.4, 6.0, 48), sandStoneMat);
+  westWall.position.set(-436, 3.0, 350);
+  westWall.receiveShadow = true;
+  group.add(westWall);
+
+  // West Wall Crenellations
+  for (let z = 328; z <= 372; z += 4) {
+    const cren = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.2, 2.0), sandStoneDark);
+    cren.position.set(-436, 6.6, z);
+    group.add(cren);
+  }
+
+  // 2. North Curtain Wall (Z = 374, X from -436 to -394, length 42)
+  const northWall = new THREE.Mesh(new THREE.BoxGeometry(42, 6.0, 2.4), sandStoneMat);
+  northWall.position.set(-415, 3.0, 374);
+  northWall.receiveShadow = true;
+  group.add(northWall);
+
+  for (let x = -434; x <= -396; x += 4) {
+    const cren = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.2, 2.6), sandStoneDark);
+    cren.position.set(x, 6.6, 374);
+    group.add(cren);
+  }
+
+  // 3. South Curtain Wall (Z = 326, X from -436 to -394, length 42)
+  const southWall = new THREE.Mesh(new THREE.BoxGeometry(42, 6.0, 2.4), sandStoneMat);
+  southWall.position.set(-415, 3.0, 326);
+  southWall.receiveShadow = true;
+  group.add(southWall);
+
+  for (let x = -434; x <= -396; x += 4) {
+    const cren = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.2, 2.6), sandStoneDark);
+    cren.position.set(x, 6.6, 326);
+    group.add(cren);
+  }
+
+  // 4. Four Outer Golden Minaret Bastions at Wall Corners
+  const corners = [
+    { x: -436, z: 326 },
+    { x: -436, z: 374 },
+    { x: -394, z: 326 },
+    { x: -394, z: 374 },
+  ];
+
+  corners.forEach((c) => {
+    // Bastion Plinth
+    const bBase = new THREE.Mesh(new THREE.BoxGeometry(5.0, 7.5, 5.0), sandStoneMat);
+    bBase.position.set(c.x, 3.75, c.z);
+    group.add(bBase);
+
+    // Minaret Shaft
+    const mShaft = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.5, 12, 8), sandStoneMat);
+    mShaft.position.set(c.x, 13.5, c.z);
+    group.add(mShaft);
+
+    // Minaret Balcony
+    const mBalc = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 1.6, 1.2, 8), sandStoneDark);
+    mBalc.position.set(c.x, 19.5, c.z);
+    group.add(mBalc);
+
+    // Golden Onion Dome Spire
+    const mDome = new THREE.Mesh(new THREE.SphereGeometry(1.6, 10, 8), goldMat);
+    mDome.scale.set(1.0, 1.45, 1.0);
+    mDome.position.set(c.x, 21.6, c.z);
+    group.add(mDome);
+
+    // Crescent Finial Spire
+    const finial = new THREE.Mesh(new THREE.ConeGeometry(0.3, 2.2, 4), goldMat);
+    finial.position.set(c.x, 24.2, c.z);
+    group.add(finial);
+  });
+
+  return group;
+}
+
+/**
+ * Creates a visible Paved Sandstone Road linking the Palace and Desert Village.
+ */
+export function createDesertPavedRoadMesh(startX = -400, endX = -354, z = 350, width = 6.5): THREE.Group {
+  const group = new THREE.Group();
+  const length = Math.abs(endX - startX);
+  const centerX = (startX + endX) / 2;
+
+  // Main flagstone pavement
+  const roadMat = new THREE.MeshStandardMaterial({
+    color: 0xdeb887,
+    roughness: 0.85,
+    metalness: 0.05,
+  });
+  const borderMat = new THREE.MeshLambertMaterial({
+    color: 0xa87948,
+    flatShading: true,
+  });
+
+  const roadPlane = new THREE.Mesh(new THREE.PlaneGeometry(length, width), roadMat);
+  roadPlane.rotation.x = -Math.PI / 2;
+  roadPlane.position.set(centerX, 0.02, z);
+  roadPlane.receiveShadow = true;
+  group.add(roadPlane);
+
+  // Kerb borders on North and South sides
+  const northKerb = new THREE.Mesh(new THREE.BoxGeometry(length, 0.22, 0.4), borderMat);
+  northKerb.position.set(centerX, 0.1, z + width / 2);
+  group.add(northKerb);
+
+  const southKerb = new THREE.Mesh(new THREE.BoxGeometry(length, 0.22, 0.4), borderMat);
+  southKerb.position.set(centerX, 0.1, z - width / 2);
+  group.add(southKerb);
+
+  return group;
+}

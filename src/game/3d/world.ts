@@ -49,6 +49,8 @@ import {
   createDesertMudBrickHouseMesh,
   createDesertPalaceMesh,
   createTajMahalPalaceMesh,
+  createDesertPalaceFortressWallMesh,
+  createDesertPavedRoadMesh,
   createReflectingPoolMesh,
   createDesertOilLanternMesh,
   createThroneRoomInteriorMesh,
@@ -311,9 +313,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     if (x >= 174 && x <= 186 && z >= -340 && z <= -300) return 4.6; // Frozen Chasm ice bridge
 
     // 4b. Solaria Desert Village Bazaar & Grand Palace (Taj Mahal) Courtyard Plateau (y = 2.4)
-    if (Math.hypot(x - -350, z - 350) <= 48) return 2.4;
+    if (Math.hypot(x - -375, z - 350) <= 38) return 2.4;
     if (Math.hypot(x - -415, z - 350) <= 32) return 2.4;
-    if (x >= -435 && x <= -340 && Math.abs(z - 350) <= 22) return 2.4;
+    if (x >= -445 && x <= -345 && Math.abs(z - 350) <= 32) return 2.4;
 
     // 5. Exact rendered polygon surface
     return getMeshSurfaceHeight(x, z);
@@ -1675,16 +1677,16 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   scene.add(pyramidPalmsMesh);
 
     // ------------------------------------------
-  // 5B. RELOCATED DESA & GRAND TAJ MAHAL PALACE OF SOLARIA
-  // Center Village Bazaar: [-350, 350], Taj Mahal Palace: [-415, 350] (65 unit separation)
-  // Enterable Throne Room interior cell at [-415, -25, 350]
+  // 5B. GRAND SULTAN SOLARIA PALACE & DESA BAZAAR GURUN
+  // Palace Center: [-415, 350], Village Center: [-375, 350] (Ideal 40 unit separation)
+  // Fortified sandstone battlements, golden minarets, fountain courtyard & clear paved road
   // ------------------------------------------
   const solariaBaseY = 2.4;
 
   // 1. Grand Taj Mahal Palace of Sultan Solaria (West End: [-415, 350])
   const solariaPalace = createTajMahalPalaceMesh();
   solariaPalace.position.set(-415, solariaBaseY, 350);
-  solariaPalace.rotation.y = Math.PI * 1.5; // Menghadap lurus ke Timur (arah jalan promenade & kolam pantul)
+  solariaPalace.rotation.y = Math.PI * 1.5; // Menghadap lurus ke Timur (ke arah pelataran & desa)
   scene.add(solariaPalace);
   colliders.push({
     type: 'box',
@@ -1699,33 +1701,48 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   colliders.push({ type: 'circle', x: -399, z: 334, radius: 2.2, label: 'Menara Minaret Timur Laut' });
   colliders.push({ type: 'circle', x: -399, z: 366, radius: 2.2, label: 'Menara Minaret Tenggara' });
 
-  // 2. Kolam Air Mancur Pantul Kerajaan (Reflecting Pool: [-382, 350])
-  const reflectingPool = createReflectingPoolMesh(28, 8);
-  reflectingPool.position.set(-382, solariaBaseY, 350);
+  // 1b. Pagar Benteng Batu Pasir Bertingkat & 4 Menara Minaret Emas Luar
+  const palaceWalls = createDesertPalaceFortressWallMesh();
+  palaceWalls.position.set(0, solariaBaseY, 0);
+  scene.add(palaceWalls);
+  colliders.push({ type: 'box', minX: -438, maxX: -434, minZ: 324, maxZ: 376, label: 'Benteng Barat Istana Solaria' });
+  colliders.push({ type: 'box', minX: -438, maxX: -392, minZ: 372, maxZ: 376, label: 'Benteng Utara Istana Solaria' });
+  colliders.push({ type: 'box', minX: -438, maxX: -392, minZ: 324, maxZ: 328, label: 'Benteng Selatan Istana Solaria' });
+  colliders.push({ type: 'circle', x: -436, z: 326, radius: 2.5, label: 'Minaret Benteng Barat Daya' });
+  colliders.push({ type: 'circle', x: -436, z: 374, radius: 2.5, label: 'Minaret Benteng Barat Laut' });
+  colliders.push({ type: 'circle', x: -394, z: 326, radius: 2.5, label: 'Minaret Benteng Tenggara' });
+  colliders.push({ type: 'circle', x: -394, z: 374, radius: 2.5, label: 'Minaret Benteng Timur Laut' });
+
+  // 2. Pelataran Air Mancur Kerajaan (Fountain Promenade Courtyard: [-388, 350])
+  const reflectingPool = createReflectingPoolMesh(16, 7);
+  reflectingPool.position.set(-388, solariaBaseY, 350);
   scene.add(reflectingPool);
   colliders.push({
     type: 'box',
     minX: -396,
-    maxX: -368,
+    maxX: -380,
     minZ: 346.5,
     maxZ: 353.5,
-    label: 'Kolam Air Mancur Pantul Istana Solaria',
+    label: 'Kolam Air Mancur Pelataran Istana Solaria',
   });
+
+  // 2b. Jalan Setapak Batu Pasir yang Jelas (Paved Sandstone Processional Road)
+  const pavedRoad = createDesertPavedRoadMesh(-398, -354, 350, 6.5);
+  pavedRoad.position.set(0, solariaBaseY, 0);
+  scene.add(pavedRoad);
 
   // Grand Promenade Date Palms & Brass Desert Oil Lanterns (Along North & South Walkways)
   const causewayItems = [
-    // North side promenade (Z = 344)
-    { type: 'palm', x: -402, z: 343 },
-    { type: 'lantern', x: -392, z: 344 },
-    { type: 'palm', x: -382, z: 343 },
-    { type: 'lantern', x: -372, z: 344 },
-    { type: 'palm', x: -362, z: 343 },
-    // South side promenade (Z = 356)
-    { type: 'palm', x: -402, z: 357 },
-    { type: 'lantern', x: -392, z: 356 },
-    { type: 'palm', x: -382, z: 357 },
-    { type: 'lantern', x: -372, z: 356 },
-    { type: 'palm', x: -362, z: 357 },
+    // North side walkway (Z = 344)
+    { type: 'palm', x: -400, z: 344 },
+    { type: 'lantern', x: -394, z: 344 },
+    { type: 'palm', x: -388, z: 344 },
+    { type: 'lantern', x: -382, z: 344 },
+    // South side walkway (Z = 356)
+    { type: 'palm', x: -400, z: 356 },
+    { type: 'lantern', x: -394, z: 356 },
+    { type: 'palm', x: -388, z: 356 },
+    { type: 'lantern', x: -382, z: 356 },
   ];
 
   causewayItems.forEach((item, idx) => {
@@ -1808,9 +1825,132 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     icon: '🛡️',
   });
 
+  // 4. Sumur Batu Oase Pusat Alun-Alun Desa (Center: [-375, 350])
+  const desertWell = createDesertOasisWellMesh();
+  desertWell.position.set(-375, solariaBaseY, 350);
+  scene.add(desertWell);
+  colliders.push({
+    type: 'circle',
+    x: -375,
+    z: 350,
+    radius: 2.1,
+    label: 'Sumur Oase Solaria',
+  });
+
+  // Clustered Date Palms around Central Well
+  const townPalmOffsets = [
+    { x: -379, z: 346 },
+    { x: -371, z: 346 },
+    { x: -379, z: 354 },
+    { x: -371, z: 354 },
+  ];
+  townPalmOffsets.forEach((tpo, idx) => {
+    const palm = createDesertPalmMesh();
+    palm.position.set(tpo.x, solariaBaseY, tpo.z);
+    palm.rotation.y = idx * 1.57;
+    scene.add(palm);
+    colliders.push({ type: 'circle', x: tpo.x, z: tpo.z, radius: 0.65, label: 'Pohon Kurma Alun-Alun Solaria' });
+  });
+
+  // 5. Rumah-Rumah Tanah Liat Khas Gurun (Mud-Brick Adobe Houses)
+  // House 1: Two-Tier Villa (North Flank: [-382, 335])
+  const adobeHouse1 = createDesertMudBrickHouseMesh(1);
+  adobeHouse1.position.set(-382, solariaBaseY, 335);
+  adobeHouse1.rotation.y = 0;
+  scene.add(adobeHouse1);
+  colliders.push({
+    type: 'box',
+    minX: -386,
+    maxX: -378,
+    minZ: 331,
+    maxZ: 339,
+    label: 'Rumah Bertingkat Gurun 1',
+  });
+
+  // House 2: Merchant Adobe (North Flank: [-368, 335])
+  const adobeHouse2 = createDesertMudBrickHouseMesh(2);
+  adobeHouse2.position.set(-368, solariaBaseY, 335);
+  adobeHouse2.rotation.y = 0;
+  scene.add(adobeHouse2);
+  colliders.push({
+    type: 'box',
+    minX: -372,
+    maxX: -364,
+    minZ: 331,
+    maxZ: 339,
+    label: 'Rumah Saudagar Gurun 2',
+  });
+
+  // House 3: Traditional Mud-Brick (South Flank: [-382, 365])
+  const adobeHouse3 = createDesertMudBrickHouseMesh(0);
+  adobeHouse3.position.set(-382, solariaBaseY, 365);
+  adobeHouse3.rotation.y = Math.PI;
+  scene.add(adobeHouse3);
+  colliders.push({
+    type: 'box',
+    minX: -386,
+    maxX: -378,
+    minZ: 361,
+    maxZ: 369,
+    label: 'Rumah Tanah Liat Gurun 3',
+  });
+
+  // House 4: Traditional Mud-Brick (South Flank: [-368, 365])
+  const adobeHouse4 = createDesertMudBrickHouseMesh(0);
+  adobeHouse4.position.set(-368, solariaBaseY, 365);
+  adobeHouse4.rotation.y = Math.PI;
+  scene.add(adobeHouse4);
+  colliders.push({
+    type: 'box',
+    minX: -372,
+    maxX: -364,
+    minZ: 361,
+    maxZ: 369,
+    label: 'Rumah Tanah Liat Gurun 4',
+  });
+
+  // 6. Pasar Bazaar Gurun Solaria (Bazaar Stalls with Spices, Silks, Pottery)
+  const bazaarStall1 = createDesertBazaarStallMesh(0xd97706, 0xfef08a); // Saffron & Spices
+  bazaarStall1.position.set(-376, solariaBaseY, 342);
+  bazaarStall1.rotation.y = 0;
+  scene.add(bazaarStall1);
+  colliders.push({ type: 'box', minX: -378, maxX: -374, minZ: 341, maxZ: 343, label: 'Kios Rempah Solaria' });
+
+  const bazaarStall2 = createDesertBazaarStallMesh(0x9333ea, 0xfbbf24); // Persian Silks & Relics
+  bazaarStall2.position.set(-372, solariaBaseY, 342);
+  bazaarStall2.rotation.y = 0;
+  scene.add(bazaarStall2);
+  colliders.push({ type: 'box', minX: -374, maxX: -370, minZ: 341, maxZ: 343, label: 'Kios Karpet Solaria' });
+
+  const bazaarStall3 = createDesertBazaarStallMesh(0x059669, 0xa7f3d0); // Pottery & Dates
+  bazaarStall3.position.set(-376, solariaBaseY, 358);
+  bazaarStall3.rotation.y = Math.PI;
+  scene.add(bazaarStall3);
+  colliders.push({ type: 'box', minX: -378, maxX: -374, minZ: 357, maxZ: 359, label: 'Kios Tembikar Solaria' });
+
+  const bazaarStall4 = createDesertBazaarStallMesh(0xb91c1c, 0xfde047); // Desert Leather & Armor
+  bazaarStall4.position.set(-372, solariaBaseY, 358);
+  bazaarStall4.rotation.y = Math.PI;
+  scene.add(bazaarStall4);
+  colliders.push({ type: 'box', minX: -374, maxX: -370, minZ: 357, maxZ: 359, label: 'Kios Baju Zirah Gurun' });
+
+  // 7. Kemah-Kemah Kain Khas Gurun (Bedouin Fabric Tents: East Outskirts of Village)
+  const desertTent1 = createDesertTentMesh(0x991b1b);
+  desertTent1.position.set(-362, solariaBaseY, 344);
+  desertTent1.rotation.y = 0.35;
+  scene.add(desertTent1);
+  colliders.push({ type: 'circle', x: -362, z: 344, radius: 2.8, label: 'Kemah Sutra Gurun 1' });
+
+  const desertTent2 = createDesertTentMesh(0x047857);
+  desertTent2.position.set(-362, solariaBaseY, 356);
+  desertTent2.rotation.y = -0.35;
+  scene.add(desertTent2);
+  colliders.push({ type: 'circle', x: -362, z: 356, radius: 2.8, label: 'Kemah Sutra Gurun 2' });
+
+  // 8. Solaria Village NPCs (Pedagang, Gadis Air, Penenun, Prajurit Gerbang)
   // Tariq Sang Saudagar Rempah (Inside Bazaar Stall 1)
   const tariqGroup = createCustomNPCMesh('alchemist');
-  const tariqPos: [number, number, number] = [-352, solariaBaseY, 340.2];
+  const tariqPos: [number, number, number] = [-376, solariaBaseY, 340.5];
   tariqGroup.position.set(...tariqPos);
   tariqGroup.rotation.y = 0;
   scene.add(tariqGroup);
@@ -1828,7 +1968,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // Amina Gadis Pembawa Air Oase (Standing by Central Well)
   const aminaGroup = createCustomNPCMesh('villager');
-  const aminaPos: [number, number, number] = [-352, solariaBaseY, 348];
+  const aminaPos: [number, number, number] = [-376, solariaBaseY, 348];
   aminaGroup.position.set(...aminaPos);
   aminaGroup.rotation.y = 0;
   scene.add(aminaGroup);
@@ -1846,7 +1986,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // Zahra Penenun Sutra (Inside Tent 1)
   const zahraGroup = createCustomNPCMesh('bard');
-  const zahraPos: [number, number, number] = [-334, solariaBaseY, 345];
+  const zahraPos: [number, number, number] = [-362, solariaBaseY, 344];
   zahraGroup.position.set(...zahraPos);
   zahraGroup.rotation.y = Math.PI * 1.5;
   scene.add(zahraGroup);
@@ -1862,11 +2002,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     icon: '🧕',
   });
 
-  // Prajurit Gurun Solaria (Outside East Entrance)
+  // Prajurit Gurun Solaria (Outside East Entrance: [-356, 350])
   const sGuardGroup = createCustomNPCMesh('guard');
-  const sGuardPos: [number, number, number] = [-328, solariaBaseY, 350];
+  const sGuardPos: [number, number, number] = [-356, solariaBaseY, 350];
   sGuardGroup.position.set(...sGuardPos);
-  sGuardGroup.rotation.y = Math.PI * 0.5; // Menghadap Timur ke arah padang pasir luar
+  sGuardGroup.rotation.y = Math.PI * 0.5; // Menghadap Timur ke arah padang pasir luas
   scene.add(sGuardGroup);
   npcs.push({
     id: 'guard_solaria',
