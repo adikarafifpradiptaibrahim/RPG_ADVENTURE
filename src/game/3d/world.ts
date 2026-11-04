@@ -38,7 +38,6 @@ import {
   createImperialPalaceMesh,
   createImperialFountainMesh,
   createImperialGatehouseMesh,
-  createCheckpointMonumentMesh,
   createImperialWallMesh,
   createImperialBazaarStallMesh,
   createCherryBlossomTreeMesh,
@@ -100,14 +99,14 @@ export interface WorldCheckpoint {
   id: string;
   name: string;
   nameId: string;
-  group: THREE.Group;
-  crystal: THREE.Mesh;
-  auraRings: THREE.Mesh[];
-  light: THREE.PointLight;
-  beacon: THREE.Mesh;
+  group?: THREE.Group;
+  crystal?: THREE.Mesh;
+  auraRings?: THREE.Mesh[];
+  light?: THREE.PointLight;
+  beacon?: THREE.Mesh;
   position: [number, number, number];
   unlocked: boolean;
-  setUnlocked: (unlocked: boolean) => void;
+  setUnlocked?: (unlocked: boolean) => void;
 }
 
 export interface WorldObjects {
@@ -2415,33 +2414,15 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     },
   ];
 
+  // Invisible Checkpoint & Fast Travel Destination Metadata (No 3D Meshes Spawned)
   CHECKPOINT_DEFINITIONS.forEach((cpDef) => {
     const cy = getTerrainHeight(cpDef.pos[0], cpDef.pos[1]);
-    const { group, crystal, auraRings, light, beacon, setUnlocked } = createCheckpointMonumentMesh(false);
-    group.position.set(cpDef.pos[0], cy, cpDef.pos[1]);
-    scene.add(group);
-
-    // Solid collision for base
-    colliders.push({
-      type: 'circle',
-      x: cpDef.pos[0],
-      z: cpDef.pos[1],
-      radius: 1.6,
-      label: 'checkpoint_' + cpDef.id,
-    });
-
     checkpoints.push({
       id: cpDef.id,
       name: cpDef.name,
       nameId: cpDef.nameId,
-      group,
-      crystal,
-      auraRings,
-      light,
-      beacon,
       position: [cpDef.pos[0], cy, cpDef.pos[1]],
       unlocked: false,
-      setUnlocked,
     });
   });
 

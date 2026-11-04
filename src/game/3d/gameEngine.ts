@@ -105,6 +105,50 @@ export interface GameEngineCallbacks {
   }) => void;
 }
 
+interface TownZoneTrigger {
+  id: string;
+  waypointId: string;
+  name: string;
+  x: number;
+  z: number;
+  radius: number;
+  respawnX: number;
+  respawnZ: number;
+}
+
+const TOWN_ZONES: TownZoneTrigger[] = [
+  {
+    id: 'town_sanctuary',
+    waypointId: 'wp_village',
+    name: 'Desa Utama Sanctuary',
+    x: 0,
+    z: 0,
+    radius: 42,
+    respawnX: 0,
+    respawnZ: 4,
+  },
+  {
+    id: 'town_valkragor',
+    waypointId: 'wp_valkragor',
+    name: 'Benteng Val-Kragor',
+    x: 158,
+    z: -16,
+    radius: 40,
+    respawnX: 156,
+    respawnZ: -12,
+  },
+  {
+    id: 'town_astraea',
+    waypointId: 'wp_astraea',
+    name: 'Ibukota Kerajaan Emas Astraea',
+    x: 180,
+    z: -260,
+    radius: 45,
+    respawnX: 164,
+    respawnZ: -255,
+  },
+];
+
 export class GameEngine {
   private container: HTMLElement;
   private scene: THREE.Scene;
@@ -196,7 +240,10 @@ export class GameEngine {
     lifetime: number;
     damage: number;
     isCrit: boolean;
-    vfxType: 'arcane_bolt' | 'hunter_arrow' | 'hunter_arrow_rain';
+    vfxType: 'arcane_bolt' | 'hunter_arrow' | 'hunter_arrow_rain' | 'titan_boulder';
+    isHostile?: boolean;
+    blastRadius?: number;
+    rotationAxis?: THREE.Vector3;
   }[] = [];
 
   // Camera Orbit
@@ -249,6 +296,7 @@ export class GameEngine {
     isReturning?: boolean;
     deathTimer?: number;
     leashRadius?: number;
+    attackAnimTimer?: number;
   }[] = [];
 
   // Active 3D Physical Loot Pickups (Materials & Items dropped by defeated monsters)
@@ -310,6 +358,9 @@ export class GameEngine {
         onSpawnSparks: (pos, color, count, speed) => {
           this.spawnSparks(pos, color, count, speed);
         },
+        onSpawnBoulderProjectile: (fromPos, toPos, damage) => {
+          this.spawnTitanBoulderProjectile(fromPos, toPos, damage);
+        },
         onPlayerDeath: () => {
           this.respawnPlayerAtLastVisitedTown();
         },
@@ -335,7 +386,7 @@ export class GameEngine {
       this.world.checkpoints.forEach((cp) => {
         if (this.unlockedCheckpoints.has(cp.id)) {
           cp.unlocked = true;
-          cp.setUnlocked(true);
+          if (cp.setUnlocked) cp.setUnlocked(true);
         }
       });
     }
@@ -1403,7 +1454,7 @@ export class GameEngine {
   public unlockCheckpoint(cp: WorldCheckpoint) {
     this.unlockedCheckpoints.add(cp.id);
     cp.unlocked = true;
-    cp.setUnlocked(true);
+    if (cp.setUnlocked) cp.setUnlocked(true);
     try {
       localStorage.setItem(
         'eldoria_unlocked_checkpoints',
@@ -1411,7 +1462,7 @@ export class GameEngine {
       );
     } catch {}
     soundManager.playCheckpointUnlock();
-    this.callbacks.onAddFloatingText(`🌟 Checkpoint Wilayah Terbuka: ${cp.nameId}!`, '#00e5ff', 'crit');
+    this.callbacks.onAddFloatingText(`🌟 Wilayah Terbuka: ${cp.nameId}!`, '#00e5ff', 'crit');
     if (this.callbacks.onCheckpointUnlocked) {
       this.callbacks.onCheckpointUnlocked(cp.id, cp.nameId, [cp.position[0], cp.position[2]]);
     }
@@ -3690,37 +3741,6 @@ export class GameEngine {
     }
 
     // Check Chests distance
-    // Check nearby Checkpoint Monuments (radius <= 14.0 for town respawn binding, <= 5.0 for unlock/prompt)
-    if (this.world.checkpoints) {
-      for (const cp of this.world.checkpoints) {
-        const dist = Math.hypot(this.playerPos.x - cp.position[0], this.playerPos.z - cp.position[2]);
-
-        // Auto-save last visited town / checkpoint location for accurate respawn
-        if (dist <= 14.0 && this.lastVisitedTownPos.id !== cp.id) {
-          this.lastVisitedTownPos = {
-            id: cp.id,
-            x: cp.position[0],
-            y: cp.position[1],
-            z: cp.position[2],
-            name: cp.nameId,
-          };
-          try {
-            localStorage.setItem('eldoria_last_visited_town', JSON.stringify(this.lastVisitedTownPos));
-          } catch {}
-          this.callbacks.onAddFloatingText(`📍 Titik Respawn Disimpan: ${cp.nameId}`, '#38bdf8', 'info');
-        }
-
-        if (dist <= 5.0) {
-          if (!this.unlockedCheckpoints.has(cp.id)) {
-            this.unlockCheckpoint(cp);
-          } else {
-            this.callbacks.onNearbyPrompt('📍 Checkpoint ' + cp.nameId + ' Aktif (Tekan [M] untuk Teleportasi)');
-            return;
-          }
-        }
-      }
-    }
-
     for (const chest of this.world.chests) {
       if (!chest.opened) {
         const dist = this.playerPos.distanceTo(
@@ -4006,6 +4026,9 @@ export class GameEngine {
         });
       });
     }
+
+    // Automatic Invisible Town Zone Trigger (Sanctuary, Val-Kragor, Astraea auto-respawn and map waypoint unlock)
+    this.checkInvisibleTownZones();
 
     // Check quest discovery for Grand Imperial Kingdom of Astraea (North Frostpeak)
     if (nextX >= 140 && nextX <= 220 && nextZ <= -225 && nextZ >= -295) {
@@ -4479,11 +4502,27 @@ export class GameEngine {
 
           enemy.walkCycle += delta * 6;
           this.animateEnemyWalk(enemy, delta);
+
+        // Monster attack lunge / arm swing animation
+        if (enemy.attackAnimTimer && enemy.attackAnimTimer > 0) {
+          enemy.attackAnimTimer -= delta;
+          const animProgress = Math.sin((1 - Math.max(0, enemy.attackAnimTimer / 0.35)) * Math.PI);
+          if (enemy.parts?.rightArm) {
+            enemy.parts.rightArm.rotation.x = -Math.PI * 0.75 * animProgress;
+          }
+          if (enemy.parts?.leftArm) {
+            enemy.parts.leftArm.rotation.x = 0.25 * animProgress;
+          }
+          if (enemy.data.type === 'slime' || enemy.data.type === 'magma_slime') {
+            enemy.mesh.scale.set(1 + animProgress * 0.35, 1 - animProgress * 0.3, 1 + animProgress * 0.35);
+          }
+        }
         } else {
-          // Serang player sesuai cooldown
+          // Serang player sesuai cooldown (1.5 detik untuk monster biasa)
           enemy.attackCooldown -= delta;
           if (enemy.attackCooldown <= 0) {
-            enemy.attackCooldown = 1.4;
+            enemy.attackCooldown = 1.5;
+            enemy.attackAnimTimer = 0.35; // Trigger monster attack swing / lunge
             this.enemyAttackPlayer(enemy);
           }
         }
@@ -4616,6 +4655,133 @@ export class GameEngine {
       activeBoss ? activeBoss.hp : undefined,
       activeBoss ? activeBoss.maxHp : undefined
     );
+  }
+
+  /**
+   * Automatic Invisible Town Zone Trigger
+   * When player enters Sanctuary (0,0), Val-Kragor (158,-16), or Astraea (180,-260) radius <= 40-45 units,
+   * automatically sets and saves lastVisitedTownPos without requiring physical 3D monuments or interactions.
+   * Also unlocks regional fast-travel waypoints on the World Map.
+   */
+  private checkInvisibleTownZones() {
+    const pX = this.playerPos.x;
+    const pZ = this.playerPos.z;
+
+    for (const town of TOWN_ZONES) {
+      const dist = Math.hypot(pX - town.x, pZ - town.z);
+      if (dist <= town.radius) {
+        if (this.lastVisitedTownPos.id !== town.id) {
+          this.lastVisitedTownPos = {
+            id: town.id,
+            x: town.respawnX,
+            y: Math.max(0.5, this.world.getTerrainHeight(town.respawnX, town.respawnZ) + 0.5),
+            z: town.respawnZ,
+            name: town.name,
+          };
+          try {
+            localStorage.setItem('eldoria_last_visited_town', JSON.stringify(this.lastVisitedTownPos));
+          } catch {}
+          this.callbacks.onAddFloatingText(`📍 Titik Respawn Disimpan: ${town.name}`, '#38bdf8', 'info');
+        }
+
+        // Auto-unlock waypoint for fast travel on map
+        if (!this.unlockedCheckpoints.has(town.waypointId)) {
+          this.unlockedCheckpoints.add(town.waypointId);
+          try {
+            localStorage.setItem(
+              'eldoria_unlocked_checkpoints',
+              JSON.stringify(Array.from(this.unlockedCheckpoints))
+            );
+          } catch {}
+          soundManager.playCheckpointUnlock();
+          this.callbacks.onAddFloatingText(`🌟 Wilayah Terbuka: ${town.name}!`, '#00e5ff', 'crit');
+          if (this.callbacks.onCheckpointUnlocked) {
+            this.callbacks.onCheckpointUnlocked(town.waypointId, town.name, [town.respawnX, town.respawnZ]);
+          }
+        }
+        break;
+      }
+    }
+
+    // Also auto-unlock exploration regional waypoints on map when player visits them (dist <= 22)
+    if (this.world.checkpoints) {
+      for (const cp of this.world.checkpoints) {
+        const dist = Math.hypot(pX - cp.position[0], pZ - cp.position[2]);
+        if (dist <= 22.0 && !this.unlockedCheckpoints.has(cp.id)) {
+          this.unlockCheckpoint(cp);
+        }
+      }
+    }
+  }
+
+  // 3D Red and Yellow Arc Line slash visual effect hitting player position
+  private spawnEnemySlashVfx(enemyPos: THREE.Vector3, targetPos: THREE.Vector3) {
+    const dir = new THREE.Vector3(targetPos.x - enemyPos.x, 0, targetPos.z - enemyPos.z).normalize();
+    if (dir.lengthSq() < 0.001) dir.set(0, 0, 1);
+    const slashPos = new THREE.Vector3(
+      targetPos.x - dir.x * 0.35,
+      targetPos.y + 0.85,
+      targetPos.z - dir.z * 0.35
+    );
+    // Red razor arc tilted -0.42 rad
+    this.spawnCrescentSlash(slashPos, dir, -0.42, 0xff1744, 1.45, Math.PI * 0.85);
+    // Yellow secondary incandescent arc tilted +0.38 rad
+    this.spawnCrescentSlash(slashPos, dir, 0.38, 0xffd600, 1.25, Math.PI * 0.75);
+    // Impact cutting sparks
+    this.spawnSparks(slashPos, 0xff1744, 10, 4.2);
+    this.spawnSparks(slashPos, 0xffd600, 6, 3.5);
+  }
+
+  // Spawn flying 3D stone boulder projectile for Titan's Rock Boulder Throw skill
+  private spawnTitanBoulderProjectile(origin: THREE.Vector3, target: THREE.Vector3, damage = 32) {
+    const group = new THREE.Group();
+    group.position.copy(origin);
+
+    // Irregular rocky boulder mesh
+    const rockGeo = new THREE.DodecahedronGeometry(0.9, 1);
+    const rockMat = new THREE.MeshStandardMaterial({
+      color: 0x292524,
+      roughness: 0.9,
+      metalness: 0.1,
+    });
+    const rockMesh = new THREE.Mesh(rockGeo, rockMat);
+    group.add(rockMesh);
+
+    // Glowing magma core / embers inside the boulder
+    const coreGeo = new THREE.IcosahedronGeometry(0.65, 1);
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0xff5722,
+      wireframe: true,
+    });
+    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+    group.add(coreMesh);
+
+    // Magma light
+    const light = new THREE.PointLight(0xff5722, 1.8, 6.0);
+    group.add(light);
+
+    this.scene.add(group);
+
+    // Aim towards target
+    const dir = new THREE.Vector3().subVectors(target, origin).normalize();
+    const rotAxis = new THREE.Vector3(
+      Math.random() - 0.5,
+      Math.random() - 0.5,
+      Math.random() - 0.5
+    ).normalize();
+
+    this.activeProjectiles.push({
+      object: group,
+      direction: dir,
+      speed: 22.0,
+      lifetime: 2.5,
+      damage,
+      isCrit: false,
+      vfxType: 'titan_boulder',
+      isHostile: true,
+      blastRadius: 3.2,
+      rotationAxis: rotAxis,
+    });
   }
 
   private enemyAttackPlayer(enemy: (typeof this.enemies)[0]) {
@@ -4791,13 +4957,53 @@ export class GameEngine {
       }
     }
 
-    // Update active projectiles (e.g. Mage Arcane Bolt)
+    // Update active projectiles (e.g. Mage Arcane Bolt & Titan Rock Boulder)
     for (let i = this.activeProjectiles.length - 1; i >= 0; i--) {
       const proj = this.activeProjectiles[i];
       proj.lifetime -= delta;
       proj.object.position.addScaledVector(proj.direction, proj.speed * delta);
 
-      // Check collision against enemies
+      if (proj.isHostile) {
+        if (proj.rotationAxis) {
+          proj.object.rotateOnAxis(proj.rotationAxis, delta * 8);
+        }
+        const distToPlayer = proj.object.position.distanceTo(this.playerPos);
+        const groundY = this.world.getTerrainHeight(proj.object.position.x, proj.object.position.z);
+        const hitGround = proj.object.position.y <= groundY + 0.5;
+
+        if (distToPlayer <= (proj.blastRadius || 2.4) || hitGround || proj.lifetime <= 0) {
+          const hitPos = proj.object.position.clone();
+          hitPos.y = groundY + 0.15;
+          this.spawnShockwaveRing(hitPos, 0xff5722, 4.5, 0.4);
+          this.spawnSparks(hitPos, 0x44403c, 16, 5.0);
+          this.spawnSparks(hitPos, 0xff7a00, 14, 4.5);
+          soundManager.playTitanGroundSlam();
+          this.triggerCameraShake(0.75);
+
+          if (distToPlayer <= (proj.blastRadius || 3.2)) {
+            this.callbacks.onUpdateStats((stats) => {
+              const finalDmg = Math.max(5, proj.damage - Math.round(stats.baseDefense * 0.5));
+              const nextHp = Math.max(0, stats.hp - finalDmg);
+              this.callbacks.onAddFloatingText(`-${finalDmg} HP (Bongkahan Batu)`, '#ff1744', 'damage');
+              if (nextHp <= 0) {
+                this.respawnPlayerAtLastVisitedTown();
+                return { ...stats, hp: stats.maxHp, mp: stats.maxMp, gold: Math.max(0, stats.gold - 10) };
+              }
+              return { ...stats, hp: nextHp };
+            });
+            const knockDir = new THREE.Vector3(this.playerPos.x - hitPos.x, 0, this.playerPos.z - hitPos.z).normalize();
+            this.playerVel.x += knockDir.x * 14.0;
+            this.playerVel.z += knockDir.z * 14.0;
+            this.callbacks.onAddFloatingText('💨 TERPENTAL (KNOCKBACK)!', '#ff9100', 'info');
+          }
+
+          this.scene.remove(proj.object);
+          this.activeProjectiles.splice(i, 1);
+          continue;
+        }
+      }
+
+      // Check collision against enemies (Player projectiles)
       let hit = false;
       for (const enemy of this.enemies) {
         if (enemy.data.isDead) continue;
@@ -4831,17 +5037,7 @@ export class GameEngine {
     // Global animation time for world elements & props
     const elapsed = this.clock.getElapsedTime();
 
-    // Animate Checkpoint Monuments
-    if (this.world.checkpoints) {
-      this.world.checkpoints.forEach((cp, idx) => {
-        cp.crystal.rotation.y = elapsed * (cp.unlocked ? 1.6 : 0.8) + idx;
-        cp.crystal.position.y = 2.2 + Math.sin(elapsed * 2.5 + idx) * 0.25;
-        cp.auraRings.forEach((ring, rIdx) => {
-          ring.rotation.x = elapsed * (rIdx % 2 === 0 ? 1.5 : -1.5) + rIdx;
-          ring.rotation.z = elapsed * (rIdx % 2 === 0 ? -1.0 : 1.0);
-        });
-      });
-    }
+
 
     // Floating crystal spin
     this.world.floatingCrystals.forEach((c, idx) => {

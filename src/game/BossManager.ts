@@ -40,6 +40,7 @@ export interface BossManagerCallbacks {
   onCameraShake: (amount: number) => void;
   onSpawnShockwave?: (pos: THREE.Vector3, color: number, maxRadius: number, duration: number) => void;
   onSpawnSparks?: (pos: THREE.Vector3, color: number, count: number, speed: number) => void;
+  onSpawnBoulderProjectile?: (fromPos: THREE.Vector3, toPos: THREE.Vector3, damage: number) => void;
   onPlayerDeath?: () => void;
 }
 
@@ -173,10 +174,33 @@ export class BossManager {
           enemy.parts.rightWing.rotation.z = -Math.sin(stateTimer * 10) * 0.3;
         }
       } else if (isTitan) {
-        // Raise stone fists high in wind-up
-        if (enemy.parts?.leftArm && enemy.parts?.rightArm) {
-          enemy.parts.leftArm.rotation.x = -Math.PI * 0.7 + Math.sin(stateTimer * 8) * 0.1;
-          enemy.parts.rightArm.rotation.x = -Math.PI * 0.7 - Math.sin(stateTimer * 8) * 0.1;
+        const activeTel = this.activeTelegraphMap.get(bossId);
+        const skillId = activeTel?.skill?.id;
+        if (skillId === 'earthquake_slam') {
+          // Raise both colossal stone fists high overhead
+          if (enemy.parts?.leftArm && enemy.parts?.rightArm) {
+            enemy.parts.leftArm.rotation.x = -Math.PI * 0.85 + Math.sin(stateTimer * 8) * 0.1;
+            enemy.parts.rightArm.rotation.x = -Math.PI * 0.85 - Math.sin(stateTimer * 8) * 0.1;
+          }
+        } else if (skillId === 'heavy_punch') {
+          // Pull right fist back ready for shock punch
+          if (enemy.parts?.rightArm) {
+            enemy.parts.rightArm.rotation.x = -Math.PI * 0.75 + Math.sin(stateTimer * 10) * 0.15;
+          }
+          if (enemy.parts?.leftArm) {
+            enemy.parts.leftArm.rotation.x = 0.25;
+          }
+        } else if (skillId === 'rock_throw') {
+          // Raise both arms overhead lifting giant stone boulder
+          if (enemy.parts?.leftArm && enemy.parts?.rightArm) {
+            enemy.parts.leftArm.rotation.x = -Math.PI * 0.9;
+            enemy.parts.rightArm.rotation.x = -Math.PI * 0.9;
+          }
+        } else {
+          if (enemy.parts?.leftArm && enemy.parts?.rightArm) {
+            enemy.parts.leftArm.rotation.x = -Math.PI * 0.7 + Math.sin(stateTimer * 8) * 0.1;
+            enemy.parts.rightArm.rotation.x = -Math.PI * 0.7 - Math.sin(stateTimer * 8) * 0.1;
+          }
         }
       }
       return true; // Prevents normal chase/walk movement during skill wind-up
@@ -231,22 +255,34 @@ export class BossManager {
         return true;
       }
     } else if (isTitan) {
-      // 1. Ground Slam (Melee AOE around Titan: dist <= 7.0)
-      const slamCd = cdMap.get('ground_slam') || 0;
+      const slamCd = cdMap.get('earthquake_slam') || 0;
+      const punchCd = cdMap.get('heavy_punch') || 0;
+      const rockCd = cdMap.get('rock_throw') || 0;
+
+      // 1. Earthquake Slam (Large Ground AOE with Stun & Knockback: dist <= 7.5)
       if (distToPlayer <= 7.5 && slamCd <= 0) {
-        const skill = config.skills.find((s) => s.id === 'ground_slam')!;
-        this.startTelegraphCircle(bossId, enemy, ePos, 7.5, skill);
-        cdMap.set('ground_slam', skill.cooldown);
+        const skill = config.skills.find((s) => s.id === 'earthquake_slam')!;
+        this.startTelegraphCircle(bossId, enemy, ePos, 8.0, skill);
+        cdMap.set('earthquake_slam', skill.cooldown);
         return true;
       }
 
-      // 2. Charge Attack (Mid/Long range: dist 8..24)
-      const chargeCd = cdMap.get('charge_attack') || 0;
-      if (distToPlayer >= 8 && distToPlayer <= 24 && chargeCd <= 0) {
-        const skill = config.skills.find((s) => s.id === 'charge_attack')!;
+      // 2. Basic Heavy Punch (Close range single forward punch: dist <= 4.8)
+      if (distToPlayer <= 4.8 && punchCd <= 0) {
+        const skill = config.skills.find((s) => s.id === 'heavy_punch')!;
         const toPlayer = new THREE.Vector3(playerPos.x - ePos.x, 0, playerPos.z - ePos.z).normalize();
-        this.startTelegraphLine(bossId, enemy, ePos, toPlayer, 18, 4.0, skill);
-        cdMap.set('charge_attack', skill.cooldown);
+        const punchPos = ePos.clone().addScaledVector(toPlayer, 2.5);
+        this.startTelegraphCircle(bossId, enemy, punchPos, 4.2, skill);
+        cdMap.set('heavy_punch', skill.cooldown);
+        return true;
+      }
+
+      // 3. Rock Boulder Throw (Medium/Long range: dist 7..26)
+      if (distToPlayer >= 6.5 && distToPlayer <= 26.0 && rockCd <= 0) {
+        const skill = config.skills.find((s) => s.id === 'rock_throw')!;
+        const toPlayer = new THREE.Vector3(playerPos.x - ePos.x, 0, playerPos.z - ePos.z).normalize();
+        this.startTelegraphLine(bossId, enemy, ePos, toPlayer, 22.0, 3.8, skill);
+        cdMap.set('rock_throw', skill.cooldown);
         return true;
       }
     }
@@ -489,9 +525,24 @@ export class BossManager {
     if (tel.skill.id === 'meteor_strike') {
       soundManager.playMeteorImpact();
       this.callbacks.onCameraShake(0.85);
-    } else if (tel.skill.id === 'ground_slam') {
+    } else if (tel.skill.id === 'earthquake_slam' || tel.skill.id === 'ground_slam') {
       soundManager.playTitanGroundSlam();
-      this.callbacks.onCameraShake(0.9);
+      this.callbacks.onCameraShake(0.95);
+    } else if (tel.skill.id === 'rock_throw') {
+      soundManager.playTitanGroundSlam();
+      this.callbacks.onCameraShake(0.7);
+      // Spawn flying 3D stone boulder projectile towards player
+      this.callbacks.onSpawnBoulderProjectile?.(
+        tel.center.clone().add(new THREE.Vector3(0, 3.5, 0)),
+        playerPos.clone(),
+        tel.skill.damage
+      );
+      this.bossStates.set(tel.bossId, 'recovery');
+      this.stateTimers.set(tel.bossId, 0);
+      return;
+    } else if (tel.skill.id === 'heavy_punch') {
+      soundManager.playHit(true);
+      this.callbacks.onCameraShake(0.5);
     } else if (tel.skill.id === 'fire_breath') {
       soundManager.playDragonFireBreath();
       this.callbacks.onCameraShake(0.4);
