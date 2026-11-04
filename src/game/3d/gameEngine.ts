@@ -114,6 +114,18 @@ export class GameEngine {
   private callbacks: GameEngineCallbacks;
   private bossManager: BossManager;
   private unlockedCheckpoints: Set<string> = new Set();
+  private lastVisitedTownPos: { id: string; x: number; y: number; z: number; name: string } = (() => {
+    try {
+      const saved = localStorage.getItem('eldoria_last_visited_town');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed.x === 'number') return parsed;
+      }
+    } catch {}
+    return { id: 'wp_village', x: 0, y: 0.5, z: 4, name: 'Desa Utama Sanctuary' };
+  })();
+  private scenePointLights: THREE.PointLight[] = [];
+  private currentParticleCount = 0;
 
   // World and Player
   private world: WorldObjects;
@@ -292,8 +304,20 @@ export class GameEngine {
         onAddFloatingText: (text, color, type) => this.callbacks.onAddFloatingText(text, color, type),
         onUpdateStats: (updater) => this.callbacks.onUpdateStats(updater),
         onCameraShake: (amount) => { this.cameraShake = Math.max(this.cameraShake, amount); },
+        onSpawnShockwave: (pos, color, maxRadius, duration) => {
+          this.spawnShockwaveRing(pos, color, maxRadius, duration);
+        },
+        onSpawnSparks: (pos, color, count, speed) => {
+          this.spawnSparks(pos, color, count, speed);
+        },
+        onPlayerDeath: () => {
+          this.respawnPlayerAtLastVisitedTown();
+        },
       }
     );
+
+    // Dynamic PointLights cache for distance-based lighting optimization
+    this.scenePointLights = this.world.pointLights || [];
 
     // Initialize Checkpoints from saved state
     try {
@@ -1357,6 +1381,25 @@ export class GameEngine {
 
   // Fast travel / teleport from map
 
+  public respawnPlayerAtLastVisitedTown() {
+    this.bossManager.clearDebuffs();
+    const targetY = Math.max(0.5, this.world.getTerrainHeight(this.lastVisitedTownPos.x, this.lastVisitedTownPos.z) + 0.5);
+    this.playerPos.set(this.lastVisitedTownPos.x, targetY, this.lastVisitedTownPos.z);
+    this.playerVel.set(0, 0, 0);
+    this.callbacks.onAddFloatingText(
+      `Kamu dikalahkan! Bangkit kembali di ${this.lastVisitedTownPos.name}.`,
+      '#ff5252',
+      'crit'
+    );
+    soundManager.playLevelUp();
+    this.callbacks.onUpdateStats((stats) => ({
+      ...stats,
+      hp: stats.maxHp,
+      mp: stats.maxMp,
+      gold: Math.max(0, stats.gold - 10),
+    }));
+  }
+
   public unlockCheckpoint(cp: WorldCheckpoint) {
     this.unlockedCheckpoints.add(cp.id);
     cp.unlocked = true;
@@ -1841,15 +1884,20 @@ export class GameEngine {
     });
   }
 
-  // Particle sparks
+  // Particle sparks with active particle limiter (max 150 particles)
   private spawnSparks(position: THREE.Vector3, color: number, count = 8, speed = 4) {
+    const maxAllowed = Math.max(0, 150 - this.currentParticleCount);
+    const actualCount = Math.min(count, maxAllowed);
+    if (actualCount <= 0) return;
+    this.currentParticleCount += actualCount;
+
     const group = new THREE.Group();
     group.position.copy(position);
 
     const particles: { mesh: THREE.Mesh; vel: THREE.Vector3 }[] = [];
     const geom = new THREE.BoxGeometry(0.08, 0.08, 0.08);
 
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < actualCount; i++) {
       const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 });
       const mesh = new THREE.Mesh(geom, mat);
       const vel = new THREE.Vector3(
@@ -1866,6 +1914,7 @@ export class GameEngine {
       life -= delta;
       if (life <= 0) {
         this.scene.remove(group);
+        this.currentParticleCount = Math.max(0, this.currentParticleCount - actualCount);
         return false;
       }
       const opacity = life / 0.35;
@@ -3641,10 +3690,26 @@ export class GameEngine {
     }
 
     // Check Chests distance
-    // Check nearby Checkpoint Monuments (radius <= 5.0)
+    // Check nearby Checkpoint Monuments (radius <= 14.0 for town respawn binding, <= 5.0 for unlock/prompt)
     if (this.world.checkpoints) {
       for (const cp of this.world.checkpoints) {
         const dist = Math.hypot(this.playerPos.x - cp.position[0], this.playerPos.z - cp.position[2]);
+
+        // Auto-save last visited town / checkpoint location for accurate respawn
+        if (dist <= 14.0 && this.lastVisitedTownPos.id !== cp.id) {
+          this.lastVisitedTownPos = {
+            id: cp.id,
+            x: cp.position[0],
+            y: cp.position[1],
+            z: cp.position[2],
+            name: cp.nameId,
+          };
+          try {
+            localStorage.setItem('eldoria_last_visited_town', JSON.stringify(this.lastVisitedTownPos));
+          } catch {}
+          this.callbacks.onAddFloatingText(`📍 Titik Respawn Disimpan: ${cp.nameId}`, '#38bdf8', 'info');
+        }
+
         if (dist <= 5.0) {
           if (!this.unlockedCheckpoints.has(cp.id)) {
             this.unlockCheckpoint(cp);
@@ -4564,10 +4629,7 @@ export class GameEngine {
       this.callbacks.onAddFloatingText(`-${finalDmg} HP`, '#ff1744', 'damage');
 
       if (nextHp <= 0) {
-        // Respawn at village center
-        this.callbacks.onAddFloatingText('Kamu dikalahkan! Bangkit kembali di kuil.', '#ff5252', 'crit');
-        this.playerPos.set(0, 0.5, 4);
-        this.playerVel.set(0, 0, 0);
+        this.respawnPlayerAtLastVisitedTown();
         return {
           ...stats,
           hp: stats.maxHp,
@@ -4795,6 +4857,31 @@ export class GameEngine {
     // Fireflies / ambient particles slow float
     if (this.world.particles) {
       this.world.particles.rotation.y = elapsed * 0.03;
+    }
+
+    // Optimization 1: Dynamic PointLights (Keep only 4 closest lights active)
+    if (this.posUpdateThrottle % 8 === 0 && this.scenePointLights.length > 4) {
+      const pX = this.playerPos.x;
+      const pZ = this.playerPos.z;
+      this.scenePointLights.sort((a, b) => {
+        const da = (a.position.x - pX) ** 2 + (a.position.z - pZ) ** 2;
+        const db = (b.position.x - pX) ** 2 + (b.position.z - pZ) ** 2;
+        return da - db;
+      });
+      for (let i = 0; i < this.scenePointLights.length; i++) {
+        this.scenePointLights[i].visible = i < 4;
+      }
+    }
+
+    // Optimization 2: Distance LOD for distant background props (>160 units)
+    if (this.posUpdateThrottle % 16 === 0 && this.world.decorativeProps && this.world.decorativeProps.length > 0) {
+      const pX = this.playerPos.x;
+      const pZ = this.playerPos.z;
+      const maxDistSq = 160 * 160;
+      for (const prop of this.world.decorativeProps) {
+        const distSq = (prop.position.x - pX) ** 2 + (prop.position.z - pZ) ** 2;
+        prop.visible = distSq <= maxDistSq;
+      }
     }
 
     // Emit live position for MiniMap & World Map (throttled)

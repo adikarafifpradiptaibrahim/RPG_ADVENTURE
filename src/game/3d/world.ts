@@ -132,10 +132,16 @@ export interface WorldObjects {
   checkpoints: WorldCheckpoint[];
   particles: THREE.Points;
   lavaParticles?: THREE.Points;
+  decorativeProps?: THREE.Object3D[];
+  pointLights?: THREE.PointLight[];
+  dirLight?: THREE.DirectionalLight;
   getTerrainHeight: (x: number, z: number) => number;
 }
 
 export function buildWorld(scene: THREE.Scene): WorldObjects {
+  const decorativeProps: THREE.Object3D[] = [];
+  const pointLights: THREE.PointLight[] = [];
+
   // Atmospheric Fog & Sky Color
   scene.fog = new THREE.FogExp2(0x8bc34a, 0.012);
   scene.background = new THREE.Color(0xaed581);
@@ -1545,6 +1551,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     tree.scale.set(scale, scale, scale);
     tree.rotation.y = Math.random() * Math.PI * 2;
     scene.add(tree);
+    decorativeProps.push(tree);
 
     // Tree solid obstacle collider so player does not pass through trees
     colliders.push({
@@ -1583,6 +1590,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     tree.position.set(vt.x, ty, vt.z);
     tree.scale.set(vt.scale, vt.scale, vt.scale);
     scene.add(tree);
+    decorativeProps.push(tree);
     colliders.push({
       type: 'circle',
       x: vt.x,
@@ -1727,6 +1735,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     const s = 0.8 + Math.random() * 0.5;
     tree.scale.set(s * 0.7, s * 1.5, s * 0.7);
     scene.add(tree);
+    decorativeProps.push(tree);
     colliders.push({ type: 'circle', x: bx, z: bz, radius: 0.55 * s, label: 'Bambu Giok' });
   }
 
@@ -2457,6 +2466,16 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   const particles = new THREE.Points(particleGeo, particleMat);
   scene.add(particles);
 
+  // Frustum Culling on all meshes & Dynamic PointLights registration
+  scene.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh) {
+      child.frustumCulled = true;
+    }
+    if ((child as THREE.PointLight).isPointLight) {
+      pointLights.push(child as THREE.PointLight);
+    }
+  });
+
   return {
     scene,
     terrainMesh,
@@ -2472,6 +2491,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     floatingCrystals,
     checkpoints,
     particles,
+    decorativeProps,
+    pointLights,
+    dirLight,
     getTerrainHeight,
   };
 }

@@ -38,6 +38,9 @@ export interface BossManagerCallbacks {
   onAddFloatingText: (text: string, color: string, type: 'damage' | 'heal' | 'crit' | 'exp' | 'info') => void;
   onUpdateStats: (updater: (prev: PlayerStats) => PlayerStats) => void;
   onCameraShake: (amount: number) => void;
+  onSpawnShockwave?: (pos: THREE.Vector3, color: number, maxRadius: number, duration: number) => void;
+  onSpawnSparks?: (pos: THREE.Vector3, color: number, count: number, speed: number) => void;
+  onPlayerDeath?: () => void;
 }
 
 /**
@@ -107,9 +110,10 @@ export class BossManager {
       tel.timer += delta;
       const progress = Math.min(1.0, tel.timer / tel.duration);
 
-      // Pulse telegraph opacity & scale inner warning indicator
-      const pulse = 0.5 + Math.sin(tel.timer * 12) * 0.25;
-      (tel.indicatorMesh.material as THREE.MeshBasicMaterial).opacity = 0.35 + pulse * 0.35;
+      // Pulse telegraph opacity & scale inner molten danger zone
+      const pulse = 0.55 + Math.sin(tel.timer * 14) * 0.35;
+      (tel.indicatorMesh.material as THREE.MeshBasicMaterial).opacity = 0.4 + pulse * 0.4;
+      (tel.borderMesh.material as THREE.MeshBasicMaterial).opacity = 0.75 + pulse * 0.25;
       tel.indicatorMesh.scale.set(progress, progress, 1);
 
       // Detonate attack when telegraph timer finishes
@@ -213,7 +217,6 @@ export class BossManager {
         const targetPos = new THREE.Vector3(playerPos.x, this.getTerrainHeight(playerPos.x, playerPos.z), playerPos.z);
         this.startTelegraphCircle(bossId, enemy, targetPos, 5.0, skill);
         soundManager.playDragonRoar();
-        this.callbacks.onAddFloatingText('🔥 IGNIS: HUJAN METEOR!', '#ff3d00', 'crit');
         cdMap.set('meteor_strike', skill.cooldown);
         return true;
       }
@@ -224,7 +227,6 @@ export class BossManager {
         const skill = config.skills.find((s) => s.id === 'fire_breath')!;
         this.startTelegraphCone(bossId, enemy, ePos, fwd, 14, Math.PI / 3, skill);
         soundManager.playDragonFireBreath();
-        this.callbacks.onAddFloatingText('🔥 IGNIS: SEMBURAN API!', '#ff5722', 'crit');
         cdMap.set('fire_breath', skill.cooldown);
         return true;
       }
@@ -234,7 +236,6 @@ export class BossManager {
       if (distToPlayer <= 7.5 && slamCd <= 0) {
         const skill = config.skills.find((s) => s.id === 'ground_slam')!;
         this.startTelegraphCircle(bossId, enemy, ePos, 7.5, skill);
-        this.callbacks.onAddFloatingText('⚠️ TITAN: HANTAMAN TANAH GEMPA!', '#ffd600', 'crit');
         cdMap.set('ground_slam', skill.cooldown);
         return true;
       }
@@ -245,7 +246,6 @@ export class BossManager {
         const skill = config.skills.find((s) => s.id === 'charge_attack')!;
         const toPlayer = new THREE.Vector3(playerPos.x - ePos.x, 0, playerPos.z - ePos.z).normalize();
         this.startTelegraphLine(bossId, enemy, ePos, toPlayer, 18, 4.0, skill);
-        this.callbacks.onAddFloatingText('⚡ TITAN: TERJANGAN TUBRUK!', '#ff9100', 'crit');
         cdMap.set('charge_attack', skill.cooldown);
         return true;
       }
@@ -472,7 +472,20 @@ export class BossManager {
       }
     }
 
-    // Play appropriate SFX
+    // Determine 3D impact coordinate on ground
+    const impactPos = tel.center.clone();
+    if (tel.direction && tel.type !== 'circle') {
+      impactPos.addScaledVector(tel.direction, (tel.radius || tel.length || 10) * 0.35);
+    }
+    impactPos.y = this.getTerrainHeight(impactPos.x, impactPos.z) + 0.12;
+
+    // Trigger explosive 3D ground telegraph VFX (Lava explosion, fire sparks, and ground shockwave ring)
+    const fxRadius = tel.radius || (tel.length ? tel.length * 0.45 : 7.0);
+    this.callbacks.onSpawnSparks?.(impactPos, 0xff3d00, 24, 6.5);
+    this.callbacks.onSpawnSparks?.(impactPos, 0xffd600, 16, 5.0);
+    this.callbacks.onSpawnShockwave?.(impactPos, 0xff1744, fxRadius, 0.48);
+
+    // Play appropriate SFX & Camera Shake
     if (tel.skill.id === 'meteor_strike') {
       soundManager.playMeteorImpact();
       this.callbacks.onCameraShake(0.85);
@@ -481,9 +494,10 @@ export class BossManager {
       this.callbacks.onCameraShake(0.9);
     } else if (tel.skill.id === 'fire_breath') {
       soundManager.playDragonFireBreath();
+      this.callbacks.onCameraShake(0.4);
     } else {
       soundManager.playHit();
-      this.callbacks.onCameraShake(0.5);
+      this.callbacks.onCameraShake(0.55);
     }
 
     // Check if player evaded (e.g. Dashed/Blinked outside or was never inside)
@@ -502,6 +516,9 @@ export class BossManager {
       const finalDmg = Math.max(5, skill.damage - Math.round(stats.baseDefense * 0.5));
       const nextHp = Math.max(0, stats.hp - finalDmg);
       this.callbacks.onAddFloatingText(`-${finalDmg} HP (${skill.nameId})`, '#ff1744', 'damage');
+      if (nextHp <= 0) {
+        this.callbacks.onPlayerDeath?.();
+      }
       return { ...stats, hp: nextHp };
     });
 
@@ -562,6 +579,9 @@ export class BossManager {
         this.callbacks.onUpdateStats((stats) => {
           const nextHp = Math.max(0, stats.hp - burnDmg);
           this.callbacks.onAddFloatingText(`-${burnDmg} HP (Bakar)`, '#ff3d00', 'damage');
+          if (nextHp <= 0) {
+            this.callbacks.onPlayerDeath?.();
+          }
           return { ...stats, hp: nextHp };
         });
       }
@@ -588,6 +608,14 @@ export class BossManager {
   /**
    * Resets all telegraphs (e.g. when boss dies or player leaves region)
    */
+  public clearDebuffs() {
+    this.playerDebuffs.isStunned = false;
+    this.playerDebuffs.stunTimer = 0;
+    this.playerDebuffs.isBurned = false;
+    this.playerDebuffs.burnTimer = 0;
+    this.playerDebuffs.burnTickTimer = 0;
+  }
+
   public cleanup() {
     this.telegraphs.forEach((t) => this.removeTelegraph(t));
     this.telegraphs = [];

@@ -773,7 +773,7 @@ export const IGNIS_DRAGON_BOSS_CONFIG: BossConfig = {
       nameId: 'Sabetan Ekor Naga',
       description: 'Menyabetkan ekor besar ke arah belakang dengan putaran cepat jika pemain menyerang dari belakang (Knockback)',
       telegraphType: 'circle',
-      telegraphDuration: 0.8,
+      telegraphDuration: 1.0,
       cooldown: 6.0,
       damage: 28,
       effect: 'knockback',

@@ -8,6 +8,14 @@ export interface PlayerMovementInput {
   joyY?: number;
 }
 
+export interface LastVisitedTownPos {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  name: string;
+}
+
 export interface PlayerStatusDebuffs {
   isStunned: boolean;
   stunTimer: number;
