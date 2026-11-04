@@ -4,6 +4,7 @@ import { soundManager } from './audio';
 import {
   IGNIS_DRAGON_BOSS_CONFIG,
   ANCIENT_TITAN_BOSS_CONFIG,
+  JARRUS_WORM_BOSS_CONFIG,
   BossConfig,
   BossSkill,
 } from './monsters';
@@ -24,6 +25,7 @@ export interface ActiveTelegraph {
   duration: number;
   skill: BossSkill;
   bossId: string;
+  enemy?: { mesh: THREE.Group };
 }
 
 export interface PlayerStatusDebuffs {
@@ -151,9 +153,10 @@ export class BossManager {
     const bossId = enemy.data.id;
     const isIgnis = bossId === 'boss_dragonfang';
     const isTitan = bossId === 'boss_titan';
-    if (!isIgnis && !isTitan) return false;
+    const isWorm = bossId === 'boss_jarrus';
+    if (!isIgnis && !isTitan && !isWorm) return false;
 
-    const config = isIgnis ? IGNIS_DRAGON_BOSS_CONFIG : ANCIENT_TITAN_BOSS_CONFIG;
+    const config = isIgnis ? IGNIS_DRAGON_BOSS_CONFIG : (isWorm ? JARRUS_WORM_BOSS_CONFIG : ANCIENT_TITAN_BOSS_CONFIG);
     if (!this.skillCooldowns.has(bossId)) {
       this.registerBoss(bossId, config);
     }
@@ -285,6 +288,37 @@ export class BossManager {
         cdMap.set('rock_throw', skill.cooldown);
         return true;
       }
+    } else if (isWorm) {
+      const burrowCd = cdMap.get('burrow_burst') || 0;
+      const acidCd = cdMap.get('acid_spit') || 0;
+      const slamCd = cdMap.get('sand_slam') || 0;
+      const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), enemy.mesh.rotation.y);
+
+      // 1. Burrow Attack: Sinks into sand, red circle tracks player, then bursts out under player
+      if (distToPlayer <= 26 && burrowCd <= 0) {
+        const skill = config.skills.find((s) => s.id === 'burrow_burst')!;
+        this.startTelegraphCircle(bossId, enemy, playerPos.clone(), 5.5, skill);
+        soundManager.playWormBurrow();
+        cdMap.set('burrow_burst', skill.cooldown);
+        return true;
+      }
+
+      // 2. Acid Spit: Cone of corrosive green acid
+      if (distToPlayer <= 16 && acidCd <= 0) {
+        const skill = config.skills.find((s) => s.id === 'acid_spit')!;
+        this.startTelegraphCone(bossId, enemy, ePos, fwd, 15, Math.PI / 3.2, skill);
+        soundManager.playWormAcidSpit();
+        cdMap.set('acid_spit', skill.cooldown);
+        return true;
+      }
+
+      // 3. Sand Slam: Heavy body thrash
+      if (distToPlayer <= 6.5 && slamCd <= 0) {
+        const skill = config.skills.find((s) => s.id === 'sand_slam')!;
+        this.startTelegraphCircle(bossId, enemy, ePos, 6.5, skill);
+        cdMap.set('sand_slam', skill.cooldown);
+        return true;
+      }
     }
 
     return false;
@@ -340,6 +374,7 @@ export class BossManager {
       duration: skill.telegraphDuration,
       skill,
       bossId,
+      enemy,
     };
 
     this.telegraphs.push(telegraph);
@@ -403,6 +438,7 @@ export class BossManager {
       duration: skill.telegraphDuration,
       skill,
       bossId,
+      enemy,
     };
 
     this.telegraphs.push(telegraph);
@@ -460,6 +496,7 @@ export class BossManager {
       duration: skill.telegraphDuration,
       skill,
       bossId,
+      enemy,
     };
 
     this.telegraphs.push(telegraph);
@@ -546,6 +583,19 @@ export class BossManager {
     } else if (tel.skill.id === 'fire_breath') {
       soundManager.playDragonFireBreath();
       this.callbacks.onCameraShake(0.4);
+    } else if (tel.skill.id === 'burrow_burst') {
+      soundManager.playWormBurstOut();
+      this.callbacks.onCameraShake(1.0);
+      if (tel.enemy?.mesh) {
+        const gY = this.getTerrainHeight(tel.center.x, tel.center.z);
+        tel.enemy.mesh.position.set(tel.center.x, gY, tel.center.z);
+      }
+    } else if (tel.skill.id === 'acid_spit') {
+      soundManager.playWormAcidSpit();
+      this.callbacks.onCameraShake(0.4);
+    } else if (tel.skill.id === 'sand_slam') {
+      soundManager.playTitanGroundSlam();
+      this.callbacks.onCameraShake(0.65);
     } else {
       soundManager.playHit();
       this.callbacks.onCameraShake(0.55);

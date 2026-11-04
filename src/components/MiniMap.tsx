@@ -303,122 +303,128 @@ export const MiniMap: React.FC<MiniMapProps> = ({
           </button>
         </div>
 
-        {/* Circular Minimap Viewport */}
-        <div
-          onClick={onOpenFullMap}
-          className="relative w-[115px] h-[115px] sm:w-[136px] sm:h-[136px] rounded-full overflow-hidden border-[3px] border-amber-600/85 bg-stone-950 shadow-[0_10px_25px_rgba(0,0,0,0.85)] backdrop-blur-md cursor-pointer group hover:border-amber-400 transition-all flex-shrink-0"
-          title="Klik untuk membuka Peta Lengkap (M)"
-        >
-        {/* Real-time Topographical Render Canvas */}
-        <canvas
-          ref={canvasRef}
-          width={240}
-          height={240}
-          className="w-full h-full object-cover rounded-full"
-        />
+        {/* Circular Minimap Viewport with Attached Coordinate HUD */}
+        <div className="relative flex flex-col items-center flex-shrink-0">
+          <div
+            onClick={onOpenFullMap}
+            className="relative w-[115px] h-[115px] sm:w-[136px] sm:h-[136px] rounded-full overflow-hidden border-[3px] border-amber-600/85 bg-stone-950 shadow-[0_10px_25px_rgba(0,0,0,0.85)] backdrop-blur-md cursor-pointer group hover:border-amber-400 transition-all flex-shrink-0"
+            title="Klik untuk membuka Peta Lengkap (M)"
+          >
+          {/* Real-time Topographical Render Canvas */}
+          <canvas
+            ref={canvasRef}
+            width={240}
+            height={240}
+            className="w-full h-full object-cover rounded-full"
+          />
 
-        {/* Ornate Gold Compass Ring Border */}
-        <div className="absolute inset-0 rounded-full border border-amber-400/40 pointer-events-none shadow-inner" />
+          {/* Ornate Gold Compass Ring Border */}
+          <div className="absolute inset-0 rounded-full border border-amber-400/40 pointer-events-none shadow-inner" />
 
-        {/* Cardinal Directions (Genshin Style) */}
-        <div className="absolute top-0.5 left-1/2 -translate-x-1/2 flex items-center flex-col pointer-events-none">
-          <span className="text-[9px] sm:text-[10px] font-black text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,1)] tracking-tighter">
-            N
+          {/* Cardinal Directions (Genshin Style) */}
+          <div className="absolute top-0.5 left-1/2 -translate-x-1/2 flex items-center flex-col pointer-events-none">
+            <span className="text-[9px] sm:text-[10px] font-black text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,1)] tracking-tighter">
+              N
+            </span>
+            <div className="w-1 h-1 bg-amber-400 rounded-full shadow-sm" />
+          </div>
+          <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[8px] sm:text-[9px] font-bold text-stone-300 drop-shadow-[0_1px_2px_rgba(0,0,0,1)] pointer-events-none">
+            S
           </span>
-          <div className="w-1 h-1 bg-amber-400 rounded-full shadow-sm" />
-        </div>
-        <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[8px] sm:text-[9px] font-bold text-stone-300 drop-shadow-[0_1px_2px_rgba(0,0,0,1)] pointer-events-none">
-          S
-        </span>
-        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[8px] sm:text-[9px] font-bold text-stone-300 drop-shadow-[0_1px_2px_rgba(0,0,0,1)] pointer-events-none">
-          W
-        </span>
-        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] sm:text-[9px] font-bold text-stone-300 drop-shadow-[0_1px_2px_rgba(0,0,0,1)] pointer-events-none">
-          E
-        </span>
+          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[8px] sm:text-[9px] font-bold text-stone-300 drop-shadow-[0_1px_2px_rgba(0,0,0,1)] pointer-events-none">
+            W
+          </span>
+          <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] sm:text-[9px] font-bold text-stone-300 drop-shadow-[0_1px_2px_rgba(0,0,0,1)] pointer-events-none">
+            E
+          </span>
 
-        {/* Dynamic Entity Pins Projected over Canvas */}
-        {markers.map((marker) => {
-          const relX = marker.x - playerPos.x;
-          const relZ = marker.z - playerPos.z;
-          const dist = Math.hypot(relX, relZ);
+          {/* Dynamic Entity Pins Projected over Canvas */}
+          {markers.map((marker) => {
+            const relX = marker.x - playerPos.x;
+            const relZ = marker.z - playerPos.z;
+            const dist = Math.hypot(relX, relZ);
 
-          if (dist > radarRadius) return null;
+            if (dist > radarRadius) return null;
 
-          const percentX = 50 + (relX / radarRadius) * 44;
-          const percentY = 50 + (relZ / radarRadius) * 44;
+            const percentX = 50 + (relX / radarRadius) * 44;
+            const percentY = 50 + (relZ / radarRadius) * 44;
 
-          const isBoss = marker.type === 'boss';
-          const isQuest = marker.type === 'quest';
-          const isWaypoint = marker.type === 'waypoint';
+            const isBoss = marker.type === 'boss';
+            const isQuest = marker.type === 'quest';
+            const isWaypoint = marker.type === 'waypoint';
 
-          return (
-            <div
-              key={marker.id}
-              className="absolute -ml-2 -mt-2 flex items-center justify-center transition-all pointer-events-none"
-              style={{
-                left: `${percentX}%`,
-                top: `${percentY}%`,
-              }}
-              title={marker.title}
-            >
-              {/* Boss / Danger Ping */}
-              {isBoss && (
-                <div className="relative flex items-center justify-center">
-                  <div className="absolute w-4 h-4 rounded-full bg-red-600/40 animate-ping" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-red-600 border border-white shadow-md flex items-center justify-center text-[7px] text-white font-bold">
-                    {marker.icon || '💀'}
+            return (
+              <div
+                key={marker.id}
+                className="absolute -ml-2 -mt-2 flex items-center justify-center transition-all pointer-events-none"
+                style={{
+                  left: `${percentX}%`,
+                  top: `${percentY}%`,
+                }}
+                title={marker.title}
+              >
+                {/* Boss / Danger Ping */}
+                {isBoss && (
+                  <div className="relative flex items-center justify-center">
+                    <div className="absolute w-4 h-4 rounded-full bg-red-600/40 animate-ping" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-red-600 border border-white shadow-md flex items-center justify-center text-[7px] text-white font-bold">
+                      {marker.icon || '💀'}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Waypoint Teleport Pin */}
-              {isWaypoint && (
-                <div className="w-3 h-3 bg-cyan-400 rotate-45 border border-white shadow-lg flex items-center justify-center text-[7px]">
-                  <div className="w-1.5 h-1.5 bg-blue-700" />
-                </div>
-              )}
+                {/* Waypoint Teleport Pin */}
+                {isWaypoint && (
+                  <div className="w-3 h-3 bg-cyan-400 rotate-45 border border-white shadow-lg flex items-center justify-center text-[7px]">
+                    <div className="w-1.5 h-1.5 bg-blue-700" />
+                  </div>
+                )}
 
-              {/* Quest Marker */}
-              {isQuest && (
-                <div className="w-3 h-3 rounded-full bg-amber-400 border border-amber-900 shadow-md flex items-center justify-center text-[8px] font-black text-stone-900 animate-bounce">
-                  !
-                </div>
-              )}
+                {/* Quest Marker */}
+                {isQuest && (
+                  <div className="w-3 h-3 rounded-full bg-amber-400 border border-amber-900 shadow-md flex items-center justify-center text-[8px] font-black text-stone-900 animate-bounce">
+                    !
+                  </div>
+                )}
 
-              {/* General Landmark / NPC Icon */}
-              {!isBoss && !isWaypoint && !isQuest && (
-                <div
-                  className="w-2.5 h-2.5 rounded-full border border-stone-900 shadow flex items-center justify-center text-[8px]"
-                  style={{ backgroundColor: marker.color || '#fff' }}
-                >
-                  {marker.icon && <span className="text-[7px] scale-90">{marker.icon}</span>}
-                </div>
-              )}
-            </div>
-          );
-        })}
+                {/* General Landmark / NPC Icon */}
+                {!isBoss && !isWaypoint && !isQuest && (
+                  <div
+                    className="w-2.5 h-2.5 rounded-full border border-stone-900 shadow flex items-center justify-center text-[8px]"
+                    style={{ backgroundColor: marker.color || '#fff' }}
+                  >
+                    {marker.icon && <span className="text-[7px] scale-90">{marker.icon}</span>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          </div>
 
+          {/* Coordinate HUD Pill placed directly below the circular Minimap */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '-22px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(0,0,0,0.85)',
+              color: '#FFD700',
+              borderRadius: '4px',
+              padding: '2px 10px',
+              fontWeight: 'bold',
+              fontSize: '11px',
+              whiteSpace: 'nowrap',
+              zIndex: 30,
+            }}
+            className="pointer-events-none flex items-center justify-center gap-1.5 font-mono shadow-md border border-amber-600/50"
+          >
+            <span>X: {Math.round(playerPos.x)}</span>
+            <span className="text-amber-500/70">|</span>
+            <span>Z: {Math.round(playerPos.z)}</span>
+          </div>
+        </div>
       </div>
-      {/* Coordinate HUD Pill placed outside below the circular Minimap */}
-      <div
-        style={{
-          marginTop: '6px',
-          textAlign: 'center',
-          background: 'rgba(0,0,0,0.7)',
-          color: '#fff',
-          padding: '2px 8px',
-          borderRadius: '4px',
-          fontSize: '11px',
-          fontWeight: 'bold',
-        }}
-        className="pointer-events-none flex items-center justify-center gap-2 font-mono mx-auto shadow-md border border-stone-800/80 w-fit"
-      >
-        <span>X: {Math.round(playerPos.x)}</span>
-        <span className="text-stone-400">|</span>
-        <span>Z: {Math.round(playerPos.z)}</span>
-      </div>
-    </div>
     </div>
   );
 };

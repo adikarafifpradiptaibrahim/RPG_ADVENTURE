@@ -719,7 +719,7 @@ export interface BossConfig {
   nameId: string;
   title: string;
   titleId: string;
-  type: 'dragon' | 'titan';
+  type: 'dragon' | 'titan' | 'worm';
   level: number;
   hp: number;
   maxHp: number;
@@ -845,6 +845,65 @@ export const ANCIENT_TITAN_BOSS_CONFIG: BossConfig = {
       telegraphDuration: 1.2,
       cooldown: 8.5,
       damage: 32,
+      effect: 'knockback',
+      effectDuration: 0.5,
+    },
+  ],
+};
+
+export const JARRUS_WORM_BOSS_CONFIG: BossConfig = {
+  id: 'boss_jarrus',
+  name: 'Jarrus, The Ancient Sandworm',
+  nameId: 'Jarrus, Sang Cacing Purba Solaria',
+  title: 'Colossus of the Deep Dunes',
+  titleId: 'Penguasa Gurun Pasir Terlarang',
+  type: 'worm',
+  level: 10,
+  hp: 1050,
+  maxHp: 1050,
+  attack: 42,
+  defense: 20,
+  speed: 2.6,
+  attackRange: 5.0,
+  detectRange: 30,
+  expReward: 1050,
+  goldReward: 700,
+  pos: [-240, 420], // Deep southern dunes of Solaria, far from Pyramid [-165, 110] and Bazaar [-350, 350]
+  scale: [2.8, 2.8, 2.8],
+  skills: [
+    {
+      id: 'burrow_burst',
+      name: 'Burrow Burst Attack',
+      nameId: 'Selam Pasir & Teror Bawah Tanah',
+      description: 'Menenggelamkan tubuh ke bawah pasir, muncul indikator merah bergerak di bawah tanah mengikuti pemain, lalu melompat keluar (Burst Out) menghasilkan dentuman dahsyat',
+      telegraphType: 'circle',
+      telegraphDuration: 1.6,
+      cooldown: 9.0,
+      damage: 42,
+      effect: 'knockback',
+      effectDuration: 0.8,
+    },
+    {
+      id: 'acid_spit',
+      name: 'Corrosive Acid Spit',
+      nameId: 'Semburan Asam Beracun',
+      description: 'Menyemburkan cairan asam hijau beracun berbentuk kerucut (Cone AOE) ke depan dengan damage beruntun (Poison effect)',
+      telegraphType: 'cone',
+      telegraphDuration: 1.2,
+      cooldown: 6.5,
+      damage: 28,
+      effect: 'burn',
+      effectDuration: 4.0,
+    },
+    {
+      id: 'sand_slam',
+      name: 'Thrashing Sand Slam',
+      nameId: 'Hantaman Ekor & Tubuh Raksasa',
+      description: 'Menghempaskan tubuh segmented raksasanya ke tanah menghantam semua pemain di sekitarnya',
+      telegraphType: 'circle',
+      telegraphDuration: 1.0,
+      cooldown: 7.0,
+      damage: 34,
       effect: 'knockback',
       effectDuration: 0.5,
     },

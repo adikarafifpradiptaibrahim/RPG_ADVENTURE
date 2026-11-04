@@ -197,7 +197,13 @@ export function getProceduralContinentHeight(x: number, z: number): number {
 
   // 5. Solaria Golden Dunes, Village, Palace & Secret Palm Oasis (South-West: x < -95 && z > 35)
   if (x < -95 && z > 35) {
-    // 5.1 Solaria Desert Village & Palace Solid Courtyard Plateau at [-240, 175]
+        // 5.1 Solaria Desert Village Bazaar & Taj Mahal Palace Plateau
+    const distPalace = Math.hypot(x - -415, z - 350);
+    if (distPalace < 32) return 2.4;
+
+    const inPromenade = x >= -435 && x <= -340 && Math.abs(z - 350) <= 22;
+    if (inPromenade) return 2.4;
+
     const distVillage = Math.hypot(x - -350, z - 350);
     if (distVillage < 48) {
       if (distVillage < 36) return 2.4;

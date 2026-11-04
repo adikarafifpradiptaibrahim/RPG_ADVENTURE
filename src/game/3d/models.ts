@@ -1478,13 +1478,16 @@ export function createCheckpointMonumentMesh(unlocked: boolean = false): {
 
 // Enemy models: Slime, Magma Slime, Skeleton, Skeleton Mage, Goblin, Golem, Spider, Frost Wolf, Swamp Crawler, Boss
 export function createEnemyMesh(
-  type: 'slime' | 'magma_slime' | 'skeleton' | 'skeleton_mage' | 'goblin' | 'golem' | 'spider' | 'frost_wolf' | 'swamp_crawler' | 'boss' | 'dragon'
+  type: 'slime' | 'magma_slime' | 'skeleton' | 'skeleton_mage' | 'goblin' | 'golem' | 'spider' | 'frost_wolf' | 'swamp_crawler' | 'boss' | 'dragon' | 'worm'
 ): {
   group: THREE.Group;
   parts: Record<string, any>;
 } {
   if (type === 'dragon') {
     return createDragonBossMesh();
+  }
+  if (type === 'worm') {
+    return createSandwormBossMesh();
   }
 
   const group = new THREE.Group();
@@ -6443,4 +6446,662 @@ export function createBambooClusterMesh(count = 7): THREE.Group {
     }
   }
   return group;
+}
+
+// ==========================================
+// 17. TAJ MAHAL DESERT PALACE & ENTERABLE THRONE ROOM
+// ==========================================
+
+/**
+ * Creates the Grand Taj Mahal White Marble & Gold Desert Palace
+ * Featuring 4 tall corner minarets, central onion dome, secondary chhatris, and grand Pishtaq arched portals.
+ */
+export function createTajMahalPalaceMesh(): THREE.Group {
+  const palace = new THREE.Group();
+
+  const whiteMarbleMat = new THREE.MeshStandardMaterial({
+    color: 0xf8fafc,
+    roughness: 0.22,
+    metalness: 0.08,
+  });
+  const reliefMarbleMat = new THREE.MeshStandardMaterial({
+    color: 0xe2e8f0,
+    roughness: 0.32,
+    metalness: 0.12,
+  });
+  const royalGoldMat = new THREE.MeshStandardMaterial({
+    color: 0xfbbf24,
+    roughness: 0.18,
+    metalness: 0.9,
+  });
+  const darkGoldTrimMat = new THREE.MeshStandardMaterial({
+    color: 0xd97706,
+    roughness: 0.25,
+    metalness: 0.85,
+  });
+  const lapisMat = new THREE.MeshStandardMaterial({
+    color: 0x1e3a8a,
+    roughness: 0.3,
+    metalness: 0.4,
+  });
+
+  // 1. Monumental White Marble Plinth Podium (36m x 36m x 2.2m)
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(36, 2.2, 36), whiteMarbleMat);
+  plinth.position.y = 1.1;
+  plinth.receiveShadow = true;
+  plinth.castShadow = true;
+  palace.add(plinth);
+
+  // Plinth Golden Cornice Trim
+  const plinthTrim = new THREE.Mesh(new THREE.BoxGeometry(36.8, 0.4, 36.8), royalGoldMat);
+  plinthTrim.position.y = 2.1;
+  palace.add(plinthTrim);
+
+  // Grand Front Stairway (facing East +X)
+  const stairs = new THREE.Mesh(new THREE.BoxGeometry(8, 2.2, 14), reliefMarbleMat);
+  stairs.position.set(19, 1.1, 0);
+  stairs.castShadow = true;
+  stairs.receiveShadow = true;
+  palace.add(stairs);
+
+  // 2. Central Mausoleum Citadel (24m x 24m x 15m) with beveled corners
+  const citadel = new THREE.Mesh(new THREE.BoxGeometry(24, 15, 24), whiteMarbleMat);
+  citadel.position.set(0, 2.2 + 7.5, 0);
+  citadel.castShadow = true;
+  citadel.receiveShadow = true;
+  palace.add(citadel);
+
+  // Pishtaq Grand Vaulted Arches on 4 Facades
+  const archConfigs = [
+    { rotY: 0, x: 0, z: 12.1 },            // South
+    { rotY: Math.PI, x: 0, z: -12.1 },       // North
+    { rotY: Math.PI * 0.5, x: 12.1, z: 0 },  // East (Front Entrance Portal)
+    { rotY: Math.PI * 1.5, x: -12.1, z: 0 }, // West (Rear)
+  ];
+
+  archConfigs.forEach((ac, idx) => {
+    const archGroup = new THREE.Group();
+    archGroup.position.set(ac.x, 2.2 + 7.5, ac.z);
+    archGroup.rotation.y = ac.rotY;
+
+    // Outer Pishtaq Frame
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(11, 13, 0.8), reliefMarbleMat);
+    archGroup.add(frame);
+
+    // Golden Filigree Border
+    const goldBorder = new THREE.Mesh(new THREE.BoxGeometry(11.4, 13.4, 0.2), royalGoldMat);
+    goldBorder.position.z = 0.35;
+    archGroup.add(goldBorder);
+
+    // Lapis Lazuli Inlay Border
+    const lapisBorder = new THREE.Mesh(new THREE.BoxGeometry(10.2, 12.2, 0.25), lapisMat);
+    lapisBorder.position.z = 0.38;
+    archGroup.add(lapisBorder);
+
+    // Arched Portal Niche
+    const portalHole = new THREE.Mesh(
+      new THREE.CylinderGeometry(3.2, 3.2, 1.2, 16),
+      new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.9 })
+    );
+    portalHole.rotation.x = Math.PI / 2;
+    portalHole.position.set(0, 1.5, 0);
+    archGroup.add(portalHole);
+
+    // If East Portal (idx === 2), add Ornate Golden Brass Palace Doors
+    if (idx === 2) {
+      const doorMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.35, metalness: 0.85 });
+      const leftDoor = new THREE.Mesh(new THREE.BoxGeometry(0.15, 6.2, 2.4), doorMat);
+      leftDoor.position.set(0.4, -1.8, -1.25);
+      const rightDoor = new THREE.Mesh(new THREE.BoxGeometry(0.15, 6.2, 2.4), doorMat);
+      rightDoor.position.set(0.4, -1.8, 1.25);
+      archGroup.add(leftDoor, rightDoor);
+    }
+
+    palace.add(archGroup);
+  });
+
+  // 3. Central Monumental Golden Onion Dome
+  // High Cylindrical Drum
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(7.2, 7.5, 3.8, 24), whiteMarbleMat);
+  drum.position.set(0, 2.2 + 15 + 1.9, 0);
+  drum.castShadow = true;
+  palace.add(drum);
+
+  // Drum Golden Cornice
+  const drumCornice = new THREE.Mesh(new THREE.CylinderGeometry(7.8, 7.2, 0.6, 24), royalGoldMat);
+  drumCornice.position.set(0, 2.2 + 15 + 3.8, 0);
+  palace.add(drumCornice);
+
+  // Main Golden Onion Bulb
+  const domeBulbGeo = new THREE.SphereGeometry(7.2, 32, 24);
+  domeBulbGeo.scale(1.0, 1.48, 1.0);
+  const mainDome = new THREE.Mesh(domeBulbGeo, royalGoldMat);
+  mainDome.position.set(0, 2.2 + 15 + 3.8 + 5.2, 0);
+  mainDome.castShadow = true;
+  palace.add(mainDome);
+
+  // Golden Spire & Crescent Finial
+  const finialSpire = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.45, 6.5, 12), royalGoldMat);
+  finialSpire.position.set(0, 2.2 + 15 + 3.8 + 12.8, 0);
+  palace.add(finialSpire);
+
+  const crescent = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.14, 10, 24, Math.PI * 1.6), royalGoldMat);
+  crescent.position.set(0, 2.2 + 15 + 3.8 + 16.2, 0);
+  palace.add(crescent);
+
+  // 4. Four Secondary Chhatris (Roof Corner Cupolas with Golden Domes)
+  const chhatriOffsets = [
+    { x: -8.5, z: -8.5 },
+    { x: 8.5, z: -8.5 },
+    { x: -8.5, z: 8.5 },
+    { x: 8.5, z: 8.5 },
+  ];
+  chhatriOffsets.forEach((co) => {
+    const chGroup = new THREE.Group();
+    chGroup.position.set(co.x, 2.2 + 15, co.z);
+
+    // 4 Marble Pillars
+    for (const px of [-1.1, 1.1]) {
+      for (const pz of [-1.1, 1.1]) {
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 3.2, 8), whiteMarbleMat);
+        pillar.position.set(px, 1.6, pz);
+        chGroup.add(pillar);
+      }
+    }
+
+    // Golden Onion Domelet
+    const domeletGeo = new THREE.SphereGeometry(1.8, 16, 14);
+    domeletGeo.scale(1.0, 1.4, 1.0);
+    const domelet = new THREE.Mesh(domeletGeo, royalGoldMat);
+    domelet.position.y = 3.2 + 1.2;
+    chGroup.add(domelet);
+
+    // Mini finial
+    const miniSpire = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.12, 1.6, 6), darkGoldTrimMat);
+    miniSpire.position.y = 3.2 + 2.8;
+    chGroup.add(miniSpire);
+
+    palace.add(chGroup);
+  });
+
+  // 5. Four Monumental Free-Standing Corner Minarets (28m tall each)
+  const minaretOffsets = [
+    { x: -16.5, z: -16.5 },
+    { x: 16.5, z: -16.5 },
+    { x: -16.5, z: 16.5 },
+    { x: 16.5, z: 16.5 },
+  ];
+  minaretOffsets.forEach((mo) => {
+    const minaret = new THREE.Group();
+    minaret.position.set(mo.x, 2.2, mo.z);
+
+    // Octagonal Base Plinth
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.8, 4.0, 8), reliefMarbleMat);
+    base.position.y = 2.0;
+    base.castShadow = true;
+    minaret.add(base);
+
+    // Tapered Fluted Shaft (3 tiers with balconies)
+    const tierHeights = [8.5, 7.5, 6.5];
+    let curY = 4.0;
+    let rBot = 2.1;
+
+    tierHeights.forEach((th, tIdx) => {
+      const rTop = rBot * 0.9;
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, th, 16), whiteMarbleMat);
+      shaft.position.y = curY + th / 2;
+      shaft.castShadow = true;
+      minaret.add(shaft);
+
+      curY += th;
+
+      // Balcony with golden balustrade
+      const balcony = new THREE.Mesh(new THREE.CylinderGeometry(rTop * 1.45, rTop * 1.1, 0.9, 16), reliefMarbleMat);
+      balcony.position.y = curY + 0.45;
+      minaret.add(balcony);
+
+      const balustrade = new THREE.Mesh(new THREE.TorusGeometry(rTop * 1.45, 0.12, 6, 16), royalGoldMat);
+      balustrade.rotation.x = Math.PI / 2;
+      balustrade.position.y = curY + 0.9;
+      minaret.add(balustrade);
+
+      curY += 0.9;
+      rBot = rTop;
+    });
+
+    // Minaret Cupola Chhatri & Golden Onion Dome
+    const cupolaPillars = 6;
+    for (let p = 0; p < cupolaPillars; p++) {
+      const a = (p / cupolaPillars) * Math.PI * 2;
+      const cp = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 2.2, 6), whiteMarbleMat);
+      cp.position.set(Math.cos(a) * 1.2, curY + 1.1, Math.sin(a) * 1.2);
+      minaret.add(cp);
+    }
+
+    const minDomeGeo = new THREE.SphereGeometry(1.6, 16, 12);
+    minDomeGeo.scale(1.0, 1.45, 1.0);
+    const minDome = new THREE.Mesh(minDomeGeo, royalGoldMat);
+    minDome.position.y = curY + 2.2 + 1.1;
+    minDome.castShadow = true;
+    minaret.add(minDome);
+
+    const minFinial = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.15, 2.2, 8), royalGoldMat);
+    minFinial.position.y = curY + 2.2 + 2.8;
+    minaret.add(minFinial);
+
+    palace.add(minaret);
+  });
+
+  return palace;
+}
+
+/**
+ * Creates the Taj Mahal Reflecting Pool with crystal-blue water, marble coping, and fountains
+ */
+export function createReflectingPoolMesh(length = 32, width = 9): THREE.Group {
+  const pool = new THREE.Group();
+
+  const copingMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.25, metalness: 0.1 });
+  const basinMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.35, metalness: 0.3 });
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x38bdf8,
+    roughness: 0.08,
+    metalness: 0.2,
+    transparent: true,
+    opacity: 0.88,
+  });
+  const goldNozzleMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.2, metalness: 0.85 });
+
+  // Marble Coping Border
+  const copingGeo = new THREE.BoxGeometry(length + 1.8, 0.45, width + 1.8);
+  const coping = new THREE.Mesh(copingGeo, copingMat);
+  coping.position.y = 0.22;
+  coping.receiveShadow = true;
+  pool.add(coping);
+
+  // Sunken Basin Void
+  const basin = new THREE.Mesh(new THREE.BoxGeometry(length, 0.4, width), basinMat);
+  basin.position.y = 0.2;
+  pool.add(basin);
+
+  // Crystal Clear Water Plane
+  const water = new THREE.Mesh(new THREE.BoxGeometry(length * 0.98, 0.12, width * 0.98), waterMat);
+  water.position.y = 0.32;
+  pool.add(water);
+
+  // 5 Symmetrical Fountain Jets along the central axis
+  const numFountains = 5;
+  for (let i = 0; i < numFountains; i++) {
+    const fx = -length / 2 + (i + 0.5) * (length / numFountains);
+    // Brass nozzle
+    const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 0.65, 8), goldNozzleMat);
+    nozzle.position.set(fx, 0.45, 0);
+    pool.add(nozzle);
+
+    // Sculpted Water Spray Cone
+    const sprayGeo = new THREE.ConeGeometry(0.65, 1.8, 8);
+    const sprayMat = new THREE.MeshStandardMaterial({
+      color: 0xe0f2fe,
+      roughness: 0.1,
+      transparent: true,
+      opacity: 0.75,
+    });
+    const spray = new THREE.Mesh(sprayGeo, sprayMat);
+    spray.position.set(fx, 1.45, 0);
+    pool.add(spray);
+  }
+
+  return pool;
+}
+
+/**
+ * Creates the Enterable Royal Throne Room Interior (Throne Room of Sultan Malik al-Solaria)
+ * Enclosed luxury hall with checkerboard marble floor, crimson carpet, 8 golden colonnade pillars,
+ * Sultan's Peacock Throne on raised dais, royal braziers, and exit archway.
+ */
+export function createThroneRoomInteriorMesh(): THREE.Group {
+  const room = new THREE.Group();
+
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3, metalness: 0.1 });
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.2, metalness: 0.15 });
+  const carpetMat = new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.7 });
+  const carpetGoldTrimMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.2, metalness: 0.85 });
+  const pillarGoldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.2, metalness: 0.85 });
+  const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.5 }); // midnight blue vaulted ceiling
+
+  // Room Dimensions: 32m Long (along X), 20m Wide (along Z), 9m High
+  // Floor
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(32, 0.4, 20), floorMat);
+  floor.position.y = -0.2;
+  floor.receiveShadow = true;
+  room.add(floor);
+
+  // Ceiling
+  const ceiling = new THREE.Mesh(new THREE.BoxGeometry(32, 0.4, 20), ceilingMat);
+  ceiling.position.y = 9.0;
+  room.add(ceiling);
+
+  // Walls (North, South, West / Throne End, East / Entrance End)
+  const northWall = new THREE.Mesh(new THREE.BoxGeometry(32, 9, 0.5), wallMat);
+  northWall.position.set(0, 4.5, -10);
+  const southWall = new THREE.Mesh(new THREE.BoxGeometry(32, 9, 0.5), wallMat);
+  southWall.position.set(0, 4.5, 10);
+  const westWall = new THREE.Mesh(new THREE.BoxGeometry(0.5, 9, 20), wallMat); // Behind Throne
+  westWall.position.set(-16, 4.5, 0);
+  const eastWall = new THREE.Mesh(new THREE.BoxGeometry(0.5, 9, 20), wallMat); // Entrance Door Wall
+  eastWall.position.set(16, 4.5, 0);
+  room.add(northWall, southWall, westWall, eastWall);
+
+  // Grand Royal Crimson Carpet with Gold Border (runs down center aisle from entrance to dais)
+  const carpet = new THREE.Mesh(new THREE.BoxGeometry(26, 0.05, 5.0), carpetMat);
+  carpet.position.set(1.5, 0.03, 0);
+  carpet.receiveShadow = true;
+  room.add(carpet);
+
+  for (const bz of [-2.6, 2.6]) {
+    const border = new THREE.Mesh(new THREE.BoxGeometry(26, 0.06, 0.25), carpetGoldTrimMat);
+    border.position.set(1.5, 0.04, bz);
+    room.add(border);
+  }
+
+  // 8 Golden Colonnade Pillars flanking the red carpet
+  const pillarOffsetsX = [-8, -3, 2, 7];
+  pillarOffsetsX.forEach((px) => {
+    for (const pz of [-4.2, 4.2]) {
+      const colGroup = new THREE.Group();
+      colGroup.position.set(px, 0, pz);
+
+      // Base
+      const pBase = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 1.4), pillarGoldMat);
+      pBase.position.y = 0.4;
+      colGroup.add(pBase);
+
+      // Fluted Shaft
+      const pShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.65, 7.4, 16), pillarGoldMat);
+      pShaft.position.y = 0.8 + 3.7;
+      pShaft.castShadow = true;
+      colGroup.add(pShaft);
+
+      // Ornate Lotus Capital
+      const pCap = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.8, 1.6), pillarGoldMat);
+      pCap.position.y = 0.8 + 7.4 + 0.4;
+      colGroup.add(pCap);
+
+      room.add(colGroup);
+    }
+  });
+
+  // Raised 3-Tier Royal Dais at West End
+  const dais1 = new THREE.Mesh(new THREE.BoxGeometry(9, 0.4, 11), floorMat);
+  dais1.position.set(-11.5, 0.2, 0);
+  const dais2 = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.4, 9), floorMat);
+  dais2.position.set(-12, 0.6, 0);
+  const dais3 = new THREE.Mesh(new THREE.BoxGeometry(6, 0.4, 7), carpetMat);
+  dais3.position.set(-12.5, 1.0, 0);
+  room.add(dais1, dais2, dais3);
+
+  // The Golden Peacock Throne of Solaria (center of dais3 at X: -13.5, y: 1.2, Z: 0)
+  const throneGroup = new THREE.Group();
+  throneGroup.position.set(-13.8, 1.2, 0);
+  throneGroup.rotation.y = Math.PI * 0.5; // Facing East down the carpet
+
+  // Throne Base & Cushion
+  const throneBase = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.8, 2.2), pillarGoldMat);
+  throneBase.position.y = 0.4;
+  const throneCushion = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.35, 1.8), carpetMat);
+  throneCushion.position.set(0, 0.9, 0);
+  throneGroup.add(throneBase, throneCushion);
+
+  // High Ornate Peacock Fan Backrest
+  const backrestGeo = new THREE.CylinderGeometry(2.0, 2.2, 0.4, 16, 1, false, 0, Math.PI);
+  const backrest = new THREE.Mesh(backrestGeo, pillarGoldMat);
+  backrest.rotation.z = Math.PI / 2;
+  backrest.position.set(0, 2.6, -0.9);
+  throneGroup.add(backrest);
+
+  // Ruby Gemstone Inlays
+  const rubyMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.1, emissive: 0x991b1b, emissiveIntensity: 0.8 });
+  const rubyCenter = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), rubyMat);
+  rubyCenter.position.set(0, 2.8, -0.75);
+  throneGroup.add(rubyCenter);
+
+  // Armrests with Golden Lions
+  for (const ax of [-1.2, 1.2]) {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.9, 1.8), pillarGoldMat);
+    arm.position.set(ax, 1.1, 0);
+    throneGroup.add(arm);
+  }
+  room.add(throneGroup);
+
+  // 6 Royal Flaming Braziers with Warm Ambient Torches
+  const brazierPositions = [
+    { x: -9, z: -5.5 },
+    { x: -9, z: 5.5 },
+    { x: -1, z: -6.5 },
+    { x: -1, z: 6.5 },
+    { x: 8, z: -6.5 },
+    { x: 8, z: 6.5 },
+  ];
+  brazierPositions.forEach((bp) => {
+    const bStand = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.3, 1.6, 8), pillarGoldMat);
+    bStand.position.set(bp.x, 0.8, bp.z);
+    room.add(bStand);
+
+    const bFlame = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffaa00 }));
+    bFlame.position.set(bp.x, 1.75, bp.z);
+    room.add(bFlame);
+
+    const light = new THREE.PointLight(0xffaa00, 1.8, 14);
+    light.position.set(bp.x, 2.2, bp.z);
+    room.add(light);
+  });
+
+  // Entrance Archway & Exit Door at East Wall (X: 15.6)
+  const exitArch = new THREE.Mesh(new THREE.BoxGeometry(0.6, 6.5, 4.5), pillarGoldMat);
+  exitArch.position.set(15.6, 3.25, 0);
+  room.add(exitArch);
+
+  const exitPortalMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+  const exitPortal = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 5.5), exitPortalMat);
+  exitPortal.rotation.y = -Math.PI / 2;
+  exitPortal.position.set(15.5, 2.8, 0);
+  room.add(exitPortal);
+
+  return room;
+}
+
+/**
+ * Creates Ornate Desert Oil Lantern on stone pedestal
+ */
+export function createDesertOilLanternMesh(): THREE.Group {
+  const lantern = new THREE.Group();
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.6 });
+  const brassMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.25, metalness: 0.85 });
+
+  const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.32, 2.0, 8), stoneMat);
+  ped.position.y = 1.0;
+  ped.castShadow = true;
+  lantern.add(ped);
+
+  const lampHousing = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.25, 0.85, 6), brassMat);
+  lampHousing.position.y = 2.4;
+  lantern.add(lampHousing);
+
+  const flame = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffd600 }));
+  flame.position.y = 2.4;
+  lantern.add(flame);
+
+  const pl = new THREE.PointLight(0xffaa00, 1.4, 9);
+  pl.position.y = 2.5;
+  lantern.add(pl);
+
+  return lantern;
+}
+
+// ==========================================
+// 18. JARRUS THE ANCIENT SANDWORM BOSS MESH
+// ==========================================
+
+/**
+ * Creates Jarrus, Sang Cacing Purba Solaria (Segmented Sandworm Boss with Circular Fanged Maw)
+ */
+export function createSandwormBossMesh(): {
+  group: THREE.Group;
+  parts: Record<string, any>;
+} {
+  const group = new THREE.Group();
+  const parts: Record<string, any> = {};
+
+  const chitinDarkMat = new THREE.MeshStandardMaterial({
+    color: 0x78350f, // Deep desert chitin
+    roughness: 0.85,
+    metalness: 0.15,
+    flatShading: true,
+  });
+
+  const chitinAmberMat = new THREE.MeshStandardMaterial({
+    color: 0xb45309, // Warm amber chitin
+    roughness: 0.75,
+    metalness: 0.2,
+    flatShading: true,
+  });
+
+  const spikeMat = new THREE.MeshStandardMaterial({
+    color: 0x451a03,
+    roughness: 0.9,
+    flatShading: true,
+  });
+
+  const toothMat = new THREE.MeshStandardMaterial({
+    color: 0xfef08a, // Sharp bone teeth
+    roughness: 0.3,
+    metalness: 0.2,
+  });
+
+  const acidMawMat = new THREE.MeshStandardMaterial({
+    color: 0x10b981, // Glowing toxic acid maw void
+    emissive: 0x059669,
+    emissiveIntensity: 0.9,
+    roughness: 0.3,
+  });
+
+  const eyeMat = new THREE.MeshStandardMaterial({
+    color: 0xef4444,
+    emissive: 0xdc2626,
+    emissiveIntensity: 1.4,
+  });
+
+  // Body Segments: 9 chained segments emerging from sand
+  const segments: THREE.Group[] = [];
+  const numSegments = 9;
+  let currentParent: THREE.Group = group;
+
+  for (let i = 0; i < numSegments; i++) {
+    const segGroup = new THREE.Group();
+    const t = i / numSegments;
+    const radius = 1.5 * (1.1 - t * 0.55);
+    const length = 1.35;
+
+    // Segment barrel
+    const segGeo = new THREE.CylinderGeometry(radius * 0.92, radius, length, 12);
+    const segMesh = new THREE.Mesh(segGeo, i % 2 === 0 ? chitinDarkMat : chitinAmberMat);
+    segMesh.rotation.x = Math.PI / 2;
+    segMesh.castShadow = true;
+    segMesh.receiveShadow = true;
+    segGroup.add(segMesh);
+
+    // Chitin ridge / dorsal carapace plates
+    const ridgeGeo = new THREE.BoxGeometry(radius * 1.5, length * 0.7, 0.45);
+    const ridgeMesh = new THREE.Mesh(ridgeGeo, chitinDarkMat);
+    ridgeMesh.position.y = radius * 0.85;
+    segGroup.add(ridgeMesh);
+
+    // Lateral spikes on segments
+    for (let s = -1; s <= 1; s += 2) {
+      const spikeGeo = new THREE.ConeGeometry(0.22, 0.85, 5);
+      const spike = new THREE.Mesh(spikeGeo, spikeMat);
+      spike.position.set(s * (radius * 1.05), radius * 0.45, 0);
+      spike.rotation.z = -s * 0.85;
+      segGroup.add(spike);
+    }
+
+    // Arching posture: head emerges high, body curves into the sand
+    const pitchAngle = i === 0 ? 0.35 : (i < 4 ? -0.15 : -0.22);
+    segGroup.position.set(0, i === 0 ? 2.8 : 0, i === 0 ? 0 : -length * 0.9);
+    segGroup.rotation.x = pitchAngle;
+
+    currentParent.add(segGroup);
+    segments.push(segGroup);
+    currentParent = segGroup;
+  }
+
+  // Head Maw (attached to segment 0)
+  const headGroup = new THREE.Group();
+  headGroup.position.set(0, 0, 0.85);
+
+  // Outer circular lip / rim
+  const rimGeo = new THREE.TorusGeometry(1.5, 0.38, 10, 20);
+  const rimMesh = new THREE.Mesh(rimGeo, chitinDarkMat);
+  headGroup.add(rimMesh);
+
+  // Inner acid throat glowing void
+  const throatGeo = new THREE.CircleGeometry(1.35, 16);
+  const throatMesh = new THREE.Mesh(throatGeo, acidMawMat);
+  throatMesh.position.z = -0.3;
+  headGroup.add(throatMesh);
+
+  // Concentric Rings of Razor-Sharp Inward Teeth
+  const toothRings = [
+    { count: 12, rad: 1.3, size: 0.4, len: 0.7 },
+    { count: 10, rad: 0.95, size: 0.32, len: 0.6 },
+    { count: 8, rad: 0.6, size: 0.24, len: 0.48 },
+  ];
+
+  const teethGroup = new THREE.Group();
+  toothRings.forEach((ring, rIdx) => {
+    for (let c = 0; c < ring.count; c++) {
+      const angle = (c / ring.count) * Math.PI * 2 + (rIdx * 0.3);
+      const toothGeo = new THREE.ConeGeometry(ring.size * 0.5, ring.len, 5);
+      const tooth = new THREE.Mesh(toothGeo, toothMat);
+      const tx = Math.cos(angle) * ring.rad;
+      const ty = Math.sin(angle) * ring.rad;
+      tooth.position.set(tx, ty, -0.15 + rIdx * 0.1);
+      tooth.rotation.z = angle - Math.PI / 2;
+      tooth.rotation.x = -0.35;
+      teethGroup.add(tooth);
+    }
+  });
+  headGroup.add(teethGroup);
+
+  // Side Mandible Pincers
+  const leftMandible = new THREE.Mesh(new THREE.ConeGeometry(0.38, 1.9, 6), spikeMat);
+  leftMandible.position.set(-1.75, 0, 0.2);
+  leftMandible.rotation.z = Math.PI / 3;
+  leftMandible.rotation.y = 0.4;
+
+  const rightMandible = new THREE.Mesh(new THREE.ConeGeometry(0.38, 1.9, 6), spikeMat);
+  rightMandible.position.set(1.75, 0, 0.2);
+  rightMandible.rotation.z = -Math.PI / 3;
+  rightMandible.rotation.y = -0.4;
+  headGroup.add(leftMandible, rightMandible);
+
+  // Cluster of glowing red compound eyes
+  for (let eyeSide = -1; eyeSide <= 1; eyeSide += 2) {
+    for (let eIdx = 0; eIdx < 3; eIdx++) {
+      const eyeGeo = new THREE.SphereGeometry(0.14, 6, 6);
+      const eye = new THREE.Mesh(eyeGeo, eyeMat);
+      eye.position.set(eyeSide * (1.2 + eIdx * 0.2), 0.75 + (eIdx % 2) * 0.25, -0.1 - eIdx * 0.3);
+      headGroup.add(eye);
+    }
+  }
+
+  // Attach head to front segment
+  segments[0].add(headGroup);
+
+  parts.head = headGroup;
+  parts.teeth = teethGroup;
+  parts.mandibles = [leftMandible, rightMandible];
+  parts.segments = segments;
+
+  return { group, parts };
 }

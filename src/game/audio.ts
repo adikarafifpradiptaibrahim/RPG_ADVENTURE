@@ -10,7 +10,7 @@ class SoundManager {
   private sfxGain: GainNode | null = null;
   private musicInterval: any = null;
   private isMusicPlaying: boolean = false;
-  private currentBossMusic: 'titan' | 'dragon' | null = null;
+  private currentBossMusic: 'titan' | 'dragon' | 'worm' | null = null;
   private bossMusicInterval: any = null;
   private bossMusicGain: GainNode | null = null;
   private bossStep = 0;
@@ -1242,7 +1242,7 @@ class SoundManager {
    * Automatically triggered when boss encounter begins.
    * Plays Heavy Orchestral War BGM for Titan or Epic Choir Dragon BGM for Ignis.
    */
-  public playBossMusic(bossType: 'titan' | 'dragon') {
+  public playBossMusic(bossType: 'titan' | 'dragon' | 'worm') {
     if (this.currentBossMusic === bossType) return;
     this.initContext();
     if (!this.ctx || !this.bossMusicGain) return;
@@ -1428,6 +1428,80 @@ class SoundManager {
 
       playDragonStep();
       this.bossMusicInterval = setInterval(playDragonStep, 450); // 132 BPM
+    } else if (bossType === 'worm') {
+      // 3. INTENSE DESERT TRIBAL WAR DRUM BGM (Jarrus, Sang Cacing Purba Solaria)
+      // Driving 120 BPM tempo: syncopated Middle-Eastern darbuka / djembe tribal drums,
+      // rattlesnake sand hisses, and menacing Phrygian dominant desert string / brass stabs
+      const playWormStep = () => {
+        if (!this.ctx || !this.bossMusicGain || this.isMuted || this.currentBossMusic !== 'worm') return;
+        const tNow = this.ctx.currentTime;
+        const s = this.bossStep % 8;
+        this.bossStep++;
+
+        // Low-tuned Subterranean Tribal Darbuka / Djembe Kick (beats 0, 3, 5)
+        if (s === 0 || s === 3 || s === 5) {
+          const drum = this.ctx.createOscillator();
+          const dGain = this.ctx.createGain();
+          drum.type = 'triangle';
+          const startF = s === 0 ? 165 : 125;
+          drum.frequency.setValueAtTime(startF, tNow);
+          drum.frequency.exponentialRampToValueAtTime(38, tNow + 0.32);
+          dGain.gain.setValueAtTime(0.55, tNow);
+          dGain.gain.exponentialRampToValueAtTime(0.001, tNow + 0.35);
+          drum.connect(dGain);
+          dGain.connect(this.bossMusicGain!);
+          drum.start(tNow);
+          drum.stop(tNow + 0.36);
+
+          this.playNoiseBurst({
+            duration: 0.2,
+            gain: 0.28,
+            filterType: 'lowpass',
+            freqStart: 450,
+            freqEnd: 80,
+          });
+        }
+
+        // Desert Rattlesnake & Shaker Accent (syncopated off-beats 1, 2, 4, 7)
+        if (s === 1 || s === 2 || s === 4 || s === 7) {
+          this.playNoiseBurst({
+            duration: 0.12,
+            gain: 0.24,
+            filterType: 'highpass',
+            freqStart: 4500,
+            freqEnd: 2200,
+          });
+        }
+
+        // Menacing Phrygian Dominant Desert Synth Stabs (D, Eb, F#, G, A, Bb)
+        const chordIndex = Math.floor((this.bossStep / 8) % 4);
+        const desertChords = [
+          [146.83, 185.0, 220.0],  // D major (Phrygian tonic with F#)
+          [155.56, 196.0, 233.08], // Eb major (Phrygian bII)
+          [146.83, 174.61, 220.0], // D minor
+          [130.81, 164.81, 196.0], // C minor
+        ];
+        const chord = desertChords[chordIndex];
+
+        if (s === 0 || s === 4) {
+          chord.forEach((freq, idx) => {
+            const stab = this.ctx!.createOscillator();
+            const sGain = this.ctx!.createGain();
+            stab.type = idx === 0 ? 'sawtooth' : 'triangle';
+            stab.frequency.setValueAtTime(freq, tNow);
+            sGain.gain.setValueAtTime(0.001, tNow);
+            sGain.gain.linearRampToValueAtTime(0.16, tNow + 0.05);
+            sGain.gain.exponentialRampToValueAtTime(0.001, tNow + 0.65);
+            stab.connect(sGain);
+            sGain.connect(this.bossMusicGain!);
+            stab.start(tNow);
+            stab.stop(tNow + 0.7);
+          });
+        }
+      };
+
+      playWormStep();
+      this.bossMusicInterval = setInterval(playWormStep, 500); // 120 BPM
     }
   }
 
@@ -1458,8 +1532,73 @@ class SoundManager {
     }
   }
 
-  public getCurrentBossMusic(): 'titan' | 'dragon' | null {
+  public playBossBGM(bossType: 'titan' | 'dragon' | 'worm') {
+    return this.playBossMusic(bossType);
+  }
+
+  public getCurrentBossMusic(): 'titan' | 'dragon' | 'worm' | null {
     return this.currentBossMusic;
+  }
+
+
+  // Sandworm Burrow, Burst Out & Acid Spit SFX
+  public playWormBurrow() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+    const rumble = this.ctx.createOscillator();
+    const rGain = this.ctx.createGain();
+    rumble.type = 'triangle';
+    rumble.frequency.setValueAtTime(70, now);
+    rumble.frequency.linearRampToValueAtTime(32, now + 1.2);
+    rGain.gain.setValueAtTime(0.4, now);
+    rGain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+    rumble.connect(rGain);
+    rGain.connect(this.sfxGain);
+    rumble.start(now);
+    rumble.stop(now + 1.25);
+    this.playNoiseBurst({ duration: 1.0, gain: 0.35, filterType: 'lowpass', freqStart: 380, freqEnd: 80 });
+  }
+
+  public playWormBurstOut() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(80, now);
+    osc.frequency.exponentialRampToValueAtTime(280, now + 0.15);
+    osc.frequency.exponentialRampToValueAtTime(45, now + 0.85);
+    gain.gain.setValueAtTime(0.65, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.95);
+    this.playNoiseBurst({ duration: 0.65, gain: 0.5, filterType: 'bandpass', freqStart: 1800, freqEnd: 120 });
+  }
+
+  public playWormAcidSpit() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(650, now);
+    osc.frequency.linearRampToValueAtTime(1100, now + 0.35);
+    osc.frequency.linearRampToValueAtTime(400, now + 0.7);
+    gain.gain.setValueAtTime(0.35, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.8);
+    this.playNoiseBurst({ duration: 0.75, gain: 0.42, filterType: 'highpass', freqStart: 1800, freqEnd: 3200 });
   }
 
   // Checkpoint Waypoint Unlock Chime

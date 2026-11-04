@@ -297,11 +297,19 @@ export const WAYPOINTS: {
   },
   {
     id: 'wp_solaria_village',
-    nameId: 'Alun-Alun Desa & Istana Gurun Solaria',
+    nameId: 'Desa Bazaar Gurun Solaria',
+    regionId: 'gurun_solaria',
+    icon: '🎪',
+    pos: [-350, 350],
+    desc: 'Pemukiman megah tanah liat, bazaar rempah eksotis, dan sumur oase Solaria',
+  },
+  {
+    id: 'wp_solaria_palace',
+    nameId: 'Istana Taj Mahal Sultan Solaria',
     regionId: 'gurun_solaria',
     icon: '🕌',
-    pos: [-350, 350],
-    desc: 'Pemukiman megah berarsitektur tanah liat, bazaar rempah eksotis, dan Istana Emas Sultan Solaria',
+    pos: [-415, 350],
+    desc: 'Kemegahan marmer putih arsitektur Taj Mahal, menara minaret, dan Ruang Takhta Sultan Malik',
   },
   {
     id: 'wp_solaria',

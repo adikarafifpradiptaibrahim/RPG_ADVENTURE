@@ -1484,6 +1484,45 @@ export class GameEngine {
       walkCycle: 0,
     });
 
+    // Solaria Desert Colossal Super Boss: Jarrus, Sang Cacing Purba (Segmented Burrowing Sandworm)
+    const wormPos: [number, number] = [-240, 420];
+    const { group: wormGroup, parts: wormParts } = createEnemyMesh('worm');
+    const wormY = this.world.getTerrainHeight(wormPos[0], wormPos[1]);
+    wormGroup.position.set(wormPos[0], wormY, wormPos[1]);
+    this.scene.add(wormGroup);
+
+    const wormData: EnemyData = {
+      id: 'boss_jarrus',
+      name: 'Jarrus, The Ancient Sandworm',
+      nameId: 'Jarrus, Sang Cacing Purba Solaria',
+      type: 'boss',
+      level: 10,
+      hp: 1050,
+      maxHp: 1050,
+      attack: 42,
+      defense: 20,
+      expReward: 1050,
+      goldReward: 700,
+      speed: 2.6,
+      attackRange: 5.0,
+      detectRange: 30,
+      position: [wormPos[0], wormY, wormPos[1]],
+      isDead: false,
+      dropItems: [
+        { item: CHEST_LOOT_POOL[0], chance: 1.0 },
+        { item: CHEST_LOOT_POOL[2], chance: 1.0 },
+      ],
+    };
+
+    this.enemies.push({
+      data: wormData,
+      mesh: wormGroup,
+      parts: wormParts,
+      baseY: wormY,
+      attackCooldown: 0,
+      walkCycle: 0,
+    });
+
     // Initialize territory origin points and leash parameters for all monsters
     this.enemies.forEach((e) => {
       if (!e.spawnPos) {
@@ -3869,6 +3908,16 @@ export class GameEngine {
   }
 
   private animateEnemyWalk(enemy: (typeof this.enemies)[0], delta: number) {
+    if (enemy.data.id === 'boss_jarrus') {
+      for (let i = 1; i <= 8; i++) {
+        const seg = enemy.parts[`segment_${i}`];
+        if (seg) {
+          seg.position.x = Math.sin(enemy.walkCycle * 2.5 - i * 0.5) * 0.35;
+          seg.position.y = Math.cos(enemy.walkCycle * 2.0 - i * 0.4) * 0.15;
+        }
+      }
+      return;
+    }
     if (enemy.data.id === 'boss_dragonfang') {
       if (enemy.parts.leftWing && enemy.parts.rightWing) {
         enemy.parts.leftWing.rotation.z = Math.sin(enemy.walkCycle * 2) * 0.35;
@@ -3917,7 +3966,7 @@ export class GameEngine {
   }
 
   private resetEnemyPose(enemy: (typeof this.enemies)[0]) {
-    const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0));
+    const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : (enemy.data.id === 'boss_jarrus' ? 2.8 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0)));
     enemy.mesh.scale.set(s, s, s);
     if (enemy.parts) {
       if (enemy.parts.leftLeg) enemy.parts.leftLeg.rotation.set(0, 0, 0);
@@ -3942,7 +3991,7 @@ export class GameEngine {
     const spawnY = this.world.getTerrainHeight(spawn.x, spawn.z);
     enemy.mesh.position.set(spawn.x, spawnY, spawn.z);
     enemy.mesh.rotation.set(0, 0, 0);
-    const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0));
+    const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : (enemy.data.id === 'boss_jarrus' ? 2.8 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0)));
     enemy.mesh.scale.set(s, s, s);
     enemy.mesh.visible = true;
     this.resetEnemyPose(enemy);
@@ -4005,8 +4054,11 @@ export class GameEngine {
     let resZ = candidateZ;
 
     // Two-pass resolution cleanly eliminates corner catching and penetrating walls
+    const inThroneRoom = this.playerPos.y < -10;
     for (let pass = 0; pass < 2; pass++) {
       for (const col of this.world.colliders) {
+        const isInteriorCollider = col.maxY !== undefined && col.maxY < 0;
+        if (inThroneRoom !== isInteriorCollider) continue;
         if (
           col.type === 'box' &&
           col.minX !== undefined &&
@@ -4092,7 +4144,10 @@ export class GameEngine {
       this.playerVel.z = 0;
       this.playerVel.y -= 22 * delta;
       this.playerPos.y += this.playerVel.y * delta;
-      const groundY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+      const inThroneRoomLocked = this.playerPos.y < -10 && this.playerPos.x >= -435 && this.playerPos.x <= -395 && this.playerPos.z >= 335 && this.playerPos.z <= 365;
+      const groundY = inThroneRoomLocked
+        ? ((this.playerPos.x <= -424 && Math.abs(this.playerPos.z - 350) <= 6) ? -24.4 : -25.0)
+        : this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
       if (this.playerPos.y <= groundY) {
         if (!this.isGrounded && this.playerVel.y < -3.5 && this.charClass === 'warrior') {
           soundManager.playSkillLompatLand();
@@ -4292,7 +4347,17 @@ export class GameEngine {
     this.playerVel.y -= 22 * delta;
     this.playerPos.y += this.playerVel.y * delta;
 
-    // Terrain ground collision and Ocean water surface
+    // Check if player is inside the Solaria Palace Throne Room Interior Cell
+    const inThroneRoom = this.playerPos.y < -10 && this.playerPos.x >= -435 && this.playerPos.x <= -395 && this.playerPos.z >= 335 && this.playerPos.z <= 365;
+    if (inThroneRoom) {
+      const throneFloorY = (this.playerPos.x <= -424 && Math.abs(this.playerPos.z - 350) <= 6) ? -24.4 : -25.0;
+      if (this.playerPos.y <= throneFloorY) {
+        this.playerPos.y = throneFloorY;
+        this.playerVel.y = 0;
+        this.isGrounded = true;
+      }
+    } else {
+      // Terrain ground collision and Ocean water surface
     const groundY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
     if (this.playerPos.z > 22 && this.playerPos.x >= -65 && this.playerPos.x <= 105 && groundY < -0.2) {
       const waterSurfaceY = -0.25;
@@ -4311,6 +4376,7 @@ export class GameEngine {
         this.playerPos.y = groundY;
         this.playerVel.y = 0;
       }
+    }
     }
 
     // Update mesh position and rotation
@@ -4516,6 +4582,38 @@ export class GameEngine {
   }
 
   private updateNearbyPrompts() {
+    // 0a. Check Taj Mahal Palace Entrance (Overworld -> Throne Room)
+    const distToPalaceGate = Math.hypot(this.playerPos.x - -396, this.playerPos.z - 350);
+    if (distToPalaceGate < 4.5 && this.playerPos.y > -10) {
+      this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Istana Sultan Solaria 🕌', () => {
+        this.playerPos.set(-400, -25, 350);
+        this.playerVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.playerMesh.group.position.copy(this.playerPos);
+        this.camera.position.set(-395, -25 + 3.0, 350);
+        this.camera.lookAt(-415, -25 + 1.8, 350);
+        soundManager.playCheckpointUnlock();
+        this.callbacks.onAddFloatingText('Memasuki Ruang Takhta Sultan Solaria', '#fbbf24', 'info');
+      });
+      return;
+    }
+
+    // 0b. Check Throne Room Exit Door (Throne Room -> Overworld)
+    const distToThroneExit = Math.hypot(this.playerPos.x - -400, this.playerPos.z - 350);
+    if (distToThroneExit < 4.0 && this.playerPos.y < -15) {
+      this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Pelataran Istana 🚪', () => {
+        const outY = Math.max(0.5, this.world.getTerrainHeight(-395, 350) + 0.5);
+        this.playerPos.set(-395, outY, 350);
+        this.playerVel.set(0, 0, 0);
+        this.isGrounded = true;
+        this.playerMesh.group.position.copy(this.playerPos);
+        this.camera.position.set(-390, outY + 3.5, 350);
+        this.camera.lookAt(-375, outY + 1.4, 350);
+        soundManager.playCheckpointUnlock();
+        this.callbacks.onAddFloatingText('Kembali ke Pelataran Istana Solaria', '#fbbf24', 'info');
+      });
+      return;
+    }
     // Check all village NPCs
     if (this.world.npcs && this.world.npcs.length > 0) {
       for (const npc of this.world.npcs) {
@@ -4548,6 +4646,16 @@ export class GameEngine {
             prompt = `Tekan [F] / Sentuh: Saudagar Lyra (Toko Pusaka & Elixir Astraea) 💎`;
           } else if (npc.id === 'guard_astraea') {
             prompt = `Tekan [F] / Sentuh: Penjaga Gerbang Emas Astraea 🛡️`;
+          } else if (npc.id === 'sultan_malik') {
+            prompt = `Tekan [F] / Sentuh: Paduka Sultan Malik al-Solaria (Istana Kubah Emas) 👑`;
+          } else if (npc.id === 'merchant_tariq') {
+            prompt = `Tekan [F] / Sentuh: Toko Rempah & Sutra Saudagar Tariq 👳‍♂️`;
+          } else if (npc.id === 'oasis_amina') {
+            prompt = `Tekan [F] / Sentuh: Amina Gadis Pembawa Air Oase 🧕`;
+          } else if (npc.id === 'weaver_zahra') {
+            prompt = `Tekan [F] / Sentuh: Kios Karpet & Sutra Pengrajin Zahra 🧕`;
+          } else if (npc.id === 'guard_solaria' || npc.id === 'guard_throne_1' || npc.id === 'guard_throne_2') {
+            prompt = `Tekan [F] / Sentuh: Prajurit Pengawal Gurun Solaria 🛡️`;
           }
 
           this.callbacks.onNearbyPrompt(prompt, () => {
@@ -4643,6 +4751,8 @@ export class GameEngine {
       // Boss Titan & Dragon permanent scale lock on update loop
       if (enemy.data.id === 'boss_dragonfang') {
         enemy.mesh.scale.set(4.2, 4.2, 4.2);
+      } else if (enemy.data.id === 'boss_jarrus') {
+        enemy.mesh.scale.set(2.8, 2.8, 2.8);
       } else if (enemy.data.type === 'boss') {
         enemy.mesh.scale.set(3.5, 3.5, 3.5);
       } else if (enemy.data.type === 'golem') {
@@ -4786,7 +4896,7 @@ export class GameEngine {
 
     // Dynamic Boss BGM System: Automatically play Heavy Orchestral BGM for Titan or Epic Choir BGM for Ignis Dragon
     if (isBossActive && activeBoss) {
-      const bossType = activeBoss.id === 'boss_dragonfang' ? 'dragon' : 'titan';
+      const bossType = activeBoss.id === 'boss_dragonfang' ? 'dragon' : (activeBoss.id === 'boss_jarrus' ? 'worm' : 'titan');
       soundManager.playBossMusic(bossType);
     } else if (soundManager.getCurrentBossMusic()) {
       soundManager.stopBossMusic();
@@ -4817,6 +4927,8 @@ export class GameEngine {
       // Boss Titan & Dragon permanent scale lock in multiplayer loop
       if (enemy.data.id === 'boss_dragonfang') {
         enemy.mesh.scale.set(4.2, 4.2, 4.2);
+      } else if (enemy.data.id === 'boss_jarrus') {
+        enemy.mesh.scale.set(2.8, 2.8, 2.8);
       } else if (enemy.data.type === 'boss') {
         enemy.mesh.scale.set(3.5, 3.5, 3.5);
       } else if (enemy.data.type === 'golem') {
@@ -4911,7 +5023,7 @@ export class GameEngine {
     );
 
     if (isBossActive && activeBoss) {
-      const bossType = activeBoss.id === 'boss_dragonfang' ? 'dragon' : 'titan';
+      const bossType = activeBoss.id === 'boss_dragonfang' ? 'dragon' : (activeBoss.id === 'boss_jarrus' ? 'worm' : 'titan');
       soundManager.playBossMusic(bossType);
     } else if (soundManager.getCurrentBossMusic()) {
       soundManager.stopBossMusic();
@@ -5497,16 +5609,40 @@ export class GameEngine {
         description: 'Benteng Dataran Tinggi Val-Kragor',
       });
 
-      // Desa & Istana Gurun Solaria (South-West Desert Oasis Metropolis)
+      // Desa Bazaar Gurun Solaria (South-West)
       markers.push({
         id: 'landmark_solaria_village',
-        title: 'Desa & Istana Gurun Solaria',
+        title: 'Desa Bazaar Gurun Solaria',
         type: 'waypoint',
         x: -350,
         z: 350,
-        icon: '🕌',
+        icon: '🎪',
         color: '#f59e0b',
-        description: 'Pemukiman Megah Berkubah Emas & Bazaar Gurun Solaria',
+        description: 'Bazaar Ramai, Kerajinan Tenda Sutra & Sumur Oase Solaria',
+      });
+
+      // Istana Taj Mahal Sultan Solaria (West of Village)
+      markers.push({
+        id: 'landmark_solaria_palace',
+        title: 'Istana Taj Mahal Sultan Solaria',
+        type: 'waypoint',
+        x: -415,
+        z: 350,
+        icon: '🕌',
+        color: '#fbbf24',
+        description: 'Kemegahan Marmer Putih, Menara Minaret, Kolam Pantul & Ruang Takhta',
+      });
+
+      // Jarrus, Sang Cacing Purba (Deep South Solaria Dunes)
+      markers.push({
+        id: 'landmark_boss_jarrus',
+        title: 'Sarang Jarrus Sang Cacing Purba',
+        type: 'boss',
+        x: -240,
+        z: 420,
+        icon: '🪱',
+        color: '#ea580c',
+        description: 'Wilayah Teritorial Cacing Purba Pemangsa Gurun Dalam',
       });
 
       // Secret Palm Oasis of Solaria (South-West)
