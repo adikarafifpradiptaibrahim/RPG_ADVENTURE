@@ -56,8 +56,9 @@ import {
   createDesertBazaarStallMesh,
   createDesertOasisWellMesh,
   createDesertCactusMesh,
+  createInstancedDesertCacti,
+  createInstancedDesertPalms,
   createSandstonePillarMesh,
-  createSandDuneMoundMesh,
   createBambooClusterMesh,
   createMerchantGalleonMesh,
   createVikingWarshipMesh,
@@ -1653,7 +1654,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     colliders.push({ type: 'circle', x: pos.x, z: pos.z, radius: 1.2, label: 'Obelisk Solaria' });
   });
 
-  // Palms near Pyramid Oasis Spring
+  // Palms near Pyramid Oasis Spring (InstancedMesh - High Performance 60 FPS)
   const palmPositions = [
     { x: -142, z: 86 },
     { x: -148, z: 90 },
@@ -1661,13 +1662,17 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { x: -184, z: 128 },
     { x: -190, z: 134 },
   ];
-  palmPositions.forEach((pos) => {
-    const palm = createDesertPalmMesh();
-    palm.position.set(pos.x, getTerrainHeight(pos.x, pos.z), pos.z);
-    palm.rotation.y = Math.random() * Math.PI * 2;
-    scene.add(palm);
+  const pyramidPalmsData = palmPositions.map((pos) => {
     colliders.push({ type: 'circle', x: pos.x, z: pos.z, radius: 0.65, label: 'Pohon Palem Solaria' });
+    return {
+      x: pos.x,
+      y: getTerrainHeight(pos.x, pos.z),
+      z: pos.z,
+      rotationY: Math.random() * Math.PI * 2,
+    };
   });
+  const pyramidPalmsMesh = createInstancedDesertPalms(pyramidPalmsData);
+  scene.add(pyramidPalmsMesh);
 
     // ------------------------------------------
   // 5B. RELOCATED DESA & GRAND TAJ MAHAL PALACE OF SOLARIA
@@ -1880,6 +1885,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // ------------------------------------------
   // Sandstone stacked pillars removed per user cleanup request
 
+  // Cacti in Solaria Dunes (InstancedMesh - High Performance 60 FPS, draw call reduction)
   const desertCacti = [
     { x: -180, z: 80, s: 1.0 },
     { x: -200, z: 115, s: 1.2 },
@@ -1892,28 +1898,21 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { x: -285, z: 160, s: 1.05 },
     { x: -205, z: 195, s: 1.1 },
   ];
-  desertCacti.forEach((dc) => {
-    const cactus = createDesertCactusMesh(dc.s);
-    const cY = getTerrainHeight(dc.x, dc.z);
-    cactus.position.set(dc.x, cY, dc.z);
-    cactus.rotation.y = Math.random() * Math.PI * 2;
-    scene.add(cactus);
+  const cactiData = desertCacti.map((dc) => {
     colliders.push({ type: 'circle', x: dc.x, z: dc.z, radius: 0.5, label: 'Kaktus Gurun' });
+    return {
+      x: dc.x,
+      y: getTerrainHeight(dc.x, dc.z),
+      z: dc.z,
+      scale: dc.s,
+      rotationY: Math.random() * Math.PI * 2,
+    };
   });
+  const cactiMesh = createInstancedDesertCacti(cactiData);
+  scene.add(cactiMesh);
 
-  const sandDunes = [
-    { x: -190, z: 135, rx: 16, rz: 22, h: 3.5 },
-    { x: -260, z: 130, rx: 18, rz: 24, h: 4.0 },
-    { x: -280, z: 190, rx: 15, rz: 20, h: 3.2 },
-    { x: -220, z: 230, rx: 17, rz: 25, h: 3.8 },
-    { x: -310, z: 230, rx: 19, rz: 22, h: 3.6 },
-  ];
-  sandDunes.forEach((sd) => {
-    const dune = createSandDuneMoundMesh(sd.rx, sd.rz, sd.h);
-    const dY = getTerrainHeight(sd.x, sd.z) - 0.5;
-    dune.position.set(sd.x, dY, sd.z);
-    scene.add(dune);
-  });
+  // Gundukan pasir oval melayang (sandDunes) dihapus total sesuai permintaan user.
+  // Seluruh lanskap gurun mengandalkan daratan utama terrainMesh alami yang mulus.
 
   // ==========================================
   // 6. THUNDERPEAK LIGHTNING SPIRE SANCTUARY (North-West)
@@ -2471,18 +2470,18 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   oasisPool.position.set(-340, 0.05, 260);
   scene.add(oasisPool);
 
-  // Oasis Palm Ring
+  // Oasis Palm Ring (InstancedMesh - High Performance)
+  const oasisPalmsData: { x: number; y: number; z: number; rotationY: number }[] = [];
   for (let a = 0; a < 8; a++) {
     const angle = (a / 8) * Math.PI * 2;
     const px = -340 + Math.cos(angle) * 17;
     const pz = 260 + Math.sin(angle) * 17;
     const py = getTerrainHeight(px, pz);
-    const palm = createDesertPalmMesh();
-    palm.position.set(px, py, pz);
-    palm.rotation.y = angle + 0.5;
-    scene.add(palm);
+    oasisPalmsData.push({ x: px, y: py, z: pz, rotationY: angle + 0.5 });
     colliders.push({ type: 'circle', x: px, z: pz, radius: 0.65, label: 'Pohon Palem Oase' });
   }
+  const oasisPalmsMesh = createInstancedDesertPalms(oasisPalmsData);
+  scene.add(oasisPalmsMesh);
 
   // Ancient sandstone arches at Oasis
   const oasisArch = createAncientArchMesh();

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CharacterClass } from '../../types/game';
 
 // Materials cache to optimize performance and prevent memory duplication
@@ -2753,7 +2754,7 @@ export function createArmorStallMesh(clothColor: number = 0x1e3a8a): THREE.Group
   // Wooden Table / Counter
   const counter = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.9, 1.4), woodMat);
   counter.position.y = 0.45;
-  counter.castShadow = true;
+  // counter.castShadow = false;
   counter.receiveShadow = true;
   stall.add(counter);
 
@@ -3708,11 +3709,10 @@ export function createIceCrystalSpireMesh(): THREE.Group {
   return spire;
 }
 
-// 10. Solaria Desert Stepped Pyramid
+// 10. Solaria Desert Stepped Pyramid (Optimized Single Merged Geometry)
 export function createDesertPyramidMesh(): THREE.Group {
   const group = new THREE.Group();
   const sandStone = new THREE.MeshLambertMaterial({ color: 0xd4a373, flatShading: true });
-  const sandStoneDark = new THREE.MeshLambertMaterial({ color: 0xb5835a, flatShading: true });
   const gold = new THREE.MeshStandardMaterial({
     color: 0xffd700,
     metalness: 0.8,
@@ -3721,39 +3721,38 @@ export function createDesertPyramidMesh(): THREE.Group {
     emissiveIntensity: 0.35,
   });
 
-  // Deep foundation skirt into sand
-  const baseFound = new THREE.Mesh(new THREE.BoxGeometry(17, 3.0, 17), sandStone);
-  baseFound.position.y = -1.0;
-  baseFound.receiveShadow = true;
-  group.add(baseFound);
-
-  // Base tier 1
-  const t1 = new THREE.Mesh(new THREE.BoxGeometry(16, 2.5, 16), sandStone);
-  t1.position.y = 1.25;
-  group.add(t1);
+  // Base tier 1 (includes foundation skirt into sand)
+  const g1 = new THREE.BoxGeometry(16, 4.0, 16);
+  g1.translate(0, 0.5, 0);
 
   // Tier 2
-  const t2 = new THREE.Mesh(new THREE.BoxGeometry(11.5, 2.4, 11.5), sandStoneDark);
-  t2.position.y = 3.7;
-  group.add(t2);
+  const g2 = new THREE.BoxGeometry(11.5, 2.5, 11.5);
+  g2.translate(0, 3.75, 0);
 
   // Tier 3
-  const t3 = new THREE.Mesh(new THREE.BoxGeometry(7.5, 2.2, 7.5), sandStone);
-  t3.position.y = 6.0;
-  group.add(t3);
+  const g3 = new THREE.BoxGeometry(7.5, 2.4, 7.5);
+  g3.translate(0, 6.2, 0);
+
+  const mergedBodyGeo = mergeGeometries([g1, g2, g3]);
+  const pyramidBody = new THREE.Mesh(mergedBodyGeo, sandStone);
+  pyramidBody.castShadow = false;
+  pyramidBody.receiveShadow = true;
+  group.add(pyramidBody);
 
   // Golden Capstone
   const cap = new THREE.Mesh(new THREE.ConeGeometry(3.0, 3.5, 4), gold);
   cap.position.y = 8.85;
   cap.rotation.y = Math.PI / 4;
+  cap.castShadow = false;
+  cap.receiveShadow = true;
   group.add(cap);
 
-  // Grand Entrance Arch
+  // Grand Entrance Portal
   const portal = new THREE.Mesh(
-    new THREE.BoxGeometry(2.8, 3.6, 1.5),
+    new THREE.PlaneGeometry(2.8, 3.6),
     new THREE.MeshBasicMaterial({ color: 0x110902 })
   );
-  portal.position.set(0, 1.8, 8.05);
+  portal.position.set(0, 1.8, 8.02);
   group.add(portal);
 
   return group;
@@ -3801,7 +3800,7 @@ export function createDesertPalmMesh(): THREE.Group {
   const trunk1 = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.42, 3.6, 6), trunkMat);
   trunk1.position.set(0, 1.4, 0); // Extends into ground down to -0.4
   trunk1.rotation.z = 0.08;
-  trunk1.castShadow = true;
+  // trunk1.castShadow = false;
   palm.add(trunk1);
 
   // Underground root flare
@@ -6193,7 +6192,7 @@ export function createDesertTentMesh(stripeColor: number = 0x991b1b): THREE.Grou
   // Faceted tent canopy
   const tentRoof = new THREE.Mesh(new THREE.ConeGeometry(3.6, 2.6, 6, 1, true), tanClothMat);
   tentRoof.position.y = 1.3 + 1.3;
-  tentRoof.castShadow = true;
+  // tentRoof.castShadow = false;
   tent.add(tentRoof);
 
   // Striped ridge covers
@@ -6304,7 +6303,7 @@ export function createDesertOasisWellMesh(): THREE.Group {
   // Circular stone well curb
   const rim = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.0, 1.1, 16), stoneMat);
   rim.position.y = 0.55;
-  rim.castShadow = true;
+  // rim.castShadow = false;
   well.add(rim);
 
   // Interior Water
@@ -6348,7 +6347,7 @@ export function createDesertCactusMesh(heightScale = 1.0): THREE.Group {
   const h = 4.2 * heightScale;
   const mainTrunk = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, h, 12), cactusMat);
   mainTrunk.position.y = h / 2;
-  mainTrunk.castShadow = true;
+  // mainTrunk.castShadow = false;
   cactus.add(mainTrunk);
 
   // Left Arm (lower)
@@ -6920,7 +6919,7 @@ export function createDesertOilLanternMesh(): THREE.Group {
 
   const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.32, 2.0, 8), stoneMat);
   ped.position.y = 1.0;
-  ped.castShadow = true;
+  // ped.castShadow = false;
   lantern.add(ped);
 
   const lampHousing = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.25, 0.85, 6), brassMat);
@@ -7104,4 +7103,121 @@ export function createSandwormBossMesh(): {
   parts.segments = segments;
 
   return { group, parts };
+}
+
+export interface InstancedItemTransform {
+  x: number;
+  y: number;
+  z: number;
+  scale?: number;
+  rotationY?: number;
+}
+
+/**
+ * Creates an InstancedMesh group for Desert Cacti to dramatically reduce draw calls.
+ */
+export function createInstancedDesertCacti(items: InstancedItemTransform[]): THREE.InstancedMesh {
+  const cactusMat = new THREE.MeshStandardMaterial({
+    color: 0x166534,
+    roughness: 0.85,
+  });
+
+  const mainTrunk = new THREE.CylinderGeometry(0.32, 0.36, 4.2, 8);
+  mainTrunk.translate(0, 2.1, 0);
+
+  const lArmH = new THREE.CylinderGeometry(0.22, 0.22, 1.1, 6);
+  lArmH.rotateZ(Math.PI / 2);
+  lArmH.translate(-0.7, 1.9, 0);
+
+  const lArmV = new THREE.CylinderGeometry(0.22, 0.22, 1.4, 6);
+  lArmV.translate(-1.15, 2.5, 0);
+
+  const rArmH = new THREE.CylinderGeometry(0.22, 0.22, 1.2, 6);
+  rArmH.rotateZ(Math.PI / 2);
+  rArmH.translate(0.75, 2.6, 0);
+
+  const rArmV = new THREE.CylinderGeometry(0.22, 0.22, 1.5, 6);
+  rArmV.translate(1.25, 3.25, 0);
+
+  const mergedGeo = mergeGeometries([mainTrunk, lArmH, lArmV, rArmH, rArmV]);
+
+  const instanced = new THREE.InstancedMesh(mergedGeo, cactusMat, items.length);
+  instanced.castShadow = false;
+  instanced.receiveShadow = true;
+
+  const dummy = new THREE.Object3D();
+  items.forEach((item, i) => {
+    dummy.position.set(item.x, item.y, item.z);
+    dummy.rotation.set(0, item.rotationY ?? 0, 0);
+    const s = item.scale ?? 1.0;
+    dummy.scale.set(s, s, s);
+    dummy.updateMatrix();
+    instanced.setMatrixAt(i, dummy.matrix);
+  });
+
+  instanced.instanceMatrix.needsUpdate = true;
+  return instanced;
+}
+
+/**
+ * Creates InstancedMesh group for Desert Palms (Trunk + Canopy) to dramatically reduce draw calls.
+ */
+export function createInstancedDesertPalms(items: InstancedItemTransform[]): THREE.Group {
+  const group = new THREE.Group();
+
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x8d6e63, flatShading: true });
+  const leafMat = new THREE.MeshLambertMaterial({ color: 0x2e7d32, flatShading: true });
+
+  // 1. Merged trunk geometry
+  const trunk1 = new THREE.CylinderGeometry(0.28, 0.42, 3.6, 6);
+  trunk1.rotateZ(0.08);
+  trunk1.translate(0, 1.4, 0);
+
+  const root = new THREE.CylinderGeometry(0.42, 0.65, 0.8, 6);
+  root.translate(0, -0.3, 0);
+
+  const trunk2 = new THREE.CylinderGeometry(0.22, 0.28, 3.0, 6);
+  trunk2.rotateZ(0.16);
+  trunk2.translate(0.3, 4.4, 0);
+
+  const mergedTrunkGeo = mergeGeometries([trunk1, root, trunk2]);
+
+  // 2. Merged canopy geometry (7 fan fronds)
+  const frondGeos: THREE.BufferGeometry[] = [];
+  const numFronds = 7;
+  for (let i = 0; i < numFronds; i++) {
+    const angle = (i / numFronds) * Math.PI * 2;
+    const frond = new THREE.BoxGeometry(0.35, 0.06, 2.8);
+    frond.rotateX(0.65);
+    frond.rotateY(angle);
+    frond.translate(0.5, 5.8, 0);
+    frondGeos.push(frond);
+  }
+  const mergedCanopyGeo = mergeGeometries(frondGeos);
+
+  const trunkInstanced = new THREE.InstancedMesh(mergedTrunkGeo, trunkMat, items.length);
+  trunkInstanced.castShadow = false;
+  trunkInstanced.receiveShadow = true;
+
+  const canopyInstanced = new THREE.InstancedMesh(mergedCanopyGeo, leafMat, items.length);
+  canopyInstanced.castShadow = false;
+  canopyInstanced.receiveShadow = true;
+
+  const dummy = new THREE.Object3D();
+  items.forEach((item, i) => {
+    dummy.position.set(item.x, item.y, item.z);
+    dummy.rotation.set(0, item.rotationY ?? 0, 0);
+    const s = item.scale ?? 1.0;
+    dummy.scale.set(s, s, s);
+    dummy.updateMatrix();
+    trunkInstanced.setMatrixAt(i, dummy.matrix);
+    canopyInstanced.setMatrixAt(i, dummy.matrix);
+  });
+
+  trunkInstanced.instanceMatrix.needsUpdate = true;
+  canopyInstanced.instanceMatrix.needsUpdate = true;
+
+  group.add(trunkInstanced);
+  group.add(canopyInstanced);
+  return group;
 }

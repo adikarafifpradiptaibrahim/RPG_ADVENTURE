@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Map, Navigation } from 'lucide-react';
 import { MapMarker, RegionInfo } from '../types/game';
 import { getContinentBiomeSample } from '../game/mapSampler';
@@ -258,6 +258,47 @@ export const MiniMap: React.FC<MiniMapProps> = ({
     ctx.restore();
   }, [playerPos.x, playerPos.z, playerPos.rotationY, discoveredChunks, radarRadius]);
 
+  // Memoized visible blips calculation to eliminate stutter / re-render overhead when moving in vast zones
+  const visibleBlips = useMemo(() => {
+    const px = playerPos.x;
+    const pz = playerPos.z;
+    const maxDistSq = radarRadius * radarRadius;
+
+    const blips: {
+      id: string;
+      title: string;
+      type: string;
+      icon?: string;
+      color?: string;
+      percentX: number;
+      percentY: number;
+    }[] = [];
+
+    for (let i = 0; i < markers.length; i++) {
+      const marker = markers[i];
+      const relX = marker.x - px;
+      const relZ = marker.z - pz;
+      const distSq = relX * relX + relZ * relZ;
+
+      if (distSq > maxDistSq) continue;
+
+      const percentX = 50 + (relX / radarRadius) * 44;
+      const percentY = 50 + (relZ / radarRadius) * 44;
+
+      blips.push({
+        id: marker.id,
+        title: marker.title,
+        type: marker.type,
+        icon: marker.icon,
+        color: marker.color,
+        percentX,
+        percentY,
+      });
+    }
+
+    return blips;
+  }, [markers, Math.round(playerPos.x * 2) / 2, Math.round(playerPos.z * 2) / 2, radarRadius]);
+
   return (
     <div className="flex flex-col items-end gap-1 select-none pointer-events-none">
       {/* Current Region Badge Header */}
@@ -339,15 +380,9 @@ export const MiniMap: React.FC<MiniMapProps> = ({
           </span>
 
           {/* Dynamic Entity Pins Projected over Canvas */}
-          {markers.map((marker) => {
-            const relX = marker.x - playerPos.x;
-            const relZ = marker.z - playerPos.z;
-            const dist = Math.hypot(relX, relZ);
-
-            if (dist > radarRadius) return null;
-
-            const percentX = 50 + (relX / radarRadius) * 44;
-            const percentY = 50 + (relZ / radarRadius) * 44;
+          {visibleBlips.map((marker) => {
+            const percentX = marker.percentX;
+            const percentY = marker.percentY;
 
             const isBoss = marker.type === 'boss';
             const isQuest = marker.type === 'quest';
@@ -401,26 +436,10 @@ export const MiniMap: React.FC<MiniMapProps> = ({
           })}
           </div>
 
-          {/* Coordinate HUD Pill placed directly below the circular Minimap */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '-22px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              background: 'rgba(0,0,0,0.85)',
-              color: '#FFD700',
-              borderRadius: '4px',
-              padding: '2px 10px',
-              fontWeight: 'bold',
-              fontSize: '11px',
-              whiteSpace: 'nowrap',
-              zIndex: 30,
-            }}
-            className="pointer-events-none flex items-center justify-center gap-1.5 font-mono shadow-md border border-amber-600/50"
-          >
+          {/* Coordinate HUD Pill placed neatly below the circular Minimap with natural margin and zero clipping */}
+          <div className="mt-1.5 px-2.5 py-0.5 bg-black/85 text-amber-300 border border-amber-600/60 rounded text-[11px] font-mono font-bold tracking-tight shadow-md flex items-center justify-center gap-1.5 whitespace-nowrap pointer-events-none z-30">
             <span>X: {Math.round(playerPos.x)}</span>
-            <span className="text-amber-500/70">|</span>
+            <span className="text-amber-500/70 font-normal">|</span>
             <span>Z: {Math.round(playerPos.z)}</span>
           </div>
         </div>
