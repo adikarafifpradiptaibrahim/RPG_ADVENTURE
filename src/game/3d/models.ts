@@ -7645,17 +7645,35 @@ export function createMageTowerInteriorMesh(): THREE.Group {
   const interior = new THREE.Group();
 
   const slateMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.85, metalness: 0.2 });
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9, flatShading: true });
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: 0x1e293b,
+    roughness: 0.9,
+    flatShading: true,
+    side: THREE.DoubleSide,
+  });
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.8 });
   const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.35, metalness: 0.8 });
   const runeMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x00f0ff, emissiveIntensity: 0.9 });
   const brassMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.3, metalness: 0.85 });
   const stoneMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.85 });
 
+  // Dedicated Interior Ambient Illumination (Ensures bright, crystal-clear interior visuals)
+  const ambientInterior = new THREE.AmbientLight(0xdbeafe, 0.75);
+  interior.add(ambientInterior);
+
   // Outer Circular Wall Enclosing the 3 Floors (Height: 23 units, Radius: 9.8 units)
   const outerWall = new THREE.Mesh(new THREE.CylinderGeometry(9.8, 9.8, 23, 24, 1, true), wallMat);
   outerWall.position.y = 11.5;
   interior.add(outerWall);
+
+  // South Exit Portal Doorway Archway (Level 1 Exit to Puncak Halilintar)
+  const exitDoorArch = new THREE.Mesh(new THREE.BoxGeometry(3.6, 4.4, 0.8), stoneMat);
+  exitDoorArch.position.set(0, 2.2, 8.4);
+  const exitDoorTrim = new THREE.Mesh(new THREE.BoxGeometry(2.6, 3.6, 0.2), runeMat);
+  exitDoorTrim.position.set(0, 2.0, 8.2);
+  const exitDoorGlow = new THREE.PointLight(0x38bdf8, 1.5, 8);
+  exitDoorGlow.position.set(0, 2.0, 7.8);
+  interior.add(exitDoorArch, exitDoorTrim, exitDoorGlow);
 
   // ==========================================
   // LEVEL 1: LIBRARY & TELEPORT ALTAR (Y = 0)

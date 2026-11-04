@@ -37,6 +37,15 @@ import {
   calculateSpectatorSpeed,
   clampSpectatorSpeed,
 } from '../CameraControls';
+import {
+  MAGE_TOWER_CONFIG,
+  isInsideMageTowerInterior,
+  getMageTowerFloorHeight,
+  constrainToMageTowerInterior,
+  validateTeleportCoordinates,
+  getSafeInteriorSpawn,
+  getSafeExteriorSpawn,
+} from './MageTower';
 
 export interface LootPickup {
   mesh: THREE.Group;
@@ -292,6 +301,13 @@ export class GameEngine {
   public joystickVector = { x: 0, y: 0 };
   public isControlsLocked = false;
   public isPaused = false;
+  public teleportGraceTimer = 0;
+  public currentPromptAction: (() => void) | null = null;
+
+  private setNearbyPrompt(prompt: string | null, action?: () => void) {
+    this.currentPromptAction = prompt && action ? action : null;
+    this.callbacks.onNearbyPrompt(prompt, action);
+  }
 
   public setControlsLocked(locked: boolean) {
     this.isControlsLocked = locked;
@@ -1985,6 +2001,120 @@ export class GameEngine {
 
   public getSpectatorSpeed(): number {
     return this.spectatorSpeed;
+  }
+
+  /**
+   * Enter Mage Tower with safe transition:
+   * 1. Validates coordinates with fallback protection
+   * 2. Freezes character movement (velocity = 0) and pauses gravity for 0.25s grace period
+   * 3. Sets character to stand exactly on the interior ground floor (Y = -45.0)
+   * 4. Resets 3D camera to behind the shoulder facing into the room without lerping through the void
+   */
+  public enterMageTower() {
+    const safeSpawn = getSafeInteriorSpawn(1);
+
+    if (!validateTeleportCoordinates(safeSpawn)) {
+      const fallback = getSafeExteriorSpawn();
+      this.playerPos.set(fallback.x, fallback.y, fallback.z);
+      this.playerVel.set(0, 0, 0);
+      return;
+    }
+
+    // Freeze velocity and activate transition grace timer
+    this.teleportGraceTimer = MAGE_TOWER_CONFIG.TRANSITION_GRACE_DURATION;
+    this.playerVel.set(0, 0, 0);
+    this.isGrounded = true;
+
+    // Set player position and orientation firmly onto the Level 1 floor (interiorFloorHeight + 1.0 safe clearance)
+    this.playerPos.set(safeSpawn.x, safeSpawn.y, safeSpawn.z);
+    this.playerRotationY = safeSpawn.rotationY ?? 0;
+    this.playerMesh.group.position.copy(this.playerPos);
+    this.playerMesh.group.rotation.y = this.playerRotationY;
+
+    // Reset 3D camera behind player shoulder looking into the room
+    this.cameraAngleH = MAGE_TOWER_CONFIG.INTERIOR_CAMERA.angleH;
+    this.cameraAngleV = MAGE_TOWER_CONFIG.INTERIOR_CAMERA.angleV;
+    this.cameraDistance = MAGE_TOWER_CONFIG.INTERIOR_CAMERA.distance;
+
+    const camX = this.playerPos.x;
+    const camY = this.playerPos.y + MAGE_TOWER_CONFIG.INTERIOR_CAMERA.offsetY;
+    const camZ = this.playerPos.z + this.cameraDistance;
+    this.camera.position.set(camX, camY, camZ);
+    this.camera.lookAt(this.playerPos.x, this.playerPos.y + 1.4, this.playerPos.z - 4.0);
+
+    soundManager.playCheckpointUnlock();
+    this.callbacks.onAddFloatingText('Memasuki Mage Tower: Perpustakaan Kitab Kuno (Lantai 1)', '#38bdf8', 'info');
+  }
+
+  /**
+   * Exit Mage Tower with safe transition back to exterior at Puncak Halilintar
+   */
+  public exitMageTower() {
+    const extBaseY = this.world.getTerrainHeight(
+      MAGE_TOWER_CONFIG.EXTERIOR_SAFE_SPAWN.x,
+      MAGE_TOWER_CONFIG.EXTERIOR_SAFE_SPAWN.z
+    );
+    const safeSpawn = getSafeExteriorSpawn(extBaseY);
+
+    this.teleportGraceTimer = MAGE_TOWER_CONFIG.TRANSITION_GRACE_DURATION;
+    this.playerVel.set(0, 0, 0);
+    this.isGrounded = true;
+
+    this.playerPos.set(safeSpawn.x, safeSpawn.y, safeSpawn.z);
+    this.playerRotationY = safeSpawn.rotationY;
+    this.playerMesh.group.position.copy(this.playerPos);
+    this.playerMesh.group.rotation.y = this.playerRotationY;
+
+    // Reset camera behind player looking towards courtyard
+    this.cameraAngleH = Math.PI;
+    this.cameraAngleV = 0.22;
+    this.cameraDistance = 6.0;
+
+    const camX = this.playerPos.x;
+    const camY = safeSpawn.y + 2.8;
+    const camZ = this.playerPos.z - 6.0;
+    this.camera.position.set(camX, camY, camZ);
+    this.camera.lookAt(this.playerPos.x, safeSpawn.y + 1.4, this.playerPos.z + 4.0);
+
+    soundManager.playCheckpointUnlock();
+    this.callbacks.onAddFloatingText('Kembali ke Pelataran Puncak Halilintar', '#38bdf8', 'info');
+  }
+
+  /**
+   * Teleports between Mage Tower interior floors (Lantai 1, 2, 3)
+   */
+  public teleportMageTowerFloor(targetFloor: 1 | 2 | 3) {
+    const floorY = targetFloor === 3
+      ? MAGE_TOWER_CONFIG.FLOOR_HEIGHTS.LEVEL_3
+      : targetFloor === 2
+      ? MAGE_TOWER_CONFIG.FLOOR_HEIGHTS.LEVEL_2
+      : MAGE_TOWER_CONFIG.FLOOR_HEIGHTS.LEVEL_1;
+
+    this.teleportGraceTimer = MAGE_TOWER_CONFIG.TRANSITION_GRACE_DURATION;
+    this.playerVel.set(0, 0, 0);
+    this.isGrounded = true;
+
+    const spawnZ = targetFloor === 1 ? -129.5 : targetFloor === 2 ? -132.5 : -134.5;
+    this.playerPos.set(MAGE_TOWER_CONFIG.INTERIOR_CENTER.x, floorY + 1.0, spawnZ);
+    this.playerRotationY = 0;
+    this.playerMesh.group.position.copy(this.playerPos);
+    this.playerMesh.group.rotation.y = this.playerRotationY;
+
+    this.cameraAngleH = 0;
+    this.cameraAngleV = 0.18;
+    this.cameraDistance = 5.2;
+
+    const camY = floorY + 2.2;
+    this.camera.position.set(this.playerPos.x, camY, this.playerPos.z + this.cameraDistance);
+    this.camera.lookAt(this.playerPos.x, floorY + 1.4, this.playerPos.z - 4.0);
+
+    soundManager.playCheckpointUnlock();
+    const floorName = targetFloor === 3
+      ? 'Lantai 3: Anjungan Puncak Observatorium 🌌'
+      : targetFloor === 2
+      ? 'Lantai 2: Laboratorium Alkimia & Kristal Petir 🧪'
+      : 'Lantai 1: Perpustakaan Kitab Kuno & Altar 📚';
+    this.callbacks.onAddFloatingText(floorName, '#38bdf8', 'info');
   }
 
   private touchStartX = 0;
@@ -4049,6 +4179,12 @@ export class GameEngine {
   }
 
   private checkInteract() {
+    // Execute nearby active prompt action (doors, portals, altars, NPCs, chests) immediately upon [F] key press
+    if (this.currentPromptAction) {
+      this.currentPromptAction();
+      return;
+    }
+
     // Check all NPCs in the village and world
     if (this.world.npcs && this.world.npcs.length > 0) {
       for (const npc of this.world.npcs) {
@@ -4093,11 +4229,16 @@ export class GameEngine {
     let resZ = candidateZ;
 
     // Two-pass resolution cleanly eliminates corner catching and penetrating walls
-    const inThroneRoom = this.playerPos.y < -10;
+    const inInterior = this.playerPos.y < -10;
     for (let pass = 0; pass < 2; pass++) {
       for (const col of this.world.colliders) {
         const isInteriorCollider = col.maxY !== undefined && col.maxY < 0;
-        if (inThroneRoom !== isInteriorCollider) continue;
+        if (inInterior !== isInteriorCollider) continue;
+
+        // Check vertical height bounds (prevents collider bleed between stacked interior floors)
+        if (col.minY !== undefined && (this.playerPos.y + 1.8) < col.minY) continue;
+        if (col.maxY !== undefined && this.playerPos.y > col.maxY) continue;
+
         if (
           col.type === 'box' &&
           col.minX !== undefined &&
@@ -4145,6 +4286,13 @@ export class GameEngine {
       }
     }
 
+    // Penyelarasan Perimeter Dinding Silinder Interior Mage Tower (Menjamin karakter tidak bisa tembus dinding)
+    if (isInsideMageTowerInterior(this.playerPos.x, this.playerPos.y, this.playerPos.z)) {
+      const constrained = constrainToMageTowerInterior(resX, resZ, playerRadius);
+      resX = constrained.x;
+      resZ = constrained.z;
+    }
+
     return { x: resX, z: resZ };
   }
 
@@ -4178,18 +4326,31 @@ export class GameEngine {
       this.updateSpectatorMovement(delta);
       return;
     }
+
+    // Freeze velocity & gravity during teleport transition grace period (prevents falling through void)
+    if (this.teleportGraceTimer > 0) {
+      this.teleportGraceTimer -= delta;
+      this.playerVel.set(0, 0, 0);
+      this.isGrounded = true;
+      if (isInsideMageTowerInterior(this.playerPos.x, this.playerPos.y, this.playerPos.z)) {
+        this.playerPos.y = getMageTowerFloorHeight(this.playerPos.y);
+      }
+      this.playerMesh.group.position.copy(this.playerPos);
+      return;
+    }
+
     if (this.isControlsLocked) {
       this.playerVel.x = 0;
       this.playerVel.z = 0;
       this.playerVel.y -= 22 * delta;
       this.playerPos.y += this.playerVel.y * delta;
       const inThroneRoomLocked = this.playerPos.y < -10 && this.playerPos.x >= -435 && this.playerPos.x <= -395 && this.playerPos.z >= 335 && this.playerPos.z <= 365;
-      const inMageTowerLocked = this.playerPos.y < -15 && Math.hypot(this.playerPos.x - -155, this.playerPos.z - -135) <= 12;
+      const inMageTowerLocked = isInsideMageTowerInterior(this.playerPos.x, this.playerPos.y, this.playerPos.z);
       let groundY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
       if (inThroneRoomLocked) {
         groundY = (this.playerPos.x <= -424 && Math.abs(this.playerPos.z - 350) <= 6) ? -24.4 : -25.0;
       } else if (inMageTowerLocked) {
-        groundY = this.playerPos.y > -33.5 ? -30.0 : this.playerPos.y > -41.5 ? -37.5 : -45.0;
+        groundY = getMageTowerFloorHeight(this.playerPos.y);
       }
       if (this.playerPos.y <= groundY) {
         if (!this.isGrounded && this.playerVel.y < -3.5 && this.charClass === 'warrior') {
@@ -4392,7 +4553,7 @@ export class GameEngine {
 
     // Check if player is inside an Interior Cell (Solaria Throne Room or Mage Tower)
     const inThroneRoom = this.playerPos.y < -10 && this.playerPos.x >= -435 && this.playerPos.x <= -395 && this.playerPos.z >= 335 && this.playerPos.z <= 365;
-    const inMageTower = this.playerPos.y < -15 && Math.hypot(this.playerPos.x - -155, this.playerPos.z - -135) <= 12;
+    const inMageTower = isInsideMageTowerInterior(this.playerPos.x, this.playerPos.y, this.playerPos.z);
 
     if (inThroneRoom) {
       const throneFloorY = (this.playerPos.x <= -424 && Math.abs(this.playerPos.z - 350) <= 6) ? -24.4 : -25.0;
@@ -4402,19 +4563,9 @@ export class GameEngine {
         this.isGrounded = true;
       }
     } else if (inMageTower) {
-      // 3-Tier Multi-Floor Interior Cell for Mage Tower:
-      // - Level 3 (Y: -30.0): Observatory
-      // - Level 2 (Y: -37.5): Alchemy Lab
-      // - Level 1 (Y: -45.0): Ancient Library
-      let mageFloorY = -45.0;
-      if (this.playerPos.y > -33.5) {
-        mageFloorY = -30.0;
-      } else if (this.playerPos.y > -41.5) {
-        mageFloorY = -37.5;
-      } else {
-        mageFloorY = -45.0;
-      }
-      if (this.playerPos.y <= mageFloorY) {
+      // 3-Tier Multi-Floor Solid Interior Floors for Mage Tower
+      const mageFloorY = getMageTowerFloorHeight(this.playerPos.y);
+      if (this.playerPos.y <= mageFloorY + 0.15) {
         this.playerPos.y = mageFloorY;
         this.playerVel.y = 0;
         this.isGrounded = true;
@@ -4648,7 +4799,7 @@ export class GameEngine {
     // 0a. Check Taj Mahal Palace Entrance (Overworld -> Throne Room)
     const distToPalaceGate = Math.hypot(this.playerPos.x - -396, this.playerPos.z - 350);
     if (distToPalaceGate < 4.5 && this.playerPos.y > -10) {
-      this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Istana Sultan Solaria 🕌', () => {
+      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Istana Sultan Solaria 🕌', () => {
         this.playerPos.set(-400, -25, 350);
         this.playerVel.set(0, 0, 0);
         this.isGrounded = true;
@@ -4664,7 +4815,7 @@ export class GameEngine {
     // 0b. Check Throne Room Exit Door (Throne Room -> Overworld)
     const distToThroneExit = Math.hypot(this.playerPos.x - -400, this.playerPos.z - 350);
     if (distToThroneExit < 4.0 && this.playerPos.y < -15) {
-      this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Pelataran Istana 🚪', () => {
+      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Pelataran Istana 🚪', () => {
         const outY = Math.max(0.5, this.world.getTerrainHeight(-395, 350) + 0.5);
         this.playerPos.set(-395, outY, 350);
         this.playerVel.set(0, 0, 0);
@@ -4681,76 +4832,47 @@ export class GameEngine {
     // 0c. Check Mage Tower Entrance (Overworld -> Level 1 Library)
     const distToMageTowerDoor = Math.hypot(this.playerPos.x - -155, this.playerPos.z - -127);
     if (distToMageTowerDoor < 4.5 && this.playerPos.y > -10) {
-      this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Mage Tower Puncak Halilintar ⚡', () => {
-        this.playerPos.set(-155, -45 + 0.5, -129);
-        this.playerVel.set(0, 0, 0);
-        this.isGrounded = true;
-        this.playerMesh.group.position.copy(this.playerPos);
-        this.camera.position.set(-155, -45 + 2.8, -123);
-        this.camera.lookAt(-155, -45 + 1.8, -135);
-        soundManager.playCheckpointUnlock();
-        this.callbacks.onAddFloatingText('Memasuki Mage Tower: Perpustakaan Kitab Kuno (Lantai 1)', '#38bdf8', 'info');
+      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Mage Tower Puncak Halilintar ⚡', () => {
+        this.enterMageTower();
       });
       return;
     }
 
     // 0d. Check Mage Tower Exit Door (Level 1 Library -> Overworld)
-    const distToMageTowerExit = Math.hypot(this.playerPos.x - -155, this.playerPos.z - -128);
-    if (distToMageTowerExit < 3.8 && this.playerPos.y <= -42 && this.playerPos.y >= -48) {
-      this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Puncak Halilintar 🚪', () => {
-        const outY = Math.max(0.5, this.world.getTerrainHeight(-155, -124) + 0.5);
-        this.playerPos.set(-155, outY, -124);
-        this.playerVel.set(0, 0, 0);
-        this.isGrounded = true;
-        this.playerMesh.group.position.copy(this.playerPos);
-        this.camera.position.set(-155, outY + 3.2, -114);
-        this.camera.lookAt(-155, outY + 2.2, -135);
-        soundManager.playCheckpointUnlock();
-        this.callbacks.onAddFloatingText('Kembali ke Pelataran Puncak Halilintar', '#38bdf8', 'info');
+    const distToMageTowerExit = Math.hypot(this.playerPos.x - -155, this.playerPos.z - -128.5);
+    if (distToMageTowerExit < 4.0 && this.playerPos.y <= -42 && this.playerPos.y >= -48) {
+      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Puncak Halilintar 🚪', () => {
+        this.exitMageTower();
       });
       return;
     }
 
     // 0e. Check Mage Tower Multi-Floor Altar Transits (Lantai 1 <-> Lantai 2 <-> Lantai 3)
     const distToTowerCenter = Math.hypot(this.playerPos.x - -155, this.playerPos.z - -135);
-    if (distToTowerCenter < 4.2 && this.playerPos.y < -15) {
+    if (distToTowerCenter < 4.5 && this.playerPos.y < -15) {
       if (this.playerPos.y <= -42) {
         // Lantai 1 -> Naik ke Lantai 2 (Laboratorium)
-        this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 2 (Laboratorium Alkimia) 🧪', () => {
-          this.playerPos.set(-155, -37.5 + 0.5, -135);
-          this.playerVel.set(0, 0, 0);
-          this.isGrounded = true;
-          this.playerMesh.group.position.copy(this.playerPos);
-          this.camera.position.set(-155, -37.5 + 2.5, -129);
-          this.camera.lookAt(-155, -37.5 + 1.8, -135);
-          soundManager.playCheckpointUnlock();
-          this.callbacks.onAddFloatingText('Lantai 2: Laboratorium Alkimia & Kristal Petir', '#10b981', 'info');
+        this.setNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 2 (Laboratorium Alkimia) 🧪', () => {
+          this.teleportMageTowerFloor(2);
         });
         return;
       } else if (this.playerPos.y > -42 && this.playerPos.y <= -34) {
-        // Lantai 2 -> Naik ke Lantai 3 (Observatorium)
-        this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 3 (Anjungan Observatorium) 🌌', () => {
-          this.playerPos.set(-155, -30.0 + 0.5, -135);
-          this.playerVel.set(0, 0, 0);
-          this.isGrounded = true;
-          this.playerMesh.group.position.copy(this.playerPos);
-          this.camera.position.set(-155, -30.0 + 2.5, -129);
-          this.camera.lookAt(-155, -30.0 + 1.8, -135);
-          soundManager.playCheckpointUnlock();
-          this.callbacks.onAddFloatingText('Lantai 3: Anjungan Puncak Observatorium', '#38bdf8', 'info');
-        });
-        return;
+        // Lantai 2: Pilihan naik ke Lantai 3 atau turun ke Lantai 1
+        if (this.playerPos.z < -134) {
+          this.setNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 3 (Anjungan Observatorium) 🌌', () => {
+            this.teleportMageTowerFloor(3);
+          });
+          return;
+        } else {
+          this.setNearbyPrompt('Tekan [F] / Sentuh: Turun ke Lantai 1 (Perpustakaan & Altar) 📚', () => {
+            this.teleportMageTowerFloor(1);
+          });
+          return;
+        }
       } else if (this.playerPos.y > -34) {
         // Lantai 3 -> Turun ke Lantai 2 (Laboratorium)
-        this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh: Turun ke Lantai 2 (Laboratorium Alkimia) 🧪', () => {
-          this.playerPos.set(-155, -37.5 + 0.5, -135);
-          this.playerVel.set(0, 0, 0);
-          this.isGrounded = true;
-          this.playerMesh.group.position.copy(this.playerPos);
-          this.camera.position.set(-155, -37.5 + 2.5, -129);
-          this.camera.lookAt(-155, -37.5 + 1.8, -135);
-          soundManager.playCheckpointUnlock();
-          this.callbacks.onAddFloatingText('Lantai 2: Laboratorium Alkimia & Kristal Petir', '#10b981', 'info');
+        this.setNearbyPrompt('Tekan [F] / Sentuh: Turun ke Lantai 2 (Laboratorium Alkimia) 🧪', () => {
+          this.teleportMageTowerFloor(2);
         });
         return;
       }
@@ -4805,7 +4927,7 @@ export class GameEngine {
             prompt = `Tekan [F] / Sentuh: Sorceress Maya (Pengkaji Kitab Kuno) ✨`;
           }
 
-          this.callbacks.onNearbyPrompt(prompt, () => {
+          this.setNearbyPrompt(prompt, () => {
             this.callbacks.onInteractNPC(npc.dialogueId || npc.id);
           });
           return;
@@ -4814,7 +4936,7 @@ export class GameEngine {
     } else if (this.world.npc) {
       const distToNpc = this.playerPos.distanceTo(new THREE.Vector3(...this.world.npc.position));
       if (distToNpc < 3.8) {
-        this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh untuk Bicara dengan Tetua Vaelen', () => {
+        this.setNearbyPrompt('Tekan [F] / Sentuh untuk Bicara dengan Tetua Vaelen', () => {
           this.callbacks.onInteractNPC(this.world.npc.id);
         });
         return;
@@ -4825,7 +4947,7 @@ export class GameEngine {
       if (!chest.opened) {
         const dist = this.playerPos.distanceTo(new THREE.Vector3(...chest.position));
         if (dist < 3.0) {
-          this.callbacks.onNearbyPrompt('Tekan [F] / Sentuh untuk Buka Peti Harta Karun', () => {
+          this.setNearbyPrompt('Tekan [F] / Sentuh untuk Buka Peti Harta Karun', () => {
             this.openChest(chest);
           });
           return;
@@ -4833,7 +4955,7 @@ export class GameEngine {
       }
     }
 
-    this.callbacks.onNearbyPrompt(null);
+    this.setNearbyPrompt(null);
   }
 
   /**
@@ -5340,6 +5462,13 @@ export class GameEngine {
       this.playerPos.y + offsetY,
       this.playerPos.z + offsetZ
     );
+
+    // Instant snap without lerp during interior teleport grace period (eliminates black screen / void clipping)
+    if (this.teleportGraceTimer > 0) {
+      this.camera.position.copy(targetPos);
+      this.camera.lookAt(this.playerPos.x, this.playerPos.y + 1.4, this.playerPos.z);
+      return;
+    }
 
     // Apply procedural camera screen shake for visceral combat feel
     if (this.cameraShake > 0.001) {

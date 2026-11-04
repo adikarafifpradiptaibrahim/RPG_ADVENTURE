@@ -30,6 +30,7 @@ export interface PlayerMovementConfig {
   speedBuffTimer: number;
   isStunned?: boolean;
   isSpectatorMode?: boolean;
+  isTeleporting?: boolean;
 }
 
 /**
@@ -59,7 +60,7 @@ export class PlayerController {
   }
 
   public static getTargetSpeed(config: PlayerMovementConfig): number {
-    if (config.isSpectatorMode || config.isStunned) return 0;
+    if (config.isSpectatorMode || config.isStunned || config.isTeleporting) return 0;
     let speed = this.getBaseSpeed(config.charClass);
     if (config.speedBuffTimer > 0) {
       speed += 3.2;

@@ -2122,15 +2122,14 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   mageTowerInterior.position.set(-155, -45, -135);
   scene.add(mageTowerInterior);
 
-  // Interior Wall Colliders (Dibatasi maxY: -10 agar terisolasi dari permukaan daratan overworld)
-  colliders.push({
-    type: 'circle',
-    x: -155,
-    z: -135,
-    radius: 9.6,
-    maxY: -10,
-    label: 'Dinding Pembatas Ruang Interior Mage Tower',
-  });
+  // Interior Wall Box Colliders (Padat, terhubung tanpa celah, dan menyisakan pintu keluar selatan)
+  colliders.push(
+    { type: 'box', minX: -166, maxX: -144, minZ: -146, maxZ: -144, maxY: -10, label: 'Dinding Utara Interior Mage Tower' },
+    { type: 'box', minX: -166, maxX: -164, minZ: -146, maxZ: -124, maxY: -10, label: 'Dinding Barat Interior Mage Tower' },
+    { type: 'box', minX: -146, maxX: -144, minZ: -146, maxZ: -124, maxY: -10, label: 'Dinding Timur Interior Mage Tower' },
+    { type: 'box', minX: -166, maxX: -157.5, minZ: -126, maxZ: -124, maxY: -10, label: 'Dinding Selatan Barat Interior Mage Tower' },
+    { type: 'box', minX: -152.5, maxX: -144, minZ: -126, maxZ: -124, maxY: -10, label: 'Dinding Selatan Timur Interior Mage Tower' }
+  );
   // Colliders Perabotan Lantai 1 (Perpustakaan & Lemari Kitab Kuno)
   colliders.push(
     { type: 'box', minX: -159, maxX: -151, minZ: -144, maxZ: -142, maxY: -38, label: 'Lemari Kitab Purba Utara' },
