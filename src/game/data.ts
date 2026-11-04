@@ -1000,6 +1000,117 @@ export const DIALOGUES: Record<string, DialogueNode> = {
       },
     ],
   },
+  // --- DESA & ISTANA GURUN SOLARIA NPCS ---
+  sultan_malik: {
+    id: 'sultan_malik',
+    speaker: 'Sultan Malik al-Solaria',
+    speakerTitle: 'Penguasa Gurun Emas & Istana Kubah Emas',
+    text: 'Welcome, traveler of the dunes. You tread upon the sands of Solaria, where ancient relics rest beneath golden winds.',
+    textId: 'Selamat datang di Permata Gurun Solaria! Nikmati segarnya air oase dan ramainya bazaar kami. Berhati-hatilah dengan badai pasir di timur laut.',
+    avatarIcon: '👑',
+    options: [
+      {
+        label: 'Tell me about the ancient Pyramid in the dunes, Sultan.',
+        labelId: 'Bisa ceritakan tentang Piramida Kuno di timur laut, Paduka?',
+        nextId: 'sultan_pyramid_lore',
+      },
+      {
+        label: 'Your palace is breathtaking. Thank you for the shelter.',
+        labelId: 'Istana kubah emas ini sungguh menakjubkan. Terima kasih atas perlindungannya.',
+        action: 'heal',
+      },
+      {
+        label: 'Farewell, Sultan.',
+        labelId: 'Semoga kejayaan selalu menyertai Solaria, Paduka.',
+        action: 'close',
+      },
+    ],
+  },
+  sultan_pyramid_lore: {
+    id: 'sultan_pyramid_lore',
+    speaker: 'Sultan Malik al-Solaria',
+    speakerTitle: 'Penguasa Gurun Emas & Istana Kubah Emas',
+    text: 'The Sunken Pyramid has stood long before our kingdom. It holds sacred pharaoh gold, but mummies and scorpions prowl within.',
+    textId: 'Piramida kuno itu telah berdiri ribuan tahun sebelum dinasti kami. Di dalamnya tersimpan emas murni pharaoh, namun dijaga monster kalajengking dan prajurit pasir purba.',
+    avatarIcon: '👑',
+    options: [
+      {
+        label: 'I will explore the pyramid with caution.',
+        labelId: 'Saya akan menyelidikinya dengan waspada.',
+        action: 'close',
+      },
+    ],
+  },
+  merchant_tariq: {
+    id: 'merchant_tariq',
+    speaker: 'Tariq Sang Saudagar',
+    speakerTitle: 'Pedagang Rempah & Bazaar Gurun Solaria',
+    text: 'Ahlan wa sahlan! Looking for golden dates, saffron spices, or desert heat potions?',
+    textId: 'Ahlan wa sahlan! Mencari kurma emas, rempah kuma-kuma berkhasiat, atau ramuan penangkal terik matahari padang pasir?',
+    avatarIcon: '👳‍♂️',
+    options: [
+      {
+        label: 'Could you restore my vitality with desert elixirs?',
+        labelId: 'Bisa pulihkan stamina dan tenagaku dengan ramuan oasemu?',
+        action: 'heal',
+      },
+      {
+        label: 'Just browsing your fine bazaar, Tariq.',
+        labelId: 'Hanya melihat-lihat barang daganganmu yang harum, Tariq.',
+        action: 'close',
+      },
+    ],
+  },
+  guard_solaria: {
+    id: 'guard_solaria',
+    speaker: 'Prajurit Gurun Solaria',
+    speakerTitle: 'Penjaga Gerbang & Benteng Pasir Solaria',
+    text: 'Halt, wanderer. You are entering the safe sanctuary of Solaria Village. Sheathe your blades and rest.',
+    textId: 'Berhenti sejenak, pengelana. Kau memasuki zona aman Desa Gurun Solaria. Sarungkan senjatamu dan nikmati keteduhan palem kurma.',
+    avatarIcon: '🛡️',
+    options: [
+      {
+        label: 'Thank you for keeping the oasis peaceful.',
+        labelId: 'Terima kasih telah menjaga keamanan desa gurun ini.',
+        action: 'close',
+      },
+    ],
+  },
+  oasis_amina: {
+    id: 'oasis_amina',
+    speaker: 'Amina',
+    speakerTitle: 'Gadis Pembawa Air Sumur Oase',
+    text: 'The water of our central well flows from an ancient underground river. Drink deeply and be refreshed!',
+    textId: 'Air dari sumur batu ini mengalir dari mata air bawah tanah yang sangat sejuk. Minumlah, rasa haus dan lelahmu akan hilang seketika!',
+    avatarIcon: '🧕',
+    options: [
+      {
+        label: 'Drink fresh oasis water (Restore HP/MP).',
+        labelId: 'Minum air sumur oase yang sejuk (Pulihkan HP & MP).',
+        action: 'heal',
+      },
+      {
+        label: 'Thank you, Amina.',
+        labelId: 'Terima kasih banyak, Amina.',
+        action: 'close',
+      },
+    ],
+  },
+  weaver_zahra: {
+    id: 'weaver_zahra',
+    speaker: 'Zahra',
+    speakerTitle: 'Penenun Sutra & Kemah Gurun',
+    text: 'Our hand-woven tents keep the scorching sun at bay by day and the freezing desert winds away by night.',
+    textId: 'Kain kemah tenunan tangan kami melindungimu dari sengatan terik siang hari dan dinginnya angin gurun di malam hari.',
+    avatarIcon: '🧕',
+    options: [
+      {
+        label: 'Your craftsmanship is remarkable.',
+        labelId: 'Tenunanmu sungguh indah dan rapi, Zahra.',
+        action: 'close',
+      },
+    ],
+  },
   guard_astraea: {
     id: 'guard_astraea',
     speaker: 'Prajurit Gerbang Emas',

@@ -195,9 +195,18 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return outerElevation;
   }
 
-  // 5. Solaria Golden Dunes & Secret Palm Oasis (South-West: x < -95 && z > 35)
+  // 5. Solaria Golden Dunes, Village, Palace & Secret Palm Oasis (South-West: x < -95 && z > 35)
   if (x < -95 && z > 35) {
-    // Secret Palm Oasis at [-340, 260]
+    // 5.1 Solaria Desert Village & Palace Solid Courtyard Plateau at [-240, 175]
+    const distVillage = Math.hypot(x - -240, z - 175);
+    if (distVillage < 36) {
+      if (distVillage < 28) return 2.4;
+      const tv = (distVillage - 28) / 8;
+      const dunes = Math.sin(x * 0.035 + z * 0.028) * 3.4 + Math.cos(x * 0.024 - z * 0.032) * 2.6;
+      return (1 - tv) * 2.4 + tv * Math.max(1.5, 2.2 + dunes);
+    }
+
+    // 5.2 Secret Palm Oasis at [-340, 260]
     const distOasis = Math.hypot(x - -340, z - 260);
     if (distOasis < 45) {
       if (distOasis < 18) {
@@ -207,7 +216,7 @@ export function getProceduralContinentHeight(x: number, z: number): number {
       return (1 - tO) * 0.2 + tO * 3.8;
     }
 
-    // Sunken Pharaoh Pyramid at [-165, 110]
+    // 5.3 Sunken Pharaoh Pyramid at [-165, 110]
     const distPyramid = Math.hypot(x - -165, z - 110);
     if (distPyramid < 25) {
       if (distPyramid < 17) return 1.4;
@@ -216,6 +225,7 @@ export function getProceduralContinentHeight(x: number, z: number): number {
       return (1 - t) * 1.4 + t * Math.max(1.4, 1.4 + dunes);
     }
 
+    // 5.4 Tiered undulating rolling sand dunes
     const dunes =
       Math.sin(x * 0.035 + z * 0.028) * 3.4 +
       Math.cos(x * 0.024 - z * 0.032) * 2.6 +
@@ -264,8 +274,9 @@ export function getProceduralContinentHeight(x: number, z: number): number {
       const tg = (distGrotto - 16) / 19;
       return (1 - tg) * -0.35 + tg * 0.4;
     }
-    const swampWater = Math.sin(x * 0.08) * 0.6 + Math.cos(z * 0.07) * 0.5;
-    return Math.max(-0.25, 0.25 + swampWater);
+    // Tiered marsh knolls & winding water channels
+    const swampWater = Math.sin(x * 0.08) * 0.5 + Math.cos(z * 0.07) * 0.4 + Math.sin(x * 0.03 + z * 0.04) * 1.2;
+    return Math.max(-0.25, 0.35 + swampWater);
   }
 
   // 9. Jade Bamboo Grove & Celestial Pagoda (Far South-East: x > 105 && z > 35)

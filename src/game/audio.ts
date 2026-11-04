@@ -10,6 +10,10 @@ class SoundManager {
   private sfxGain: GainNode | null = null;
   private musicInterval: any = null;
   private isMusicPlaying: boolean = false;
+  private currentBossMusic: 'titan' | 'dragon' | null = null;
+  private bossMusicInterval: any = null;
+  private bossMusicGain: GainNode | null = null;
+  private bossStep = 0;
 
   private noiseBuffer: AudioBuffer | null = null;
 
@@ -110,18 +114,18 @@ class SoundManager {
         freqEnd: 280,
       });
 
-      // Sub-bass impact
+      // Concussive Heavy Metal Sub-bass impact
       const subOsc = this.ctx.createOscillator();
       const subGain = this.ctx.createGain();
       subOsc.type = 'sine';
-      subOsc.frequency.setValueAtTime(130, now);
-      subOsc.frequency.exponentialRampToValueAtTime(38, now + 0.24);
-      subGain.gain.setValueAtTime(0.48, now);
-      subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+      subOsc.frequency.setValueAtTime(160, now);
+      subOsc.frequency.exponentialRampToValueAtTime(32, now + 0.32);
+      subGain.gain.setValueAtTime(0.65, now);
+      subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
       subOsc.connect(subGain);
       subGain.connect(this.sfxGain);
       subOsc.start(now);
-      subOsc.stop(now + 0.25);
+      subOsc.stop(now + 0.34);
 
       // Steel resonance ring
       const ringOsc = this.ctx.createOscillator();
@@ -1227,6 +1231,235 @@ class SoundManager {
 
   public getMusicPlaying() {
     return this.isMusicPlaying;
+  }
+
+
+  // ==========================================
+  // DYNAMIC BOSS BGM SYSTEM
+  // ==========================================
+
+  /**
+   * Automatically triggered when boss encounter begins.
+   * Plays Heavy Orchestral War BGM for Titan or Epic Choir Dragon BGM for Ignis.
+   */
+  public playBossMusic(bossType: 'titan' | 'dragon') {
+    if (this.currentBossMusic === bossType) return;
+    this.initContext();
+    if (!this.ctx || !this.bossMusicGain) return;
+
+    // Clear existing boss music loop if switching
+    if (this.bossMusicInterval) {
+      clearInterval(this.bossMusicInterval);
+      this.bossMusicInterval = null;
+    }
+
+    this.currentBossMusic = bossType;
+    this.bossStep = 0;
+
+    // Smoothly duck overworld ambient music during boss encounter
+    if (this.musicGain) {
+      const now = this.ctx.currentTime;
+      this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, now);
+      this.musicGain.gain.linearRampToValueAtTime(0.04, now + 1.2);
+    }
+
+    // Bring up boss music volume
+    const now = this.ctx.currentTime;
+    this.bossMusicGain.gain.setValueAtTime(0.01, now);
+    this.bossMusicGain.gain.linearRampToValueAtTime(0.36, now + 0.8);
+
+    if (bossType === 'titan') {
+      // 1. HEAVY ORCHESTRAL BATTLE BGM (Obsidian Ancient Titan)
+      // Heavy 75 BPM War March: Thundering taiko war drums, punchy sub-bass hits, & menacing low brass stabs
+      const playTitanStep = () => {
+        if (!this.ctx || !this.bossMusicGain || this.isMuted || this.currentBossMusic !== 'titan') return;
+        const tNow = this.ctx.currentTime;
+        const s = this.bossStep % 4;
+        this.bossStep++;
+
+        // Heavy Taiko War Drum Kick (on beats 0 and 2)
+        if (s === 0 || s === 2) {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(140, tNow);
+          osc.frequency.exponentialRampToValueAtTime(34, tNow + 0.38);
+          gain.gain.setValueAtTime(0.55, tNow);
+          gain.gain.exponentialRampToValueAtTime(0.001, tNow + 0.42);
+          osc.connect(gain);
+          gain.connect(this.bossMusicGain!);
+          osc.start(tNow);
+          osc.stop(tNow + 0.45);
+
+          this.playNoiseBurst({
+            duration: 0.28,
+            gain: 0.35,
+            filterType: 'lowpass',
+            freqStart: 650,
+            freqEnd: 60,
+          });
+        }
+
+        // Heavy Metallic Anvil / Rimshot Snare (on beats 1 and 3)
+        if (s === 1 || s === 3) {
+          this.playNoiseBurst({
+            duration: 0.22,
+            gain: 0.32,
+            filterType: 'bandpass',
+            freqStart: 2400,
+            freqEnd: 380,
+          });
+
+          const ring = this.ctx.createOscillator();
+          const ringGain = this.ctx.createGain();
+          ring.type = 'triangle';
+          ring.frequency.setValueAtTime(940, tNow);
+          ring.frequency.exponentialRampToValueAtTime(260, tNow + 0.28);
+          ringGain.gain.setValueAtTime(0.28, tNow);
+          ringGain.gain.exponentialRampToValueAtTime(0.001, tNow + 0.28);
+          ring.connect(ringGain);
+          ringGain.connect(this.bossMusicGain!);
+          ring.start(tNow);
+          ring.stop(tNow + 0.3);
+        }
+
+        // Menacing Low Brass Horn Power Chords (D-minor / Bb-major / C-major / A-minor progression)
+        const chordIndex = Math.floor((this.bossStep / 4) % 4);
+        const brassChords = [
+          [73.42, 110.0, 146.83],  // D2 power chord
+          [58.27, 87.31, 116.54],  // Bb1 power chord
+          [65.41, 98.0, 130.81],   // C2 power chord
+          [55.0, 82.41, 110.0],    // A1 power chord
+        ];
+        const chord = brassChords[chordIndex];
+
+        if (s === 0) {
+          chord.forEach((freq, idx) => {
+            const horn = this.ctx!.createOscillator();
+            const hornGain = this.ctx!.createGain();
+            horn.type = idx === 0 ? 'sawtooth' : 'triangle';
+            horn.frequency.setValueAtTime(freq, tNow);
+            hornGain.gain.setValueAtTime(0.001, tNow);
+            hornGain.gain.linearRampToValueAtTime(0.18, tNow + 0.1);
+            hornGain.gain.exponentialRampToValueAtTime(0.001, tNow + 1.4);
+            horn.connect(hornGain);
+            hornGain.connect(this.bossMusicGain!);
+            horn.start(tNow);
+            horn.stop(tNow + 1.45);
+          });
+        }
+      };
+
+      playTitanStep();
+      this.bossMusicInterval = setInterval(playTitanStep, 800); // 75 BPM 4/4
+    } else if (bossType === 'dragon') {
+      // 2. EPIC CHOIR DRAGON BATTLE BGM (Ignis Primal Dragon)
+      // Furious 132 BPM Battle Tempo: Fast driving double-kick galloping drums, synthesized epic choir pads, & brass fanfare
+      const playDragonStep = () => {
+        if (!this.ctx || !this.bossMusicGain || this.isMuted || this.currentBossMusic !== 'dragon') return;
+        const tNow = this.ctx.currentTime;
+        const s = this.bossStep % 8;
+        this.bossStep++;
+
+        // Galloping Double-Kick War Drums on every step
+        const kick = this.ctx.createOscillator();
+        const kickGain = this.ctx.createGain();
+        kick.type = 'sine';
+        kick.frequency.setValueAtTime(155, tNow);
+        kick.frequency.exponentialRampToValueAtTime(42, tNow + 0.22);
+        kickGain.gain.setValueAtTime(0.5, tNow);
+        kickGain.gain.exponentialRampToValueAtTime(0.001, tNow + 0.24);
+        kick.connect(kickGain);
+        kickGain.connect(this.bossMusicGain!);
+        kick.start(tNow);
+        kick.stop(tNow + 0.25);
+
+        // Dragon fire burst sizzle on syncopated beats
+        if (s % 2 === 1) {
+          this.playNoiseBurst({
+            duration: 0.14,
+            gain: 0.22,
+            filterType: 'bandpass',
+            freqStart: 3200,
+            freqEnd: 700,
+          });
+        }
+
+        // Synthesized Epic Vocal Choir Pads (E-minor, C-major, A-minor, B7-dominant)
+        const chordIndex = Math.floor((this.bossStep / 8) % 4);
+        const choirChords = [
+          [164.81, 196.0, 246.94, 329.63], // Em
+          [130.81, 164.81, 196.0, 261.63], // C
+          [110.0, 164.81, 220.0, 261.63],  // Am
+          [123.47, 155.56, 184.99, 246.94],// B7
+        ];
+        const chord = choirChords[chordIndex];
+
+        if (s === 0) {
+          chord.forEach((freq, idx) => {
+            // Choir formant 1 (Ah / Oh vowel fundamental)
+            const osc = this.ctx!.createOscillator();
+            const gain = this.ctx!.createGain();
+            osc.type = idx % 2 === 0 ? 'sine' : 'sawtooth';
+            osc.frequency.setValueAtTime(freq, tNow);
+            gain.gain.setValueAtTime(0.001, tNow);
+            gain.gain.linearRampToValueAtTime(0.14, tNow + 0.35);
+            gain.gain.exponentialRampToValueAtTime(0.001, tNow + 3.2);
+            osc.connect(gain);
+            gain.connect(this.bossMusicGain!);
+            osc.start(tNow);
+            osc.stop(tNow + 3.3);
+
+            // Harmonic Choir Shimmer (High formant octave)
+            const shimmer = this.ctx!.createOscillator();
+            const sGain = this.ctx!.createGain();
+            shimmer.type = 'triangle';
+            shimmer.frequency.setValueAtTime(freq * 2.0, tNow + 0.1);
+            sGain.gain.setValueAtTime(0.001, tNow + 0.1);
+            sGain.gain.linearRampToValueAtTime(0.08, tNow + 0.4);
+            sGain.gain.exponentialRampToValueAtTime(0.001, tNow + 2.8);
+            shimmer.connect(sGain);
+            sGain.connect(this.bossMusicGain!);
+            shimmer.start(tNow + 0.1);
+            shimmer.stop(tNow + 2.9);
+          });
+        }
+      };
+
+      playDragonStep();
+      this.bossMusicInterval = setInterval(playDragonStep, 450); // 132 BPM
+    }
+  }
+
+  /**
+   * Smoothly stops Boss BGM and restores overworld ambient music.
+   */
+  public stopBossMusic() {
+    if (!this.currentBossMusic) return;
+    this.currentBossMusic = null;
+
+    if (this.bossMusicInterval) {
+      clearInterval(this.bossMusicInterval);
+      this.bossMusicInterval = null;
+    }
+
+    // Fade out boss music smoothly
+    if (this.ctx && this.bossMusicGain) {
+      const now = this.ctx.currentTime;
+      this.bossMusicGain.gain.setValueAtTime(this.bossMusicGain.gain.value, now);
+      this.bossMusicGain.gain.linearRampToValueAtTime(0.001, now + 1.2);
+    }
+
+    // Restore overworld ambient music
+    if (this.ctx && this.musicGain && this.isMusicPlaying) {
+      const now = this.ctx.currentTime;
+      this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, now);
+      this.musicGain.gain.linearRampToValueAtTime(0.3, now + 1.5);
+    }
+  }
+
+  public getCurrentBossMusic(): 'titan' | 'dragon' | null {
+    return this.currentBossMusic;
   }
 
   // Checkpoint Waypoint Unlock Chime

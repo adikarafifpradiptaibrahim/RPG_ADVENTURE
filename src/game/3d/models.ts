@@ -5933,3 +5933,514 @@ export function createAncientRitualTowerMesh(): THREE.Group {
 
   return tower;
 }
+
+// ==========================================
+// SOLARIA DESERT VILLAGE & PALACE 3D ASSETS
+// ==========================================
+
+export function createDesertMudBrickHouseMesh(style: number = 0): THREE.Group {
+  const house = new THREE.Group();
+
+  const adobeMat = new THREE.MeshStandardMaterial({
+    color: 0xd4a373,
+    roughness: 0.92,
+    metalness: 0.05,
+  });
+  const darkAdobeMat = new THREE.MeshStandardMaterial({
+    color: 0xb48154,
+    roughness: 0.95,
+  });
+  const woodVigaMat = new THREE.MeshStandardMaterial({
+    color: 0x5c3d28,
+    roughness: 0.85,
+  });
+  const doorMat = new THREE.MeshStandardMaterial({
+    color: 0x452311,
+    roughness: 0.75,
+  });
+  const clothMat = new THREE.MeshStandardMaterial({
+    color: style === 1 ? 0x0284c7 : style === 2 ? 0x059669 : 0xb45309,
+    roughness: 0.8,
+  });
+
+  if (style === 1) {
+    // Two-tiered tiered desert adobe villa
+    // Lower floor
+    const base = new THREE.Mesh(new THREE.BoxGeometry(7.2, 3.8, 6.4), adobeMat);
+    base.position.y = 1.9;
+    base.castShadow = true;
+    base.receiveShadow = true;
+    house.add(base);
+
+    // Upper floor stepped back
+    const upper = new THREE.Mesh(new THREE.BoxGeometry(4.8, 3.2, 4.4), adobeMat);
+    upper.position.set(-0.8, 3.8 + 1.6, -0.6);
+    upper.castShadow = true;
+    upper.receiveShadow = true;
+    house.add(upper);
+
+    // Upper terrace cloth canopy
+    const canopy = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.12, 3.8), clothMat);
+    canopy.position.set(-0.8, 7.1, -0.6);
+    house.add(canopy);
+
+    // Parapets around lower roof terrace
+    const parapetF = new THREE.Mesh(new THREE.BoxGeometry(7.4, 0.45, 0.3), darkAdobeMat);
+    parapetF.position.set(0, 3.8 + 0.22, 3.1);
+    house.add(parapetF);
+
+    // Protruding wooden vigas
+    for (let x = -3.0; x <= 3.0; x += 1.0) {
+      const viga = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 6.8, 8), woodVigaMat);
+      viga.rotation.x = Math.PI / 2;
+      viga.position.set(x, 3.5, 0);
+      house.add(viga);
+    }
+  } else {
+    // Single-story authentic mud-brick house
+    const w = style === 2 ? 8.0 : 6.2;
+    const d = style === 2 ? 6.8 : 5.4;
+    const h = 3.6;
+
+    const base = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), adobeMat);
+    base.position.y = h / 2;
+    base.castShadow = true;
+    base.receiveShadow = true;
+    house.add(base);
+
+    // Parapets
+    const parapetFront = new THREE.Mesh(new THREE.BoxGeometry(w + 0.2, 0.45, 0.35), darkAdobeMat);
+    parapetFront.position.set(0, h + 0.22, d / 2);
+    house.add(parapetFront);
+    const parapetBack = new THREE.Mesh(new THREE.BoxGeometry(w + 0.2, 0.45, 0.35), darkAdobeMat);
+    parapetBack.position.set(0, h + 0.22, -d / 2);
+    house.add(parapetBack);
+
+    // Protruding wooden vigas
+    for (let vx = -w / 2 + 0.6; vx <= w / 2 - 0.6; vx += 0.9) {
+      const viga = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, d + 0.6, 8), woodVigaMat);
+      viga.rotation.x = Math.PI / 2;
+      viga.position.set(vx, h - 0.25, 0);
+      house.add(viga);
+    }
+
+    // Doorway awning
+    const awning = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.08, 1.4), clothMat);
+    awning.position.set(0, 2.7, d / 2 + 0.65);
+    awning.rotation.x = 0.15;
+    house.add(awning);
+  }
+
+  // Arched wooden doorway
+  const doorGeo = new THREE.BoxGeometry(1.6, 2.5, 0.2);
+  const door = new THREE.Mesh(doorGeo, doorMat);
+  door.position.set(0, 1.25, style === 1 ? 3.25 : (style === 2 ? 3.45 : 2.75));
+  house.add(door);
+
+  // Decorative clay water pots / jars at entrance
+  const jarMat = new THREE.MeshStandardMaterial({ color: 0x9a3412, roughness: 0.8 });
+  for (const jx of [-1.2, 1.2, 1.6]) {
+    const jar = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.32, 0.7, 10), jarMat);
+    jar.position.set(jx, 0.35, style === 1 ? 3.5 : (style === 2 ? 3.7 : 3.0));
+    house.add(jar);
+  }
+
+  return house;
+}
+
+export function createDesertPalaceMesh(): THREE.Group {
+  const palace = new THREE.Group();
+
+  const sandstoneMat = new THREE.MeshStandardMaterial({
+    color: 0xdeb887,
+    roughness: 0.85,
+    metalness: 0.1,
+  });
+  const darkSandstoneMat = new THREE.MeshStandardMaterial({
+    color: 0xb8860b,
+    roughness: 0.8,
+    metalness: 0.2,
+  });
+  const goldDomeMat = new THREE.MeshStandardMaterial({
+    color: 0xf59e0b,
+    roughness: 0.22,
+    metalness: 0.85,
+  });
+  const bannerMat = new THREE.MeshStandardMaterial({
+    color: 0x991b1b,
+    roughness: 0.6,
+  });
+
+  // 1. Broad Sandstone Terrace Podium
+  const podium = new THREE.Mesh(new THREE.BoxGeometry(26, 1.4, 20), sandstoneMat);
+  podium.position.y = 0.7;
+  podium.receiveShadow = true;
+  palace.add(podium);
+
+  // Grand Entrance Steps
+  const steps = new THREE.Mesh(new THREE.BoxGeometry(12, 0.7, 5), darkSandstoneMat);
+  steps.position.set(0, 0.35, 12);
+  palace.add(steps);
+
+  // 2. Main Palace Citadel Block
+  const citadel = new THREE.Mesh(new THREE.BoxGeometry(20, 8.5, 15), sandstoneMat);
+  citadel.position.set(0, 1.4 + 4.25, 0);
+  citadel.castShadow = true;
+  citadel.receiveShadow = true;
+  palace.add(citadel);
+
+  // 3. Central Grand Horseshoe Archway Portico
+  const portico = new THREE.Mesh(new THREE.BoxGeometry(8, 7.5, 3.5), darkSandstoneMat);
+  portico.position.set(0, 1.4 + 3.75, 8.5);
+  portico.castShadow = true;
+  palace.add(portico);
+
+  const archHole = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.0, 2.0, 4.0, 16),
+    new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.9 })
+  );
+  archHole.rotation.x = Math.PI / 2;
+  archHole.position.set(0, 1.4 + 3.5, 8.5);
+  palace.add(archHole);
+
+  // 4. Central Gilded Onion Dome
+  const domeBase = new THREE.Mesh(new THREE.CylinderGeometry(4.8, 5.0, 1.8, 24), darkSandstoneMat);
+  domeBase.position.set(0, 1.4 + 8.5 + 0.9, 0);
+  palace.add(domeBase);
+
+  const domeGeo = new THREE.SphereGeometry(4.6, 24, 20);
+  domeGeo.scale(1.0, 1.35, 1.0);
+  const dome = new THREE.Mesh(domeGeo, goldDomeMat);
+  dome.position.set(0, 1.4 + 8.5 + 1.8 + 2.5, 0);
+  dome.castShadow = true;
+  palace.add(dome);
+
+  // Crescent Spire Finial
+  const finialSpire = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.22, 2.8, 8), goldDomeMat);
+  finialSpire.position.set(0, 1.4 + 8.5 + 1.8 + 6.2, 0);
+  palace.add(finialSpire);
+
+  const crescent = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.08, 8, 16, Math.PI * 1.5), goldDomeMat);
+  crescent.position.set(0, 1.4 + 8.5 + 1.8 + 7.5, 0);
+  palace.add(crescent);
+
+  // 5. Four Octagonal Corner Minaret Towers
+  const minaretOffsets = [
+    { x: -11.5, z: -8.5 },
+    { x: 11.5, z: -8.5 },
+    { x: -11.5, z: 8.5 },
+    { x: 11.5, z: 8.5 },
+  ];
+  minaretOffsets.forEach((mo) => {
+    const towerShaft = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.9, 14.5, 12), sandstoneMat);
+    towerShaft.position.set(mo.x, 1.4 + 7.25, mo.z);
+    towerShaft.castShadow = true;
+    palace.add(towerShaft);
+
+    // Tower Balcony
+    const balcony = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 1.8, 1.2, 12), darkSandstoneMat);
+    balcony.position.set(mo.x, 1.4 + 14.5, mo.z);
+    palace.add(balcony);
+
+    // Minaret Golden Domelet
+    const miniDomeGeo = new THREE.SphereGeometry(1.5, 16, 12);
+    miniDomeGeo.scale(1.0, 1.4, 1.0);
+    const miniDome = new THREE.Mesh(miniDomeGeo, goldDomeMat);
+    miniDome.position.set(mo.x, 1.4 + 15.6 + 1.0, mo.z);
+    miniDome.castShadow = true;
+    palace.add(miniDome);
+  });
+
+  // 6. Crimson & Gold Banners on Facade
+  for (const bx of [-3.2, 3.2]) {
+    const banner = new THREE.Mesh(new THREE.BoxGeometry(0.9, 4.2, 0.08), bannerMat);
+    banner.position.set(bx, 1.4 + 5.0, 10.3);
+    palace.add(banner);
+  }
+
+  // Palace Lantern Braziers
+  for (const lx of [-4.5, 4.5]) {
+    const brazier = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.25, 1.2, 8), darkSandstoneMat);
+    brazier.position.set(lx, 1.4 + 0.6, 10.5);
+    palace.add(brazier);
+
+    const flame = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xff7a00 })
+    );
+    flame.position.set(lx, 1.4 + 1.35, 10.5);
+    palace.add(flame);
+
+    const pLight = new THREE.PointLight(0xff7a00, 1.8, 12);
+    pLight.position.set(lx, 1.4 + 1.5, 10.5);
+    palace.add(pLight);
+  }
+
+  return palace;
+}
+
+export function createDesertTentMesh(stripeColor: number = 0x991b1b): THREE.Group {
+  const tent = new THREE.Group();
+
+  const tanClothMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.9 });
+  const stripeClothMat = new THREE.MeshStandardMaterial({ color: stripeColor, roughness: 0.85 });
+  const woodPoleMat = new THREE.MeshStandardMaterial({ color: 0x5c3d28, roughness: 0.8 });
+  const carpetMat = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.8 });
+
+  // Faceted tent canopy
+  const tentRoof = new THREE.Mesh(new THREE.ConeGeometry(3.6, 2.6, 6, 1, true), tanClothMat);
+  tentRoof.position.y = 1.3 + 1.3;
+  tentRoof.castShadow = true;
+  tent.add(tentRoof);
+
+  // Striped ridge covers
+  const stripeRidge = new THREE.Mesh(new THREE.ConeGeometry(3.62, 2.62, 6, 1, true, 0, Math.PI / 3), stripeClothMat);
+  stripeRidge.position.y = 1.3 + 1.3;
+  tent.add(stripeRidge);
+  const stripeRidge2 = new THREE.Mesh(new THREE.ConeGeometry(3.62, 2.62, 6, 1, true, Math.PI * (2/3), Math.PI / 3), stripeClothMat);
+  stripeRidge2.position.y = 1.3 + 1.3;
+  tent.add(stripeRidge2);
+
+  // Center Pole
+  const centerPole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.9, 8), woodPoleMat);
+  centerPole.position.y = 1.95;
+  tent.add(centerPole);
+
+  // 4 Corner Poles
+  for (let a = 0; a < 4; a++) {
+    const angle = (a / 4) * Math.PI * 2;
+    const px = Math.cos(angle) * 2.8;
+    const pz = Math.sin(angle) * 2.8;
+    const cornerPole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.6, 6), woodPoleMat);
+    cornerPole.position.set(px, 0.8, pz);
+    tent.add(cornerPole);
+  }
+
+  // Interior Carpet
+  const carpet = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.05, 4.2), carpetMat);
+  carpet.position.y = 0.03;
+  carpet.receiveShadow = true;
+  tent.add(carpet);
+
+  // Hanging Brass Lantern inside
+  const lantern = new THREE.Mesh(
+    new THREE.DodecahedronGeometry(0.2, 0),
+    new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
+  );
+  lantern.position.set(0, 1.8, 0);
+  tent.add(lantern);
+
+  return tent;
+}
+
+export function createDesertBazaarStallMesh(canopyColor: number = 0xd97706, stripeColor: number = 0xfef08a): THREE.Group {
+  const stall = new THREE.Group();
+
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.85 });
+  const canopyMat = new THREE.MeshStandardMaterial({ color: canopyColor, roughness: 0.8 });
+  const stripeMat = new THREE.MeshStandardMaterial({ color: stripeColor, roughness: 0.8 });
+
+  // Wooden counter table
+  const counter = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.0, 1.6), woodMat);
+  counter.position.set(0, 0.5, 0);
+  counter.castShadow = true;
+  counter.receiveShadow = true;
+  stall.add(counter);
+
+  // 4 Corner Support Posts
+  const postOffsets = [
+    [-1.5, -0.7],
+    [1.5, -0.7],
+    [-1.5, 0.7],
+    [1.5, 0.7],
+  ];
+  postOffsets.forEach(([px, pz]) => {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.8, 6), woodMat);
+    post.position.set(px, 1.4, pz);
+    stall.add(post);
+  });
+
+  // Striped Canopy Awning
+  const canopy = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.1, 2.0), canopyMat);
+  canopy.position.set(0, 2.8, 0);
+  canopy.rotation.x = 0.12;
+  stall.add(canopy);
+
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 2.02), stripeMat);
+  stripe.position.set(0, 2.8, 0);
+  stripe.rotation.x = 0.12;
+  stall.add(stripe);
+
+  // Goods: Colorful spice mounds
+  const spiceColors = [0xef4444, 0xf59e0b, 0x06b6d4, 0x854d0e];
+  spiceColors.forEach((sc, idx) => {
+    const mound = new THREE.Mesh(
+      new THREE.ConeGeometry(0.24, 0.35, 8),
+      new THREE.MeshStandardMaterial({ color: sc, roughness: 0.95 })
+    );
+    mound.position.set(-1.1 + idx * 0.7, 1.15, 0.15);
+    stall.add(mound);
+  });
+
+  return stall;
+}
+
+export function createDesertOasisWellMesh(): THREE.Group {
+  const well = new THREE.Group();
+
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x9a3412, roughness: 0.9 });
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x5c3d28, roughness: 0.8 });
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x06b6d4,
+    roughness: 0.05,
+    metalness: 0.3,
+    transparent: true,
+    opacity: 0.88,
+  });
+
+  // Circular stone well curb
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.0, 1.1, 16), stoneMat);
+  rim.position.y = 0.55;
+  rim.castShadow = true;
+  well.add(rim);
+
+  // Interior Water
+  const water = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.2, 16), waterMat);
+  water.position.y = 0.85;
+  well.add(water);
+
+  // 2 Side Timber Pillars
+  for (const sx of [-1.5, 1.5]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 3.2, 8), woodMat);
+    post.position.set(sx, 1.6, 0);
+    well.add(post);
+  }
+
+  // Crossbeam & Pulley
+  const crossbeam = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.22, 0.22), woodMat);
+  crossbeam.position.set(0, 3.1, 0);
+  well.add(crossbeam);
+
+  const pulley = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.06, 8, 16), woodMat);
+  pulley.position.set(0, 2.8, 0);
+  well.add(pulley);
+
+  // Wooden water bucket
+  const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.22, 0.45, 10), woodMat);
+  bucket.position.set(0, 1.8, 0);
+  well.add(bucket);
+
+  return well;
+}
+
+export function createDesertCactusMesh(heightScale = 1.0): THREE.Group {
+  const cactus = new THREE.Group();
+
+  const cactusMat = new THREE.MeshStandardMaterial({
+    color: 0x166534,
+    roughness: 0.85,
+  });
+  const flowerMat = new THREE.MeshBasicMaterial({ color: 0xec4899 });
+
+  const h = 4.2 * heightScale;
+  const mainTrunk = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, h, 12), cactusMat);
+  mainTrunk.position.y = h / 2;
+  mainTrunk.castShadow = true;
+  cactus.add(mainTrunk);
+
+  // Left Arm (lower)
+  const lArmH = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 1.1, 8), cactusMat);
+  lArmH.rotation.z = Math.PI / 2;
+  lArmH.position.set(-0.7, h * 0.45, 0);
+  cactus.add(lArmH);
+
+  const lArmV = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 1.4, 8), cactusMat);
+  lArmV.position.set(-1.15, h * 0.45 + 0.6, 0);
+  cactus.add(lArmV);
+
+  // Right Arm (higher)
+  const rArmH = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 1.2, 8), cactusMat);
+  rArmH.rotation.z = Math.PI / 2;
+  rArmH.position.set(0.75, h * 0.62, 0);
+  cactus.add(rArmH);
+
+  const rArmV = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 1.5, 8), cactusMat);
+  rArmV.position.set(1.25, h * 0.62 + 0.65, 0);
+  cactus.add(rArmV);
+
+  // Blooming pink desert flower on top
+  const flower = new THREE.Mesh(new THREE.DodecahedronGeometry(0.2, 0), flowerMat);
+  flower.position.set(0, h + 0.15, 0);
+  cactus.add(flower);
+
+  return cactus;
+}
+
+export function createSandstonePillarMesh(scale = 1.0): THREE.Group {
+  const pillar = new THREE.Group();
+
+  const colors = [0xd97706, 0xb45309, 0xfde047, 0x9a3412];
+  let curY = 0;
+  const layers = 5;
+
+  for (let l = 0; l < layers; l++) {
+    const mat = new THREE.MeshStandardMaterial({
+      color: colors[l % colors.length],
+      roughness: 0.95,
+      flatShading: true,
+    });
+    const segH = (1.4 + Math.sin(l * 1.5) * 0.4) * scale;
+    const rT = (1.2 + Math.cos(l * 1.2) * 0.5) * scale;
+    const rB = (1.4 + Math.sin(l * 1.8) * 0.4) * scale;
+    const seg = new THREE.Mesh(new THREE.CylinderGeometry(rT, rB, segH, 10), mat);
+    seg.position.y = curY + segH / 2;
+    seg.castShadow = true;
+    seg.receiveShadow = true;
+    pillar.add(seg);
+    curY += segH;
+  }
+
+  // Weathered Hoodoo Cap
+  const capMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9 });
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(1.6 * scale, 1.0 * scale, 0.9 * scale, 10), capMat);
+  cap.position.y = curY + 0.45 * scale;
+  cap.castShadow = true;
+  pillar.add(cap);
+
+  return pillar;
+}
+
+export function createSandDuneMoundMesh(radiusX = 14, radiusZ = 20, height = 3.5): THREE.Mesh {
+  const geo = new THREE.SphereGeometry(1, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+  geo.scale(radiusX, height, radiusZ);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xdeb887,
+    roughness: 0.96,
+    metalness: 0.02,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+export function createBambooClusterMesh(count = 7): THREE.Group {
+  const group = new THREE.Group();
+  const stalkMat = new THREE.MeshStandardMaterial({ color: 0x4d7c0f, roughness: 0.6 });
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x65a30d, roughness: 0.7 });
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2 + (i % 2) * 0.3;
+    const r = 0.5 + (i % 3) * 0.4;
+    const h = 4.8 + (i % 4) * 0.8;
+    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, h, 8), stalkMat);
+    stalk.position.set(Math.cos(angle) * r, h / 2, Math.sin(angle) * r);
+    stalk.castShadow = true;
+    group.add(stalk);
+    for (let ly = h * 0.55; ly <= h; ly += 0.9) {
+      const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.65, 4), leafMat);
+      leaf.position.set(stalk.position.x + 0.15, ly, stalk.position.z - 0.1);
+      leaf.rotation.z = 0.4;
+      group.add(leaf);
+    }
+  }
+  return group;
+}

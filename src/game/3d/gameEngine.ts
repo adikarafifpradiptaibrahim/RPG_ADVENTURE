@@ -147,6 +147,16 @@ const TOWN_ZONES: TownZoneTrigger[] = [
     respawnX: 164,
     respawnZ: -255,
   },
+  {
+    id: 'town_solaria',
+    waypointId: 'wp_solaria_village',
+    name: 'Desa & Istana Gurun Solaria',
+    x: -240,
+    z: 175,
+    radius: 46,
+    respawnX: -238,
+    respawnZ: 175,
+  },
 ];
 
 export class GameEngine {
@@ -1367,6 +1377,52 @@ export class GameEngine {
         isDead: false,
         dropItems: [
           { item: CHEST_LOOT_POOL[0], chance: 0.25 },
+        ],
+      };
+
+      this.enemies.push({
+        data: enemyData,
+        mesh: group,
+        parts,
+        baseY: ey,
+        attackCooldown: 0,
+        walkCycle: Math.random() * 10,
+      });
+    });
+
+    // 15. Gurun Solaria: Kalajengking Raksasa & Pasukan Pasir Pharaoh (Outer Pyramid Dunes)
+    const desertPositions: [number, number][] = [
+      [-175, 95],
+      [-155, 125],
+      [-190, 105],
+      [-210, 135],
+    ];
+    desertPositions.forEach((pos, idx) => {
+      const { group, parts } = createEnemyMesh('spider');
+      const ey = this.world.getTerrainHeight(pos[0], pos[1]);
+      group.position.set(pos[0], ey, pos[1]);
+      this.scene.add(group);
+
+      const enemyData: EnemyData = {
+        id: `solaria_scorpion_${idx}`,
+        name: 'Solaria Dune Scorpion',
+        nameId: 'Kalajengking Pasir Solaria',
+        type: 'spider',
+        level: 5,
+        hp: 130,
+        maxHp: 130,
+        attack: 22,
+        defense: 10,
+        expReward: 105,
+        goldReward: 60,
+        speed: 2.9,
+        attackRange: 2.2,
+        detectRange: 16,
+        position: [pos[0], ey, pos[1]],
+        isDead: false,
+        dropItems: [
+          { item: CHEST_LOOT_POOL[0], chance: 0.3 },
+          { item: CHEST_LOOT_POOL[3], chance: 0.4 },
         ],
       };
 
@@ -4532,12 +4588,21 @@ export class GameEngine {
       }
     });
 
+    const isBossActive = bossInView && activeBoss !== null;
     this.callbacks.onBossEncounter(
-      bossInView && activeBoss !== null,
+      isBossActive,
       activeBoss ? activeBoss.nameId : undefined,
       activeBoss ? activeBoss.hp : undefined,
       activeBoss ? activeBoss.maxHp : undefined
     );
+
+    // Dynamic Boss BGM System: Automatically play Heavy Orchestral BGM for Titan or Epic Choir BGM for Ignis Dragon
+    if (isBossActive && activeBoss) {
+      const bossType = activeBoss.id === 'boss_dragonfang' ? 'dragon' : 'titan';
+      soundManager.playBossMusic(bossType);
+    } else if (soundManager.getCurrentBossMusic()) {
+      soundManager.stopBossMusic();
+    }
   }
 
   /**
@@ -4649,12 +4714,20 @@ export class GameEngine {
       }
     });
 
+    const isBossActive = bossInView && activeBoss !== null;
     this.callbacks.onBossEncounter(
-      bossInView && activeBoss !== null,
+      isBossActive,
       activeBoss ? activeBoss.nameId : undefined,
       activeBoss ? activeBoss.hp : undefined,
       activeBoss ? activeBoss.maxHp : undefined
     );
+
+    if (isBossActive && activeBoss) {
+      const bossType = activeBoss.id === 'boss_dragonfang' ? 'dragon' : 'titan';
+      soundManager.playBossMusic(bossType);
+    } else if (soundManager.getCurrentBossMusic()) {
+      soundManager.stopBossMusic();
+    }
   }
 
   /**
