@@ -6496,12 +6496,39 @@ export function createTajMahalPalaceMesh(): THREE.Group {
   plinthTrim.position.y = 2.1;
   palace.add(plinthTrim);
 
-  // Grand Front Stairway (facing East +X)
-  const stairs = new THREE.Mesh(new THREE.BoxGeometry(8, 2.2, 14), reliefMarbleMat);
-  stairs.position.set(19, 1.1, 0);
-  stairs.castShadow = true;
-  stairs.receiveShadow = true;
-  palace.add(stairs);
+  // Grand Front Entrance Terrace & Low Approaching Steps (y = 0.2 flat landing at terrain level)
+  // Completely eliminates floating concrete blocks, providing a clean flat terrace (y = terrainHeight + 0.2)
+  const entranceTerrace = new THREE.Mesh(new THREE.BoxGeometry(10, 0.2, 14), whiteMarbleMat);
+  entranceTerrace.position.set(19, 0.1, 0);
+  entranceTerrace.receiveShadow = true;
+  palace.add(entranceTerrace);
+
+  const terraceGoldTrim = new THREE.Mesh(new THREE.BoxGeometry(10.3, 0.22, 14.3), royalGoldMat);
+  terraceGoldTrim.position.set(19, 0.09, 0);
+  palace.add(terraceGoldTrim);
+
+  // Gentle low step leading smoothly from Desert Avenue up to the terrace floor (y = 0.2)
+  const stepLow = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 14.1), reliefMarbleMat);
+  stepLow.position.set(24.6, 0.05, 0);
+  stepLow.receiveShadow = true;
+  palace.add(stepLow);
+
+  // Grand Tiered Marble Portal Stairway (Ascending gently from terrace y=0.2 to the Pishtaq Portal Niche y=2.2)
+  const numSteps = 5;
+  for (let s = 0; s < numSteps; s++) {
+    const stepT = (s + 1) / (numSteps + 1);
+    const stepX = 18.0 - s * 1.0;
+    const stepH = 0.2 + stepT * 2.0;
+    const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(1.05, stepH, 10.0), reliefMarbleMat);
+    stepMesh.position.set(stepX, stepH / 2, 0);
+    stepMesh.receiveShadow = true;
+    palace.add(stepMesh);
+
+    // Golden step edge nosing
+    const stepNosing = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 10.1), royalGoldMat);
+    stepNosing.position.set(stepX + 0.5, stepH, 0);
+    palace.add(stepNosing);
+  }
 
   // 2. Central Mausoleum Citadel (24m x 24m x 15m) with beveled corners
   const citadel = new THREE.Mesh(new THREE.BoxGeometry(24, 15, 24), whiteMarbleMat);
@@ -7428,38 +7455,76 @@ export function createDesertPalaceFortressWallMesh(): THREE.Group {
 }
 
 /**
- * Creates a visible Paved Sandstone Road linking the Palace and Desert Village.
+ * Creates a prominent, elevated Desert Avenue Paved Sandstone Road linking the Sultan's Palace and Desert Village.
+ * Raised cleanly above desert sand terrain (y = 0.08) with authentic carved sandstone flagstone slabs and solid stone kerbs.
  */
-export function createDesertPavedRoadMesh(startX = -400, endX = -354, z = 350, width = 6.5): THREE.Group {
+export function createDesertPavedRoadMesh(startX = -396, endX = -250, z = 350, width = 7.5): THREE.Group {
   const group = new THREE.Group();
-  const length = Math.abs(endX - startX);
-  const centerX = (startX + endX) / 2;
+  const minX = Math.min(startX, endX);
+  const maxX = Math.max(startX, endX);
+  const length = maxX - minX;
+  const centerX = (minX + maxX) / 2;
 
-  // Main flagstone pavement
-  const roadMat = new THREE.MeshStandardMaterial({
-    color: 0xdeb887,
+  // Rich warm desert flagstone materials
+  const mainPavementMat = new THREE.MeshStandardMaterial({
+    color: 0xd4a373, // Warm carved desert sandstone
+    roughness: 0.78,
+    metalness: 0.08,
+  });
+  const accentPavementMat = new THREE.MeshStandardMaterial({
+    color: 0xc48b52, // Slightly deeper sandstone flagstone accent
+    roughness: 0.82,
+    metalness: 0.06,
+  });
+  const kerbMat = new THREE.MeshStandardMaterial({
+    color: 0x8c5836, // Deep sandstone kerbstones
+    roughness: 0.72,
+    metalness: 0.12,
+  });
+  const kerbTrimMat = new THREE.MeshStandardMaterial({
+    color: 0x6e3d1b, // Darker border foundation
     roughness: 0.85,
     metalness: 0.05,
   });
-  const borderMat = new THREE.MeshLambertMaterial({
-    color: 0xa87948,
-    flatShading: true,
-  });
 
-  const roadPlane = new THREE.Mesh(new THREE.PlaneGeometry(length, width), roadMat);
-  roadPlane.rotation.x = -Math.PI / 2;
-  roadPlane.position.set(centerX, 0.02, z);
-  roadPlane.receiveShadow = true;
-  group.add(roadPlane);
+  // 1. Raised Main Pavement Roadbed (thickness 0.14m, top at y = 0.12 above terrain)
+  const roadBed = new THREE.Mesh(new THREE.BoxGeometry(length, 0.14, width), mainPavementMat);
+  roadBed.position.set(centerX, 0.07, z);
+  roadBed.receiveShadow = true;
+  group.add(roadBed);
 
-  // Kerb borders on North and South sides
-  const northKerb = new THREE.Mesh(new THREE.BoxGeometry(length, 0.22, 0.4), borderMat);
-  northKerb.position.set(centerX, 0.1, z + width / 2);
+  // 2. Transverse Decorative Sandstone Flagstone Paver Ribbons (every 8m along the avenue)
+  const numBands = Math.floor(length / 8);
+  for (let b = 1; b <= numBands; b++) {
+    const bandX = minX + b * 8;
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.15, width * 0.98), accentPavementMat);
+    band.position.set(bandX, 0.076, z);
+    band.receiveShadow = true;
+    group.add(band);
+  }
+
+  // 3. Robust Elevated Kerb Borders on North and South sides (height 0.26m, top at y = 0.20)
+  const kerbThickness = 0.45;
+  const northKerb = new THREE.Mesh(new THREE.BoxGeometry(length, 0.26, kerbThickness), kerbMat);
+  northKerb.position.set(centerX, 0.13, z + (width - kerbThickness) / 2);
+  northKerb.receiveShadow = true;
+  northKerb.castShadow = true;
   group.add(northKerb);
 
-  const southKerb = new THREE.Mesh(new THREE.BoxGeometry(length, 0.22, 0.4), borderMat);
-  southKerb.position.set(centerX, 0.1, z - width / 2);
+  const southKerb = new THREE.Mesh(new THREE.BoxGeometry(length, 0.26, kerbThickness), kerbMat);
+  southKerb.position.set(centerX, 0.13, z - (width - kerbThickness) / 2);
+  southKerb.receiveShadow = true;
+  southKerb.castShadow = true;
   group.add(southKerb);
+
+  // Decorative Golden Brass Kerb Cap Trim
+  const northTrim = new THREE.Mesh(new THREE.BoxGeometry(length, 0.06, kerbThickness * 1.1), kerbTrimMat);
+  northTrim.position.set(centerX, 0.26, z + (width - kerbThickness) / 2);
+  group.add(northTrim);
+
+  const southTrim = new THREE.Mesh(new THREE.BoxGeometry(length, 0.06, kerbThickness * 1.1), kerbTrimMat);
+  southTrim.position.set(centerX, 0.26, z - (width - kerbThickness) / 2);
+  group.add(southTrim);
 
   return group;
 }
