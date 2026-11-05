@@ -81,8 +81,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A heavily fortified highland stronghold with stone ramparts, corner watchtowers, garrison keep, and spiked defense barricades.',
     descriptionId: 'Desa benteng pertahanan dataran tinggi timur! Dilengkapi tembok slate kokoh, menara pengawas baru, barikade runcing, dan markas Komandan Brann.',
     color: '#3b82f6',
-    bounds: { minX: 125, maxX: 195, minZ: -48, maxZ: 18 },
-    center: [158, -16],
+    bounds: { minX: 155, maxX: 225, minZ: -48, maxZ: 18 },
+    center: [188, -16],
     recommendedLevel: 4,
   },
   {
@@ -252,7 +252,7 @@ export const WAYPOINTS: {
     nameId: 'Alun-Alun Benteng Val-Kragor',
     regionId: 'desa_valkragor',
     icon: '🏰',
-    pos: [156, -16],
+    pos: [186, -16],
     desc: 'Desa benteng pertahanan di dataran tinggi timur, dekat Komandan Brann & pandai besi Goran',
   },
   {
@@ -411,7 +411,7 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
     return REGIONS[8];
   }
   // 8. Fortress Village Val-Kragor (Far East Highland)
-  if (x >= 85 && x <= 155 && z >= -48 && z <= 18) {
+  if (x >= 155 && x <= 225 && z >= -48 && z <= 18) {
     return REGIONS[6];
   }
   // 9. Misty Chasm & Suspension Bridge (Mid East)

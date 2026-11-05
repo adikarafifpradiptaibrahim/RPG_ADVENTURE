@@ -28,7 +28,7 @@ export function isInsideSanctuarySafeZone(x: number, z: number): boolean {
 }
 
 export function isInsideValKragorSafeZone(x: number, z: number): boolean {
-  return x >= 125 && x <= 190 && z >= -45 && z <= 15;
+  return x >= 155 && x <= 225 && z >= -45 && z <= 15;
 }
 
 export function isInsideAstraeaSafeZone(x: number, z: number): boolean {

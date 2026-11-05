@@ -2590,7 +2590,7 @@ export function createBarrelMesh(): THREE.Group {
 
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.45, 1.0, 8), wood);
   body.position.y = 0.5;
-  body.castShadow = true;
+  body.castShadow = false; // Disabled shadow on small prop for optimal 60 FPS performance
   barrel.add(body);
 
   const ring1 = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.08, 8), metal);
@@ -2864,7 +2864,7 @@ export function createStreetLampMesh(): THREE.Group {
   // Post
   const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 3.2, 6), ironMat);
   post.position.y = 1.6;
-  post.castShadow = true;
+  post.castShadow = false; // Disabled shadow on small prop for optimal 60 FPS performance
   lamp.add(post);
 
   // Lantern Head
@@ -2890,17 +2890,17 @@ export function createVillageArchMesh(title: string = 'GERBANG ELDORIA'): THREE.
   // Left & Right log pillars
   const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 5.0, 8), logMat);
   p1.position.set(-3.5, 2.5, 0);
-  p1.castShadow = true;
+  p1.castShadow = false;
 
   const p2 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 5.0, 8), logMat);
   p2.position.set(3.5, 2.5, 0);
-  p2.castShadow = true;
+  p2.castShadow = false;
   arch.add(p1, p2);
 
   // Crossbeam
   const beam = new THREE.Mesh(new THREE.BoxGeometry(8.2, 0.5, 0.8), logMat);
   beam.position.set(0, 4.8, 0);
-  beam.castShadow = true;
+  beam.castShadow = false;
   arch.add(beam);
 
   // Shingle roof on top of arch
@@ -7219,6 +7219,118 @@ export function createInstancedDesertPalms(items: InstancedItemTransform[]): THR
 
   group.add(trunkInstanced);
   group.add(canopyInstanced);
+  return group;
+}
+
+/**
+ * Creates InstancedMesh group for Street Lamps (Iron Post/Cap + Glowing Head).
+ * High Performance 60 FPS: reduces dozens of separate draw calls down to 2 with zero shadow map overhead.
+ */
+export function createInstancedStreetLamps(items: InstancedItemTransform[]): THREE.Group {
+  const group = new THREE.Group();
+  if (items.length === 0) return group;
+
+  const ironMat = new THREE.MeshLambertMaterial({ color: 0x263238 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xffecb3 });
+
+  // 1. Post + Cap merged geometry
+  const postGeo = new THREE.CylinderGeometry(0.09, 0.12, 3.2, 6);
+  postGeo.translate(0, 1.6, 0);
+
+  const capGeo = new THREE.ConeGeometry(0.35, 0.25, 4);
+  capGeo.rotateY(Math.PI / 4);
+  capGeo.translate(0, 3.55, 0);
+
+  const mergedIronGeo = mergeGeometries([postGeo, capGeo]);
+
+  // 2. Head geometry
+  const headGeo = new THREE.BoxGeometry(0.4, 0.5, 0.4);
+  headGeo.translate(0, 3.2, 0);
+
+  const ironInstanced = new THREE.InstancedMesh(mergedIronGeo, ironMat, items.length);
+  ironInstanced.castShadow = false;
+  ironInstanced.receiveShadow = true;
+
+  const glowInstanced = new THREE.InstancedMesh(headGeo, glowMat, items.length);
+  glowInstanced.castShadow = false;
+  glowInstanced.receiveShadow = false;
+
+  const dummy = new THREE.Object3D();
+  items.forEach((item, i) => {
+    dummy.position.set(item.x, item.y, item.z);
+    dummy.rotation.set(0, item.rotationY ?? 0, 0);
+    const s = item.scale ?? 1.0;
+    dummy.scale.set(s, s, s);
+    dummy.updateMatrix();
+    ironInstanced.setMatrixAt(i, dummy.matrix);
+    glowInstanced.setMatrixAt(i, dummy.matrix);
+  });
+
+  ironInstanced.instanceMatrix.needsUpdate = true;
+  glowInstanced.instanceMatrix.needsUpdate = true;
+
+  group.add(ironInstanced);
+  group.add(glowInstanced);
+  return group;
+}
+
+/**
+ * Creates InstancedMesh group for Curated Village Trees (Trunk + Foliage).
+ * High Performance 60 FPS: renders all village trees in just 2 draw calls with zero shadow stuttering.
+ */
+export function createInstancedVillageTrees(items: InstancedItemTransform[]): THREE.Group {
+  const group = new THREE.Group();
+  if (items.length === 0) return group;
+
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x4e342e, flatShading: true });
+  const leafMat = new THREE.MeshLambertMaterial({ color: 0x33691e, flatShading: true });
+
+  // 1. Merged trunk + root flare
+  const trunkGeo = new THREE.CylinderGeometry(0.3, 0.5, 2.6, 6);
+  trunkGeo.translate(0, 0.9, 0);
+
+  const rootGeo = new THREE.CylinderGeometry(0.5, 0.75, 0.8, 6);
+  rootGeo.translate(0, -0.3, 0);
+
+  const mergedTrunkGeo = mergeGeometries([trunkGeo, rootGeo]);
+
+  // 2. Merged foliage clusters (3 dodecahedron puffs)
+  const clusters = [
+    { x: 0, y: 3.2, z: 0, s: 1.5 },
+    { x: 0.6, y: 2.6, z: 0.4, s: 1.1 },
+    { x: -0.6, y: 2.7, z: -0.3, s: 1.2 },
+  ];
+  const clusterGeos = clusters.map(c => {
+    const g = new THREE.DodecahedronGeometry(c.s, 1);
+    g.translate(c.x, c.y, c.z);
+    return g;
+  });
+  const mergedFoliageGeo = mergeGeometries(clusterGeos);
+
+  const trunkInstanced = new THREE.InstancedMesh(mergedTrunkGeo, trunkMat, items.length);
+  trunkInstanced.castShadow = false;
+  trunkInstanced.receiveShadow = true;
+
+  const foliageInstanced = new THREE.InstancedMesh(mergedFoliageGeo, leafMat, items.length);
+  foliageInstanced.castShadow = false;
+  foliageInstanced.receiveShadow = true;
+
+  const dummy = new THREE.Object3D();
+  items.forEach((item, i) => {
+    dummy.position.set(item.x, item.y, item.z);
+    dummy.rotation.set(0, item.rotationY ?? 0, 0);
+    const s = item.scale ?? 1.0;
+    dummy.scale.set(s, s, s);
+    dummy.updateMatrix();
+    trunkInstanced.setMatrixAt(i, dummy.matrix);
+    foliageInstanced.setMatrixAt(i, dummy.matrix);
+  });
+
+  trunkInstanced.instanceMatrix.needsUpdate = true;
+  foliageInstanced.instanceMatrix.needsUpdate = true;
+
+  group.add(trunkInstanced);
+  group.add(foliageInstanced);
   return group;
 }
 

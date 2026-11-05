@@ -144,10 +144,10 @@ const TOWN_ZONES: TownZoneTrigger[] = [
     id: 'town_valkragor',
     waypointId: 'wp_valkragor',
     name: 'Benteng Val-Kragor',
-    x: 158,
+    x: 188,
     z: -16,
     radius: 40,
-    respawnX: 156,
+    respawnX: 186,
     respawnZ: -12,
   },
   {
@@ -4517,7 +4517,7 @@ export class GameEngine {
     this.playerPos.z = nextZ;
 
     // Check quest discovery for Fortress Village Val-Kragor
-    if (nextX >= 96 && Math.abs(nextZ - -17) <= 22) {
+    if (nextX >= 135 && Math.abs(nextZ - -16) <= 22) {
       this.callbacks.onUpdateQuests((quests) => {
         return quests.map((q) => {
           if (q.id === 'quest_discover_valkragor' && !q.completed) {
@@ -5878,8 +5878,8 @@ export class GameEngine {
         id: 'landmark_valkragor_fortress',
         title: 'Benteng Val-Kragor',
         type: 'boss',
-        x: 116,
-        z: -17,
+        x: 188,
+        z: -16,
         icon: '🏰',
         color: '#3b82f6',
         description: 'Benteng Dataran Tinggi Val-Kragor',

@@ -67,9 +67,9 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return (1 - t) * 1.6 + t * (0.8 + Math.sin(x * 0.08) * 0.5);
   }
 
-  // 2. Second Village: Desa Benteng Val-Kragor Relocated East Plateau (x: 125..195, z: -48..15)
-  // Spacious flat fortress interior centered at (158, -16) well clear of suspension bridge
-  const distValKragor = Math.hypot(x - 158, z - -16);
+  // 2. Second Village: Desa Benteng Val-Kragor Relocated East Plateau (x: 155..225, z: -48..15)
+  // Spacious flat fortress interior centered at (188, -16) well clear of suspension bridge
+  const distValKragor = Math.hypot(x - 188, z - -16);
   if (distValKragor < 46) {
     if (distValKragor < 34) return 3.2; // Vast flat fortress courtyard
     const t = (distValKragor - 34) / 12;
@@ -94,12 +94,12 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   }
 
   // 2c. East Bridgehead Fortress Approach Highway Slope
-  // Flat landing at x: 87..92 at y = 2.00, then smoothly ascends to fortress plateau y = 3.20 at x = 132
-  if (x >= 87 && x <= 134 && z >= -34 && z <= 2) {
+  // Flat landing at x: 87..92 at y = 2.00, then smoothly ascends to fortress plateau y = 3.20 at x = 162
+  if (x >= 87 && x <= 164 && z >= -34 && z <= 2) {
     const roadDistZ = Math.abs(z - -16);
     let roadElev = 2.0;
     if (x > 92) {
-      const tX = clamp((x - 92) / 40, 0, 1);
+      const tX = clamp((x - 92) / 70, 0, 1);
       roadElev = 2.0 + smoothstep(0, 1, tX) * 1.2; // 2.0 -> 3.2
     }
     if (roadDistZ <= 6.0) {
@@ -357,7 +357,7 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   const slope = clamp(Math.hypot(yRight - y, yDown - y) / delta, 0, 1);
 
   const distCenter = Math.hypot(x, z);
-  const distValKragor = Math.hypot(x - 158, z - -16);
+  const distValKragor = Math.hypot(x - 188, z - -16);
 
   // 0. Expanded Coastal Naval Harbor (Seamless Beach Connection, 2 Tiers of Berthing Wings & Pier Head)
   // Beach shoreline boardwalk apron (resting firmly on sand y = terrainHeight)
@@ -455,7 +455,7 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   // Highway 1: Desa Utama -> Jembatan Gantung -> Benteng Val-Kragor (Timur)
   if (
     (Math.abs(z - -15) <= 2.8 && x >= 16 && x <= 88) ||
-    (Math.abs(z - -16) <= 2.8 && x >= 88 && x <= 132)
+    (Math.abs(z - -16) <= 2.8 && x >= 88 && x <= 162)
   ) {
     return { height: y, color: [175, 155, 135], biomeId: 'valkragor_road', isWater: false, isPath: true, slope: 0 };
   }
@@ -470,7 +470,7 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
 
   // Highway 3: Benteng Val-Kragor -> Puncak Salju Frostpeak & Kerajaan Astraea (Utara)
   if (z <= -40 && z >= -260) {
-    const roadX = 158 - clamp((-z - 40) / 220, 0, 1) * 10;
+    const roadX = 188 - clamp((-z - 40) / 220, 0, 1) * 20;
     if (Math.abs(x - roadX) <= 2.8) {
       return { height: y, color: [210, 218, 226], biomeId: 'frostpeak_highway', isWater: false, isPath: true, slope: 0 };
     }
@@ -478,8 +478,8 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
 
   // Internal Val-Kragor Streets: Main thoroughfare and north/south barracks branches
   if (
-    (Math.abs(z - -16) <= 2.4 && x >= 132 && x <= 180) ||
-    (Math.abs(x - 154) <= 2.2 && z >= -34 && z <= 0)
+    (Math.abs(z - -16) <= 2.4 && x >= 162 && x <= 210) ||
+    (Math.abs(x - 184) <= 2.2 && z >= -34 && z <= 0)
   ) {
     return { height: y, color: [148, 163, 184], biomeId: 'valkragor_street', isWater: false, isPath: true, slope: 0 };
   }
