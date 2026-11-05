@@ -32,7 +32,7 @@ export const ClassSelectModal: React.FC<ClassSelectModalProps> = ({
       id: 'warrior',
       name: 'Ksatria (Warrior)',
       subtitle: 'Ahli Pedang & Perisai Baja',
-      icon: '⚔️',
+      icon: 'âš”ï¸',
       desc: 'Pertahanan tinggi, HP tebal, dan serangan pedang tebasan mematikan. Sangat tangguh dalam pertarungan jarak dekat.',
       stats: { hp: 'Sangat Tinggi', atk: 'Tinggi', spd: 'Sedang', diff: 'Mudah' },
       skills: ['Tebasan Pedang Baja', 'Pusaran Pedang (Whirlwind)', 'Perisai Baja'],
@@ -42,7 +42,7 @@ export const ClassSelectModal: React.FC<ClassSelectModalProps> = ({
       id: 'mage',
       name: 'Penyihir (Mage)',
       subtitle: 'Penguasa Energi Kristal',
-      icon: '🔮',
+      icon: 'ðŸ”®',
       desc: 'Menguasai sihir kuno, kapasitas Mana melimpah, serta kemampuan pemulihan suci yang dahsyat.',
       stats: { hp: 'Sedang', atk: 'Tinggi (Sihir)', spd: 'Sedang', diff: 'Menengah' },
       skills: ['Ledakan Kristal', 'Penyembuhan Suci (Holy Sanctuary)', 'Gelombang Arcane'],
@@ -52,7 +52,7 @@ export const ClassSelectModal: React.FC<ClassSelectModalProps> = ({
       id: 'rogue',
       name: 'Pemburu (Rogue)',
       subtitle: 'Bayangan Angin & Belati Cepat',
-      icon: '🏹',
+      icon: 'ðŸ¹',
       desc: 'Kecepatan gerak kilat, serangan kritis mematikan, dan kemampuan dash menghindar yang sangat lincah.',
       stats: { hp: 'Sedang', atk: 'Kritis Tinggi', spd: 'Sangat Cepat', diff: 'Ahli' },
       skills: ['Tikaman Belati Ganda', 'Langkah Kilat (Swift Dash)', 'Tebasan Bayangan'],
@@ -66,7 +66,7 @@ export const ClassSelectModal: React.FC<ClassSelectModalProps> = ({
         {/* Title */}
         <div className="text-center mb-4 sm:mb-6">
           <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1 sm:mb-2">
-            ✨ Petualangan Lembah Kuno 3D
+            âœ¨ Petualangan Lembah Kuno 3D
           </div>
           <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-stone-100 tracking-wide">
             Pilih Kelas Petualang
@@ -85,6 +85,7 @@ export const ClassSelectModal: React.FC<ClassSelectModalProps> = ({
                 key={cls.id}
                 onClick={() => {
                   soundManager.playChestOpen();
+                  soundManager.playOverworldBGM();
                   onSelectClass(cls.id);
                 }}
                 className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
@@ -135,7 +136,7 @@ export const ClassSelectModal: React.FC<ClassSelectModalProps> = ({
           <button
             onClick={() => {
               soundManager.playLevelUp();
-              soundManager.toggleAmbientMusic(true);
+              soundManager.playOverworldBGM();
               onStartGame();
             }}
             className="flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-stone-950 font-black text-sm md:text-base shadow-2xl cursor-pointer transition transform hover:scale-105 active:scale-95"

@@ -1,10 +1,10 @@
 /**
  * Web Audio API Sound Synthesizer & Dynamic MP3 BGM Manager for 3D RPG
  */
-import overworldBgmUrl from '../assets/audio/Where_the_River_Bends.mp3';
-import titanBossBgmUrl from '../assets/audio/Titan_s_Heavy_Tread.mp3';
+import relaxBgmUrl from '../assets/audio/Where_the_River_Bends.mp3';
+import bossTitanBgmUrl from '../assets/audio/Titan_s_Heavy_Tread.mp3';
 
-export { overworldBgmUrl, titanBossBgmUrl };
+export { relaxBgmUrl, bossTitanBgmUrl, relaxBgmUrl as overworldBgmUrl, bossTitanBgmUrl as titanBossBgmUrl };
 
 class SoundManager {
   private ctx: AudioContext | null = null;
@@ -19,12 +19,12 @@ class SoundManager {
   private bossStep = 0;
 
   // --- MP3 BGM Audio Elements (Where the River Bends & Titan's Heavy Tread) ---
-  private overworldAudio: HTMLAudioElement | null = null;
-  private titanAudio: HTMLAudioElement | null = null;
+  private relaxAudio: HTMLAudioElement | null = null;
+  private bossTitanAudio: HTMLAudioElement | null = null;
   private isAudioElementsInitialized = false;
   private currentBgmMode: 'overworld' | 'titan' | 'none' = 'none';
   private crossfadeAnimId: number | null = null;
-  private masterMusicVolume = 0.70; // High-fidelity comfortable volume level
+  private masterMusicVolume = 1.0; // High-fidelity comfortable volume level
   private userGestureAttached = false;
 
   private noiseBuffer: AudioBuffer | null = null;
@@ -33,19 +33,27 @@ class SoundManager {
     this.setupUserGestureAutoplay();
   }
 
+  public get overworldAudio(): HTMLAudioElement | null {
+    return this.relaxAudio;
+  }
+
+  public get titanAudio(): HTMLAudioElement | null {
+    return this.bossTitanAudio;
+  }
+
   public initAudioElements() {
     if (this.isAudioElementsInitialized || typeof Audio === 'undefined') return;
     try {
       this.isAudioElementsInitialized = true;
-      this.overworldAudio = new Audio(overworldBgmUrl);
-      this.overworldAudio.loop = true;
-      this.overworldAudio.preload = 'auto';
-      this.overworldAudio.volume = this.isMuted ? 0 : this.masterMusicVolume;
+      this.relaxAudio = new Audio(relaxBgmUrl);
+      this.relaxAudio.loop = true;
+      this.relaxAudio.preload = 'auto';
+      this.relaxAudio.volume = this.isMuted ? 0 : this.masterMusicVolume;
 
-      this.titanAudio = new Audio(titanBossBgmUrl);
-      this.titanAudio.loop = true;
-      this.titanAudio.preload = 'auto';
-      this.titanAudio.volume = 0;
+      this.bossTitanAudio = new Audio(bossTitanBgmUrl);
+      this.bossTitanAudio.loop = true;
+      this.bossTitanAudio.preload = 'auto';
+      this.bossTitanAudio.volume = 0;
     } catch (e) {
       console.warn('[SoundManager] Could not initialize audio elements:', e);
     }
@@ -62,7 +70,7 @@ class SoundManager {
         if (this.currentBossMusic === 'titan') {
           this.crossfadeBgm('titan', 1.5);
         } else {
-          this.crossfadeBgm('overworld', 1.5);
+          this.playOverworldBGM();
         }
       }
       const events = ['pointerdown', 'keydown', 'touchstart', 'click'];
@@ -73,9 +81,70 @@ class SoundManager {
     events.forEach((evt) => window.addEventListener(evt, unlock, { once: true, passive: true }));
   }
 
+  /**
+   * Directly triggers Overworld relax BGM (Where the River Bends).
+   * Safe to call inside browser user interaction handlers (Role Selection / Start Game).
+   */
+  public playOverworldBGM() {
+    this.isMusicPlaying = true;
+    this.initContext();
+    this.initAudioElements();
+    this.crossfadeBgm('overworld', 1.5);
+    if (this.relaxAudio && !this.isMuted) {
+      this.relaxAudio.play().catch(() => {});
+    }
+  }
+
+  public playOverworldMusic() {
+    this.playOverworldBGM();
+  }
+
+  /**
+   * Toggles BGM Play / Pause state and returns current playing boolean.
+   * Directly synchronized with HUD music icon button.
+   */
+  public toggleBGM(start?: boolean): boolean {
+    this.initContext();
+    this.initAudioElements();
+
+    if (start === undefined) {
+      this.isMusicPlaying = !this.isMusicPlaying;
+    } else {
+      this.isMusicPlaying = start;
+    }
+
+    if (!this.isMusicPlaying) {
+      if (this.musicInterval) {
+        clearInterval(this.musicInterval);
+        this.musicInterval = null;
+      }
+      this.crossfadeBgm('none', 0.5);
+      return false;
+    }
+
+    if (this.currentBossMusic === 'titan') {
+      this.crossfadeBgm('titan', 1.5);
+    } else {
+      this.playOverworldBGM();
+    }
+    return true;
+  }
+
+  public toggleAmbientMusic(start?: boolean) {
+    return this.toggleBGM(start);
+  }
+
+  public isBgmPlaying(): boolean {
+    return this.isMusicPlaying;
+  }
+
+  public getMusicPlaying(): boolean {
+    return this.isMusicPlaying;
+  }
+
   public crossfadeBgm(targetMode: 'overworld' | 'titan' | 'none', duration = 1.5) {
     this.initAudioElements();
-    if (!this.overworldAudio || !this.titanAudio) return;
+    if (!this.relaxAudio || !this.bossTitanAudio) return;
 
     if (this.crossfadeAnimId !== null) {
       cancelAnimationFrame(this.crossfadeAnimId);
@@ -85,37 +154,37 @@ class SoundManager {
     this.currentBgmMode = targetMode;
 
     if (this.isMuted || !this.isMusicPlaying) {
-      this.overworldAudio.volume = 0;
-      this.titanAudio.volume = 0;
+      this.relaxAudio.volume = 0;
+      this.bossTitanAudio.volume = 0;
       if (targetMode === 'none') {
-        this.overworldAudio.pause();
-        this.titanAudio.pause();
+        this.relaxAudio.pause();
+        this.bossTitanAudio.pause();
       }
       return;
     }
 
-    const startOverworldVol = this.overworldAudio.volume;
-    const startTitanVol = this.titanAudio.volume;
+    const startRelaxVol = this.relaxAudio.volume;
+    const startTitanVol = this.bossTitanAudio.volume;
 
-    let targetOverworldVol = 0;
+    let targetRelaxVol = 0;
     let targetTitanVol = 0;
 
     if (targetMode === 'overworld') {
-      targetOverworldVol = this.masterMusicVolume;
-      targetTitanVol = 0;
-      if (this.overworldAudio.paused) {
-        this.overworldAudio.play().catch(() => {});
+      targetRelaxVol = 1.0;
+      targetTitanVol = 0.0;
+      if (this.relaxAudio.paused) {
+        this.relaxAudio.play().catch(() => {});
       }
     } else if (targetMode === 'titan') {
-      targetOverworldVol = 0;
-      targetTitanVol = this.masterMusicVolume;
-      if (this.titanAudio.paused) {
-        this.titanAudio.play().catch(() => {});
+      targetRelaxVol = 0.0;
+      targetTitanVol = 1.0;
+      if (this.bossTitanAudio.paused) {
+        this.bossTitanAudio.play().catch(() => {});
       }
     } else {
       // none
-      targetOverworldVol = 0;
-      targetTitanVol = 0;
+      targetRelaxVol = 0.0;
+      targetTitanVol = 0.0;
     }
 
     const startTime = performance.now();
@@ -127,14 +196,14 @@ class SoundManager {
       // Smoothstep 3p^2 - 2p^3 for natural acoustic transition
       const ease = progress * progress * (3 - 2 * progress);
 
-      if (this.overworldAudio) {
-        this.overworldAudio.volume = Math.max(
+      if (this.relaxAudio) {
+        this.relaxAudio.volume = Math.max(
           0,
-          Math.min(1, startOverworldVol + (targetOverworldVol - startOverworldVol) * ease)
+          Math.min(1, startRelaxVol + (targetRelaxVol - startRelaxVol) * ease)
         );
       }
-      if (this.titanAudio) {
-        this.titanAudio.volume = Math.max(
+      if (this.bossTitanAudio) {
+        this.bossTitanAudio.volume = Math.max(
           0,
           Math.min(1, startTitanVol + (targetTitanVol - startTitanVol) * ease)
         );
@@ -145,24 +214,19 @@ class SoundManager {
       } else {
         this.crossfadeAnimId = null;
         if (targetMode === 'overworld') {
-          this.titanAudio?.pause();
-          if (this.overworldAudio) this.overworldAudio.volume = targetOverworldVol;
+          this.bossTitanAudio?.pause();
+          if (this.relaxAudio) this.relaxAudio.volume = 1.0;
         } else if (targetMode === 'titan') {
-          this.overworldAudio?.pause();
-          if (this.titanAudio) this.titanAudio.volume = targetTitanVol;
+          this.relaxAudio?.pause();
+          if (this.bossTitanAudio) this.bossTitanAudio.volume = 1.0;
         } else {
-          this.overworldAudio?.pause();
-          this.titanAudio?.pause();
+          this.relaxAudio?.pause();
+          this.bossTitanAudio?.pause();
         }
       }
     };
 
     this.crossfadeAnimId = requestAnimationFrame(step);
-  }
-
-  public playOverworldMusic() {
-    this.isMusicPlaying = true;
-    this.crossfadeBgm('overworld', 1.5);
   }
 
   private initContext() {
@@ -235,22 +299,22 @@ class SoundManager {
       this.sfxGain.gain.setValueAtTime(muted ? 0 : 0.42, this.ctx.currentTime);
     }
     if (muted) {
-      if (this.overworldAudio) this.overworldAudio.volume = 0;
-      if (this.titanAudio) this.titanAudio.volume = 0;
+      if (this.relaxAudio) this.relaxAudio.volume = 0;
+      if (this.bossTitanAudio) this.bossTitanAudio.volume = 0;
     } else {
       if (this.isMusicPlaying) {
         if (this.currentBossMusic === 'titan') {
-          if (this.titanAudio) {
-            this.titanAudio.volume = this.masterMusicVolume;
-            if (this.titanAudio.paused) this.titanAudio.play().catch(() => {});
+          if (this.bossTitanAudio) {
+            this.bossTitanAudio.volume = 1.0;
+            if (this.bossTitanAudio.paused) this.bossTitanAudio.play().catch(() => {});
           }
-          if (this.overworldAudio) this.overworldAudio.volume = 0;
+          if (this.relaxAudio) this.relaxAudio.volume = 0;
         } else {
-          if (this.overworldAudio) {
-            this.overworldAudio.volume = this.masterMusicVolume;
-            if (this.overworldAudio.paused) this.overworldAudio.play().catch(() => {});
+          if (this.relaxAudio) {
+            this.relaxAudio.volume = 1.0;
+            if (this.relaxAudio.paused) this.relaxAudio.play().catch(() => {});
           }
-          if (this.titanAudio) this.titanAudio.volume = 0;
+          if (this.bossTitanAudio) this.bossTitanAudio.volume = 0;
         }
       }
     }
@@ -1584,37 +1648,6 @@ class SoundManager {
     osc.start(now);
     osc.stop(now + 0.3);
   }
-
-  public toggleAmbientMusic(start?: boolean) {
-    this.initContext();
-    this.initAudioElements();
-
-    if (start === undefined) {
-      this.isMusicPlaying = !this.isMusicPlaying;
-    } else {
-      this.isMusicPlaying = start;
-    }
-
-    if (!this.isMusicPlaying) {
-      if (this.musicInterval) {
-        clearInterval(this.musicInterval);
-        this.musicInterval = null;
-      }
-      this.crossfadeBgm('none', 0.5);
-      return;
-    }
-
-    if (this.currentBossMusic === 'titan') {
-      this.crossfadeBgm('titan', 1.5);
-    } else {
-      this.crossfadeBgm('overworld', 1.5);
-    }
-  }
-
-  public getMusicPlaying() {
-    return this.isMusicPlaying;
-  }
-
 
   // ==========================================
   // DYNAMIC BOSS BGM SYSTEM

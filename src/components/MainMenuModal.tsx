@@ -44,21 +44,21 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
     {
       id: 'warrior',
       name: 'Ksatria (Warrior)',
-      icon: '⚔️',
+      icon: 'âš”ï¸',
       desc: 'Ahli pedang baja & perisai tebal. Pertahanan kokoh dan tebasan beruntun.',
       color: 'border-blue-500 bg-blue-950/30 text-blue-300',
     },
     {
       id: 'mage',
       name: 'Penyihir (Mage)',
-      icon: '🔮',
+      icon: 'ðŸ”®',
       desc: 'Penguasa sihir kristal dan pemulihan suci dengan mana berlimpah.',
       color: 'border-purple-500 bg-purple-950/30 text-purple-300',
     },
     {
       id: 'rogue',
       name: 'Pemburu (Rogue)',
-      icon: '🏹',
+      icon: 'ðŸ¹',
       desc: 'Lincah dengan belati ganda & panah elang. Kecepatan dan serangan kritis.',
       color: 'border-emerald-500 bg-emerald-950/30 text-emerald-300',
     },
@@ -95,6 +95,7 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
 
   const handleLaunchSinglePlayer = () => {
     soundManager.playLevelUp();
+    soundManager.playOverworldBGM();
     onStartSinglePlayer(selectedClass);
   };
 
@@ -104,6 +105,7 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
       return;
     }
     soundManager.playLevelUp();
+    soundManager.playOverworldBGM();
     const effectiveServerUrl = useCustomServer && customServerUrl.trim()
       ? customServerUrl.trim()
       : window.location.origin;
@@ -123,7 +125,7 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
         {/* Banner Header */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold uppercase tracking-widest mb-2">
-            ⚔️ Open-World 3D RPG Action
+            âš”ï¸ Open-World 3D RPG Action
           </div>
           <h1 className="text-3xl sm:text-4xl font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 drop-shadow-md">
             CHRONICLES OF ELDORIA
@@ -148,7 +150,7 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <div className="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-2xl">
-                      🛡️
+                      ðŸ›¡ï¸
                     </div>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-950/80 border border-blue-500/30 text-blue-300">
                       100% Client-Side
@@ -179,7 +181,7 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl">
-                      ⚔️
+                      âš”ï¸
                     </div>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/80 border border-amber-500/30 text-amber-300">
                       Socket.io Real-Time
@@ -219,7 +221,7 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
           <div className="space-y-5 animate-fade-in">
             <div className="flex items-center justify-between border-b border-stone-800 pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-xl">🛡️</span>
+                <span className="text-xl">ðŸ›¡ï¸</span>
                 <h2 className="text-base font-bold text-amber-300">Single Player Mode (Client-Side)</h2>
               </div>
               <button
@@ -243,6 +245,7 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
                       onClick={() => {
                         setSelectedClass(c.id);
                         soundManager.playChestOpen();
+                        soundManager.playOverworldBGM();
                       }}
                       className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
                         isSelected
@@ -267,7 +270,7 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
             </div>
 
             <div className="p-3 bg-stone-900/60 border border-stone-800 rounded-xl text-xs text-stone-400">
-              💡 <span className="text-stone-300 font-semibold">Mode Offline:</span> Game akan berjalan 100% di browser tanpa koneksi socket server. Progres tersimpan di penyimpanan browser lokal.
+              ðŸ’¡ <span className="text-stone-300 font-semibold">Mode Offline:</span> Game akan berjalan 100% di browser tanpa koneksi socket server. Progres tersimpan di penyimpanan browser lokal.
             </div>
 
             <div className="flex gap-3 pt-2">
@@ -293,7 +296,7 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
           <div className="space-y-4 animate-fade-in">
             <div className="flex items-center justify-between border-b border-stone-800 pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-xl">⚔️</span>
+                <span className="text-xl">âš”ï¸</span>
                 <h2 className="text-base font-bold text-amber-300">Multiplayer Mode (Socket.io Real-Time)</h2>
               </div>
               <button
@@ -418,6 +421,7 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
                       onClick={() => {
                         setSelectedClass(c.id);
                         soundManager.playChestOpen();
+                        soundManager.playOverworldBGM();
                       }}
                       className={`p-2.5 rounded-xl border-2 cursor-pointer transition text-center ${
                         isSelected

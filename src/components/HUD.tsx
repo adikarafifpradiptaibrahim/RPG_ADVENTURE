@@ -373,10 +373,10 @@ export const HUD: React.FC<HUDProps> = ({
           )}
           <button
             onClick={onToggleMusic}
-            title="Toggle Fantasy Music"
+            title={isMusicPlaying ? 'Musik Latar: ON (Klik untuk Jeda/Pause)' : 'Musik Latar: OFF (Klik untuk Putar/Play)'}
             className={`pointer-events-auto p-2 rounded-xl backdrop-blur-md border transition-all cursor-pointer shadow ${
               isMusicPlaying
-                ? 'bg-amber-600/80 border-amber-400 text-white'
+                ? 'bg-amber-600/80 border-amber-400 text-white shadow-amber-500/20 ring-2 ring-amber-500/30'
                 : 'bg-stone-900/80 border-stone-700 text-stone-400 hover:text-white'
             }`}
           >

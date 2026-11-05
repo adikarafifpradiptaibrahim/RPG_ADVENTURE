@@ -374,7 +374,7 @@ export default function App() {
     applyClassStats(selectedClass);
     setHasStarted(true);
 
-    soundManager.toggleAmbientMusic(true);
+    soundManager.playOverworldBGM();
     setIsMusicPlaying(true);
 
     if (engineRef.current) {
@@ -393,7 +393,7 @@ export default function App() {
     applyClassStats(options.charClass);
     setHasStarted(true);
 
-    soundManager.toggleAmbientMusic(true);
+    soundManager.playOverworldBGM();
     setIsMusicPlaying(true);
 
     if (engineRef.current) {
@@ -999,8 +999,8 @@ export default function App() {
             }}
             isMusicPlaying={isMusicPlaying}
             onToggleMusic={() => {
-              soundManager.toggleAmbientMusic();
-              setIsMusicPlaying(soundManager.getMusicPlaying());
+              const active = soundManager.toggleBGM();
+              setIsMusicPlaying(active);
             }}
             playerPos={playerPos}
             currentRegion={currentRegion}
