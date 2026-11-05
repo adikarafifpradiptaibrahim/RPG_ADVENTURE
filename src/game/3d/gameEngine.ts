@@ -50,6 +50,7 @@ import {
   createMageArcaneLaserBeamVfx,
   createStarfallCastingCircleVfx,
   createStarfallMeteorBarrageVfx,
+  preloadStarfallPool,
   StarfallCastingCircleInstance,
 } from '../skills';
 
@@ -404,6 +405,9 @@ export class GameEngine {
 
     // 3. Build 3D World
     this.world = buildWorld(this.scene);
+
+    // Warm-up & pre-compile Starfall shaders, geometries, and object pool
+    preloadStarfallPool(this.scene, this.renderer, this.camera);
 
     // Initialize Boss Manager
     this.bossManager = new BossManager(
@@ -2875,7 +2879,7 @@ export class GameEngine {
     this.spawnMageArcaneLaserBeam(customFwd, customSpawnPos, isRemote);
   }
 
-  // --- MAGE STARFALL (1.5s Cast Time, Movement Lock, 3D Runic Magic Circle, & 3-Meteor Barrage) ---
+  // --- MAGE STARFALL (1.5s Cast Time, Movement Lock, Radial Drawing Magic Circle & 8-Meteor Barrage) ---
   private startStarfallCasting() {
     this.isCasting = true;
     this.castingTimer = 0;
@@ -2926,27 +2930,28 @@ export class GameEngine {
   private spawnStarfallMeteorBarrage(targetCenter: THREE.Vector3, isRemote = false) {
     const vfx = createStarfallMeteorBarrageVfx({
       targetCenter,
-      onImpact: (impactPos, isLast) => {
-        soundManager.playStarfallImpact();
-        this.triggerCameraShake(isLast ? 0.36 : 0.24);
+      onImpact: (impactPos, isLast, idx) => {
+        soundManager.playStarfallImpact(isLast);
+        this.triggerCameraShake(isLast ? 0.42 : 0.22);
 
         if (!isRemote && this.isRunning) {
           this.callbacks.onUpdateStats((stats) => {
             const isCrit = Math.random() < 0.25 + stats.intelligence * 0.015;
             const tierMult = 1 + (this.playerTier - 1) * 0.25;
-            // 3 Meteors: each meteor deals ~75% spell power (Total ~225% spell power!)
-            const baseDmg = (stats.baseAttack + stats.intelligence * 2.8) * tierMult * 0.75;
+            // 8 Meteors: each deals ~38% spell power, finisher 8th deals ~68% (Total ~334% spell power!)
+            const mult = isLast ? 0.68 : 0.38;
+            const baseDmg = (stats.baseAttack + stats.intelligence * 2.8) * tierMult * mult;
             const finalDmg = Math.max(5, Math.round(isCrit ? baseDmg * 1.85 : baseDmg));
 
             this.enemies.forEach((enemy) => {
               if (enemy.data.isDead) return;
               const dist = enemy.mesh.position.distanceTo(impactPos);
-              if (dist <= 6.2) {
+              if (dist <= 6.8) {
                 // Apply AOE damage and knockback away from impact point
                 const knockDir = new THREE.Vector3().subVectors(enemy.mesh.position, impactPos).normalize();
                 knockDir.y = 0;
-                this.damageEnemy(enemy, finalDmg, isCrit, 0.45);
-                enemy.mesh.position.addScaledVector(knockDir, 0.65);
+                this.damageEnemy(enemy, finalDmg, isCrit, isLast ? 0.55 : 0.35);
+                enemy.mesh.position.addScaledVector(knockDir, isLast ? 0.8 : 0.45);
               }
             });
 
@@ -2955,7 +2960,7 @@ export class GameEngine {
         }
 
         if (isLast && !isRemote) {
-          this.callbacks.onAddFloatingText('☄️ Starfall Celestial Impact!', '#f59e0b', 'crit');
+          this.callbacks.onAddFloatingText('☄️ Starfall Celestial Rain!', '#f59e0b', 'crit');
         }
       },
       onSpawnSparks: (pos, color, count, speed) => {
@@ -3676,7 +3681,7 @@ export class GameEngine {
           });
           this.callbacks.onAddFloatingText('Pusaran Badai Baja 360°!', '#fbbf24', 'crit');
         } else if (this.charClass === 'mage') {
-          // Mage: Starfall (Hujan Meteor 3-Meteor Barrage with 1.5s Cast Time & Movement Lock)
+          // Mage: Starfall (Hujan Meteor 8-Meteor Barrage with 1.5s Cast Time, Radial Magic Circle & Movement Lock)
           this.startStarfallCasting();
           return { ...stats, mp: Math.max(0, stats.mp - 15) };
         } else if (this.charClass === 'rogue') {

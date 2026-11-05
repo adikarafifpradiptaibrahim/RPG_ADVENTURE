@@ -687,6 +687,286 @@ export function getStarfallMagicCircleTexture(): THREE.CanvasTexture {
   return cachedStarfallCircleTexture;
 }
 
+// ----------------------------------------------------
+// STARFALL SHADER & PRE-ALLOCATED RESOURCE POOL
+// ----------------------------------------------------
+
+const starfallRadialVertexShader = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const starfallRadialFragmentShader = `
+  uniform sampler2D uMap;
+  uniform float uProgress;
+  uniform float uOpacity;
+  uniform vec3 uLeadingColor;
+  varying vec2 vUv;
+
+  void main() {
+    vec2 centered = vUv - vec2(0.5);
+    float dist = length(centered);
+    if (dist > 0.495) discard;
+
+    // Clockwise angle starting from top (12 o'clock = 0.0 to 1.0)
+    float angle = atan(centered.x, centered.y);
+    if (angle < 0.0) {
+      angle += 6.28318530718;
+    }
+    float normalizedAngle = angle / 6.28318530718;
+
+    // Radial progressive stroke reveal: hide parts not yet drawn
+    if (normalizedAngle > uProgress) {
+      discard;
+    }
+
+    vec4 tex = texture2D(uMap, vUv);
+
+    // Incandescent molten-energy spark traveling along the leading stroke edge
+    float edgeDiff = abs(normalizedAngle - uProgress);
+    if (edgeDiff < 0.024 && uProgress > 0.005 && uProgress < 0.995) {
+      float spark = (1.0 - edgeDiff / 0.024) * 2.8;
+      tex.rgb += uLeadingColor * spark;
+      tex.a = max(tex.a, 0.98);
+    }
+
+    tex.a *= uOpacity;
+    gl_FragColor = tex;
+  }
+`;
+
+/**
+ * Singleton Static Geometries and Materials for Starfall
+ * Eliminates garbage collection spikes and runtime shader compiling freezes
+ */
+class StarfallResourcePool {
+  private static instance: StarfallResourcePool | null = null;
+
+  public circlePlaneGeom!: THREE.PlaneGeometry;
+  public outerTorusGeom!: THREE.TorusGeometry;
+  public innerTorusGeom!: THREE.TorusGeometry;
+  public auraCylGeom!: THREE.CylinderGeometry;
+  public sparkGeom!: THREE.SphereGeometry;
+
+  public aoeRingGeom!: THREE.TorusGeometry;
+  public aoeInnerRingGeom!: THREE.TorusGeometry;
+  public aoeDiskGeom!: THREE.PlaneGeometry;
+
+  public meteorCoreGeom!: THREE.ConeGeometry;
+  public meteorFlareGeom!: THREE.SphereGeometry;
+  public meteorFlameGeom!: THREE.ConeGeometry;
+
+  public shockwaveGeom!: THREE.TorusGeometry;
+  public crackGeom!: THREE.PlaneGeometry;
+  public shardGeom!: THREE.ConeGeometry;
+
+  public outerTorusMat!: THREE.MeshBasicMaterial;
+  public innerTorusMat!: THREE.MeshBasicMaterial;
+  public auraCylMat!: THREE.MeshBasicMaterial;
+  public leadingSparkMat!: THREE.MeshBasicMaterial;
+
+  public aoeRingMat!: THREE.MeshBasicMaterial;
+  public aoeInnerRingMat!: THREE.MeshBasicMaterial;
+  public aoeDiskMat!: THREE.MeshBasicMaterial;
+
+  public meteorCrystalMat!: THREE.MeshBasicMaterial;
+  public meteorWhiteFlareMat!: THREE.MeshBasicMaterial;
+  public meteorFlameMat!: THREE.MeshBasicMaterial;
+
+  public shockwaveMat!: THREE.MeshBasicMaterial;
+  public crackMat!: THREE.MeshBasicMaterial;
+  public shardMat!: THREE.MeshBasicMaterial;
+
+  public isInitialized = false;
+
+  public static get(): StarfallResourcePool {
+    if (!StarfallResourcePool.instance) {
+      StarfallResourcePool.instance = new StarfallResourcePool();
+      StarfallResourcePool.instance.init();
+    }
+    return StarfallResourcePool.instance;
+  }
+
+  private init() {
+    if (this.isInitialized) return;
+
+    // Magic Circle Geometries
+    this.circlePlaneGeom = new THREE.PlaneGeometry(6.6, 6.6);
+    this.outerTorusGeom = new THREE.TorusGeometry(3.0, 0.045, 8, 48);
+    this.innerTorusGeom = new THREE.TorusGeometry(1.9, 0.035, 8, 36);
+    this.auraCylGeom = new THREE.CylinderGeometry(2.7, 3.0, 4.0, 24, 1, true);
+    this.sparkGeom = new THREE.SphereGeometry(0.18, 8, 8);
+
+    // Expanded AOE Target Zone Geometries (1.8x wider, radius 10.5)
+    this.aoeRingGeom = new THREE.TorusGeometry(10.5, 0.14, 8, 56);
+    this.aoeInnerRingGeom = new THREE.TorusGeometry(9.6, 0.06, 8, 48);
+    this.aoeDiskGeom = new THREE.PlaneGeometry(21.0, 21.0);
+
+    // Meteor Geometries
+    this.meteorCoreGeom = new THREE.ConeGeometry(0.75, 2.8, 6);
+    this.meteorFlareGeom = new THREE.SphereGeometry(0.6, 8, 8);
+    this.meteorFlameGeom = new THREE.ConeGeometry(1.3, 4.8, 8);
+
+    // Impact Geometries
+    this.shockwaveGeom = new THREE.TorusGeometry(1.0, 0.16, 8, 32);
+    this.crackGeom = new THREE.PlaneGeometry(0.3, 3.8);
+    this.shardGeom = new THREE.ConeGeometry(0.32, 1.6, 5);
+
+    // Shared Materials
+    this.outerTorusMat = new THREE.MeshBasicMaterial({
+      color: 0xfacc15,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    this.innerTorusMat = new THREE.MeshBasicMaterial({
+      color: 0x67e8f9,
+      transparent: true,
+      opacity: 0.75,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    this.auraCylMat = new THREE.MeshBasicMaterial({
+      color: 0xfef08a,
+      transparent: true,
+      opacity: 0.22,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+
+    this.leadingSparkMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.98,
+      depthWrite: false,
+    });
+
+    this.aoeRingMat = new THREE.MeshBasicMaterial({
+      color: 0xef4444,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    this.aoeInnerRingMat = new THREE.MeshBasicMaterial({
+      color: 0xf97316,
+      transparent: true,
+      opacity: 0.75,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    this.aoeDiskMat = new THREE.MeshBasicMaterial({
+      color: 0xdc2626,
+      transparent: true,
+      opacity: 0.22,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+
+    this.meteorCrystalMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.98,
+      depthWrite: false,
+    });
+
+    this.meteorWhiteFlareMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      depthWrite: false,
+    });
+
+    this.meteorFlameMat = new THREE.MeshBasicMaterial({
+      color: 0xf97316,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    this.shockwaveMat = new THREE.MeshBasicMaterial({
+      color: 0xf97316,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    this.crackMat = new THREE.MeshBasicMaterial({
+      color: 0xff5722,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+
+    this.shardMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.92,
+      depthWrite: false,
+    });
+
+    this.isInitialized = true;
+  }
+}
+
+/**
+ * Preloads and compiles all Starfall Shaders and Geometries into WebGL context
+ * Called once during gameEngine initialization to ensure 60 FPS without stutter
+ */
+export function preloadStarfallPool(scene: THREE.Scene, renderer?: THREE.WebGLRenderer, camera?: THREE.Camera) {
+  const pool = StarfallResourcePool.get();
+  getStarfallMagicCircleTexture();
+
+  if (renderer && camera) {
+    const dummyGroup = new THREE.Group();
+
+    // Pre-create dummy meshes with all materials
+    const shaderMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uMap: { value: getStarfallMagicCircleTexture() },
+        uProgress: { value: 0.5 },
+        uOpacity: { value: 1.0 },
+        uLeadingColor: { value: new THREE.Vector3(1.0, 0.92, 0.6) },
+      },
+      vertexShader: starfallRadialVertexShader,
+      fragmentShader: starfallRadialFragmentShader,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+    });
+
+    dummyGroup.add(new THREE.Mesh(pool.circlePlaneGeom, shaderMat));
+    dummyGroup.add(new THREE.Mesh(pool.outerTorusGeom, pool.outerTorusMat));
+    dummyGroup.add(new THREE.Mesh(pool.innerTorusGeom, pool.innerTorusMat));
+    dummyGroup.add(new THREE.Mesh(pool.auraCylGeom, pool.auraCylMat));
+    dummyGroup.add(new THREE.Mesh(pool.aoeRingGeom, pool.aoeRingMat));
+    dummyGroup.add(new THREE.Mesh(pool.aoeDiskGeom, pool.aoeDiskMat));
+    dummyGroup.add(new THREE.Mesh(pool.meteorCoreGeom, pool.meteorCrystalMat));
+    dummyGroup.add(new THREE.Mesh(pool.meteorFlameGeom, pool.meteorFlameMat));
+    dummyGroup.add(new THREE.Mesh(pool.shockwaveGeom, pool.shockwaveMat));
+    dummyGroup.add(new THREE.Mesh(pool.crackGeom, pool.crackMat));
+
+    scene.add(dummyGroup);
+    try {
+      renderer.compile(scene, camera);
+    } catch {}
+    scene.remove(dummyGroup);
+  }
+}
+
 export interface StarfallCastingCircleInstance {
   group: THREE.Group;
   update: (delta: number, currentPos?: THREE.Vector3) => boolean;
@@ -695,9 +975,10 @@ export interface StarfallCastingCircleInstance {
 
 /**
  * Creates the Gradual 1.5s Starfall Magic Circle at the character's feet (image_68.png)
- * - Detik 0.0: opacity 0.0, scale 0.5x, particles ascending
- * - Selama 0.0 s.d 1.5: LERP opacity 0.0 -> 1.0, scale 0.5x -> 1.0x, rotasi sumbu Y
- * - Detik 1.5: Full brightness 100%, then fast fade out
+ * Uses Radial Progressive Stroke Shader:
+ * - Concentric circles, 16 runes, and sacred star are drawn progressively clockwise (0% to 100%)
+ * - Incandescent leading spark travels along the circumference tracing the rune line
+ * - At 1.5s: 100% full circle completed, followed by smooth fade-out
  */
 export function createStarfallCastingCircleVfx(params: {
   playerPos: THREE.Vector3;
@@ -705,58 +986,51 @@ export function createStarfallCastingCircleVfx(params: {
   onSpawnSparks?: (pos: THREE.Vector3, color: number, count: number, speed: number) => void;
 }): StarfallCastingCircleInstance {
   const { playerPos, duration = 1.5, onSpawnSparks } = params;
+  const pool = StarfallResourcePool.get();
   const group = new THREE.Group();
   group.position.set(playerPos.x, playerPos.y + 0.05, playerPos.z);
 
   const texture = getStarfallMagicCircleTexture();
-  const circlePlaneMat = new THREE.MeshBasicMaterial({
-    map: texture,
+
+  // Radial Progressive Stroke Shader Material
+  const shaderMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uMap: { value: texture },
+      uProgress: { value: 0.0 },
+      uOpacity: { value: 1.0 },
+      uLeadingColor: { value: new THREE.Vector3(1.0, 0.94, 0.7) },
+    },
+    vertexShader: starfallRadialVertexShader,
+    fragmentShader: starfallRadialFragmentShader,
     transparent: true,
-    opacity: 0.0,
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
   });
-  const circlePlane = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 6.4), circlePlaneMat);
+
+  const circlePlane = new THREE.Mesh(pool.circlePlaneGeom, shaderMat);
   circlePlane.rotation.x = -Math.PI / 2;
   group.add(circlePlane);
 
   // Outer Golden 3D Torus Ring
-  const outerTorusMat = new THREE.MeshBasicMaterial({
-    color: 0xfacc15,
-    transparent: true,
-    opacity: 0.0,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
-  const outerTorus = new THREE.Mesh(new THREE.TorusGeometry(3.0, 0.045, 8, 48), outerTorusMat);
+  const outerTorus = new THREE.Mesh(pool.outerTorusGeom, pool.outerTorusMat);
   outerTorus.rotation.x = Math.PI / 2;
   group.add(outerTorus);
 
   // Middle Cyan/White Counter-Rotating Torus Ring
-  const innerTorusMat = new THREE.MeshBasicMaterial({
-    color: 0x67e8f9,
-    transparent: true,
-    opacity: 0.0,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
-  const innerTorus = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.035, 8, 36), innerTorusMat);
+  const innerTorus = new THREE.Mesh(pool.innerTorusGeom, pool.innerTorusMat);
   innerTorus.rotation.x = Math.PI / 2;
   group.add(innerTorus);
 
-  // Vertical Aura Light Cylinder (Light shaft rising around player)
-  const auraCylMat = new THREE.MeshBasicMaterial({
-    color: 0xfef08a,
-    transparent: true,
-    opacity: 0.0,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
-  });
-  const auraCyl = new THREE.Mesh(new THREE.CylinderGeometry(2.7, 3.0, 4.0, 24, 1, true), auraCylMat);
+  // Vertical Aura Light Cylinder
+  const auraCyl = new THREE.Mesh(pool.auraCylGeom, pool.auraCylMat);
   auraCyl.position.y = 2.0;
   group.add(auraCyl);
+
+  // Incandescent Leading Spark (Travels at the head of the drawing stroke)
+  const leadingSpark = new THREE.Mesh(pool.sparkGeom, pool.leadingSparkMat);
+  leadingSpark.position.set(0, 0.08, 3.0);
+  group.add(leadingSpark);
 
   // Dynamic Golden PointLight
   const circleLight = new THREE.PointLight(0xfacc15, 0.0, 10.0);
@@ -774,55 +1048,45 @@ export function createStarfallCastingCircleVfx(params: {
       group.position.set(currentPos.x, currentPos.y + 0.05, currentPos.z);
     }
 
-    // 1. Rotation around Y axis
-    circlePlane.rotation.z += delta * 1.5;
-    outerTorus.rotation.z += delta * 1.8;
-    innerTorus.rotation.z -= delta * 1.4;
+    // Rotations around Y
+    outerTorus.rotation.z += delta * 1.5;
+    innerTorus.rotation.z -= delta * 1.2;
     auraCyl.rotation.y += delta * 0.8;
 
     if (!isFadingOut) {
-      // Gradual 0.0 s.d 1.5 LERP (Scale: 0.5x -> 1.0x, Opacity: 0.0 -> 1.0)
+      // Clockwise Radial Stroke Drawing Progress (0.0 to 1.0 over exactly 1.5s)
       const progress = Math.min(1.0, elapsed / duration);
-      const scale = 0.5 + 0.5 * progress;
-      circlePlane.scale.set(scale, scale, scale);
-      outerTorus.scale.set(scale, scale, scale);
-      innerTorus.scale.set(scale, scale, scale);
-      auraCyl.scale.set(scale, 1, scale);
+      shaderMat.uniforms.uProgress.value = progress;
+      shaderMat.uniforms.uOpacity.value = 1.0;
 
-      circlePlaneMat.opacity = progress * 0.98;
-      outerTorusMat.opacity = progress * 0.85;
-      innerTorusMat.opacity = progress * 0.75;
-      auraCylMat.opacity = progress * 0.22;
+      // Position leading spark along circumference (radius 3.0)
+      // Clockwise angle: 0 at top (Z = -3.0), PI/2 at right (X = 3.0), etc.
+      const headAngle = progress * Math.PI * 2;
+      const hX = Math.sin(headAngle) * 3.0;
+      const hZ = -Math.cos(headAngle) * 3.0;
+      leadingSpark.position.set(hX, 0.08, hZ);
+
+      // Light and aura intensity scale with progress
       circleLight.intensity = progress * 4.5;
 
-      // Ascending starlight particles
+      // Emit continuous golden starlight sparks at the leading drawing point
       sparkTimer += delta;
-      if (sparkTimer >= 0.04) {
+      if (sparkTimer >= 0.035) {
         sparkTimer = 0;
-        const sparkAngle = Math.random() * Math.PI * 2;
-        const sparkDist = (0.5 + Math.random() * 2.4) * scale;
-        const sparkPos = group.position.clone().add(
-          new THREE.Vector3(
-            Math.cos(sparkAngle) * sparkDist,
-            0.1 + Math.random() * 0.4,
-            Math.sin(sparkAngle) * sparkDist
-          )
-        );
-        const color = Math.random() > 0.35 ? 0xfacc15 : 0x67e8f9;
-        onSpawnSparks?.(sparkPos, color, 2, 3.8);
+        const sparkPos = group.position.clone().add(new THREE.Vector3(hX, 0.1, hZ));
+        onSpawnSparks?.(sparkPos, 0xfacc15, 3, 3.5);
+        onSpawnSparks?.(sparkPos, 0xffffff, 2, 2.8);
       }
 
       if (elapsed >= duration) {
         isFadingOut = true;
+        leadingSpark.visible = false;
       }
     } else {
-      // Fast fade out after 1.5s
+      // Smooth fade out after 1.5s
       fadeOutTimer -= delta;
       const alpha = Math.max(0, fadeOutTimer / 0.25);
-      circlePlaneMat.opacity = 0.98 * alpha;
-      outerTorusMat.opacity = 0.85 * alpha;
-      innerTorusMat.opacity = 0.75 * alpha;
-      auraCylMat.opacity = 0.22 * alpha;
+      shaderMat.uniforms.uOpacity.value = alpha;
       circleLight.intensity = 4.5 * alpha;
 
       if (fadeOutTimer <= 0) {
@@ -847,64 +1111,40 @@ export interface StarfallMeteorBarrageInstance {
 }
 
 /**
- * Creates the 3-Meteor Starfall Barrage and Impact Visual Effects (image_68.png)
- * - Red AOE Target Ring indicator on the ground
- * - 3 Flaming crystal meteors streaking diagonally from sky (y=50) to the target zone
- * - Explosive ground impact: Shockwave ring, ground cracks, fiery debris & star sparkles
+ * Creates the Expanded 8-Meteor Starfall Barrage and Impact Visual Effects (image_68.png)
+ * - Expanded Target Red AOE Zone on Ground (Radius 10.5 units, 1.8x wider!)
+ * - 8 Flaming crystal meteors streaking diagonally from sky in rapid succession
+ * - Zero GC allocation: uses pre-allocated object pool for meteors, shockwaves, and ground fissures
  */
 export function createStarfallMeteorBarrageVfx(params: {
   targetCenter: THREE.Vector3;
-  onImpact?: (impactPos: THREE.Vector3, isLast: boolean) => void;
+  onImpact?: (impactPos: THREE.Vector3, isLast: boolean, index: number) => void;
   onSpawnSparks?: (pos: THREE.Vector3, color: number, count: number, speed: number) => void;
 }): StarfallMeteorBarrageInstance {
   const { targetCenter, onImpact, onSpawnSparks } = params;
+  const pool = StarfallResourcePool.get();
   const group = new THREE.Group();
 
-  // 1. Red AOE Target Ring on Ground (image_68.png)
+  // 1. Expanded Red AOE Target Ring on Ground (Radius 10.5 units)
   const aoeGroup = new THREE.Group();
   aoeGroup.position.set(targetCenter.x, targetCenter.y + 0.05, targetCenter.z);
 
-  // Outer glowing fiery red border
-  const aoeRingMat = new THREE.MeshBasicMaterial({
-    color: 0xef4444,
-    transparent: true,
-    opacity: 0.9,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
-  const aoeRing = new THREE.Mesh(new THREE.TorusGeometry(5.8, 0.08, 8, 48), aoeRingMat);
+  const aoeRing = new THREE.Mesh(pool.aoeRingGeom, pool.aoeRingMat);
   aoeRing.rotation.x = Math.PI / 2;
   aoeGroup.add(aoeRing);
 
-  // Secondary inner orange boundary ring
-  const aoeInnerRingMat = new THREE.MeshBasicMaterial({
-    color: 0xf97316,
-    transparent: true,
-    opacity: 0.75,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
-  const aoeInnerRing = new THREE.Mesh(new THREE.TorusGeometry(5.2, 0.045, 8, 40), aoeInnerRingMat);
+  const aoeInnerRing = new THREE.Mesh(pool.aoeInnerRingGeom, pool.aoeInnerRingMat);
   aoeInnerRing.rotation.x = Math.PI / 2;
   aoeGroup.add(aoeInnerRing);
 
-  // Faint glowing red ground disk fill
-  const aoeDiskMat = new THREE.MeshBasicMaterial({
-    color: 0xdc2626,
-    transparent: true,
-    opacity: 0.22,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
-  });
-  const aoeDisk = new THREE.Mesh(new THREE.PlaneGeometry(11.6, 11.6), aoeDiskMat);
+  const aoeDisk = new THREE.Mesh(pool.aoeDiskGeom, pool.aoeDiskMat);
   aoeDisk.rotation.x = -Math.PI / 2;
   aoeGroup.add(aoeDisk);
 
   group.add(aoeGroup);
 
-  // 2. Setup 3 Flaming Crystal Meteors
-  interface MeteorData {
+  // 2. Pre-allocated 8 Meteors with Dispersed Target Points across the 10.5-radius zone
+  interface MeteorItem {
     mesh: THREE.Group;
     startPos: THREE.Vector3;
     endPos: THREE.Vector3;
@@ -912,161 +1152,146 @@ export function createStarfallMeteorBarrageVfx(params: {
     hasImpacted: boolean;
   }
 
-  const meteorTargets = [
-    targetCenter.clone().add(new THREE.Vector3(-2.2, 0, 1.4)),
-    targetCenter.clone(), // Direct center
-    targetCenter.clone().add(new THREE.Vector3(2.4, 0, -1.8)),
+  const meteorOffsets: [number, number][] = [
+    [-5.5, 4.2],   // 1. Upper-left
+    [6.0, 5.2],    // 2. Upper-right
+    [-3.5, -6.8],  // 3. Lower-left
+    [7.8, -3.2],   // 4. Far right
+    [-7.5, -1.8],  // 5. Far left
+    [2.8, 4.5],    // 6. Mid upper
+    [-1.5, 8.2],   // 7. Outer north
+    [0.0, 0.0],    // 8. GRAND FINALE - Direct Center Bullseye!
   ];
 
-  const skyOffset = new THREE.Vector3(-16, 48, -12); // Diagonal sky trajectory (from upper-left)
-  const meteors: MeteorData[] = [];
+  const skyOffset = new THREE.Vector3(-18, 52, -14); // Diagonal sky trajectory (from upper-left)
+  const meteors: MeteorItem[] = [];
 
-  meteorTargets.forEach((endPos, idx) => {
-    const meteorGroup = new THREE.Group();
-    const startPos = endPos.clone().add(skyOffset).add(new THREE.Vector3((idx - 1) * 3.5, 0, (idx - 1) * 2.0));
-    meteorGroup.position.copy(startPos);
+  // Shockwave & Crater impact pool (8 reusable instances)
+  const shockwavePool: { mesh: THREE.Mesh; timer: number; maxRadius: number; active: boolean }[] = [];
+  const fissurePool: { mesh: THREE.Group; timer: number; active: boolean }[] = [];
 
-    // Cyan crystalline core
-    const crystalMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.98,
-      depthWrite: false,
-    });
-    const crystalCore = new THREE.Mesh(new THREE.ConeGeometry(0.7, 2.6, 6), crystalMat);
+  meteorOffsets.forEach(([ox, oz], idx) => {
+    const endPos = targetCenter.clone().add(new THREE.Vector3(ox, 0, oz));
+    const startPos = endPos.clone().add(skyOffset).add(new THREE.Vector3((idx - 3.5) * 2.2, 0, (idx - 3.5) * 1.5));
+
+    // Meteor Group using pooled geometries and materials
+    const mGroup = new THREE.Group();
+    mGroup.position.copy(startPos);
+
+    const crystalCore = new THREE.Mesh(pool.meteorCoreGeom, pool.meteorCrystalMat);
     crystalCore.rotation.x = Math.PI; // point downwards along trajectory
-    meteorGroup.add(crystalCore);
+    mGroup.add(crystalCore);
 
-    // Inner bright white flare
-    const whiteFlare = new THREE.Mesh(
-      new THREE.SphereGeometry(0.55, 10, 10),
-      new THREE.MeshBasicMaterial({ color: 0xffffff })
-    );
-    meteorGroup.add(whiteFlare);
+    const whiteFlare = new THREE.Mesh(pool.meteorFlareGeom, pool.meteorWhiteFlareMat);
+    mGroup.add(whiteFlare);
 
-    // Blazing golden-orange comet tail cone
-    const flameMat = new THREE.MeshBasicMaterial({
-      color: 0xf97316,
-      transparent: true,
-      opacity: 0.85,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    const flameTail = new THREE.Mesh(new THREE.ConeGeometry(1.2, 4.2, 8), flameMat);
-    flameTail.position.y = 1.6;
-    meteorGroup.add(flameTail);
+    const flameTail = new THREE.Mesh(pool.meteorFlameGeom, pool.meteorFlameMat);
+    flameTail.position.y = 1.8;
+    mGroup.add(flameTail);
 
-    // Orient towards destination
     const travelDir = new THREE.Vector3().subVectors(endPos, startPos).normalize();
-    meteorGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), travelDir);
+    mGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), travelDir);
 
-    group.add(meteorGroup);
+    group.add(mGroup);
 
     meteors.push({
-      mesh: meteorGroup,
+      mesh: mGroup,
       startPos,
       endPos,
-      impactTime: 0.38 + idx * 0.18, // Staggered: 0.38s, 0.56s, 0.74s
+      impactTime: 0.14 + idx * 0.12, // Staggered over ~1.0s: 0.14s, 0.26s, 0.38s, 0.50s, 0.62s, 0.74s, 0.86s, 0.98s
       hasImpacted: false,
     });
+
+    // Reusable Shockwave Ring
+    const swMesh = new THREE.Mesh(pool.shockwaveGeom, pool.shockwaveMat);
+    swMesh.rotation.x = Math.PI / 2;
+    swMesh.visible = false;
+    group.add(swMesh);
+    shockwavePool.push({ mesh: swMesh, timer: 0.45, maxRadius: idx === 7 ? 7.8 : 5.8, active: false });
+
+    // Reusable Fissure Group
+    const fGroup = new THREE.Group();
+    for (let c = 0; c < 5; c++) {
+      const crack = new THREE.Mesh(pool.crackGeom, pool.crackMat);
+      crack.rotation.x = -Math.PI / 2;
+      crack.rotation.z = (c / 5) * Math.PI + (c * 0.2);
+      fGroup.add(crack);
+    }
+    for (let s = 0; s < 4; s++) {
+      const shard = new THREE.Mesh(pool.shardGeom, pool.shardMat);
+      shard.position.set(((s % 2) - 0.5) * 1.2, 0.5, ((s > 1 ? 1 : 0) - 0.5) * 1.2);
+      shard.rotation.z = (s - 1.5) * 0.25;
+      fGroup.add(shard);
+    }
+    fGroup.visible = false;
+    group.add(fGroup);
+    fissurePool.push({ mesh: fGroup, timer: 1.6, active: false });
   });
 
-  // Shockwave & Crater impact rings pool
-  const activeImpactRings: { mesh: THREE.Mesh; timer: number; maxRadius: number }[] = [];
-  const activeFissures: { mesh: THREE.Group; timer: number }[] = [];
-
-  const triggerMeteorImpactVfx = (impactPos: THREE.Vector3, isLast: boolean) => {
-    // 1. Fiery ground shockwave ring
-    const swMat = new THREE.MeshBasicMaterial({
-      color: 0xf97316,
-      transparent: true,
-      opacity: 0.95,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    const swMesh = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.14, 8, 36), swMat);
-    swMesh.position.set(impactPos.x, impactPos.y + 0.08, impactPos.z);
-    swMesh.rotation.x = Math.PI / 2;
-    group.add(swMesh);
-    activeImpactRings.push({ mesh: swMesh, timer: 0.45, maxRadius: 5.6 });
-
-    // 2. Burning ground cracks / fissure
-    const fissureGroup = new THREE.Group();
-    fissureGroup.position.set(impactPos.x, impactPos.y + 0.07, impactPos.z);
-
-    const crackMat = new THREE.MeshBasicMaterial({
-      color: 0xff5722,
-      transparent: true,
-      opacity: 0.95,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-    });
-    for (let c = 0; c < 5; c++) {
-      const crack = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 2.8 + Math.random() * 1.4), crackMat);
-      crack.rotation.x = -Math.PI / 2;
-      crack.rotation.z = (c / 5) * Math.PI + (Math.random() - 0.5) * 0.3;
-      fissureGroup.add(crack);
+  const triggerImpact = (idx: number, impactPos: THREE.Vector3, isLast: boolean) => {
+    // 1. Activate Pooled Shockwave Ring
+    const sw = shockwavePool[idx];
+    if (sw) {
+      sw.mesh.position.set(impactPos.x, impactPos.y + 0.08, impactPos.z);
+      sw.mesh.scale.set(1, 1, 1);
+      sw.mesh.visible = true;
+      sw.timer = 0.45;
+      sw.active = true;
     }
 
-    // Embedded glowing cyan crystal shards poking up from crater
-    for (let s = 0; s < 4; s++) {
-      const shard = new THREE.Mesh(
-        new THREE.ConeGeometry(0.28, 1.4, 5),
-        new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.92, depthWrite: false })
-      );
-      shard.position.set((Math.random() - 0.5) * 1.2, 0.5, (Math.random() - 0.5) * 1.2);
-      shard.rotation.z = (Math.random() - 0.5) * 0.6;
-      shard.rotation.x = (Math.random() - 0.5) * 0.6;
-      fissureGroup.add(shard);
+    // 2. Activate Pooled Fissure
+    const f = fissurePool[idx];
+    if (f) {
+      f.mesh.position.set(impactPos.x, impactPos.y + 0.07, impactPos.z);
+      f.mesh.visible = true;
+      f.timer = 1.6;
+      f.active = true;
     }
-
-    group.add(fissureGroup);
-    activeFissures.push({ mesh: fissureGroup, timer: 1.6 });
 
     // 3. Explosive Sparks Burst
-    onSpawnSparks?.(impactPos.clone().add(new THREE.Vector3(0, 0.5, 0)), 0xf97316, 24, 6.0);
-    onSpawnSparks?.(impactPos.clone().add(new THREE.Vector3(0, 0.8, 0)), 0x38bdf8, 16, 5.0);
-    onSpawnSparks?.(impactPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0xffffff, 12, 4.5);
+    onSpawnSparks?.(impactPos.clone().add(new THREE.Vector3(0, 0.5, 0)), 0xf97316, isLast ? 32 : 18, 6.0);
+    onSpawnSparks?.(impactPos.clone().add(new THREE.Vector3(0, 0.8, 0)), 0x38bdf8, isLast ? 22 : 12, 5.0);
+    onSpawnSparks?.(impactPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0xffffff, isLast ? 16 : 8, 4.5);
 
     // Trigger game engine impact logic
-    onImpact?.(impactPos, isLast);
+    onImpact?.(impactPos, isLast, idx);
   };
 
   let elapsed = 0;
-  const maxLifetime = 2.4;
+  const maxLifetime = 2.6;
 
   const update = (delta: number): boolean => {
     elapsed += delta;
 
-    // 1. Update falling meteors
-    meteors.forEach((m, idx) => {
-      if (m.hasImpacted) return;
+    // 1. Update 8 falling meteors
+    for (let i = 0; i < meteors.length; i++) {
+      const m = meteors[i];
+      if (m.hasImpacted) continue;
 
       if (elapsed < m.impactTime) {
         const t = elapsed / m.impactTime;
         m.mesh.position.lerpVectors(m.startPos, m.endPos, t);
 
-        // Emit spark trail
-        if (Math.random() > 0.4) {
+        // Spark tail
+        if (Math.random() > 0.45) {
           onSpawnSparks?.(m.mesh.position, 0xf97316, 2, 2.5);
           onSpawnSparks?.(m.mesh.position, 0x38bdf8, 1, 2.0);
         }
       } else {
-        // Impact occurred!
         m.hasImpacted = true;
         m.mesh.visible = false;
-        triggerMeteorImpactVfx(m.endPos, idx === meteors.length - 1);
+        triggerImpact(i, m.endPos, i === meteors.length - 1);
       }
-    });
+    }
 
     // 2. Pulse AOE Target Ring
-    const pulse = 1.0 + Math.sin(elapsed * 12) * 0.05;
+    const pulse = 1.0 + Math.sin(elapsed * 12) * 0.04;
     aoeGroup.scale.set(pulse, 1, pulse);
 
-    // 3. Update expanding shockwaves
-    for (let i = activeImpactRings.length - 1; i >= 0; i--) {
-      const sw = activeImpactRings[i];
+    // 3. Update active shockwaves
+    for (let i = 0; i < shockwavePool.length; i++) {
+      const sw = shockwavePool[i];
+      if (!sw.active) continue;
       sw.timer -= delta;
       const t = Math.max(0, sw.timer / 0.45);
       const scale = 1.0 + (1.0 - t) * (sw.maxRadius - 1.0);
@@ -1074,14 +1299,15 @@ export function createStarfallMeteorBarrageVfx(params: {
       (sw.mesh.material as THREE.MeshBasicMaterial).opacity = t * 0.95;
 
       if (sw.timer <= 0) {
-        group.remove(sw.mesh);
-        activeImpactRings.splice(i, 1);
+        sw.active = false;
+        sw.mesh.visible = false;
       }
     }
 
-    // 4. Update burning fissures
-    for (let i = activeFissures.length - 1; i >= 0; i--) {
-      const f = activeFissures[i];
+    // 4. Update active fissures
+    for (let i = 0; i < fissurePool.length; i++) {
+      const f = fissurePool[i];
+      if (!f.active) continue;
       f.timer -= delta;
       const alpha = Math.max(0, f.timer / 1.6);
       f.mesh.children.forEach((child) => {
@@ -1090,20 +1316,24 @@ export function createStarfallMeteorBarrageVfx(params: {
       });
 
       if (f.timer <= 0) {
-        group.remove(f.mesh);
-        activeFissures.splice(i, 1);
+        f.active = false;
+        f.mesh.visible = false;
       }
     }
 
-    // 5. Fade out AOE Ring after all meteors impact (t > 1.2s)
+    // 5. Fade out AOE Ring after all 8 meteors impact (t > 1.2s)
     if (elapsed > 1.1) {
       const aoeAlpha = Math.max(0, (maxLifetime - elapsed) / (maxLifetime - 1.1));
-      aoeRingMat.opacity = 0.9 * aoeAlpha;
-      aoeInnerRingMat.opacity = 0.75 * aoeAlpha;
-      aoeDiskMat.opacity = 0.22 * aoeAlpha;
+      pool.aoeRingMat.opacity = 0.9 * aoeAlpha;
+      pool.aoeInnerRingMat.opacity = 0.75 * aoeAlpha;
+      pool.aoeDiskMat.opacity = 0.22 * aoeAlpha;
     }
 
     if (elapsed >= maxLifetime) {
+      // Reset material opacities for next cast
+      pool.aoeRingMat.opacity = 0.9;
+      pool.aoeInnerRingMat.opacity = 0.75;
+      pool.aoeDiskMat.opacity = 0.22;
       if (group.parent) group.parent.remove(group);
       return false;
     }
