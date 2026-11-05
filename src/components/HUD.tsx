@@ -87,6 +87,7 @@ interface HUDProps {
   isSpectatorMode?: boolean;
   onToggleSpectator?: () => void;
   onLandSpectator?: () => void;
+  castingState?: { isCasting: boolean; progress: number; text: string } | null;
 }
 
 export const HUD: React.FC<HUDProps> = ({
@@ -129,6 +130,7 @@ export const HUD: React.FC<HUDProps> = ({
   isSpectatorMode = false,
   onToggleSpectator,
   onLandSpectator,
+  castingState,
 }) => {
   const [dismissMobileTip, setDismissMobileTip] = useState(false);
   const [isMobileSystemMenuOpen, setIsMobileSystemMenuOpen] = useState(false);
@@ -699,6 +701,29 @@ export const HUD: React.FC<HUDProps> = ({
           <Map className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-400" />
         </button>
       </div>
+
+      {/* 1.5s Starfall Casting Indicator Bar (image_68.png) */}
+      {castingState && castingState.isCasting && (
+        <div className="fixed bottom-20 md:bottom-23 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex flex-col items-center select-none animate-in fade-in duration-150">
+          <div className="relative w-56 sm:w-64 h-6 sm:h-7 bg-stone-950/90 rounded-full border border-amber-500/70 shadow-[0_0_15px_rgba(245,158,11,0.5)] overflow-hidden flex items-center px-2.5">
+            {/* Progress Fill */}
+            <div
+              className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-600 via-orange-500 to-yellow-400 transition-all duration-75 ease-out rounded-full"
+              style={{ width: `${Math.min(100, Math.max(0, castingState.progress * 100))}%` }}
+            />
+            {/* Gloss Shimmer */}
+            <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/10 to-transparent pointer-events-none" />
+            {/* Content */}
+            <div className="relative z-10 w-full flex items-center justify-between text-xs font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+              <span className="text-amber-300 text-sm animate-pulse">☄️</span>
+              <span className="font-mono tracking-wider">{castingState.text}</span>
+              <span className="text-[10px] text-amber-200/90 font-mono">
+                {Math.round(castingState.progress * 100)}%
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Primary Skill Bar (Responsive: Mobile Arc at bottom-right vs Desktop Horizontal at bottom-center) */}
       <SkillBar

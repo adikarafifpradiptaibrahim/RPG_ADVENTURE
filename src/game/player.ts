@@ -29,6 +29,7 @@ export interface PlayerMovementConfig {
   isDashing: boolean;
   speedBuffTimer: number;
   isStunned?: boolean;
+  isCasting?: boolean;
   isSpectatorMode?: boolean;
   isTeleporting?: boolean;
 }
@@ -60,7 +61,7 @@ export class PlayerController {
   }
 
   public static getTargetSpeed(config: PlayerMovementConfig): number {
-    if (config.isSpectatorMode || config.isStunned || config.isTeleporting) return 0;
+    if (config.isSpectatorMode || config.isStunned || config.isTeleporting || config.isCasting) return 0;
     let speed = this.getBaseSpeed(config.charClass);
     if (config.speedBuffTimer > 0) {
       speed += 3.2;
@@ -133,9 +134,10 @@ export class PlayerController {
     moveDirZ: number,
     targetSpeed: number,
     analogScale: number,
-    isStunned?: boolean
+    isStunned?: boolean,
+    isCasting?: boolean
   ): void {
-    if (isStunned) {
+    if (isStunned || isCasting) {
       currentVel.x = 0;
       currentVel.z = 0;
       return;

@@ -46,7 +46,12 @@ import {
   getSafeInteriorSpawn,
   getSafeExteriorSpawn,
 } from './MageTower';
-import { createMageArcaneLaserBeamVfx } from '../skills';
+import {
+  createMageArcaneLaserBeamVfx,
+  createStarfallCastingCircleVfx,
+  createStarfallMeteorBarrageVfx,
+  StarfallCastingCircleInstance,
+} from '../skills';
 
 export interface LootPickup {
   mesh: THREE.Group;
@@ -82,6 +87,7 @@ export interface GameEngineCallbacks {
   onBossEncounter: (bossActive: boolean, bossName?: string, bossHp?: number, bossMaxHp?: number) => void;
   onSpectatorModeChange?: (active: boolean) => void;
   onHunterWeaponSwitch?: (mode: 'dagger' | 'bow') => void;
+  onCastingUpdate?: (casting: { isCasting: boolean; progress: number; text: string } | null) => void;
   onCheckpointUnlocked?: (id: string, nameId: string, pos: [number, number]) => void;
   onPlayerPositionUpdate?: (data: {
     x: number;
@@ -226,12 +232,18 @@ export class GameEngine {
     | 'shield_charge'
     | 'iron_fortress'
     | 'supernova'
+    | 'starfall'
     | 'blink'
     | 'celestial_heal'
     | 'flurry'
     | 'shadow_step'
     | 'smoke_bomb'
     | null = null;
+  public isCasting = false;
+  private castingTimer = 0;
+  private castingDuration = 1.5;
+  private castingSkillName = '';
+  private castingCircleInstance: StarfallCastingCircleInstance | null = null;
   private isDashing = false;
   private dashTimer = 0;
   private charClass: CharacterClass = 'warrior';
@@ -741,8 +753,9 @@ export class GameEngine {
         soundManager.playWarriorCleave();
         this.spawnWarriorWhirlwindVfx(atkPos);
       } else if (charClass === 'mage') {
-        soundManager.playMageNova();
-        this.spawnMageNovaVfx(atkPos);
+        const targetPos = atkPos.clone().add(forward.clone().multiplyScalar(13.0));
+        targetPos.y = this.world.getTerrainHeight(targetPos.x, targetPos.z);
+        this.spawnStarfallMeteorBarrage(targetPos, true);
       } else if (charClass === 'rogue') {
         if (isBow) {
           soundManager.playBowShoot();
@@ -1567,6 +1580,14 @@ export class GameEngine {
   // Fast travel / teleport from map
 
   public respawnPlayerAtLastVisitedTown() {
+    if (this.isCasting) {
+      this.isCasting = false;
+      this.callbacks.onCastingUpdate?.(null);
+      if (this.castingCircleInstance) {
+        this.castingCircleInstance.cleanup();
+        this.castingCircleInstance = null;
+      }
+    }
     this.bossManager.clearDebuffs();
     const targetY = Math.max(0.5, this.world.getTerrainHeight(this.lastVisitedTownPos.x, this.lastVisitedTownPos.z) + 0.5);
     this.playerPos.set(this.lastVisitedTownPos.x, targetY, this.lastVisitedTownPos.z);
@@ -1671,7 +1692,7 @@ export class GameEngine {
   }
 
   public isKeyPressed(...names: string[]): boolean {
-    if (this.isControlsLocked || this.isPaused) return false;
+    if (this.isControlsLocked || this.isPaused || this.isCasting) return false;
 
     // Check if user is currently typing in any input element
     const activeElement = document.activeElement as HTMLElement | null;
@@ -2854,6 +2875,97 @@ export class GameEngine {
     this.spawnMageArcaneLaserBeam(customFwd, customSpawnPos, isRemote);
   }
 
+  // --- MAGE STARFALL (1.5s Cast Time, Movement Lock, 3D Runic Magic Circle, & 3-Meteor Barrage) ---
+  private startStarfallCasting() {
+    this.isCasting = true;
+    this.castingTimer = 0;
+    this.castingDuration = 1.5;
+    this.castingSkillName = 'Starfall';
+    this.playerVel.set(0, 0, 0);
+
+    // Audio: 1.5s swelling runic charging hum
+    soundManager.playStarfallCharge(1.5);
+
+    // 3D Magic Circle at feet (y = terrainHeight + 0.05)
+    this.castingCircleInstance = createStarfallCastingCircleVfx({
+      playerPos: this.playerPos,
+      duration: 1.5,
+      onSpawnSparks: (pos, color, count, speed) => {
+        this.spawnSparks(pos, color, count, speed);
+      },
+    });
+
+    this.addVfx(this.castingCircleInstance.group, (delta) => {
+      if (!this.castingCircleInstance) return false;
+      return this.castingCircleInstance.update(delta, this.playerPos);
+    });
+
+    // Notify UI: Display casting progress bar ("Casting... 1.5s")
+    this.callbacks.onCastingUpdate?.({
+      isCasting: true,
+      progress: 0,
+      text: 'Casting... 1.5s',
+    });
+  }
+
+  private completeStarfallCasting() {
+    this.isCasting = false;
+    this.callbacks.onCastingUpdate?.(null);
+
+    // Circle at feet begins fast fade-out
+    this.castingCircleInstance = null;
+
+    // Calculate target impact area in front of character
+    const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+    const targetPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(13.0));
+    targetPos.y = this.world.getTerrainHeight(targetPos.x, targetPos.z);
+
+    this.spawnStarfallMeteorBarrage(targetPos);
+  }
+
+  private spawnStarfallMeteorBarrage(targetCenter: THREE.Vector3, isRemote = false) {
+    const vfx = createStarfallMeteorBarrageVfx({
+      targetCenter,
+      onImpact: (impactPos, isLast) => {
+        soundManager.playStarfallImpact();
+        this.triggerCameraShake(isLast ? 0.36 : 0.24);
+
+        if (!isRemote && this.isRunning) {
+          this.callbacks.onUpdateStats((stats) => {
+            const isCrit = Math.random() < 0.25 + stats.intelligence * 0.015;
+            const tierMult = 1 + (this.playerTier - 1) * 0.25;
+            // 3 Meteors: each meteor deals ~75% spell power (Total ~225% spell power!)
+            const baseDmg = (stats.baseAttack + stats.intelligence * 2.8) * tierMult * 0.75;
+            const finalDmg = Math.max(5, Math.round(isCrit ? baseDmg * 1.85 : baseDmg));
+
+            this.enemies.forEach((enemy) => {
+              if (enemy.data.isDead) return;
+              const dist = enemy.mesh.position.distanceTo(impactPos);
+              if (dist <= 6.2) {
+                // Apply AOE damage and knockback away from impact point
+                const knockDir = new THREE.Vector3().subVectors(enemy.mesh.position, impactPos).normalize();
+                knockDir.y = 0;
+                this.damageEnemy(enemy, finalDmg, isCrit, 0.45);
+                enemy.mesh.position.addScaledVector(knockDir, 0.65);
+              }
+            });
+
+            return stats;
+          });
+        }
+
+        if (isLast && !isRemote) {
+          this.callbacks.onAddFloatingText('☄️ Starfall Celestial Impact!', '#f59e0b', 'crit');
+        }
+      },
+      onSpawnSparks: (pos, color, count, speed) => {
+        this.spawnSparks(pos, color, count, speed);
+      },
+    });
+
+    this.addVfx(vfx.group, vfx.update);
+  }
+
   // 6. Mage Supernova Astral VFX (Celestial Pillar, Concentric Cosmic Shockwaves & Radial Astral Beams)
   private spawnMageNovaVfx(customCenter?: THREE.Vector3) {
     const center = (customCenter || this.playerPos).clone();
@@ -3412,7 +3524,7 @@ export class GameEngine {
 
   // --- Role-Specific Combat Skills & Combos ---
   public performBasicAttack() {
-    if (this.isControlsLocked || this.isAttacking) return;
+    if (this.isControlsLocked || this.isAttacking || this.isCasting) return;
 
     // Align player facing to movement direction or closest 360° enemy
     this.alignPlayerOrientationToInputOrTarget(this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' ? 22 : 16);
@@ -3519,7 +3631,7 @@ export class GameEngine {
   }
 
   public castSkill(skillSlot: 1 | 2 | 3) {
-    if (this.isControlsLocked) return;
+    if (this.isControlsLocked || this.isCasting) return;
 
     // Dynamically align facing to movement or closest 360° enemy
     this.alignPlayerOrientationToInputOrTarget(this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' ? 22 : 16);
@@ -3564,23 +3676,9 @@ export class GameEngine {
           });
           this.callbacks.onAddFloatingText('Pusaran Badai Baja 360°!', '#fbbf24', 'crit');
         } else if (this.charClass === 'mage') {
-          // Mage: Supernova Astral (360° Arcane Nova)
-          soundManager.playMageNova();
-          this.spawnMageNovaVfx();
-          this.isAttacking = true;
-          this.attackType = 'supernova';
-          this.attackDuration = 0.45;
-          this.attackTimer = 0.45;
-
-          const skillDmg = Math.round((stats.baseAttack + stats.intelligence * 2.8) * 1.7);
-          const radius = 5.8;
-          this.enemies.forEach((enemy) => {
-            if (enemy.data.isDead) return;
-            if (this.playerPos.distanceTo(enemy.mesh.position) <= radius) {
-              this.damageEnemy(enemy, skillDmg, true, 0.4);
-            }
-          });
-          this.callbacks.onAddFloatingText('Supernova Astral 360°!', '#c084fc', 'crit');
+          // Mage: Starfall (Hujan Meteor 3-Meteor Barrage with 1.5s Cast Time & Movement Lock)
+          this.startStarfallCasting();
+          return { ...stats, mp: Math.max(0, stats.mp - 15) };
         } else if (this.charClass === 'rogue') {
           if (this.hunterWeaponMode === 'bow') {
             // Hunter Bow Skill 1: Hujan Panah Badai (5-Arrow Spread Barrage)
@@ -3810,7 +3908,7 @@ export class GameEngine {
   }
 
   public jumpOrDodge() {
-    if (this.isControlsLocked) return;
+    if (this.isControlsLocked || this.isCasting) return;
     if (this.isGrounded) {
       if (this.charClass === 'warrior') {
         this.playerVel.y = 8.2;
@@ -4333,6 +4431,41 @@ export class GameEngine {
       return;
     }
 
+    // Casting State Handling (Movement Lock & Starfall Channeling - image_68.png)
+    if (this.isCasting) {
+      this.castingTimer += delta;
+      const progress = Math.min(1.0, this.castingTimer / this.castingDuration);
+      this.callbacks.onCastingUpdate?.({
+        isCasting: true,
+        progress,
+        text: 'Casting... 1.5s',
+      });
+
+      // Strict movement lock: velocity is 0, ignore input keys/joystick
+      this.playerVel.x = 0;
+      this.playerVel.z = 0;
+      this.playerVel.y -= 22 * delta;
+      this.playerPos.y += this.playerVel.y * delta;
+      let groundY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+      if (this.playerPos.y <= groundY) {
+        this.playerPos.y = groundY;
+        this.playerVel.y = 0;
+        this.isGrounded = true;
+      }
+      this.playerMesh.group.position.copy(this.playerPos);
+
+      // Starfall Casting pose: right arm raised high with glowing staff, left arm channeling celestial energy
+      if (this.charClass === 'mage' && this.playerMesh) {
+        this.playerMesh.rightArm.rotation.set(-2.4, 0, -0.25);
+        this.playerMesh.leftArm.rotation.set(-2.0, 0, 0.4);
+      }
+
+      if (this.castingTimer >= this.castingDuration) {
+        this.completeStarfallCasting();
+      }
+      return;
+    }
+
     if (this.isControlsLocked) {
       this.playerVel.x = 0;
       this.playerVel.z = 0;
@@ -4692,7 +4825,7 @@ export class GameEngine {
           this.playerMesh.leftArm.rotation.x = swing * 0.6;
         }
       } else if (this.charClass === 'mage') {
-        if (this.attackType === 'supernova') {
+        if (this.attackType === 'supernova' || this.attackType === 'starfall') {
           // Channeling both arms to sky
           this.playerMesh.leftArm.rotation.set(-2.4, 0, 0.5);
           this.playerMesh.rightArm.rotation.set(-2.4, 0, -0.5);

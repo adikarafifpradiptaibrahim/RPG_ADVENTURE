@@ -118,6 +118,7 @@ export default function App() {
   const [currentRegion, setCurrentRegion] = useState<RegionInfo>(REGIONS[0]);
   const [mapMarkers, setMapMarkers] = useState<MapMarker[]>([]);
   const [hunterWeaponMode, setHunterWeaponMode] = useState<'dagger' | 'bow'>('dagger');
+  const [castingState, setCastingState] = useState<{ isCasting: boolean; progress: number; text: string } | null>(null);
 
   // Pause Menu State
   const [isPauseMenuOpen, setIsPauseMenuOpen] = useState(false);
@@ -483,6 +484,9 @@ export default function App() {
       },
       onHunterWeaponSwitch: (mode) => {
         setHunterWeaponMode(mode);
+      },
+      onCastingUpdate: (casting) => {
+        setCastingState(casting);
       },
       onCheckpointUnlocked: (id, nameId) => {
         setUnlockedCheckpoints((prev) => {
@@ -988,6 +992,7 @@ export default function App() {
             isSpectatorMode={isSpectatorMode}
             onToggleSpectator={() => handleToggleSpectator(false)}
             onLandSpectator={() => handleToggleSpectator(true)}
+            castingState={castingState}
             gameMode={gameMode}
             multiplayerInfo={
               gameMode === 'multiplayer' && multiplayerConfig
