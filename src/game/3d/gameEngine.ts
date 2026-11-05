@@ -46,6 +46,7 @@ import {
   getSafeInteriorSpawn,
   getSafeExteriorSpawn,
 } from './MageTower';
+import { createMageArcaneLaserBeamVfx } from '../skills';
 
 export interface LootPickup {
   mesh: THREE.Group;
@@ -802,8 +803,8 @@ export class GameEngine {
           this.spawnShockwaveRing(atkPos, 0xf59e0b, 2.2, 0.25);
         }
       } else if (charClass === 'mage') {
-        soundManager.playMageBolt();
-        this.spawnMageArcaneBolt(forward, atkPos, true);
+        soundManager.playMageArcaneLaser();
+        this.spawnMageArcaneLaserBeam(forward, atkPos, true);
       } else if (charClass === 'rogue') {
         if (isBow) {
           soundManager.playBowShoot();
@@ -2768,96 +2769,89 @@ export class GameEngine {
     this.triggerCameraShake(0.24);
   }
 
-  // 5. Mage Arcane Bolt (Ranged Projectile with orbiting crystals and starlight core)
-  private spawnMageArcaneBolt(customFwd?: THREE.Vector3, customSpawnPos?: THREE.Vector3, isRemote = false) {
+  // 5. Mage Arcane Laser Beam & 3D Magic Circle (1.0s Channel with continuous raycast hit detection)
+  private spawnMageArcaneLaserBeam(customFwd?: THREE.Vector3, customSpawnPos?: THREE.Vector3, isRemote = false) {
     const fwd = customFwd
       ? customFwd.clone().normalize()
       : new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
-    const spawnPos = customSpawnPos
-      ? customSpawnPos.clone().add(fwd.clone().multiplyScalar(0.8)).add(new THREE.Vector3(0, 1.5, 0))
-      : this.playerPos.clone().add(fwd.clone().multiplyScalar(1.0)).add(new THREE.Vector3(0, 1.6, 0));
 
-    const group = new THREE.Group();
-    group.position.copy(spawnPos);
+    // Position Magic Circle right in front of the caster/staff at chest/eye height
+    const origin = customSpawnPos
+      ? customSpawnPos.clone().add(fwd.clone().multiplyScalar(0.7)).add(new THREE.Vector3(0, 1.45, 0))
+      : this.playerPos.clone().add(fwd.clone().multiplyScalar(1.1)).add(new THREE.Vector3(0, 1.5, 0));
 
-    // Core glowing white starlight sphere
-    const coreGeom = new THREE.SphereGeometry(0.22, 12, 12);
-    const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const core = new THREE.Mesh(coreGeom, coreMat);
-    group.add(core);
+    const beamLength = 34.0;
 
-    // Inner Arcane cyan aura
-    const cyanGeom = new THREE.SphereGeometry(0.36, 12, 12);
-    const cyanMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.75,
-      depthWrite: false,
-    });
-    const cyan = new THREE.Mesh(cyanGeom, cyanMat);
-    group.add(cyan);
+    // Helper for raycast hitbox damage against all enemies (mobs and bosses)
+    const checkLaserHit = (isContinuousTick: boolean) => {
+      if (isRemote || !this.isRunning) return;
 
-    // Outer Astral violet corona
-    const auraGeom = new THREE.SphereGeometry(0.48, 10, 10);
-    const auraMat = new THREE.MeshBasicMaterial({
-      color: 0xa855f7,
-      transparent: true,
-      opacity: 0.5,
-      depthWrite: false,
-    });
-    const aura = new THREE.Mesh(auraGeom, auraMat);
-    group.add(aura);
+      this.callbacks.onUpdateStats((stats) => {
+        const isCrit = Math.random() < 0.22 + stats.intelligence * 0.015;
+        const tierMult = 1 + (this.playerTier - 1) * 0.25;
+        const fullSpellDmg = (stats.baseAttack + stats.intelligence * 2.4) * tierMult;
 
-    // 3 Orbiting mini mana crystal satellites
-    const crystalOrbit = new THREE.Group();
-    for (let i = 0; i < 3; i++) {
-      const angle = (i / 3) * Math.PI * 2;
-      const crystal = new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.1, 0),
-        new THREE.MeshBasicMaterial({ color: 0x67e8f9 })
-      );
-      crystal.position.set(Math.cos(angle) * 0.5, Math.sin(angle) * 0.5, 0);
-      crystalOrbit.add(crystal);
-    }
-    group.add(crystalOrbit);
+        // Initial burst does 52% damage with full impact, ticks do 28% continuous damage (Total ~136% spell power over 1s)
+        const rawDmg = isContinuousTick ? fullSpellDmg * 0.28 : fullSpellDmg * 0.52;
+        const finalDmg = Math.max(4, Math.round(isCrit ? rawDmg * 1.85 : rawDmg));
 
-    this.scene.add(group);
+        this.enemies.forEach((enemy) => {
+          if (enemy.data.isDead) return;
 
-    if (isRemote) {
-      this.activeProjectiles.push({
-        object: group,
-        direction: fwd.clone().normalize(),
-        speed: 24.0,
-        lifetime: 1.0,
-        damage: 0,
-        isCrit: false,
-        vfxType: 'arcane_bolt',
+          const enemyPos = enemy.mesh.position;
+          const toEnemy = new THREE.Vector3().subVectors(enemyPos, origin);
+          const projDist = toEnemy.dot(fwd);
+
+          // Check if enemy lies within beam length forward
+          if (projDist >= 0.2 && projDist <= beamLength + 1.2) {
+            const closestPoint = origin.clone().addScaledVector(fwd, projDist);
+            const distToBeam = enemyPos.distanceTo(closestPoint);
+
+            const isBoss = enemy.data.type === 'boss' || enemy.data.id.includes('boss');
+            const hitRadius = isBoss ? 4.8 : 2.2;
+
+            if (distToBeam <= hitRadius) {
+              this.damageEnemy(enemy, finalDmg, isCrit, isContinuousTick ? 0.05 : 0.35);
+
+              const hitPos = enemyPos.clone().add(new THREE.Vector3(0, 1.2, 0));
+              this.spawnSparks(hitPos, 0xe879f9, isContinuousTick ? 6 : 14, 4.0);
+              this.spawnSparks(hitPos, 0xffffff, isContinuousTick ? 3 : 8, 3.2);
+
+              if (!isContinuousTick) {
+                this.spawnHitStarburst(hitPos, 0xe879f9, 1.3);
+                this.spawnShockwaveRing(hitPos, 0xc084fc, 2.4, 0.25);
+              }
+            }
+          }
+        });
+
+        return stats;
       });
-      this.spawnSparks(spawnPos, 0x38bdf8, 8, 3.5);
-      return;
-    }
+    };
 
-    this.callbacks.onUpdateStats((stats) => {
-      const isCrit = Math.random() < 0.2 + stats.intelligence * 0.015;
-      const tierMult = 1 + (this.playerTier - 1) * 0.25;
-      const baseDmg = (stats.baseAttack + stats.intelligence * 2.2) * tierMult;
-      const finalDmg = Math.round(isCrit ? baseDmg * 1.85 : baseDmg);
-
-      this.activeProjectiles.push({
-        object: group,
-        direction: fwd.clone().normalize(),
-        speed: 24.0,
-        lifetime: 1.0,
-        damage: finalDmg,
-        isCrit,
-        vfxType: 'arcane_bolt',
-      });
-
-      return stats;
+    const vfx = createMageArcaneLaserBeamVfx({
+      origin,
+      direction: fwd,
+      beamLength,
+      duration: 1.0,
+      onHitTick: (isTick) => {
+        checkLaserHit(isTick);
+      },
+      onSpawnSparks: (pos, color, count, speed) => {
+        this.spawnSparks(pos, color, count, speed);
+      },
     });
 
-    // Muzzle flash burst
-    this.spawnSparks(spawnPos, 0x38bdf8, 8, 3.5);
+    this.addVfx(vfx.group, vfx.update);
+
+    // Initial cast sparks at the magic circle aperture
+    this.spawnSparks(origin, 0xe879f9, 12, 4.2);
+    this.spawnSparks(origin, 0xffffff, 8, 3.0);
+  }
+
+  // Backward-compatible alias for Arcane skill projectile calls
+  private spawnMageArcaneBolt(customFwd?: THREE.Vector3, customSpawnPos?: THREE.Vector3, isRemote = false) {
+    this.spawnMageArcaneLaserBeam(customFwd, customSpawnPos, isRemote);
   }
 
   // 6. Mage Supernova Astral VFX (Celestial Pillar, Concentric Cosmic Shockwaves & Radial Astral Beams)
@@ -3477,10 +3471,10 @@ export class GameEngine {
       }
     } else if (this.charClass === 'mage') {
       this.attackType = 'basic';
-      this.attackDuration = 0.32;
-      this.attackTimer = 0.32;
-      soundManager.playMageBolt();
-      this.spawnMageArcaneBolt();
+      this.attackDuration = 0.45;
+      this.attackTimer = 0.45;
+      soundManager.playMageArcaneLaser();
+      this.spawnMageArcaneLaserBeam();
     } else if (this.charClass === 'rogue') {
       if (this.hunterWeaponMode === 'bow') {
         // Hunter Bow & Arrow Ranged Attack
@@ -4708,10 +4702,10 @@ export class GameEngine {
           this.playerMesh.leftArm.rotation.set(-2.2, 0, 0.3);
           this.playerMesh.rightArm.rotation.set(-2.2, 0, -0.3);
         } else {
-          // Staff thrust forward casting projectile
+          // Staff thrust forward channeling Laser Beam through Magic Circle
           const cast = Math.sin((1 - progress) * Math.PI);
-          this.playerMesh.rightArm.rotation.x = -1.4 - cast * 0.4;
-          this.playerMesh.leftArm.rotation.x = -0.4;
+          this.playerMesh.rightArm.rotation.set(-1.52 - cast * 0.15, 0, -0.05);
+          this.playerMesh.leftArm.rotation.set(-0.6, 0, 0.35);
         }
       } else if (this.charClass === 'rogue') {
         if (this.attackType === 'flurry') {

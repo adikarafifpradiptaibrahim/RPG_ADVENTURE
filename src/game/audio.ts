@@ -468,46 +468,113 @@ class SoundManager {
 
   // --- MAGE SOUNDS (Crystalline, Astral, Ethereal) ---
   public playMageBolt() {
+    this.playMageArcaneLaser();
+  }
+
+  // Spectacular 1.0s Arcane Laser Beam SFX (Charge Sweep + Energy Explosion + Sustained Laser Plasma Hum)
+  public playMageArcaneLaser() {
     if (this.isMuted) return;
     this.initContext();
     if (!this.ctx || !this.sfxGain) return;
 
     const now = this.ctx.currentTime;
 
-    // 1. High-frequency crystalline FM chirp
-    const osc = this.ctx.createOscillator();
-    const oscGain = this.ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, now);
-    osc.frequency.exponentialRampToValueAtTime(1480, now + 0.05);
-    osc.frequency.exponentialRampToValueAtTime(320, now + 0.22);
-    oscGain.gain.setValueAtTime(0.35, now);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-    osc.connect(oscGain);
-    oscGain.connect(this.sfxGain);
-    osc.start(now);
-    osc.stop(now + 0.23);
+    // 1. Arcane Beam Charge (Instant 0.08s rising energy sweep)
+    const chargeOsc = this.ctx.createOscillator();
+    const chargeGain = this.ctx.createGain();
+    chargeOsc.type = 'sine';
+    chargeOsc.frequency.setValueAtTime(800, now);
+    chargeOsc.frequency.exponentialRampToValueAtTime(3200, now + 0.08);
+    chargeGain.gain.setValueAtTime(0.01, now);
+    chargeGain.gain.linearRampToValueAtTime(0.35, now + 0.07);
+    chargeGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    chargeOsc.connect(chargeGain);
+    chargeGain.connect(this.sfxGain);
+    chargeOsc.start(now);
+    chargeOsc.stop(now + 0.13);
 
-    // 2. Crystalline sparkle harmonics
-    const crystal = this.ctx.createOscillator();
-    const crystalGain = this.ctx.createGain();
-    crystal.type = 'triangle';
-    crystal.frequency.setValueAtTime(1760, now);
-    crystal.frequency.exponentialRampToValueAtTime(520, now + 0.16);
-    crystalGain.gain.setValueAtTime(0.25, now);
-    crystalGain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
-    crystal.connect(crystalGain);
-    crystalGain.connect(this.sfxGain);
-    crystal.start(now);
-    crystal.stop(now + 0.17);
+    // 2. Energy Explosion Punch (Sub-bass impact + high energy discharge)
+    const punchOsc = this.ctx.createOscillator();
+    const punchGain = this.ctx.createGain();
+    punchOsc.type = 'sine';
+    punchOsc.frequency.setValueAtTime(220, now + 0.04);
+    punchOsc.frequency.exponentialRampToValueAtTime(42, now + 0.38);
+    punchGain.gain.setValueAtTime(0.55, now + 0.04);
+    punchGain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+    punchOsc.connect(punchGain);
+    punchGain.connect(this.sfxGain);
+    punchOsc.start(now + 0.04);
+    punchOsc.stop(now + 0.4);
 
-    // 3. Arcane discharge plasma whoosh
+    // Discharge crackle / plasma burst
     this.playNoiseBurst({
-      duration: 0.15,
-      gain: 0.22,
+      duration: 0.3,
+      gain: 0.28,
       filterType: 'bandpass',
-      freqStart: 3200,
-      freqEnd: 600,
+      freqStart: 4200,
+      freqEnd: 680,
+      delay: 0.04,
+    });
+
+    // 3. 1.0-Second Sustained Laser Plasma Hum with Rapid LFO Modulation
+    const laserOsc = this.ctx.createOscillator();
+    const laserFilter = this.ctx.createBiquadFilter();
+    const laserGain = this.ctx.createGain();
+
+    laserOsc.type = 'sawtooth';
+    laserOsc.frequency.setValueAtTime(320, now + 0.05);
+    laserOsc.frequency.exponentialRampToValueAtTime(240, now + 1.0);
+
+    laserFilter.type = 'lowpass';
+    laserFilter.frequency.setValueAtTime(1400, now + 0.05);
+    laserFilter.frequency.exponentialRampToValueAtTime(750, now + 1.0);
+    laserFilter.Q.setValueAtTime(3.8, now + 0.05);
+
+    // 26 Hz LFO Tremolo / Vibrato for electric plasma sizzle
+    const lfo = this.ctx.createOscillator();
+    const lfoGain = this.ctx.createGain();
+    lfo.type = 'sine';
+    lfo.frequency.setValueAtTime(26, now + 0.05);
+    lfoGain.gain.setValueAtTime(0.08, now + 0.05);
+
+    laserGain.gain.setValueAtTime(0.01, now + 0.05);
+    laserGain.gain.linearRampToValueAtTime(0.32, now + 0.12);
+    laserGain.gain.setValueAtTime(0.3, now + 0.72);
+    laserGain.gain.exponentialRampToValueAtTime(0.001, now + 1.02);
+
+    lfo.connect(lfoGain);
+    lfoGain.connect(laserGain.gain);
+
+    laserOsc.connect(laserFilter);
+    laserFilter.connect(laserGain);
+    laserGain.connect(this.sfxGain);
+
+    laserOsc.start(now + 0.05);
+    lfo.start(now + 0.05);
+    laserOsc.stop(now + 1.05);
+    lfo.stop(now + 1.05);
+
+    // 4. Shimmering High-Crystalline Harmonics
+    const shimmerOsc = this.ctx.createOscillator();
+    const shimmerGain = this.ctx.createGain();
+    shimmerOsc.type = 'triangle';
+    shimmerOsc.frequency.setValueAtTime(1280, now + 0.06);
+    shimmerOsc.frequency.linearRampToValueAtTime(1040, now + 0.95);
+    shimmerGain.gain.setValueAtTime(0.18, now + 0.06);
+    shimmerGain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+    shimmerOsc.connect(shimmerGain);
+    shimmerGain.connect(this.sfxGain);
+    shimmerOsc.start(now + 0.06);
+    shimmerOsc.stop(now + 0.98);
+
+    // 5. Sustained plasma hiss
+    this.playNoiseBurst({
+      duration: 0.85,
+      gain: 0.12,
+      filterType: 'bandpass',
+      freqStart: 2200,
+      freqEnd: 900,
+      delay: 0.08,
     });
   }
 

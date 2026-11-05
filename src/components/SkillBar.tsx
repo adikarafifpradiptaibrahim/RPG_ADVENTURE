@@ -43,7 +43,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         };
       case 'mage':
         return {
-          basic: { label: 'Arcane', icon: '🔮', hint: 'Klik / J' },
+          basic: { label: 'Arcane Beam', icon: '🔮', hint: 'Klik / J' },
           skill1: { name: 'Supernova', icon: '💫', cost: '15 MP', key: 'Q', color: 'border-purple-500/70 text-purple-300 bg-purple-950/40' },
           skill2: { name: 'Blink', icon: '🌌', cost: '15 Stm', key: 'E', color: 'border-cyan-500/70 text-cyan-300 bg-cyan-950/40' },
           skill3: { name: 'Cahaya', icon: '✨', cost: '25 MP', key: 'R', color: 'border-blue-500/70 text-blue-300 bg-blue-950/40' },
