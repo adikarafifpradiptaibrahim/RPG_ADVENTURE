@@ -279,6 +279,7 @@ export class GameEngine {
   private activeVfx: {
     object: THREE.Object3D;
     update: (delta: number) => boolean;
+    cleanup?: () => void;
   }[] = [];
   private activeProjectiles: {
     object: THREE.Object3D;
@@ -1588,6 +1589,7 @@ export class GameEngine {
       this.isCasting = false;
       this.callbacks.onCastingUpdate?.(null);
       if (this.castingCircleInstance) {
+        this.scene.remove(this.castingCircleInstance.group);
         this.castingCircleInstance.cleanup();
         this.castingCircleInstance = null;
       }
@@ -2296,16 +2298,21 @@ export class GameEngine {
     this.cameraShake = Math.max(this.cameraShake, intensity);
   }
 
-  private addVfx(object: THREE.Object3D, update: (delta: number) => boolean) {
+  private addVfx(object: THREE.Object3D, update: (delta: number) => boolean, cleanup?: () => void) {
     // Lightweight rendering optimization: prune oldest VFX if pool exceeds 75 to keep 60 FPS
     if (this.activeVfx.length > 75) {
       const oldest = this.activeVfx.shift();
       if (oldest) {
         this.scene.remove(oldest.object);
+        if (oldest.cleanup) {
+          try {
+            oldest.cleanup();
+          } catch {}
+        }
       }
     }
     this.scene.add(object);
-    this.activeVfx.push({ object, update });
+    this.activeVfx.push({ object, update, cleanup });
   }
 
   // Radiant 4-pointed Starburst Cross on Crits and Heavy Impacts
@@ -2867,7 +2874,7 @@ export class GameEngine {
       },
     });
 
-    this.addVfx(vfx.group, vfx.update);
+    this.addVfx(vfx.group, vfx.update, vfx.cleanup);
 
     // Initial cast sparks at the magic circle aperture
     this.spawnSparks(origin, 0xe879f9, 12, 4.2);
@@ -2879,7 +2886,7 @@ export class GameEngine {
     this.spawnMageArcaneLaserBeam(customFwd, customSpawnPos, isRemote);
   }
 
-  // --- MAGE STARFALL (1.5s Cast Time, Movement Lock, Radial Drawing Magic Circle & 8-Meteor Barrage) ---
+  // --- MAGE STARFALL (1.5s Cast Time, Movement Lock, Circuit Stroke Reveal & 10-Meteor Continuous Barrage) ---
   private startStarfallCasting() {
     this.isCasting = true;
     this.castingTimer = 0;
@@ -2899,10 +2906,20 @@ export class GameEngine {
       },
     });
 
-    this.addVfx(this.castingCircleInstance.group, (delta) => {
-      if (!this.castingCircleInstance) return false;
-      return this.castingCircleInstance.update(delta, this.playerPos);
-    });
+    this.addVfx(
+      this.castingCircleInstance.group,
+      (delta) => {
+        if (!this.castingCircleInstance) return false;
+        return this.castingCircleInstance.update(delta, this.playerPos);
+      },
+      () => {
+        if (this.castingCircleInstance) {
+          this.scene.remove(this.castingCircleInstance.group);
+          this.castingCircleInstance.cleanup();
+          this.castingCircleInstance = null;
+        }
+      }
+    );
 
     // Notify UI: Display casting progress bar ("Casting... 1.5s")
     this.callbacks.onCastingUpdate?.({
@@ -2916,12 +2933,16 @@ export class GameEngine {
     this.isCasting = false;
     this.callbacks.onCastingUpdate?.(null);
 
-    // Circle at feet begins fast fade-out
-    this.castingCircleInstance = null;
+    // Clean up and remove casting circle immediately from the scene (zero lingering traces)
+    if (this.castingCircleInstance) {
+      this.scene.remove(this.castingCircleInstance.group);
+      this.castingCircleInstance.cleanup();
+      this.castingCircleInstance = null;
+    }
 
-    // Calculate target impact area in front of character
+    // Calculate target impact area in front of character (14.5 units ahead: safe 12-15 range)
     const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
-    const targetPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(13.0));
+    const targetPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(14.5));
     targetPos.y = this.world.getTerrainHeight(targetPos.x, targetPos.z);
 
     this.spawnStarfallMeteorBarrage(targetPos);
@@ -2931,15 +2952,15 @@ export class GameEngine {
     const vfx = createStarfallMeteorBarrageVfx({
       targetCenter,
       onImpact: (impactPos, isLast, idx) => {
-        soundManager.playStarfallImpact(isLast);
-        this.triggerCameraShake(isLast ? 0.42 : 0.22);
+        soundManager.playStarfallImpact(isLast, idx);
+        this.triggerCameraShake(isLast ? 0.44 : 0.20);
 
         if (!isRemote && this.isRunning) {
           this.callbacks.onUpdateStats((stats) => {
             const isCrit = Math.random() < 0.25 + stats.intelligence * 0.015;
             const tierMult = 1 + (this.playerTier - 1) * 0.25;
-            // 8 Meteors: each deals ~38% spell power, finisher 8th deals ~68% (Total ~334% spell power!)
-            const mult = isLast ? 0.68 : 0.38;
+            // 10 Meteors continuous volley: 9 x ~30% + 1 x ~65% finisher = ~335% spell power!
+            const mult = isLast ? 0.65 : 0.30;
             const baseDmg = (stats.baseAttack + stats.intelligence * 2.8) * tierMult * mult;
             const finalDmg = Math.max(5, Math.round(isCrit ? baseDmg * 1.85 : baseDmg));
 
@@ -2950,8 +2971,8 @@ export class GameEngine {
                 // Apply AOE damage and knockback away from impact point
                 const knockDir = new THREE.Vector3().subVectors(enemy.mesh.position, impactPos).normalize();
                 knockDir.y = 0;
-                this.damageEnemy(enemy, finalDmg, isCrit, isLast ? 0.55 : 0.35);
-                enemy.mesh.position.addScaledVector(knockDir, isLast ? 0.8 : 0.45);
+                this.damageEnemy(enemy, finalDmg, isCrit, isLast ? 0.55 : 0.30);
+                enemy.mesh.position.addScaledVector(knockDir, isLast ? 0.85 : 0.40);
               }
             });
 
@@ -2968,7 +2989,7 @@ export class GameEngine {
       },
     });
 
-    this.addVfx(vfx.group, vfx.update);
+    this.addVfx(vfx.group, vfx.update, vfx.cleanup);
   }
 
   // 6. Mage Supernova Astral VFX (Celestial Pillar, Concentric Cosmic Shockwaves & Radial Astral Beams)
@@ -5735,6 +5756,12 @@ export class GameEngine {
       const vfx = this.activeVfx[i];
       const alive = vfx.update(delta);
       if (!alive) {
+        this.scene.remove(vfx.object);
+        if (vfx.cleanup) {
+          try {
+            vfx.cleanup();
+          } catch {}
+        }
         this.activeVfx.splice(i, 1);
       }
     }
@@ -6195,7 +6222,14 @@ export class GameEngine {
     window.removeEventListener('touchcancel', this.handleTouchEnd);
 
     // Clean up active VFX and projectiles
-    this.activeVfx.forEach((v) => this.scene.remove(v.object));
+    this.activeVfx.forEach((v) => {
+      this.scene.remove(v.object);
+      if (v.cleanup) {
+        try {
+          v.cleanup();
+        } catch {}
+      }
+    });
     this.activeVfx = [];
     this.activeProjectiles.forEach((p) => this.scene.remove(p.object));
     this.activeProjectiles = [];

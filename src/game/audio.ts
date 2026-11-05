@@ -579,7 +579,7 @@ class SoundManager {
   }
 
   // --- STARFALL METEOR SPELL SFX ---
-  // 1. Runic Charge / Radial Drawing SFX (1.5s clockwise drawing hum, 8 harmonic chimes, & completion lock)
+  // 1. Runic Charge / Circuit Stroke Reveal SFX (1.5s expanding circuit conduits, 8 harmonic chimes & seal lock)
   public playStarfallCharge(duration = 1.5) {
     if (this.isMuted) return;
     this.initContext();
@@ -587,30 +587,30 @@ class SoundManager {
 
     const now = this.ctx.currentTime;
 
-    // A. Rotary Swelling Runic Resonance Osc (Low hum 85 Hz -> 380 Hz with rotating filter modulation)
+    // A. Swelling Arcane Circuit Osc (Low hum 85 Hz -> 420 Hz with expanding circuit filter resonance)
     const chargeOsc = this.ctx.createOscillator();
     const chargeFilter = this.ctx.createBiquadFilter();
     const chargeGain = this.ctx.createGain();
 
     chargeOsc.type = 'sawtooth';
     chargeOsc.frequency.setValueAtTime(85, now);
-    chargeOsc.frequency.exponentialRampToValueAtTime(380, now + duration);
+    chargeOsc.frequency.exponentialRampToValueAtTime(420, now + duration);
 
     chargeFilter.type = 'lowpass';
     chargeFilter.frequency.setValueAtTime(280, now);
-    chargeFilter.frequency.exponentialRampToValueAtTime(3200, now + duration);
-    chargeFilter.Q.setValueAtTime(5.0, now);
+    chargeFilter.frequency.exponentialRampToValueAtTime(3600, now + duration);
+    chargeFilter.Q.setValueAtTime(5.5, now);
 
-    // Rotary Tremolo/Panner modulation (simulating 360-degree drawing spin)
+    // Electric circuit pulsing modulation (stepping faster as branches reach outer nodes)
     const rotaryLfo = this.ctx.createOscillator();
     const rotaryGain = this.ctx.createGain();
     rotaryLfo.type = 'sine';
-    rotaryLfo.frequency.setValueAtTime(2.6, now); // ~2.6 spins/sec harmonic feel
-    rotaryLfo.frequency.exponentialRampToValueAtTime(8.0, now + duration);
-    rotaryGain.gain.setValueAtTime(0.12, now);
+    rotaryLfo.frequency.setValueAtTime(3.0, now);
+    rotaryLfo.frequency.exponentialRampToValueAtTime(12.0, now + duration);
+    rotaryGain.gain.setValueAtTime(0.14, now);
 
     chargeGain.gain.setValueAtTime(0.02, now);
-    chargeGain.gain.linearRampToValueAtTime(0.42, now + duration - 0.05);
+    chargeGain.gain.linearRampToValueAtTime(0.44, now + duration - 0.05);
     chargeGain.gain.exponentialRampToValueAtTime(0.001, now + duration + 0.03);
 
     rotaryLfo.connect(rotaryGain);
@@ -625,7 +625,7 @@ class SoundManager {
     chargeOsc.stop(now + duration + 0.05);
     rotaryLfo.stop(now + duration + 0.05);
 
-    // B. Ascending 8-Octant Celestial Stardust Chimes timed with radial drawing progress
+    // B. Ascending 8-Octant Celestial Stardust Chimes timed with circuit node activations
     const chimes = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66, 1318.51];
     chimes.forEach((freq, i) => {
       const chimeTime = now + (i / chimes.length) * (duration * 0.92);
@@ -644,14 +644,14 @@ class SoundManager {
       chimeOsc.stop(chimeTime + 0.22);
     });
 
-    // C. Climax 360-degree Seal Ring (Crisp celestial lock at 1.45s)
+    // C. Climax 360-degree Seal Ring (Crisp celestial circuit lock at 1.45s)
     const lockOsc = this.ctx.createOscillator();
     const lockGain = this.ctx.createGain();
     lockOsc.type = 'sine';
     const lockTime = now + duration - 0.08;
     lockOsc.frequency.setValueAtTime(1760, lockTime);
     lockOsc.frequency.exponentialRampToValueAtTime(2637, lockTime + 0.28);
-    lockGain.gain.setValueAtTime(0.32, lockTime);
+    lockGain.gain.setValueAtTime(0.35, lockTime);
     lockGain.gain.exponentialRampToValueAtTime(0.001, lockTime + 0.28);
     lockOsc.connect(lockGain);
     lockGain.connect(this.sfxGain);
@@ -670,7 +670,7 @@ class SoundManager {
   }
 
   // 2. Celestial Meteor Crash SFX (Concussive punch for rolling barrage, cataclysmic boom for finisher)
-  public playStarfallImpact(isFinisher = false) {
+  public playStarfallImpact(isFinisher = false, index = 0) {
     if (this.isMuted) return;
     this.initContext();
     if (!this.ctx || !this.sfxGain) return;
@@ -678,31 +678,32 @@ class SoundManager {
     const now = this.ctx.currentTime;
 
     if (!isFinisher) {
-      // Rapid Meteor Strike (Crisp, punchy, non-muddy hit)
+      // Rapid Meteor Strike (Crisp, punchy, non-muddy hit with rolling pitch variance)
       const subOsc = this.ctx.createOscillator();
       const subGain = this.ctx.createGain();
       subOsc.type = 'sine';
-      subOsc.frequency.setValueAtTime(120, now);
-      subOsc.frequency.exponentialRampToValueAtTime(38, now + 0.28);
-      subGain.gain.setValueAtTime(0.44, now);
-      subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      const baseFreq = 115 + (index % 4) * 14;
+      subOsc.frequency.setValueAtTime(baseFreq, now);
+      subOsc.frequency.exponentialRampToValueAtTime(36, now + 0.26);
+      subGain.gain.setValueAtTime(0.42, now);
+      subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
       subOsc.connect(subGain);
       subGain.connect(this.sfxGain);
       subOsc.start(now);
-      subOsc.stop(now + 0.3);
+      subOsc.stop(now + 0.28);
 
       this.playNoiseBurst({
-        duration: 0.3,
-        gain: 0.35,
+        duration: 0.28,
+        gain: 0.32,
         filterType: 'lowpass',
-        freqStart: 1600,
+        freqStart: 1600 + (index % 3) * 200,
         freqEnd: 180,
       });
 
       const shatterOsc = this.ctx.createOscillator();
       const shatterGain = this.ctx.createGain();
       shatterOsc.type = 'sawtooth';
-      shatterOsc.frequency.setValueAtTime(2400, now);
+      shatterOsc.frequency.setValueAtTime(2400 + (index % 3) * 300, now);
       shatterOsc.frequency.exponentialRampToValueAtTime(600, now + 0.14);
       shatterGain.gain.setValueAtTime(0.18, now);
       shatterGain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
@@ -711,13 +712,13 @@ class SoundManager {
       shatterOsc.start(now);
       shatterOsc.stop(now + 0.16);
     } else {
-      // Finisher 8th Meteor Crash (Heavy tectonic sub-bass shockwave + roaring blast + rumble tail)
+      // Finisher 10th Meteor Crash (Heavy tectonic sub-bass shockwave + roaring blast + rumble tail)
       const subOsc = this.ctx.createOscillator();
       const subGain = this.ctx.createGain();
       subOsc.type = 'sine';
       subOsc.frequency.setValueAtTime(160, now);
       subOsc.frequency.exponentialRampToValueAtTime(20, now + 0.65);
-      subGain.gain.setValueAtTime(0.85, now);
+      subGain.gain.setValueAtTime(0.88, now);
       subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
       subOsc.connect(subGain);
       subGain.connect(this.sfxGain);
@@ -725,8 +726,8 @@ class SoundManager {
       subOsc.stop(now + 0.68);
 
       this.playNoiseBurst({
-        duration: 0.62,
-        gain: 0.58,
+        duration: 0.65,
+        gain: 0.6,
         filterType: 'lowpass',
         freqStart: 2200,
         freqEnd: 90,
@@ -737,7 +738,7 @@ class SoundManager {
       shatterOsc.type = 'sawtooth';
       shatterOsc.frequency.setValueAtTime(3600, now);
       shatterOsc.frequency.exponentialRampToValueAtTime(700, now + 0.22);
-      shatterGain.gain.setValueAtTime(0.3, now);
+      shatterGain.gain.setValueAtTime(0.32, now);
       shatterGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
       shatterOsc.connect(shatterGain);
       shatterGain.connect(this.sfxGain);
@@ -745,8 +746,8 @@ class SoundManager {
       shatterOsc.stop(now + 0.24);
 
       this.playNoiseBurst({
-        duration: 0.95,
-        gain: 0.34,
+        duration: 1.0,
+        gain: 0.36,
         filterType: 'bandpass',
         freqStart: 320,
         freqEnd: 50,
