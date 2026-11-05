@@ -1,31 +1,56 @@
-/**
+﻿/**
  * Web Audio API Sound Synthesizer & Dynamic MP3 BGM Manager for 3D RPG
  */
-import relaxBgmUrl from '../assets/audio/Where_the_River_Bends.mp3';
-import bossTitanBgmUrl from '../assets/audio/Titan_s_Heavy_Tread.mp3';
+import whereTheRiverBendsUrl from '../assets/audio/Where_the_River_Bends.mp3';
+import theQuietArchiveUrl from '../assets/audio/The_Quiet_Archive.mp3';
+import titanBossBgmUrl from '../assets/audio/Titan_s_Heavy_Tread.mp3';
+import ironMawWormBgmUrl from '../assets/audio/The_Iron_Maw.mp3';
+import basaltDragonBgmUrl from '../assets/audio/Basalt_and_Brimstone.mp3';
 
-export { relaxBgmUrl, bossTitanBgmUrl, relaxBgmUrl as overworldBgmUrl, bossTitanBgmUrl as titanBossBgmUrl };
+export {
+  whereTheRiverBendsUrl,
+  theQuietArchiveUrl,
+  titanBossBgmUrl,
+  ironMawWormBgmUrl,
+  basaltDragonBgmUrl,
+  whereTheRiverBendsUrl as relaxBgmUrl,
+  whereTheRiverBendsUrl as overworldBgmUrl,
+  titanBossBgmUrl as bossTitanBgmUrl,
+};
 
 class SoundManager {
   private ctx: AudioContext | null = null;
   private isMuted: boolean = false;
   private musicGain: GainNode | null = null;
   private sfxGain: GainNode | null = null;
-  private musicInterval: any = null;
   private isMusicPlaying: boolean = true; // Auto-play enabled by default
   private currentBossMusic: 'titan' | 'dragon' | 'worm' | null = null;
-  private bossMusicInterval: any = null;
-  private bossMusicGain: GainNode | null = null;
-  private bossStep = 0;
-
-  // --- MP3 BGM Audio Elements (Where the River Bends & Titan's Heavy Tread) ---
-  private relaxAudio: HTMLAudioElement | null = null;
-  private bossTitanAudio: HTMLAudioElement | null = null;
-  private isAudioElementsInitialized = false;
-  private currentBgmMode: 'overworld' | 'titan' | 'none' = 'none';
-  private crossfadeAnimId: number | null = null;
   private masterMusicVolume = 1.0; // High-fidelity comfortable volume level
   private userGestureAttached = false;
+
+  // --- Overworld Chill Playlist (Where the River Bends & The Quiet Archive) ---
+  private chillTracks: HTMLAudioElement[] = [];
+  private currentChillIndex = 0;
+
+  // --- Boss MP3 Audio Elements ---
+  private titanAudio: HTMLAudioElement | null = null;
+  private wormAudio: HTMLAudioElement | null = null;
+  private dragonAudio: HTMLAudioElement | null = null;
+
+  // --- Web Audio Low-Pass Filter Nodes for Boss Audio ---
+  private bossNodes: {
+    [K in 'titan' | 'dragon' | 'worm']?: {
+      source?: MediaElementAudioSourceNode;
+      filter?: BiquadFilterNode;
+      gain?: GainNode;
+    };
+  } = {};
+
+  private isAudioElementsInitialized = false;
+  private currentBgmMode: 'overworld' | 'titan' | 'dragon' | 'worm' | 'none' = 'none';
+  private crossfadeAnimId: number | null = null;
+  private isVictoryPlaying = false;
+  private victoryTimeoutId: any = null;
 
   private noiseBuffer: AudioBuffer | null = null;
 
@@ -34,28 +59,113 @@ class SoundManager {
   }
 
   public get overworldAudio(): HTMLAudioElement | null {
-    return this.relaxAudio;
+    return this.getCurrentChillAudio();
   }
 
-  public get titanAudio(): HTMLAudioElement | null {
-    return this.bossTitanAudio;
+  public get titanAudioEl(): HTMLAudioElement | null {
+    return this.titanAudio;
+  }
+
+  public getCurrentChillAudio(): HTMLAudioElement | null {
+    if (this.chillTracks.length === 0) return null;
+    return this.chillTracks[this.currentChillIndex] || this.chillTracks[0];
+  }
+
+  public getBossAudio(type: 'titan' | 'dragon' | 'worm'): HTMLAudioElement | null {
+    if (type === 'titan') return this.titanAudio;
+    if (type === 'worm') return this.wormAudio;
+    if (type === 'dragon') return this.dragonAudio;
+    return null;
+  }
+
+  public getCurrentBossAudio(): HTMLAudioElement | null {
+    if (!this.currentBossMusic) return null;
+    return this.getBossAudio(this.currentBossMusic);
   }
 
   public initAudioElements() {
     if (this.isAudioElementsInitialized || typeof Audio === 'undefined') return;
     try {
       this.isAudioElementsInitialized = true;
-      this.relaxAudio = new Audio(relaxBgmUrl);
-      this.relaxAudio.loop = true;
-      this.relaxAudio.preload = 'auto';
-      this.relaxAudio.volume = this.isMuted ? 0 : this.masterMusicVolume;
 
-      this.bossTitanAudio = new Audio(bossTitanBgmUrl);
-      this.bossTitanAudio.loop = true;
-      this.bossTitanAudio.preload = 'auto';
-      this.bossTitanAudio.volume = 0;
+      // 1. Overworld Chill Playlist: Where the River Bends & The Quiet Archive
+      const track1 = new Audio(whereTheRiverBendsUrl);
+      track1.preload = 'auto';
+      track1.volume = this.isMuted ? 0 : this.masterMusicVolume;
+
+      const track2 = new Audio(theQuietArchiveUrl);
+      track2.preload = 'auto';
+      track2.volume = 0;
+
+      track1.onended = () => this.playNextChillTrack();
+      track2.onended = () => this.playNextChillTrack();
+
+      this.chillTracks = [track1, track2];
+      this.currentChillIndex = 0;
+
+      // 2. Boss Audio Tracks (Looping)
+      this.titanAudio = new Audio(titanBossBgmUrl);
+      this.titanAudio.loop = true;
+      this.titanAudio.preload = 'auto';
+      this.titanAudio.volume = 0;
+
+      this.wormAudio = new Audio(ironMawWormBgmUrl);
+      this.wormAudio.loop = true;
+      this.wormAudio.preload = 'auto';
+      this.wormAudio.volume = 0;
+
+      this.dragonAudio = new Audio(basaltDragonBgmUrl);
+      this.dragonAudio.loop = true;
+      this.dragonAudio.preload = 'auto';
+      this.dragonAudio.volume = 0;
+
+      this.initBossAudioNodes();
     } catch (e) {
       console.warn('[SoundManager] Could not initialize audio elements:', e);
+    }
+  }
+
+  private initBossAudioNodes() {
+    this.initContext();
+    if (!this.ctx) return;
+    const bosses: ('titan' | 'dragon' | 'worm')[] = ['titan', 'dragon', 'worm'];
+    bosses.forEach((type) => {
+      if (this.bossNodes[type]?.filter) return;
+      const audio = this.getBossAudio(type);
+      if (!audio) return;
+      try {
+        const source = this.ctx!.createMediaElementSource(audio);
+        const filter = this.ctx!.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(20000, this.ctx!.currentTime);
+        filter.Q.setValueAtTime(1.0, this.ctx!.currentTime);
+
+        const gain = this.ctx!.createGain();
+        gain.gain.setValueAtTime(1.0, this.ctx!.currentTime);
+
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx!.destination);
+
+        this.bossNodes[type] = { source, filter, gain };
+      } catch (e) {
+        this.bossNodes[type] = {};
+      }
+    });
+  }
+
+  private playNextChillTrack() {
+    if (!this.isMusicPlaying || this.currentBgmMode !== 'overworld' || this.isVictoryPlaying) return;
+    const prev = this.chillTracks[this.currentChillIndex];
+    if (prev) {
+      prev.pause();
+      prev.currentTime = 0;
+    }
+    this.currentChillIndex = (this.currentChillIndex + 1) % this.chillTracks.length;
+    const next = this.chillTracks[this.currentChillIndex];
+    if (next) {
+      next.volume = this.isMuted ? 0 : this.masterMusicVolume;
+      next.play().catch(() => {});
     }
   }
 
@@ -66,9 +176,9 @@ class SoundManager {
     const unlock = () => {
       this.initContext();
       this.initAudioElements();
-      if (this.isMusicPlaying && !this.isMuted) {
-        if (this.currentBossMusic === 'titan') {
-          this.crossfadeBgm('titan', 1.5);
+      if (this.isMusicPlaying && !this.isMuted && !this.isVictoryPlaying) {
+        if (this.currentBossMusic) {
+          this.playBossMusic(this.currentBossMusic);
         } else {
           this.playOverworldBGM();
         }
@@ -82,16 +192,18 @@ class SoundManager {
   }
 
   /**
-   * Directly triggers Overworld relax BGM (Where the River Bends).
+   * Directly triggers Overworld relax BGM playlist.
    * Safe to call inside browser user interaction handlers (Role Selection / Start Game).
    */
   public playOverworldBGM() {
+    if (this.isVictoryPlaying) return;
     this.isMusicPlaying = true;
     this.initContext();
     this.initAudioElements();
-    this.crossfadeBgm('overworld', 1.5);
-    if (this.relaxAudio && !this.isMuted) {
-      this.relaxAudio.play().catch(() => {});
+    this.crossfadeBgm('overworld', 1.5, { continueFromPause: true });
+    const current = this.getCurrentChillAudio();
+    if (current && !this.isMuted) {
+      current.play().catch(() => {});
     }
   }
 
@@ -114,16 +226,12 @@ class SoundManager {
     }
 
     if (!this.isMusicPlaying) {
-      if (this.musicInterval) {
-        clearInterval(this.musicInterval);
-        this.musicInterval = null;
-      }
       this.crossfadeBgm('none', 0.5);
       return false;
     }
 
-    if (this.currentBossMusic === 'titan') {
-      this.crossfadeBgm('titan', 1.5);
+    if (this.currentBossMusic) {
+      this.playBossMusic(this.currentBossMusic);
     } else {
       this.playOverworldBGM();
     }
@@ -142,9 +250,266 @@ class SoundManager {
     return this.isMusicPlaying;
   }
 
-  public crossfadeBgm(targetMode: 'overworld' | 'titan' | 'none', duration = 1.5) {
+  public getCurrentBossMusic(): 'titan' | 'dragon' | 'worm' | null {
+    return this.currentBossMusic;
+  }
+
+  public playBossMusic(bossType: 'titan' | 'dragon' | 'worm') {
+    if (this.isVictoryPlaying) return;
+    if (this.currentBossMusic === bossType && this.currentBgmMode === bossType) return;
+    this.initContext();
     this.initAudioElements();
-    if (!this.relaxAudio || !this.bossTitanAudio) return;
+    this.initBossAudioNodes();
+
+    this.currentBossMusic = bossType;
+
+    // Reset low-pass filter to 20000Hz (full brightness / open spectrum)
+    const node = this.bossNodes[bossType];
+    if (node?.filter && this.ctx) {
+      node.filter.frequency.cancelScheduledValues(this.ctx.currentTime);
+      node.filter.frequency.setValueAtTime(20000, this.ctx.currentTime);
+    }
+    if (node?.gain && this.ctx) {
+      node.gain.gain.cancelScheduledValues(this.ctx.currentTime);
+      node.gain.gain.setValueAtTime(1.0, this.ctx.currentTime);
+    }
+
+    this.crossfadeBgm(bossType, 1.5);
+  }
+
+  public playBossBGM(bossType: 'titan' | 'dragon' | 'worm') {
+    return this.playBossMusic(bossType);
+  }
+
+  /**
+   * Evade / Leash / Reset Boss:
+   * When player escapes agro zone without boss dying:
+   * 1. Low-Pass Filter Drop: Gradually filters high frequencies down to 320Hz over 2-3s (muffled distance sound)
+   * 2. Smooth Crossfade: Fades out boss music while simultaneously fading in Chill music continuing from last pause position.
+   */
+  public evadeBossMusic(duration = 2.5) {
+    if (this.isVictoryPlaying) return;
+    if (!this.currentBossMusic) return;
+    const activeBossType = this.currentBossMusic;
+    this.currentBossMusic = null;
+
+    this.initContext();
+    const node = this.bossNodes[activeBossType];
+
+    if (node?.filter && this.ctx) {
+      const now = this.ctx.currentTime;
+      node.filter.frequency.cancelScheduledValues(now);
+      node.filter.frequency.setValueAtTime(Math.max(350, node.filter.frequency.value), now);
+      node.filter.frequency.exponentialRampToValueAtTime(320, now + duration);
+    }
+
+    this.crossfadeBgm('overworld', duration, {
+      continueFromPause: true,
+      onComplete: () => {
+        if (node?.filter && this.ctx) {
+          node.filter.frequency.cancelScheduledValues(this.ctx.currentTime);
+          node.filter.frequency.setValueAtTime(20000, this.ctx.currentTime);
+        }
+      },
+    });
+  }
+
+  public stopBossMusic() {
+    this.evadeBossMusic(2.0);
+  }
+
+  /**
+   * Absolute Victory Transition (Boss Defeated):
+   * 1. Immediately stops boss music at nearest beat
+   * 2. Synthesizes a glorious Victory Stinger (synth fanfare with reverb/echo ring-out lasting ~4.0s)
+   * 3. Resets and plays Overworld Chill music from beginning (0:00) once stinger completes.
+   */
+  public playBossVictory(bossName?: string) {
+    if (this.isVictoryPlaying) return;
+    this.isVictoryPlaying = true;
+    this.currentBossMusic = null;
+
+    if (this.crossfadeAnimId !== null) {
+      cancelAnimationFrame(this.crossfadeAnimId);
+      this.crossfadeAnimId = null;
+    }
+
+    // Instantly cut all boss music
+    const bosses: ('titan' | 'dragon' | 'worm')[] = ['titan', 'dragon', 'worm'];
+    bosses.forEach((type) => {
+      const bAudio = this.getBossAudio(type);
+      if (bAudio) {
+        bAudio.pause();
+        bAudio.currentTime = 0;
+        bAudio.volume = 0;
+      }
+    });
+
+    // Pause chill tracks during stinger
+    this.chillTracks.forEach((t) => t.pause());
+
+    // Play Victory Stinger
+    this.synthesizeVictoryStinger();
+
+    // After stinger completes (~4s), reset and play chill music from 0:00
+    if (this.victoryTimeoutId) clearTimeout(this.victoryTimeoutId);
+    this.victoryTimeoutId = setTimeout(() => {
+      this.isVictoryPlaying = false;
+      this.victoryTimeoutId = null;
+      if (this.isMusicPlaying && !this.isMuted) {
+        this.resetAndPlayChillMusic(0);
+      }
+    }, 4000);
+  }
+
+  public synthesizeVictoryStinger() {
+    this.initContext();
+    if (!this.ctx || this.isMuted) return;
+    const now = this.ctx.currentTime;
+
+    // Delay & Reverb feedback loop for spatial ring out
+    const delay = this.ctx.createDelay();
+    delay.delayTime.setValueAtTime(0.26, now);
+    const feedback = this.ctx.createGain();
+    feedback.gain.setValueAtTime(0.42, now);
+    const delayFilter = this.ctx.createBiquadFilter();
+    delayFilter.type = 'lowpass';
+    delayFilter.frequency.setValueAtTime(3200, now);
+
+    delay.connect(feedback);
+    feedback.connect(delayFilter);
+    delayFilter.connect(delay);
+    delay.connect(this.musicGain || this.ctx.destination);
+
+    const stingerMaster = this.ctx.createGain();
+    stingerMaster.gain.setValueAtTime(0.55, now);
+    stingerMaster.connect(this.musicGain || this.ctx.destination);
+    stingerMaster.connect(delay);
+
+    // Heroic Brass & Synth Stabs in D Major
+    const stabs = [
+      { time: 0.00, duration: 0.24, freqs: [293.66, 369.99, 440.0] },
+      { time: 0.28, duration: 0.24, freqs: [369.99, 440.0, 554.37] },
+      { time: 0.56, duration: 0.35, freqs: [392.00, 493.88, 587.33] },
+      { time: 0.95, duration: 2.80, freqs: [293.66, 440.0, 587.33, 739.99, 880.0] },
+    ];
+
+    stabs.forEach((stab) => {
+      const stabTime = now + stab.time;
+      stab.freqs.forEach((freq, idx) => {
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+        osc.type = idx % 2 === 0 ? 'sawtooth' : 'triangle';
+        osc.frequency.setValueAtTime(freq, stabTime);
+
+        gain.gain.setValueAtTime(0.001, stabTime);
+        gain.gain.linearRampToValueAtTime(0.25 / stab.freqs.length, stabTime + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, stabTime + stab.duration);
+
+        osc.connect(gain);
+        gain.connect(stingerMaster);
+        osc.start(stabTime);
+        osc.stop(stabTime + stab.duration + 0.05);
+      });
+    });
+
+    // Sub-bass kinetic body punch on climax resolution
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(80, now + 0.95);
+    subOsc.frequency.exponentialRampToValueAtTime(32, now + 1.45);
+    subGain.gain.setValueAtTime(0.65, now + 0.95);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 1.45);
+    subOsc.connect(subGain);
+    subGain.connect(stingerMaster);
+    subOsc.start(now + 0.95);
+    subOsc.stop(now + 1.48);
+
+    // Shimmering crystal chimes ringing out
+    const chimes = [1760.0, 2217.46, 2637.02, 3520.0];
+    chimes.forEach((cFreq, cIdx) => {
+      const cTime = now + 1.05 + cIdx * 0.08;
+      const cOsc = this.ctx!.createOscillator();
+      const cGain = this.ctx!.createGain();
+      cOsc.type = 'sine';
+      cOsc.frequency.setValueAtTime(cFreq, cTime);
+      cGain.gain.setValueAtTime(0.14, cTime);
+      cGain.gain.exponentialRampToValueAtTime(0.001, cTime + 1.8);
+      cOsc.connect(cGain);
+      cGain.connect(stingerMaster);
+      cOsc.start(cTime);
+      cOsc.stop(cTime + 1.85);
+    });
+  }
+
+  /**
+   * Player Respawn:
+   * 1. Stops any active boss music
+   * 2. Resets and restarts Overworld Chill music from 0:00
+   */
+  public handlePlayerRespawn() {
+    if (this.victoryTimeoutId) {
+      clearTimeout(this.victoryTimeoutId);
+      this.victoryTimeoutId = null;
+    }
+    this.isVictoryPlaying = false;
+    this.currentBossMusic = null;
+
+    const bosses: ('titan' | 'dragon' | 'worm')[] = ['titan', 'dragon', 'worm'];
+    bosses.forEach((type) => {
+      const b = this.getBossAudio(type);
+      if (b) {
+        b.pause();
+        b.currentTime = 0;
+        b.volume = 0;
+      }
+      const node = this.bossNodes[type];
+      if (node?.filter && this.ctx) {
+        node.filter.frequency.setValueAtTime(20000, this.ctx.currentTime);
+      }
+    });
+
+    this.resetAndPlayChillMusic(0);
+  }
+
+  public resetAndPlayChillMusic(index = 0) {
+    this.isVictoryPlaying = false;
+    this.currentBossMusic = null;
+    this.currentBgmMode = 'overworld';
+    this.initAudioElements();
+
+    const bosses: ('titan' | 'dragon' | 'worm')[] = ['titan', 'dragon', 'worm'];
+    bosses.forEach((type) => {
+      const b = this.getBossAudio(type);
+      if (b) {
+        b.pause();
+        b.currentTime = 0;
+        b.volume = 0;
+      }
+    });
+
+    this.chillTracks.forEach((t) => {
+      t.pause();
+      t.currentTime = 0;
+      t.volume = 0;
+    });
+
+    this.currentChillIndex = index % Math.max(1, this.chillTracks.length);
+    const activeTrack = this.getCurrentChillAudio();
+    if (activeTrack && this.isMusicPlaying && !this.isMuted) {
+      activeTrack.currentTime = 0;
+      activeTrack.play().catch(() => {});
+      this.crossfadeBgm('overworld', 1.5);
+    }
+  }
+
+  public crossfadeBgm(
+    targetMode: 'overworld' | 'titan' | 'dragon' | 'worm' | 'none',
+    duration = 1.5,
+    options?: { continueFromPause?: boolean; onComplete?: () => void }
+  ) {
+    this.initAudioElements();
 
     if (this.crossfadeAnimId !== null) {
       cancelAnimationFrame(this.crossfadeAnimId);
@@ -153,38 +518,35 @@ class SoundManager {
 
     this.currentBgmMode = targetMode;
 
+    const currentChill = this.getCurrentChillAudio();
+    const allBossAudios = [this.titanAudio, this.wormAudio, this.dragonAudio].filter(Boolean) as HTMLAudioElement[];
+    const targetBossAudio = targetMode !== 'overworld' && targetMode !== 'none' ? this.getBossAudio(targetMode) : null;
+
     if (this.isMuted || !this.isMusicPlaying) {
-      this.relaxAudio.volume = 0;
-      this.bossTitanAudio.volume = 0;
+      if (currentChill) currentChill.volume = 0;
+      allBossAudios.forEach((b) => (b.volume = 0));
       if (targetMode === 'none') {
-        this.relaxAudio.pause();
-        this.bossTitanAudio.pause();
+        if (currentChill) currentChill.pause();
+        allBossAudios.forEach((b) => b.pause());
       }
+      options?.onComplete?.();
       return;
     }
 
-    const startRelaxVol = this.relaxAudio.volume;
-    const startTitanVol = this.bossTitanAudio.volume;
+    const startChillVol = currentChill ? currentChill.volume : 0;
+    const startBossVols = new Map<HTMLAudioElement, number>();
+    allBossAudios.forEach((b) => startBossVols.set(b, b.volume));
 
-    let targetRelaxVol = 0;
-    let targetTitanVol = 0;
+    const targetChillVol = targetMode === 'overworld' ? this.masterMusicVolume : 0;
 
-    if (targetMode === 'overworld') {
-      targetRelaxVol = 1.0;
-      targetTitanVol = 0.0;
-      if (this.relaxAudio.paused) {
-        this.relaxAudio.play().catch(() => {});
+    if (targetMode === 'overworld' && currentChill) {
+      if (currentChill.paused) {
+        currentChill.play().catch(() => {});
       }
-    } else if (targetMode === 'titan') {
-      targetRelaxVol = 0.0;
-      targetTitanVol = 1.0;
-      if (this.bossTitanAudio.paused) {
-        this.bossTitanAudio.play().catch(() => {});
+    } else if (targetBossAudio) {
+      if (targetBossAudio.paused) {
+        targetBossAudio.play().catch(() => {});
       }
-    } else {
-      // none
-      targetRelaxVol = 0.0;
-      targetTitanVol = 0.0;
     }
 
     const startTime = performance.now();
@@ -193,36 +555,39 @@ class SoundManager {
     const step = (now: number) => {
       const elapsed = now - startTime;
       const progress = Math.min(1, elapsed / durationMs);
-      // Smoothstep 3p^2 - 2p^3 for natural acoustic transition
-      const ease = progress * progress * (3 - 2 * progress);
+      const ease = progress * progress * (3 - 2 * progress); // smoothstep
 
-      if (this.relaxAudio) {
-        this.relaxAudio.volume = Math.max(
+      if (currentChill) {
+        currentChill.volume = Math.max(
           0,
-          Math.min(1, startRelaxVol + (targetRelaxVol - startRelaxVol) * ease)
+          Math.min(1, startChillVol + (targetChillVol - startChillVol) * ease)
         );
       }
-      if (this.bossTitanAudio) {
-        this.bossTitanAudio.volume = Math.max(
-          0,
-          Math.min(1, startTitanVol + (targetTitanVol - startTitanVol) * ease)
-        );
-      }
+
+      allBossAudios.forEach((b) => {
+        const startB = startBossVols.get(b) || 0;
+        const targetB = b === targetBossAudio ? this.masterMusicVolume : 0;
+        b.volume = Math.max(0, Math.min(1, startB + (targetB - startB) * ease));
+      });
 
       if (progress < 1) {
         this.crossfadeAnimId = requestAnimationFrame(step);
       } else {
         this.crossfadeAnimId = null;
         if (targetMode === 'overworld') {
-          this.bossTitanAudio?.pause();
-          if (this.relaxAudio) this.relaxAudio.volume = 1.0;
-        } else if (targetMode === 'titan') {
-          this.relaxAudio?.pause();
-          if (this.bossTitanAudio) this.bossTitanAudio.volume = 1.0;
+          allBossAudios.forEach((b) => b.pause());
+          if (currentChill) currentChill.volume = targetChillVol;
+        } else if (targetBossAudio) {
+          if (currentChill) currentChill.pause();
+          allBossAudios.forEach((b) => {
+            if (b !== targetBossAudio) b.pause();
+          });
+          targetBossAudio.volume = this.masterMusicVolume;
         } else {
-          this.relaxAudio?.pause();
-          this.bossTitanAudio?.pause();
+          if (currentChill) currentChill.pause();
+          allBossAudios.forEach((b) => b.pause());
         }
+        options?.onComplete?.();
       }
     };
 
@@ -298,23 +663,26 @@ class SoundManager {
       this.musicGain.gain.setValueAtTime(muted ? 0 : 0.2, this.ctx.currentTime);
       this.sfxGain.gain.setValueAtTime(muted ? 0 : 0.42, this.ctx.currentTime);
     }
+    const currentChill = this.getCurrentChillAudio();
+    const currentBoss = this.getCurrentBossAudio();
+
     if (muted) {
-      if (this.relaxAudio) this.relaxAudio.volume = 0;
-      if (this.bossTitanAudio) this.bossTitanAudio.volume = 0;
+      if (currentChill) currentChill.volume = 0;
+      if (this.titanAudio) this.titanAudio.volume = 0;
+      if (this.wormAudio) this.wormAudio.volume = 0;
+      if (this.dragonAudio) this.dragonAudio.volume = 0;
     } else {
-      if (this.isMusicPlaying) {
-        if (this.currentBossMusic === 'titan') {
-          if (this.bossTitanAudio) {
-            this.bossTitanAudio.volume = 1.0;
-            if (this.bossTitanAudio.paused) this.bossTitanAudio.play().catch(() => {});
-          }
-          if (this.relaxAudio) this.relaxAudio.volume = 0;
-        } else {
-          if (this.relaxAudio) {
-            this.relaxAudio.volume = 1.0;
-            if (this.relaxAudio.paused) this.relaxAudio.play().catch(() => {});
-          }
-          if (this.bossTitanAudio) this.bossTitanAudio.volume = 0;
+      if (this.isMusicPlaying && !this.isVictoryPlaying) {
+        if (this.currentBossMusic && currentBoss) {
+          currentBoss.volume = this.masterMusicVolume;
+          if (currentBoss.paused) currentBoss.play().catch(() => {});
+          if (currentChill) currentChill.volume = 0;
+        } else if (currentChill) {
+          currentChill.volume = this.masterMusicVolume;
+          if (currentChill.paused) currentChill.play().catch(() => {});
+          if (this.titanAudio) this.titanAudio.volume = 0;
+          if (this.wormAudio) this.wormAudio.volume = 0;
+          if (this.dragonAudio) this.dragonAudio.volume = 0;
         }
       }
     }
@@ -337,7 +705,7 @@ class SoundManager {
     const now = this.ctx.currentTime;
 
     if (combo === 3) {
-      // Finisher: Massive 360Â° Greatsword cleave with metallic blade ring + deep sub-bass thump
+      // Finisher: Massive 360Ã‚Â° Greatsword cleave with metallic blade ring + deep sub-bass thump
       this.playNoiseBurst({
         duration: 0.26,
         gain: 0.38,
@@ -444,7 +812,7 @@ class SoundManager {
   // EPIC CHARACTER ACTIVE SKILL AUDIO SYNTHESIZERS
   // ==========================================
 
-  // 1. TEBAS 360Â° (Full 360Â° Greatsword Cleave Finisher)
+  // 1. TEBAS 360Ã‚Â° (Full 360Ã‚Â° Greatsword Cleave Finisher)
   // Concussive sub-bass punch (75Hz -> 26Hz) + high-velocity razor steel whoosh + resonant harmonic blade ring
   public playSkillTebas360() {
     if (this.isMuted) return;
@@ -488,7 +856,7 @@ class SoundManager {
     ringOsc.stop(now + 0.39);
   }
 
-  // 2. PUSARAN BADAI BAJA (Skill 1: Whirlwind Cyclone 360Â°)
+  // 2. PUSARAN BADAI BAJA (Skill 1: Whirlwind Cyclone 360Ã‚Â°)
   // Roaring elemental tornado bass drone + multi-layer swirling wind vortex + rapid steel blade friction slices
   public playSkillPusaran() {
     if (this.isMuted) return;
@@ -1131,7 +1499,7 @@ class SoundManager {
     const now = this.ctx.currentTime;
 
     if (combo === 3) {
-      // Finisher: 360Â° Shadow Whirlwind double scissor slice
+      // Finisher: 360Ã‚Â° Shadow Whirlwind double scissor slice
       this.playNoiseBurst({
         duration: 0.22,
         gain: 0.36,
@@ -1649,248 +2017,7 @@ class SoundManager {
     osc.stop(now + 0.3);
   }
 
-  // ==========================================
-  // DYNAMIC BOSS BGM SYSTEM
-  // ==========================================
-
-  /**
-   * Automatically triggered when boss encounter begins.
-   * Plays Heavy Orchestral War BGM for Titan or Epic Choir Dragon BGM for Ignis.
-   */
-  public playBossMusic(bossType: 'titan' | 'dragon' | 'worm') {
-    if (this.currentBossMusic === bossType) return;
-    this.initContext();
-    this.initAudioElements();
-
-    // Clear existing boss music loop if switching
-    if (this.bossMusicInterval) {
-      clearInterval(this.bossMusicInterval);
-      this.bossMusicInterval = null;
-    }
-
-    this.currentBossMusic = bossType;
-    this.bossStep = 0;
-
-    if (bossType === 'titan') {
-      // 1. DYNAMIC MP3 CROSSFADE TO TITAN BOSS BGM (Titan's Heavy Tread)
-      // Smoothly crossfade from Overworld BGM (Where the River Bends) 1.0 -> 0.0 and fade in Titan BGM 0.0 -> 1.0 over 1.5s
-      this.crossfadeBgm('titan', 1.5);
-      return;
-    }
-
-    // Duck overworld MP3 music during dragon / worm encounter
-    this.crossfadeBgm('none', 1.2);
-
-    if (!this.ctx || !this.bossMusicGain) return;
-
-    // Smoothly duck overworld ambient music during boss encounter
-    if (this.musicGain) {
-      const now = this.ctx.currentTime;
-      this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, now);
-      this.musicGain.gain.linearRampToValueAtTime(0.04, now + 1.2);
-    }
-
-    // Bring up boss music volume
-    const now = this.ctx.currentTime;
-    this.bossMusicGain.gain.setValueAtTime(0.01, now);
-    this.bossMusicGain.gain.linearRampToValueAtTime(0.36, now + 0.8);
-
-    if (bossType === 'dragon') {
-      // 2. EPIC CHOIR DRAGON BATTLE BGM (Ignis Primal Dragon)
-      // Furious 132 BPM Battle Tempo: Fast driving double-kick galloping drums, synthesized epic choir pads, & brass fanfare
-      const playDragonStep = () => {
-        if (!this.ctx || !this.bossMusicGain || this.isMuted || this.currentBossMusic !== 'dragon') return;
-        const tNow = this.ctx.currentTime;
-        const s = this.bossStep % 8;
-        this.bossStep++;
-
-        // Galloping Double-Kick War Drums on every step
-        const kick = this.ctx.createOscillator();
-        const kickGain = this.ctx.createGain();
-        kick.type = 'sine';
-        kick.frequency.setValueAtTime(155, tNow);
-        kick.frequency.exponentialRampToValueAtTime(42, tNow + 0.22);
-        kickGain.gain.setValueAtTime(0.5, tNow);
-        kickGain.gain.exponentialRampToValueAtTime(0.001, tNow + 0.24);
-        kick.connect(kickGain);
-        kickGain.connect(this.bossMusicGain!);
-        kick.start(tNow);
-        kick.stop(tNow + 0.25);
-
-        // Dragon fire burst sizzle on syncopated beats
-        if (s % 2 === 1) {
-          this.playNoiseBurst({
-            duration: 0.14,
-            gain: 0.22,
-            filterType: 'bandpass',
-            freqStart: 3200,
-            freqEnd: 700,
-          });
-        }
-
-        // Synthesized Epic Vocal Choir Pads (E-minor, C-major, A-minor, B7-dominant)
-        const chordIndex = Math.floor((this.bossStep / 8) % 4);
-        const choirChords = [
-          [164.81, 196.0, 246.94, 329.63], // Em
-          [130.81, 164.81, 196.0, 261.63], // C
-          [110.0, 164.81, 220.0, 261.63],  // Am
-          [123.47, 155.56, 184.99, 246.94],// B7
-        ];
-        const chord = choirChords[chordIndex];
-
-        if (s === 0) {
-          chord.forEach((freq, idx) => {
-            // Choir formant 1 (Ah / Oh vowel fundamental)
-            const osc = this.ctx!.createOscillator();
-            const gain = this.ctx!.createGain();
-            osc.type = idx % 2 === 0 ? 'sine' : 'sawtooth';
-            osc.frequency.setValueAtTime(freq, tNow);
-            gain.gain.setValueAtTime(0.001, tNow);
-            gain.gain.linearRampToValueAtTime(0.14, tNow + 0.35);
-            gain.gain.exponentialRampToValueAtTime(0.001, tNow + 3.2);
-            osc.connect(gain);
-            gain.connect(this.bossMusicGain!);
-            osc.start(tNow);
-            osc.stop(tNow + 3.3);
-
-            // Harmonic Choir Shimmer (High formant octave)
-            const shimmer = this.ctx!.createOscillator();
-            const sGain = this.ctx!.createGain();
-            shimmer.type = 'triangle';
-            shimmer.frequency.setValueAtTime(freq * 2.0, tNow + 0.1);
-            sGain.gain.setValueAtTime(0.001, tNow + 0.1);
-            sGain.gain.linearRampToValueAtTime(0.08, tNow + 0.4);
-            sGain.gain.exponentialRampToValueAtTime(0.001, tNow + 2.8);
-            shimmer.connect(sGain);
-            sGain.connect(this.bossMusicGain!);
-            shimmer.start(tNow + 0.1);
-            shimmer.stop(tNow + 2.9);
-          });
-        }
-      };
-
-      playDragonStep();
-      this.bossMusicInterval = setInterval(playDragonStep, 450); // 132 BPM
-    } else if (bossType === 'worm') {
-      // 3. INTENSE DESERT TRIBAL WAR DRUM BGM (Jarrus, Sang Cacing Purba Solaria)
-      // Driving 120 BPM tempo: syncopated Middle-Eastern darbuka / djembe tribal drums,
-      // rattlesnake sand hisses, and menacing Phrygian dominant desert string / brass stabs
-      const playWormStep = () => {
-        if (!this.ctx || !this.bossMusicGain || this.isMuted || this.currentBossMusic !== 'worm') return;
-        const tNow = this.ctx.currentTime;
-        const s = this.bossStep % 8;
-        this.bossStep++;
-
-        // Low-tuned Subterranean Tribal Darbuka / Djembe Kick (beats 0, 3, 5)
-        if (s === 0 || s === 3 || s === 5) {
-          const drum = this.ctx.createOscillator();
-          const dGain = this.ctx.createGain();
-          drum.type = 'triangle';
-          const startF = s === 0 ? 165 : 125;
-          drum.frequency.setValueAtTime(startF, tNow);
-          drum.frequency.exponentialRampToValueAtTime(38, tNow + 0.32);
-          dGain.gain.setValueAtTime(0.55, tNow);
-          dGain.gain.exponentialRampToValueAtTime(0.001, tNow + 0.35);
-          drum.connect(dGain);
-          dGain.connect(this.bossMusicGain!);
-          drum.start(tNow);
-          drum.stop(tNow + 0.36);
-
-          this.playNoiseBurst({
-            duration: 0.2,
-            gain: 0.28,
-            filterType: 'lowpass',
-            freqStart: 450,
-            freqEnd: 80,
-          });
-        }
-
-        // Desert Rattlesnake & Shaker Accent (syncopated off-beats 1, 2, 4, 7)
-        if (s === 1 || s === 2 || s === 4 || s === 7) {
-          this.playNoiseBurst({
-            duration: 0.12,
-            gain: 0.24,
-            filterType: 'highpass',
-            freqStart: 4500,
-            freqEnd: 2200,
-          });
-        }
-
-        // Menacing Phrygian Dominant Desert Synth Stabs (D, Eb, F#, G, A, Bb)
-        const chordIndex = Math.floor((this.bossStep / 8) % 4);
-        const desertChords = [
-          [146.83, 185.0, 220.0],  // D major (Phrygian tonic with F#)
-          [155.56, 196.0, 233.08], // Eb major (Phrygian bII)
-          [146.83, 174.61, 220.0], // D minor
-          [130.81, 164.81, 196.0], // C minor
-        ];
-        const chord = desertChords[chordIndex];
-
-        if (s === 0 || s === 4) {
-          chord.forEach((freq, idx) => {
-            const stab = this.ctx!.createOscillator();
-            const sGain = this.ctx!.createGain();
-            stab.type = idx === 0 ? 'sawtooth' : 'triangle';
-            stab.frequency.setValueAtTime(freq, tNow);
-            sGain.gain.setValueAtTime(0.001, tNow);
-            sGain.gain.linearRampToValueAtTime(0.16, tNow + 0.05);
-            sGain.gain.exponentialRampToValueAtTime(0.001, tNow + 0.65);
-            stab.connect(sGain);
-            sGain.connect(this.bossMusicGain!);
-            stab.start(tNow);
-            stab.stop(tNow + 0.7);
-          });
-        }
-      };
-
-      playWormStep();
-      this.bossMusicInterval = setInterval(playWormStep, 500); // 120 BPM
-    }
-  }
-
-  /**
-   * Smoothly stops Boss BGM and restores overworld ambient music.
-   */
-  public stopBossMusic() {
-    if (!this.currentBossMusic) return;
-    this.currentBossMusic = null;
-
-    if (this.bossMusicInterval) {
-      clearInterval(this.bossMusicInterval);
-      this.bossMusicInterval = null;
-    }
-
-    // Smoothly restore Overworld MP3 BGM (Where the River Bends) over 1.5s
-    if (this.isMusicPlaying) {
-      this.crossfadeBgm('overworld', 1.5);
-    } else {
-      this.crossfadeBgm('none', 1.0);
-    }
-
-    // Fade out procedural boss music smoothly
-    if (this.ctx && this.bossMusicGain) {
-      const now = this.ctx.currentTime;
-      this.bossMusicGain.gain.setValueAtTime(this.bossMusicGain.gain.value, now);
-      this.bossMusicGain.gain.linearRampToValueAtTime(0.001, now + 1.2);
-    }
-
-    // Restore procedural overworld ambient music gain if used
-    if (this.ctx && this.musicGain && this.isMusicPlaying) {
-      const now = this.ctx.currentTime;
-      this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, now);
-      this.musicGain.gain.linearRampToValueAtTime(0.3, now + 1.5);
-    }
-  }
-
-  public playBossBGM(bossType: 'titan' | 'dragon' | 'worm') {
-    return this.playBossMusic(bossType);
-  }
-
-  public getCurrentBossMusic(): 'titan' | 'dragon' | 'worm' | null {
-    return this.currentBossMusic;
-  }
-
-
+  // AMBIENT & CREATURE SFX
   // Sandworm Burrow, Burst Out & Acid Spit SFX
   public playWormBurrow() {
     if (this.isMuted) return;

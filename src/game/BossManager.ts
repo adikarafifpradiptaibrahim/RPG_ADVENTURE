@@ -157,8 +157,9 @@ export class BossManager {
     if (!isIgnis && !isTitan && !isWorm) return false;
 
     if (enemy.data.hp <= 0) {
-      if (isTitan && soundManager.getCurrentBossMusic() === 'titan') {
-        soundManager.stopBossMusic();
+      if (soundManager.getCurrentBossMusic()) {
+        const config = isIgnis ? IGNIS_DRAGON_BOSS_CONFIG : (isWorm ? JARRUS_WORM_BOSS_CONFIG : ANCIENT_TITAN_BOSS_CONFIG);
+        soundManager.playBossVictory(config.nameId || config.name);
       }
       return false;
     }
@@ -733,8 +734,8 @@ export class BossManager {
     this.skillCooldowns.clear();
     this.playerDebuffs.isStunned = false;
     this.playerDebuffs.isBurned = false;
-    if (soundManager.getCurrentBossMusic() === 'titan') {
-      soundManager.stopBossMusic();
+    if (soundManager.getCurrentBossMusic()) {
+      soundManager.evadeBossMusic();
     }
   }
 }

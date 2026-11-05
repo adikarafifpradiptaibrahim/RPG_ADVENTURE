@@ -6,3 +6,4 @@ import { soundManager } from '../game/audio';
 export { MainMenuModal, ClassSelectModal, soundManager };
 export type { MultiplayerStartOptions };
 export default MainMenuModal;
+

@@ -86,6 +86,7 @@ export interface GameEngineCallbacks {
   onNearbyPrompt: (prompt: string | null, action?: () => void) => void;
   onEnemyStatsUpdate: (enemies: { id: string; name: string; hp: number; maxHp: number; level: number }[]) => void;
   onBossEncounter: (bossActive: boolean, bossName?: string, bossHp?: number, bossMaxHp?: number) => void;
+  onBossDefeated?: (bossName?: string) => void;
   onSpectatorModeChange?: (active: boolean) => void;
   onHunterWeaponSwitch?: (mode: 'dagger' | 'bow') => void;
   onCastingUpdate?: (casting: { isCasting: boolean; progress: number; text: string } | null) => void;
@@ -531,11 +532,11 @@ export class GameEngine {
       this.playerTier = newTier;
       this.rebuildPlayerMesh();
       const tierTitles: Record<number, string> = {
-        2: '✦ EVOLUSI TINGKAT 2 (Level 5)! Zirah & Efek Serangan Diperkuat!',
-        3: '✦ EVOLUSI TINGKAT 3 (Level 10)! Mahkota Emas & Gelombang Serangan Ganda!',
-        4: '✦ EVOLUSI TINGKAT 4 (Level 25)! Quad-Wings Astral & Skill Meledak Dahsyat!',
-        5: '✦ EVOLUSI TINGKAT 5 (Level 50)! Hexa-Wings Kosmik & Mandala Serangan Pamungkas!',
-        6: '✦ EVOLUSI DEWATA AGUNG (Level 100)! Octa-Wings Ilahi & Aura Keabadian Tanpa Batas!',
+        2: 'âœ¦ EVOLUSI TINGKAT 2 (Level 5)! Zirah & Efek Serangan Diperkuat!',
+        3: 'âœ¦ EVOLUSI TINGKAT 3 (Level 10)! Mahkota Emas & Gelombang Serangan Ganda!',
+        4: 'âœ¦ EVOLUSI TINGKAT 4 (Level 25)! Quad-Wings Astral & Skill Meledak Dahsyat!',
+        5: 'âœ¦ EVOLUSI TINGKAT 5 (Level 50)! Hexa-Wings Kosmik & Mandala Serangan Pamungkas!',
+        6: 'âœ¦ EVOLUSI DEWATA AGUNG (Level 100)! Octa-Wings Ilahi & Aura Keabadian Tanpa Batas!',
       };
       if (tierTitles[newTier]) {
         this.callbacks.onAddFloatingText(tierTitles[newTier], '#facc15', 'crit');
@@ -635,7 +636,7 @@ export class GameEngine {
       ctx.font = 'bold 18px sans-serif';
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
-      const classLabel = charClass === 'warrior' ? '⚔️ Ksatria' : charClass === 'mage' ? '🔮 Penyihir' : '🏹 Pemburu';
+      const classLabel = charClass === 'warrior' ? 'âš”ï¸ Ksatria' : charClass === 'mage' ? 'ðŸ”® Penyihir' : 'ðŸ¹ Pemburu';
       ctx.fillText(`Lv.${level} ${name}`, 128, 28);
 
       ctx.font = '12px sans-serif';
@@ -1595,6 +1596,7 @@ export class GameEngine {
       }
     }
     this.bossManager.clearDebuffs();
+    soundManager.handlePlayerRespawn();
     const targetY = Math.max(0.5, this.world.getTerrainHeight(this.lastVisitedTownPos.x, this.lastVisitedTownPos.z) + 0.5);
     this.playerPos.set(this.lastVisitedTownPos.x, targetY, this.lastVisitedTownPos.z);
     this.playerVel.set(0, 0, 0);
@@ -1623,7 +1625,7 @@ export class GameEngine {
       );
     } catch {}
     soundManager.playCheckpointUnlock();
-    this.callbacks.onAddFloatingText(`🌟 Wilayah Terbuka: ${cp.nameId}!`, '#00e5ff', 'crit');
+    this.callbacks.onAddFloatingText(`ðŸŒŸ Wilayah Terbuka: ${cp.nameId}!`, '#00e5ff', 'crit');
     if (this.callbacks.onCheckpointUnlocked) {
       this.callbacks.onCheckpointUnlocked(cp.id, cp.nameId, [cp.position[0], cp.position[2]]);
     }
@@ -1908,10 +1910,10 @@ export class GameEngine {
     }
     if (this.hunterWeaponMode === 'bow') {
       soundManager.playBowDraw();
-      this.callbacks.onAddFloatingText('Mode Senjata: Busur & Panah Pemburu 🏹', '#34d399', 'info');
+      this.callbacks.onAddFloatingText('Mode Senjata: Busur & Panah Pemburu ðŸ¹', '#34d399', 'info');
     } else {
       soundManager.playRogueDoubleSlash();
-      this.callbacks.onAddFloatingText('Mode Senjata: Belati Bayangan 🗡️', '#10b981', 'info');
+      this.callbacks.onAddFloatingText('Mode Senjata: Belati Bayangan ðŸ—¡ï¸', '#10b981', 'info');
     }
     if (this.callbacks.onHunterWeaponSwitch) {
       this.callbacks.onHunterWeaponSwitch(this.hunterWeaponMode);
@@ -2138,10 +2140,10 @@ export class GameEngine {
 
     soundManager.playCheckpointUnlock();
     const floorName = targetFloor === 3
-      ? 'Lantai 3: Anjungan Puncak Observatorium 🌌'
+      ? 'Lantai 3: Anjungan Puncak Observatorium ðŸŒŒ'
       : targetFloor === 2
-      ? 'Lantai 2: Laboratorium Alkimia & Kristal Petir 🧪'
-      : 'Lantai 1: Perpustakaan Kitab Kuno & Altar 📚';
+      ? 'Lantai 2: Laboratorium Alkimia & Kristal Petir ðŸ§ª'
+      : 'Lantai 1: Perpustakaan Kitab Kuno & Altar ðŸ“š';
     this.callbacks.onAddFloatingText(floorName, '#38bdf8', 'info');
   }
 
@@ -2981,7 +2983,7 @@ export class GameEngine {
         }
 
         if (isLast && !isRemote) {
-          this.callbacks.onAddFloatingText('☄️ Starfall Celestial Rain!', '#f59e0b', 'crit');
+          this.callbacks.onAddFloatingText('â˜„ï¸ Starfall Celestial Rain!', '#f59e0b', 'crit');
         }
       },
       onSpawnSparks: (pos, color, count, speed) => {
@@ -3192,9 +3194,9 @@ export class GameEngine {
     const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
     const spawnPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(1.05)).add(new THREE.Vector3(0, 1.2, 0));
 
-    // Blade 1: Emerald razor arc tilted +40°
+    // Blade 1: Emerald razor arc tilted +40Â°
     this.spawnCrescentSlash(spawnPos, fwd, 0.7, 0x10b981, 1.35, Math.PI * 0.75);
-    // Blade 2: Shadow-violet razor arc tilted -40°
+    // Blade 2: Shadow-violet razor arc tilted -40Â°
     this.spawnCrescentSlash(spawnPos, fwd, -0.7, 0x6366f1, 1.35, Math.PI * 0.75);
 
     // Focal intersection starburst
@@ -3306,7 +3308,7 @@ export class GameEngine {
     this.triggerCameraShake(0.18);
   }
 
-  // Helper to dynamically align player facing direction to active movement or closest 360° enemy
+  // Helper to dynamically align player facing direction to active movement or closest 360Â° enemy
   private alignPlayerOrientationToInputOrTarget(maxTargetRange = 18): void {
     let inputForward = 0;
     let inputRight = 0;
@@ -3529,9 +3531,9 @@ export class GameEngine {
           const dot = playerForward.dot(toEnemy);
 
           // 360-degree hit detection:
-          // 1. If is360 is true (or combo 3 spin finisher), hits all 360° (front, left, right, back!)
-          // 2. In close combat radius (<= 2.4m), hits all 360° regardless of angle
-          // 3. Otherwise for extended reach, covers a wide sweeping ~220° arc (dot > -0.35)
+          // 1. If is360 is true (or combo 3 spin finisher), hits all 360Â° (front, left, right, back!)
+          // 2. In close combat radius (<= 2.4m), hits all 360Â° regardless of angle
+          // 3. Otherwise for extended reach, covers a wide sweeping ~220Â° arc (dot > -0.35)
           const hit =
             params.is360 ||
             dist <= 2.4 ||
@@ -3552,7 +3554,7 @@ export class GameEngine {
   public performBasicAttack() {
     if (this.isControlsLocked || this.isAttacking || this.isCasting) return;
 
-    // Align player facing to movement direction or closest 360° enemy
+    // Align player facing to movement direction or closest 360Â° enemy
     this.alignPlayerOrientationToInputOrTarget(this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' ? 22 : 16);
 
     const now = performance.now();
@@ -3579,7 +3581,7 @@ export class GameEngine {
 
     if (this.charClass === 'warrior') {
       if (currentCombo === 2) {
-        // Combo 3 Finisher: Full 360° Spin Cleave (Hits front, left, right, back!)
+        // Combo 3 Finisher: Full 360Â° Spin Cleave (Hits front, left, right, back!)
         this.attackType = 'basic_spin_360';
         this.attackDuration = 0.42;
         this.attackTimer = 0.42;
@@ -3593,7 +3595,7 @@ export class GameEngine {
           knockback: 1.0,
         });
       } else {
-        // Combo 1 & 2: Wide sweeping cleaves (front, flanks, and 360° close combat)
+        // Combo 1 & 2: Wide sweeping cleaves (front, flanks, and 360Â° close combat)
         this.attackType = currentCombo === 0 ? 'basic_slash_1' : 'basic_slash_2';
         this.attackDuration = 0.35;
         this.attackTimer = 0.35;
@@ -3624,7 +3626,7 @@ export class GameEngine {
       } else {
         // Hunter Daggers Melee Combat
         if (currentCombo === 2) {
-          // Combo 3 Finisher: 360° Shadow Blade Whirlwind Cutter (Depan, Belakang, Kiri, Kanan!)
+          // Combo 3 Finisher: 360Â° Shadow Blade Whirlwind Cutter (Depan, Belakang, Kiri, Kanan!)
           this.attackType = 'basic_spin_360';
           this.attackDuration = 0.32;
           this.attackTimer = 0.32;
@@ -3638,7 +3640,7 @@ export class GameEngine {
             knockback: 0.5,
           });
         } else {
-          // Rapid dual dagger slashes (covers front, flanks, and close 360°)
+          // Rapid dual dagger slashes (covers front, flanks, and close 360Â°)
           this.attackType = currentCombo === 0 ? 'basic_slash_1' : 'basic_slash_2';
           this.attackDuration = 0.22;
           this.attackTimer = 0.22;
@@ -3659,7 +3661,7 @@ export class GameEngine {
   public castSkill(skillSlot: 1 | 2 | 3) {
     if (this.isControlsLocked || this.isCasting) return;
 
-    // Dynamically align facing to movement or closest 360° enemy
+    // Dynamically align facing to movement or closest 360Â° enemy
     this.alignPlayerOrientationToInputOrTarget(this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' ? 22 : 16);
 
     if (this.gameMode === 'multiplayer') {
@@ -3684,7 +3686,7 @@ export class GameEngine {
         }
 
         if (this.charClass === 'warrior') {
-          // Warrior: Pusaran Badai Baja (Full 360° Whirlwind)
+          // Warrior: Pusaran Badai Baja (Full 360Â° Whirlwind)
           soundManager.playSkillPusaran();
           this.spawnWarriorWhirlwindVfx();
           this.isAttacking = true;
@@ -3700,7 +3702,7 @@ export class GameEngine {
               this.damageEnemy(enemy, skillDmg, true, 0.8);
             }
           });
-          this.callbacks.onAddFloatingText('Pusaran Badai Baja 360°!', '#fbbf24', 'crit');
+          this.callbacks.onAddFloatingText('Pusaran Badai Baja 360Â°!', '#fbbf24', 'crit');
         } else if (this.charClass === 'mage') {
           // Mage: Starfall (Hujan Meteor 8-Meteor Barrage with 1.5s Cast Time, Radial Magic Circle & Movement Lock)
           this.startStarfallCasting();
@@ -3722,9 +3724,9 @@ export class GameEngine {
                 this.spawnHunterArrow(arrowDir, true, 1.45);
               }, idx * 40);
             });
-            this.callbacks.onAddFloatingText('Hujan Panah Badai! 🏹', '#34d399', 'crit');
+            this.callbacks.onAddFloatingText('Hujan Panah Badai! ðŸ¹', '#34d399', 'crit');
           } else {
-            // Hunter Daggers Skill 1: Tarian 1000 Belati (Shadow Flurry 360°)
+            // Hunter Daggers Skill 1: Tarian 1000 Belati (Shadow Flurry 360Â°)
             soundManager.playRogueShadowFlurry();
             this.spawnRogueShadowFlurryVfx();
             this.isAttacking = true;
@@ -3739,7 +3741,7 @@ export class GameEngine {
                 this.damageEnemy(enemy, skillDmg, true, 0.4);
               }
             });
-            this.callbacks.onAddFloatingText('Tarian 1000 Belati 360°!', '#34d399', 'crit');
+            this.callbacks.onAddFloatingText('Tarian 1000 Belati 360Â°!', '#34d399', 'crit');
           }
         }
 
@@ -3824,7 +3826,7 @@ export class GameEngine {
               this.spawnHunterArrow(forward, true, 2.0);
             }, 80);
 
-            this.callbacks.onAddFloatingText('Loncat Akrobatik & Tembakan Jitu! 🦅', '#34d399', 'info');
+            this.callbacks.onAddFloatingText('Loncat Akrobatik & Tembakan Jitu! ðŸ¦…', '#34d399', 'info');
           } else {
             // Hunter Daggers Skill 2: Langkah Siluman Bayangan
             soundManager.playDash();
@@ -3907,7 +3909,7 @@ export class GameEngine {
             const newHp = Math.min(stats.maxHp, stats.hp + healAmt);
             this.speedBuffTimer = 8.0;
 
-            this.callbacks.onAddFloatingText(`+${healAmt} HP & Panah Bom Racun! 💣`, '#34d399', 'heal');
+            this.callbacks.onAddFloatingText(`+${healAmt} HP & Panah Bom Racun! ðŸ’£`, '#34d399', 'heal');
             return { ...stats, mp: stats.mp - 25, hp: newHp };
           } else {
             // Hunter Daggers Skill 3: Kabut Asap & Eliksir Siluman
@@ -4004,7 +4006,19 @@ export class GameEngine {
   }
 
   private handleEnemyDefeat(enemy: (typeof this.enemies)[0]) {
-    soundManager.playEnemyDeath();
+    const isBoss =
+      enemy.data.type === 'boss' ||
+      enemy.data.id === 'boss_titan' ||
+      enemy.data.id === 'boss_dragonfang' ||
+      enemy.data.id === 'boss_jarrus';
+
+    if (isBoss) {
+      const bossName = enemy.data.nameId || enemy.data.name;
+      soundManager.playBossVictory(bossName);
+      this.callbacks.onBossDefeated?.(bossName);
+    } else {
+      soundManager.playEnemyDeath();
+    }
 
     // Reward exp and gold silently to stats without spamming floating text on screen
     this.callbacks.onUpdateStats((stats) => {
@@ -4184,7 +4198,7 @@ export class GameEngine {
         this.callbacks.onAddItem(pickup.item);
         soundManager.playChestOpen();
         this.spawnSparks(pickup.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0xfacc15, 8, 3.2);
-        this.callbacks.onAddFloatingText(`📦 +1 ${pickup.item.nameId}`, '#facc15', 'info');
+        this.callbacks.onAddFloatingText(`ðŸ“¦ +1 ${pickup.item.nameId}`, '#facc15', 'info');
         this.scene.remove(pickup.mesh);
         this.activeLootPickups.splice(i, 1);
       } else if (now - pickup.creationTime > 90000) {
@@ -4292,7 +4306,7 @@ export class GameEngine {
     this.spawnHitStarburst(new THREE.Vector3(spawn.x, spawnY + 1.2, spawn.z), isBoss ? 0xff4500 : 0x4ade80, 2.2);
 
     if (isBoss) {
-      this.callbacks.onAddFloatingText(`🔥 [BOSS RESPAWN] ${enemy.data.nameId} telah bangkit kembali!`, '#ef4444', 'crit');
+      this.callbacks.onAddFloatingText(`ðŸ”¥ [BOSS RESPAWN] ${enemy.data.nameId} telah bangkit kembali!`, '#ef4444', 'crit');
     }
   }
 
@@ -4691,7 +4705,7 @@ export class GameEngine {
       this.callbacks.onUpdateQuests((quests) => {
         return quests.map((q) => {
           if (q.id === 'quest_discover_astraea' && !q.completed) {
-            this.callbacks.onAddFloatingText('👑 Wilayah Ditemukan: Ibukota Kerajaan Emas Astraea!', '#facc15', 'crit');
+            this.callbacks.onAddFloatingText('ðŸ‘‘ Wilayah Ditemukan: Ibukota Kerajaan Emas Astraea!', '#facc15', 'crit');
             soundManager.playLevelUp();
             return { ...q, currentCount: 1, completed: true };
           }
@@ -4952,7 +4966,7 @@ export class GameEngine {
     // 0a. Check Taj Mahal Palace Entrance (Overworld -> Throne Room)
     const distToPalaceGate = Math.hypot(this.playerPos.x - -396, this.playerPos.z - 350);
     if (distToPalaceGate < 4.5 && this.playerPos.y > -10) {
-      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Istana Sultan Solaria 🕌', () => {
+      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Istana Sultan Solaria ðŸ•Œ', () => {
         this.playerPos.set(-400, -25, 350);
         this.playerVel.set(0, 0, 0);
         this.isGrounded = true;
@@ -4968,7 +4982,7 @@ export class GameEngine {
     // 0b. Check Throne Room Exit Door (Throne Room -> Overworld)
     const distToThroneExit = Math.hypot(this.playerPos.x - -400, this.playerPos.z - 350);
     if (distToThroneExit < 4.0 && this.playerPos.y < -15) {
-      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Pelataran Istana 🚪', () => {
+      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Pelataran Istana ðŸšª', () => {
         const outY = Math.max(0.5, this.world.getTerrainHeight(-395, 350) + 0.5);
         this.playerPos.set(-395, outY, 350);
         this.playerVel.set(0, 0, 0);
@@ -4985,7 +4999,7 @@ export class GameEngine {
     // 0c. Check Mage Tower Entrance (Overworld -> Level 1 Library)
     const distToMageTowerDoor = Math.hypot(this.playerPos.x - -155, this.playerPos.z - -127);
     if (distToMageTowerDoor < 4.5 && this.playerPos.y > -10) {
-      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Mage Tower Puncak Halilintar ⚡', () => {
+      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Mage Tower Puncak Halilintar âš¡', () => {
         this.enterMageTower();
       });
       return;
@@ -4994,7 +5008,7 @@ export class GameEngine {
     // 0d. Check Mage Tower Exit Door (Level 1 Library -> Overworld)
     const distToMageTowerExit = Math.hypot(this.playerPos.x - -155, this.playerPos.z - -128.5);
     if (distToMageTowerExit < 4.0 && this.playerPos.y <= -42 && this.playerPos.y >= -48) {
-      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Puncak Halilintar 🚪', () => {
+      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Puncak Halilintar ðŸšª', () => {
         this.exitMageTower();
       });
       return;
@@ -5005,26 +5019,26 @@ export class GameEngine {
     if (distToTowerCenter < 4.5 && this.playerPos.y < -15) {
       if (this.playerPos.y <= -42) {
         // Lantai 1 -> Naik ke Lantai 2 (Laboratorium)
-        this.setNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 2 (Laboratorium Alkimia) 🧪', () => {
+        this.setNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 2 (Laboratorium Alkimia) ðŸ§ª', () => {
           this.teleportMageTowerFloor(2);
         });
         return;
       } else if (this.playerPos.y > -42 && this.playerPos.y <= -34) {
         // Lantai 2: Pilihan naik ke Lantai 3 atau turun ke Lantai 1
         if (this.playerPos.z < -134) {
-          this.setNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 3 (Anjungan Observatorium) 🌌', () => {
+          this.setNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 3 (Anjungan Observatorium) ðŸŒŒ', () => {
             this.teleportMageTowerFloor(3);
           });
           return;
         } else {
-          this.setNearbyPrompt('Tekan [F] / Sentuh: Turun ke Lantai 1 (Perpustakaan & Altar) 📚', () => {
+          this.setNearbyPrompt('Tekan [F] / Sentuh: Turun ke Lantai 1 (Perpustakaan & Altar) ðŸ“š', () => {
             this.teleportMageTowerFloor(1);
           });
           return;
         }
       } else if (this.playerPos.y > -34) {
         // Lantai 3 -> Turun ke Lantai 2 (Laboratorium)
-        this.setNearbyPrompt('Tekan [F] / Sentuh: Turun ke Lantai 2 (Laboratorium Alkimia) 🧪', () => {
+        this.setNearbyPrompt('Tekan [F] / Sentuh: Turun ke Lantai 2 (Laboratorium Alkimia) ðŸ§ª', () => {
           this.teleportMageTowerFloor(2);
         });
         return;
@@ -5037,47 +5051,47 @@ export class GameEngine {
         if (dist < 3.8) {
           let prompt = `Tekan [F] / Sentuh untuk Bicara dengan ${npc.nameId} (${npc.role})`;
           if (npc.id === 'blacksmith_torvald') {
-            prompt = `Tekan [F] / Sentuh: Toko Senjata & Tempa Master Torvald 🔨`;
+            prompt = `Tekan [F] / Sentuh: Toko Senjata & Tempa Master Torvald ðŸ”¨`;
           } else if (npc.id === 'alchemist_anya') {
-            prompt = `Tekan [F] / Sentuh: Toko Ramuan Alkimia Anya 🧪`;
+            prompt = `Tekan [F] / Sentuh: Toko Ramuan Alkimia Anya ðŸ§ª`;
           } else if (npc.id === 'villager_maya') {
-            prompt = `Tekan [F] / Sentuh: Toko Zirah & Perlengkapan Maya 🛡️`;
+            prompt = `Tekan [F] / Sentuh: Toko Zirah & Perlengkapan Maya ðŸ›¡ï¸`;
           } else if (npc.id === 'fisherman_joko') {
-            prompt = `Tekan [F] / Sentuh: Kios Hasil Laut & Bekal Pak Joko 🐟`;
+            prompt = `Tekan [F] / Sentuh: Kios Hasil Laut & Bekal Pak Joko ðŸŸ`;
           } else if (npc.id === 'villager_kael') {
-            prompt = `Tekan [F] / Sentuh: Pasar Gelap Artefak Kael 🗝️`;
+            prompt = `Tekan [F] / Sentuh: Pasar Gelap Artefak Kael ðŸ—ï¸`;
           } else if (npc.id === 'commander_brann') {
-            prompt = `Tekan [F] / Sentuh: Komandan Brann (Panglima Benteng Val-Kragor) 🐺`;
+            prompt = `Tekan [F] / Sentuh: Komandan Brann (Panglima Benteng Val-Kragor) ðŸº`;
           } else if (npc.id === 'seer_elora') {
-            prompt = `Tekan [F] / Sentuh: Peramal Elora (Pemulihan & Berkat Bintang) 🔮`;
+            prompt = `Tekan [F] / Sentuh: Peramal Elora (Pemulihan & Berkat Bintang) ðŸ”®`;
           } else if (npc.id === 'frostsmith_goran') {
-            prompt = `Tekan [F] / Sentuh: Bengkel Senjata Dataran Tinggi Goran 🔨`;
+            prompt = `Tekan [F] / Sentuh: Bengkel Senjata Dataran Tinggi Goran ðŸ”¨`;
           } else if (npc.id === 'guard_valkragor') {
-            prompt = `Tekan [F] / Sentuh: Prajurit Penjaga Gerbang Val-Kragor 🛡️`;
+            prompt = `Tekan [F] / Sentuh: Prajurit Penjaga Gerbang Val-Kragor ðŸ›¡ï¸`;
           } else if (npc.id === 'emperor_aurelius') {
-            prompt = `Tekan [F] / Sentuh: Paduka Kaisar Aurelius Astraea 👑`;
+            prompt = `Tekan [F] / Sentuh: Paduka Kaisar Aurelius Astraea ðŸ‘‘`;
           } else if (npc.id === 'marshal_vane') {
-            prompt = `Tekan [F] / Sentuh: Panglima Perang Vane (Legiun Kekaisaran) ⚔️`;
+            prompt = `Tekan [F] / Sentuh: Panglima Perang Vane (Legiun Kekaisaran) âš”ï¸`;
           } else if (npc.id === 'merchant_lyra') {
-            prompt = `Tekan [F] / Sentuh: Saudagar Lyra (Toko Pusaka & Elixir Astraea) 💎`;
+            prompt = `Tekan [F] / Sentuh: Saudagar Lyra (Toko Pusaka & Elixir Astraea) ðŸ’Ž`;
           } else if (npc.id === 'guard_astraea') {
-            prompt = `Tekan [F] / Sentuh: Penjaga Gerbang Emas Astraea 🛡️`;
+            prompt = `Tekan [F] / Sentuh: Penjaga Gerbang Emas Astraea ðŸ›¡ï¸`;
           } else if (npc.id === 'sultan_malik') {
-            prompt = `Tekan [F] / Sentuh: Paduka Sultan Malik al-Solaria (Istana Kubah Emas) 👑`;
+            prompt = `Tekan [F] / Sentuh: Paduka Sultan Malik al-Solaria (Istana Kubah Emas) ðŸ‘‘`;
           } else if (npc.id === 'merchant_tariq') {
-            prompt = `Tekan [F] / Sentuh: Toko Rempah & Sutra Saudagar Tariq 👳‍♂️`;
+            prompt = `Tekan [F] / Sentuh: Toko Rempah & Sutra Saudagar Tariq ðŸ‘³â€â™‚ï¸`;
           } else if (npc.id === 'oasis_amina') {
-            prompt = `Tekan [F] / Sentuh: Amina Gadis Pembawa Air Oase 🧕`;
+            prompt = `Tekan [F] / Sentuh: Amina Gadis Pembawa Air Oase ðŸ§•`;
           } else if (npc.id === 'weaver_zahra') {
-            prompt = `Tekan [F] / Sentuh: Kios Karpet & Sutra Pengrajin Zahra 🧕`;
+            prompt = `Tekan [F] / Sentuh: Kios Karpet & Sutra Pengrajin Zahra ðŸ§•`;
           } else if (npc.id === 'guard_solaria' || npc.id === 'guard_throne_1' || npc.id === 'guard_throne_2') {
-            prompt = `Tekan [F] / Sentuh: Prajurit Pengawal Gurun Solaria 🛡️`;
+            prompt = `Tekan [F] / Sentuh: Prajurit Pengawal Gurun Solaria ðŸ›¡ï¸`;
           } else if (npc.id === 'grand_mage_eldrin') {
-            prompt = `Tekan [F] / Sentuh: Grand Mage Eldrin (Penjaga Kitab Halilintar) 🧙‍♂️`;
+            prompt = `Tekan [F] / Sentuh: Grand Mage Eldrin (Penjaga Kitab Halilintar) ðŸ§™â€â™‚ï¸`;
           } else if (npc.id === 'archmage_pyro') {
-            prompt = `Tekan [F] / Sentuh: Archmage Pyro (Ahli Alkimia Api) 🔥`;
+            prompt = `Tekan [F] / Sentuh: Archmage Pyro (Ahli Alkimia Api) ðŸ”¥`;
           } else if (npc.id === 'sorceress_maya') {
-            prompt = `Tekan [F] / Sentuh: Sorceress Maya (Pengkaji Kitab Kuno) ✨`;
+            prompt = `Tekan [F] / Sentuh: Sorceress Maya (Pengkaji Kitab Kuno) âœ¨`;
           }
 
           this.setNearbyPrompt(prompt, () => {
@@ -5308,7 +5322,7 @@ export class GameEngine {
       }
     });
 
-    const isBossActive = bossInView && activeBoss !== null;
+    const isBossActive = bossInView && activeBoss !== null && (activeBoss.hp ?? 1) > 0;
     this.callbacks.onBossEncounter(
       isBossActive,
       activeBoss ? activeBoss.nameId : undefined,
@@ -5316,12 +5330,12 @@ export class GameEngine {
       activeBoss ? activeBoss.maxHp : undefined
     );
 
-    // Dynamic Boss BGM System: Automatically play Heavy Orchestral BGM for Titan or Epic Choir BGM for Ignis Dragon
+    // Dynamic Boss BGM System: Automatically play Heavy Orchestral BGM for Titan, Worm, or Dragon
     if (isBossActive && activeBoss) {
       const bossType = activeBoss.id === 'boss_dragonfang' ? 'dragon' : (activeBoss.id === 'boss_jarrus' ? 'worm' : 'titan');
       soundManager.playBossMusic(bossType);
     } else if (soundManager.getCurrentBossMusic()) {
-      soundManager.stopBossMusic();
+      soundManager.evadeBossMusic(2.5);
     }
   }
 
@@ -5436,7 +5450,7 @@ export class GameEngine {
       }
     });
 
-    const isBossActive = bossInView && activeBoss !== null;
+    const isBossActive = bossInView && activeBoss !== null && (activeBoss.hp ?? 1) > 0;
     this.callbacks.onBossEncounter(
       isBossActive,
       activeBoss ? activeBoss.nameId : undefined,
@@ -5448,7 +5462,7 @@ export class GameEngine {
       const bossType = activeBoss.id === 'boss_dragonfang' ? 'dragon' : (activeBoss.id === 'boss_jarrus' ? 'worm' : 'titan');
       soundManager.playBossMusic(bossType);
     } else if (soundManager.getCurrentBossMusic()) {
-      soundManager.stopBossMusic();
+      soundManager.evadeBossMusic(2.5);
     }
   }
 
@@ -5476,7 +5490,7 @@ export class GameEngine {
           try {
             localStorage.setItem('eldoria_last_visited_town', JSON.stringify(this.lastVisitedTownPos));
           } catch {}
-          this.callbacks.onAddFloatingText(`📍 Titik Respawn Disimpan: ${town.name}`, '#38bdf8', 'info');
+          this.callbacks.onAddFloatingText(`ðŸ“ Titik Respawn Disimpan: ${town.name}`, '#38bdf8', 'info');
         }
 
         // Auto-unlock waypoint for fast travel on map
@@ -5489,7 +5503,7 @@ export class GameEngine {
             );
           } catch {}
           soundManager.playCheckpointUnlock();
-          this.callbacks.onAddFloatingText(`🌟 Wilayah Terbuka: ${town.name}!`, '#00e5ff', 'crit');
+          this.callbacks.onAddFloatingText(`ðŸŒŸ Wilayah Terbuka: ${town.name}!`, '#00e5ff', 'crit');
           if (this.callbacks.onCheckpointUnlocked) {
             this.callbacks.onCheckpointUnlocked(town.waypointId, town.name, [town.respawnX, town.respawnZ]);
           }
@@ -5803,7 +5817,7 @@ export class GameEngine {
             const knockDir = new THREE.Vector3(this.playerPos.x - hitPos.x, 0, this.playerPos.z - hitPos.z).normalize();
             this.playerVel.x += knockDir.x * 14.0;
             this.playerVel.z += knockDir.z * 14.0;
-            this.callbacks.onAddFloatingText('💨 TERPENTAL (KNOCKBACK)!', '#ff9100', 'info');
+            this.callbacks.onAddFloatingText('ðŸ’¨ TERPENTAL (KNOCKBACK)!', '#ff9100', 'info');
           }
 
           this.scene.remove(proj.object);
@@ -5897,31 +5911,31 @@ export class GameEngine {
       // Village NPCs
       if (this.world.npcs && this.world.npcs.length > 0) {
         const roleIcons: Record<string, string> = {
-          elder: '🧙‍♂️',
-          guard: '🛡️',
-          alchemist: '🧪',
-          blacksmith: '🔨',
-          bard: '🎵',
-          fisherman: '🐟',
-          villager: '🛒',
+          elder: 'ðŸ§™â€â™‚ï¸',
+          guard: 'ðŸ›¡ï¸',
+          alchemist: 'ðŸ§ª',
+          blacksmith: 'ðŸ”¨',
+          bard: 'ðŸŽµ',
+          fisherman: 'ðŸŸ',
+          villager: 'ðŸ›’',
         };
         this.world.npcs.forEach((npc) => {
-          let customIcon = roleIcons[npc.roleType] || '👤';
+          let customIcon = roleIcons[npc.roleType] || 'ðŸ‘¤';
           let customColor = '#fbbf24';
           if (npc.id === 'blacksmith_torvald') {
-            customIcon = '🔨';
+            customIcon = 'ðŸ”¨';
             customColor = '#f97316';
           } else if (npc.id === 'alchemist_anya') {
-            customIcon = '🧪';
+            customIcon = 'ðŸ§ª';
             customColor = '#10b981';
           } else if (npc.id === 'villager_maya') {
-            customIcon = '🛡️';
+            customIcon = 'ðŸ›¡ï¸';
             customColor = '#3b82f6';
           } else if (npc.id === 'fisherman_joko') {
-            customIcon = '🐟';
+            customIcon = 'ðŸŸ';
             customColor = '#06b6d4';
           } else if (npc.id === 'villager_kael') {
-            customIcon = '🗝️';
+            customIcon = 'ðŸ—ï¸';
             customColor = '#a855f7';
           }
 
@@ -5943,7 +5957,7 @@ export class GameEngine {
           type: 'npc',
           x: this.world.npc.position[0],
           z: this.world.npc.position[2],
-          icon: '🧙‍♂️',
+          icon: 'ðŸ§™â€â™‚ï¸',
           color: '#ffb300',
           description: 'Pemberi Misi & Cerita Utama',
         });
@@ -5956,7 +5970,7 @@ export class GameEngine {
         type: 'fountain',
         x: 0,
         z: -4,
-        icon: '⛲',
+        icon: 'â›²',
         color: '#29b6f6',
         description: 'Memulihkan HP & MP Seketika',
       });
@@ -5968,7 +5982,7 @@ export class GameEngine {
         type: 'pier',
         x: 6,
         z: 25,
-        icon: '⚓',
+        icon: 'âš“',
         color: '#00b4d8',
         description: 'Perahu & Pemandangan Laut',
       });
@@ -5980,7 +5994,7 @@ export class GameEngine {
         type: 'boss',
         x: 195,
         z: -260,
-        icon: '👑',
+        icon: 'ðŸ‘‘',
         color: '#fbbf24',
         description: 'Ibukota Kerajaan Emas Astraea (Utara Frostpeak)',
       });
@@ -5992,7 +6006,7 @@ export class GameEngine {
         type: 'waypoint',
         x: 180,
         z: -320,
-        icon: '❄️',
+        icon: 'â„ï¸',
         color: '#38bdf8',
         description: 'Jurang Gletser Es Alami Frostpeak',
       });
@@ -6004,7 +6018,7 @@ export class GameEngine {
         type: 'pier',
         x: 0,
         z: 21,
-        icon: '⛵',
+        icon: 'â›µ',
         color: '#00b4d8',
         description: 'Dermaga Kayu Utama & Titian Pantai Sanctuary',
       });
@@ -6015,7 +6029,7 @@ export class GameEngine {
         type: 'pier',
         x: 0,
         z: 52,
-        icon: '⚓',
+        icon: 'âš“',
         color: '#0284c7',
         description: 'Ujung Dermaga Kayu Megah dengan Kapal Perang & Kapal Dagang Berlabuh',
       });
@@ -6027,7 +6041,7 @@ export class GameEngine {
         type: 'waypoint',
         x: -118,
         z: 36,
-        icon: '🏛️',
+        icon: 'ðŸ›ï¸',
         color: '#94a3b8',
         description: 'Pilar Spasial Peradaban Kuno Vael',
       });
@@ -6039,7 +6053,7 @@ export class GameEngine {
         type: 'boss',
         x: 188,
         z: -16,
-        icon: '🏰',
+        icon: 'ðŸ°',
         color: '#3b82f6',
         description: 'Benteng Dataran Tinggi Val-Kragor',
       });
@@ -6051,7 +6065,7 @@ export class GameEngine {
         type: 'waypoint',
         x: -305,
         z: 350,
-        icon: '🎪',
+        icon: 'ðŸŽª',
         color: '#f59e0b',
         description: 'Bazaar Ramai, Peristirahatan Unta, Rumah Bertingkat & Sumur Oase Solaria',
       });
@@ -6063,7 +6077,7 @@ export class GameEngine {
         type: 'waypoint',
         x: -155,
         z: -135,
-        icon: '🧙‍♂️',
+        icon: 'ðŸ§™â€â™‚ï¸',
         color: '#38bdf8',
         description: 'Menara Penyihir Bertingkat, Pustaka Kuno, Laboratorium Alkimia & Observatorium',
       });
@@ -6075,7 +6089,7 @@ export class GameEngine {
         type: 'waypoint',
         x: -415,
         z: 350,
-        icon: '🕌',
+        icon: 'ðŸ•Œ',
         color: '#fbbf24',
         description: 'Kemegahan Marmer Putih, Menara Minaret, Kolam Pantul & Ruang Takhta',
       });
@@ -6087,7 +6101,7 @@ export class GameEngine {
         type: 'boss',
         x: -240,
         z: 420,
-        icon: '🪱',
+        icon: 'ðŸª±',
         color: '#ea580c',
         description: 'Wilayah Teritorial Cacing Purba Pemangsa Gurun Dalam',
       });
@@ -6099,7 +6113,7 @@ export class GameEngine {
         type: 'waypoint',
         x: -340,
         z: 260,
-        icon: '🌴',
+        icon: 'ðŸŒ´',
         color: '#06b6d4',
         description: 'Oase Kolam Pirus & Palem Gurun',
       });
@@ -6111,7 +6125,7 @@ export class GameEngine {
         type: 'waypoint',
         x: 240,
         z: -220,
-        icon: '🏔️',
+        icon: 'ðŸ”ï¸',
         color: '#38bdf8',
         description: 'Menara Pengawas Gletser Terluar',
       });
@@ -6123,7 +6137,7 @@ export class GameEngine {
         type: 'boss',
         x: 35,
         z: -280,
-        icon: '🔥',
+        icon: 'ðŸ”¥',
         color: '#ef4444',
         description: 'Sarang Lahar Panas Naga Purba',
       });
@@ -6135,7 +6149,7 @@ export class GameEngine {
         type: 'waypoint',
         x: -300,
         z: 25,
-        icon: '✨',
+        icon: 'âœ¨',
         color: '#a855f7',
         description: 'Grotto Rawa Terdalam',
       });
@@ -6147,7 +6161,7 @@ export class GameEngine {
         type: 'waypoint',
         x: 310,
         z: 210,
-        icon: '🪷',
+        icon: 'ðŸª·',
         color: '#10b981',
         description: 'Kuil Pagoda Terluar Tenggara',
       });
@@ -6161,7 +6175,7 @@ export class GameEngine {
             type: enemy.data.type === 'boss' ? 'boss' : 'enemy',
             x: enemy.mesh.position.x,
             z: enemy.mesh.position.z,
-            icon: enemy.data.type === 'boss' ? '💀' : enemy.data.type === 'skeleton' ? '☠️' : '👾',
+            icon: enemy.data.type === 'boss' ? 'ðŸ’€' : enemy.data.type === 'skeleton' ? 'â˜ ï¸' : 'ðŸ‘¾',
             color: enemy.data.type === 'boss' ? '#ff1744' : '#f44336',
           });
         }
@@ -6176,7 +6190,7 @@ export class GameEngine {
             type: 'chest',
             x: chest.position[0],
             z: chest.position[2],
-            icon: '📦',
+            icon: 'ðŸ“¦',
             color: '#ffd700',
           });
         }

@@ -60,6 +60,7 @@ interface HUDProps {
     hp?: number;
     maxHp?: number;
   };
+  bossVictoryName?: string | null;
   isMuted: boolean;
   onToggleMute: () => void;
   isMusicPlaying: boolean;
@@ -108,6 +109,7 @@ export const HUD: React.FC<HUDProps> = ({
   onRotateCamera,
   onZoomCamera,
   bossState,
+  bossVictoryName,
   isMuted,
   onToggleMute,
   isMusicPlaying,
@@ -561,6 +563,18 @@ export const HUD: React.FC<HUDProps> = ({
           >
             âœ•
           </button>
+        </div>
+      )}
+
+      {/* Absolute Victory Banner (Boss Defeated) */}
+      {bossVictoryName && (
+        <div className="absolute top-10 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-1.5 pointer-events-none animate-bounce">
+          <div className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-600/95 via-yellow-400 to-amber-600/95 border-2 border-yellow-200 shadow-[0_0_50px_rgba(234,179,8,0.7)] text-stone-950 font-black tracking-widest text-sm sm:text-base uppercase flex items-center gap-2 drop-shadow-2xl">
+            🏆 KEMENANGAN MUTLAK!
+          </div>
+          <span className="text-xs sm:text-sm font-black text-amber-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] tracking-wider">
+            {bossVictoryName} Berhasil Ditaklukkan
+          </span>
         </div>
       )}
 

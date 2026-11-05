@@ -285,6 +285,7 @@ export default function App() {
   }>({
     active: false,
   });
+  const [bossVictoryName, setBossVictoryName] = useState<string | null>(null);
 
   // Sound Settings
   const [isMuted, setIsMuted] = useState(false);
@@ -477,8 +478,14 @@ export default function App() {
             soundManager.playBossMusic('titan');
           }
         } else if (soundManager.getCurrentBossMusic()) {
-          soundManager.stopBossMusic();
+          soundManager.evadeBossMusic(2.5);
         }
+      },
+      onBossDefeated: (name) => {
+        setBossVictoryName(name || 'SANG TITAN KUNO OBSIDIAN');
+        setTimeout(() => {
+          setBossVictoryName(null);
+        }, 4500);
       },
       onSpectatorModeChange: (active) => {
         setIsSpectatorMode(active);
@@ -991,6 +998,7 @@ export default function App() {
             onRotateCamera={(dx, dy) => engineRef.current?.rotateCameraByDelta(dx, dy)}
             onZoomCamera={(dz) => engineRef.current?.zoomCameraByDelta(dz)}
             bossState={bossState}
+            bossVictoryName={bossVictoryName}
             isMuted={isMuted}
             onToggleMute={() => {
               const nextMuted = !isMuted;
