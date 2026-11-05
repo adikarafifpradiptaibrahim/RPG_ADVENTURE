@@ -145,13 +145,13 @@ export const HUD: React.FC<HUDProps> = ({
   const getClassBadge = () => {
     switch (stats.characterClass) {
       case 'warrior':
-        return { label: 'Ksatria (Warrior)', icon: '⚔️', color: 'bg-blue-600' };
+        return { label: 'Ksatria (Warrior)', icon: 'âš”ï¸', color: 'bg-blue-600' };
       case 'mage':
-        return { label: 'Penyihir (Mage)', icon: '🔮', color: 'bg-purple-600' };
+        return { label: 'Penyihir (Mage)', icon: 'ðŸ”®', color: 'bg-purple-600' };
       case 'rogue':
         return {
           label: hunterWeaponMode === 'bow' ? 'Pemburu (Busur)' : 'Pemburu (Belati)',
-          icon: hunterWeaponMode === 'bow' ? '🏹' : '🗡️',
+          icon: hunterWeaponMode === 'bow' ? 'ðŸ¹' : 'ðŸ—¡ï¸',
           color: 'bg-emerald-600',
         };
     }
@@ -425,7 +425,7 @@ export const HUD: React.FC<HUDProps> = ({
                   onClick={() => setIsMobileSystemMenuOpen(false)}
                   className="text-stone-400 hover:text-white p-0.5 rounded cursor-pointer"
                 >
-                  ✕
+                  âœ•
                 </button>
               </div>
 
@@ -559,7 +559,7 @@ export const HUD: React.FC<HUDProps> = ({
             className="p-1 text-stone-400 hover:text-white rounded-lg hover:bg-stone-800/60 cursor-pointer flex-shrink-0"
             title="Tutup Saran"
           >
-            ✕
+            âœ•
           </button>
         </div>
       )}
@@ -568,7 +568,7 @@ export const HUD: React.FC<HUDProps> = ({
       {bossState.active && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 w-80 md:w-96 flex flex-col items-center gap-1 z-20 pointer-events-none">
           <div className="text-sm font-black tracking-widest text-red-400 uppercase drop-shadow flex items-center gap-1.5">
-            💀 {bossState.name || 'Ancient Titan Golem'}
+            💀 {bossState.name || 'SANG TITAN KUNO OBSIDIAN'}
           </div>
           <div className="w-full h-5 bg-stone-950/90 rounded-full border-2 border-red-600/80 p-0.5 shadow-2xl overflow-hidden">
             <div
@@ -715,7 +715,7 @@ export const HUD: React.FC<HUDProps> = ({
             <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/10 to-transparent pointer-events-none" />
             {/* Content */}
             <div className="relative z-10 w-full flex items-center justify-between text-xs font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-              <span className="text-amber-300 text-sm animate-pulse">☄️</span>
+              <span className="text-amber-300 text-sm animate-pulse">â˜„ï¸</span>
               <span className="font-mono tracking-wider">{castingState.text}</span>
               <span className="text-[10px] text-amber-200/90 font-mono">
                 {Math.round(castingState.progress * 100)}%

@@ -288,7 +288,7 @@ export default function App() {
 
   // Sound Settings
   const [isMuted, setIsMuted] = useState(false);
-  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+  const [isMusicPlaying, setIsMusicPlaying] = useState(true);
 
   // Add floating combat text helper (streamlined to max 3 items to avoid screen clutter)
   const addFloatingText = useCallback(
@@ -374,6 +374,9 @@ export default function App() {
     applyClassStats(selectedClass);
     setHasStarted(true);
 
+    soundManager.toggleAmbientMusic(true);
+    setIsMusicPlaying(true);
+
     if (engineRef.current) {
       engineRef.current.setPaused(false);
       engineRef.current.setGameMode('singleplayer', 'Pahlawan');
@@ -389,6 +392,9 @@ export default function App() {
     setMultiplayerConfig(options);
     applyClassStats(options.charClass);
     setHasStarted(true);
+
+    soundManager.toggleAmbientMusic(true);
+    setIsMusicPlaying(true);
 
     if (engineRef.current) {
       engineRef.current.setPaused(false);
@@ -461,6 +467,18 @@ export default function App() {
       onEnemyStatsUpdate: () => {},
       onBossEncounter: (active, name, hp, maxHp) => {
         setBossState({ active, name, hp, maxHp });
+        if (active) {
+          const lower = (name || '').toLowerCase();
+          if (lower.includes('ignis') || lower.includes('dragon')) {
+            soundManager.playBossMusic('dragon');
+          } else if (lower.includes('jarrus') || lower.includes('cacing') || lower.includes('worm')) {
+            soundManager.playBossMusic('worm');
+          } else {
+            soundManager.playBossMusic('titan');
+          }
+        } else if (soundManager.getCurrentBossMusic()) {
+          soundManager.stopBossMusic();
+        }
       },
       onSpectatorModeChange: (active) => {
         setIsSpectatorMode(active);
@@ -1142,7 +1160,7 @@ export default function App() {
         onApply={(newSettings) => {
           setGraphicsSettings(newSettings);
           engineRef.current?.applyGraphicsSettings(newSettings);
-          addFloatingText('Pengaturan Grafis Diterapkan! ⚙️', '#38bdf8', 'info');
+          addFloatingText('Pengaturan Grafis Diterapkan! âš™ï¸', '#38bdf8', 'info');
         }}
         onClose={() => setIsSettingsOpen(false)}
       />
@@ -1162,7 +1180,7 @@ export default function App() {
               <Smartphone className="w-12 h-12 text-amber-400 animate-rotate-phone" />
             </div>
             <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-amber-500 text-stone-950 flex items-center justify-center font-black text-xs shadow-lg">
-              ↻
+              â†»
             </div>
           </div>
 

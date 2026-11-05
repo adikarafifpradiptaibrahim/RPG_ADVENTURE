@@ -156,6 +156,13 @@ export class BossManager {
     const isWorm = bossId === 'boss_jarrus';
     if (!isIgnis && !isTitan && !isWorm) return false;
 
+    if (enemy.data.hp <= 0) {
+      if (isTitan && soundManager.getCurrentBossMusic() === 'titan') {
+        soundManager.stopBossMusic();
+      }
+      return false;
+    }
+
     const config = isIgnis ? IGNIS_DRAGON_BOSS_CONFIG : (isWorm ? JARRUS_WORM_BOSS_CONFIG : ANCIENT_TITAN_BOSS_CONFIG);
     if (!this.skillCooldowns.has(bossId)) {
       this.registerBoss(bossId, config);
@@ -640,14 +647,14 @@ export class BossManager {
     this.playerDebuffs.isStunned = true;
     this.playerDebuffs.stunTimer = duration;
     playerVel.set(0, 0, 0); // Lock movement
-    this.callbacks.onAddFloatingText('💫 TERKENA STUN! (1.5 detik)', '#ffd600', 'crit');
+    this.callbacks.onAddFloatingText('ðŸ’« TERKENA STUN! (1.5 detik)', '#ffd600', 'crit');
   }
 
   private applyBurn(duration: number) {
     this.playerDebuffs.isBurned = true;
     this.playerDebuffs.burnTimer = duration;
     this.playerDebuffs.burnTickTimer = 0.6;
-    this.callbacks.onAddFloatingText('🔥 TERBAKAR! (DoT)', '#ff3d00', 'damage');
+    this.callbacks.onAddFloatingText('ðŸ”¥ TERBAKAR! (DoT)', '#ff3d00', 'damage');
   }
 
   private applyKnockback(from: THREE.Vector3, playerPos: THREE.Vector3, playerVel: THREE.Vector3) {
@@ -655,7 +662,7 @@ export class BossManager {
     if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
     playerVel.x += dir.x * 16.0;
     playerVel.z += dir.z * 16.0;
-    this.callbacks.onAddFloatingText('💨 TERPENTAL (KNOCKBACK)!', '#ff9100', 'info');
+    this.callbacks.onAddFloatingText('ðŸ’¨ TERPENTAL (KNOCKBACK)!', '#ff9100', 'info');
   }
 
   private updatePlayerDebuffs(delta: number) {
@@ -726,6 +733,9 @@ export class BossManager {
     this.skillCooldowns.clear();
     this.playerDebuffs.isStunned = false;
     this.playerDebuffs.isBurned = false;
+    if (soundManager.getCurrentBossMusic() === 'titan') {
+      soundManager.stopBossMusic();
+    }
   }
 }
 
