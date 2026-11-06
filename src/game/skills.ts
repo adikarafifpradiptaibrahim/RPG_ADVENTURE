@@ -1611,19 +1611,19 @@ export function getCelestialMagicCircleTexture(): THREE.CanvasTexture {
   const cx = size / 2;
   const cy = size / 2;
 
-  // 1. Radiant violet-magenta background aura
+  // 1. Subtle, translucent violet-magenta background aura (eliminates solid floor bleaching)
   const bgGrad = ctx.createRadialGradient(cx, cy, 25, cx, cy, 248);
-  bgGrad.addColorStop(0, 'rgba(255, 255, 255, 0.96)');
-  bgGrad.addColorStop(0.16, 'rgba(165, 243, 252, 0.9)');
-  bgGrad.addColorStop(0.42, 'rgba(217, 70, 239, 0.65)');
-  bgGrad.addColorStop(0.72, 'rgba(168, 85, 247, 0.28)');
+  bgGrad.addColorStop(0, 'rgba(165, 243, 252, 0.28)');
+  bgGrad.addColorStop(0.18, 'rgba(217, 70, 239, 0.20)');
+  bgGrad.addColorStop(0.45, 'rgba(168, 85, 247, 0.12)');
+  bgGrad.addColorStop(0.75, 'rgba(147, 51, 234, 0.05)');
   bgGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
   ctx.fillStyle = bgGrad;
   ctx.beginPath();
   ctx.arc(cx, cy, 248, 0, Math.PI * 2);
   ctx.fill();
 
-  const drawGlowRing = (r: number, color: string, width: number, blur = 10) => {
+  const drawGlowRing = (r: number, color: string, width: number, blur = 6) => {
     ctx.save();
     ctx.shadowColor = color;
     ctx.shadowBlur = blur;
@@ -1635,15 +1635,15 @@ export function getCelestialMagicCircleTexture(): THREE.CanvasTexture {
     ctx.restore();
   };
 
-  // 2. Outer Concentric Runic Rings (Rich Magenta & Electric Violet)
-  drawGlowRing(242, '#d946ef', 2.8, 14);
-  drawGlowRing(230, '#ffffff', 1.8, 8);
-  drawGlowRing(218, '#c084fc', 3.4, 16);
-  drawGlowRing(212, '#fdf4ff', 1.5, 6);
+  // 2. Outer Concentric Runic Rings (Sharp, crisp Magenta & Electric Violet)
+  drawGlowRing(242, '#d946ef', 2.4, 8);
+  drawGlowRing(230, '#ffffff', 1.6, 5);
+  drawGlowRing(218, '#c084fc', 2.8, 8);
+  drawGlowRing(212, '#fdf4ff', 1.4, 4);
 
   // 3. Inner Boundary for the Runic Band (Cyan/White)
-  drawGlowRing(142, '#38bdf8', 2.8, 12);
-  drawGlowRing(136, '#ffffff', 1.6, 6);
+  drawGlowRing(142, '#38bdf8', 2.4, 6);
+  drawGlowRing(136, '#ffffff', 1.4, 4);
 
   // 4. 16 Circular Rune Medallions along R = 176
   const numMedallions = 16;
@@ -1878,19 +1878,19 @@ export const celestialCircuitFragmentShader = `
 
     vec4 tex = texture2D(uMap, vUv);
 
-    // Dynamic Electric Arc Wavefront Spark at the branching tips
+    // Dynamic Electric Arc Wavefront Spark at the branching tips (crisp & non-bleeding)
     float edgeDist = abs(waveRadius - localThreshold);
     if (edgeDist < 0.05 && uProgress > 0.02 && uProgress < 0.995) {
       float electricPulse = sin(dist * 50.0 - uTime * 30.0) * 0.5 + 0.5;
-      float spark = (1.0 - edgeDist / 0.05) * (3.0 + electricPulse * 1.6);
+      float spark = (1.0 - edgeDist / 0.05) * (1.1 + electricPulse * 0.5);
       vec3 sparkCol = mix(uElectricCyan, uElectricMagenta, sin(angle * 4.0 + uTime * 8.0) * 0.5 + 0.5);
       tex.rgb += sparkCol * spark;
-      tex.a = max(tex.a, 0.98);
+      tex.a = max(tex.a, 0.95);
     }
 
-    // Central node power core intense cyan-white glow
+    // Central node power core crisp cyan glow (prevents overexposure wash)
     if (dist < 0.22) {
-      tex.rgb += vec3(0.5, 0.9, 1.0) * (0.8 + 0.4 * sin(uTime * 16.0));
+      tex.rgb += vec3(0.25, 0.55, 0.65) * (0.35 + 0.15 * sin(uTime * 16.0));
     }
 
     tex.a *= uOpacity;
@@ -1971,11 +1971,11 @@ export class CelestialHealResourcePool {
     this.stardustGeom = new THREE.BufferGeometry();
     this.stardustGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
-    // 2. Materials
+    // 2. Materials (Translucent Additive Blending without overexposing character)
     this.outerBeamMat = new THREE.MeshBasicMaterial({
       color: 0x38bdf8,
       transparent: true,
-      opacity: 0.7,
+      opacity: 0.25,
       side: THREE.DoubleSide,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -1984,7 +1984,7 @@ export class CelestialHealResourcePool {
     this.innerBeamMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.40,
       side: THREE.DoubleSide,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -2109,6 +2109,11 @@ export class CelestialHealResourcePool {
     const stardust = new THREE.Points(this.stardustGeom, this.stardustMat);
     group.add(stardust);
 
+    // 7. Dynamic PointLight: Soft Cyan (0x67e8f9), intensity 2.0, distance 6.0, y = 1.0
+    const pointLight = new THREE.PointLight(0x67e8f9, 0.0, 6.0);
+    pointLight.position.set(0, 1.0, 0);
+    group.add(pointLight);
+
     let elapsed = 0;
     let isActive = false;
     const castDuration = 0.7;
@@ -2119,11 +2124,12 @@ export class CelestialHealResourcePool {
       isActive = false;
       group.visible = false;
       shaderMat.uniforms.uOpacity.value = 0;
-      this.outerBeamMat.opacity = 0.7;
-      this.innerBeamMat.opacity = 0.9;
-      this.runeRingMat1.opacity = 0.9;
-      this.runeRingMat2.opacity = 0.85;
-      this.stardustMat.opacity = 0.95;
+      pointLight.intensity = 0.0;
+      this.outerBeamMat.opacity = 0.25;
+      this.innerBeamMat.opacity = 0.40;
+      this.runeRingMat1.opacity = 0.85;
+      this.runeRingMat2.opacity = 0.75;
+      this.stardustMat.opacity = 0.90;
       this.shockwaveMat1.opacity = 0.85;
       this.shockwaveMat2.opacity = 0.95;
     };
@@ -2134,6 +2140,7 @@ export class CelestialHealResourcePool {
       group.position.set(pos.x, pos.y + 0.05, pos.z);
       group.visible = true;
 
+      pointLight.intensity = 2.0;
       runeRing1.position.y = 1.0;
       runeRing2.position.y = 4.2;
       outerBeam.rotation.y = 0;
@@ -2198,13 +2205,15 @@ export class CelestialHealResourcePool {
         shaderMat.uniforms.uOpacity.value = 1.0;
         shaderMat.uniforms.uTime.value = elapsed;
 
-        this.outerBeamMat.opacity = 0.7 * Math.min(1.0, progress * 1.5);
-        this.innerBeamMat.opacity = 0.9 * Math.min(1.0, progress * 1.5);
-        this.runeRingMat1.opacity = 0.9 * Math.min(1.0, progress * 1.5);
-        this.runeRingMat2.opacity = 0.85 * Math.min(1.0, progress * 1.5);
-        this.stardustMat.opacity = 0.95;
+        this.outerBeamMat.opacity = 0.25 * Math.min(1.0, progress * 1.5);
+        this.innerBeamMat.opacity = 0.40 * Math.min(1.0, progress * 1.5);
+        this.runeRingMat1.opacity = 0.85 * Math.min(1.0, progress * 1.5);
+        this.runeRingMat2.opacity = 0.75 * Math.min(1.0, progress * 1.5);
+        this.stardustMat.opacity = 0.90;
         this.shockwaveMat1.opacity = 0.85 * Math.max(0, 1.0 - elapsed / 0.7);
         this.shockwaveMat2.opacity = 0.95 * Math.max(0, 1.0 - elapsed / 0.5);
+
+        pointLight.intensity = 2.0;
       } else {
         // Phase 2: Smooth 1.2s Fade Out after cast duration completes
         const fadeElapsed = elapsed - castDuration;
@@ -2214,13 +2223,16 @@ export class CelestialHealResourcePool {
         shaderMat.uniforms.uOpacity.value = alpha;
         shaderMat.uniforms.uTime.value = elapsed;
 
-        this.outerBeamMat.opacity = 0.7 * alpha;
-        this.innerBeamMat.opacity = 0.9 * alpha;
-        this.runeRingMat1.opacity = 0.9 * alpha;
-        this.runeRingMat2.opacity = 0.85 * alpha;
-        this.stardustMat.opacity = 0.95 * alpha;
+        this.outerBeamMat.opacity = 0.25 * alpha;
+        this.innerBeamMat.opacity = 0.40 * alpha;
+        this.runeRingMat1.opacity = 0.85 * alpha;
+        this.runeRingMat2.opacity = 0.75 * alpha;
+        this.stardustMat.opacity = 0.90 * alpha;
         this.shockwaveMat1.opacity = 0;
         this.shockwaveMat2.opacity = 0;
+
+        // Dynamic PointLight fades out linearly together with the light pillar
+        pointLight.intensity = 2.0 * alpha;
       }
 
       if (elapsed >= totalDuration) {
