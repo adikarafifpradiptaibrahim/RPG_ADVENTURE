@@ -1595,6 +1595,7 @@ export class GameEngine {
     if (this.isCasting) {
       this.isCasting = false;
       this.callbacks.onCastingUpdate?.(null);
+      soundManager.stopStarfallCharge();
       if (this.castingCircleInstance) {
         this.scene.remove(this.castingCircleInstance.group);
         this.castingCircleInstance.cleanup();
@@ -2940,6 +2941,10 @@ export class GameEngine {
   private completeStarfallCasting() {
     this.isCasting = false;
     this.callbacks.onCastingUpdate?.(null);
+
+    // Stop casting hum and immediately trigger Phase 2 Meteor Fall Impact SFX (meteor_fall.wav)
+    soundManager.stopStarfallCharge();
+    soundManager.playStarfallImpact(false, 0);
 
     // NOTE: Magic Circle is NOT removed here!
     // It remains illuminated on the ground during the full 2.0s meteor shower,

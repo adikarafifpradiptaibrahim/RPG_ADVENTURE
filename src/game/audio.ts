@@ -7,6 +7,8 @@ import titanBossBgmUrl from '../assets/audio/Titan_s_Heavy_Tread.mp3';
 import ironMawWormBgmUrl from '../assets/audio/The_Iron_Maw.mp3';
 import basaltDragonBgmUrl from '../assets/audio/Basalt_and_Brimstone.mp3';
 import arcaneBeamSfxUrl from '../assets/sfx/mage/arcane beam/magic_beam.wav';
+import starfallCastingSfxUrl from '../assets/sfx/mage/starfall/Magic_circle_casting.wav';
+import starfallImpactSfxUrl from '../assets/sfx/mage/starfall/meteor_fall.wav';
 
 export {
   whereTheRiverBendsUrl,
@@ -15,6 +17,8 @@ export {
   ironMawWormBgmUrl,
   basaltDragonBgmUrl,
   arcaneBeamSfxUrl,
+  starfallCastingSfxUrl,
+  starfallImpactSfxUrl,
   whereTheRiverBendsUrl as relaxBgmUrl,
   whereTheRiverBendsUrl as overworldBgmUrl,
   titanBossBgmUrl as bossTitanBgmUrl,
@@ -61,6 +65,17 @@ class SoundManager {
   private isArcaneBeamLoading = false;
   private arcaneBeamAudioPool: HTMLAudioElement[] = [];
   private arcaneBeamPoolIndex = 0;
+
+  // --- Starfall SFX Buffers & Pools (Magic_circle_casting.wav & meteor_fall.wav) ---
+  private starfallCastingBuffer: AudioBuffer | null = null;
+  private starfallImpactBuffer: AudioBuffer | null = null;
+  private isStarfallBuffersLoading = false;
+  private starfallCastingAudioPool: HTMLAudioElement[] = [];
+  private starfallImpactAudioPool: HTMLAudioElement[] = [];
+  private starfallCastingPoolIndex = 0;
+  private starfallImpactPoolIndex = 0;
+  private activeStarfallChargeSource: AudioBufferSourceNode | null = null;
+  private activeStarfallChargeAudio: HTMLAudioElement | null = null;
 
   constructor() {
     this.setupUserGestureAutoplay();
@@ -137,6 +152,22 @@ class SoundManager {
       }
       this.loadArcaneBeamBuffer();
 
+      // 4. Preload Starfall SFX Audio Pools (Magic_circle_casting.wav & meteor_fall.wav)
+      this.starfallCastingAudioPool = [];
+      this.starfallImpactAudioPool = [];
+      for (let i = 0; i < 3; i++) {
+        const castAudio = new Audio(starfallCastingSfxUrl);
+        castAudio.preload = 'auto';
+        castAudio.volume = this.isMuted ? 0 : 0.9;
+        this.starfallCastingAudioPool.push(castAudio);
+
+        const impactAudio = new Audio(starfallImpactSfxUrl);
+        impactAudio.preload = 'auto';
+        impactAudio.volume = this.isMuted ? 0 : 0.95;
+        this.starfallImpactAudioPool.push(impactAudio);
+      }
+      this.loadStarfallAudioBuffers();
+
       this.initBossAudioNodes();
     } catch (e) {
       console.warn('[SoundManager] Could not initialize audio elements:', e);
@@ -195,6 +226,7 @@ class SoundManager {
       this.initContext();
       this.initAudioElements();
       this.loadArcaneBeamBuffer();
+      this.loadStarfallAudioBuffers();
       if (this.isMusicPlaying && !this.isMuted && !this.isVictoryPlaying) {
         if (this.currentBossMusic) {
           this.playBossMusic(this.currentBossMusic);
@@ -645,6 +677,9 @@ class SoundManager {
     if (!this.arcaneBeamBuffer && !this.isArcaneBeamLoading) {
       this.loadArcaneBeamBuffer();
     }
+    if ((!this.starfallCastingBuffer || !this.starfallImpactBuffer) && !this.isStarfallBuffersLoading) {
+      this.loadStarfallAudioBuffers();
+    }
   }
 
   public async loadArcaneBeamBuffer() {
@@ -662,6 +697,34 @@ class SoundManager {
       console.warn('[SoundManager] Could not decode magic_beam.wav buffer, using HTMLAudioElement fallback:', e);
     } finally {
       this.isArcaneBeamLoading = false;
+    }
+  }
+
+  public async loadStarfallAudioBuffers() {
+    if ((this.starfallCastingBuffer && this.starfallImpactBuffer) || this.isStarfallBuffersLoading || typeof window === 'undefined') return;
+    this.isStarfallBuffersLoading = true;
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+
+      const [castRes, impactRes] = await Promise.all([
+        !this.starfallCastingBuffer ? fetch(starfallCastingSfxUrl) : Promise.resolve(null),
+        !this.starfallImpactBuffer ? fetch(starfallImpactSfxUrl) : Promise.resolve(null),
+      ]);
+
+      if (castRes && this.ctx) {
+        const buf = await castRes.arrayBuffer();
+        if (this.ctx) this.starfallCastingBuffer = await this.ctx.decodeAudioData(buf);
+      }
+
+      if (impactRes && this.ctx) {
+        const buf = await impactRes.arrayBuffer();
+        if (this.ctx) this.starfallImpactBuffer = await this.ctx.decodeAudioData(buf);
+      }
+    } catch (e) {
+      console.warn('[SoundManager] Could not decode starfall audio buffers, using HTMLAudioElement fallback:', e);
+    } finally {
+      this.isStarfallBuffersLoading = false;
     }
   }
 
@@ -712,8 +775,12 @@ class SoundManager {
       if (this.wormAudio) this.wormAudio.volume = 0;
       if (this.dragonAudio) this.dragonAudio.volume = 0;
       this.arcaneBeamAudioPool.forEach((a) => (a.volume = 0));
+      this.starfallCastingAudioPool.forEach((a) => (a.volume = 0));
+      this.starfallImpactAudioPool.forEach((a) => (a.volume = 0));
     } else {
       this.arcaneBeamAudioPool.forEach((a) => (a.volume = 0.9));
+      this.starfallCastingAudioPool.forEach((a) => (a.volume = 0.9));
+      this.starfallImpactAudioPool.forEach((a) => (a.volume = 0.95));
       if (this.isMusicPlaying && !this.isVictoryPlaying) {
         if (this.currentBossMusic && currentBoss) {
           currentBoss.volume = this.masterMusicVolume;
@@ -1179,180 +1246,151 @@ class SoundManager {
   }
 
   // --- STARFALL METEOR SPELL SFX ---
-  // 1. Runic Charge / Circuit Stroke Reveal SFX (1.0s expanding circuit conduits, 8 harmonic chimes & seal lock)
-  public playStarfallCharge(duration = 1.0) {
+  // 1. Starfall Casting Phase SFX (Magic_circle_casting.wav for 1.0s duration)
+  public playStarfallCharge(duration = 1.0, volume = 0.9) {
     if (this.isMuted) return;
     this.initContext();
-    if (!this.ctx || !this.sfxGain) return;
+    this.stopStarfallCharge();
 
-    const now = this.ctx.currentTime;
+    const finalVolume = Math.min(1.0, Math.max(0.0, volume));
 
-    // A. Swelling Arcane Circuit Osc (Low hum 85 Hz -> 420 Hz with expanding circuit filter resonance)
-    const chargeOsc = this.ctx.createOscillator();
-    const chargeFilter = this.ctx.createBiquadFilter();
-    const chargeGain = this.ctx.createGain();
+    // Priority 1: Web Audio API AudioBuffer (Instant 0ms latency, exact duration envelope)
+    if (this.ctx && this.starfallCastingBuffer) {
+      try {
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+        const now = this.ctx.currentTime;
+        const source = this.ctx.createBufferSource();
+        source.buffer = this.starfallCastingBuffer;
+        const gainNode = this.ctx.createGain();
 
-    chargeOsc.type = 'sawtooth';
-    chargeOsc.frequency.setValueAtTime(85, now);
-    chargeOsc.frequency.exponentialRampToValueAtTime(420, now + duration);
+        // 1.0s casting duration envelope
+        gainNode.gain.setValueAtTime(finalVolume, now);
+        gainNode.gain.setValueAtTime(finalVolume, now + Math.max(0.1, duration - 0.08));
+        gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
-    chargeFilter.type = 'lowpass';
-    chargeFilter.frequency.setValueAtTime(280, now);
-    chargeFilter.frequency.exponentialRampToValueAtTime(3600, now + duration);
-    chargeFilter.Q.setValueAtTime(5.5, now);
+        source.connect(gainNode);
+        if (this.sfxGain) {
+          gainNode.connect(this.sfxGain);
+        } else {
+          gainNode.connect(this.ctx.destination);
+        }
 
-    // Electric circuit pulsing modulation (stepping faster as branches reach outer nodes)
-    const rotaryLfo = this.ctx.createOscillator();
-    const rotaryGain = this.ctx.createGain();
-    rotaryLfo.type = 'sine';
-    rotaryLfo.frequency.setValueAtTime(3.0, now);
-    rotaryLfo.frequency.exponentialRampToValueAtTime(12.0, now + duration);
-    rotaryGain.gain.setValueAtTime(0.14, now);
+        source.start(now);
+        source.stop(now + duration + 0.05);
+        this.activeStarfallChargeSource = source;
+        return;
+      } catch (e) {
+        // Fallback to HTMLAudioElement
+      }
+    }
 
-    chargeGain.gain.setValueAtTime(0.02, now);
-    chargeGain.gain.linearRampToValueAtTime(0.44, now + duration - 0.05);
-    chargeGain.gain.exponentialRampToValueAtTime(0.001, now + duration + 0.03);
+    // Priority 2: Pre-allocated HTMLAudioElement Pool
+    if (this.starfallCastingAudioPool.length > 0) {
+      const audio = this.starfallCastingAudioPool[this.starfallCastingPoolIndex];
+      this.starfallCastingPoolIndex = (this.starfallCastingPoolIndex + 1) % this.starfallCastingAudioPool.length;
+      if (audio) {
+        try {
+          audio.currentTime = 0;
+          audio.volume = this.isMuted ? 0 : Math.min(1.0, finalVolume * 0.9);
+          audio.play().catch(() => {});
+          this.activeStarfallChargeAudio = audio;
 
-    rotaryLfo.connect(rotaryGain);
-    rotaryGain.connect(chargeGain.gain);
+          setTimeout(() => {
+            if (this.activeStarfallChargeAudio === audio && !audio.paused) {
+              audio.pause();
+              audio.currentTime = 0;
+            }
+          }, duration * 1000);
+        } catch {}
+      }
+    }
 
-    chargeOsc.connect(chargeFilter);
-    chargeFilter.connect(chargeGain);
-    chargeGain.connect(this.sfxGain);
-
-    chargeOsc.start(now);
-    rotaryLfo.start(now);
-    chargeOsc.stop(now + duration + 0.05);
-    rotaryLfo.stop(now + duration + 0.05);
-
-    // B. Ascending 8-Octant Celestial Stardust Chimes timed with circuit node activations
-    const chimes = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66, 1318.51];
-    chimes.forEach((freq, i) => {
-      const chimeTime = now + (i / chimes.length) * (duration * 0.92);
-      const chimeOsc = this.ctx!.createOscillator();
-      const chimeGain = this.ctx!.createGain();
-      chimeOsc.type = 'triangle';
-      chimeOsc.frequency.setValueAtTime(freq, chimeTime);
-      chimeOsc.frequency.exponentialRampToValueAtTime(freq * 1.45, chimeTime + 0.2);
-
-      chimeGain.gain.setValueAtTime(0.18, chimeTime);
-      chimeGain.gain.exponentialRampToValueAtTime(0.001, chimeTime + 0.2);
-
-      chimeOsc.connect(chimeGain);
-      chimeGain.connect(this.sfxGain!);
-      chimeOsc.start(chimeTime);
-      chimeOsc.stop(chimeTime + 0.22);
-    });
-
-    // C. Climax 360-degree Seal Ring (Crisp celestial circuit lock at 1.45s)
-    const lockOsc = this.ctx.createOscillator();
-    const lockGain = this.ctx.createGain();
-    lockOsc.type = 'sine';
-    const lockTime = now + duration - 0.08;
-    lockOsc.frequency.setValueAtTime(1760, lockTime);
-    lockOsc.frequency.exponentialRampToValueAtTime(2637, lockTime + 0.28);
-    lockGain.gain.setValueAtTime(0.35, lockTime);
-    lockGain.gain.exponentialRampToValueAtTime(0.001, lockTime + 0.28);
-    lockOsc.connect(lockGain);
-    lockGain.connect(this.sfxGain);
-    lockOsc.start(lockTime);
-    lockOsc.stop(lockTime + 0.3);
-
-    // D. Rising whoosh surge
-    this.playNoiseBurst({
-      duration: 0.45,
-      gain: 0.3,
-      filterType: 'bandpass',
-      freqStart: 600,
-      freqEnd: 3600,
-      delay: Math.max(0, duration - 0.4),
-    });
+    if (!this.starfallCastingBuffer && !this.isStarfallBuffersLoading) {
+      this.loadStarfallAudioBuffers();
+    }
   }
 
-  // 2. Celestial Meteor Crash SFX (Concussive punch for rolling barrage, cataclysmic boom for finisher)
-  public playStarfallImpact(isFinisher = false, index = 0) {
+  public playStarfallCasting(duration = 1.0, volume = 0.9) {
+    this.playStarfallCharge(duration, volume);
+  }
+
+  public stopStarfallCharge() {
+    if (this.activeStarfallChargeSource) {
+      try {
+        this.activeStarfallChargeSource.stop();
+      } catch {}
+      this.activeStarfallChargeSource = null;
+    }
+    if (this.activeStarfallChargeAudio) {
+      try {
+        this.activeStarfallChargeAudio.pause();
+        this.activeStarfallChargeAudio.currentTime = 0;
+      } catch {}
+      this.activeStarfallChargeAudio = null;
+    }
+  }
+
+  // 2. Starfall Meteor Impact Phase SFX (meteor_fall.wav for rolling impacts & finisher)
+  public playStarfallImpact(isFinisher = false, index = 0, volume = 0.95) {
     if (this.isMuted) return;
     this.initContext();
-    if (!this.ctx || !this.sfxGain) return;
 
-    const now = this.ctx.currentTime;
+    const mult = isFinisher ? 1.0 : 0.88;
+    const finalVolume = Math.min(1.0, Math.max(0.0, volume * mult));
 
-    if (!isFinisher) {
-      // Rapid Meteor Strike (Crisp, punchy, non-muddy hit with rolling pitch variance)
-      const subOsc = this.ctx.createOscillator();
-      const subGain = this.ctx.createGain();
-      subOsc.type = 'sine';
-      const baseFreq = 115 + (index % 4) * 14;
-      subOsc.frequency.setValueAtTime(baseFreq, now);
-      subOsc.frequency.exponentialRampToValueAtTime(36, now + 0.26);
-      subGain.gain.setValueAtTime(0.42, now);
-      subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
-      subOsc.connect(subGain);
-      subGain.connect(this.sfxGain);
-      subOsc.start(now);
-      subOsc.stop(now + 0.28);
+    // Priority 1: Web Audio API AudioBuffer (Instant 0ms latency, high dynamic range)
+    if (this.ctx && this.starfallImpactBuffer) {
+      try {
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+        const now = this.ctx.currentTime;
+        const source = this.ctx.createBufferSource();
+        source.buffer = this.starfallImpactBuffer;
 
-      this.playNoiseBurst({
-        duration: 0.28,
-        gain: 0.32,
-        filterType: 'lowpass',
-        freqStart: 1600 + (index % 3) * 200,
-        freqEnd: 180,
-      });
+        // Finisher has slightly deeper pitch and maximum impact
+        if (isFinisher) {
+          source.playbackRate.setValueAtTime(0.88, now);
+        } else {
+          // Subtle pitch variation (+/- 6%) for rolling volley to keep it lively
+          const pitch = 0.96 + (index % 5) * 0.025;
+          source.playbackRate.setValueAtTime(pitch, now);
+        }
 
-      const shatterOsc = this.ctx.createOscillator();
-      const shatterGain = this.ctx.createGain();
-      shatterOsc.type = 'sawtooth';
-      shatterOsc.frequency.setValueAtTime(2400 + (index % 3) * 300, now);
-      shatterOsc.frequency.exponentialRampToValueAtTime(600, now + 0.14);
-      shatterGain.gain.setValueAtTime(0.18, now);
-      shatterGain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
-      shatterOsc.connect(shatterGain);
-      shatterGain.connect(this.sfxGain);
-      shatterOsc.start(now);
-      shatterOsc.stop(now + 0.16);
-    } else {
-      // Finisher 10th Meteor Crash (Heavy tectonic sub-bass shockwave + roaring blast + rumble tail)
-      const subOsc = this.ctx.createOscillator();
-      const subGain = this.ctx.createGain();
-      subOsc.type = 'sine';
-      subOsc.frequency.setValueAtTime(160, now);
-      subOsc.frequency.exponentialRampToValueAtTime(20, now + 0.65);
-      subGain.gain.setValueAtTime(0.88, now);
-      subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
-      subOsc.connect(subGain);
-      subGain.connect(this.sfxGain);
-      subOsc.start(now);
-      subOsc.stop(now + 0.68);
+        const gainNode = this.ctx.createGain();
+        gainNode.gain.setValueAtTime(finalVolume, now);
 
-      this.playNoiseBurst({
-        duration: 0.65,
-        gain: 0.6,
-        filterType: 'lowpass',
-        freqStart: 2200,
-        freqEnd: 90,
-      });
+        source.connect(gainNode);
+        if (this.sfxGain) {
+          gainNode.connect(this.sfxGain);
+        } else {
+          gainNode.connect(this.ctx.destination);
+        }
 
-      const shatterOsc = this.ctx.createOscillator();
-      const shatterGain = this.ctx.createGain();
-      shatterOsc.type = 'sawtooth';
-      shatterOsc.frequency.setValueAtTime(3600, now);
-      shatterOsc.frequency.exponentialRampToValueAtTime(700, now + 0.22);
-      shatterGain.gain.setValueAtTime(0.32, now);
-      shatterGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-      shatterOsc.connect(shatterGain);
-      shatterGain.connect(this.sfxGain);
-      shatterOsc.start(now);
-      shatterOsc.stop(now + 0.24);
+        source.start(now);
+        return;
+      } catch (e) {
+        // Fallback to HTMLAudioElement
+      }
+    }
 
-      this.playNoiseBurst({
-        duration: 1.0,
-        gain: 0.36,
-        filterType: 'bandpass',
-        freqStart: 320,
-        freqEnd: 50,
-        delay: 0.08,
-      });
+    // Priority 2: Pre-allocated HTMLAudioElement Pool
+    if (this.starfallImpactAudioPool.length > 0) {
+      const audio = this.starfallImpactAudioPool[this.starfallImpactPoolIndex];
+      this.starfallImpactPoolIndex = (this.starfallImpactPoolIndex + 1) % this.starfallImpactAudioPool.length;
+      if (audio) {
+        try {
+          audio.currentTime = 0;
+          audio.volume = this.isMuted ? 0 : Math.min(1.0, finalVolume);
+          audio.play().catch(() => {});
+        } catch {}
+      }
+    }
+
+    if (!this.starfallImpactBuffer && !this.isStarfallBuffersLoading) {
+      this.loadStarfallAudioBuffers();
     }
   }
 
