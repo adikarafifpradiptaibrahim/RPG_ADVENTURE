@@ -10,6 +10,7 @@ import arcaneBeamSfxUrl from '../assets/sfx/mage/arcane beam/magic_beam.wav';
 import starfallCastingSfxUrl from '../assets/sfx/mage/starfall/Magic_circle_casting.wav';
 import starfallImpactSfxUrl from '../assets/sfx/mage/starfall/meteor_fall.wav';
 import cahayaSpellSfxUrl from '../assets/sfx/mage/cahaya/casting_spell.wav';
+import blinkMagicSfxUrl from '../assets/sfx/mage/blink/blink_magic.wav';
 
 export {
   whereTheRiverBendsUrl,
@@ -21,6 +22,7 @@ export {
   starfallCastingSfxUrl,
   starfallImpactSfxUrl,
   cahayaSpellSfxUrl,
+  blinkMagicSfxUrl,
   whereTheRiverBendsUrl as relaxBgmUrl,
   whereTheRiverBendsUrl as overworldBgmUrl,
   titanBossBgmUrl as bossTitanBgmUrl,
@@ -84,6 +86,12 @@ class SoundManager {
   private isCahayaSpellLoading = false;
   private cahayaSpellAudioPool: HTMLAudioElement[] = [];
   private cahayaSpellPoolIndex = 0;
+
+  // --- Blink (Langkah Dimensi) SFX Buffer & Pool (blink_magic.wav) ---
+  private blinkMagicBuffer: AudioBuffer | null = null;
+  private isBlinkMagicLoading = false;
+  private blinkMagicAudioPool: HTMLAudioElement[] = [];
+  private blinkMagicPoolIndex = 0;
 
   constructor() {
     this.setupUserGestureAutoplay();
@@ -186,6 +194,16 @@ class SoundManager {
       }
       this.loadCahayaSpellBuffer();
 
+      // 6. Preload Blink (Langkah Dimensi) SFX Audio Pool (blink_magic.wav)
+      this.blinkMagicAudioPool = [];
+      for (let i = 0; i < 3; i++) {
+        const blink = new Audio(blinkMagicSfxUrl);
+        blink.preload = 'auto';
+        blink.volume = this.isMuted ? 0 : 0.9;
+        this.blinkMagicAudioPool.push(blink);
+      }
+      this.loadBlinkMagicBuffer();
+
       this.initBossAudioNodes();
     } catch (e) {
       console.warn('[SoundManager] Could not initialize audio elements:', e);
@@ -246,6 +264,7 @@ class SoundManager {
       this.loadArcaneBeamBuffer();
       this.loadStarfallAudioBuffers();
       this.loadCahayaSpellBuffer();
+      this.loadBlinkMagicBuffer();
       if (this.isMusicPlaying && !this.isMuted && !this.isVictoryPlaying) {
         if (this.currentBossMusic) {
           this.playBossMusic(this.currentBossMusic);
@@ -702,6 +721,9 @@ class SoundManager {
     if (!this.cahayaSpellBuffer && !this.isCahayaSpellLoading) {
       this.loadCahayaSpellBuffer();
     }
+    if (!this.blinkMagicBuffer && !this.isBlinkMagicLoading) {
+      this.loadBlinkMagicBuffer();
+    }
   }
 
   public async loadArcaneBeamBuffer() {
@@ -768,6 +790,24 @@ class SoundManager {
     }
   }
 
+  public async loadBlinkMagicBuffer() {
+    if (this.blinkMagicBuffer || this.isBlinkMagicLoading || typeof window === 'undefined') return;
+    this.isBlinkMagicLoading = true;
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+      const response = await fetch(blinkMagicSfxUrl);
+      const arrayBuffer = await response.arrayBuffer();
+      if (this.ctx) {
+        this.blinkMagicBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+      }
+    } catch (e) {
+      console.warn('[SoundManager] Could not decode blink_magic.wav buffer, using HTMLAudioElement fallback:', e);
+    } finally {
+      this.isBlinkMagicLoading = false;
+    }
+  }
+
   // Helper for generating organic noise bursts (whooshes, blade friction, gas hiss, explosions)
   private playNoiseBurst(options: {
     duration: number;
@@ -818,11 +858,13 @@ class SoundManager {
       this.starfallCastingAudioPool.forEach((a) => (a.volume = 0));
       this.starfallImpactAudioPool.forEach((a) => (a.volume = 0));
       this.cahayaSpellAudioPool.forEach((a) => (a.volume = 0));
+      this.blinkMagicAudioPool.forEach((a) => (a.volume = 0));
     } else {
       this.arcaneBeamAudioPool.forEach((a) => (a.volume = 0.9));
       this.starfallCastingAudioPool.forEach((a) => (a.volume = 0.9));
       this.starfallImpactAudioPool.forEach((a) => (a.volume = 0.95));
       this.cahayaSpellAudioPool.forEach((a) => (a.volume = 0.9));
+      this.blinkMagicAudioPool.forEach((a) => (a.volume = 0.9));
       if (this.isMusicPlaying && !this.isVictoryPlaying) {
         if (this.currentBossMusic && currentBoss) {
           currentBoss.volume = this.masterMusicVolume;
@@ -1485,48 +1527,65 @@ class SoundManager {
     });
   }
 
-  public playMageBlink() {
+  /**
+   * Plays the Mage Skill 2 'Blink' (Langkah Dimensi) SFX using blink_magic.wav with zero latency
+   * Uses Web Audio API AudioBuffer with preloaded HTMLAudioElement pooling fallback
+   */
+  public playMageBlink(volume = 0.9) {
     if (this.isMuted) return;
     this.initContext();
-    if (!this.ctx || !this.sfxGain) return;
 
-    const now = this.ctx.currentTime;
+    const finalVolume = Math.min(1.0, Math.max(0.0, volume));
 
-    // 1. Dimensional fold warp swoop
-    const warp = this.ctx.createOscillator();
-    const warpGain = this.ctx.createGain();
-    warp.type = 'sine';
-    warp.frequency.setValueAtTime(260, now);
-    warp.frequency.exponentialRampToValueAtTime(1600, now + 0.1);
-    warp.frequency.exponentialRampToValueAtTime(440, now + 0.22);
-    warpGain.gain.setValueAtTime(0.38, now);
-    warpGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-    warp.connect(warpGain);
-    warpGain.connect(this.sfxGain);
-    warp.start(now);
-    warp.stop(now + 0.23);
+    // Priority 1: Web Audio API AudioBuffer (Instant 0ms latency, high dynamic range)
+    if (this.ctx && this.blinkMagicBuffer) {
+      try {
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+        const source = this.ctx.createBufferSource();
+        source.buffer = this.blinkMagicBuffer;
+        const gainNode = this.ctx.createGain();
+        gainNode.gain.setValueAtTime(finalVolume, this.ctx.currentTime);
+        source.connect(gainNode);
+        if (this.sfxGain) {
+          gainNode.connect(this.sfxGain);
+        } else {
+          gainNode.connect(this.ctx.destination);
+        }
+        source.start();
+        return;
+      } catch (e) {
+        console.warn('[SoundManager] Failed to play decoded blink_magic buffer, falling back to Audio pool:', e);
+      }
+    }
 
-    // 2. Spatial tear sizzle
-    this.playNoiseBurst({
-      duration: 0.18,
-      gain: 0.28,
-      filterType: 'bandpass',
-      freqStart: 4500,
-      freqEnd: 800,
-    });
+    // Priority 2: Pre-allocated HTMLAudioElement Pool
+    if (this.blinkMagicAudioPool.length > 0) {
+      const audio = this.blinkMagicAudioPool[this.blinkMagicPoolIndex];
+      this.blinkMagicPoolIndex = (this.blinkMagicPoolIndex + 1) % this.blinkMagicAudioPool.length;
+      if (audio) {
+        try {
+          audio.currentTime = 0;
+          audio.volume = this.isMuted ? 0 : finalVolume;
+          const p = audio.play();
+          if (p !== undefined) {
+            p.catch(() => {});
+          }
+        } catch {
+          // Browser autoplay restriction
+        }
+      }
+    }
 
-    // 3. Arrival chime
-    const arrivalChime = this.ctx.createOscillator();
-    const chimeGain = this.ctx.createGain();
-    arrivalChime.type = 'triangle';
-    arrivalChime.frequency.setValueAtTime(1046.5, now + 0.08); // C6
-    arrivalChime.frequency.exponentialRampToValueAtTime(1318.5, now + 0.25); // E6
-    chimeGain.gain.setValueAtTime(0.25, now + 0.08);
-    chimeGain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
-    arrivalChime.connect(chimeGain);
-    chimeGain.connect(this.sfxGain);
-    arrivalChime.start(now + 0.08);
-    arrivalChime.stop(now + 0.29);
+    // Trigger buffer decoding in background if not already loaded
+    if (!this.blinkMagicBuffer && !this.isBlinkMagicLoading) {
+      this.loadBlinkMagicBuffer();
+    }
+  }
+
+  public playBlink(volume = 0.9) {
+    this.playMageBlink(volume);
   }
 
   /**

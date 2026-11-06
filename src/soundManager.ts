@@ -10,6 +10,7 @@ import arcaneBeamSfxUrl from './assets/sfx/mage/arcane beam/magic_beam.wav';
 import starfallCastingSfxUrl from './assets/sfx/mage/starfall/Magic_circle_casting.wav';
 import starfallImpactSfxUrl from './assets/sfx/mage/starfall/meteor_fall.wav';
 import cahayaSpellSfxUrl from './assets/sfx/mage/cahaya/casting_spell.wav';
+import blinkMagicSfxUrl from './assets/sfx/mage/blink/blink_magic.wav';
 import { soundManager } from './game/audio';
 
 export {
@@ -22,6 +23,7 @@ export {
   starfallCastingSfxUrl,
   starfallImpactSfxUrl,
   cahayaSpellSfxUrl,
+  blinkMagicSfxUrl,
   whereTheRiverBendsUrl as relaxBgmUrl,
   whereTheRiverBendsUrl as overworldBgmUrl,
   titanBossBgmUrl as bossTitanBgmUrl,
