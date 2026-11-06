@@ -1179,8 +1179,8 @@ class SoundManager {
   }
 
   // --- STARFALL METEOR SPELL SFX ---
-  // 1. Runic Charge / Circuit Stroke Reveal SFX (1.5s expanding circuit conduits, 8 harmonic chimes & seal lock)
-  public playStarfallCharge(duration = 1.5) {
+  // 1. Runic Charge / Circuit Stroke Reveal SFX (1.0s expanding circuit conduits, 8 harmonic chimes & seal lock)
+  public playStarfallCharge(duration = 1.0) {
     if (this.isMuted) return;
     this.initContext();
     if (!this.ctx || !this.sfxGain) return;

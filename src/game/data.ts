@@ -1280,7 +1280,7 @@ export const ROLE_CONFIGS: Record<'warrior' | 'mage' | 'rogue', RoleConfig> = {
     skill1: {
       slot: 1,
       nameId: 'Starfall (Hujan Meteor)',
-      descId: 'Memusatkan energi sihir selama 1.5 detik lalu memanggil 3 meteor kristal berapi jatuh dari langit menghantam area target.',
+      descId: 'Memusatkan energi sihir selama 1.0 detik lalu memanggil hujan meteor kristal berapi jatuh dari langit menghantam area target.',
       icon: '☄️',
       hotkey: 'Q',
       costText: '15 MP',

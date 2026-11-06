@@ -716,7 +716,7 @@ export const HUD: React.FC<HUDProps> = ({
         </button>
       </div>
 
-      {/* 1.5s Starfall Casting Indicator Bar (image_68.png) */}
+      {/* 1.0s Starfall Casting Indicator Bar (image_68.png) */}
       {castingState && castingState.isCasting && (
         <div className="fixed bottom-20 md:bottom-23 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex flex-col items-center select-none animate-in fade-in duration-150">
           <div className="relative w-56 sm:w-64 h-6 sm:h-7 bg-stone-950/90 rounded-full border border-amber-500/70 shadow-[0_0_15px_rgba(245,158,11,0.5)] overflow-hidden flex items-center px-2.5">

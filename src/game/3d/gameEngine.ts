@@ -246,7 +246,7 @@ export class GameEngine {
     | null = null;
   public isCasting = false;
   private castingTimer = 0;
-  private castingDuration = 1.5;
+  private castingDuration = 1.0;
   private castingSkillName = '';
   private castingCircleInstance: StarfallCastingCircleInstance | null = null;
   private isDashing = false;
@@ -2894,46 +2894,46 @@ export class GameEngine {
     this.spawnMageArcaneLaserBeam(customFwd, customSpawnPos, isRemote);
   }
 
-  // --- MAGE STARFALL (1.5s Cast Time, Movement Lock, Circuit Stroke Reveal & 10-Meteor Continuous Barrage) ---
+  // --- MAGE STARFALL (1.0s Cast Time, Movement Lock, Circuit Stroke Reveal & 10-Meteor Continuous Barrage) ---
   private startStarfallCasting() {
     this.isCasting = true;
     this.castingTimer = 0;
-    this.castingDuration = 1.5;
+    this.castingDuration = 1.0;
     this.castingSkillName = 'Starfall';
     this.playerVel.set(0, 0, 0);
 
-    // Audio: 1.5s swelling runic charging hum
-    soundManager.playStarfallCharge(1.5);
+    // Audio: 1.0s swelling runic charging hum
+    soundManager.playStarfallCharge(1.0);
 
     // 3D Magic Circle at feet (y = terrainHeight + 0.05)
+    // Pooled Zero-GC instance with 3.5s total visual lifespan (1.0s casting + 2.0s barrage hold + 0.5s fade-out)
     this.castingCircleInstance = createStarfallCastingCircleVfx({
       playerPos: this.playerPos,
-      duration: 1.5,
+      duration: 1.0,
       onSpawnSparks: (pos, color, count, speed) => {
         this.spawnSparks(pos, color, count, speed);
       },
     });
 
+    const circle = this.castingCircleInstance;
     this.addVfx(
-      this.castingCircleInstance.group,
+      circle.group,
       (delta) => {
-        if (!this.castingCircleInstance) return false;
-        return this.castingCircleInstance.update(delta, this.playerPos);
+        return circle.update(delta, this.playerPos);
       },
       () => {
-        if (this.castingCircleInstance) {
-          this.scene.remove(this.castingCircleInstance.group);
-          this.castingCircleInstance.cleanup();
+        circle.cleanup();
+        if (this.castingCircleInstance === circle) {
           this.castingCircleInstance = null;
         }
       }
     );
 
-    // Notify UI: Display casting progress bar ("Casting... 1.5s")
+    // Notify UI: Display casting progress bar ("Casting... 1.0s")
     this.callbacks.onCastingUpdate?.({
       isCasting: true,
       progress: 0,
-      text: 'Casting... 1.5s',
+      text: 'Casting... 1.0s',
     });
   }
 
@@ -2941,12 +2941,9 @@ export class GameEngine {
     this.isCasting = false;
     this.callbacks.onCastingUpdate?.(null);
 
-    // Clean up and remove casting circle immediately from the scene (zero lingering traces)
-    if (this.castingCircleInstance) {
-      this.scene.remove(this.castingCircleInstance.group);
-      this.castingCircleInstance.cleanup();
-      this.castingCircleInstance = null;
-    }
+    // NOTE: Magic Circle is NOT removed here!
+    // It remains illuminated on the ground during the full 2.0s meteor shower,
+    // then smoothly fades out over 0.5s via this.addVfx and castingCircleInstance.update().
 
     // Calculate target impact area in front of character (14.5 units ahead: safe 12-15 range)
     const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
@@ -3671,7 +3668,7 @@ export class GameEngine {
           });
           this.callbacks.onAddFloatingText('Pusaran Badai Baja 360Â°!', '#fbbf24', 'crit');
         } else if (this.charClass === 'mage') {
-          // Mage: Starfall (Hujan Meteor 8-Meteor Barrage with 1.5s Cast Time, Radial Magic Circle & Movement Lock)
+          // Mage: Starfall (Hujan Meteor 10-Meteor Barrage with 1.0s Cast Time, Circuit Magic Circle & Movement Lock)
           this.startStarfallCasting();
           return { ...stats, mp: Math.max(0, stats.mp - 15) };
         } else if (this.charClass === 'rogue') {
@@ -4473,7 +4470,7 @@ export class GameEngine {
       this.callbacks.onCastingUpdate?.({
         isCasting: true,
         progress,
-        text: 'Casting... 1.5s',
+        text: 'Casting... 1.0s',
       });
 
       // Strict movement lock: velocity is 0, ignore input keys/joystick
