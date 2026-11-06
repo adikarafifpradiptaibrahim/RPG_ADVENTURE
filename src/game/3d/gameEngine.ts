@@ -828,7 +828,7 @@ export class GameEngine {
           this.spawnShockwaveRing(atkPos, 0xf59e0b, 2.2, 0.25);
         }
       } else if (charClass === 'mage') {
-        soundManager.playMageArcaneLaser();
+        soundManager.playArcaneBeam();
         this.spawnMageArcaneLaserBeam(forward, atkPos, true);
       } else if (charClass === 'rogue') {
         if (isBow) {
@@ -3577,7 +3577,7 @@ export class GameEngine {
       this.attackType = 'basic';
       this.attackDuration = 0.45;
       this.attackTimer = 0.45;
-      soundManager.playMageArcaneLaser();
+      soundManager.playArcaneBeam();
       this.spawnMageArcaneLaserBeam();
     } else if (this.charClass === 'rogue') {
       if (this.hunterWeaponMode === 'bow') {

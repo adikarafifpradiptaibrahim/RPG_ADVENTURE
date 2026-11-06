@@ -6,6 +6,7 @@ import theQuietArchiveUrl from '../assets/audio/The_Quiet_Archive.mp3';
 import titanBossBgmUrl from '../assets/audio/Titan_s_Heavy_Tread.mp3';
 import ironMawWormBgmUrl from '../assets/audio/The_Iron_Maw.mp3';
 import basaltDragonBgmUrl from '../assets/audio/Basalt_and_Brimstone.mp3';
+import arcaneBeamSfxUrl from '../assets/sfx/mage/arcane beam/magic_beam.wav';
 
 export {
   whereTheRiverBendsUrl,
@@ -13,6 +14,7 @@ export {
   titanBossBgmUrl,
   ironMawWormBgmUrl,
   basaltDragonBgmUrl,
+  arcaneBeamSfxUrl,
   whereTheRiverBendsUrl as relaxBgmUrl,
   whereTheRiverBendsUrl as overworldBgmUrl,
   titanBossBgmUrl as bossTitanBgmUrl,
@@ -53,6 +55,12 @@ class SoundManager {
   private victoryTimeoutId: any = null;
 
   private noiseBuffer: AudioBuffer | null = null;
+
+  // --- Arcane Beam SFX Buffer & Pool (magic_beam.wav) ---
+  private arcaneBeamBuffer: AudioBuffer | null = null;
+  private isArcaneBeamLoading = false;
+  private arcaneBeamAudioPool: HTMLAudioElement[] = [];
+  private arcaneBeamPoolIndex = 0;
 
   constructor() {
     this.setupUserGestureAutoplay();
@@ -119,6 +127,16 @@ class SoundManager {
       this.dragonAudio.preload = 'auto';
       this.dragonAudio.volume = 0;
 
+      // 3. Preload Arcane Beam SFX Audio Pool (magic_beam.wav)
+      this.arcaneBeamAudioPool = [];
+      for (let i = 0; i < 4; i++) {
+        const beam = new Audio(arcaneBeamSfxUrl);
+        beam.preload = 'auto';
+        beam.volume = this.isMuted ? 0 : 0.9;
+        this.arcaneBeamAudioPool.push(beam);
+      }
+      this.loadArcaneBeamBuffer();
+
       this.initBossAudioNodes();
     } catch (e) {
       console.warn('[SoundManager] Could not initialize audio elements:', e);
@@ -176,6 +194,7 @@ class SoundManager {
     const unlock = () => {
       this.initContext();
       this.initAudioElements();
+      this.loadArcaneBeamBuffer();
       if (this.isMusicPlaying && !this.isMuted && !this.isVictoryPlaying) {
         if (this.currentBossMusic) {
           this.playBossMusic(this.currentBossMusic);
@@ -623,6 +642,27 @@ class SoundManager {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
+    if (!this.arcaneBeamBuffer && !this.isArcaneBeamLoading) {
+      this.loadArcaneBeamBuffer();
+    }
+  }
+
+  public async loadArcaneBeamBuffer() {
+    if (this.arcaneBeamBuffer || this.isArcaneBeamLoading || typeof window === 'undefined') return;
+    this.isArcaneBeamLoading = true;
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+      const response = await fetch(arcaneBeamSfxUrl);
+      const arrayBuffer = await response.arrayBuffer();
+      if (this.ctx) {
+        this.arcaneBeamBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+      }
+    } catch (e) {
+      console.warn('[SoundManager] Could not decode magic_beam.wav buffer, using HTMLAudioElement fallback:', e);
+    } finally {
+      this.isArcaneBeamLoading = false;
+    }
   }
 
   // Helper for generating organic noise bursts (whooshes, blade friction, gas hiss, explosions)
@@ -671,7 +711,9 @@ class SoundManager {
       if (this.titanAudio) this.titanAudio.volume = 0;
       if (this.wormAudio) this.wormAudio.volume = 0;
       if (this.dragonAudio) this.dragonAudio.volume = 0;
+      this.arcaneBeamAudioPool.forEach((a) => (a.volume = 0));
     } else {
+      this.arcaneBeamAudioPool.forEach((a) => (a.volume = 0.9));
       if (this.isMusicPlaying && !this.isVictoryPlaying) {
         if (this.currentBossMusic && currentBoss) {
           currentBoss.volume = this.masterMusicVolume;
@@ -1068,114 +1110,72 @@ class SoundManager {
 
   // --- MAGE SOUNDS (Crystalline, Astral, Ethereal) ---
   public playMageBolt() {
-    this.playMageArcaneLaser();
+    this.playArcaneBeam();
   }
 
-  // Spectacular 1.0s Arcane Laser Beam SFX (Charge Sweep + Energy Explosion + Sustained Laser Plasma Hum)
-  public playMageArcaneLaser() {
+  /**
+   * Plays the Mage Arcane Beam SFX using magic_beam.wav with zero latency
+   * Uses Web Audio API AudioBuffer with preloaded HTMLAudioElement pooling fallback
+   */
+  public playArcaneBeam(volume = 0.9) {
     if (this.isMuted) return;
     this.initContext();
-    if (!this.ctx || !this.sfxGain) return;
 
-    const now = this.ctx.currentTime;
+    const finalVolume = Math.min(1.0, Math.max(0.0, volume));
 
-    // 1. Arcane Beam Charge (Instant 0.08s rising energy sweep)
-    const chargeOsc = this.ctx.createOscillator();
-    const chargeGain = this.ctx.createGain();
-    chargeOsc.type = 'sine';
-    chargeOsc.frequency.setValueAtTime(800, now);
-    chargeOsc.frequency.exponentialRampToValueAtTime(3200, now + 0.08);
-    chargeGain.gain.setValueAtTime(0.01, now);
-    chargeGain.gain.linearRampToValueAtTime(0.35, now + 0.07);
-    chargeGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-    chargeOsc.connect(chargeGain);
-    chargeGain.connect(this.sfxGain);
-    chargeOsc.start(now);
-    chargeOsc.stop(now + 0.13);
+    // Priority 1: Web Audio API AudioBuffer (Instant 0ms latency, high dynamic range)
+    if (this.ctx && this.arcaneBeamBuffer) {
+      try {
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+        const source = this.ctx.createBufferSource();
+        source.buffer = this.arcaneBeamBuffer;
+        const gainNode = this.ctx.createGain();
+        gainNode.gain.setValueAtTime(finalVolume, this.ctx.currentTime);
+        source.connect(gainNode);
+        if (this.sfxGain) {
+          gainNode.connect(this.sfxGain);
+        } else {
+          gainNode.connect(this.ctx.destination);
+        }
+        source.start(0);
+        return;
+      } catch (e) {
+        // Fallback to HTMLAudioElement pool if Web Audio buffer node fails
+      }
+    }
 
-    // 2. Energy Explosion Punch (Sub-bass impact + high energy discharge)
-    const punchOsc = this.ctx.createOscillator();
-    const punchGain = this.ctx.createGain();
-    punchOsc.type = 'sine';
-    punchOsc.frequency.setValueAtTime(220, now + 0.04);
-    punchOsc.frequency.exponentialRampToValueAtTime(42, now + 0.38);
-    punchGain.gain.setValueAtTime(0.55, now + 0.04);
-    punchGain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
-    punchOsc.connect(punchGain);
-    punchGain.connect(this.sfxGain);
-    punchOsc.start(now + 0.04);
-    punchOsc.stop(now + 0.4);
+    // Priority 2: Pre-allocated HTMLAudioElement Pool (Zero GC, rapid-fire safe)
+    if (this.arcaneBeamAudioPool.length > 0) {
+      const audio = this.arcaneBeamAudioPool[this.arcaneBeamPoolIndex];
+      this.arcaneBeamPoolIndex = (this.arcaneBeamPoolIndex + 1) % this.arcaneBeamAudioPool.length;
+      if (audio) {
+        try {
+          audio.currentTime = 0;
+          audio.volume = this.isMuted ? 0 : Math.min(1.0, finalVolume * 0.9);
+          audio.play().catch(() => {});
+        } catch {}
+      }
+    } else {
+      // On-demand instance if pool not yet initialized
+      try {
+        const audio = new Audio(arcaneBeamSfxUrl);
+        audio.volume = this.isMuted ? 0 : Math.min(1.0, finalVolume * 0.9);
+        audio.play().catch(() => {});
+        this.arcaneBeamAudioPool.push(audio);
+      } catch {}
+    }
 
-    // Discharge crackle / plasma burst
-    this.playNoiseBurst({
-      duration: 0.3,
-      gain: 0.28,
-      filterType: 'bandpass',
-      freqStart: 4200,
-      freqEnd: 680,
-      delay: 0.04,
-    });
+    // Trigger buffer decoding in background if not already loaded
+    if (!this.arcaneBeamBuffer && !this.isArcaneBeamLoading) {
+      this.loadArcaneBeamBuffer();
+    }
+  }
 
-    // 3. 1.0-Second Sustained Laser Plasma Hum with Rapid LFO Modulation
-    const laserOsc = this.ctx.createOscillator();
-    const laserFilter = this.ctx.createBiquadFilter();
-    const laserGain = this.ctx.createGain();
-
-    laserOsc.type = 'sawtooth';
-    laserOsc.frequency.setValueAtTime(320, now + 0.05);
-    laserOsc.frequency.exponentialRampToValueAtTime(240, now + 1.0);
-
-    laserFilter.type = 'lowpass';
-    laserFilter.frequency.setValueAtTime(1400, now + 0.05);
-    laserFilter.frequency.exponentialRampToValueAtTime(750, now + 1.0);
-    laserFilter.Q.setValueAtTime(3.8, now + 0.05);
-
-    // 26 Hz LFO Tremolo / Vibrato for electric plasma sizzle
-    const lfo = this.ctx.createOscillator();
-    const lfoGain = this.ctx.createGain();
-    lfo.type = 'sine';
-    lfo.frequency.setValueAtTime(26, now + 0.05);
-    lfoGain.gain.setValueAtTime(0.08, now + 0.05);
-
-    laserGain.gain.setValueAtTime(0.01, now + 0.05);
-    laserGain.gain.linearRampToValueAtTime(0.32, now + 0.12);
-    laserGain.gain.setValueAtTime(0.3, now + 0.72);
-    laserGain.gain.exponentialRampToValueAtTime(0.001, now + 1.02);
-
-    lfo.connect(lfoGain);
-    lfoGain.connect(laserGain.gain);
-
-    laserOsc.connect(laserFilter);
-    laserFilter.connect(laserGain);
-    laserGain.connect(this.sfxGain);
-
-    laserOsc.start(now + 0.05);
-    lfo.start(now + 0.05);
-    laserOsc.stop(now + 1.05);
-    lfo.stop(now + 1.05);
-
-    // 4. Shimmering High-Crystalline Harmonics
-    const shimmerOsc = this.ctx.createOscillator();
-    const shimmerGain = this.ctx.createGain();
-    shimmerOsc.type = 'triangle';
-    shimmerOsc.frequency.setValueAtTime(1280, now + 0.06);
-    shimmerOsc.frequency.linearRampToValueAtTime(1040, now + 0.95);
-    shimmerGain.gain.setValueAtTime(0.18, now + 0.06);
-    shimmerGain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
-    shimmerOsc.connect(shimmerGain);
-    shimmerGain.connect(this.sfxGain);
-    shimmerOsc.start(now + 0.06);
-    shimmerOsc.stop(now + 0.98);
-
-    // 5. Sustained plasma hiss
-    this.playNoiseBurst({
-      duration: 0.85,
-      gain: 0.12,
-      filterType: 'bandpass',
-      freqStart: 2200,
-      freqEnd: 900,
-      delay: 0.08,
-    });
+  // Backward-compatible alias for existing callers
+  public playMageArcaneLaser(volume = 0.9) {
+    this.playArcaneBeam(volume);
   }
 
   // --- STARFALL METEOR SPELL SFX ---

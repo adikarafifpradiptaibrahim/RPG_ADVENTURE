@@ -6,6 +6,7 @@ import theQuietArchiveUrl from './assets/audio/The_Quiet_Archive.mp3';
 import titanBossBgmUrl from './assets/audio/Titan_s_Heavy_Tread.mp3';
 import ironMawWormBgmUrl from './assets/audio/The_Iron_Maw.mp3';
 import basaltDragonBgmUrl from './assets/audio/Basalt_and_Brimstone.mp3';
+import arcaneBeamSfxUrl from './assets/sfx/mage/arcane beam/magic_beam.wav';
 import { soundManager } from './game/audio';
 
 export {
@@ -14,6 +15,7 @@ export {
   titanBossBgmUrl,
   ironMawWormBgmUrl,
   basaltDragonBgmUrl,
+  arcaneBeamSfxUrl,
   whereTheRiverBendsUrl as relaxBgmUrl,
   whereTheRiverBendsUrl as overworldBgmUrl,
   titanBossBgmUrl as bossTitanBgmUrl,
