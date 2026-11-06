@@ -1701,6 +1701,15 @@ export function preloadMageVfxPool(scene: THREE.Scene, renderer?: THREE.WebGLRen
     dummyGroup.add(new THREE.Points(celestialPool.stardustGeom, celestialPool.stardustMat));
     dummyGroup.add(new THREE.Mesh(celestialPool.shockwaveGeom1, celestialPool.shockwaveMat1));
 
+    // Mage Blink Material Pre-compilation
+    const blinkPool = MageBlinkResourcePool.get();
+    dummyGroup.add(new THREE.Mesh(blinkPool.circlePlaneGeom, blinkPool.departureCircleMat));
+    dummyGroup.add(new THREE.Mesh(blinkPool.circlePlaneGeom, blinkPool.arrivalCircleMat));
+    dummyGroup.add(new THREE.Mesh(blinkPool.tracerGeom, blinkPool.tracerMat));
+    dummyGroup.add(new THREE.Mesh(blinkPool.tracerCoreGeom, blinkPool.tracerCoreMat));
+    dummyGroup.add(new THREE.Mesh(blinkPool.torsoGeom, blinkPool.afterimageMat1));
+    dummyGroup.add(new THREE.Mesh(blinkPool.shockwaveGeom1, blinkPool.landingShockwaveMatCyan));
+
     scene.add(dummyGroup);
     try {
       renderer.compile(scene, camera);
@@ -2438,5 +2447,421 @@ export function createMageCelestialHealVfx(params: {
   playerPos: THREE.Vector3;
 }): CelestialHealVfxInstance {
   return CelestialHealResourcePool.get().acquire(params.playerPos);
+}
+
+// =========================================================================
+// MAGE SKILL 2: BLINK (LANGKAH DIMENSI) - DUAL RUNIC CIRCLE & AFTERIMAGE POOL
+// =========================================================================
+
+export interface MageBlinkVfxInstance {
+  group: THREE.Group;
+  isActive: boolean;
+  activate: (
+    startPos: THREE.Vector3,
+    targetPos: THREE.Vector3,
+    playerRotationY: number,
+    getTerrainHeight: (x: number, z: number) => number
+  ) => void;
+  update: (delta: number, onArrival?: () => void) => boolean;
+  cleanup: () => void;
+}
+
+export class MageBlinkResourcePool {
+  private static instance: MageBlinkResourcePool | null = null;
+
+  // Shared Geometries
+  public circlePlaneGeom!: THREE.PlaneGeometry;
+  public tracerGeom!: THREE.CylinderGeometry;
+  public tracerCoreGeom!: THREE.CylinderGeometry;
+  public shockwaveGeom1!: THREE.RingGeometry;
+  public shockwaveGeom2!: THREE.RingGeometry;
+
+  // Afterimage Avatar Geometries
+  public torsoGeom!: THREE.BoxGeometry;
+  public skirtGeom!: THREE.CylinderGeometry;
+  public headGeom!: THREE.BoxGeometry;
+  public hatBrimGeom!: THREE.CylinderGeometry;
+  public hatConeGeom!: THREE.ConeGeometry;
+  public armGeom!: THREE.BoxGeometry;
+  public staffGeom!: THREE.CylinderGeometry;
+
+  // Materials
+  public departureCircleMat!: THREE.MeshBasicMaterial;
+  public arrivalCircleMat!: THREE.MeshBasicMaterial;
+  public tracerMat!: THREE.MeshBasicMaterial;
+  public tracerCoreMat!: THREE.MeshBasicMaterial;
+  public afterimageMat1!: THREE.MeshBasicMaterial;
+  public afterimageMat2!: THREE.MeshBasicMaterial;
+  public afterimageMat3!: THREE.MeshBasicMaterial;
+  public landingShockwaveMatCyan!: THREE.MeshBasicMaterial;
+  public landingShockwaveMatPurple!: THREE.MeshBasicMaterial;
+
+  public isInitialized = false;
+  private instances: MageBlinkVfxInstance[] = [];
+
+  public static get(): MageBlinkResourcePool {
+    if (!MageBlinkResourcePool.instance) {
+      MageBlinkResourcePool.instance = new MageBlinkResourcePool();
+      MageBlinkResourcePool.instance.init();
+    }
+    return MageBlinkResourcePool.instance;
+  }
+
+  private init() {
+    if (this.isInitialized) return;
+
+    // 1. Geometries
+    // Radius 1.8 units -> Diameter 3.6 units
+    this.circlePlaneGeom = new THREE.PlaneGeometry(3.6, 3.6);
+    this.tracerGeom = new THREE.CylinderGeometry(0.12, 0.12, 1.0, 8);
+    this.tracerCoreGeom = new THREE.CylinderGeometry(0.04, 0.04, 1.0, 8);
+    this.shockwaveGeom1 = new THREE.RingGeometry(0.2, 1.0, 32);
+    this.shockwaveGeom2 = new THREE.RingGeometry(0.2, 1.0, 32);
+
+    // Afterimage Mage Avatar Geometries
+    this.torsoGeom = new THREE.BoxGeometry(0.7, 0.9, 0.45);
+    this.skirtGeom = new THREE.CylinderGeometry(0.35, 0.58, 0.95, 8);
+    this.headGeom = new THREE.BoxGeometry(0.42, 0.42, 0.42);
+    this.hatBrimGeom = new THREE.CylinderGeometry(0.52, 0.6, 0.08, 8);
+    this.hatConeGeom = new THREE.ConeGeometry(0.36, 0.75, 8);
+    this.armGeom = new THREE.BoxGeometry(0.22, 0.72, 0.22);
+    this.staffGeom = new THREE.CylinderGeometry(0.04, 0.04, 1.8, 6);
+
+    // 2. Materials
+    const runicTex = getCelestialMagicCircleTexture();
+
+    // Titik Asal (Departure): Magenta / Ungu Neon
+    this.departureCircleMat = new THREE.MeshBasicMaterial({
+      map: runicTex,
+      color: 0xd946ef,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+
+    // Titik Target (Arrival): Cyan / Sky-Blue Neon
+    this.arrivalCircleMat = new THREE.MeshBasicMaterial({
+      map: runicTex,
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+
+    // Ethereal Tracer (Cyan aura + White core)
+    this.tracerMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    this.tracerCoreMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    // 3 Afterimages (cyan/purple glow, opacity 0.6)
+    this.afterimageMat1 = new THREE.MeshBasicMaterial({
+      color: 0xc084fc,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    this.afterimageMat2 = new THREE.MeshBasicMaterial({
+      color: 0xa855f7,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    this.afterimageMat3 = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    // Landing Shockwaves
+    this.landingShockwaveMatCyan = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    this.landingShockwaveMatPurple = new THREE.MeshBasicMaterial({
+      color: 0xd946ef,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+
+    // Create 3 pooled instances
+    for (let i = 0; i < 3; i++) {
+      this.instances.push(this.createInstance());
+    }
+
+    this.isInitialized = true;
+  }
+
+  private createInstance(): MageBlinkVfxInstance {
+    const group = new THREE.Group();
+    let isActive = false;
+    let elapsed = 0;
+    let arrivalFired = false;
+    const totalDuration = 0.35; // 0.2s traversal & afterimages + 0.15s landing burst
+
+    // 1. Departure Runic Magic Circle
+    const departureCircle = new THREE.Mesh(this.circlePlaneGeom, this.departureCircleMat.clone());
+    departureCircle.rotation.x = -Math.PI / 2;
+    group.add(departureCircle);
+
+    // 2. Arrival Runic Magic Circle
+    const arrivalCircle = new THREE.Mesh(this.circlePlaneGeom, this.arrivalCircleMat.clone());
+    arrivalCircle.rotation.x = -Math.PI / 2;
+    group.add(arrivalCircle);
+
+    // 3. Ethereal Tracer (Outer + Core)
+    const tracerGroup = new THREE.Group();
+    const outerTracer = new THREE.Mesh(this.tracerGeom, this.tracerMat.clone());
+    const innerTracer = new THREE.Mesh(this.tracerCoreGeom, this.tracerCoreMat.clone());
+    tracerGroup.add(outerTracer, innerTracer);
+    group.add(tracerGroup);
+
+    // 4. 3 Afterimage Clones
+    const afterimageMats = [
+      this.afterimageMat1.clone(),
+      this.afterimageMat2.clone(),
+      this.afterimageMat3.clone(),
+    ];
+    const afterimageGroups: THREE.Group[] = [];
+    for (let i = 0; i < 3; i++) {
+      const cloneGroup = new THREE.Group();
+      const mat = afterimageMats[i];
+
+      const body = new THREE.Mesh(this.torsoGeom, mat);
+      body.position.y = 1.35;
+
+      const skirt = new THREE.Mesh(this.skirtGeom, mat);
+      skirt.position.y = 0.65;
+
+      const head = new THREE.Mesh(this.headGeom, mat);
+      head.position.y = 2.05;
+
+      const hatBrim = new THREE.Mesh(this.hatBrimGeom, mat);
+      hatBrim.position.y = 2.32;
+
+      const hatCone = new THREE.Mesh(this.hatConeGeom, mat);
+      hatCone.position.y = 2.72;
+
+      const leftArm = new THREE.Mesh(this.armGeom, mat);
+      leftArm.position.set(0.48, 1.35, 0);
+      leftArm.rotation.set(-0.6, 0, 0.35);
+
+      const rightArm = new THREE.Mesh(this.armGeom, mat);
+      rightArm.position.set(-0.48, 1.35, 0);
+      rightArm.rotation.set(-1.52, 0, -0.05);
+
+      const staff = new THREE.Mesh(this.staffGeom, mat);
+      staff.position.set(-0.55, 1.25, 0.3);
+
+      cloneGroup.add(body, skirt, head, hatBrim, hatCone, leftArm, rightArm, staff);
+      afterimageGroups.push(cloneGroup);
+      group.add(cloneGroup);
+    }
+
+    // 5. Landing Shockwaves (Cyan & Magenta)
+    const landingShockwave1 = new THREE.Mesh(this.shockwaveGeom1, this.landingShockwaveMatCyan.clone());
+    landingShockwave1.rotation.x = -Math.PI / 2;
+    landingShockwave1.visible = false;
+    group.add(landingShockwave1);
+
+    const landingShockwave2 = new THREE.Mesh(this.shockwaveGeom2, this.landingShockwaveMatPurple.clone());
+    landingShockwave2.rotation.x = -Math.PI / 2;
+    landingShockwave2.visible = false;
+    group.add(landingShockwave2);
+
+    const cleanup = () => {
+      isActive = false;
+      group.visible = false;
+      landingShockwave1.visible = false;
+      landingShockwave2.visible = false;
+      if (group.parent) {
+        group.parent.remove(group);
+      }
+    };
+
+    const activate = (
+      startPos: THREE.Vector3,
+      targetPos: THREE.Vector3,
+      playerRotationY: number,
+      getTerrainHeight: (x: number, z: number) => number
+    ) => {
+      isActive = true;
+      elapsed = 0;
+      arrivalFired = false;
+      group.visible = true;
+
+      // 1. Position Departure Circle
+      const startGroundY = getTerrainHeight(startPos.x, startPos.z);
+      departureCircle.position.set(startPos.x, startGroundY + 0.05, startPos.z);
+      departureCircle.material.opacity = 0.85;
+
+      // 2. Position Arrival Circle
+      const targetGroundY = getTerrainHeight(targetPos.x, targetPos.z);
+      arrivalCircle.position.set(targetPos.x, targetGroundY + 0.05, targetPos.z);
+      arrivalCircle.material.opacity = 0.85;
+
+      // 3. Configure Ethereal Tracer
+      const dist = startPos.distanceTo(targetPos);
+      const mid = new THREE.Vector3().addVectors(startPos, targetPos).multiplyScalar(0.5);
+      mid.y = getTerrainHeight(mid.x, mid.z) + 1.1;
+      tracerGroup.position.copy(mid);
+
+      const fwd = new THREE.Vector3().subVectors(targetPos, startPos);
+      if (fwd.lengthSq() > 0.0001) {
+        fwd.normalize();
+        tracerGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), fwd);
+      }
+      outerTracer.scale.set(1, dist, 1);
+      innerTracer.scale.set(1, dist, 1);
+      outerTracer.material.opacity = 0.85;
+      innerTracer.material.opacity = 0.95;
+      tracerGroup.visible = true;
+
+      // 4. Configure 3 Afterimage Clones along trajectory (25%, 50%, 75%)
+      const fractions = [0.25, 0.50, 0.75];
+      for (let i = 0; i < 3; i++) {
+        const t = fractions[i];
+        const clonePos = new THREE.Vector3().lerpVectors(startPos, targetPos, t);
+        clonePos.y = getTerrainHeight(clonePos.x, clonePos.z);
+        const cloneGroup = afterimageGroups[i];
+        cloneGroup.position.copy(clonePos);
+        cloneGroup.rotation.y = playerRotationY;
+        cloneGroup.scale.setScalar(1.0);
+        cloneGroup.visible = true;
+        afterimageMats[i].opacity = 0.60;
+      }
+
+      // 5. Reset Landing Shockwaves
+      landingShockwave1.position.set(targetPos.x, targetGroundY + 0.06, targetPos.z);
+      landingShockwave1.scale.set(0.2, 0.2, 1);
+      landingShockwave1.visible = false;
+
+      landingShockwave2.position.set(targetPos.x, targetGroundY + 0.07, targetPos.z);
+      landingShockwave2.scale.set(0.2, 0.2, 1);
+      landingShockwave2.visible = false;
+    };
+
+    const update = (delta: number, onArrival?: () => void): boolean => {
+      if (!isActive) return false;
+      elapsed += delta;
+
+      // Phase 1: Departure Circle & Arrival Circle Fade Out (0.0s - 0.20s)
+      const depAlpha = Math.max(0, 1.0 - elapsed / 0.20);
+      departureCircle.material.opacity = 0.85 * depAlpha;
+
+      const arrAlpha = Math.max(0, 1.0 - elapsed / 0.22);
+      arrivalCircle.material.opacity = 0.85 * arrAlpha;
+
+      // Tracer Beam Fade Out (0.0s - 0.20s)
+      outerTracer.material.opacity = 0.85 * depAlpha;
+      innerTracer.material.opacity = 0.95 * depAlpha;
+
+      // Afterimages Fade Out (0.0s - 0.18s) with subtle expansion
+      const afAlpha = Math.max(0, 1.0 - elapsed / 0.18);
+      for (let i = 0; i < 3; i++) {
+        afterimageMats[i].opacity = 0.60 * afAlpha;
+        afterimageGroups[i].scale.setScalar(1.0 + (elapsed / 0.18) * 0.12);
+        if (afAlpha <= 0) {
+          afterimageGroups[i].visible = false;
+        }
+      }
+
+      // Phase 2: Landing Trigger at 0.18s - 0.20s
+      if (elapsed >= 0.18 && !arrivalFired) {
+        arrivalFired = true;
+        landingShockwave1.visible = true;
+        landingShockwave2.visible = true;
+        if (onArrival) onArrival();
+      }
+
+      // Landing Shockwaves Expansion (0.18s - 0.32s)
+      if (arrivalFired) {
+        const landingElapsed = elapsed - 0.18;
+        const swAlpha = Math.max(0, 1.0 - landingElapsed / 0.14);
+
+        const swScale1 = 0.3 + landingElapsed * 24.0; // Expands to ~3.6
+        landingShockwave1.scale.set(swScale1, swScale1, 1);
+        landingShockwave1.material.opacity = 0.90 * swAlpha;
+
+        const swScale2 = 0.2 + landingElapsed * 18.0; // Expands to ~2.7
+        landingShockwave2.scale.set(swScale2, swScale2, 1);
+        landingShockwave2.material.opacity = 0.85 * swAlpha;
+      }
+
+      if (elapsed >= totalDuration) {
+        cleanup();
+        return false;
+      }
+
+      return true;
+    };
+
+    return {
+      group,
+      get isActive() {
+        return isActive;
+      },
+      activate,
+      update,
+      cleanup,
+    };
+  }
+
+  public acquire(
+    startPos: THREE.Vector3,
+    targetPos: THREE.Vector3,
+    playerRotationY: number,
+    getTerrainHeight: (x: number, z: number) => number
+  ): MageBlinkVfxInstance {
+    let instance = this.instances.find((i) => !i.isActive);
+    if (!instance) {
+      instance = this.instances[0];
+      instance.cleanup();
+    }
+    instance.activate(startPos, targetPos, playerRotationY, getTerrainHeight);
+    return instance;
+  }
+}
+
+/**
+ * Creates and acquires the pre-allocated Mage Blink VFX Instance
+ */
+export function createMageBlinkVfx(params: {
+  startPos: THREE.Vector3;
+  targetPos: THREE.Vector3;
+  playerRotationY: number;
+  getTerrainHeight: (x: number, z: number) => number;
+}): MageBlinkVfxInstance {
+  return MageBlinkResourcePool.get().acquire(
+    params.startPos,
+    params.targetPos,
+    params.playerRotationY,
+    params.getTerrainHeight
+  );
 }
 

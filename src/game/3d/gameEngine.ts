@@ -51,10 +51,13 @@ import {
   createStarfallCastingCircleVfx,
   createStarfallMeteorBarrageVfx,
   createMageCelestialHealVfx,
+  createMageBlinkVfx,
   preloadStarfallPool,
   StarfallCastingCircleInstance,
   CelestialHealResourcePool,
   CelestialHealVfxInstance,
+  MageBlinkResourcePool,
+  MageBlinkVfxInstance,
 } from '../skills';
 
 export interface LootPickup {
@@ -251,6 +254,9 @@ export class GameEngine {
   private castingCircleInstance: StarfallCastingCircleInstance | null = null;
   private isDashing = false;
   private dashTimer = 0;
+  private isInvulnerable = false;
+  private invulnerableTimer = 0;
+  private cameraFovPunch = 0;
   private charClass: CharacterClass = 'warrior';
   private playerTier = 1;
   private playerLevel = 1;
@@ -2307,6 +2313,10 @@ export class GameEngine {
     this.cameraShake = Math.max(this.cameraShake, intensity);
   }
 
+  public triggerCameraFovPunch(amount = 4.0, duration = 0.18) {
+    this.cameraFovPunch = Math.max(this.cameraFovPunch, amount);
+  }
+
   private addVfx(object: THREE.Object3D, update: (delta: number) => boolean, cleanup?: () => void) {
     // Lightweight rendering optimization: prune oldest VFX if pool exceeds 75 to keep 60 FPS
     if (this.activeVfx.length > 75) {
@@ -3075,48 +3085,45 @@ export class GameEngine {
     }
   }
 
-  // 7. Mage Arcane Blink VFX (Spiral Void Implosion + Prismatic Flash + Ethereal Tracer Streak)
+  // 7. Mage Arcane Blink VFX (Dual Runic Magic Circles + 3 Afterimages + Ethereal Tracer + Landing Burst)
   private spawnMageBlinkVfx(startPos: THREE.Vector3, endPos: THREE.Vector3) {
-    // Start burst (imploding void spiral)
-    this.spawnShockwaveRing(startPos, 0xa855f7, 2.6, 0.28);
-    this.spawnSparks(startPos.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xa855f7, 14, 4.5);
-
-    // Ethereal tracer beam connecting departure and arrival
-    const dist = startPos.distanceTo(endPos);
-    const midPos = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
-    midPos.y += 1.2;
-
-    const tracerGeom = new THREE.CylinderGeometry(0.1, 0.1, dist, 8);
-    const tracerMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.9,
-      depthWrite: false,
+    const vfx = createMageBlinkVfx({
+      startPos,
+      targetPos: endPos,
+      playerRotationY: this.playerRotationY,
+      getTerrainHeight: (x, z) => this.world.getTerrainHeight(x, z),
     });
-    const tracer = new THREE.Mesh(tracerGeom, tracerMat);
-    tracer.position.copy(midPos);
-    tracer.quaternion.setFromUnitVectors(
-      new THREE.Vector3(0, 1, 0),
-      new THREE.Vector3().subVectors(endPos, startPos).normalize()
-    );
 
-    let tracerLife = 0.22;
-    this.addVfx(tracer, (delta) => {
-      tracerLife -= delta;
-      if (tracerLife <= 0) {
-        this.scene.remove(tracer);
-        return false;
+    if (!this.scene.children.includes(vfx.group)) {
+      this.scene.add(vfx.group);
+    }
+
+    this.addVfx(
+      vfx.group,
+      (delta) => {
+        return vfx.update(delta, () => {
+          // OnArrival landing trigger at 0.18s - 0.20s:
+          // 1. Restore player avatar visibility at landing coordinates
+          if (this.playerMesh && this.playerMesh.group) {
+            this.playerMesh.group.visible = true;
+          }
+
+          // 2. Dual-color neon spark bursts (Cyan & Magenta) at character's feet
+          this.spawnSparks(endPos.clone().add(new THREE.Vector3(0, 0.4, 0)), 0x38bdf8, 16, 5.2);
+          this.spawnSparks(endPos.clone().add(new THREE.Vector3(0, 0.4, 0)), 0xd946ef, 14, 4.8);
+
+          // 3. Camera FOV Punch (+4 FOV) and visceral Camera Shake
+          this.triggerCameraFovPunch(4.0, 0.18);
+          this.triggerCameraShake(0.20);
+        });
+      },
+      () => {
+        vfx.cleanup();
+        if (this.playerMesh && this.playerMesh.group) {
+          this.playerMesh.group.visible = true;
+        }
       }
-      tracerMat.opacity = (tracerLife / 0.22) * 0.9;
-      return true;
-    });
-
-    // End arrival burst (prismatic starlight bloom)
-    this.spawnShockwaveRing(endPos, 0x38bdf8, 3.8, 0.35);
-    this.spawnShockwaveRing(endPos, 0xffffff, 2.2, 0.25);
-    this.spawnSparks(endPos.clone().add(new THREE.Vector3(0, 1.2, 0)), 0x38bdf8, 18, 5.5);
-    this.spawnSparks(endPos.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xffffff, 8, 4.0);
-    this.triggerCameraShake(0.18);
+    );
   }
 
   // 8. Mage Celestial Heal Light Pillar (Zero-Lag Pre-allocated Pool + Circuit Stroke Reveal)
@@ -3136,6 +3143,9 @@ export class GameEngine {
    * Absorbs incoming damage using active Mage Arcane Shield
    */
   public absorbDamageWithShield(rawDamage: number): { remainingDamage: number; absorbed: number } {
+    if (this.isInvulnerable) {
+      return { remainingDamage: 0, absorbed: 0 };
+    }
     if (this.arcaneShieldHp <= 0 || this.arcaneShieldTimer <= 0) {
       return { remainingDamage: rawDamage, absorbed: 0 };
     }
@@ -3751,28 +3761,69 @@ export class GameEngine {
           }, 150);
           this.callbacks.onAddFloatingText('Terjangan Perisai!', '#fbbf24', 'crit');
         } else if (this.charClass === 'mage') {
-          // Mage: Langkah Dimensi (Instant Blink Teleport - Works across the entire expanded world!)
+          // Mage: Langkah Dimensi (Instant Blink Teleport with Dual Runic Circles, Afterimages & Enemy Penetration)
           soundManager.playMageBlink();
           const startPos = this.playerPos.clone();
-          const targetPos = this.playerPos.clone().add(forward.clone().multiplyScalar(12));
+          const blinkDir = this.getPlayerMovementDirection();
+
+          let maxDist = 12.0;
+
+          // Raycast Layer Mask: ONLY detect solid environment (buildings, walls, rocks, towers)
+          // EXCLUDE enemies, monsters, NPCs, and bosses so player can penetrate through enemies
+          const inInterior = this.playerPos.y < -10;
+          for (const col of this.world.colliders) {
+            const isInteriorCollider = col.maxY !== undefined && col.maxY < 0;
+            if (inInterior !== isInteriorCollider) continue;
+
+            if (col.type === 'box' && col.minX !== undefined && col.maxX !== undefined && col.minZ !== undefined && col.maxZ !== undefined) {
+              const hit = this.intersectRayAABB2D(startPos.x, startPos.z, blinkDir.x, blinkDir.z, col.minX, col.maxX, col.minZ, col.maxZ);
+              if (hit !== null && hit > 0 && hit < maxDist) {
+                maxDist = Math.min(maxDist, Math.max(0.6, hit - 0.7));
+              }
+            } else if (col.type === 'circle' && col.x !== undefined && col.z !== undefined && col.radius !== undefined) {
+              const hit = this.intersectRayCircle2D(startPos.x, startPos.z, blinkDir.x, blinkDir.z, col.x, col.z, col.radius);
+              if (hit !== null && hit > 0 && hit < maxDist) {
+                maxDist = Math.min(maxDist, Math.max(0.6, hit - 0.7));
+              }
+            }
+          }
 
           // Clamp to expanded world boundaries (-580..680, -460..460)
-          let targetX = Math.max(-580, Math.min(680, targetPos.x));
-          let targetZ = Math.max(-460, Math.min(460, targetPos.z));
+          let targetX = startPos.x + blinkDir.x * maxDist;
+          let targetZ = startPos.z + blinkDir.z * maxDist;
+          targetX = Math.max(-580, Math.min(680, targetX));
+          targetZ = Math.max(-460, Math.min(460, targetZ));
 
           // Resolve collisions so player never blinks inside walls or buildings
           const resolved = this.resolveCollisions(targetX, targetZ);
-          targetPos.x = resolved.x;
-          targetPos.z = resolved.z;
-          targetPos.y = this.world.getTerrainHeight(targetPos.x, targetPos.z);
+          const targetPos = new THREE.Vector3(
+            resolved.x,
+            this.world.getTerrainHeight(resolved.x, resolved.z),
+            resolved.z
+          );
 
-          this.spawnMageBlinkVfx(startPos, targetPos);
+          // Invulnerability (iFrame) during dimension shift (0.2s)
+          this.isInvulnerable = true;
+          this.invulnerableTimer = 0.2;
+          this.isDashing = true;
+          this.dashTimer = 0.2;
+          this.attackType = 'blink';
+          this.attackTimer = 0.2;
+
+          // Align rotation to blink direction
+          this.playerRotationY = Math.atan2(blinkDir.x, blinkDir.z);
+          this.playerMesh.group.rotation.y = this.playerRotationY;
+
+          // Immediately teleport player coordinates
           this.playerPos.copy(targetPos);
           this.playerMesh.group.position.copy(targetPos);
           this.playerVel.set(0, 0, 0);
 
-          this.attackType = 'blink';
-          this.attackTimer = 0.2;
+          // Hide original player mesh during the 0.18s leap so only ethereal afterimages are visible
+          this.playerMesh.group.visible = false;
+
+          // Spawn pooled VFX
+          this.spawnMageBlinkVfx(startPos, targetPos);
           this.callbacks.onAddFloatingText('Langkah Dimensi!', '#38bdf8', 'info');
         } else if (this.charClass === 'rogue') {
           if (this.hunterWeaponMode === 'bow') {
@@ -4347,6 +4398,107 @@ export class GameEngine {
     }
   }
 
+  /**
+   * Calculates movement vector from WASD/Arrow keys or Virtual Joystick relative to Camera angle.
+   * If no input is active, defaults to player's facing direction.
+   */
+  private getPlayerMovementDirection(): THREE.Vector3 {
+    const camAngle = this.cameraAngleH;
+    const fwdX = -Math.sin(camAngle);
+    const fwdZ = -Math.cos(camAngle);
+    const rightX = -fwdZ;
+    const rightZ = fwdX;
+
+    let inputForward = 0;
+    let inputRight = 0;
+
+    if (this.isKeyPressed('w', 'keyw', 'arrowup')) inputForward += 1;
+    if (this.isKeyPressed('s', 'keys', 'arrowdown')) inputForward -= 1;
+    if (this.isKeyPressed('d', 'keyd', 'arrowright')) inputRight += 1;
+    if (this.isKeyPressed('a', 'keya', 'arrowleft')) inputRight -= 1;
+
+    const joyX = this.joystickVector.x || 0;
+    const joyY = this.joystickVector.y || 0;
+    const joyMag = Math.hypot(joyX, joyY);
+    if (joyMag > 0.12) {
+      inputRight += joyX;
+      inputForward -= joyY;
+    }
+
+    const moveDirX = fwdX * inputForward + rightX * inputRight;
+    const moveDirZ = fwdZ * inputForward + rightZ * inputRight;
+    const mag = Math.hypot(moveDirX, moveDirZ);
+
+    if (mag > 0.08) {
+      return new THREE.Vector3(moveDirX / mag, 0, moveDirZ / mag);
+    }
+
+    // Default to player mesh facing direction
+    return new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+  }
+
+  /**
+   * Ray-AABB continuous intersection test in 2D (XZ plane)
+   * Used for Blink Raycast obstacle collision (walls, buildings)
+   */
+  private intersectRayAABB2D(
+    px: number, pz: number,
+    dx: number, dz: number,
+    minX: number, maxX: number,
+    minZ: number, maxZ: number
+  ): number | null {
+    let tmin = -Infinity;
+    let tmax = Infinity;
+
+    if (Math.abs(dx) > 1e-6) {
+      const tx1 = (minX - px) / dx;
+      const tx2 = (maxX - px) / dx;
+      tmin = Math.max(tmin, Math.min(tx1, tx2));
+      tmax = Math.min(tmax, Math.max(tx1, tx2));
+    } else {
+      if (px < minX || px > maxX) return null;
+    }
+
+    if (Math.abs(dz) > 1e-6) {
+      const tz1 = (minZ - pz) / dz;
+      const tz2 = (maxZ - pz) / dz;
+      tmin = Math.max(tmin, Math.min(tz1, tz2));
+      tmax = Math.min(tmax, Math.max(tz1, tz2));
+    } else {
+      if (pz < minZ || pz > maxZ) return null;
+    }
+
+    if (tmax >= tmin && tmax > 0) {
+      return tmin > 0 ? tmin : tmax;
+    }
+    return null;
+  }
+
+  /**
+   * Ray-Circle intersection test in 2D (XZ plane)
+   * Used for Blink Raycast obstacle collision (pillars, fountain, towers)
+   */
+  private intersectRayCircle2D(
+    px: number, pz: number,
+    dx: number, dz: number,
+    cx: number, cz: number,
+    radius: number
+  ): number | null {
+    const ox = px - cx;
+    const oz = pz - cz;
+    const a = dx * dx + dz * dz;
+    const b = 2 * (ox * dx + oz * dz);
+    const c = ox * ox + oz * oz - radius * radius;
+    const discr = b * b - 4 * a * c;
+    if (discr < 0) return null;
+    const sqrtD = Math.sqrt(discr);
+    const t1 = (-b - sqrtD) / (2 * a);
+    const t2 = (-b + sqrtD) / (2 * a);
+    if (t1 > 0) return t1;
+    if (t2 > 0) return t2;
+    return null;
+  }
+
   // Prevents player from passing through buildings and obstacles
   private resolveCollisions(candidateX: number, candidateZ: number): { x: number; z: number } {
     if (!this.world.colliders || this.world.colliders.length === 0) {
@@ -4917,6 +5069,14 @@ export class GameEngine {
       }
     }
 
+    // Invulnerability (iFrame) timer
+    if (this.isInvulnerable) {
+      this.invulnerableTimer -= delta;
+      if (this.invulnerableTimer <= 0) {
+        this.isInvulnerable = false;
+      }
+    }
+
     // Fountain Healing area
     const distFountain = this.playerPos.distanceTo(new THREE.Vector3(0, 0, -4));
     if (distFountain < 4.2) {
@@ -5151,7 +5311,7 @@ export class GameEngine {
   private updateMonsterSinglePlayer(delta: number) {
     let bossInView = false;
     let activeBoss: EnemyData | null = null;
-    this.bossManager.update(delta, this.playerPos, this.playerVel, this.isDashing);
+    this.bossManager.update(delta, this.playerPos, this.playerVel, this.isDashing || this.isInvulnerable);
 
     this.enemies.forEach((enemy) => {
       // 1. Mayat Monster & Hitung Mundur Hilangnya Mayat (Corpse Decay)
@@ -5591,6 +5751,10 @@ export class GameEngine {
   }
 
   private enemyAttackPlayer(enemy: (typeof this.enemies)[0]) {
+    if (this.isInvulnerable) {
+      this.callbacks.onAddFloatingText('KEBAL / iFrame!', '#38bdf8', 'info');
+      return;
+    }
     soundManager.playHit();
 
     this.callbacks.onUpdateStats((stats) => {
@@ -5645,6 +5809,17 @@ export class GameEngine {
       targetPos.y += (Math.random() - 0.5) * shakeAmt;
       targetPos.z += (Math.random() - 0.5) * shakeAmt;
       this.cameraShake = Math.max(0, this.cameraShake - delta * 2.8);
+    }
+
+    // Camera FOV Punch (e.g. +4 FOV punch during Blink landing)
+    if (this.cameraFovPunch > 0.01) {
+      this.camera.fov = 60 + this.cameraFovPunch;
+      this.camera.updateProjectionMatrix();
+      this.cameraFovPunch = Math.max(0, this.cameraFovPunch - (4.0 / 0.18) * delta);
+      if (this.cameraFovPunch <= 0.01) {
+        this.camera.fov = 60;
+        this.camera.updateProjectionMatrix();
+      }
     }
 
     this.camera.position.lerp(targetPos, 0.15);
@@ -5815,24 +5990,28 @@ export class GameEngine {
           this.triggerCameraShake(0.75);
 
           if (distToPlayer <= (proj.blastRadius || 3.2)) {
-            this.callbacks.onUpdateStats((stats) => {
-              let finalDmg = Math.max(5, proj.damage - Math.round(stats.baseDefense * 0.5));
-              const { remainingDamage } = this.absorbDamageWithShield(finalDmg);
-              finalDmg = remainingDamage;
-              const nextHp = Math.max(0, stats.hp - finalDmg);
-              if (finalDmg > 0) {
-                this.callbacks.onAddFloatingText(`-${finalDmg} HP (Bongkahan Batu)`, '#ff1744', 'damage');
-              }
-              if (nextHp <= 0) {
-                this.respawnPlayerAtLastVisitedTown();
-                return { ...stats, hp: stats.maxHp, mp: stats.maxMp, gold: Math.max(0, stats.gold - 10) };
-              }
-              return { ...stats, hp: nextHp };
-            });
-            const knockDir = new THREE.Vector3(this.playerPos.x - hitPos.x, 0, this.playerPos.z - hitPos.z).normalize();
-            this.playerVel.x += knockDir.x * 14.0;
-            this.playerVel.z += knockDir.z * 14.0;
-            this.callbacks.onAddFloatingText('ðŸ’¨ TERPENTAL (KNOCKBACK)!', '#ff9100', 'info');
+            if (this.isInvulnerable) {
+              this.callbacks.onAddFloatingText('KEBAL / iFrame!', '#38bdf8', 'info');
+            } else {
+              this.callbacks.onUpdateStats((stats) => {
+                let finalDmg = Math.max(5, proj.damage - Math.round(stats.baseDefense * 0.5));
+                const { remainingDamage } = this.absorbDamageWithShield(finalDmg);
+                finalDmg = remainingDamage;
+                const nextHp = Math.max(0, stats.hp - finalDmg);
+                if (finalDmg > 0) {
+                  this.callbacks.onAddFloatingText(`-${finalDmg} HP (Bongkahan Batu)`, '#ff1744', 'damage');
+                }
+                if (nextHp <= 0) {
+                  this.respawnPlayerAtLastVisitedTown();
+                  return { ...stats, hp: stats.maxHp, mp: stats.maxMp, gold: Math.max(0, stats.gold - 10) };
+                }
+                return { ...stats, hp: nextHp };
+              });
+              const knockDir = new THREE.Vector3(this.playerPos.x - hitPos.x, 0, this.playerPos.z - hitPos.z).normalize();
+              this.playerVel.x += knockDir.x * 14.0;
+              this.playerVel.z += knockDir.z * 14.0;
+              this.callbacks.onAddFloatingText('💨 TERPENTAL (KNOCKBACK)!', '#ff9100', 'info');
+            }
           }
 
           this.scene.remove(proj.object);
