@@ -1119,6 +1119,16 @@ export function preloadMageVfxPool(scene: THREE.Scene, renderer?: THREE.WebGLRen
     dummyGroup.add(new THREE.Mesh(arcanePool.shroudCylGeom, arcanePool.shroudCylMat));
     dummyGroup.add(new THREE.Mesh(arcanePool.ringGeom, arcanePool.ringMat));
 
+    // Celestial Heal (Cahaya) Material Pre-compilation
+    const celestialPool = CelestialHealResourcePool.get();
+    dummyGroup.add(new THREE.Mesh(celestialPool.circlePlaneGeom, celestialPool.baseShaderMat));
+    dummyGroup.add(new THREE.Mesh(celestialPool.outerBeamGeom, celestialPool.outerBeamMat));
+    dummyGroup.add(new THREE.Mesh(celestialPool.innerBeamGeom, celestialPool.innerBeamMat));
+    dummyGroup.add(new THREE.Mesh(celestialPool.runeRingGeom1, celestialPool.runeRingMat1));
+    dummyGroup.add(new THREE.Mesh(celestialPool.runeRingGeom2, celestialPool.runeRingMat2));
+    dummyGroup.add(new THREE.Points(celestialPool.stardustGeom, celestialPool.stardustMat));
+    dummyGroup.add(new THREE.Mesh(celestialPool.shockwaveGeom1, celestialPool.shockwaveMat1));
+
     scene.add(dummyGroup);
     try {
       renderer.compile(scene, camera);
@@ -1569,5 +1579,686 @@ export function createStarfallMeteorBarrageVfx(params: {
   };
 
   return { group, update, cleanup };
+}
+
+// =========================================================================
+// MAGE SKILL 3: CELESTIAL HEAL (HUJAN CAHAYA ASTRAL) - REVAMPED ZERO-LAG POOL
+// =========================================================================
+
+let cachedCelestialCircleTexture: THREE.CanvasTexture | null = null;
+
+/**
+ * Procedural Celestial Magic Circle Texture Generator (512x512)
+ * Matches the glowing magenta/violet runic circle with cyan/white geometric star
+ * as shown in media_1793971099244_89e4fb0d.jpg and media_1793971419222_8c86e088.jpg:
+ * - Glowing magenta outer perimeter rings and rune medallions
+ * - Sacred 8-pointed star / octagram (two intersecting 45-deg rotated squares) in glowing cyan
+ * - Central square aperture and radial circuit conduits
+ */
+export function getCelestialMagicCircleTexture(): THREE.CanvasTexture {
+  if (cachedCelestialCircleTexture) return cachedCelestialCircleTexture;
+
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    cachedCelestialCircleTexture = new THREE.CanvasTexture(canvas);
+    return cachedCelestialCircleTexture;
+  }
+
+  const cx = size / 2;
+  const cy = size / 2;
+
+  // 1. Radiant violet-magenta background aura
+  const bgGrad = ctx.createRadialGradient(cx, cy, 25, cx, cy, 248);
+  bgGrad.addColorStop(0, 'rgba(255, 255, 255, 0.96)');
+  bgGrad.addColorStop(0.16, 'rgba(165, 243, 252, 0.9)');
+  bgGrad.addColorStop(0.42, 'rgba(217, 70, 239, 0.65)');
+  bgGrad.addColorStop(0.72, 'rgba(168, 85, 247, 0.28)');
+  bgGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = bgGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 248, 0, Math.PI * 2);
+  ctx.fill();
+
+  const drawGlowRing = (r: number, color: string, width: number, blur = 10) => {
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = blur;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  // 2. Outer Concentric Runic Rings (Rich Magenta & Electric Violet)
+  drawGlowRing(242, '#d946ef', 2.8, 14);
+  drawGlowRing(230, '#ffffff', 1.8, 8);
+  drawGlowRing(218, '#c084fc', 3.4, 16);
+  drawGlowRing(212, '#fdf4ff', 1.5, 6);
+
+  // 3. Inner Boundary for the Runic Band (Cyan/White)
+  drawGlowRing(142, '#38bdf8', 2.8, 12);
+  drawGlowRing(136, '#ffffff', 1.6, 6);
+
+  // 4. 16 Circular Rune Medallions along R = 176
+  const numMedallions = 16;
+  const medallionR = 176;
+  const badgeRadius = 15;
+
+  for (let i = 0; i < numMedallions; i++) {
+    const angle = (i / numMedallions) * Math.PI * 2;
+    const bx = cx + Math.cos(angle) * medallionR;
+    const by = cy + Math.sin(angle) * medallionR;
+
+    ctx.save();
+    ctx.shadowColor = '#d946ef';
+    ctx.shadowBlur = 8;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(bx, by, badgeRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#e879f9';
+    ctx.lineWidth = 1.0;
+    ctx.beginPath();
+    ctx.arc(bx, by, badgeRadius - 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Procedural Ancient Rune Glyph
+    ctx.strokeStyle = '#fdf4ff';
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    const rIdx = i % 8;
+    if (rIdx === 0) {
+      // Celestial Cross
+      ctx.moveTo(bx - 5, by);
+      ctx.lineTo(bx + 5, by);
+      ctx.moveTo(bx, by - 5);
+      ctx.lineTo(bx + 5, by + 5);
+    } else if (rIdx === 1) {
+      // Star Sigil
+      ctx.moveTo(bx - 4, by - 5);
+      ctx.lineTo(bx + 4, by + 5);
+      ctx.moveTo(bx + 4, by - 5);
+      ctx.lineTo(bx - 4, by + 5);
+    } else if (rIdx === 2) {
+      // Algiz Rune
+      ctx.moveTo(bx, by + 6);
+      ctx.lineTo(bx, by - 6);
+      ctx.moveTo(bx - 4, by - 2);
+      ctx.lineTo(bx, by);
+      ctx.lineTo(bx + 4, by - 2);
+    } else if (rIdx === 3) {
+      // Fehu Rune
+      ctx.moveTo(bx - 3, by + 6);
+      ctx.lineTo(bx - 3, by - 6);
+      ctx.moveTo(bx - 3, by - 4);
+      ctx.lineTo(bx + 3, by - 1);
+      ctx.moveTo(bx - 3, by);
+      ctx.lineTo(bx + 3, by + 3);
+    } else if (rIdx === 4) {
+      // Tiwaz Rune (Arrow up)
+      ctx.moveTo(bx, by + 6);
+      ctx.lineTo(bx, by - 6);
+      ctx.moveTo(bx - 4, by - 2);
+      ctx.lineTo(bx, by - 6);
+      ctx.lineTo(bx + 4, by - 2);
+    } else if (rIdx === 5) {
+      // Diamond Sigil
+      ctx.moveTo(bx, by - 5);
+      ctx.lineTo(bx + 4, by);
+      ctx.lineTo(bx, by + 5);
+      ctx.lineTo(bx - 4, by);
+      ctx.closePath();
+    } else if (rIdx === 6) {
+      // Solar Arc
+      ctx.arc(bx, by, 4.5, 0, Math.PI * 1.5);
+    } else {
+      // Hourglass Sigil
+      ctx.moveTo(bx - 4, by - 5);
+      ctx.lineTo(bx + 4, by - 5);
+      ctx.lineTo(bx - 4, by + 5);
+      ctx.lineTo(bx + 4, by + 5);
+      ctx.closePath();
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 5. Sacred 8-Pointed Star / Octagram (Two Intersecting Squares Rotated 45 Deg)
+  ctx.save();
+  ctx.shadowColor = '#06b6d4';
+  ctx.shadowBlur = 10;
+  ctx.strokeStyle = '#67e8f9';
+  ctx.lineWidth = 2.0;
+  const starRadius = 132;
+
+  for (let s = 0; s < 2; s++) {
+    const rot = s * (Math.PI / 4);
+    ctx.beginPath();
+    for (let p = 0; p < 4; p++) {
+      const a = rot + p * (Math.PI / 2);
+      const px = cx + Math.cos(a) * starRadius;
+      const py = cy + Math.sin(a) * starRadius;
+      if (p === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 5b. Connecting diagonal trusses from star vertices to rune band
+  ctx.save();
+  ctx.strokeStyle = '#a5f3fc';
+  ctx.lineWidth = 1.4;
+  for (let v = 0; v < 8; v++) {
+    const a = v * (Math.PI / 4);
+    const px1 = cx + Math.cos(a) * starRadius;
+    const py1 = cy + Math.sin(a) * starRadius;
+    const px2 = cx + Math.cos(a) * 176;
+    const py2 = cy + Math.sin(a) * 176;
+    ctx.beginPath();
+    ctx.moveTo(px1, py1);
+    ctx.lineTo(px2, py2);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 6. Central Nested Squares and Radial Circuit Conduits
+  drawGlowRing(88, '#ffffff', 2.0, 8);
+  drawGlowRing(76, '#38bdf8', 1.8, 6);
+
+  ctx.save();
+  ctx.strokeStyle = '#67e8f9';
+  ctx.lineWidth = 1.6;
+  [56, 38, 22].forEach((sqSize) => {
+    ctx.strokeRect(cx - sqSize / 2, cy - sqSize / 2, sqSize, sqSize);
+  });
+  ctx.restore();
+
+  // 7. Radial Bus Lines with Circular Junction Pads
+  ctx.save();
+  ctx.shadowColor = '#38bdf8';
+  ctx.shadowBlur = 8;
+  for (let b = 0; b < 8; b++) {
+    const a = (b / 8) * Math.PI * 2;
+    const cosA = Math.cos(a);
+    const sinA = Math.sin(a);
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(cx + cosA * 28, cy + sinA * 28);
+    ctx.lineTo(cx + cosA * 212, cy + sinA * 212);
+    ctx.stroke();
+
+    [62, 110, 156].forEach((jr) => {
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(cx + cosA * jr, cy + sinA * jr, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(cx + cosA * jr, cy + sinA * jr, 5.5, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+  }
+  ctx.restore();
+
+  // 8. Innermost Aperture Ring
+  drawGlowRing(44, '#ffffff', 2.6, 12);
+  drawGlowRing(30, '#a5f3fc', 1.8, 8);
+
+  cachedCelestialCircleTexture = new THREE.CanvasTexture(canvas);
+  cachedCelestialCircleTexture.wrapS = THREE.ClampToEdgeWrapping;
+  cachedCelestialCircleTexture.wrapT = THREE.ClampToEdgeWrapping;
+  cachedCelestialCircleTexture.generateMipmaps = true;
+
+  return cachedCelestialCircleTexture;
+}
+
+// ----------------------------------------------------
+// CELESTIAL CIRCUIT SHADER
+// ----------------------------------------------------
+
+export const celestialCircuitVertexShader = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+export const celestialCircuitFragmentShader = `
+  uniform sampler2D uMap;
+  uniform float uProgress;
+  uniform float uOpacity;
+  uniform vec3 uElectricCyan;
+  uniform vec3 uElectricMagenta;
+  uniform float uTime;
+  varying vec2 vUv;
+
+  void main() {
+    vec2 centered = vUv - vec2(0.5);
+    float dist = length(centered) * 2.0; // 0.0 at center, 1.0 at outer edge
+    if (dist > 0.995) discard;
+
+    float angle = atan(centered.y, centered.x);
+
+    // 8 radial channels with 45-degree angled PCB bus traces
+    float octant = abs(mod(angle + 3.14159265, 0.785398) - 0.392699);
+    float conduitSpeedBonus = smoothstep(0.392699, 0.0, octant) * 0.16;
+
+    // Manhattan grid branching traces
+    vec2 gridPos = abs(centered) * 16.0;
+    float circuitStep = (step(0.84, fract(gridPos.x)) + step(0.84, fract(gridPos.y))) * 0.08;
+
+    // The expanding circuit wavefront from center outward
+    float waveRadius = uProgress * 1.15;
+    float localThreshold = dist - conduitSpeedBonus - circuitStep;
+
+    // Outer perimeter runes unlock as casting approaches completion (progress > 0.85)
+    if (dist > 0.84 && uProgress < 0.86) {
+      discard;
+    }
+
+    if (localThreshold > waveRadius) {
+      discard;
+    }
+
+    vec4 tex = texture2D(uMap, vUv);
+
+    // Dynamic Electric Arc Wavefront Spark at the branching tips
+    float edgeDist = abs(waveRadius - localThreshold);
+    if (edgeDist < 0.05 && uProgress > 0.02 && uProgress < 0.995) {
+      float electricPulse = sin(dist * 50.0 - uTime * 30.0) * 0.5 + 0.5;
+      float spark = (1.0 - edgeDist / 0.05) * (3.0 + electricPulse * 1.6);
+      vec3 sparkCol = mix(uElectricCyan, uElectricMagenta, sin(angle * 4.0 + uTime * 8.0) * 0.5 + 0.5);
+      tex.rgb += sparkCol * spark;
+      tex.a = max(tex.a, 0.98);
+    }
+
+    // Central node power core intense cyan-white glow
+    if (dist < 0.22) {
+      tex.rgb += vec3(0.5, 0.9, 1.0) * (0.8 + 0.4 * sin(uTime * 16.0));
+    }
+
+    tex.a *= uOpacity;
+    gl_FragColor = tex;
+  }
+`;
+
+export interface CelestialHealVfxInstance {
+  group: THREE.Group;
+  isActive: boolean;
+  activate: (pos: THREE.Vector3) => void;
+  update: (delta: number, currentPos?: THREE.Vector3, terrainHeight?: number) => boolean;
+  cleanup: () => void;
+}
+
+/**
+ * Singleton Static Geometries and Materials for Celestial Heal (Cahaya)
+ * Guarantees ZERO runtime allocations and ZERO Garbage Collection spikes at 60 FPS
+ */
+export class CelestialHealResourcePool {
+  private static instance: CelestialHealResourcePool | null = null;
+
+  public circlePlaneGeom!: THREE.PlaneGeometry;
+  public outerBeamGeom!: THREE.CylinderGeometry;
+  public innerBeamGeom!: THREE.CylinderGeometry;
+  public runeRingGeom1!: THREE.RingGeometry;
+  public runeRingGeom2!: THREE.RingGeometry;
+  public stardustGeom!: THREE.BufferGeometry;
+  public shockwaveGeom1!: THREE.RingGeometry;
+  public shockwaveGeom2!: THREE.RingGeometry;
+
+  public outerBeamMat!: THREE.MeshBasicMaterial;
+  public innerBeamMat!: THREE.MeshBasicMaterial;
+  public runeRingMat1!: THREE.MeshBasicMaterial;
+  public runeRingMat2!: THREE.MeshBasicMaterial;
+  public stardustMat!: THREE.PointsMaterial;
+  public shockwaveMat1!: THREE.MeshBasicMaterial;
+  public shockwaveMat2!: THREE.MeshBasicMaterial;
+  public baseShaderMat!: THREE.ShaderMaterial;
+
+  public stardustSpeeds!: Float32Array;
+  public isInitialized = false;
+
+  private instances: CelestialHealVfxInstance[] = [];
+
+  public static get(): CelestialHealResourcePool {
+    if (!CelestialHealResourcePool.instance) {
+      CelestialHealResourcePool.instance = new CelestialHealResourcePool();
+      CelestialHealResourcePool.instance.init();
+    }
+    return CelestialHealResourcePool.instance;
+  }
+
+  private init() {
+    if (this.isInitialized) return;
+
+    // 1. Geometries
+    this.circlePlaneGeom = new THREE.PlaneGeometry(6.4, 6.4);
+    this.outerBeamGeom = new THREE.CylinderGeometry(1.9, 1.9, 14, 24, 1, true); // diameter 3.8, height 14
+    this.innerBeamGeom = new THREE.CylinderGeometry(0.8, 0.8, 14, 20, 1, true); // diameter 1.6, height 14
+    this.runeRingGeom1 = new THREE.RingGeometry(1.2, 2.2, 32);
+    this.runeRingGeom2 = new THREE.RingGeometry(1.0, 1.9, 32);
+    this.shockwaveGeom1 = new THREE.RingGeometry(0.2, 1.0, 32);
+    this.shockwaveGeom2 = new THREE.RingGeometry(0.2, 1.0, 32);
+
+    // 30 Stardust Particle BufferGeometry
+    const count = 30;
+    const positions = new Float32Array(count * 3);
+    this.stardustSpeeds = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2 + (i % 3) * 0.4;
+      const radius = 0.5 + (i % 5) * 0.45;
+      positions[i * 3] = Math.cos(angle) * radius;
+      positions[i * 3 + 1] = 0.4 + (i % 10) * 0.9;
+      positions[i * 3 + 2] = Math.sin(angle) * radius;
+      this.stardustSpeeds[i] = 1.2 + (i % 4) * 0.5;
+    }
+    this.stardustGeom = new THREE.BufferGeometry();
+    this.stardustGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    // 2. Materials
+    this.outerBeamMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.7,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    this.innerBeamMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.9,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    this.runeRingMat1 = new THREE.MeshBasicMaterial({
+      color: 0x67e8f9,
+      transparent: true,
+      opacity: 0.9,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    this.runeRingMat2 = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    this.stardustMat = new THREE.PointsMaterial({
+      color: 0xa5f3fc,
+      size: 0.32,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    this.shockwaveMat1 = new THREE.MeshBasicMaterial({
+      color: 0x67e8f9,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    this.shockwaveMat2 = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    this.baseShaderMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uMap: { value: getCelestialMagicCircleTexture() },
+        uProgress: { value: 0.0 },
+        uOpacity: { value: 1.0 },
+        uElectricCyan: { value: new THREE.Vector3(0.22, 0.74, 0.97) },
+        uElectricMagenta: { value: new THREE.Vector3(0.91, 0.47, 0.98) },
+        uTime: { value: 0.0 },
+      },
+      vertexShader: celestialCircuitVertexShader,
+      fragmentShader: celestialCircuitFragmentShader,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+    });
+
+    // 3. Pre-instantiate 2 reusable VFX instances in the pool
+    for (let i = 0; i < 2; i++) {
+      this.instances.push(this.buildVfxInstance());
+    }
+
+    this.isInitialized = true;
+  }
+
+  private buildVfxInstance(): CelestialHealVfxInstance {
+    const group = new THREE.Group();
+    group.visible = false;
+
+    // Instance-cloned shader material for independent progress & opacity
+    const shaderMat = this.baseShaderMat.clone();
+
+    // 1. Ground Magic Circle Plane
+    const circlePlane = new THREE.Mesh(this.circlePlaneGeom, shaderMat);
+    circlePlane.rotation.x = -Math.PI / 2;
+    circlePlane.position.y = 0.02;
+    group.add(circlePlane);
+
+    // 2. Dual Ground Shockwaves
+    const shockwave1 = new THREE.Mesh(this.shockwaveGeom1, this.shockwaveMat1);
+    shockwave1.rotation.x = -Math.PI / 2;
+    shockwave1.position.y = 0.03;
+    group.add(shockwave1);
+
+    const shockwave2 = new THREE.Mesh(this.shockwaveGeom2, this.shockwaveMat2);
+    shockwave2.rotation.x = -Math.PI / 2;
+    shockwave2.position.y = 0.04;
+    group.add(shockwave2);
+
+    // 3. Outer Cylinder (Astral Sky-Blue, diameter 3.8, height 14)
+    const outerBeam = new THREE.Mesh(this.outerBeamGeom, this.outerBeamMat);
+    outerBeam.position.y = 7.0;
+    group.add(outerBeam);
+
+    // 4. Inner Core Cylinder (Pure Brilliant White, diameter 1.6, height 14)
+    const innerBeam = new THREE.Mesh(this.innerBeamGeom, this.innerBeamMat);
+    innerBeam.position.y = 7.0;
+    group.add(innerBeam);
+
+    // 5. 2 Ascending Cyan Rune Rings
+    const runeRing1 = new THREE.Mesh(this.runeRingGeom1, this.runeRingMat1);
+    runeRing1.rotation.x = Math.PI / 2;
+    runeRing1.position.y = 1.0;
+    group.add(runeRing1);
+
+    const runeRing2 = new THREE.Mesh(this.runeRingGeom2, this.runeRingMat2);
+    runeRing2.rotation.x = Math.PI / 2;
+    runeRing2.position.y = 4.2;
+    group.add(runeRing2);
+
+    // 6. 30 Floating Stardust Particles
+    const stardust = new THREE.Points(this.stardustGeom, this.stardustMat);
+    group.add(stardust);
+
+    let elapsed = 0;
+    let isActive = false;
+    const castDuration = 0.7;
+    const fadeDuration = 1.2;
+    const totalDuration = castDuration + fadeDuration; // 1.9s
+
+    const cleanup = () => {
+      isActive = false;
+      group.visible = false;
+      shaderMat.uniforms.uOpacity.value = 0;
+      this.outerBeamMat.opacity = 0.7;
+      this.innerBeamMat.opacity = 0.9;
+      this.runeRingMat1.opacity = 0.9;
+      this.runeRingMat2.opacity = 0.85;
+      this.stardustMat.opacity = 0.95;
+      this.shockwaveMat1.opacity = 0.85;
+      this.shockwaveMat2.opacity = 0.95;
+    };
+
+    const activate = (pos: THREE.Vector3) => {
+      elapsed = 0;
+      isActive = true;
+      group.position.set(pos.x, pos.y + 0.05, pos.z);
+      group.visible = true;
+
+      runeRing1.position.y = 1.0;
+      runeRing2.position.y = 4.2;
+      outerBeam.rotation.y = 0;
+      innerBeam.rotation.y = 0;
+      shaderMat.uniforms.uProgress.value = 0.0;
+      shaderMat.uniforms.uOpacity.value = 1.0;
+      shaderMat.uniforms.uTime.value = 0.0;
+    };
+
+    const update = (delta: number, currentPos?: THREE.Vector3, terrainHeight?: number): boolean => {
+      if (!isActive) return false;
+
+      elapsed += delta;
+
+      // Lock horizontal location to actively track player
+      if (currentPos) {
+        group.position.x = currentPos.x;
+        group.position.z = currentPos.z;
+        if (terrainHeight !== undefined) {
+          group.position.y = terrainHeight + 0.05;
+        } else {
+          group.position.y = currentPos.y + 0.05;
+        }
+      }
+
+      // Outer Cylinder: rotates clockwise (rotation.y += delta * 2.5)
+      outerBeam.rotation.y += delta * 2.5;
+
+      // Inner Cylinder: rotates counter-clockwise (rotation.y -= delta * 3.5)
+      innerBeam.rotation.y -= delta * 3.5;
+
+      // Ascending Rune Rings: float upward (position.y += delta * 2.0) while spinning rapidly
+      runeRing1.position.y += delta * 2.0;
+      runeRing1.rotation.z += delta * 3.0;
+      if (runeRing1.position.y > 12.0) runeRing1.position.y = 1.0;
+
+      runeRing2.position.y += delta * 2.0;
+      runeRing2.rotation.z -= delta * 2.5;
+      if (runeRing2.position.y > 12.0) runeRing2.position.y = 1.0;
+
+      // Animate 30 stardust particles drifting upward
+      const posAttr = this.stardustGeom.attributes.position as THREE.BufferAttribute;
+      const posArr = posAttr.array as Float32Array;
+      for (let i = 0; i < 30; i++) {
+        posArr[i * 3 + 1] += delta * this.stardustSpeeds[i];
+        if (posArr[i * 3 + 1] > 11.5) {
+          posArr[i * 3 + 1] = 0.3;
+        }
+      }
+      posAttr.needsUpdate = true;
+
+      // Expanding ground shockwaves
+      const swScale1 = Math.min(4.5, 0.4 + elapsed * 5.2);
+      shockwave1.scale.set(swScale1, swScale1, 1);
+      const swScale2 = Math.min(2.8, 0.2 + elapsed * 3.6);
+      shockwave2.scale.set(swScale2, swScale2, 1);
+
+      if (elapsed <= castDuration) {
+        // Phase 1: Circuit Stroke Reveal (0.0 to 1.0 over exactly 0.7s)
+        const progress = Math.min(1.0, elapsed / castDuration);
+        shaderMat.uniforms.uProgress.value = progress;
+        shaderMat.uniforms.uOpacity.value = 1.0;
+        shaderMat.uniforms.uTime.value = elapsed;
+
+        this.outerBeamMat.opacity = 0.7 * Math.min(1.0, progress * 1.5);
+        this.innerBeamMat.opacity = 0.9 * Math.min(1.0, progress * 1.5);
+        this.runeRingMat1.opacity = 0.9 * Math.min(1.0, progress * 1.5);
+        this.runeRingMat2.opacity = 0.85 * Math.min(1.0, progress * 1.5);
+        this.stardustMat.opacity = 0.95;
+        this.shockwaveMat1.opacity = 0.85 * Math.max(0, 1.0 - elapsed / 0.7);
+        this.shockwaveMat2.opacity = 0.95 * Math.max(0, 1.0 - elapsed / 0.5);
+      } else {
+        // Phase 2: Smooth 1.2s Fade Out after cast duration completes
+        const fadeElapsed = elapsed - castDuration;
+        const alpha = Math.max(0.0, 1.0 - fadeElapsed / fadeDuration);
+
+        shaderMat.uniforms.uProgress.value = 1.0;
+        shaderMat.uniforms.uOpacity.value = alpha;
+        shaderMat.uniforms.uTime.value = elapsed;
+
+        this.outerBeamMat.opacity = 0.7 * alpha;
+        this.innerBeamMat.opacity = 0.9 * alpha;
+        this.runeRingMat1.opacity = 0.9 * alpha;
+        this.runeRingMat2.opacity = 0.85 * alpha;
+        this.stardustMat.opacity = 0.95 * alpha;
+        this.shockwaveMat1.opacity = 0;
+        this.shockwaveMat2.opacity = 0;
+      }
+
+      if (elapsed >= totalDuration) {
+        cleanup();
+        return false;
+      }
+
+      return true;
+    };
+
+    return {
+      group,
+      get isActive() {
+        return isActive;
+      },
+      activate,
+      update,
+      cleanup,
+    };
+  }
+
+  public acquire(playerPos: THREE.Vector3): CelestialHealVfxInstance {
+    let instance = this.instances.find((i) => !i.isActive);
+    if (!instance) {
+      instance = this.instances[0];
+      instance.cleanup();
+    }
+    instance.activate(playerPos);
+    return instance;
+  }
+}
+
+/**
+ * Creates and acquires the pre-allocated Mage Celestial Heal VFX Instance
+ */
+export function createMageCelestialHealVfx(params: {
+  playerPos: THREE.Vector3;
+}): CelestialHealVfxInstance {
+  return CelestialHealResourcePool.get().acquire(params.playerPos);
 }
 

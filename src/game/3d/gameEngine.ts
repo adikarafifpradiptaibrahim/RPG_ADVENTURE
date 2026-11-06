@@ -50,8 +50,11 @@ import {
   createMageArcaneLaserBeamVfx,
   createStarfallCastingCircleVfx,
   createStarfallMeteorBarrageVfx,
+  createMageCelestialHealVfx,
   preloadStarfallPool,
   StarfallCastingCircleInstance,
+  CelestialHealResourcePool,
+  CelestialHealVfxInstance,
 } from '../skills';
 
 export interface LootPickup {
@@ -254,6 +257,8 @@ export class GameEngine {
   private footstepTimer = 0;
   private speedBuffTimer = 0;
   private regenTimer = 0;
+  public arcaneShieldHp = 0;
+  public arcaneShieldTimer = 0;
   private hunterWeaponMode: 'dagger' | 'bow' = 'dagger';
   private attackComboIndex = 0;
   private lastAttackTime = 0;
@@ -431,6 +436,7 @@ export class GameEngine {
         onPlayerDeath: () => {
           this.respawnPlayerAtLastVisitedTown();
         },
+        onDamageAbsorb: (rawDmg) => this.absorbDamageWithShield(rawDmg).remainingDamage,
       }
     );
 
@@ -3111,82 +3117,43 @@ export class GameEngine {
     this.triggerCameraShake(0.18);
   }
 
-  // 8. Mage Celestial Heal Light Pillar (Angelic Light Pillar, Sacred Astral Rune Rings & Raining Stardust)
+  // 8. Mage Celestial Heal Light Pillar (Zero-Lag Pre-allocated Pool + Circuit Stroke Reveal)
   private spawnMageCelestialHealVfx() {
-    const center = this.playerPos.clone();
-    const group = new THREE.Group();
-    group.position.copy(center);
-
-    // Double-layered Cylinder Light Pillar
-    const beamGeom = new THREE.CylinderGeometry(1.8, 2.0, 14, 20, 1, true);
-    const beamMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.7,
-      side: THREE.DoubleSide,
-      depthWrite: false,
+    const vfx = CelestialHealResourcePool.get().acquire(this.playerPos);
+    if (!this.scene.children.includes(vfx.group)) {
+      this.scene.add(vfx.group);
+    }
+    this.addVfx(vfx.group, (delta) => {
+      const terrainH = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+      return vfx.update(delta, this.playerPos, terrainH);
     });
-    const beam = new THREE.Mesh(beamGeom, beamMat);
-    beam.position.y = 7;
-    group.add(beam);
-
-    const innerBeamGeom = new THREE.CylinderGeometry(0.8, 0.8, 14, 16, 1, true);
-    const innerBeamMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.85,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    const innerBeam = new THREE.Mesh(innerBeamGeom, innerBeamMat);
-    innerBeam.position.y = 7;
-    group.add(innerBeam);
-
-    // 2 Floating rune rings ascending the pillar
-    const runeGeom = new THREE.RingGeometry(1.2, 2.2, 24);
-    const runeMat = new THREE.MeshBasicMaterial({
-      color: 0x67e8f9,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.9,
-    });
-    const rune1 = new THREE.Mesh(runeGeom, runeMat);
-    rune1.rotation.x = Math.PI / 2;
-    rune1.position.y = 1.0;
-    const rune2 = new THREE.Mesh(runeGeom, runeMat);
-    rune2.rotation.x = Math.PI / 2;
-    rune2.position.y = 3.5;
-    group.add(rune1, rune2);
-
-    let life = 1.2;
-    const maxLife = 1.2;
-    this.addVfx(group, (delta) => {
-      life -= delta;
-      if (life <= 0) {
-        this.scene.remove(group);
-        return false;
-      }
-      group.position.x = this.playerPos.x;
-      group.position.z = this.playerPos.z;
-      beam.rotation.y += delta * 2.5;
-      innerBeam.rotation.y -= delta * 3.5;
-      rune1.rotation.z += delta * 3.0;
-      rune2.rotation.z -= delta * 3.0;
-      rune1.position.y += delta * 2.0;
-      rune2.position.y += delta * 2.0;
-
-      const op = life / maxLife;
-      beamMat.opacity = op * 0.7;
-      innerBeamMat.opacity = op * 0.85;
-      runeMat.opacity = op * 0.9;
-      return true;
-    });
-
-    this.spawnShockwaveRing(center, 0x67e8f9, 4.2, 0.7);
-    this.spawnShockwaveRing(center, 0xffffff, 2.5, 0.5);
-    this.spawnSparks(center.clone().add(new THREE.Vector3(0, 1.6, 0)), 0x67e8f9, 20, 3.5);
-    this.spawnSparks(center.clone().add(new THREE.Vector3(0, 1.6, 0)), 0xffffff, 10, 2.5);
     this.triggerCameraShake(0.18);
+  }
+
+  /**
+   * Absorbs incoming damage using active Mage Arcane Shield
+   */
+  public absorbDamageWithShield(rawDamage: number): { remainingDamage: number; absorbed: number } {
+    if (this.arcaneShieldHp <= 0 || this.arcaneShieldTimer <= 0) {
+      return { remainingDamage: rawDamage, absorbed: 0 };
+    }
+    if (this.arcaneShieldHp >= rawDamage) {
+      this.arcaneShieldHp -= rawDamage;
+      this.callbacks.onAddFloatingText(`🛡️ Perisai Menyerap ${rawDamage} Dmg!`, '#38bdf8', 'info');
+      if (this.arcaneShieldHp <= 0) {
+        this.arcaneShieldHp = 0;
+        this.arcaneShieldTimer = 0;
+        this.callbacks.onAddFloatingText('Perisai Sihir Habis!', '#f59e0b', 'info');
+      }
+      return { remainingDamage: 0, absorbed: rawDamage };
+    } else {
+      const absorbed = this.arcaneShieldHp;
+      const remaining = rawDamage - this.arcaneShieldHp;
+      this.arcaneShieldHp = 0;
+      this.arcaneShieldTimer = 0;
+      this.callbacks.onAddFloatingText(`🛡️ Perisai Menyerap ${absorbed} Dmg (Hancur)!`, '#38bdf8', 'info');
+      return { remainingDamage: remaining, absorbed };
+    }
   }
 
   // 9. Rogue X-Slash VFX (Dual crossing emerald & shadow blades with intersection starburst)
@@ -3875,20 +3842,48 @@ export class GameEngine {
           this.callbacks.onAddFloatingText(`+${healAmt} HP (Benteng Besi)`, '#facc15', 'heal');
           return { ...stats, mp: stats.mp - 25, hp: newHp };
         } else if (this.charClass === 'mage') {
-          // Mage: Hujan Cahaya Astral
-          soundManager.playMagic();
-          soundManager.playLevelUp();
+          // Mage: Hujan Cahaya Astral (Revamped Zero-Lag Celestial Light Pillar & Arcane Shield)
+          soundManager.playCelestialHeal();
           this.spawnMageCelestialHealVfx();
           this.isAttacking = true;
           this.attackType = 'celestial_heal';
           this.attackDuration = 0.7;
           this.attackTimer = 0.7;
 
+          // 1. Cleanse Debuff: removes 1 negative status effect (Burn / Stun / Poison / Slow)
+          const cleansed = this.bossManager?.cleanseDebuff();
+          if (cleansed) {
+            this.callbacks.onAddFloatingText(`✨ Debuff [${cleansed}] Dibersihkan!`, '#76ff03', 'info');
+          }
+
+          // 2. Heal Formula: round(75 + (stats.intelligence * 4.5))
           const healAmt = Math.round(75 + stats.intelligence * 4.5);
-          const newHp = Math.min(stats.maxHp, stats.hp + healAmt);
+          const currentHp = stats.hp;
+          const maxHp = stats.maxHp;
+          const potentialHp = currentHp + healAmt;
+          const newHp = Math.min(maxHp, potentialHp);
+
+          // 3. Overheal-to-Shield: Convert 50% of overflowing heal into 6-second Arcane Shield
+          const overflowHeal = Math.max(0, potentialHp - maxHp);
+          let shieldGain = 0;
+          if (overflowHeal > 0) {
+            shieldGain = Math.round(overflowHeal * 0.5);
+            this.arcaneShieldHp = Math.min(Math.round(maxHp * 0.75), this.arcaneShieldHp + shieldGain);
+            this.arcaneShieldTimer = 6.0;
+          }
+
+          // 4. Mana Battery (+30 MP, net +5 MP after 25 MP cost)
           const newMp = Math.min(stats.maxMp, stats.mp - 25 + 30);
 
-          this.callbacks.onAddFloatingText(`+${healAmt} HP & +30 Mana Astral`, '#38bdf8', 'heal');
+          if (shieldGain > 0 && newHp > currentHp) {
+            const actualHealed = newHp - currentHp;
+            this.callbacks.onAddFloatingText(`+${actualHealed} HP & +${shieldGain} Perisai Astral (6s)!`, '#38bdf8', 'heal');
+          } else if (shieldGain > 0) {
+            this.callbacks.onAddFloatingText(`HP Penuh! +${shieldGain} Perisai Astral (6s)`, '#38bdf8', 'heal');
+          } else {
+            this.callbacks.onAddFloatingText(`+${healAmt} HP & +30 Mana Astral`, '#38bdf8', 'heal');
+          }
+
           return { ...stats, mp: newMp, hp: newHp };
         } else if (this.charClass === 'rogue') {
           if (this.hunterWeaponMode === 'bow') {
@@ -5598,10 +5593,14 @@ export class GameEngine {
 
     this.callbacks.onUpdateStats((stats) => {
       const enemyDmg = enemy.data.attack;
-      const finalDmg = Math.max(2, enemyDmg - Math.round(stats.baseDefense * 0.6));
+      let finalDmg = Math.max(2, enemyDmg - Math.round(stats.baseDefense * 0.6));
+      const { remainingDamage } = this.absorbDamageWithShield(finalDmg);
+      finalDmg = remainingDamage;
       const nextHp = Math.max(0, stats.hp - finalDmg);
 
-      this.callbacks.onAddFloatingText(`-${finalDmg} HP`, '#ff1744', 'damage');
+      if (finalDmg > 0) {
+        this.callbacks.onAddFloatingText(`-${finalDmg} HP`, '#ff1744', 'damage');
+      }
 
       if (nextHp <= 0) {
         this.respawnPlayerAtLastVisitedTown();
@@ -5725,6 +5724,16 @@ export class GameEngine {
     this.updateCamera(delta);
     this.updateRemotePlayers(delta);
 
+    // Update Mage Arcane Shield Timer
+    if (this.arcaneShieldTimer > 0) {
+      this.arcaneShieldTimer -= delta;
+      if (this.arcaneShieldTimer <= 0) {
+        this.arcaneShieldTimer = 0;
+        this.arcaneShieldHp = 0;
+        this.callbacks.onAddFloatingText('Perisai Sihir Berakhir', '#94a3b8', 'info');
+      }
+    }
+
     // Passive MP and Stamina slow regeneration
     this.regenTimer += delta;
     if (this.regenTimer >= 0.8) {
@@ -5805,9 +5814,13 @@ export class GameEngine {
 
           if (distToPlayer <= (proj.blastRadius || 3.2)) {
             this.callbacks.onUpdateStats((stats) => {
-              const finalDmg = Math.max(5, proj.damage - Math.round(stats.baseDefense * 0.5));
+              let finalDmg = Math.max(5, proj.damage - Math.round(stats.baseDefense * 0.5));
+              const { remainingDamage } = this.absorbDamageWithShield(finalDmg);
+              finalDmg = remainingDamage;
               const nextHp = Math.max(0, stats.hp - finalDmg);
-              this.callbacks.onAddFloatingText(`-${finalDmg} HP (Bongkahan Batu)`, '#ff1744', 'damage');
+              if (finalDmg > 0) {
+                this.callbacks.onAddFloatingText(`-${finalDmg} HP (Bongkahan Batu)`, '#ff1744', 'damage');
+              }
               if (nextHp <= 0) {
                 this.respawnPlayerAtLastVisitedTown();
                 return { ...stats, hp: stats.maxHp, mp: stats.maxMp, gold: Math.max(0, stats.gold - 10) };

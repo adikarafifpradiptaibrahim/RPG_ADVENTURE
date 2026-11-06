@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Web Audio API Sound Synthesizer & Dynamic MP3 BGM Manager for 3D RPG
  */
 import whereTheRiverBendsUrl from '../assets/audio/Where_the_River_Bends.mp3';
@@ -1799,6 +1799,67 @@ class SoundManager {
 
     osc.start(now);
     osc.stop(now + 0.3);
+  }
+
+  /**
+   * Layered Audio for Mage Skill 'Cahaya' (Hujan Cahaya Astral)
+   * 1. Harmonic sweep 520 Hz -> 980 Hz -> 280 Hz (magic pulse)
+   * 2. Sub-bass warmth layer (80 Hz sinusoid ramping down to 65 Hz and fading out over 0.8s)
+   * 3. Ethereal celestial chime / sacred choir chords (E Major 9 triad shimmer over 1.2s)
+   */
+  public playCelestialHeal() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx || !this.sfxGain) return;
+
+    const now = this.ctx.currentTime;
+
+    // Layer 1: Core Harmonic Magic Sweep (520 -> 980 -> 280 Hz)
+    const magicOsc = this.ctx.createOscillator();
+    const magicGain = this.ctx.createGain();
+    magicOsc.type = 'sine';
+    magicOsc.frequency.setValueAtTime(520, now);
+    magicOsc.frequency.exponentialRampToValueAtTime(980, now + 0.1);
+    magicOsc.frequency.exponentialRampToValueAtTime(280, now + 0.32);
+    magicGain.gain.setValueAtTime(0.35, now);
+    magicGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    magicOsc.connect(magicGain);
+    magicGain.connect(this.sfxGain);
+    magicOsc.start(now);
+    magicOsc.stop(now + 0.36);
+
+    // Layer 2: Sub-Bass Warmth Layer (80 Hz sinusoid fading out over 0.8s)
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(80, now);
+    subOsc.frequency.exponentialRampToValueAtTime(65, now + 0.8);
+    subGain.gain.setValueAtTime(0.42, now);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+    subOsc.connect(subGain);
+    subGain.connect(this.sfxGain);
+    subOsc.start(now);
+    subOsc.stop(now + 0.85);
+
+    // Layer 3: Ethereal Celestial Chime / Sacred Choir Chords (E Major 9 / Crystalline triad shimmer)
+    const chimeFreqs = [659.25, 830.61, 987.77, 1318.51, 1661.22];
+    chimeFreqs.forEach((freq, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const chimeOsc = this.ctx.createOscillator();
+      const chimeGain = this.ctx.createGain();
+      chimeOsc.type = 'sine';
+      chimeOsc.frequency.setValueAtTime(freq, now + idx * 0.025);
+
+      const startTime = now + idx * 0.025;
+      chimeGain.gain.setValueAtTime(0.001, startTime);
+      chimeGain.gain.exponentialRampToValueAtTime(0.2 / (idx * 0.35 + 1), startTime + 0.06);
+      chimeGain.gain.exponentialRampToValueAtTime(0.001, startTime + 1.2);
+
+      chimeOsc.connect(chimeGain);
+      chimeGain.connect(this.sfxGain);
+      chimeOsc.start(startTime);
+      chimeOsc.stop(startTime + 1.25);
+    });
   }
 
   public playDash() {

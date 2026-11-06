@@ -44,6 +44,7 @@ export interface BossManagerCallbacks {
   onSpawnSparks?: (pos: THREE.Vector3, color: number, count: number, speed: number) => void;
   onSpawnBoulderProjectile?: (fromPos: THREE.Vector3, toPos: THREE.Vector3, damage: number) => void;
   onPlayerDeath?: () => void;
+  onDamageAbsorb?: (rawDmg: number) => number;
 }
 
 /**
@@ -622,9 +623,14 @@ export class BossManager {
     // Player is hit! Apply damage and status effects
     const skill = tel.skill;
     this.callbacks.onUpdateStats((stats) => {
-      const finalDmg = Math.max(5, skill.damage - Math.round(stats.baseDefense * 0.5));
+      let finalDmg = Math.max(5, skill.damage - Math.round(stats.baseDefense * 0.5));
+      if (this.callbacks.onDamageAbsorb) {
+        finalDmg = this.callbacks.onDamageAbsorb(finalDmg);
+      }
       const nextHp = Math.max(0, stats.hp - finalDmg);
-      this.callbacks.onAddFloatingText(`-${finalDmg} HP (${skill.nameId})`, '#ff1744', 'damage');
+      if (finalDmg > 0) {
+        this.callbacks.onAddFloatingText(`-${finalDmg} HP (${skill.nameId})`, '#ff1744', 'damage');
+      }
       if (nextHp <= 0) {
         this.callbacks.onPlayerDeath?.();
       }
@@ -684,10 +690,15 @@ export class BossManager {
 
       if (this.playerDebuffs.burnTickTimer <= 0) {
         this.playerDebuffs.burnTickTimer = 0.7;
-        const burnDmg = 8;
+        let burnDmg = 8;
+        if (this.callbacks.onDamageAbsorb) {
+          burnDmg = this.callbacks.onDamageAbsorb(burnDmg);
+        }
         this.callbacks.onUpdateStats((stats) => {
           const nextHp = Math.max(0, stats.hp - burnDmg);
-          this.callbacks.onAddFloatingText(`-${burnDmg} HP (Bakar)`, '#ff3d00', 'damage');
+          if (burnDmg > 0) {
+            this.callbacks.onAddFloatingText(`-${burnDmg} HP (Bakar)`, '#ff3d00', 'damage');
+          }
           if (nextHp <= 0) {
             this.callbacks.onPlayerDeath?.();
           }
@@ -712,6 +723,25 @@ export class BossManager {
         else mat.dispose();
       }
     });
+  }
+
+  /**
+   * Cleanses 1 active negative status effect (Burn or Stun)
+   * Returns the name of the cleansed effect, or null if none active
+   */
+  public cleanseDebuff(): string | null {
+    if (this.playerDebuffs.isBurned) {
+      this.playerDebuffs.isBurned = false;
+      this.playerDebuffs.burnTimer = 0;
+      this.playerDebuffs.burnTickTimer = 0;
+      return 'Bakar (Burn)';
+    }
+    if (this.playerDebuffs.isStunned) {
+      this.playerDebuffs.isStunned = false;
+      this.playerDebuffs.stunTimer = 0;
+      return 'Pusing (Stun)';
+    }
+    return null;
   }
 
   /**
