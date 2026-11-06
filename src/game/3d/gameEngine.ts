@@ -809,7 +809,7 @@ export class GameEngine {
         this.spawnShockwaveRing(atkPos, 0xfacc15, 4.5, 0.6);
         this.spawnHitStarburst(atkPos.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xfde047, 2.8);
       } else if (charClass === 'mage') {
-        soundManager.playMagic();
+        soundManager.playMageCelestialHeal();
         this.spawnHitStarburst(atkPos.clone().add(new THREE.Vector3(0, 1.5, 0)), 0x67e8f9, 3.4);
         this.spawnShockwaveRing(atkPos, 0x38bdf8, 4.2, 0.6);
       } else if (charClass === 'rogue') {
@@ -3845,7 +3845,7 @@ export class GameEngine {
           return { ...stats, mp: stats.mp - 25, hp: newHp };
         } else if (this.charClass === 'mage') {
           // Mage: Hujan Cahaya Astral (Revamped Zero-Lag Celestial Light Pillar & Arcane Shield)
-          soundManager.playCelestialHeal();
+          soundManager.playMageCelestialHeal();
           this.spawnMageCelestialHealVfx();
           this.isAttacking = true;
           this.attackType = 'celestial_heal';

@@ -9,6 +9,7 @@ import basaltDragonBgmUrl from '../assets/audio/Basalt_and_Brimstone.mp3';
 import arcaneBeamSfxUrl from '../assets/sfx/mage/arcane beam/magic_beam.wav';
 import starfallCastingSfxUrl from '../assets/sfx/mage/starfall/Magic_circle_casting.wav';
 import starfallImpactSfxUrl from '../assets/sfx/mage/starfall/meteor_fall.wav';
+import cahayaSpellSfxUrl from '../assets/sfx/mage/cahaya/casting_spell.wav';
 
 export {
   whereTheRiverBendsUrl,
@@ -19,6 +20,7 @@ export {
   arcaneBeamSfxUrl,
   starfallCastingSfxUrl,
   starfallImpactSfxUrl,
+  cahayaSpellSfxUrl,
   whereTheRiverBendsUrl as relaxBgmUrl,
   whereTheRiverBendsUrl as overworldBgmUrl,
   titanBossBgmUrl as bossTitanBgmUrl,
@@ -76,6 +78,12 @@ class SoundManager {
   private starfallImpactPoolIndex = 0;
   private activeStarfallChargeSource: AudioBufferSourceNode | null = null;
   private activeStarfallChargeAudio: HTMLAudioElement | null = null;
+
+  // --- Cahaya (Celestial Heal) SFX Buffer & Pool (casting_spell.wav) ---
+  private cahayaSpellBuffer: AudioBuffer | null = null;
+  private isCahayaSpellLoading = false;
+  private cahayaSpellAudioPool: HTMLAudioElement[] = [];
+  private cahayaSpellPoolIndex = 0;
 
   constructor() {
     this.setupUserGestureAutoplay();
@@ -168,6 +176,16 @@ class SoundManager {
       }
       this.loadStarfallAudioBuffers();
 
+      // 5. Preload Cahaya (Celestial Heal) SFX Audio Pool (casting_spell.wav)
+      this.cahayaSpellAudioPool = [];
+      for (let i = 0; i < 3; i++) {
+        const spell = new Audio(cahayaSpellSfxUrl);
+        spell.preload = 'auto';
+        spell.volume = this.isMuted ? 0 : 0.9;
+        this.cahayaSpellAudioPool.push(spell);
+      }
+      this.loadCahayaSpellBuffer();
+
       this.initBossAudioNodes();
     } catch (e) {
       console.warn('[SoundManager] Could not initialize audio elements:', e);
@@ -227,6 +245,7 @@ class SoundManager {
       this.initAudioElements();
       this.loadArcaneBeamBuffer();
       this.loadStarfallAudioBuffers();
+      this.loadCahayaSpellBuffer();
       if (this.isMusicPlaying && !this.isMuted && !this.isVictoryPlaying) {
         if (this.currentBossMusic) {
           this.playBossMusic(this.currentBossMusic);
@@ -680,6 +699,9 @@ class SoundManager {
     if ((!this.starfallCastingBuffer || !this.starfallImpactBuffer) && !this.isStarfallBuffersLoading) {
       this.loadStarfallAudioBuffers();
     }
+    if (!this.cahayaSpellBuffer && !this.isCahayaSpellLoading) {
+      this.loadCahayaSpellBuffer();
+    }
   }
 
   public async loadArcaneBeamBuffer() {
@@ -725,6 +747,24 @@ class SoundManager {
       console.warn('[SoundManager] Could not decode starfall audio buffers, using HTMLAudioElement fallback:', e);
     } finally {
       this.isStarfallBuffersLoading = false;
+    }
+  }
+
+  public async loadCahayaSpellBuffer() {
+    if (this.cahayaSpellBuffer || this.isCahayaSpellLoading || typeof window === 'undefined') return;
+    this.isCahayaSpellLoading = true;
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+      const response = await fetch(cahayaSpellSfxUrl);
+      const arrayBuffer = await response.arrayBuffer();
+      if (this.ctx) {
+        this.cahayaSpellBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+      }
+    } catch (e) {
+      console.warn('[SoundManager] Could not decode casting_spell.wav buffer, using HTMLAudioElement fallback:', e);
+    } finally {
+      this.isCahayaSpellLoading = false;
     }
   }
 
@@ -777,10 +817,12 @@ class SoundManager {
       this.arcaneBeamAudioPool.forEach((a) => (a.volume = 0));
       this.starfallCastingAudioPool.forEach((a) => (a.volume = 0));
       this.starfallImpactAudioPool.forEach((a) => (a.volume = 0));
+      this.cahayaSpellAudioPool.forEach((a) => (a.volume = 0));
     } else {
       this.arcaneBeamAudioPool.forEach((a) => (a.volume = 0.9));
       this.starfallCastingAudioPool.forEach((a) => (a.volume = 0.9));
       this.starfallImpactAudioPool.forEach((a) => (a.volume = 0.95));
+      this.cahayaSpellAudioPool.forEach((a) => (a.volume = 0.9));
       if (this.isMusicPlaying && !this.isVictoryPlaying) {
         if (this.currentBossMusic && currentBoss) {
           currentBoss.volume = this.masterMusicVolume;
@@ -1487,45 +1529,65 @@ class SoundManager {
     arrivalChime.stop(now + 0.29);
   }
 
-  public playMageCelestialHeal() {
+  /**
+   * Plays the Mage Skill 'Cahaya' (Hujan Cahaya Astral / Celestial Heal) SFX using casting_spell.wav with zero latency
+   * Uses Web Audio API AudioBuffer with preloaded HTMLAudioElement pooling fallback
+   */
+  public playCahayaSpell(volume = 0.9) {
     if (this.isMuted) return;
     this.initContext();
-    if (!this.ctx || !this.sfxGain) return;
 
-    const now = this.ctx.currentTime;
-    // Angelic harp arpeggio: F4, A4, C5, E5, G5, C6
-    const harpNotes = [349.23, 440, 523.25, 659.25, 783.99, 1046.5];
-    harpNotes.forEach((freq, idx) => {
-      const osc = this.ctx!.createOscillator();
-      const gain = this.ctx!.createGain();
-      const noteTime = now + idx * 0.06;
+    const finalVolume = Math.min(1.0, Math.max(0.0, volume));
 
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, noteTime);
+    // Priority 1: Web Audio API AudioBuffer (Instant 0ms latency, high dynamic range)
+    if (this.ctx && this.cahayaSpellBuffer) {
+      try {
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+        const source = this.ctx.createBufferSource();
+        source.buffer = this.cahayaSpellBuffer;
+        const gainNode = this.ctx.createGain();
+        gainNode.gain.setValueAtTime(finalVolume, this.ctx.currentTime);
+        source.connect(gainNode);
+        if (this.sfxGain) {
+          gainNode.connect(this.sfxGain);
+        } else {
+          gainNode.connect(this.ctx.destination);
+        }
+        source.start();
+        return;
+      } catch (e) {
+        console.warn('[SoundManager] Failed to play decoded casting_spell buffer, falling back to Audio pool:', e);
+      }
+    }
 
-      gain.gain.setValueAtTime(0.01, noteTime);
-      gain.gain.linearRampToValueAtTime(0.28, noteTime + 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.55);
+    // Priority 2: Pre-allocated HTMLAudioElement Pool
+    if (this.cahayaSpellAudioPool.length > 0) {
+      const audio = this.cahayaSpellAudioPool[this.cahayaSpellPoolIndex];
+      this.cahayaSpellPoolIndex = (this.cahayaSpellPoolIndex + 1) % this.cahayaSpellAudioPool.length;
+      if (audio) {
+        try {
+          audio.currentTime = 0;
+          audio.volume = this.isMuted ? 0 : finalVolume;
+          const p = audio.play();
+          if (p !== undefined) {
+            p.catch(() => {});
+          }
+        } catch {
+          // Browser autoplay restriction
+        }
+      }
+    }
 
-      osc.connect(gain);
-      gain.connect(this.sfxGain!);
+    // Trigger buffer decoding in background if not already loaded
+    if (!this.cahayaSpellBuffer && !this.isCahayaSpellLoading) {
+      this.loadCahayaSpellBuffer();
+    }
+  }
 
-      osc.start(noteTime);
-      osc.stop(noteTime + 0.58);
-    });
-
-    // Warm sub harmonic pad
-    const pad = this.ctx.createOscillator();
-    const padGain = this.ctx.createGain();
-    pad.type = 'triangle';
-    pad.frequency.setValueAtTime(174.61, now);
-    padGain.gain.setValueAtTime(0.01, now);
-    padGain.gain.linearRampToValueAtTime(0.25, now + 0.1);
-    padGain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
-    pad.connect(padGain);
-    padGain.connect(this.sfxGain);
-    pad.start(now);
-    pad.stop(now + 0.68);
+  public playMageCelestialHeal(volume = 0.9) {
+    this.playCahayaSpell(volume);
   }
 
   // --- ROGUE & HUNTER SOUNDS (Razor-Sharp, Rapid, Aerodynamic) ---
@@ -1815,89 +1877,12 @@ class SoundManager {
     });
   }
 
-  public playMagic() {
-    if (this.isMuted) return;
-    this.initContext();
-    if (!this.ctx || !this.sfxGain) return;
-
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    const now = this.ctx.currentTime;
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(520, now);
-    osc.frequency.exponentialRampToValueAtTime(980, now + 0.1);
-    osc.frequency.exponentialRampToValueAtTime(280, now + 0.28);
-
-    gain.gain.setValueAtTime(0.32, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
-
-    osc.connect(gain);
-    gain.connect(this.sfxGain);
-
-    osc.start(now);
-    osc.stop(now + 0.3);
+  public playMagic(volume = 0.9) {
+    this.playCahayaSpell(volume);
   }
 
-  /**
-   * Layered Audio for Mage Skill 'Cahaya' (Hujan Cahaya Astral)
-   * 1. Harmonic sweep 520 Hz -> 980 Hz -> 280 Hz (magic pulse)
-   * 2. Sub-bass warmth layer (80 Hz sinusoid ramping down to 65 Hz and fading out over 0.8s)
-   * 3. Ethereal celestial chime / sacred choir chords (E Major 9 triad shimmer over 1.2s)
-   */
-  public playCelestialHeal() {
-    if (this.isMuted) return;
-    this.initContext();
-    if (!this.ctx || !this.sfxGain) return;
-
-    const now = this.ctx.currentTime;
-
-    // Layer 1: Core Harmonic Magic Sweep (520 -> 980 -> 280 Hz)
-    const magicOsc = this.ctx.createOscillator();
-    const magicGain = this.ctx.createGain();
-    magicOsc.type = 'sine';
-    magicOsc.frequency.setValueAtTime(520, now);
-    magicOsc.frequency.exponentialRampToValueAtTime(980, now + 0.1);
-    magicOsc.frequency.exponentialRampToValueAtTime(280, now + 0.32);
-    magicGain.gain.setValueAtTime(0.35, now);
-    magicGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-    magicOsc.connect(magicGain);
-    magicGain.connect(this.sfxGain);
-    magicOsc.start(now);
-    magicOsc.stop(now + 0.36);
-
-    // Layer 2: Sub-Bass Warmth Layer (80 Hz sinusoid fading out over 0.8s)
-    const subOsc = this.ctx.createOscillator();
-    const subGain = this.ctx.createGain();
-    subOsc.type = 'sine';
-    subOsc.frequency.setValueAtTime(80, now);
-    subOsc.frequency.exponentialRampToValueAtTime(65, now + 0.8);
-    subGain.gain.setValueAtTime(0.42, now);
-    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
-    subOsc.connect(subGain);
-    subGain.connect(this.sfxGain);
-    subOsc.start(now);
-    subOsc.stop(now + 0.85);
-
-    // Layer 3: Ethereal Celestial Chime / Sacred Choir Chords (E Major 9 / Crystalline triad shimmer)
-    const chimeFreqs = [659.25, 830.61, 987.77, 1318.51, 1661.22];
-    chimeFreqs.forEach((freq, idx) => {
-      if (!this.ctx || !this.sfxGain) return;
-      const chimeOsc = this.ctx.createOscillator();
-      const chimeGain = this.ctx.createGain();
-      chimeOsc.type = 'sine';
-      chimeOsc.frequency.setValueAtTime(freq, now + idx * 0.025);
-
-      const startTime = now + idx * 0.025;
-      chimeGain.gain.setValueAtTime(0.001, startTime);
-      chimeGain.gain.exponentialRampToValueAtTime(0.2 / (idx * 0.35 + 1), startTime + 0.06);
-      chimeGain.gain.exponentialRampToValueAtTime(0.001, startTime + 1.2);
-
-      chimeOsc.connect(chimeGain);
-      chimeGain.connect(this.sfxGain);
-      chimeOsc.start(startTime);
-      chimeOsc.stop(startTime + 1.25);
-    });
+  public playCelestialHeal(volume = 0.9) {
+    this.playCahayaSpell(volume);
   }
 
   public playDash() {
