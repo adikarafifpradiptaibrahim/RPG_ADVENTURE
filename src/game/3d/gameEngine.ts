@@ -2851,7 +2851,7 @@ export class GameEngine {
       this.playerMesh.group.updateMatrixWorld(true);
       const crystalWorldPos = new THREE.Vector3();
       this.playerMesh.orbMesh.getWorldPosition(crystalWorldPos);
-      origin = crystalWorldPos.clone().add(fwd.clone().multiplyScalar(0.15));
+      origin = crystalWorldPos.clone().add(fwd.clone().multiplyScalar(0.5));
 
       getOriginCb = () => {
         if (!this.playerMesh?.orbMesh) return { origin, direction: fwd };
@@ -2860,7 +2860,7 @@ export class GameEngine {
         this.playerMesh.orbMesh.getWorldPosition(curCrystalPos);
         const curFwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
         return {
-          origin: curCrystalPos.add(curFwd.clone().multiplyScalar(0.15)),
+          origin: curCrystalPos.add(curFwd.clone().multiplyScalar(0.5)),
           direction: curFwd,
         };
       };
@@ -3657,8 +3657,9 @@ export class GameEngine {
       this.attackDuration = 1.0;
       this.attackTimer = 1.0;
       if (this.playerMesh) {
-        this.playerMesh.rightArm.rotation.set(-Math.PI / 2, 0, -0.05);
+        this.playerMesh.rightArm.rotation.set(-Math.PI / 2, 0, 0);
         this.playerMesh.weapon.rotation.set(Math.PI, 0, 0);
+        this.playerMesh.body.rotation.set(0, 0, 0);
         this.playerMesh.group.updateMatrixWorld(true);
       }
       soundManager.playArcaneBeam();
@@ -5167,9 +5168,9 @@ export class GameEngine {
         this.isAttacking = false;
         this.attackType = null;
         if (this.charClass === 'mage' && this.playerMesh?.body) {
-          this.playerMesh.body.rotation.x = 0;
+          this.playerMesh.body.rotation.set(0, 0, 0);
           this.playerMesh.body.position.y = 1.35;
-          this.playerMesh.weapon.rotation.set(0, 0, 0);
+          this.playerMesh.weapon.rotation.set(0.1, 0, -0.15);
         }
         this.playerMesh.leftArm.rotation.set(0, 0, 0);
         this.playerMesh.rightArm.rotation.set(0, 0, 0);
