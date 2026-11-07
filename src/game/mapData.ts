@@ -54,12 +54,12 @@ export const REGIONS: RegionInfo[] = [
     name: 'Ancient Titan Sanctuary Basin',
     nameId: 'Lembah Danau Cekungan Titan Kuno',
     icon: '🏛️',
-    description: 'A circular ancient valley lake basin surrounded by rune-carved megaliths, home to the Ancient Obsidian Titan.',
-    descriptionId: 'Cekungan danau lembah purba melingkar di padang rumput barat terpencil dikelilingi 8 megalit rune dan arena pertarungan Boss Sang Titan Kuno Obsidian.',
+    description: 'A colossal circular ancient valley lake basin surrounded by 12 rune-carved megaliths, home to the Ancient Obsidian Titan.',
+    descriptionId: 'Cekungan danau lembah purba melingkar dikelilingi 12 megalit rune dan arena pertarungan Boss Sang Titan Kuno Obsidian (Lv. 8).',
     color: '#0284c7',
-    bounds: { minX: -290, maxX: -230, minZ: -50, maxZ: 10 },
-    center: [-260, -20],
-    recommendedLevel: 4,
+    bounds: { minX: -238, maxX: -154, minZ: -296, maxZ: -212 },
+    center: [-196, -254],
+    recommendedLevel: 8,
   },
   {
     id: 'puncak_halilintar',
@@ -152,8 +152,8 @@ export const WAYPOINTS: {
     nameId: 'Lembah Danau Cekungan Titan Kuno',
     regionId: 'kawah_obsidian',
     icon: '🏛️',
-    pos: [-260, -20],
-    desc: 'Cekungan danau purba di padang rumput barat terpencil dan arena Titan Kuno',
+    pos: [-196, -254],
+    desc: 'Cekungan danau purba raksasa diameter 80m dan arena pertarungan Boss Sang Titan Kuno Obsidian (Lv. 8)',
   },
   {
     id: 'wp_astraea',
@@ -257,8 +257,8 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
     return REGIONS[3];
   }
 
-  // 4. Ancient Titan Basin (West Plains: around [-260, -20])
-  if (Math.hypot(x - -260, z - -20) <= 30) {
+  // 4. Ancient Titan Basin (West Plains: around [-196, -254], radius 42)
+  if (Math.hypot(x - -196, z - -254) <= 42) {
     return REGIONS[4];
   }
 

@@ -126,15 +126,15 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     if (Math.hypot(x - 80, z - 310) < 16) {
       return 2.0;
     }
-    // Caldera crater floor around dragon arena [80, 360]
+    // Caldera crater floor around dragon arena [80, 360] (radius 45 unit)
     const distCenter = Math.hypot(x - 80, z - 360);
-    if (distCenter <= 22) {
+    if (distCenter <= 45) {
       return 2.50;
     }
     // Crater rim ridge
-    if (distCenter <= 34) {
-      const t = (distCenter - 22) / 12;
-      return 2.50 + Math.sin(t * Math.PI) * 4.2;
+    if (distCenter <= 56) {
+      const t = (distCenter - 45) / 11;
+      return 2.50 + Math.sin(t * Math.PI) * 6.0;
     }
     // Island outer slope down to sea
     if (distSq > 0.70) {
@@ -201,11 +201,11 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   if (Math.hypot(x - 380, z - 80) <= 38) return 2.50;
   // 4d. Imperial Capital Astraea [-340, -220]
   if (Math.hypot(x - -340, z - -220) <= 46) return 2.00;
-  // 4e. Ancient Titan Basin [-260, -20]
-  const distTitan = Math.hypot(x - -260, z - -20);
-  if (distTitan <= 6.0) return 0.35; // Granit platform
-  if (distTitan <= 18.0) return -0.05; // Shallow lake basin
-  if (distTitan <= 24.0) return 0.8; // Rim
+  // 4e. Ancient Titan Basin [-196, -254] (Perluasan Skala: Danau Radius 40 unit, Platform Diameter 16 unit)
+  const distTitan = Math.hypot(x - -196, z - -254);
+  if (distTitan <= 8.0) return 0.55; // Granit platform (diameter 16 unit)
+  if (distTitan <= 40.0) return 0.05; // Shallow lake basin (diameter 80 unit)
+  if (distTitan <= 44.0) return 0.8; // Rim megalit bibir danau
   // 4f. Mage Tower Hill [180, 60]
   const distMage = Math.hypot(x - 180, z - 60);
   if (distMage <= 18) return 4.50;
@@ -246,7 +246,7 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     if (zone.id === 'desert' && Math.hypot(x - 150, z - -360) < 18) {
       return { height: y, color: [6, 182, 212], biomeId: 'solaria_oasis', isWater: true, isPath: false, slope };
     }
-    if (zone.id === 'plains' && Math.hypot(x - -260, z - -20) < 18) {
+    if (zone.id === 'plains' && Math.hypot(x - -196, z - -254) < 40) {
       return { height: y, color: [38, 145, 185], biomeId: 'titan_lake', isWater: true, isPath: false, slope };
     }
     const depth = clamp(-y / 4.0, 0, 1);
@@ -326,7 +326,7 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: y, color: [100, 116, 139], biomeId: 'valkragor_slate', isWater: false, isPath: true, slope: 0 };
   }
   // Titan Platform
-  if (Math.hypot(x - -260, z - -20) <= 6.5) {
+  if (Math.hypot(x - -196, z - -254) <= 8.0) {
     return { height: y, color: [140, 138, 134], biomeId: 'titan_platform', isWater: false, isPath: true, slope: 0 };
   }
   // Mage Tower Hill

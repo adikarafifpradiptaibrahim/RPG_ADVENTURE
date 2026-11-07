@@ -20,7 +20,7 @@ import { getContinentBiomeSample, getBiomeAt } from '../game/mapSampler';
 import { drawRoadsOnWorldMap } from '../game/RoadSystem';
 
 // Persistent continent map cached image data to eliminate all lag on open & pan
-const MAP_CACHE_VERSION = 'v5.3_solaria_sandworm_boss';
+const MAP_CACHE_VERSION = 'v5.4_titan_relocation_and_boss_arenas';
 let cachedMapVersion = '';
 let cachedMapImageData: ImageData | null = null;
 
@@ -614,9 +614,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 5. Ancient Titan Sanctuary Basin (Padang Rumput Barat Terpencil, X: -260, Z: -20) */}
+              {/* 5. Ancient Titan Sanctuary Basin (Danau Cekungan Granit, X: -196, Z: -254) */}
               {(() => {
-                const sp = worldToScreen(-260, -20);
+                const sp = worldToScreen(-196, -254);
                 if (!sp.visible) return null;
                 return (
                   <div

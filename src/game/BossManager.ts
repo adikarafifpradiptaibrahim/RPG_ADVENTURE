@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { EnemyData, PlayerStats } from '../types/game';
 import { soundManager } from './audio';
+import { MonsterCombatAI } from './monsterAI';
 import {
   IGNIS_DRAGON_BOSS_CONFIG,
   ANCIENT_TITAN_BOSS_CONFIG,
@@ -45,6 +46,7 @@ export interface BossManagerCallbacks {
   onSpawnShockwave?: (pos: THREE.Vector3, color: number, maxRadius: number, duration: number) => void;
   onSpawnSparks?: (pos: THREE.Vector3, color: number, count: number, speed: number) => void;
   onSpawnBoulderProjectile?: (fromPos: THREE.Vector3, toPos: THREE.Vector3, damage: number) => void;
+  onSpawnFireballProjectile?: (fromPos: THREE.Vector3, toPos: THREE.Vector3, damage: number) => void;
   onPlayerDeath?: () => void;
   onDamageAbsorb?: (rawDmg: number) => number;
 }
@@ -262,80 +264,74 @@ export class BossManager {
     const cdMap = this.skillCooldowns.get(bossId)!;
 
     if (isIgnis) {
-      // 1. Tail Swipe: Check if player is BEHIND Ignis within 7.5 units
       const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), enemy.mesh.rotation.y);
       const toPlayer = new THREE.Vector3(playerPos.x - ePos.x, 0, playerPos.z - ePos.z).normalize();
-      const dot = fwd.dot(toPlayer); // dot < -0.35 means player is behind the dragon
-      const tailSwipeCd = cdMap.get('tail_swipe') || 0;
+      const dot = fwd.dot(toPlayer);
 
-      if (distToPlayer <= 7.5 && dot < -0.35 && tailSwipeCd <= 0) {
-        const skill = config.skills.find((s) => s.id === 'tail_swipe')!;
-        this.startTelegraphCircle(bossId, enemy, ePos, 6.5, skill);
-        cdMap.set('tail_swipe', skill.cooldown);
-        return true;
-      }
-
-      // 2. Meteor Strike (Long range or mid-combat: dist 6..28)
-      const meteorCd = cdMap.get('meteor_strike') || 0;
-      if (distToPlayer >= 5 && distToPlayer <= 28 && meteorCd <= 0) {
-        const skill = config.skills.find((s) => s.id === 'meteor_strike')!;
-        // Target player current location
-        const targetPos = new THREE.Vector3(playerPos.x, this.getTerrainHeight(playerPos.x, playerPos.z), playerPos.z);
-        this.startTelegraphCircle(bossId, enemy, targetPos, 5.0, skill);
+      const selected = MonsterCombatAI.selectDragonSkill(distToPlayer, dot, cdMap);
+      if (selected === 'flying_dash') {
+        const skill = config.skills.find((s) => s.id === 'flying_dash')!;
+        this.startTelegraphLine(bossId, enemy, ePos, toPlayer, Math.min(48, distToPlayer + 4), 5.0, skill);
         soundManager.playDragonRoar();
-        cdMap.set('meteor_strike', skill.cooldown);
+        this.callbacks.onAddFloatingText('🦅 IGNIS TERBANG MENUKIK CEPAT!', '#f97316', 'crit');
+        cdMap.set('flying_dash', skill.cooldown);
         return true;
-      }
-
-      // 3. Fire Breath Cone AOE (Mid-range forward: dist 3..14, dot > 0.4)
-      const breathCd = cdMap.get('fire_breath') || 0;
-      if (distToPlayer <= 14 && dot > 0.25 && breathCd <= 0) {
-        const skill = config.skills.find((s) => s.id === 'fire_breath')!;
+      } else if (selected === 'fireball_barrage') {
+        const skill = config.skills.find((s) => s.id === 'fireball_barrage')!;
+        this.startTelegraphCircle(bossId, enemy, playerPos.clone(), 3.0, skill);
+        soundManager.playDragonFireBreath();
+        this.callbacks.onAddFloatingText('🔥 BOLA API MAGMA BERUNTUN!', '#ef4444', 'info');
+        cdMap.set('fireball_barrage', skill.cooldown);
+        return true;
+      } else if (selected === 'flame_breath') {
+        const skill = config.skills.find((s) => s.id === 'flame_breath') || config.skills.find((s) => s.id === 'fire_breath')!;
         this.startTelegraphCone(bossId, enemy, ePos, fwd, 14, Math.PI / 3, skill);
         soundManager.playDragonFireBreath();
-        cdMap.set('fire_breath', skill.cooldown);
+        this.callbacks.onAddFloatingText('🔥 SEMBURAN LIDAH API KIPAS!', '#dc2626', 'damage');
+        cdMap.set('flame_breath', skill.cooldown);
+        return true;
+      } else if (selected === 'dragon_claw') {
+        const skill = config.skills.find((s) => s.id === 'dragon_claw') || config.skills.find((s) => s.id === 'tail_swipe')!;
+        this.startTelegraphCircle(bossId, enemy, ePos.clone().addScaledVector(toPlayer, 2.5), 4.5, skill);
+        soundManager.playHit(true);
+        cdMap.set('dragon_claw', skill.cooldown);
         return true;
       }
     } else if (isTitan) {
-      const slamCd = cdMap.get('earthquake_slam') || 0;
-      const punchCd = cdMap.get('heavy_punch') || 0;
-      const rockCd = cdMap.get('rock_throw') || 0;
-
-      // 1. Earthquake Slam (Large Ground AOE with Stun & Knockback: dist <= 7.5)
-      if (distToPlayer <= 7.5 && slamCd <= 0) {
-        const skill = config.skills.find((s) => s.id === 'earthquake_slam')!;
-        this.startTelegraphCircle(bossId, enemy, ePos, 8.0, skill);
-        cdMap.set('earthquake_slam', skill.cooldown);
+      const selected = MonsterCombatAI.selectTitanSkill(distToPlayer, cdMap);
+      if (selected === 'seismic_slam') {
+        const skill = config.skills.find((s) => s.id === 'seismic_slam') || config.skills.find((s) => s.id === 'earthquake_slam')!;
+        this.startTelegraphCircle(bossId, enemy, ePos, 15.0, skill);
+        soundManager.playTitanGroundSlam();
+        this.callbacks.onAddFloatingText('💥 TITAN MENYIAPKAN BOGEM GEMPA BUMI KOLOSAL (AOE)!', '#ef4444', 'crit');
+        cdMap.set('seismic_slam', skill.cooldown);
         return true;
-      }
-
-      // 2. Basic Heavy Punch (Close range single forward punch: dist <= 4.8)
-      if (distToPlayer <= 4.8 && punchCd <= 0) {
+      } else if (selected === 'boulder_hurl') {
+        const skill = config.skills.find((s) => s.id === 'boulder_hurl') || config.skills.find((s) => s.id === 'rock_throw')!;
+        this.startTelegraphCircle(bossId, enemy, playerPos.clone(), 2.0, skill);
+        soundManager.playTitanGroundSlam();
+        this.callbacks.onAddFloatingText('🪨 TITAN MELEMPAR BONGKAHAN BATU RAKSASA!', '#f59e0b', 'info');
+        cdMap.set('boulder_hurl', skill.cooldown);
+        return true;
+      } else if (selected === 'earth_fissure') {
+        const skill = config.skills.find((s) => s.id === 'earth_fissure')!;
+        const toPlayer = new THREE.Vector3(playerPos.x - ePos.x, 0, playerPos.z - ePos.z).normalize();
+        this.startTelegraphLine(bossId, enemy, ePos, toPlayer, Math.min(36, distToPlayer + 6), 4.0, skill);
+        soundManager.playTitanGroundSlam();
+        this.callbacks.onAddFloatingText('⚡ GUNCANGAN RETAKAN BUMI MERAMBAT!', '#38bdf8', 'info');
+        cdMap.set('earth_fissure', skill.cooldown);
+        return true;
+      } else if (selected === 'heavy_punch') {
         const skill = config.skills.find((s) => s.id === 'heavy_punch')!;
         const toPlayer = new THREE.Vector3(playerPos.x - ePos.x, 0, playerPos.z - ePos.z).normalize();
         const punchPos = ePos.clone().addScaledVector(toPlayer, 2.5);
-        this.startTelegraphCircle(bossId, enemy, punchPos, 4.2, skill);
+        this.startTelegraphCircle(bossId, enemy, punchPos, 3.8, skill);
         cdMap.set('heavy_punch', skill.cooldown);
         return true;
       }
-
-      // 3. Rock Boulder Throw (Medium/Long range: dist 7..26)
-      if (distToPlayer >= 6.5 && distToPlayer <= 26.0 && rockCd <= 0) {
-        const skill = config.skills.find((s) => s.id === 'rock_throw')!;
-        const toPlayer = new THREE.Vector3(playerPos.x - ePos.x, 0, playerPos.z - ePos.z).normalize();
-        this.startTelegraphLine(bossId, enemy, ePos, toPlayer, 22.0, 3.8, skill);
-        cdMap.set('rock_throw', skill.cooldown);
-        return true;
-      }
     } else if (isWorm) {
-      const burrowCd = cdMap.get('burrow_burst') || 0;
-      const spikeCd = cdMap.get('sand_spike_barrage') || 0;
-      const whirlpoolCd = cdMap.get('sand_whirlpool') || 0;
-      const tailCd = cdMap.get('tail_slam') || 0;
-      const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), enemy.mesh.rotation.y);
-
-      // 1. SKILL 3 — DESERT SAND WHIRLPOOL (Ketika HP < 50%, cacing berdiam di tengah & ciptakan pusaran)
-      if (enemy.data.hp < enemy.data.maxHp * 0.5 && whirlpoolCd <= 0 && distToPlayer <= 42) {
+      const selected = MonsterCombatAI.selectSandwormSkill(distToPlayer, enemy.data.hp, enemy.data.maxHp, cdMap);
+      if (selected === 'sand_whirlpool') {
         const skill = config.skills.find((s) => s.id === 'sand_whirlpool');
         if (skill) {
           const centerPos = new THREE.Vector3(495, this.getTerrainHeight(495, -362), -362);
@@ -345,27 +341,19 @@ export class BossManager {
           cdMap.set('sand_whirlpool', skill.cooldown);
           return true;
         }
-      }
-
-      // 2. SKILL 1 — BURROW & ERUPTION (Menyelam & Muncul di bawah kaki pemain)
-      if (distToPlayer <= 38 && burrowCd <= 0) {
+      } else if (selected === 'burrow_burst') {
         const skill = config.skills.find((s) => s.id === 'burrow_burst')!;
         this.startTelegraphCircle(bossId, enemy, playerPos.clone(), 4.5, skill);
         soundManager.playWormBurrow();
         this.callbacks.onAddFloatingText('⚠️ Cacing Purba Menyelam ke Bawah Pasir!', '#ef4444', 'info');
-        // Fase Bawah Tanah: sembunyikan atau tenggelamkan mesh cacing
         if (enemy.mesh) {
           enemy.mesh.position.y -= 14.0;
         }
         cdMap.set('burrow_burst', skill.cooldown);
         return true;
-      }
-
-      // 3. SKILL 2 — SAND SPIKE BARRAGE (5-8 Duri Pasir Tajam Menusuk Area Beruntun)
-      if (distToPlayer <= 28 && spikeCd <= 0) {
+      } else if (selected === 'sand_spike_barrage') {
         const skill = config.skills.find((s) => s.id === 'sand_spike_barrage');
         if (skill) {
-          // Spawn 6 sequential spike telegraphs around player with small radius
           for (let sp = 0; sp < 6; sp++) {
             const angle = Math.random() * Math.PI * 2;
             const dist = 1.5 + Math.random() * 5.0;
@@ -377,12 +365,10 @@ export class BossManager {
           cdMap.set('sand_spike_barrage', skill.cooldown);
           return true;
         }
-      }
-
-      // 4. SKILL 4 — TAIL SLAM / SWEEP (Sapuan Ekor 180 Derajat Jarak Dekat)
-      if (distToPlayer <= 7.0 && tailCd <= 0) {
+      } else if (selected === 'tail_slam') {
         const skill = config.skills.find((s) => s.id === 'tail_slam');
         if (skill) {
+          const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), enemy.mesh.rotation.y);
           this.startTelegraphCone(bossId, enemy, ePos, fwd, 7.5, Math.PI, skill);
           soundManager.playHit(true);
           cdMap.set('tail_slam', skill.cooldown);
@@ -629,16 +615,15 @@ export class BossManager {
     this.callbacks.onSpawnShockwave?.(impactPos, 0xff1744, fxRadius, 0.48);
 
     // Play appropriate SFX & Camera Shake
-    if (tel.skill.id === 'meteor_strike') {
-      soundManager.playMeteorImpact();
-      this.callbacks.onCameraShake(0.85);
-    } else if (tel.skill.id === 'earthquake_slam' || tel.skill.id === 'ground_slam') {
+    if (tel.skill.id === 'seismic_slam' || tel.skill.id === 'earthquake_slam') {
       soundManager.playTitanGroundSlam();
-      this.callbacks.onCameraShake(0.95);
-    } else if (tel.skill.id === 'rock_throw') {
+      this.callbacks.onCameraShake(1.2);
+      this.callbacks.onSpawnShockwave?.(tel.center, 0xef4444, 15.0, 0.9);
+      this.callbacks.onSpawnSparks?.(tel.center, 0xf59e0b, 32, 7.0);
+    } else if (tel.skill.id === 'boulder_hurl' || tel.skill.id === 'rock_throw') {
       soundManager.playTitanGroundSlam();
-      this.callbacks.onCameraShake(0.7);
-      // Spawn flying 3D stone boulder projectile towards player
+      this.callbacks.onCameraShake(0.8);
+      // Spawn flying 3D stone boulder projectile towards player (impact radius 2.0 / diameter 4.0)
       this.callbacks.onSpawnBoulderProjectile?.(
         tel.center.clone().add(new THREE.Vector3(0, 3.5, 0)),
         playerPos.clone(),
@@ -647,15 +632,72 @@ export class BossManager {
       this.bossStates.set(tel.bossId, 'recovery');
       this.stateTimers.set(tel.bossId, 0);
       return;
+    } else if (tel.skill.id === 'earth_fissure') {
+      soundManager.playTitanGroundSlam();
+      this.callbacks.onCameraShake(1.0);
+      // Spawn straight line sequence of stone blocks rupturing from ground
+      const fwd = tel.direction || new THREE.Vector3(0, 0, 1);
+      const stepCount = 8;
+      const stepDist = (tel.length || 24.0) / stepCount;
+      for (let s = 1; s <= stepCount; s++) {
+        setTimeout(() => {
+          const pt = tel.center.clone().addScaledVector(fwd, s * stepDist);
+          const py = this.getTerrainHeight(pt.x, pt.z);
+          const pGeo = new THREE.BoxGeometry(1.6, 2.5 + Math.random() * 1.5, 1.6);
+          const pMat = new THREE.MeshStandardMaterial({ color: 0x44403c, roughness: 0.9, flatShading: true });
+          const pMesh = new THREE.Mesh(pGeo, pMat);
+          pMesh.position.set(pt.x, py + 1.0, pt.z);
+          pMesh.rotation.y = Math.random() * Math.PI;
+          this.scene.add(pMesh);
+          this.callbacks.onSpawnSparks?.(pt, 0x0284c7, 6, 3.0);
+          setTimeout(() => {
+            this.scene.remove(pMesh);
+            pGeo.dispose();
+            pMat.dispose();
+          }, 1800);
+        }, s * 70);
+      }
     } else if (tel.skill.id === 'heavy_punch') {
       soundManager.playHit(true);
-      this.callbacks.onCameraShake(0.5);
-    } else if (tel.skill.id === 'fire_breath') {
+      this.callbacks.onCameraShake(0.65);
+      this.callbacks.onSpawnShockwave?.(tel.center, 0x0284c7, 4.5, 0.4);
+    } else if (tel.skill.id === 'dragon_claw') {
+      soundManager.playHit(true);
+      this.callbacks.onCameraShake(0.6);
+      this.callbacks.onSpawnSparks?.(tel.center, 0xdc2626, 12, 4.5);
+    } else if (tel.skill.id === 'flying_dash') {
+      soundManager.playMeteorImpact();
+      this.callbacks.onCameraShake(0.95);
+      this.callbacks.onSpawnShockwave?.(tel.center, 0xff3d00, 8.0, 0.6);
+      if (tel.enemy?.mesh) {
+        const destY = this.getTerrainHeight(tel.center.x, tel.center.z);
+        tel.enemy.mesh.position.set(tel.center.x, destY, tel.center.z);
+      }
+    } else if (tel.skill.id === 'fireball_barrage') {
       soundManager.playDragonFireBreath();
-      this.callbacks.onCameraShake(0.4);
+      this.callbacks.onCameraShake(0.7);
+      // Spawn 2 magma fireballs towards player
+      this.callbacks.onSpawnFireballProjectile?.(
+        tel.center.clone().add(new THREE.Vector3(-1.5, 3.5, 0)),
+        playerPos.clone(),
+        tel.skill.damage
+      );
+      setTimeout(() => {
+        this.callbacks.onSpawnFireballProjectile?.(
+          tel.center.clone().add(new THREE.Vector3(1.5, 3.5, 0)),
+          playerPos.clone(),
+          tel.skill.damage
+        );
+      }, 150);
+      this.bossStates.set(tel.bossId, 'recovery');
+      this.stateTimers.set(tel.bossId, 0);
+      return;
+    } else if (tel.skill.id === 'flame_breath' || tel.skill.id === 'fire_breath') {
+      soundManager.playDragonFireBreath();
+      this.callbacks.onCameraShake(0.5);
     } else if (tel.skill.id === 'burrow_burst') {
       soundManager.playWormBurstOut();
-      this.callbacks.onCameraShake(1.25);
+      this.callbacks.onCameraShake(1.3);
       if (tel.enemy?.mesh) {
         const gY = this.getTerrainHeight(tel.center.x, tel.center.z);
         tel.enemy.mesh.position.set(tel.center.x, gY, tel.center.z);
@@ -663,8 +705,7 @@ export class BossManager {
       this.callbacks.onSpawnShockwave?.(tel.center, 0xd97706, 6.5, 0.8);
     } else if (tel.skill.id === 'sand_spike_barrage') {
       soundManager.playTitanGroundSlam();
-      this.callbacks.onCameraShake(0.5);
-      // Spawn pilar duri batu pasir tajam yang mencuat dari dalam tanah
+      this.callbacks.onCameraShake(0.55);
       const spikeGeo = new THREE.ConeGeometry(0.55, 3.5, 5);
       const spikeMat = new THREE.MeshStandardMaterial({
         color: 0xc49a6c,
@@ -684,9 +725,9 @@ export class BossManager {
       this.callbacks.onSpawnSparks?.(tel.center, 0xd97706, 8, 4.0);
     } else if (tel.skill.id === 'sand_whirlpool') {
       soundManager.playTitanGroundSlam();
-      this.callbacks.onCameraShake(1.0);
+      this.callbacks.onCameraShake(1.1);
       this.callbacks.onSpawnShockwave?.(tel.center, 0xb45309, 36.0, 2.5);
-    } else if (tel.skill.id === 'tail_slam') {
+    } else if (tel.skill.id === 'tail_slam' || tel.skill.id === 'tail_swipe') {
       soundManager.playHit(true);
       this.callbacks.onCameraShake(0.7);
     } else {
@@ -727,7 +768,8 @@ export class BossManager {
     } else if (skill.effect === 'burn') {
       this.applyBurn(skill.effectDuration || 4.0);
     } else if (skill.effect === 'knockback') {
-      this.applyKnockback(tel.center, playerPos, playerVel);
+      const force = skill.id === 'heavy_punch' ? 10.0 : 16.0;
+      this.applyKnockback(tel.center, playerPos, playerVel, force);
     } else if (skill.effect === 'knockup') {
       this.applyKnockup(tel.center, playerPos, playerVel);
     } else if (skill.effect === 'slow') {
@@ -736,6 +778,18 @@ export class BossManager {
 
     this.bossStates.set(tel.bossId, 'recovery');
     this.stateTimers.set(tel.bossId, 0);
+  }
+
+  public applyBurnDebuff(duration: number) {
+    this.applyBurn(duration);
+  }
+
+  public applyStunDebuff(duration: number, playerVel?: THREE.Vector3) {
+    this.applyStun(duration, playerVel || new THREE.Vector3());
+  }
+
+  public applySlowDebuff(duration: number) {
+    this.applySlow(duration);
   }
 
   private applyKnockup(from: THREE.Vector3, playerPos: THREE.Vector3, playerVel: THREE.Vector3) {
@@ -757,7 +811,7 @@ export class BossManager {
     this.playerDebuffs.isStunned = true;
     this.playerDebuffs.stunTimer = duration;
     playerVel.set(0, 0, 0); // Lock movement
-    this.callbacks.onAddFloatingText('💫 TERKENA STUN! (1.5 detik)', '#ffd600', 'crit');
+    this.callbacks.onAddFloatingText(`💫 TERKENA STUN! (${duration.toFixed(1)} detik)`, '#ffd600', 'crit');
   }
 
   private applyBurn(duration: number) {
@@ -767,11 +821,11 @@ export class BossManager {
     this.callbacks.onAddFloatingText('🔥 TERBAKAR! (DoT)', '#ff3d00', 'damage');
   }
 
-  private applyKnockback(from: THREE.Vector3, playerPos: THREE.Vector3, playerVel: THREE.Vector3) {
+  private applyKnockback(from: THREE.Vector3, playerPos: THREE.Vector3, playerVel: THREE.Vector3, force = 16.0) {
     const dir = new THREE.Vector3(playerPos.x - from.x, 0, playerPos.z - from.z).normalize();
     if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
-    playerVel.x += dir.x * 16.0;
-    playerVel.z += dir.z * 16.0;
+    playerVel.x += dir.x * force;
+    playerVel.z += dir.z * force;
     this.callbacks.onAddFloatingText('💨 TERPENTAL (KNOCKBACK)!', '#ff9100', 'info');
   }
 

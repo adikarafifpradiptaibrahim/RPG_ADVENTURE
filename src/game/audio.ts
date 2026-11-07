@@ -28,7 +28,7 @@ export {
   titanBossBgmUrl as bossTitanBgmUrl,
 };
 
-class SoundManager {
+export class SoundManager {
   private ctx: AudioContext | null = null;
   private isMuted: boolean = false;
   private musicGain: GainNode | null = null;

@@ -27,6 +27,7 @@ import {
 export { USE_LEGACY_KNIGHT, USE_LEGACY_MAGE };
 import { buildWorld, WorldObjects, WorldCheckpoint } from './world';
 import { BossManager } from '../BossManager';
+import { BOSS_ARENA_ZONES, BossArenaZone } from '../monsterAI';
 import { RemotePlayerData } from '../multiplayer';
 import { GraphicsSettings, loadGraphicsSettings } from '../graphicsSettings';
 import {
@@ -217,6 +218,11 @@ export class GameEngine {
   private animationFrameId: number | null = null;
   private callbacks: GameEngineCallbacks;
   private bossManager: BossManager;
+  // Zone-Based Boss Combat & BGM System
+  private currentBossZone: BossArenaZone | null = null;
+  private activeBossEnemyData: EnemyData | null = null;
+  private exitBossZoneTimer = 0;
+  private inBossCombatZone = false;
   private unlockedCheckpoints: Set<string> = new Set();
   private lastVisitedTownPos: { id: string; x: number; y: number; z: number; name: string } = (() => {
     try {
@@ -315,7 +321,7 @@ export class GameEngine {
     lifetime: number;
     damage: number;
     isCrit: boolean;
-    vfxType: 'arcane_bolt' | 'hunter_arrow' | 'hunter_arrow_rain' | 'titan_boulder';
+    vfxType: 'arcane_bolt' | 'hunter_arrow' | 'hunter_arrow_rain' | 'titan_boulder' | 'dragon_fireball';
     isHostile?: boolean;
     blastRadius?: number;
     rotationAxis?: THREE.Vector3;
@@ -453,6 +459,9 @@ export class GameEngine {
         },
         onSpawnBoulderProjectile: (fromPos, toPos, damage) => {
           this.spawnTitanBoulderProjectile(fromPos, toPos, damage);
+        },
+        onSpawnFireballProjectile: (fromPos, toPos, damage) => {
+          this.spawnIgnisFireballProjectile(fromPos, toPos, damage);
         },
         onPlayerDeath: () => {
           this.respawnPlayerAtLastVisitedTown();
@@ -1170,8 +1179,8 @@ export class GameEngine {
       });
     });
 
-    // 8. Ancient Obsidian Titan Golem Boss in Sanctuary Basin Arena (x: -260, z: -20)
-    const bossPos: [number, number] = [-260, -20];
+    // 8. Ancient Obsidian Titan Golem Boss in Sanctuary Basin Arena (x: -196, z: -254)
+    const bossPos: [number, number] = [-196, -254];
     const { group: bossGroup, parts: bossParts } = createEnemyMesh('boss');
     const by = this.world.getTerrainHeight(bossPos[0], bossPos[1]);
     bossGroup.position.set(bossPos[0], by, bossPos[1]);
@@ -1191,7 +1200,7 @@ export class GameEngine {
       goldReward: 550,
       speed: 2.3,
       attackRange: 4.5,
-      detectRange: 20,
+      detectRange: 42,
       position: [bossPos[0], by, bossPos[1]],
       isDead: false,
       dropItems: [
@@ -1542,7 +1551,7 @@ export class GameEngine {
       goldReward: 850,
       speed: 2.8,
       attackRange: 5.5,
-      detectRange: 22,
+      detectRange: 48,
       position: [wyrmPos[0], wyrmY, wyrmPos[1]],
       isDead: false,
       dropItems: [
@@ -1581,7 +1590,7 @@ export class GameEngine {
       goldReward: 1200,
       speed: 2.8,
       attackRange: 6.5,
-      detectRange: 45,
+      detectRange: 48,
       position: [wormPos[0], wormY, wormPos[1]],
       isDead: false,
       dropItems: [
@@ -1607,7 +1616,7 @@ export class GameEngine {
       }
       e.isReturning = false;
       e.deathTimer = 0;
-      e.leashRadius = e.data.id === 'boss_dragonfang' ? 25 : (e.data.id === 'boss_titan' ? 20 : (e.data.id === 'boss_jarrus' ? 45 : (e.data.type === 'boss' ? 38 : 22)));
+      e.leashRadius = e.data.id === 'boss_dragonfang' ? 48 : (e.data.id === 'boss_titan' ? 42 : (e.data.id === 'boss_jarrus' ? 48 : (e.data.type === 'boss' ? 38 : 22)));
     });
   }
 
@@ -5495,11 +5504,11 @@ export class GameEngine {
       const territoryRadius =
         enemy.leashRadius ||
         (enemy.data.id === 'boss_dragonfang'
-          ? 22
+          ? 48
           : enemy.data.id === 'boss_titan'
-          ? 18
+          ? 42
           : enemy.data.id === 'boss_jarrus'
-          ? 45
+          ? 48
           : enemy.data.type === 'boss'
           ? 38
           : 22);
@@ -5625,20 +5634,85 @@ export class GameEngine {
       }
     });
 
-    const isBossActive = bossInView && activeBoss !== null && (activeBoss.hp ?? 1) > 0;
+    this.updateBossCombatZoneAndMusic(delta);
+  }
+
+  /**
+   * Zone-Based Combat Trigger & Boss Bar / Music Persistence System
+   * 1. Bounding arena radius: Titan: 42m, Naga: 48m, Sandworm: 48m.
+   * 2. When player distance to boss arena center <= arenaRadius:
+   *    - inBossZone = true
+   *    - Boss Bar remains active and visible regardless of distance from 3D model
+   *    - Play Boss BGM
+   *    - exitBossZoneTimer = 0
+   * 3. When player steps out (> arenaRadius):
+   *    - Countdown exitBossZoneTimer for 5.0 seconds
+   *    - If player re-enters before 5.0s, timer resets to 0 and boss bar/music persist
+   *    - If after 5.0s player stays outside:
+   *      - Fade-out boss bar
+   *      - Cross-fade audio (2.0s) back to chill overworld BGM
+   *      - Boss returns / leashes back to spawn
+   */
+  private updateBossCombatZoneAndMusic(delta: number) {
+    let playerInsideZone: BossArenaZone | null = null;
+    for (const zone of Object.values(BOSS_ARENA_ZONES)) {
+      const dist = Math.hypot(this.playerPos.x - zone.center.x, this.playerPos.z - zone.center.z);
+      if (dist <= zone.radius) {
+        playerInsideZone = zone;
+        break;
+      }
+    }
+
+    if (playerInsideZone) {
+      const boss = this.enemies.find((e) => e.data.id === playerInsideZone!.id);
+      if (boss && !boss.data.isDead && (boss.data.hp ?? 0) > 0) {
+        this.inBossCombatZone = true;
+        this.currentBossZone = playerInsideZone;
+        this.activeBossEnemyData = boss.data;
+        this.exitBossZoneTimer = 0; // Reset countdown while in arena
+      } else {
+        // Boss is dead
+        this.inBossCombatZone = false;
+        this.currentBossZone = null;
+        this.activeBossEnemyData = null;
+        this.exitBossZoneTimer = 0;
+      }
+    } else if (this.inBossCombatZone && this.currentBossZone) {
+      // Player stepped outside the arena radius: start countdown 5.0 seconds!
+      this.exitBossZoneTimer += delta;
+      const boss = this.enemies.find((e) => e.data.id === this.currentBossZone!.id);
+      if (boss) {
+        this.activeBossEnemyData = boss.data;
+      }
+      if (this.exitBossZoneTimer >= 5.0 || !boss || boss.data.isDead || (boss.data.hp ?? 0) <= 0) {
+        // 5 seconds elapsed outside: fade out boss bar & crossfade music to chill overworld!
+        this.inBossCombatZone = false;
+        this.currentBossZone = null;
+        this.activeBossEnemyData = null;
+        this.exitBossZoneTimer = 0;
+        soundManager.evadeBossMusic(2.0);
+        if (boss && !boss.data.isDead) {
+          boss.isReturning = true;
+        }
+      }
+    }
+
+    const isBossActive =
+      this.inBossCombatZone &&
+      this.activeBossEnemyData !== null &&
+      (this.activeBossEnemyData.hp ?? 0) > 0;
+
     this.callbacks.onBossEncounter(
       isBossActive,
-      activeBoss ? activeBoss.nameId : undefined,
-      activeBoss ? activeBoss.hp : undefined,
-      activeBoss ? activeBoss.maxHp : undefined
+      this.activeBossEnemyData ? this.activeBossEnemyData.nameId : undefined,
+      this.activeBossEnemyData ? this.activeBossEnemyData.hp : undefined,
+      this.activeBossEnemyData ? this.activeBossEnemyData.maxHp : undefined
     );
 
-    // Dynamic Boss BGM System: Automatically play Heavy Orchestral BGM for Titan, Worm, or Dragon
-    if (isBossActive && activeBoss) {
-      const bossType = activeBoss.id === 'boss_dragonfang' ? 'dragon' : (activeBoss.id === 'boss_jarrus' ? 'worm' : 'titan');
-      soundManager.playBossMusic(bossType);
-    } else if (soundManager.getCurrentBossMusic()) {
-      soundManager.evadeBossMusic(2.5);
+    if (isBossActive && this.currentBossZone) {
+      soundManager.playBossMusic(this.currentBossZone.bossType);
+    } else if (!this.inBossCombatZone && soundManager.getCurrentBossMusic()) {
+      soundManager.evadeBossMusic(2.0);
     }
   }
 
@@ -5753,20 +5827,7 @@ export class GameEngine {
       }
     });
 
-    const isBossActive = bossInView && activeBoss !== null && (activeBoss.hp ?? 1) > 0;
-    this.callbacks.onBossEncounter(
-      isBossActive,
-      activeBoss ? activeBoss.nameId : undefined,
-      activeBoss ? activeBoss.hp : undefined,
-      activeBoss ? activeBoss.maxHp : undefined
-    );
-
-    if (isBossActive && activeBoss) {
-      const bossType = activeBoss.id === 'boss_dragonfang' ? 'dragon' : (activeBoss.id === 'boss_jarrus' ? 'worm' : 'titan');
-      soundManager.playBossMusic(bossType);
-    } else if (soundManager.getCurrentBossMusic()) {
-      soundManager.evadeBossMusic(2.5);
-    }
+    this.updateBossCombatZoneAndMusic(delta);
   }
 
   /**
@@ -5893,6 +5954,48 @@ export class GameEngine {
       isHostile: true,
       blastRadius: 3.2,
       rotationAxis: rotAxis,
+    });
+  }
+
+  // Spawn flying magma fireball projectile for Ignis Fireball Barrage skill
+  private spawnIgnisFireballProjectile(origin: THREE.Vector3, target: THREE.Vector3, damage = 42) {
+    const group = new THREE.Group();
+    group.position.copy(origin);
+
+    const fireballGeo = new THREE.SphereGeometry(0.85, 12, 12);
+    const fireballMat = new THREE.MeshStandardMaterial({
+      color: 0xff3d00,
+      emissive: 0xff1744,
+      emissiveIntensity: 2.2,
+      roughness: 0.2,
+    });
+    group.add(new THREE.Mesh(fireballGeo, fireballMat));
+
+    const coronaGeo = new THREE.IcosahedronGeometry(1.15, 1);
+    const coronaMat = new THREE.MeshBasicMaterial({
+      color: 0xffeb3b,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.65,
+    });
+    group.add(new THREE.Mesh(coronaGeo, coronaMat));
+
+    const light = new THREE.PointLight(0xff3d00, 2.8, 8.0);
+    group.add(light);
+
+    this.scene.add(group);
+
+    const dir = new THREE.Vector3().subVectors(target, origin).normalize();
+    this.activeProjectiles.push({
+      object: group,
+      direction: dir,
+      speed: 26.0,
+      lifetime: 3.0,
+      damage,
+      isCrit: false,
+      vfxType: 'dragon_fireball',
+      isHostile: true,
+      blastRadius: 3.0,
     });
   }
 
@@ -6129,11 +6232,17 @@ export class GameEngine {
         if (distToPlayer <= (proj.blastRadius || 2.4) || hitGround || proj.lifetime <= 0) {
           const hitPos = proj.object.position.clone();
           hitPos.y = groundY + 0.15;
-          this.spawnShockwaveRing(hitPos, 0xff5722, 4.5, 0.4);
-          this.spawnSparks(hitPos, 0x44403c, 16, 5.0);
+          const isFireball = proj.vfxType === 'dragon_fireball';
+          this.spawnShockwaveRing(hitPos, isFireball ? 0xff3d00 : 0xff5722, isFireball ? 4.0 : 4.5, 0.4);
+          this.spawnSparks(hitPos, isFireball ? 0xff3d00 : 0x44403c, 16, 5.0);
           this.spawnSparks(hitPos, 0xff7a00, 14, 4.5);
-          soundManager.playTitanGroundSlam();
-          this.triggerCameraShake(0.75);
+          if (isFireball) {
+            soundManager.playMeteorImpact();
+            this.triggerCameraShake(0.65);
+          } else {
+            soundManager.playTitanGroundSlam();
+            this.triggerCameraShake(0.75);
+          }
 
           if (distToPlayer <= (proj.blastRadius || 3.2)) {
             if (this.isInvulnerable) {
@@ -6145,7 +6254,16 @@ export class GameEngine {
                 finalDmg = remainingDamage;
                 const nextHp = Math.max(0, stats.hp - finalDmg);
                 if (finalDmg > 0) {
-                  this.callbacks.onAddFloatingText(`-${finalDmg} HP (Bongkahan Batu)`, '#ff1744', 'damage');
+                  this.callbacks.onAddFloatingText(
+                    `-${finalDmg} HP (${isFireball ? 'Bola Api Magma' : 'Bongkahan Batu'})`,
+                    '#ff1744',
+                    'damage'
+                  );
+                }
+                if (isFireball) {
+                  this.bossManager.applyBurnDebuff(3.0);
+                } else {
+                  this.bossManager.applyStunDebuff(0.8, this.playerVel);
                 }
                 if (nextHp <= 0) {
                   this.respawnPlayerAtLastVisitedTown();
@@ -6154,8 +6272,8 @@ export class GameEngine {
                 return { ...stats, hp: nextHp };
               });
               const knockDir = new THREE.Vector3(this.playerPos.x - hitPos.x, 0, this.playerPos.z - hitPos.z).normalize();
-              this.playerVel.x += knockDir.x * 14.0;
-              this.playerVel.z += knockDir.z * 14.0;
+              this.playerVel.x += knockDir.x * (isFireball ? 8.0 : 14.0);
+              this.playerVel.z += knockDir.z * (isFireball ? 8.0 : 14.0);
               this.callbacks.onAddFloatingText('💨 TERPENTAL (KNOCKBACK)!', '#ff9100', 'info');
             }
           }
@@ -6410,13 +6528,13 @@ export class GameEngine {
         description: 'Bazaar Ramai, Peristirahatan Unta, Rumah Bertingkat & Sumur Oase Solaria',
       });
 
-      // Ancient Titan Sanctuary Basin Arena (North-West: [-95, -75])
+      // Ancient Titan Sanctuary Basin Arena (North-West: [-196, -254])
       markers.push({
         id: 'landmark_titan_basin',
         title: 'Lembah Danau Cekungan Titan Kuno',
         type: 'boss',
-        x: -95,
-        z: -75,
+        x: -196,
+        z: -254,
         icon: '🏛️',
         color: '#0284c7',
         description: 'Cekungan Danau Lembah Purba & Arena Pertarungan Sang Titan Kuno Obsidian',

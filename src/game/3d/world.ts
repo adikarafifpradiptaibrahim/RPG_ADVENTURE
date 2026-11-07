@@ -326,11 +326,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     if (Math.hypot(x - 340, z - -280) <= 35) return 2.00;
     if (x >= 250 && x <= 370 && Math.abs(z - -280) <= 25) return 1.90;
 
-    // 6. Ancient Titan Sanctuary Basin Arena (Center [-260, -20], radius 22 at y = 0.20)
-    if (Math.hypot(x - -260, z - -20) <= 22) return 0.20;
+    // 6. Ancient Titan Sanctuary Basin Arena (Center [-196, -254], radius 40 at y = 0.20)
+    if (Math.hypot(x - -196, z - -254) <= 40) return 0.20;
 
-    // 7. Primal Dragonfang Caldera (Center [50, 360], radius 28 at y = 2.50)
-    if (Math.hypot(x - 50, z - 360) <= 28) return 2.50;
+    // 7. Primal Dragonfang Caldera (Center [80, 360], radius 45 at y = 2.50)
+    if (Math.hypot(x - 80, z - 360) <= 45) return 2.50;
 
     // 8. Mage Tower Puncak Halilintar (Center [180, 60], radius 20 at y = 4.50)
     if (Math.hypot(x - 180, z - 60) <= 20) return 4.50;
@@ -1323,7 +1323,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     const inDesert = (tz < -60 && tx > -115);
     const inDragonCaldera = (tz > 280 && Math.abs(tx - 50) < 60);
     const inAstraea = Math.hypot(tx - -340, tz - -220) < 60;
-    const inTitan = Math.hypot(tx - -260, tz - -20) < 35;
+    const inTitan = Math.hypot(tx - -196, tz - -254) < 45;
     if (inSanctuaryMainland || inSanctuaryHarborOcean || inBridgeHighwayCorridor || inValKragor || inDesert || inDragonCaldera || inAstraea || inTitan) continue;
 
     // Pembersihan rintangan jalan: Jangan spawn pohon padang rumput di atas permukaan jalan
@@ -1814,21 +1814,21 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   scene.add(sandVortex);
   decorativeProps.push(sandVortex);
 
-  // 2. Lingkaran Formasi Kerangka Tulang Rusuk Fosil Monster Purba Raksasa (Radius ~38-42 unit)
-  for (let r = 0; r < 14; r++) {
-    const angle = (r / 14) * Math.PI * 2 + 0.15;
-    const rad = 38.5 + (r % 2) * 3.5;
+  // 2. Cincin Formasi 8 Kerangka Tulang Rusuk Fosil Purba Raksasa (Radius ~43.5 unit di Bibir Kawah)
+  for (let r = 0; r < 8; r++) {
+    const angle = (r / 8) * Math.PI * 2 + 0.2;
+    const rad = 43.5;
     const rx = sinkholeCenter.x + Math.cos(angle) * rad;
     const rz = sinkholeCenter.z + Math.sin(angle) * rad;
     const ry = getTerrainHeight(rx, rz);
     const rib = createAncientMonsterRibMesh();
     rib.position.set(rx, ry, rz);
     rib.rotation.y = angle + Math.PI / 2;
-    const s = 0.95 + (r % 3) * 0.22;
+    const s = 1.35;
     rib.scale.set(s, s, s);
     scene.add(rib);
     decorativeProps.push(rib);
-    colliders.push({ type: 'circle', x: rx, z: rz, radius: 1.2, label: 'Fosil Tulang Rusuk Monster Purba' });
+    colliders.push({ type: 'circle', x: rx, z: rz, radius: 1.4, label: 'Fosil Tulang Rusuk Monster Purba' });
   }
 
   // 3. 6 Obelisk Batu Pasir Kuno Retak Setengah Tertimbun Pasir di Tepi Luar Arena (Radius ~44 unit)
@@ -2014,19 +2014,19 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     label: 'Fosil Tengkorak Naga Purba',
   });
 
-  // B. 4 Sharp Black Obsidian Dragon Pillars (Pilar Naga Batas Arena Kawah)
+  // B. 4 Sharp Black Obsidian Dragon Pillars (Pilar Naga Batas Arena Kawah pada Radius 42 unit)
   const dragonPillars = [
-    { x: 80, z: 339, label: 'Pilar Naga Obsidian Utara' },
-    { x: 80, z: 381, label: 'Pilar Naga Obsidian Selatan' },
-    { x: 101, z: 360, label: 'Pilar Naga Obsidian Timur' },
-    { x: 59, z: 360, label: 'Pilar Naga Obsidian Barat' },
+    { x: 80, z: 318, label: 'Pilar Naga Obsidian Utara' },
+    { x: 80, z: 402, label: 'Pilar Naga Obsidian Selatan' },
+    { x: 122, z: 360, label: 'Pilar Naga Obsidian Timur' },
+    { x: 38, z: 360, label: 'Pilar Naga Obsidian Barat' },
   ];
   dragonPillars.forEach((dp) => {
     const pY = getTerrainHeight(dp.x, dp.z);
     const pillarGroup = new THREE.Group();
 
     // Sharp jagged obsidian column
-    const colGeo = new THREE.CylinderGeometry(0.7, 1.9, 10.5, 6);
+    const colGeo = new THREE.CylinderGeometry(0.85, 2.2, 12.0, 6);
     const colMat = new THREE.MeshStandardMaterial({
       color: 0x09090b,
       roughness: 0.25,
@@ -2034,41 +2034,76 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       flatShading: true,
     });
     const colMesh = new THREE.Mesh(colGeo, colMat);
-    colMesh.position.y = 5.25;
+    colMesh.position.y = 6.0;
     pillarGroup.add(colMesh);
 
     // Flaming volcanic basin atop pillar
-    const basinGeo = new THREE.ConeGeometry(1.5, 1.2, 6);
+    const basinGeo = new THREE.ConeGeometry(1.8, 1.4, 6);
     basinGeo.rotateX(Math.PI);
     const basinMat = new THREE.MeshStandardMaterial({
       color: 0x18181b,
       roughness: 0.7,
     });
     const basinMesh = new THREE.Mesh(basinGeo, basinMat);
-    basinMesh.position.y = 10.5;
+    basinMesh.position.y = 12.0;
     pillarGroup.add(basinMesh);
 
     // Blazing fire flame atop pillar
-    const flameGeo = new THREE.ConeGeometry(0.8, 2.2, 6);
+    const flameGeo = new THREE.ConeGeometry(1.1, 2.8, 6);
     const flameMat = new THREE.MeshStandardMaterial({
       color: 0xff3d00,
       emissive: 0xff1744,
-      emissiveIntensity: 1.5,
+      emissiveIntensity: 1.8,
       roughness: 0.2,
     });
     const flameMesh = new THREE.Mesh(flameGeo, flameMat);
-    flameMesh.position.y = 11.6;
+    flameMesh.position.y = 13.4;
     pillarGroup.add(flameMesh);
 
     // Local torch light
-    const torchLight = new THREE.PointLight(0xff5722, 1.8, 16);
-    torchLight.position.y = 11.8;
+    const torchLight = new THREE.PointLight(0xff5722, 2.4, 22);
+    torchLight.position.y = 13.6;
     pillarGroup.add(torchLight);
 
     pillarGroup.position.set(dp.x, pY, dp.z);
     scene.add(pillarGroup);
-    colliders.push({ type: 'circle', x: dp.x, z: dp.z, radius: 1.8, label: dp.label });
+    colliders.push({ type: 'circle', x: dp.x, z: dp.z, radius: 2.2, label: dp.label });
   });
+
+  // B2. Kolam Lahar Mendidih Melingkari Lantai Kawah (Radius 36 - 44 unit)
+  const lavaRingGeo = new THREE.RingGeometry(36.0, 44.0, 48);
+  lavaRingGeo.rotateX(-Math.PI / 2);
+  const lavaRingMat = new THREE.MeshStandardMaterial({
+    color: 0xff3700,
+    emissive: 0xff2200,
+    emissiveIntensity: 1.6,
+    roughness: 0.25,
+    transparent: true,
+    opacity: 0.85,
+  });
+  const lavaRingMesh = new THREE.Mesh(lavaRingGeo, lavaRingMat);
+  lavaRingMesh.position.set(dragonArenaCenter.x, dragonArenaBaseY + 0.04, dragonArenaCenter.z);
+  scene.add(lavaRingMesh);
+
+  // B3. Tebing Basalt Curam Melingkar Setinggi 6 unit di Radius 45 unit
+  for (let b = 0; b < 16; b++) {
+    const angle = (b / 16) * Math.PI * 2;
+    const bx = dragonArenaCenter.x + Math.cos(angle) * 45.5;
+    const bz = dragonArenaCenter.z + Math.sin(angle) * 45.5;
+    const by = getTerrainHeight(bx, bz);
+    const cliff = new THREE.Mesh(
+      new THREE.BoxGeometry(9.0, 6.0, 4.0),
+      new THREE.MeshStandardMaterial({
+        color: 0x1c1917,
+        roughness: 0.9,
+        flatShading: true,
+      })
+    );
+    cliff.position.set(bx, by + 3.0, bz);
+    cliff.rotation.y = -angle + Math.PI / 2;
+    scene.add(cliff);
+    colliders.push({ type: 'circle', x: bx, z: bz, radius: 3.5, label: 'Tebing Basalt Kaldera' });
+  }
 
   // C. Retakan Tanah Berlapis Lava Merah Menyala di Seputar Kaldera
   const lavaCrackCoords = [
@@ -2391,7 +2426,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { id: 'chest_beach', pos: [-3.0, 1.85, 257] as [number, number, number] }, // Seaward Pier Head Platform Stash
     { id: 'chest_ruins', pos: [-120, 0, 32] as [number, number, number] }, // Ancient ruins altar
     { id: 'chest_forest', pos: [-60, 0, 110] as [number, number, number] }, // Whispering Mystic Forest
-    { id: 'chest_titan', pos: [-260, 0.2, -40] as [number, number, number] }, // Ancient Titan Basin
+    { id: 'chest_titan', pos: [-182, 0.2, -244] as [number, number, number] }, // Ancient Titan Basin
     { id: 'chest_valkragor', pos: [402, 2.5, 80] as [number, number, number] }, // Val-Kragor Keep Secret Vault
     { id: 'chest_thunderpeak', pos: [180, 4.5, 60] as [number, number, number] }, // Thunderpeak Mage Tower Relic
     { id: 'chest_solaria_palace', pos: [340, 2.0, -280] as [number, number, number] }, // Solaria Sultan Vault
@@ -2420,14 +2455,14 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 10. ANCIENT TITAN SANCTUARY BASIN ARENA (West Plains: [-260, -20])
-  // Cekungan Danau Lembah Purba (Diameter 35m), Platform Batu Pijakan Tengah, & Formasi 8 Megalit Rune Kuno
+  // 10. ANCIENT TITAN SANCTUARY BASIN ARENA (Plains Lake: [-196, -254])
+  // Cekungan Danau Lembah Purba (Radius 40m / Diameter 80m), Platform Batu Pijakan Tengah (Diameter 16m), & Formasi 12 Megalit Rune Kuno
   // ==========================================
-  const titanArenaCenter = { x: -260, z: -20 };
-  const titanPlatformY = 0.20;
+  const titanArenaCenter = { x: -196, z: -254 };
+  const titanPlatformY = getTerrainHeight(titanArenaCenter.x, titanArenaCenter.z) + 0.35;
 
-  // A. Central Shallow Stone Stepping Platform (Platform Batu Pijakan Tempat Berdiri Titan Kuno)
-  const titanPlatformGeo = new THREE.CylinderGeometry(5.5, 5.8, 0.65, 32);
+  // A. Central Shallow Stone Stepping Platform (Platform Granit Pusat Berdiameter 16 unit)
+  const titanPlatformGeo = new THREE.CylinderGeometry(8.0, 8.4, 0.65, 36);
   const titanPlatformMat = new THREE.MeshStandardMaterial({
     color: 0x78716c,
     roughness: 0.85,
@@ -2440,7 +2475,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // Gold/Cyan Rune Ring Inlay on Platform Rim
   const titanRuneRing = new THREE.Mesh(
-    new THREE.TorusGeometry(5.2, 0.18, 8, 32),
+    new THREE.TorusGeometry(7.6, 0.22, 8, 36),
     new THREE.MeshStandardMaterial({
       color: 0x38bdf8,
       emissive: 0x0284c7,
@@ -2452,8 +2487,8 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   titanRuneRing.position.set(titanArenaCenter.x, titanPlatformY + 0.2, titanArenaCenter.z);
   scene.add(titanRuneRing);
 
-  // B. Shallow Valley Lake Basin Water Disk (Air Danau Cekungan Perlindungan)
-  const titanLakeGeo = new THREE.CircleGeometry(16.5, 36);
+  // B. Shallow Valley Lake Basin Water Disk (Air Danau Cekungan Perlindungan - Radius 40m / Diameter 80m)
+  const titanLakeGeo = new THREE.CircleGeometry(40.0, 48);
   titanLakeGeo.rotateX(-Math.PI / 2);
   const titanLakeMat = new THREE.MeshStandardMaterial({
     color: 0x0284c7,
@@ -2466,9 +2501,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   titanLakeMesh.position.set(titanArenaCenter.x, -0.05, titanArenaCenter.z);
   scene.add(titanLakeMesh);
 
-  // C. 8 Megalithic Rune-Carved Stone Formations Ringing Basin at Radius 17.5m
-  const megalithCount = 8;
-  const megalithRadius = 17.5;
+  // C. 12 Megalithic Rune-Carved Stone Formations Ringing Basin at Radius 40m
+  const megalithCount = 12;
+  const megalithRadius = 40.0;
   for (let i = 0; i < megalithCount; i++) {
     const ang = i * ((Math.PI * 2) / megalithCount);
     const mx = titanArenaCenter.x + Math.cos(ang) * megalithRadius;
@@ -2478,43 +2513,43 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     const megalithGroup = new THREE.Group();
 
     // Weathered ancient stone monolith pillar
-    const monolithGeo = new THREE.BoxGeometry(1.4, 6.2, 1.4);
+    const monolithGeo = new THREE.BoxGeometry(1.6, 7.5, 1.6);
     const monolithMat = new THREE.MeshStandardMaterial({
       color: 0x57534e,
       roughness: 0.9,
       flatShading: true,
     });
     const monolith = new THREE.Mesh(monolithGeo, monolithMat);
-    monolith.position.y = 3.1;
+    monolith.position.y = 3.75;
     megalithGroup.add(monolith);
 
     // Glowing cyan rune band
-    const runeBandGeo = new THREE.BoxGeometry(1.48, 0.45, 1.48);
+    const runeBandGeo = new THREE.BoxGeometry(1.7, 0.55, 1.7);
     const runeBandMat = new THREE.MeshStandardMaterial({
       color: 0x38bdf8,
       emissive: 0x0ea5e9,
-      emissiveIntensity: 0.9,
+      emissiveIntensity: 0.95,
     });
     const runeBand = new THREE.Mesh(runeBandGeo, runeBandMat);
-    runeBand.position.y = 3.6;
+    runeBand.position.y = 4.2;
     megalithGroup.add(runeBand);
 
     // Tapered top monolith capstone
-    const capGeo = new THREE.ConeGeometry(1.0, 1.5, 4);
+    const capGeo = new THREE.ConeGeometry(1.2, 1.8, 4);
     capGeo.rotateY(Math.PI / 4);
     const cap = new THREE.Mesh(capGeo, monolithMat);
-    cap.position.y = 6.95;
+    cap.position.y = 8.4;
     megalithGroup.add(cap);
 
     megalithGroup.rotation.y = -ang + Math.PI / 2;
     megalithGroup.position.set(mx, my, mz);
     scene.add(megalithGroup);
 
-    colliders.push({ type: 'circle', x: mx, z: mz, radius: 1.25, label: `Megalit Rune Lembah Titan ${i + 1}` });
+    colliders.push({ type: 'circle', x: mx, z: mz, radius: 1.5, label: `Megalit Rune Lembah Titan ${i + 1}` });
   }
 
   // D. Ancient Titan Arena Mystic Beacon
-  const titanLight = new THREE.PointLight(0x38bdf8, 2.5, 36);
+  const titanLight = new THREE.PointLight(0x38bdf8, 2.8, 48);
   titanLight.position.set(titanArenaCenter.x, titanPlatformY + 3.8, titanArenaCenter.z);
   scene.add(titanLight);
 
@@ -2543,7 +2578,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_titan',
       name: 'Ancient Titan Sanctuary Basin',
       nameId: 'Lembah Danau Cekungan Titan Kuno',
-      pos: [-260, -20],
+      pos: [-196, -254],
     },
     {
       id: 'wp_astraea',
