@@ -161,50 +161,50 @@ const TOWN_ZONES: TownZoneTrigger[] = [
     waypointId: 'wp_village',
     name: 'Desa Utama Sanctuary',
     x: 0,
-    z: 0,
-    radius: 42,
+    z: 180,
+    radius: 45,
     respawnX: 0,
-    respawnZ: 4,
+    respawnZ: 184,
   },
   {
     id: 'town_valkragor',
     waypointId: 'wp_valkragor',
     name: 'Benteng Val-Kragor',
-    x: 220,
-    z: -20,
-    radius: 40,
-    respawnX: 218,
-    respawnZ: -16,
+    x: 380,
+    z: 80,
+    radius: 45,
+    respawnX: 376,
+    respawnZ: 80,
   },
   {
     id: 'town_astraea',
     waypointId: 'wp_astraea',
     name: 'Ibukota Kerajaan Emas Astraea',
-    x: 360,
-    z: -260,
-    radius: 45,
-    respawnX: 344,
-    respawnZ: -255,
+    x: -340,
+    z: -220,
+    radius: 50,
+    respawnX: -340,
+    respawnZ: -215,
   },
   {
     id: 'town_solaria',
     waypointId: 'wp_solaria_village',
     name: 'Desa & Istana Gurun Solaria',
-    x: -260,
-    z: -30,
-    radius: 70,
-    respawnX: -258,
-    respawnZ: -24,
+    x: 280,
+    z: -280,
+    radius: 65,
+    respawnX: 280,
+    respawnZ: -275,
   },
   {
     id: 'town_thunderpeak',
     waypointId: 'wp_thunderpeak',
     name: 'Mage Tower Puncak Halilintar',
-    x: 240,
-    z: -120,
+    x: 180,
+    z: 60,
     radius: 45,
-    respawnX: 240,
-    respawnZ: -108,
+    respawnX: 180,
+    respawnZ: 68,
   },
 ];
 
@@ -225,7 +225,7 @@ export class GameEngine {
         if (parsed && typeof parsed.x === 'number') return parsed;
       }
     } catch {}
-    return { id: 'wp_village', x: 0, y: 0.5, z: 4, name: 'Desa Utama Sanctuary' };
+    return { id: 'wp_village', x: 0, y: 0.5, z: 184, name: 'Desa Utama Sanctuary' };
   })();
   private scenePointLights: THREE.PointLight[] = [];
   private currentParticleCount = 0;
@@ -233,7 +233,7 @@ export class GameEngine {
   // World and Player
   private world: WorldObjects;
   private playerMesh: PlayerMeshObjects;
-  private playerPos = new THREE.Vector3(0, 0, 4);
+  private playerPos = new THREE.Vector3(0, 0, 184);
   private playerVel = new THREE.Vector3();
   private playerRotationY = 0;
   private isGrounded = true;
@@ -1169,8 +1169,8 @@ export class GameEngine {
       });
     });
 
-    // 8. Ancient Obsidian Titan Golem Boss in Sanctuary Basin Arena (x: -160, z: -160)
-    const bossPos: [number, number] = [-160, -160];
+    // 8. Ancient Obsidian Titan Golem Boss in Sanctuary Basin Arena (x: -260, z: -20)
+    const bossPos: [number, number] = [-260, -20];
     const { group: bossGroup, parts: bossParts } = createEnemyMesh('boss');
     const by = this.world.getTerrainHeight(bossPos[0], bossPos[1]);
     bossGroup.position.set(bossPos[0], by, bossPos[1]);
@@ -1520,8 +1520,8 @@ export class GameEngine {
       });
     });
 
-    // Dragonfang Super Boss: Ignis, Sang Naga Purba (Colossal Winged Dragon: [0, -300])
-    const wyrmPos: [number, number] = [0, -300];
+    // Dragonfang Super Boss: Ignis, Sang Naga Purba (Colossal Winged Dragon: [50, 360])
+    const wyrmPos: [number, number] = [50, 360];
     const { group: wyrmGroup, parts: wyrmParts } = createEnemyMesh('dragon');
     const wyrmY = this.world.getTerrainHeight(wyrmPos[0], wyrmPos[1]);
     wyrmGroup.position.set(wyrmPos[0], wyrmY, wyrmPos[1]);
@@ -1559,8 +1559,8 @@ export class GameEngine {
       walkCycle: 0,
     });
 
-    // Solaria Desert Colossal Super Boss: Jarrus, Sang Cacing Purba (Segmented Burrowing Sandworm)
-    const wormPos: [number, number] = [-240, 420];
+    // Solaria Desert Colossal Super Boss: Jarrus, Sang Cacing Purba (Segmented Burrowing Sandworm: [460, -180])
+    const wormPos: [number, number] = [460, -180];
     const { group: wormGroup, parts: wormParts } = createEnemyMesh('worm');
     const wormY = this.world.getTerrainHeight(wormPos[0], wormPos[1]);
     wormGroup.position.set(wormPos[0], wormY, wormPos[1]);
@@ -1605,7 +1605,7 @@ export class GameEngine {
       }
       e.isReturning = false;
       e.deathTimer = 0;
-      e.leashRadius = e.data.id === 'boss_dragonfang' ? 22 : (e.data.id === 'boss_titan' ? 18 : (e.data.type === 'boss' ? 38 : 22));
+      e.leashRadius = e.data.id === 'boss_dragonfang' ? 25 : (e.data.id === 'boss_titan' ? 20 : (e.data.type === 'boss' ? 38 : 22));
     });
   }
 

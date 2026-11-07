@@ -302,15 +302,15 @@ export const MiniMap: React.FC<MiniMapProps> = ({
         } else if (regionId === 'desa_eldoria') {
           const isEldoria = mId.includes('sanctuary') || mId.includes('vael') || mId.includes('village') || mId.includes('harbor');
           if (!isEldoria && Math.sqrt(distSq) > 30) continue;
-        } else if (regionId === 'benteng_valkragor') {
+        } else if (regionId === 'desa_valkragor' || regionId === 'benteng_valkragor') {
           const isValkragor = mId.includes('valkragor');
           if (!isValkragor && Math.sqrt(distSq) > 30) continue;
-        } else if (regionId.includes('frostpeak') || regionId.includes('astraea') || regionId.includes('gletser')) {
-          const isNorth = mId.includes('astraea') || mId.includes('chasm') || mId.includes('glacier') || mId.includes('frostpeak');
+        } else if (regionId.includes('astraea')) {
+          const isNorth = mId.includes('astraea');
           if (!isNorth && Math.sqrt(distSq) > 30) continue;
-        } else if (regionId.includes('shadowfen') || regionId.includes('rawa')) {
-          const isShadowfen = mId.includes('shadowfen');
-          if (!isShadowfen && Math.sqrt(distSq) > 30) continue;
+        } else if (regionId.includes('kawah') || regionId.includes('kaldera')) {
+          const isVolcano = mId.includes('dragon') || mId.includes('ignis') || mId.includes('caldera') || mId.includes('kawah');
+          if (!isVolcano && Math.sqrt(distSq) > 30) continue;
         }
       }
 

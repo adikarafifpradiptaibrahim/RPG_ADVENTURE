@@ -22,25 +22,29 @@ export interface MonsterSpawnConfig {
  * Radius: 55 units around village plaza + coastal harbor dock corridor (x: -45..45, z: 15..65).
  */
 export function isInsideSanctuarySafeZone(x: number, z: number): boolean {
-  if (Math.hypot(x, z) < 55) return true;
-  if (Math.abs(x) <= 45 && z >= 15 && z <= 65) return true;
+  if (Math.hypot(x - 0, z - 180) < 55) return true;
+  if (Math.abs(x) <= 45 && z >= 170 && z <= 230) return true;
   return false;
 }
 
 export function isInsideValKragorSafeZone(x: number, z: number): boolean {
-  return x >= 155 && x <= 225 && z >= -45 && z <= 15;
+  return Math.hypot(x - 380, z - 80) < 50;
 }
 
 export function isInsideAstraeaSafeZone(x: number, z: number): boolean {
-  return x >= 144 && x <= 214 && z >= -290 && z <= -230;
+  return Math.hypot(x - -340, z - -220) < 55;
+}
+
+export function isInsideSolariaSafeZone(x: number, z: number): boolean {
+  return Math.hypot(x - 280, z - -280) < 45 || Math.hypot(x - 340, z - -280) < 45;
 }
 
 /**
  * Global combined check for all inhabited civilization safe zones.
- * Ensures monsters do not harass players inside Sanctuary, Val-Kragor, or Astraea Capital.
+ * Ensures monsters do not harass players inside Sanctuary, Val-Kragor, Solaria, or Astraea Capital.
  */
 export function isInsideSafeZone(x: number, z: number): boolean {
-  return isInsideSanctuarySafeZone(x, z) || isInsideValKragorSafeZone(x, z) || isInsideAstraeaSafeZone(x, z);
+  return isInsideSanctuarySafeZone(x, z) || isInsideValKragorSafeZone(x, z) || isInsideAstraeaSafeZone(x, z) || isInsideSolariaSafeZone(x, z);
 }
 
 
@@ -752,7 +756,7 @@ export const IGNIS_DRAGON_BOSS_CONFIG: BossConfig = {
   detectRange: 22,
   expReward: 1200,
   goldReward: 850,
-  pos: [0, -300],
+  pos: [50, 360],
   scale: [4.2, 4.2, 4.2],
   skills: [
     {
@@ -811,7 +815,7 @@ export const ANCIENT_TITAN_BOSS_CONFIG: BossConfig = {
   detectRange: 20,
   expReward: 800,
   goldReward: 550,
-  pos: [-160, -160],
+  pos: [-260, -20],
   scale: [3.5, 3.5, 3.5],
   skills: [
     {
@@ -868,7 +872,7 @@ export const JARRUS_WORM_BOSS_CONFIG: BossConfig = {
   detectRange: 30,
   expReward: 1050,
   goldReward: 700,
-  pos: [-240, 420], // Deep southern dunes of Solaria, far from Pyramid [-165, 110] and Bazaar [-350, 350]
+  pos: [460, -180], // Eastern arid outskirts of Solaria desert
   scale: [2.8, 2.8, 2.8],
   skills: [
     {

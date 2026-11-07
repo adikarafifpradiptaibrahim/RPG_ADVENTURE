@@ -19,7 +19,7 @@ import { REGIONS, WAYPOINTS } from '../game/mapData';
 import { getContinentBiomeSample, getBiomeAt } from '../game/mapSampler';
 
 // Persistent continent map cached image data to eliminate all lag on open & pan
-const MAP_CACHE_VERSION = 'v2.6_layout_sync';
+const MAP_CACHE_VERSION = 'v3.0_simplified_3biomes';
 let cachedMapVersion = '';
 let cachedMapImageData: ImageData | null = null;
 
@@ -374,42 +374,31 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
 
         let [r, g, b] = sample.color;
 
-        // Apply exact requested canvas biome palette
-        if (!sample.isPath && sample.biomeId !== 'ship_deck' && sample.biomeId !== 'ancient_ruins') {
+        // Apply exact requested 4-biome canvas palette
+        if (!sample.isPath && sample.biomeId !== 'ship_deck' && sample.biomeId !== 'harbor_pier') {
           switch (zone.id) {
-            case 'south_ocean':
-              r = 2; g = 132; b = 199; // Ocean: #0284c7 (Biru Laut jernih & luas di selatan)
+            case 'ocean':
+              r = 2; g = 132; b = 199; // #0284c7 (Biru Laut Tropis Terbuka)
               break;
-            case 'central_plains':
-              r = 101; g = 163; b = 13; // Plains: #65a30d (Hijau rumput cerah menyatu di pusat)
-              break;
-            case 'west_swamp':
-              r = 71; g = 85; b = 105; // Shadowfen: #475569 (Gelap temaram di barat dan kiri atas)
-              break;
-            case 'southwest_desert':
-              r = 234; g = 179; b = 8; // Solaria: #eab308 (Kuning emas di barat daya)
-              break;
-            case 'east_frostpeak':
-              r = 224; g = 242; b = 254; // Frostpeak: #e0f2fe (Putih es di timur laut jauh)
-              break;
-            case 'east_highlands':
-              r = 100; g = 116; b = 139; // Highlands koridor: #64748b
-              break;
-            case 'southeast_bamboo':
-              r = 5; g = 150; b = 105; // Bamboo: #059669 (Hijau zamrud di tenggara jauh)
-              break;
-            case 'north_volcanic':
+            case 'volcano':
               if (sample.biomeId === 'dragon_magma') {
-                r = 220; g = 38; b = 38; // Magma: #dc2626
+                r = 220; g = 38; b = 38; // #dc2626 (Magma)
               } else {
-                r = 28; g = 25; b = 23; // Caldera: #1c1917
+                r = 28; g = 25; b = 23; // #1c1917 (Obsidian / Basalt)
               }
+              break;
+            case 'desert':
+              r = 234; g = 179; b = 8; // #eab308 (Kuning Emas)
+              break;
+            case 'plains':
+            default:
+              r = 101; g = 163; b = 13; // #65a30d (Hijau Rumput Cerah)
               break;
           }
         }
 
-        // Beach sand fringe along southern horizontal coastline (Z: 18..24)
-        if (wz >= 18 && wz <= 24 && wx >= -120 && wx <= 180 && sample.height < 0.6 && !sample.isPath) {
+        // Beach sand fringe along southern horizontal coastline (Z: 215..224)
+        if (wz >= 215 && wz <= 224 && wx >= -500 && wx <= 500 && sample.height < 0.6 && !sample.isPath) {
           r = 254; g = 215; b = 170;
         }
 
@@ -536,108 +525,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
               />
 
               {/* DYNAMIC REGION CLICKABLE ZONES & LABELS */}
-              {/* 1. Grand Imperial Astraea (Far North Frostpeak, X: 360, Z: -260) */}
+              {/* 1. Desa Utama Sanctuary (Pesisir Selatan Padang Rumput, X: 0, Z: 180) */}
               {(() => {
-                const sp = worldToScreen(360, -260);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => setSelectedRegion(REGIONS[14])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1.5 rounded-xl bg-stone-950/75 border border-amber-400/80 shadow-2xl backdrop-blur-xs hover:border-amber-300 hover:scale-110 transition-transform">
-                      <span className="text-sm sm:text-base">👑</span>
-                      <span className="text-[9px] font-bold text-amber-300 tracking-wide whitespace-nowrap">
-                        {REGIONS[14].nameId}
-                      </span>
-                      <span className="text-[7px] text-amber-200/80 font-mono">Ibukota Kerajaan</span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 2. Frostpeak Glacier Summit (Lv.5, X: 340, Z: -180) */}
-              {(() => {
-                const sp = worldToScreen(340, -180);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => setSelectedRegion(REGIONS[7])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-sky-950/75 border border-sky-400/60 shadow-xl backdrop-blur-xs hover:border-sky-300 hover:scale-110 transition-transform">
-                      <span className="text-xs">❄️</span>
-                      <span className="text-[8px] font-bold text-sky-200 whitespace-nowrap">
-                        {REGIONS[7].nameId}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 3. Jurang Es Purba / Frozen Chasm (X: 360, Z: -310) */}
-              {(() => {
-                const sp = worldToScreen(360, -310);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-15 pointer-events-none flex flex-col items-center"
-                  >
-                    <span className="text-[7px] px-1.5 py-0.2 bg-blue-950/80 border border-blue-400/50 rounded text-cyan-200 font-bold whitespace-nowrap shadow">
-                      ❄️ Jurang Es Purba
-                    </span>
-                  </div>
-                );
-              })()}
-
-              {/* 4. Sanctuary Harbor & Coastal Docks (X: 0, Z: 21) */}
-              {(() => {
-                const sp = worldToScreen(0, 21);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => setSelectedRegion(REGIONS[0])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-blue-950/80 border border-cyan-400/70 shadow-lg hover:border-cyan-300 hover:scale-110 transition-transform">
-                      <span className="text-xs">⛵</span>
-                      <span className="text-[8px] font-bold text-cyan-200 whitespace-nowrap">
-                        Pelabuhan Sanctuary
-                      </span>
-                      <span className="text-[7px] text-cyan-300/80 font-mono">Dermaga Kayu & Kapal Berlabuh</span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 4b. Reruntuhan Kuno Vael (Upstream Outskirts: X: -180, Z: -180) */}
-              {(() => {
-                const sp = worldToScreen(-180, -180);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => setSelectedRegion(REGIONS[2])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-stone-900/80 border border-stone-400/70 shadow-lg hover:border-stone-200 hover:scale-110 transition-transform">
-                      <span className="text-xs">🏛️</span>
-                      <span className="text-[8px] font-bold text-stone-200 whitespace-nowrap">
-                        {REGIONS[2].nameId}
-                      </span>
-                      <span className="text-[7px] text-stone-400 font-mono">Pilar Spasial Kuno</span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 5. Sanctuary Village Plaza (X: 0, Z: -4) */}
-              {(() => {
-                const sp = worldToScreen(0, -4);
+                const sp = worldToScreen(0, 180);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -655,29 +545,71 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 6. Desa Benteng Val-Kragor (X: 220, Z: -20) */}
+              {/* 2. Pelabuhan Sanctuary (Pesisir Selatan, X: 0, Z: 205) */}
               {(() => {
-                const sp = worldToScreen(220, -20);
+                const sp = worldToScreen(0, 205);
                 if (!sp.visible) return null;
                 return (
                   <div
-                    onClick={() => setSelectedRegion(REGIONS[6])}
+                    onClick={() => setSelectedRegion(REGIONS[0])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-blue-950/80 border border-cyan-400/70 shadow-lg hover:border-cyan-300 hover:scale-110 transition-transform">
+                      <span className="text-xs">⛵</span>
+                      <span className="text-[8px] font-bold text-cyan-200 whitespace-nowrap">
+                        Pelabuhan Sanctuary
+                      </span>
+                      <span className="text-[7px] text-cyan-300/80 font-mono">Dermaga Kayu & Samudra Lepas</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 3. Benteng Val-Kragor (Padang Rumput Timur, X: 380, Z: 80) */}
+              {(() => {
+                const sp = worldToScreen(380, 80);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[2])}
                     style={{ left: sp.left, top: sp.top }}
                     className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
                   >
                     <div className="flex flex-col items-center p-1 rounded-lg bg-blue-950/80 border border-blue-400/60 shadow-lg hover:border-blue-300 hover:scale-110 transition-transform">
                       <span className="text-xs">🛡️</span>
                       <span className="text-[8px] font-bold text-blue-200 whitespace-nowrap">
-                        {REGIONS[6].nameId}
+                        {REGIONS[2].nameId}
                       </span>
                     </div>
                   </div>
                 );
               })()}
 
-              {/* 6b. Ancient Titan Sanctuary Basin (North-West, X: -160, Z: -160) */}
+              {/* 4. Ibukota Kerajaan Emas Astraea (Padang Rumput Barat Laut, X: -340, Z: -220) */}
               {(() => {
-                const sp = worldToScreen(-160, -160);
+                const sp = worldToScreen(-340, -220);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[3])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1.5 rounded-xl bg-stone-950/75 border border-amber-400/80 shadow-2xl backdrop-blur-xs hover:border-amber-300 hover:scale-110 transition-transform">
+                      <span className="text-sm sm:text-base">👑</span>
+                      <span className="text-[9px] font-bold text-amber-300 tracking-wide whitespace-nowrap">
+                        {REGIONS[3].nameId}
+                      </span>
+                      <span className="text-[7px] text-amber-200/80 font-mono">Ibukota Kerajaan</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 5. Ancient Titan Sanctuary Basin (Padang Rumput Barat Terpencil, X: -260, Z: -20) */}
+              {(() => {
+                const sp = worldToScreen(-260, -20);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -695,49 +627,109 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 7. Dragonfang Caldera (Far North, X: 0, Z: -300) */}
+              {/* 6. Mage Tower Puncak Halilintar (Bukit Padang Rumput Timur Tengah, X: 180, Z: 60) */}
               {(() => {
-                const sp = worldToScreen(0, -300);
+                const sp = worldToScreen(180, 60);
                 if (!sp.visible) return null;
                 return (
                   <div
-                    onClick={() => setSelectedRegion(REGIONS[13])}
+                    onClick={() => setSelectedRegion(REGIONS[5])}
                     style={{ left: sp.left, top: sp.top }}
                     className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
                   >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-red-950/80 border border-red-500/70 shadow-lg hover:border-red-400 hover:scale-110 transition-transform">
-                      <span className="text-xs">🐉</span>
-                      <span className="text-[8px] font-bold text-red-300 whitespace-nowrap">
-                        {REGIONS[13].nameId}
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-indigo-950/80 border border-indigo-400/60 shadow-lg hover:border-indigo-300 hover:scale-110 transition-transform">
+                      <span className="text-xs">⚡</span>
+                      <span className="text-[8px] font-bold text-indigo-200 whitespace-nowrap">
+                        {REGIONS[5].nameId}
                       </span>
                     </div>
                   </div>
                 );
               })()}
 
-              {/* 8. Gurun Emas Solaria (West-Central, X: -260, Z: -30) */}
+              {/* 7. Desa Bazaar Gurun Solaria (Gurun Utara-Timur, X: 280, Z: -280) */}
               {(() => {
-                const sp = worldToScreen(-260, -30);
+                const sp = worldToScreen(280, -280);
                 if (!sp.visible) return null;
                 return (
                   <div
-                    onClick={() => setSelectedRegion(REGIONS[10])}
+                    onClick={() => setSelectedRegion(REGIONS[7])}
                     style={{ left: sp.left, top: sp.top }}
                     className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
                   >
                     <div className="flex flex-col items-center p-1 rounded-lg bg-yellow-950/80 border border-yellow-500/70 shadow-lg hover:border-yellow-400 hover:scale-110 transition-transform">
-                      <span className="text-xs">🏜️</span>
+                      <span className="text-xs">🎪</span>
                       <span className="text-[8px] font-bold text-yellow-300 whitespace-nowrap">
-                        {REGIONS[10].nameId}
+                        Bazaar Gurun Solaria
                       </span>
                     </div>
                   </div>
                 );
               })()}
 
-              {/* 9. Shadowfen Gloom Marsh (Top-Left, X: -200, Z: -200) */}
+              {/* 8. Istana Taj Mahal Sultan Malik (X: 340, Z: -280) */}
               {(() => {
-                const sp = worldToScreen(-200, -200);
+                const sp = worldToScreen(340, -280);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[7])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-yellow-950/80 border border-amber-400/80 shadow-lg hover:border-amber-300 hover:scale-110 transition-transform">
+                      <span className="text-xs">🕌</span>
+                      <span className="text-[8px] font-bold text-amber-200 whitespace-nowrap">
+                        Istana Sultan Malik
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 9. Piramida Emas Solaria (Gurun Barat, X: 20, Z: -220) */}
+              {(() => {
+                const sp = worldToScreen(20, -220);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[7])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-amber-950/80 border border-yellow-500/70 shadow-lg hover:border-yellow-300 hover:scale-110 transition-transform">
+                      <span className="text-xs">🏜️</span>
+                      <span className="text-[8px] font-bold text-yellow-200 whitespace-nowrap">
+                        Piramida Emas Solaria
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 10. Oase Tersembunyi Solaria (Gurun Utara, X: 150, Z: -360) */}
+              {(() => {
+                const sp = worldToScreen(150, -360);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[7])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-teal-950/80 border border-teal-400/70 shadow-lg hover:border-teal-300 hover:scale-110 transition-transform">
+                      <span className="text-xs">🌴</span>
+                      <span className="text-[8px] font-bold text-teal-200 whitespace-nowrap">
+                        Oase Solaria
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 11. Kaldera Sarang Naga Purba (Pulau Vulkanik Selatan, X: 50, Z: 360) */}
+              {(() => {
+                const sp = worldToScreen(50, 360);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -745,30 +737,10 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                     style={{ left: sp.left, top: sp.top }}
                     className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
                   >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-purple-950/80 border border-purple-500/70 shadow-lg hover:border-purple-400 hover:scale-110 transition-transform">
-                      <span className="text-xs">🍄</span>
-                      <span className="text-[8px] font-bold text-purple-300 whitespace-nowrap">
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-red-950/80 border border-red-500/70 shadow-lg hover:border-red-400 hover:scale-110 transition-transform">
+                      <span className="text-xs">🐉</span>
+                      <span className="text-[8px] font-bold text-red-300 whitespace-nowrap">
                         {REGIONS[8].nameId}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 10. Jade Bamboo Grove & Pagoda (Bottom-Right, X: 350, Z: 100) */}
-              {(() => {
-                const sp = worldToScreen(350, 100);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => setSelectedRegion(REGIONS[12])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-emerald-950/80 border border-emerald-500/70 shadow-lg hover:border-emerald-400 hover:scale-110 transition-transform">
-                      <span className="text-xs">⛩️</span>
-                      <span className="text-[8px] font-bold text-emerald-300 whitespace-nowrap">
-                        {REGIONS[12].nameId}
                       </span>
                     </div>
                   </div>
