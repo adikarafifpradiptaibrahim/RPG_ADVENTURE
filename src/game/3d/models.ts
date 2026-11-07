@@ -74,6 +74,7 @@ export interface PlayerMeshObjects {
   leftArm: THREE.Group;
   rightArm: THREE.Group;
   leftForearm?: THREE.Group;
+  leftHand?: THREE.Group;
   rightHand?: THREE.Group;
   leftLeg: THREE.Group;
   rightLeg: THREE.Group;
