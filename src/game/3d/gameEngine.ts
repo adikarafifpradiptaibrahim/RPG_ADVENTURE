@@ -4931,61 +4931,86 @@ export class GameEngine {
 
     // Limb animations
     if (isMoving) {
-      const walkFreq = this.charClass === 'rogue' ? 15 : this.charClass === 'mage' ? 8 : 10.5;
+      const walkFreq = this.charClass === 'rogue' ? 15 : this.charClass === 'mage' ? 8 : 10;
       this.walkTime += delta * walkFreq;
-      const legSwing = Math.sin(this.walkTime) * (this.charClass === 'mage' ? 0.35 : 0.62);
 
-      this.playerMesh.leftLeg.rotation.x = legSwing;
-      this.playerMesh.rightLeg.rotation.x = -legSwing;
+      if (this.charClass === 'warrior') {
+        // Smooth lerp limb swing untuk mengeliminasi getar
+        const targetLegSwing = Math.sin(this.walkTime * 10) * 0.6;
+        this.playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftLeg.rotation.x, targetLegSwing, 0.2);
+        this.playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightLeg.rotation.x, -targetLegSwing, 0.2);
 
-      if (!this.isAttacking) {
-        if (this.charClass === 'warrior') {
-          // Warrior heavy armor vertical bobbing & shoulder sway
-          const armorBob = Math.abs(Math.sin(this.walkTime * 2.0)) * 0.08;
-          this.playerMesh.group.position.y += armorBob;
+        // Peredam bobbing tubuh yang sangat halus pada body (maksimal offset 0.025 unit, TANPA menggeser group.position.y)
+        const walkBob = Math.sin(this.walkTime * 10 * 2) * 0.025;
+        this.playerMesh.body.position.y = THREE.MathUtils.lerp(this.playerMesh.body.position.y, 1.35 + walkBob, 0.2);
 
-          const torsoSway = Math.sin(this.walkTime) * 0.035;
-          this.playerMesh.body.rotation.z = torsoSway;
-          this.playerMesh.body.rotation.y = torsoSway * 0.7;
+        // Subtle torso sway
+        const targetTorsoSway = Math.sin(this.walkTime * 5) * 0.025;
+        this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(this.playerMesh.body.rotation.z, targetTorsoSway, 0.2);
+        this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y, targetTorsoSway * 0.6, 0.2);
 
-          // Arms: steady counter-swings holding shield in guard and broadsword ready
-          this.playerMesh.leftArm.rotation.set(-legSwing * 0.65, 0.18, 0.16);
-          this.playerMesh.rightArm.rotation.set(0.35 + Math.sin(this.walkTime * 0.5) * 0.18, 0, -0.24);
-        } else if (this.charClass === 'mage') {
-          // Mage glides holding staff aloft
-          this.playerMesh.leftArm.rotation.x = -legSwing * 0.3;
-          this.playerMesh.rightArm.rotation.x = -0.4 + Math.sin(this.clock.getElapsedTime() * 2) * 0.1;
-          this.playerMesh.rightArm.rotation.z = 0;
-        } else if (this.charClass === 'rogue') {
-          // Rogue low ninja run with arms swept back
-          this.playerMesh.leftArm.rotation.x = -0.5 - legSwing * 0.4;
-          this.playerMesh.rightArm.rotation.x = -0.5 + legSwing * 0.4;
-          this.playerMesh.leftArm.rotation.z = 0.25;
-          this.playerMesh.rightArm.rotation.z = -0.25;
+        if (!this.isAttacking) {
+          // Smooth counter-swings pada sendi bahu
+          const targetLeftArmX = -targetLegSwing * 0.55;
+          this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, targetLeftArmX, 0.2);
+          this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, 0.16, 0.2);
+          this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, 0.16, 0.2);
+
+          const targetRightArmX = 0.28 + Math.sin(this.walkTime * 5) * 0.12;
+          this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, targetRightArmX, 0.2);
+          this.playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.z, -0.22, 0.2);
+        }
+      } else {
+        const legSwing = Math.sin(this.walkTime) * (this.charClass === 'mage' ? 0.35 : 0.62);
+        this.playerMesh.leftLeg.rotation.x = legSwing;
+        this.playerMesh.rightLeg.rotation.x = -legSwing;
+
+        if (!this.isAttacking) {
+          if (this.charClass === 'mage') {
+            this.playerMesh.leftArm.rotation.x = -legSwing * 0.3;
+            this.playerMesh.rightArm.rotation.x = -0.4 + Math.sin(this.clock.getElapsedTime() * 2) * 0.1;
+            this.playerMesh.rightArm.rotation.z = 0;
+          } else if (this.charClass === 'rogue') {
+            this.playerMesh.leftArm.rotation.x = -0.5 - legSwing * 0.4;
+            this.playerMesh.rightArm.rotation.x = -0.5 + legSwing * 0.4;
+            this.playerMesh.leftArm.rotation.z = 0.25;
+            this.playerMesh.rightArm.rotation.z = -0.25;
+          }
         }
       }
-      this.playerMesh.cape.rotation.x = 0.38 + Math.sin(this.walkTime * 1.5) * 0.22;
+      this.playerMesh.cape.rotation.x = 0.35 + Math.sin(this.walkTime * 1.5) * 0.20;
     } else {
-      this.playerMesh.leftLeg.rotation.x *= 0.8;
-      this.playerMesh.rightLeg.rotation.x *= 0.8;
-      if (!this.isAttacking) {
-        if (this.charClass === 'warrior') {
-          // Heroic breathing cycle & defensive ready stance
-          const breathe = Math.sin(this.clock.getElapsedTime() * 2.0) * 0.02;
-          this.playerMesh.body.position.y = 1.35 + breathe;
-          this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(this.playerMesh.body.rotation.z, 0, 0.15);
-          this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y, 0, 0.15);
+      if (this.charClass === 'warrior') {
+        this.playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftLeg.rotation.x, 0, 0.2);
+        this.playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightLeg.rotation.x, 0, 0.2);
 
+        // Breathing cycle halus saat diam
+        const breathe = Math.sin(this.clock.getElapsedTime() * 2.0) * 0.015;
+        this.playerMesh.body.position.y = THREE.MathUtils.lerp(this.playerMesh.body.position.y, 1.35 + breathe, 0.15);
+        this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(this.playerMesh.body.rotation.z, 0, 0.15);
+        this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y, 0, 0.15);
+
+        if (!this.isAttacking) {
           // Shield raised defensively across left chest, broadsword ready in right hand
-          this.playerMesh.leftArm.rotation.set(-0.35 + breathe * 0.5, 0.22, 0.16);
-          this.playerMesh.rightArm.rotation.set(0.24 - breathe * 0.5, 0, -0.22);
-        } else if (this.charClass === 'mage') {
-          const hoverFloat = Math.sin(this.clock.getElapsedTime() * 2) * 0.08;
-          this.playerMesh.leftArm.rotation.set(hoverFloat, 0, 0.15);
-          this.playerMesh.rightArm.rotation.set(-0.3 + hoverFloat, 0, -0.1);
-        } else if (this.charClass === 'rogue') {
-          this.playerMesh.leftArm.rotation.set(0.2, 0, 0.2);
-          this.playerMesh.rightArm.rotation.set(0.2, 0, -0.2);
+          this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, -0.32 + breathe * 0.4, 0.15);
+          this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, 0.20, 0.15);
+          this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, 0.16, 0.15);
+
+          this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0.22 - breathe * 0.4, 0.15);
+          this.playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.z, -0.20, 0.15);
+        }
+      } else {
+        this.playerMesh.leftLeg.rotation.x *= 0.8;
+        this.playerMesh.rightLeg.rotation.x *= 0.8;
+        if (!this.isAttacking) {
+          if (this.charClass === 'mage') {
+            const hoverFloat = Math.sin(this.clock.getElapsedTime() * 2) * 0.08;
+            this.playerMesh.leftArm.rotation.set(hoverFloat, 0, 0.15);
+            this.playerMesh.rightArm.rotation.set(-0.3 + hoverFloat, 0, -0.1);
+          } else if (this.charClass === 'rogue') {
+            this.playerMesh.leftArm.rotation.set(0.2, 0, 0.2);
+            this.playerMesh.rightArm.rotation.set(0.2, 0, -0.2);
+          }
         }
       }
       this.playerMesh.cape.rotation.x = 0.1 + Math.sin(this.clock.getElapsedTime() * 2) * 0.05;

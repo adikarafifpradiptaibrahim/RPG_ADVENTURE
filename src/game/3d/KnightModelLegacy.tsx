@@ -369,3 +369,4 @@ export function createLegacyKnightMesh(tier: number = 1): PlayerMeshObjects {
     auraRing2,
   };
 }
+
