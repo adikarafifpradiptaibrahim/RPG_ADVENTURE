@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { Map, Navigation } from 'lucide-react';
 import { MapMarker, RegionInfo } from '../types/game';
 import { getContinentBiomeSample } from '../game/mapSampler';
+import { drawRoadsOnMiniMap } from '../game/RoadSystem';
 
 interface MiniMapProps {
   playerPos: { x: number; z: number; rotationY: number };
@@ -192,6 +193,9 @@ export const MiniMap: React.FC<MiniMapProps> = ({
     ctx.beginPath();
     ctx.arc(halfSize, halfSize, halfSize - 2, 0, Math.PI * 2);
     ctx.clip();
+
+    // Render road network paths within radar viewport
+    drawRoadsOnMiniMap(ctx, playerPos.x, playerPos.z, radarRadius, size);
 
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.lineWidth = 1;

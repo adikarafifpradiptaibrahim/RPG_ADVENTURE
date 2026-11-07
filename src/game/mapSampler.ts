@@ -17,6 +17,9 @@ export interface BiomeSample {
   slope: number; // 0..1
 }
 
+import { isPointOnRoad } from './RoadSystem';
+export { isPointOnRoad };
+
 export type BiomeZoneId = 'ocean' | 'volcano' | 'desert' | 'plains';
 
 export interface BiomeZoneInfo {
@@ -264,6 +267,10 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
 
   // 4. Desert Zone (Solaria)
   if (zone.id === 'desert') {
+    // Road Network in Desert
+    if (isPointOnRoad(x, z)) {
+      return { height: y, color: [210, 180, 140], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
+    }
     // Paved Avenue between Bazaar [250, -280] & Palace [340, -280]
     if (x >= 240 && x <= 350 && Math.abs(z - -280) <= 6) {
       return { height: y, color: [210, 180, 140], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
@@ -281,6 +288,10 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   }
 
   // 5. Plains Zone (Padang Rumput Eldoria)
+  // Road Network in Plains
+  if (isPointOnRoad(x, z)) {
+    return { height: y, color: [141, 123, 104], biomeId: 'eldoria_road', isWater: false, isPath: true, slope: 0 };
+  }
   // Sanctuary Village Plaza
   if (Math.hypot(x, z - 180) <= 18) {
     return { height: y, color: [226, 218, 214], biomeId: 'eldoria_plaza', isWater: false, isPath: true, slope: 0 };
@@ -322,5 +333,5 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
 function sampleIsPath(x: number, z: number): boolean {
   if (Math.abs(x) <= 3.2 && z >= 195 && z <= 235) return true;
   if (Math.hypot(x, z - 180) <= 18) return true;
-  return false;
+  return isPointOnRoad(x, z);
 }

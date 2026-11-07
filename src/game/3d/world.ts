@@ -92,6 +92,7 @@ import {
   createLightningCrystalMesh,
   createAncientRitualTowerMesh,
 } from './models';
+import { buildWorldRoadNetwork } from '../RoadSystem';
 
 export interface WorldCollider {
   type: 'box' | 'circle';
@@ -1194,47 +1195,10 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { type: 'box', minX: 120, maxX: 150, minZ: 71.4, maxZ: 72.2, label: 'Pagar Jembatan Kanan' }
   );
 
-  // 2.9b Alur Jalan Setapak Berbatu (Cobblestone Highway)
-  // Menghubungkan Jembatan Gantung (X = 150) lurus menuju ke Gerbang Barat Benteng Val-Kragor (X = 354, Z = 80)
-  const valKragorRoadPoints: Array<[number, number]> = [
-    [150, 70],
-    [180, 71],
-    [215, 73],
-    [255, 75],
-    [290, 77],
-    [325, 79],
-    [354, 80],
-  ];
-  const valKragorRoadMesh = createStoneRoadRibbonMesh(
-    valKragorRoadPoints,
-    3.8,
-    getTerrainHeight,
-    0x94a3b8, // Slate cobblestone path color
-    0x475569  // Deep stone kerb border color
-  );
-  scene.add(valKragorRoadMesh);
-
-  // 2.9c Highway Waymarkers: Jembatan Gantung -> Gerbang Benteng Val-Kragor
-  const highwayLampPairs = [
-    { x: 155, zL: 67.5, zR: 72.5 },
-    { x: 190, zL: 68.5, zR: 73.5 },
-    { x: 230, zL: 70.5, zR: 75.5 },
-    { x: 270, zL: 72.5, zR: 77.5 },
-    { x: 310, zL: 74.5, zR: 79.5 },
-    { x: 345, zL: 76.5, zR: 81.5 },
-  ];
-
-  const highwayLampsData: { x: number; y: number; z: number }[] = [];
-  highwayLampPairs.forEach(pair => {
-    const yL = getTerrainHeight(pair.x, pair.zL);
-    const yR = getTerrainHeight(pair.x, pair.zR);
-    highwayLampsData.push({ x: pair.x, y: yL, z: pair.zL });
-    highwayLampsData.push({ x: pair.x, y: yR, z: pair.zR });
-    colliders.push({ type: 'circle', x: pair.x, z: pair.zL, radius: 0.35, label: 'Lampu Pinggir Jalan Kiri' });
-    colliders.push({ type: 'circle', x: pair.x, z: pair.zR, radius: 0.35, label: 'Lampu Pinggir Jalan Kanan' });
-  });
-  const highwayLampsMesh = createInstancedStreetLamps(highwayLampsData);
-  scene.add(highwayLampsMesh);
+  // 2.9b Jaringan Jalan Raya & Jalan Setapak Terstruktur Benua Eldoria (Road Network & Path System)
+  // Menghubungkan Pelabuhan, Alun-Alun Sanctuary, Ibukota Astraea, Puncak Mage Tower,
+  // Benteng Val-Kragor, Jalur Sutra Gurun Solaria, dan Ziarah Danau Titan.
+  buildWorldRoadNetwork(scene, getTerrainHeight, colliders);
 
   // ==========================================
   // 2.12 CORAL COVE & PIRATE SHIPWRECK

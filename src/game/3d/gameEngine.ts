@@ -12,6 +12,7 @@ import {
 import { soundManager } from '../audio';
 import { CHEST_LOOT_POOL, MONSTER_MATERIALS } from '../data';
 import { getCurrentRegion } from '../mapData';
+import { isPointOnRoad } from '../mapSampler';
 import {
   createEnemyMesh,
   createPlayerMesh,
@@ -4822,6 +4823,9 @@ export class GameEngine {
     let targetSpeed = baseSpeed;
     if (this.isDashing) {
       targetSpeed = this.charClass === 'rogue' ? 24.0 : this.charClass === 'warrior' ? 19.0 : 16.0;
+    } else if (isPointOnRoad(this.playerPos.x, this.playerPos.z)) {
+      // Buff Pergerakan Jalur Jalan (Movement Speed +15% saat berlari di atas jalan raya/setapak)
+      targetSpeed *= 1.15;
     }
 
     if (isMoving) {

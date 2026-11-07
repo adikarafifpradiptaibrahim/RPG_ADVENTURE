@@ -32,6 +32,7 @@ export interface PlayerMovementConfig {
   isCasting?: boolean;
   isSpectatorMode?: boolean;
   isTeleporting?: boolean;
+  isOnRoad?: boolean;
 }
 
 /**
@@ -68,6 +69,9 @@ export class PlayerController {
     }
     if (config.isDashing) {
       speed = config.charClass === 'rogue' ? 24.0 : config.charClass === 'warrior' ? 19.0 : 16.0;
+    } else if (config.isOnRoad) {
+      // Movement speed buff (+15%) on road
+      speed *= 1.15;
     }
     return speed;
   }

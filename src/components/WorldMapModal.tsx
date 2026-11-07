@@ -17,9 +17,10 @@ import {
 import { MapMarker, RegionInfo } from '../types/game';
 import { REGIONS, WAYPOINTS } from '../game/mapData';
 import { getContinentBiomeSample, getBiomeAt } from '../game/mapSampler';
+import { drawRoadsOnWorldMap } from '../game/RoadSystem';
 
 // Persistent continent map cached image data to eliminate all lag on open & pan
-const MAP_CACHE_VERSION = 'v4.6_desert_unbounded_east';
+const MAP_CACHE_VERSION = 'v4.7_road_network_system';
 let cachedMapVersion = '';
 let cachedMapImageData: ImageData | null = null;
 
@@ -350,6 +351,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
     // Use cached image data if already generated
     if (cachedMapVersion === MAP_CACHE_VERSION && cachedMapImageData && cachedMapImageData.width === width && cachedMapImageData.height === height) {
       ctx.putImageData(cachedMapImageData, 0, 0);
+      drawRoadsOnWorldMap(ctx, width, height, minX, maxX, minZ, maxZ);
       return;
     }
 
@@ -436,6 +438,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
     cachedMapVersion = MAP_CACHE_VERSION;
     cachedMapImageData = imgData;
     ctx.putImageData(imgData, 0, 0);
+    drawRoadsOnWorldMap(ctx, width, height, minX, maxX, minZ, maxZ);
   }, [isOpen]);
 
   if (!isOpen) return null;
