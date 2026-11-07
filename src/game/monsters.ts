@@ -752,7 +752,7 @@ export const IGNIS_DRAGON_BOSS_CONFIG: BossConfig = {
   detectRange: 22,
   expReward: 1200,
   goldReward: 850,
-  pos: [-29, -337],
+  pos: [0, -300],
   scale: [4.2, 4.2, 4.2],
   skills: [
     {
@@ -811,7 +811,7 @@ export const ANCIENT_TITAN_BOSS_CONFIG: BossConfig = {
   detectRange: 20,
   expReward: 800,
   goldReward: 550,
-  pos: [-95, -75],
+  pos: [-160, -160],
   scale: [3.5, 3.5, 3.5],
   skills: [
     {

@@ -19,7 +19,7 @@ import { REGIONS, WAYPOINTS } from '../game/mapData';
 import { getContinentBiomeSample, getBiomeAt } from '../game/mapSampler';
 
 // Persistent continent map cached image data to eliminate all lag on open & pan
-const MAP_CACHE_VERSION = 'v2.5_revamp';
+const MAP_CACHE_VERSION = 'v2.6_layout_sync';
 let cachedMapVersion = '';
 let cachedMapImageData: ImageData | null = null;
 
@@ -393,7 +393,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
               r = 224; g = 242; b = 254; // Frostpeak: #e0f2fe (Putih es di timur laut jauh)
               break;
             case 'east_highlands':
-              r = 71; g = 85; b = 105; // Highlands koridor: #475569
+              r = 100; g = 116; b = 139; // Highlands koridor: #64748b
               break;
             case 'southeast_bamboo':
               r = 5; g = 150; b = 105; // Bamboo: #059669 (Hijau zamrud di tenggara jauh)
@@ -408,8 +408,8 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
           }
         }
 
-        // Beach sand fringe along southern horizontal coastline (Z: 30..36)
-        if (wz >= 30 && wz <= 36 && wx >= -160 && wx <= 220 && sample.height < 0.6 && !sample.isPath) {
+        // Beach sand fringe along southern horizontal coastline (Z: 18..24)
+        if (wz >= 18 && wz <= 24 && wx >= -120 && wx <= 180 && sample.height < 0.6 && !sample.isPath) {
           r = 254; g = 215; b = 170;
         }
 
@@ -536,9 +536,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
               />
 
               {/* DYNAMIC REGION CLICKABLE ZONES & LABELS */}
-              {/* 1. Grand Imperial Astraea (Far North Frostpeak, X: 180, Z: -260) */}
+              {/* 1. Grand Imperial Astraea (Far North Frostpeak, X: 360, Z: -260) */}
               {(() => {
-                const sp = worldToScreen(180, -260);
+                const sp = worldToScreen(360, -260);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -557,9 +557,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 2. Frostpeak Glacier Summit (Lv.5, X: 250, Z: -110) */}
+              {/* 2. Frostpeak Glacier Summit (Lv.5, X: 340, Z: -180) */}
               {(() => {
-                const sp = worldToScreen(250, -110);
+                const sp = worldToScreen(340, -180);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -577,9 +577,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 3. Jurang Es Purba / Frozen Chasm (X: 180, Z: -320) */}
+              {/* 3. Jurang Es Purba / Frozen Chasm (X: 360, Z: -310) */}
               {(() => {
-                const sp = worldToScreen(180, -320);
+                const sp = worldToScreen(360, -310);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -614,9 +614,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 4b. Reruntuhan Kuno Vael (Upstream Outskirts: X: -118, Z: 36) */}
+              {/* 4b. Reruntuhan Kuno Vael (Upstream Outskirts: X: -180, Z: -180) */}
               {(() => {
-                const sp = worldToScreen(-118, 36);
+                const sp = worldToScreen(-180, -180);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -655,9 +655,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 6. Desa Benteng Val-Kragor (X: 188, Z: -16) */}
+              {/* 6. Desa Benteng Val-Kragor (X: 220, Z: -20) */}
               {(() => {
-                const sp = worldToScreen(188, -16);
+                const sp = worldToScreen(220, -20);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -675,9 +675,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 6b. Ancient Titan Sanctuary Basin (North-West, X: -95, Z: -75) */}
+              {/* 6b. Ancient Titan Sanctuary Basin (North-West, X: -160, Z: -160) */}
               {(() => {
-                const sp = worldToScreen(-95, -75);
+                const sp = worldToScreen(-160, -160);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -695,9 +695,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 7. Dragonfang Caldera (Far North, X: -29, Z: -337) */}
+              {/* 7. Dragonfang Caldera (Far North, X: 0, Z: -300) */}
               {(() => {
-                const sp = worldToScreen(-29, -337);
+                const sp = worldToScreen(0, -300);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -715,9 +715,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 8. Gurun Emas Solaria (South-West, X: -260, Z: 240) */}
+              {/* 8. Gurun Emas Solaria (West-Central, X: -260, Z: -30) */}
               {(() => {
-                const sp = worldToScreen(-260, 240);
+                const sp = worldToScreen(-260, -30);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -735,9 +735,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 9. Shadowfen Gloom Marsh (West, X: -200, Z: 20) */}
+              {/* 9. Shadowfen Gloom Marsh (Top-Left, X: -200, Z: -200) */}
               {(() => {
-                const sp = worldToScreen(-200, 20);
+                const sp = worldToScreen(-200, -200);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -755,9 +755,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 10. Jade Bamboo Grove & Pagoda (South-East, X: 270, Z: 160) */}
+              {/* 10. Jade Bamboo Grove & Pagoda (Bottom-Right, X: 350, Z: 100) */}
               {(() => {
-                const sp = worldToScreen(270, 160);
+                const sp = worldToScreen(350, 100);
                 if (!sp.visible) return null;
                 return (
                   <div

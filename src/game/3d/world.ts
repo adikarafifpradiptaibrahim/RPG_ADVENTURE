@@ -310,19 +310,19 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return 1.85; // Solid continuous wooden pier deck
     }
 
-    // 3. Relocated Fortress Val-Kragor Solid Courtyard (Center [188, -16], radius 34 at y = 3.2)
-    if (Math.hypot(x - 188, z - -16) <= 34) {
+    // 3. Relocated Fortress Val-Kragor Solid Courtyard (Center [220, -20], radius 34 at y = 3.2)
+    if (Math.hypot(x - 220, z - -20) <= 34) {
       return 3.2;
     }
 
     // 4. Imperial Capital Astraea Elevated Plateau & Grand Esplanade (y = 6.0)
-    if (x >= 148 && x <= 212 && z >= -288 && z <= -232) return 6.0;
-    if (x >= 174 && x <= 186 && z >= -340 && z <= -300) return 4.6; // Frozen Chasm ice bridge
+    if (x >= 328 && x <= 392 && z >= -288 && z <= -232) return 6.0;
+    if (x >= 354 && x <= 366 && z >= -340 && z <= -300) return 4.6; // Frozen Chasm ice bridge
 
     // 4b. Solaria Desert Village Bazaar & Grand Palace (Taj Mahal) Courtyard Plateau (y = 2.4)
-    if (Math.hypot(x - -305, z - 350) <= 45) return 2.4;
-    if (Math.hypot(x - -415, z - 350) <= 35) return 2.4;
-    if (x >= -445 && x <= -260 && Math.abs(z - 350) <= 42) return 2.4;
+    if (Math.hypot(x - -260, z - -30) <= 45) return 2.4;
+    if (Math.hypot(x - -320, z - -30) <= 35) return 2.4;
+    if (x >= -350 && x <= -220 && Math.abs(z - -30) <= 42) return 2.4;
 
     // 5. Exact rendered polygon surface
     return getMeshSurfaceHeight(x, z);
@@ -2336,32 +2336,32 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   }
 
   // ==========================================
-  // 8. DRAGONFANG CALDERA & INFERNO ARCHIPELAGO (Far North: [-29, -337])
+  // 8. DRAGONFANG CALDERA & INFERNO ARCHIPELAGO (North Strip: [0, -300])
   // Arena Kaldera Naga: Kawah Melingkar (Diameter ~45m), 4 Pilar Obsidian Naga, Fosil Naga, & Lahar Pijar
   // ==========================================
-  const dragonArenaCenter = { x: -29, z: -337 };
+  const dragonArenaCenter = { x: 0, z: -300 };
   const dragonArenaBaseY = getTerrainHeight(dragonArenaCenter.x, dragonArenaCenter.z);
 
   // A. Monumental Dragon Fossil Skull & Ribcage (Placed at North Rim of Caldera)
   const dragonFossil = createDragonSkullBonesMesh();
-  const dragonY = getTerrainHeight(dragonArenaCenter.x, -350);
-  dragonFossil.position.set(dragonArenaCenter.x, dragonY, -350);
+  const dragonY = getTerrainHeight(dragonArenaCenter.x, -313);
+  dragonFossil.position.set(dragonArenaCenter.x, dragonY, -313);
   scene.add(dragonFossil);
   colliders.push({
     type: 'box',
-    minX: -34,
-    maxX: -24,
-    minZ: -356,
-    maxZ: -344,
+    minX: -5,
+    maxX: 5,
+    minZ: -319,
+    maxZ: -307,
     label: 'Fosil Tengkorak Naga Purba',
   });
 
   // B. 4 Sharp Black Obsidian Dragon Pillars (Pilar Naga Batas Arena Kawah)
   const dragonPillars = [
-    { x: -29, z: -358, label: 'Pilar Naga Obsidian Utara' },
-    { x: -29, z: -316, label: 'Pilar Naga Obsidian Selatan' },
-    { x: -8, z: -337, label: 'Pilar Naga Obsidian Timur' },
-    { x: -50, z: -337, label: 'Pilar Naga Obsidian Barat' },
+    { x: 0, z: -321, label: 'Pilar Naga Obsidian Utara' },
+    { x: 0, z: -279, label: 'Pilar Naga Obsidian Selatan' },
+    { x: 21, z: -300, label: 'Pilar Naga Obsidian Timur' },
+    { x: -21, z: -300, label: 'Pilar Naga Obsidian Barat' },
   ];
   dragonPillars.forEach((dp) => {
     const pY = getTerrainHeight(dp.x, dp.z);
@@ -2916,26 +2916,26 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   const chestData = [
     { id: 'chest_village', pos: [-4, 0, 4] as [number, number, number] },
     { id: 'chest_beach', pos: [-3.0, 1.85, 73] as [number, number, number] }, // Seaward Pier Head Platform Stash
-    { id: 'chest_ruins', pos: [-120, 0, 36] as [number, number, number] }, // Ancient ruins altar (Upstream Outskirts)
+    { id: 'chest_ruins', pos: [-180, 0, -180] as [number, number, number] }, // Ancient ruins altar (Upstream Outskirts)
     { id: 'chest_forest', pos: [38, 0, 12] as [number, number, number] }, // Mystic deep forest
-    { id: 'chest_boss_gateway', pos: [-95, 0, -56] as [number, number, number] }, // Entrance to Ancient Titan Basin
-    { id: 'chest_valkragor', pos: [208, 0, -20] as [number, number, number] }, // Fortress keep secret treasury
-    { id: 'chest_frostpeak', pos: [250, 0, -110] as [number, number, number] }, // Cryo Altar Summit
-    { id: 'chest_shadowfen', pos: [-110, 0, 12] as [number, number, number] }, // Shadowfen smuggler cache
+    { id: 'chest_boss_gateway', pos: [-160, 0, -140] as [number, number, number] }, // Entrance to Ancient Titan Basin
+    { id: 'chest_valkragor', pos: [220, 0, -20] as [number, number, number] }, // Fortress keep secret treasury
+    { id: 'chest_frostpeak', pos: [340, 0, -180] as [number, number, number] }, // Cryo Altar Summit
+    { id: 'chest_shadowfen', pos: [-200, 0, -200] as [number, number, number] }, // Shadowfen smuggler cache
     { id: 'chest_coralcove', pos: [86, 0, 56] as [number, number, number] }, // Shipwreck pirate gold
-    { id: 'chest_solaria_palace', pos: [-428, -25 + 1.2, 354] as [number, number, number] }, // Istana Sultan Solaria Vault (Throne Room)
-    { id: 'chest_solaria', pos: [-180, 0, 180] as [number, number, number] }, // Solaria Pharaoh Gold
-    { id: 'chest_thunderpeak', pos: [160, 0, -150] as [number, number, number] }, // Storm Altar Relic
-    { id: 'chest_jadepagoda', pos: [270, 0, 160] as [number, number, number] }, // Celestial Pagoda Treasure
-    { id: 'chest_dragoncaldera', pos: [-29, 0, -337] as [number, number, number] }, // Dragon Hoard
-    { id: 'chest_astraea', pos: [204, 0, -260] as [number, number, number] }, // Astraea Imperial Vault
-    { id: 'chest_frozen_chasm', pos: [180, 0, -325] as [number, number, number] }, // Ancient Chasm Relic Chest
+    { id: 'chest_solaria_palace', pos: [-328, 0, -26] as [number, number, number] }, // Istana Sultan Solaria Vault (Throne Room)
+    { id: 'chest_solaria', pos: [-200, 0, -50] as [number, number, number] }, // Solaria Pharaoh Gold
+    { id: 'chest_thunderpeak', pos: [240, 0, -120] as [number, number, number] }, // Storm Altar Relic
+    { id: 'chest_jadepagoda', pos: [350, 0, 100] as [number, number, number] }, // Celestial Pagoda Treasure
+    { id: 'chest_dragoncaldera', pos: [0, 0, -300] as [number, number, number] }, // Dragon Hoard
+    { id: 'chest_astraea', pos: [360, 0, -260] as [number, number, number] }, // Astraea Imperial Vault
+    { id: 'chest_frozen_chasm', pos: [360, 0, -315] as [number, number, number] }, // Ancient Chasm Relic Chest
     { id: 'chest_harbor_galleon', pos: [16, 0, 42] as [number, number, number] }, // Harbor Galleon Stash
-    { id: 'chest_solaria_oasis', pos: [-340, 0, 260] as [number, number, number] }, // Secret Oasis Treasure
-    { id: 'chest_frostpeak_glacier', pos: [240, 0, -220] as [number, number, number] }, // Glacier Vault
-    { id: 'chest_dragon_core', pos: [35, 0, -280] as [number, number, number] }, // Primal Magma Core Relic
-    { id: 'chest_shadowfen_deep', pos: [-300, 0, 25] as [number, number, number] }, // Deep Hollow Cache
-    { id: 'chest_jade_sanctuary', pos: [325, 0, 220] as [number, number, number] }, // Celestial Sanctuary Gold
+    { id: 'chest_solaria_oasis', pos: [-240, 0, -80] as [number, number, number] }, // Secret Oasis Treasure
+    { id: 'chest_frostpeak_glacier', pos: [380, 0, -200] as [number, number, number] }, // Glacier Vault
+    { id: 'chest_dragon_core', pos: [25, 0, -285] as [number, number, number] }, // Primal Magma Core Relic
+    { id: 'chest_shadowfen_deep', pos: [-260, 0, -220] as [number, number, number] }, // Deep Hollow Cache
+    { id: 'chest_jade_sanctuary', pos: [400, 0, 140] as [number, number, number] }, // Celestial Sanctuary Gold
   ];
 
   const chests: WorldObjects['chests'] = [];
@@ -2954,10 +2954,10 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 6. ANCIENT TITAN SANCTUARY BASIN ARENA (North-West: [-95, -75])
+  // 6. ANCIENT TITAN SANCTUARY BASIN ARENA (North-West: [-160, -160])
   // Cekungan Danau Lembah Purba (Diameter 35m), Platform Batu Pijakan Tengah, & Formasi 8 Megalit Rune Kuno
   // ==========================================
-  const titanArenaCenter = { x: -95, z: -75 };
+  const titanArenaCenter = { x: -160, z: -160 };
   const titanPlatformY = getTerrainHeight(titanArenaCenter.x, titanArenaCenter.z);
 
   // A. Central Shallow Stone Stepping Platform (Platform Batu Pijakan Tempat Berdiri Titan Kuno)
@@ -3065,73 +3065,73 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_village',
       name: 'Sanctuary Village Plaza',
       nameId: 'Alun-Alun Desa Sanctuary',
-      pos: [0, -8],
+      pos: [0, -4],
     },
     {
       id: 'wp_harbor',
       name: 'Sanctuary Coastal Harbor',
       nameId: 'Dermaga Pelabuhan Sanctuary',
-      pos: [0, 24],
+      pos: [0, 21],
     },
     {
       id: 'wp_valkragor',
       name: 'Val-Kragor Fortress Plaza',
       nameId: 'Alun-Alun Benteng Val-Kragor',
-      pos: [186, -10],
+      pos: [220, -20],
     },
     {
       id: 'wp_volcano',
       name: 'Ancient Titan Sanctuary Basin',
       nameId: 'Lembah Danau Cekungan Titan Kuno',
-      pos: [-95, -75],
+      pos: [-160, -160],
     },
     {
       id: 'wp_astraea',
       name: 'Grand Imperial Capital Astraea',
       nameId: 'Alun-Alun Ibukota Emas Astraea',
-      pos: [164, -248],
+      pos: [348, -260],
     },
     {
       id: 'wp_shadowfen',
       name: 'Shadowfen Ancient Marsh',
       nameId: 'Pusat Rawa Bayangan Purba',
-      pos: [-105, 14],
+      pos: [-200, -200],
     },
     {
       id: 'wp_solaria_village',
       name: 'Solaria Desert Village & Palace',
       nameId: 'Alun-Alun Desa & Istana Gurun Solaria',
-      pos: [-350, 350],
+      pos: [-260, -30],
     },
     {
       id: 'wp_solaria',
       name: 'Solaria Golden Desert Pyramid',
       nameId: 'Piramida Emas Gurun Solaria',
-      pos: [-180, 180],
+      pos: [-200, -50],
     },
     {
       id: 'wp_jadepagoda',
       name: 'Jade Bamboo Pagoda Shrine',
       nameId: 'Kuil Pagoda Giok & Bambu',
-      pos: [270, 160],
+      pos: [350, 100],
     },
     {
       id: 'wp_frostpeak',
       name: 'Frostpeak Glacier Summit',
       nameId: 'Kuil Es Puncak Frostpeak',
-      pos: [250, -110],
+      pos: [340, -180],
     },
     {
       id: 'wp_thunderpeak',
       name: 'Thunderpeak Basalt Altar',
       nameId: 'Altar Menara Puncak Halilintar',
-      pos: [160, -150],
+      pos: [240, -120],
     },
     {
       id: 'wp_dragoncaldera',
       name: 'Primal Dragonfang Caldera',
       nameId: 'Altar Kaldera Sarang Naga Purba',
-      pos: [-29, -337],
+      pos: [0, -300],
     },
   ];
 

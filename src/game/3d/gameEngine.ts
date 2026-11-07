@@ -170,41 +170,41 @@ const TOWN_ZONES: TownZoneTrigger[] = [
     id: 'town_valkragor',
     waypointId: 'wp_valkragor',
     name: 'Benteng Val-Kragor',
-    x: 188,
-    z: -16,
+    x: 220,
+    z: -20,
     radius: 40,
-    respawnX: 186,
-    respawnZ: -12,
+    respawnX: 218,
+    respawnZ: -16,
   },
   {
     id: 'town_astraea',
     waypointId: 'wp_astraea',
     name: 'Ibukota Kerajaan Emas Astraea',
-    x: 180,
+    x: 360,
     z: -260,
     radius: 45,
-    respawnX: 164,
+    respawnX: 344,
     respawnZ: -255,
   },
   {
     id: 'town_solaria',
     waypointId: 'wp_solaria_village',
     name: 'Desa & Istana Gurun Solaria',
-    x: -350,
-    z: 350,
-    radius: 110,
-    respawnX: -305,
-    respawnZ: 346,
+    x: -260,
+    z: -30,
+    radius: 70,
+    respawnX: -258,
+    respawnZ: -24,
   },
   {
     id: 'town_thunderpeak',
     waypointId: 'wp_thunderpeak',
     name: 'Mage Tower Puncak Halilintar',
-    x: 160,
-    z: -150,
+    x: 240,
+    z: -120,
     radius: 45,
-    respawnX: 160,
-    respawnZ: -138,
+    respawnX: 240,
+    respawnZ: -108,
   },
 ];
 
@@ -1169,8 +1169,8 @@ export class GameEngine {
       });
     });
 
-    // 8. Ancient Obsidian Titan Golem Boss in Sanctuary Basin Arena (x: -95, z: -75)
-    const bossPos: [number, number] = [-95, -75];
+    // 8. Ancient Obsidian Titan Golem Boss in Sanctuary Basin Arena (x: -160, z: -160)
+    const bossPos: [number, number] = [-160, -160];
     const { group: bossGroup, parts: bossParts } = createEnemyMesh('boss');
     const by = this.world.getTerrainHeight(bossPos[0], bossPos[1]);
     bossGroup.position.set(bossPos[0], by, bossPos[1]);
@@ -1520,8 +1520,8 @@ export class GameEngine {
       });
     });
 
-    // Dragonfang Super Boss: Ignis, Sang Naga Purba (Colossal Winged Dragon: [-29, -337])
-    const wyrmPos: [number, number] = [-29, -337];
+    // Dragonfang Super Boss: Ignis, Sang Naga Purba (Colossal Winged Dragon: [0, -300])
+    const wyrmPos: [number, number] = [0, -300];
     const { group: wyrmGroup, parts: wyrmParts } = createEnemyMesh('dragon');
     const wyrmY = this.world.getTerrainHeight(wyrmPos[0], wyrmPos[1]);
     wyrmGroup.position.set(wyrmPos[0], wyrmY, wyrmPos[1]);
