@@ -630,9 +630,29 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 7. Dragonfang Caldera (Far North, X: 20, Z: -280) */}
+              {/* 6b. Ancient Titan Sanctuary Basin (North-West, X: -95, Z: -75) */}
               {(() => {
-                const sp = worldToScreen(20, -280);
+                const sp = worldToScreen(-95, -75);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => setSelectedRegion(REGIONS[4])}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-sky-950/80 border border-sky-500/70 shadow-lg hover:border-sky-400 hover:scale-110 transition-transform">
+                      <span className="text-xs">🏛️</span>
+                      <span className="text-[8px] font-bold text-sky-300 whitespace-nowrap">
+                        {REGIONS[4].nameId}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 7. Dragonfang Caldera (Far North, X: -29, Z: -337) */}
+              {(() => {
+                const sp = worldToScreen(-29, -337);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -650,9 +670,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 8. Gurun Emas Solaria (South-West, X: -240, Z: 180) */}
+              {/* 8. Gurun Emas Solaria (South-West, X: -260, Z: 240) */}
               {(() => {
-                const sp = worldToScreen(-240, 180);
+                const sp = worldToScreen(-260, 240);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -690,9 +710,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 10. Jade Bamboo Grove & Pagoda (South-East, X: 240, Z: 180) */}
+              {/* 10. Jade Bamboo Grove & Pagoda (South-East, X: 170, Z: 160) */}
               {(() => {
-                const sp = worldToScreen(240, 180);
+                const sp = worldToScreen(170, 160);
                 if (!sp.visible) return null;
                 return (
                   <div

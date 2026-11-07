@@ -3,13 +3,13 @@ import { RegionInfo, MapMarker } from '../types/game';
 export const REGIONS: RegionInfo[] = [
   {
     id: 'desa_eldoria',
-    name: 'Sanctuary Village & Harbor',
-    nameId: 'Desa Utama & Pelabuhan Sanctuary',
+    name: 'Sanctuary Village & Central Plains',
+    nameId: 'Desa Utama & Padang Rumput Eldoria',
     icon: '🏡',
-    description: 'A thriving coastal settlement with wooden cottages, busy harbor docks, merchant galleons, and rejuvenation fountain.',
-    descriptionId: 'Pusat desa damai dengan rumah panggung kayu, pelabuhan kapal dagang dan kapal perang, bengkel tempa, serta air mancur suci.',
+    description: 'A thriving coastal settlement with wooden cottages, busy harbor docks, merchant galleons, and wide open grassland plains.',
+    descriptionId: 'Pusat desa damai dan padang rumput hijau luas Eldoria dengan rumah panggung kayu, pelabuhan kapal dagang, bengkel tempa, serta perbukitan landai terbuka.',
     color: '#4caf50',
-    bounds: { minX: -55, maxX: 55, minZ: -32, maxZ: 62 },
+    bounds: { minX: -80, maxX: 80, minZ: -80, maxZ: 80 },
     center: [0, -4],
     recommendedLevel: 1,
   },
@@ -51,14 +51,14 @@ export const REGIONS: RegionInfo[] = [
   },
   {
     id: 'kawah_obsidian',
-    name: 'Obsidian Volcanic Crag',
-    nameId: 'Kawah Vulkanik & Arena Sang Titan',
-    icon: '🌋',
-    description: 'A perilous volcanic domain of dark basalt rock and glowing magma, home to the Obsidian Titan.',
-    descriptionId: 'Zona berbahaya bebatuan hitam basalt, celah lava pijar menyala, dan arena pertarungan Boss Raksasa Obsidian Titan.',
-    color: '#ff3d00',
-    bounds: { minX: -45, maxX: 45, minZ: -90, maxZ: -32 },
-    center: [0, -52],
+    name: 'Ancient Titan Sanctuary Basin',
+    nameId: 'Lembah Danau Cekungan Titan Kuno',
+    icon: '🏛️',
+    description: 'A circular ancient valley lake basin surrounded by rune-carved megaliths, home to the Ancient Obsidian Titan.',
+    descriptionId: 'Cekungan danau lembah purba melingkar dikelilingi formasi batu megalitik berukir rune dan arena pertarungan Boss Sang Titan Kuno Obsidian.',
+    color: '#0284c7',
+    bounds: { minX: -125, maxX: -65, minZ: -105, maxZ: -45 },
+    center: [-95, -75],
     recommendedLevel: 4,
   },
   {
@@ -93,7 +93,7 @@ export const REGIONS: RegionInfo[] = [
     description: 'Perpetually snow-covered mountain peaks with crystalline ice spires, vast glaciers, and an ancient frozen sanctuary.',
     descriptionId: 'Pegunungan es luas bersalju abadi di utara-timur jauh, dihuni Serigala Frostfang, jurang gletser beku, dan menara pertahanan es terluar.',
     color: '#38bdf8',
-    bounds: { minX: 45, maxX: 520, minZ: -480, maxZ: -34 },
+    bounds: { minX: 110, maxX: 520, minZ: -480, maxZ: -40 },
     center: [180, -180],
     recommendedLevel: 5,
   },
@@ -105,7 +105,7 @@ export const REGIONS: RegionInfo[] = [
     description: 'A murky twilight wetland filled with giant luminescent mushrooms, toxic waters, and hidden smuggler caches.',
     descriptionId: 'Rawa-rawa berkabut gelap di ujung barat terjauh! Dihuni monster rawa dan dihiasi jamur raksasa bercahaya ungu serta hijau neon.',
     color: '#a855f7',
-    bounds: { minX: -550, maxX: -65, minZ: -75, maxZ: 140 },
+    bounds: { minX: -550, maxX: -120, minZ: -100, maxZ: 120 },
     center: [-240, 25],
     recommendedLevel: 4,
   },
@@ -129,20 +129,20 @@ export const REGIONS: RegionInfo[] = [
     description: 'Endless rolling golden sand dunes, the bustling mud-brick Desert Village of Solaria, the Grand Palace of Sultan Malik, and the ancient pharaoh pyramid.',
     descriptionId: 'Hamparan padang pasir emas mahaluas di barat daya! Menampung Desa Tanah Liat yang ramai, Istana Megah Berkubah Emas Sultan Malik, bazaar rempah eksotis, dan reruntuhan piramida pharaoh kuno.',
     color: '#eab308',
-    bounds: { minX: -550, maxX: -95, minZ: 35, maxZ: 460 },
-    center: [-260, 200],
+    bounds: { minX: -550, maxX: -120, minZ: 120, maxZ: 460 },
+    center: [-280, 260],
     recommendedLevel: 5,
   },
   {
     id: 'puncak_halilintar',
-    name: 'Thunderpeak Lightning Spire Sanctuary',
-    nameId: 'Puncak Halilintar & Altar Petir Purba',
+    name: 'Thunderpeak Spire & Mage Tower Highlands',
+    nameId: 'Puncak Halilintar & Menara Mage Tower',
     icon: '⚡',
-    description: 'A storm-wracked basalt plateau where perpetual lightning strikes ancient floating magnetic spires.',
-    descriptionId: 'Dataran tinggi tebing basalt hitam di barat laut jauh! Diselimuti badai petir abadi, cincin batu magnetik melayang, dan menara kristal halilintar ungu menyala.',
+    description: 'A storm-wracked mountain highland in the northeast where the grand multi-floor Mage Tower sanctuary stands proud.',
+    descriptionId: 'Dataran tinggi tebing pegunungan timur laut berselimut petir abadi, tempat berdirinya Mage Tower bertingkat tiga dan observatorium langit.',
     color: '#a855f7',
-    bounds: { minX: -550, maxX: -70, minZ: -460, maxZ: -80 },
-    center: [-240, -180],
+    bounds: { minX: 130, maxX: 190, minZ: -180, maxZ: -120 },
+    center: [160, -150],
     recommendedLevel: 6,
   },
   {
@@ -153,8 +153,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A serene eastern sanctuary shaded by towering bamboo stalks, vermilion Torii gates, and a 3-tier celestial pagoda.',
     descriptionId: 'Kawasan suci ketenangan di tenggara terjauh! Dihiasi gerbang Torii megah berwarna merah tua, rumpun bambu zamrud luas, jembatan dan paviliun langit.',
     color: '#10b981',
-    bounds: { minX: 105, maxX: 520, minZ: 35, maxZ: 460 },
-    center: [240, 160],
+    bounds: { minX: 120, maxX: 520, minZ: 120, maxZ: 460 },
+    center: [240, 200],
     recommendedLevel: 5,
   },
   {
@@ -165,8 +165,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A blistering volcanic hellscape of smoking magma pools, scorched arches, and monumental dragon fossil ribcages.',
     descriptionId: 'Wilayah vulkanik paling berbahaya di utara terjauh! Aliran lahar pijar mendidih, kawah inti naga purba, serta kuburan fosil naga legendaris.',
     color: '#ef4444',
-    bounds: { minX: -120, maxX: 140, minZ: -480, maxZ: -85 },
-    center: [20, -220],
+    bounds: { minX: -80, maxX: 20, minZ: -385, maxZ: -290 },
+    center: [-29, -337],
     recommendedLevel: 7,
   },
   {
@@ -233,11 +233,11 @@ export const WAYPOINTS: {
   },
   {
     id: 'wp_volcano',
-    nameId: 'Gerbang Kawah Titan',
+    nameId: 'Lembah Danau Cekungan Titan Kuno',
     regionId: 'kawah_obsidian',
-    icon: '🌋',
-    pos: [0, -36],
-    desc: 'Pintu masuk menuju kawah vulkanik tempat bersemayamnya Titan',
+    icon: '🏛️',
+    pos: [-95, -75],
+    desc: 'Cekungan danau lembah purba dan platform batu tempat bersemayamnya Titan Kuno',
   },
   {
     id: 'wp_bridge',
@@ -316,8 +316,8 @@ export const WAYPOINTS: {
     nameId: 'Piramida Emas Gurun Solaria',
     regionId: 'gurun_solaria',
     icon: '🏜️',
-    pos: [-165, 110],
-    desc: 'Piramida kuno megah di tengah hamparan bukit pasir emas barat daya',
+    pos: [-180, 180],
+    desc: 'Piramida kuno megah di perbatasan bukit pasir emas barat daya',
   },
   {
     id: 'wp_solaria_oasis',
@@ -332,15 +332,15 @@ export const WAYPOINTS: {
     nameId: 'Mage Tower Puncak Halilintar',
     regionId: 'puncak_halilintar',
     icon: '🧙‍♂️',
-    pos: [-155, -135],
-    desc: 'Menara penyihir megah dengan interior bertingkat, perpustakaan kuno, laboratorium alkimia, dan observatorium petir',
+    pos: [160, -150],
+    desc: 'Menara penyihir megah di pegunungan timur laut dengan interior bertingkat dan observatorium',
   },
   {
     id: 'wp_jadepagoda',
     nameId: 'Kuil Pagoda Giok & Gerbang Torii',
     regionId: 'hutan_pagoda_giok',
     icon: '⛩️',
-    pos: [165, 115],
+    pos: [170, 160],
     desc: 'Pagoda megah tiga tingkat beratap giok di tengah rumpun bambu tenggara',
   },
   {
@@ -356,8 +356,8 @@ export const WAYPOINTS: {
     nameId: 'Altar Kaldera Sarang Naga Purba',
     regionId: 'kaldera_naga_api',
     icon: '🐉',
-    pos: [20, -145],
-    desc: 'Lembah lava dan kuburan fosil naga raksasa di utara terjauh',
+    pos: [-29, -337],
+    desc: 'Kaldera kawah lava hitam dan kuburan fosil naga raksasa di utara terjauh',
   },
   {
     id: 'wp_dragon_core',
@@ -382,32 +382,32 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
   if (x >= 140 && x <= 220 && z <= -225 && z >= -295) {
     return REGIONS[14];
   }
-  // 1. Dragonfang Caldera & Inferno Core (Far North: z <= -85 && x between -120 and 140)
-  if (z <= -85 && x >= -120 && x <= 140) {
+  // 1. Dragonfang Caldera & Inferno Core (Far North: z <= -260 or within 45m of [-29, -337])
+  if (Math.hypot(x - -29, z - -337) < 45 || (z <= -260 && Math.abs(x) < 140)) {
     return REGIONS[13];
   }
-  // 2. Thunderpeak Lightning Spire (Far North-West: x <= -70 && z <= -70)
-  if (x <= -70 && z <= -70) {
-    return REGIONS[11];
-  }
-  // 3. Solaria Golden Dunes & Oasis (Far South-West: x <= -95 && z >= 35)
-  if (x <= -95 && z >= 35) {
-    return REGIONS[10];
-  }
-  // 4. Jade Bamboo Grove & Sanctuary (Far South-East: x >= 105 && z >= 35)
-  if (x >= 105 && z >= 35) {
-    return REGIONS[12];
-  }
-  // 5. Frostpeak Summit & Mountain Glacier (Expanded Far North-East: x >= 45 && z <= -34)
-  if (x >= 45 && z <= -34 && (x >= 70 || z <= -45)) {
-    return REGIONS[7];
-  }
-  // 6. Obsidian Volcanic Caldera (North)
-  if (z <= -32 && Math.abs(x) < 85) {
+  // 2. Ancient Titan Sanctuary Basin Arena (North-West: within 32m of [-95, -75])
+  if (Math.hypot(x - -95, z - -75) < 32) {
     return REGIONS[4];
   }
-  // 7. Shadowfen Gloom Marsh (Mid-Far West: x <= -65 && z between -75 and 140)
-  if (x <= -65 && z >= -75 && z <= 140) {
+  // 3. Thunderpeak Lightning Spire & Mage Tower Highlands (North-East: within 32m of [160, -150])
+  if (Math.hypot(x - 160, z - -150) < 32) {
+    return REGIONS[11];
+  }
+  // 4. Solaria Golden Dunes & Oasis (Far South-West: x <= -120 && z >= 120)
+  if (x <= -120 && z >= 120) {
+    return REGIONS[10];
+  }
+  // 5. Jade Bamboo Grove & Sanctuary (Far South-East: x >= 120 && z >= 120)
+  if (x >= 120 && z >= 120) {
+    return REGIONS[12];
+  }
+  // 6. Frostpeak Summit & Mountain Glacier (North-East: x >= 110 && z <= -40)
+  if (x >= 110 && z <= -40) {
+    return REGIONS[7];
+  }
+  // 7. Shadowfen Gloom Marsh (Mid-Far West: x <= -120 && z between -100 and 120)
+  if (x <= -120 && z >= -100 && z <= 120) {
     return REGIONS[8];
   }
   // 8. Fortress Village Val-Kragor (Far East Highland)
@@ -430,14 +430,10 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
   if (x <= -85 && x >= -145 && z >= 12 && z <= 65) {
     return REGIONS[2];
   }
-  // Sanctuary Village & Harbor Safe Zone
-  if (Math.hypot(x, z) < 55 || (Math.abs(x) <= 32 && z >= 15 && z <= 58)) {
-    return REGIONS[0];
-  }
   // 13. Whispering Mystic Forest (East)
   if (x >= 16 && x < 62 && z >= -30 && z <= 25) {
     return REGIONS[3];
   }
-  // Default: Desa Sanctuary Eldoria (Center)
+  // Default: Desa Utama & Padang Rumput Eldoria (Central Plains Buffer)
   return REGIONS[0];
 }

@@ -15,14 +15,14 @@ export interface MageTowerTransform {
 }
 
 export const MAGE_TOWER_CONFIG = {
-  // Exterior Tower Center & Entrance Door
-  EXTERIOR_CENTER: { x: -155.0, z: -135.0 },
-  EXTERIOR_BASE_Y: 5.5,
-  EXTERIOR_DOOR: { x: -155.0, y: 5.5, z: -127.0 },
-  EXTERIOR_SAFE_SPAWN: { x: -155.0, y: 5.5 + 0.5, z: -123.5, rotationY: Math.PI },
+  // Exterior Tower Center & Entrance Door (Relocated to North-East Highlands at [160, -150])
+  EXTERIOR_CENTER: { x: 160.0, z: -150.0 },
+  EXTERIOR_BASE_Y: 4.8,
+  EXTERIOR_DOOR: { x: 160.0, y: 4.8, z: -142.0 },
+  EXTERIOR_SAFE_SPAWN: { x: 160.0, y: 4.8 + 0.5, z: -138.5, rotationY: Math.PI },
 
   // Interior Cell Coordinates & Radius
-  INTERIOR_CENTER: { x: -155.0, z: -135.0 },
+  INTERIOR_CENTER: { x: 160.0, z: -150.0 },
   INTERIOR_RADIUS: 9.6,
   WALKABLE_RADIUS: 8.6, // Inside wall boundary minus character radius
 
@@ -35,17 +35,17 @@ export const MAGE_TOWER_CONFIG = {
 
   // Safe Spawn Point on Level 1 (Library)
   SAFE_INTERIOR_SPAWN: {
-    x: -155.0,
+    x: 160.0,
     y: -44.0, // Floor (-45.0) + 1.0 safe clearance as specified
-    z: -129.5, // Just inside the south entrance door facing North
+    z: -144.5, // Just inside the south entrance door facing North
     rotationY: 0, // Facing North (0 rad) into the grand library
   },
 
   // Interior Exit Door Trigger on Level 1
   INTERIOR_EXIT_DOOR: {
-    x: -155.0,
+    x: 160.0,
     y: -45.0,
-    z: -128.5,
+    z: -143.5,
     radius: 3.8,
   },
 
@@ -75,11 +75,13 @@ export function validateTeleportCoordinates(pos: { x?: number; y?: number; z?: n
 export function getSafeInteriorSpawn(floor: 1 | 2 | 3 = 1): { x: number; y: number; z: number; rotationY: number } {
   const spawn = { ...MAGE_TOWER_CONFIG.SAFE_INTERIOR_SPAWN };
   if (floor === 2) {
+    spawn.x = 160.0;
     spawn.y = MAGE_TOWER_CONFIG.FLOOR_HEIGHTS.LEVEL_2 + 1.0;
-    spawn.z = -135.0;
+    spawn.z = -150.0;
   } else if (floor === 3) {
+    spawn.x = 160.0;
     spawn.y = MAGE_TOWER_CONFIG.FLOOR_HEIGHTS.LEVEL_3 + 1.0;
-    spawn.z = -135.0;
+    spawn.z = -150.0;
   }
 
   if (!validateTeleportCoordinates(spawn)) {

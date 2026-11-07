@@ -200,11 +200,11 @@ const TOWN_ZONES: TownZoneTrigger[] = [
     id: 'town_thunderpeak',
     waypointId: 'wp_thunderpeak',
     name: 'Mage Tower Puncak Halilintar',
-    x: -155,
-    z: -135,
+    x: 160,
+    z: -150,
     radius: 45,
-    respawnX: -155,
-    respawnZ: -123,
+    respawnX: 160,
+    respawnZ: -138,
   },
 ];
 
@@ -1169,8 +1169,8 @@ export class GameEngine {
       });
     });
 
-    // 8. Ancient Obsidian Titan Golem Boss in Northern Arena (x: 0, z: -52)
-    const bossPos: [number, number] = [0, -52];
+    // 8. Ancient Obsidian Titan Golem Boss in Sanctuary Basin Arena (x: -95, z: -75)
+    const bossPos: [number, number] = [-95, -75];
     const { group: bossGroup, parts: bossParts } = createEnemyMesh('boss');
     const by = this.world.getTerrainHeight(bossPos[0], bossPos[1]);
     bossGroup.position.set(bossPos[0], by, bossPos[1]);
@@ -1431,10 +1431,10 @@ export class GameEngine {
 
     // 14. Kaldera Naga Api: Magma Drakes & Ancient Dragon Titan Guardian
     const dragonPositions: [number, number][] = [
-      [10, -135],
-      [32, -140],
-      [8, -155],
-      [28, -152],
+      [-20, -320],
+      [-40, -325],
+      [-15, -345],
+      [-38, -350],
     ];
     dragonPositions.forEach((pos, idx) => {
       const { group, parts } = createEnemyMesh('magma_slime');
@@ -1474,12 +1474,12 @@ export class GameEngine {
       });
     });
 
-    // 15. Gurun Solaria: Kalajengking Raksasa & Pasukan Pasir Pharaoh (Outer Pyramid Dunes)
+    // 15. Gurun Solaria: Kalajengking Raksasa & Pasukan Pasir Pharaoh (Outer Pyramid Dunes: [-180, 180])
     const desertPositions: [number, number][] = [
-      [-175, 95],
-      [-155, 125],
-      [-190, 105],
-      [-210, 135],
+      [-165, 165],
+      [-195, 175],
+      [-170, 195],
+      [-200, 205],
     ];
     desertPositions.forEach((pos, idx) => {
       const { group, parts } = createEnemyMesh('spider');
@@ -1520,8 +1520,8 @@ export class GameEngine {
       });
     });
 
-    // Dragonfang Super Boss: Ignis, Sang Naga Purba (Colossal Winged Dragon)
-    const wyrmPos: [number, number] = [20, -145];
+    // Dragonfang Super Boss: Ignis, Sang Naga Purba (Colossal Winged Dragon: [-29, -337])
+    const wyrmPos: [number, number] = [-29, -337];
     const { group: wyrmGroup, parts: wyrmParts } = createEnemyMesh('dragon');
     const wyrmY = this.world.getTerrainHeight(wyrmPos[0], wyrmPos[1]);
     wyrmGroup.position.set(wyrmPos[0], wyrmY, wyrmPos[1]);
@@ -1541,7 +1541,7 @@ export class GameEngine {
       goldReward: 850,
       speed: 2.8,
       attackRange: 5.5,
-      detectRange: 32,
+      detectRange: 22,
       position: [wyrmPos[0], wyrmY, wyrmPos[1]],
       isDead: false,
       dropItems: [
@@ -1605,7 +1605,7 @@ export class GameEngine {
       }
       e.isReturning = false;
       e.deathTimer = 0;
-      e.leashRadius = e.data.type === 'boss' ? 38 : 22;
+      e.leashRadius = e.data.id === 'boss_dragonfang' ? 22 : (e.data.id === 'boss_titan' ? 18 : (e.data.type === 'boss' ? 38 : 22));
     });
   }
 
@@ -5278,49 +5278,49 @@ export class GameEngine {
       return;
     }
 
-    // 0c. Check Mage Tower Entrance (Overworld -> Level 1 Library)
-    const distToMageTowerDoor = Math.hypot(this.playerPos.x - -155, this.playerPos.z - -127);
+    // 0c. Check Mage Tower Entrance (Overworld -> Level 1 Library: [160, -150])
+    const distToMageTowerDoor = Math.hypot(this.playerPos.x - 160, this.playerPos.z - -142);
     if (distToMageTowerDoor < 4.5 && this.playerPos.y > -10) {
-      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Mage Tower Puncak Halilintar âš¡', () => {
+      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Mage Tower Puncak Halilintar ⚡', () => {
         this.enterMageTower();
       });
       return;
     }
 
     // 0d. Check Mage Tower Exit Door (Level 1 Library -> Overworld)
-    const distToMageTowerExit = Math.hypot(this.playerPos.x - -155, this.playerPos.z - -128.5);
+    const distToMageTowerExit = Math.hypot(this.playerPos.x - 160, this.playerPos.z - -143.5);
     if (distToMageTowerExit < 4.0 && this.playerPos.y <= -42 && this.playerPos.y >= -48) {
-      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Puncak Halilintar ðŸšª', () => {
+      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Puncak Halilintar 🚪', () => {
         this.exitMageTower();
       });
       return;
     }
 
     // 0e. Check Mage Tower Multi-Floor Altar Transits (Lantai 1 <-> Lantai 2 <-> Lantai 3)
-    const distToTowerCenter = Math.hypot(this.playerPos.x - -155, this.playerPos.z - -135);
+    const distToTowerCenter = Math.hypot(this.playerPos.x - 160, this.playerPos.z - -150);
     if (distToTowerCenter < 4.5 && this.playerPos.y < -15) {
       if (this.playerPos.y <= -42) {
         // Lantai 1 -> Naik ke Lantai 2 (Laboratorium)
-        this.setNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 2 (Laboratorium Alkimia) ðŸ§ª', () => {
+        this.setNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 2 (Laboratorium Alkimia) 🧪', () => {
           this.teleportMageTowerFloor(2);
         });
         return;
       } else if (this.playerPos.y > -42 && this.playerPos.y <= -34) {
         // Lantai 2: Pilihan naik ke Lantai 3 atau turun ke Lantai 1
-        if (this.playerPos.z < -134) {
-          this.setNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 3 (Anjungan Observatorium) ðŸŒŒ', () => {
+        if (this.playerPos.z < -149) {
+          this.setNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 3 (Anjungan Observatorium) 🌌', () => {
             this.teleportMageTowerFloor(3);
           });
           return;
         } else {
-          this.setNearbyPrompt('Tekan [F] / Sentuh: Turun ke Lantai 1 (Perpustakaan & Altar) ðŸ“š', () => {
+          this.setNearbyPrompt('Tekan [F] / Sentuh: Turun ke Lantai 1 (Perpustakaan & Altar) 📚', () => {
             this.teleportMageTowerFloor(1);
           });
           return;
         }
       } else if (this.playerPos.y > -34) {
         // Lantai 3 -> Turun ke Lantai 2 (Laboratorium)
-        this.setNearbyPrompt('Tekan [F] / Sentuh: Turun ke Lantai 2 (Laboratorium Alkimia) ðŸ§ª', () => {
+        this.setNearbyPrompt('Tekan [F] / Sentuh: Turun ke Lantai 2 (Laboratorium Alkimia) 🧪', () => {
           this.teleportMageTowerFloor(2);
         });
         return;
@@ -5481,7 +5481,15 @@ export class GameEngine {
       const spawnPos = enemy.spawnPos || new THREE.Vector3(...enemy.data.position);
       const distFromSpawn = Math.hypot(ePos.x - spawnPos.x, ePos.z - spawnPos.z);
       const distToPlayer = this.playerPos.distanceTo(ePos);
-      const territoryRadius = enemy.leashRadius || (enemy.data.type === 'boss' ? 38 : 22);
+      const territoryRadius =
+        enemy.leashRadius ||
+        (enemy.data.id === 'boss_dragonfang'
+          ? 22
+          : enemy.data.id === 'boss_titan'
+          ? 18
+          : enemy.data.type === 'boss'
+          ? 38
+          : 22);
 
       // Distance culling berdasarkan pengaturan grafis untuk performa
       const cullDist = Math.min(85, this.graphicsSettings.renderDistance * 0.9);
@@ -6389,13 +6397,49 @@ export class GameEngine {
         description: 'Bazaar Ramai, Peristirahatan Unta, Rumah Bertingkat & Sumur Oase Solaria',
       });
 
-      // Mage Tower Puncak Halilintar (North-West)
+      // Ancient Titan Sanctuary Basin Arena (North-West: [-95, -75])
+      markers.push({
+        id: 'landmark_titan_basin',
+        title: 'Lembah Danau Cekungan Titan Kuno',
+        type: 'boss',
+        x: -95,
+        z: -75,
+        icon: '🏛️',
+        color: '#0284c7',
+        description: 'Cekungan Danau Lembah Purba & Arena Pertarungan Sang Titan Kuno Obsidian',
+      });
+
+      // Piramida Emas Solaria (South-West: [-180, 180])
+      markers.push({
+        id: 'landmark_solaria_pyramid',
+        title: 'Piramida Emas Solaria',
+        type: 'waypoint',
+        x: -180,
+        z: 180,
+        icon: '🏜️',
+        color: '#eab308',
+        description: 'Piramida Kuno Megah di Perbatasan Bukit Pasir Emas Solaria',
+      });
+
+      // Kuil Pagoda Giok & Rumpun Bambu (South-East: [170, 160])
+      markers.push({
+        id: 'landmark_jadepagoda',
+        title: 'Kuil Pagoda Giok & Gerbang Torii',
+        type: 'waypoint',
+        x: 170,
+        z: 160,
+        icon: '⛩️',
+        color: '#10b981',
+        description: 'Pagoda Megah Tiga Tingkat di Tengah Rumpun Bambu Zamrud',
+      });
+
+      // Mage Tower Puncak Halilintar (North-East Highlands: [160, -150])
       markers.push({
         id: 'landmark_thunderpeak_magetower',
         title: 'Mage Tower Puncak Halilintar',
         type: 'waypoint',
-        x: -155,
-        z: -135,
+        x: 160,
+        z: -150,
         icon: 'ðŸ§™â€â™‚ï¸',
         color: '#38bdf8',
         description: 'Menara Penyihir Bertingkat, Pustaka Kuno, Laboratorium Alkimia & Observatorium',
@@ -6449,13 +6493,13 @@ export class GameEngine {
         description: 'Menara Pengawas Gletser Terluar',
       });
 
-      // Primal Dragon Magma Core (North)
+      // Primal Dragon Caldera Arena (Far North: [-29, -337])
       markers.push({
         id: 'landmark_dragon_core',
-        title: 'Inti Kawah Sarang Naga',
+        title: 'Kaldera Sarang Naga Purba',
         type: 'boss',
-        x: 35,
-        z: -280,
+        x: -29,
+        z: -337,
         icon: 'ðŸ”¥',
         color: '#ef4444',
         description: 'Sarang Lahar Panas Naga Purba',

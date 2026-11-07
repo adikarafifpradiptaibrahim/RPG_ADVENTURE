@@ -1655,27 +1655,27 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // ==========================================
 
   // ------------------------------------------
-  // 5A. ANCIENT SUNKEN PYRAMID RUINS (East Outskirts: [-165, 110])
+  // 5A. ANCIENT SUNKEN PYRAMID RUINS (Relocated to Solaria Border: [-180, 180])
   // ------------------------------------------
   const pyramid = createDesertPyramidMesh();
-  const pyY = getTerrainHeight(-165, 110);
-  pyramid.position.set(-165, pyY, 110);
+  const pyY = getTerrainHeight(-180, 180);
+  pyramid.position.set(-180, pyY, 180);
   scene.add(pyramid);
   colliders.push({
     type: 'box',
-    minX: -174,
-    maxX: -156,
-    minZ: 101,
-    maxZ: 119,
+    minX: -189,
+    maxX: -171,
+    minZ: 171,
+    maxZ: 189,
     label: 'Piramida Emas Solaria',
   });
 
   // Obelisks guarding pyramid approach
   const obeliskPositions = [
-    { x: -180, z: 110 },
-    { x: -150, z: 110 },
-    { x: -165, z: 95 },
-    { x: -165, z: 125 },
+    { x: -195, z: 180 },
+    { x: -165, z: 180 },
+    { x: -180, z: 165 },
+    { x: -180, z: 195 },
   ];
   obeliskPositions.forEach((pos) => {
     const obelisk = createDesertObeliskMesh();
@@ -1686,11 +1686,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // Palms near Pyramid Oasis Spring (InstancedMesh - High Performance 60 FPS)
   const palmPositions = [
-    { x: -142, z: 86 },
-    { x: -148, z: 90 },
-    { x: -138, z: 94 },
-    { x: -184, z: 128 },
-    { x: -190, z: 134 },
+    { x: -162, z: 166 },
+    { x: -168, z: 170 },
+    { x: -158, z: 174 },
+    { x: -198, z: 196 },
+    { x: -202, z: 202 },
   ];
   const pyramidPalmsData = palmPositions.map((pos) => {
     colliders.push({ type: 'circle', x: pos.x, z: pos.z, radius: 0.65, label: 'Pohon Palem Solaria' });
@@ -2142,52 +2142,54 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // Seluruh lanskap gurun mengandalkan daratan utama terrainMesh alami yang mulus.
 
   // ==========================================
-  // 6. THUNDERPEAK LIGHTNING SPIRE & MAGE TOWER SANCTUARY (North-West)
-  // Struktur Megah 3D Mage Tower, Interior Bertingkat, Kristal Petir Bersinar, dan Dewan Penyihir
   // ==========================================
-  const mageTowerBaseY = getTerrainHeight(-155, -135);
+  // 6. THUNDERPEAK LIGHTNING SPIRE & MAGE TOWER SANCTUARY (North-East Highlands)
+  // Struktur Megah 3D Mage Tower, Interior Bertingkat, Kristal Petir Bersinar, dan Dewan Penyihir
+  // Relocated to North-East mountain highlands at [160, -150]
+  // ==========================================
+  const mageTowerBaseY = getTerrainHeight(160, -150);
 
-  // A. Struktur Eksterior 3D "Mage Tower" Puncak Halilintar (Center: [-155, -135])
+  // A. Struktur Eksterior 3D "Mage Tower" Puncak Halilintar (Center: [160, -150])
   const mageTowerExterior = createMageTowerExteriorMesh();
-  mageTowerExterior.position.set(-155, mageTowerBaseY, -135);
+  mageTowerExterior.position.set(160, mageTowerBaseY, -150);
   scene.add(mageTowerExterior);
   colliders.push({
     type: 'circle',
-    x: -155,
-    z: -135,
+    x: 160,
+    z: -150,
     radius: 7.2,
     label: 'Menara Eksterior Mage Tower Puncak Halilintar',
   });
 
-  // B. Interior Bertingkat 3D Mage Tower (Underground Interior Cell: [-155, -45, -135])
+  // B. Interior Bertingkat 3D Mage Tower (Underground Interior Cell: [160, -45, -150])
   // - Lantai 1 (Y: -45): Perpustakaan Kitab Kuno & Altar Teleport
   // - Lantai 2 (Y: -37.5): Laboratorium Alkimia & Meja Kristal Petir
   // - Lantai 3 (Y: -30.0): Anjungan Puncak Observatorium & Armillary Orrery
   const mageTowerInterior = createMageTowerInteriorMesh();
-  mageTowerInterior.position.set(-155, -45, -135);
+  mageTowerInterior.position.set(160, -45, -150);
   scene.add(mageTowerInterior);
 
   // Interior Wall Box Colliders (Padat, terhubung tanpa celah, dan menyisakan pintu keluar selatan)
   colliders.push(
-    { type: 'box', minX: -166, maxX: -144, minZ: -146, maxZ: -144, maxY: -10, label: 'Dinding Utara Interior Mage Tower' },
-    { type: 'box', minX: -166, maxX: -164, minZ: -146, maxZ: -124, maxY: -10, label: 'Dinding Barat Interior Mage Tower' },
-    { type: 'box', minX: -146, maxX: -144, minZ: -146, maxZ: -124, maxY: -10, label: 'Dinding Timur Interior Mage Tower' },
-    { type: 'box', minX: -166, maxX: -157.5, minZ: -126, maxZ: -124, maxY: -10, label: 'Dinding Selatan Barat Interior Mage Tower' },
-    { type: 'box', minX: -152.5, maxX: -144, minZ: -126, maxZ: -124, maxY: -10, label: 'Dinding Selatan Timur Interior Mage Tower' }
+    { type: 'box', minX: 149, maxX: 171, minZ: -161, maxZ: -159, maxY: -10, label: 'Dinding Utara Interior Mage Tower' },
+    { type: 'box', minX: 149, maxX: 151, minZ: -161, maxZ: -139, maxY: -10, label: 'Dinding Barat Interior Mage Tower' },
+    { type: 'box', minX: 169, maxX: 171, minZ: -161, maxZ: -139, maxY: -10, label: 'Dinding Timur Interior Mage Tower' },
+    { type: 'box', minX: 149, maxX: 157.5, minZ: -141, maxZ: -139, maxY: -10, label: 'Dinding Selatan Barat Interior Mage Tower' },
+    { type: 'box', minX: 162.5, maxX: 171, minZ: -141, maxZ: -139, maxY: -10, label: 'Dinding Selatan Timur Interior Mage Tower' }
   );
   // Colliders Perabotan Lantai 1 (Perpustakaan & Lemari Kitab Kuno)
   colliders.push(
-    { type: 'box', minX: -159, maxX: -151, minZ: -144, maxZ: -142, maxY: -38, label: 'Lemari Kitab Purba Utara' },
-    { type: 'box', minX: -164, maxX: -162, minZ: -138, maxZ: -132, maxY: -38, label: 'Lemari Kitab Purba Barat' },
-    { type: 'box', minX: -148, maxX: -146, minZ: -138, maxZ: -132, maxY: -38, label: 'Lemari Kitab Purba Timur' }
+    { type: 'box', minX: 156, maxX: 164, minZ: -159, maxZ: -157, maxY: -38, label: 'Lemari Kitab Purba Utara' },
+    { type: 'box', minX: 151, maxX: 153, minZ: -153, maxZ: -147, maxY: -38, label: 'Lemari Kitab Purba Barat' },
+    { type: 'box', minX: 167, maxX: 169, minZ: -153, maxZ: -147, maxY: -38, label: 'Lemari Kitab Purba Timur' }
   );
   // Colliders Perabotan Lantai 2 (Meja Kristal Petir Alkimia)
   colliders.push({
     type: 'box',
-    minX: -158,
-    maxX: -152,
-    minZ: -137,
-    maxZ: -133,
+    minX: 157,
+    maxX: 163,
+    minZ: -152,
+    maxZ: -148,
     minY: -39,
     maxY: -32,
     label: 'Meja Eksperimen Kristal Petir Alkimia',
@@ -2195,8 +2197,8 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // Colliders Perabotan Lantai 3 (Orrery Observatorium)
   colliders.push({
     type: 'circle',
-    x: -155,
-    z: -135,
+    x: 160,
+    z: -150,
     radius: 1.6,
     minY: -31,
     maxY: -15,
@@ -2204,9 +2206,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // C. Dewan Penyihir Mage Tower (Unique Mage NPCs):
-  // 1. Grand Mage Eldrin (Lantai 1: Altar Teleport [-155, -45, -137] jubah ungu & tongkat petir)
+  // 1. Grand Mage Eldrin (Lantai 1: Altar Teleport [160, -45, -152] jubah ungu & tongkat petir)
   const eldrinGroup = createGrandMageEldrinMesh();
-  const eldrinPos: [number, number, number] = [-155, -45, -137];
+  const eldrinPos: [number, number, number] = [160, -45, -152];
   eldrinGroup.position.set(...eldrinPos);
   eldrinGroup.rotation.y = 0; // Menghadap ke Selatan ke arah altar & pintu masuk
   scene.add(eldrinGroup);
@@ -2222,9 +2224,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     icon: '🧙‍♂️',
   });
 
-  // 2. Sorceress Maya (Lantai 1: Perpustakaan Kitab Kuno [-158.5, -45, -133] jubah biru bintang)
+  // 2. Sorceress Maya (Lantai 1: Perpustakaan Kitab Kuno [156.5, -45, -148] jubah biru bintang)
   const sorceressMayaGroup = createSorceressMayaMesh();
-  const sorceressMayaPos: [number, number, number] = [-158.5, -45, -133];
+  const sorceressMayaPos: [number, number, number] = [156.5, -45, -148];
   sorceressMayaGroup.position.set(...sorceressMayaPos);
   sorceressMayaGroup.rotation.y = Math.PI / 2; // Menghadap ke Timur ke arah tengah perpustakaan
   scene.add(sorceressMayaGroup);
@@ -2240,9 +2242,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     icon: '✨',
   });
 
-  // 3. Archmage Pyro (Lantai 2: Laboratorium Alkimia [-155, -37.5, -133] jubah api & tongkat menyala)
+  // 3. Archmage Pyro (Lantai 2: Laboratorium Alkimia [160, -37.5, -148] jubah api & tongkat menyala)
   const pyroGroup = createArchmagePyroMesh();
-  const pyroPos: [number, number, number] = [-155, -37.5, -133];
+  const pyroPos: [number, number, number] = [160, -37.5, -148];
   pyroGroup.position.set(...pyroPos);
   pyroGroup.rotation.y = Math.PI; // Menghadap ke meja kristal petir
   scene.add(pyroGroup);
@@ -2260,14 +2262,14 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // D. Kristal Petir Biru Bersinar Menyala (Glowing Blue Lightning Crystals around Sanctuary)
   const lightningCrystalCoords = [
-    { x: -144, z: -128, scale: 1.4 },
-    { x: -166, z: -128, scale: 1.3 },
-    { x: -144, z: -142, scale: 1.4 },
-    { x: -166, z: -142, scale: 1.35 },
-    { x: -155, z: -122, scale: 1.5 },
-    { x: -155, z: -148, scale: 1.4 },
-    { x: -172, z: -136, scale: 1.3 },
-    { x: -138, z: -136, scale: 1.2 },
+    { x: 171, z: -143, scale: 1.4 },
+    { x: 149, z: -143, scale: 1.3 },
+    { x: 171, z: -157, scale: 1.4 },
+    { x: 149, z: -157, scale: 1.35 },
+    { x: 160, z: -137, scale: 1.5 },
+    { x: 160, z: -163, scale: 1.4 },
+    { x: 143, z: -151, scale: 1.3 },
+    { x: 177, z: -151, scale: 1.2 },
   ];
   lightningCrystalCoords.forEach((lc) => {
     const crystal = createLightningCrystalMesh(lc.scale);
@@ -2279,9 +2281,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // E. Magnetic Floating Thunder Spires on Outer Cliffs
   const secondarySpires = [
-    { x: -175, z: -152 },
-    { x: -135, z: -118 },
-    { x: -170, z: -116 },
+    { x: 140, z: -167 },
+    { x: 180, z: -133 },
+    { x: 145, z: -131 },
   ];
   secondarySpires.forEach((pos) => {
     const spire = createThunderSpireMesh();
@@ -2292,37 +2294,37 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 7. JADE BAMBOO GROVE & PAGODA (South-East)
+  // 7. JADE BAMBOO GROVE & PAGODA (South-East: [170, 160])
   // ==========================================
   const jadePagoda = createJadePagodaMesh();
-  const pagodaY = getTerrainHeight(165, 115);
-  jadePagoda.position.set(165, pagodaY, 115);
+  const pagodaY = getTerrainHeight(170, 160);
+  jadePagoda.position.set(170, pagodaY, 160);
   scene.add(jadePagoda);
   colliders.push({
     type: 'box',
-    minX: 159,
-    maxX: 171,
-    minZ: 109,
-    maxZ: 121,
+    minX: 164,
+    maxX: 176,
+    minZ: 154,
+    maxZ: 166,
     label: 'Kuil Pagoda Giok Tiga Tingkat',
   });
 
   // Grand Torii Gate at mountain path
   const toriiGate = createToriiGateMesh();
-  const toriiY = getTerrainHeight(144, 102);
-  toriiGate.position.set(144, toriiY, 102);
+  const toriiY = getTerrainHeight(152, 148);
+  toriiGate.position.set(152, toriiY, 148);
   toriiGate.rotation.y = 0.55;
   scene.add(toriiGate);
   colliders.push(
-    { type: 'circle', x: 142.5, z: 101, radius: 0.7, label: 'Pilar Torii Kiri' },
-    { type: 'circle', x: 145.5, z: 103, radius: 0.7, label: 'Pilar Torii Kanan' }
+    { type: 'circle', x: 150.5, z: 147, radius: 0.7, label: 'Pilar Torii Kiri' },
+    { type: 'circle', x: 153.5, z: 149, radius: 0.7, label: 'Pilar Torii Kanan' }
   );
 
   // Bamboo / Zen pine clusters
   for (let i = 0; i < 24; i++) {
-    const bx = 125 + Math.random() * 70;
-    const bz = 80 + Math.random() * 70;
-    if (Math.hypot(bx - 165, bz - 115) < 14) continue;
+    const bx = 135 + Math.random() * 80;
+    const bz = 130 + Math.random() * 80;
+    if (Math.hypot(bx - 170, bz - 160) < 14) continue;
     const by = getTerrainHeight(bx, bz);
     const tree = createTreeMesh('fantasy');
     tree.position.set(bx, by, bz);
@@ -2334,29 +2336,90 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   }
 
   // ==========================================
-  // 8. DRAGONFANG CALDERA & INFERNO ARCHIPELAGO (Far North)
-  // Fosil Naga Raksasa, Retakan Tanah Berlapis Lava Merah, Pilar Batu Vulkanik Berapi, & Basalt Magma
+  // 8. DRAGONFANG CALDERA & INFERNO ARCHIPELAGO (Far North: [-29, -337])
+  // Arena Kaldera Naga: Kawah Melingkar (Diameter ~45m), 4 Pilar Obsidian Naga, Fosil Naga, & Lahar Pijar
   // ==========================================
-  // A. Monumental Dragon Fossil Skull & Ribcage
+  const dragonArenaCenter = { x: -29, z: -337 };
+  const dragonArenaBaseY = getTerrainHeight(dragonArenaCenter.x, dragonArenaCenter.z);
+
+  // A. Monumental Dragon Fossil Skull & Ribcage (Placed at North Rim of Caldera)
   const dragonFossil = createDragonSkullBonesMesh();
-  const dragonY = getTerrainHeight(20, -145);
-  dragonFossil.position.set(20, dragonY, -145);
+  const dragonY = getTerrainHeight(dragonArenaCenter.x, -350);
+  dragonFossil.position.set(dragonArenaCenter.x, dragonY, -350);
   scene.add(dragonFossil);
   colliders.push({
     type: 'box',
-    minX: 16,
-    maxX: 24,
-    minZ: -155,
-    maxZ: -140,
+    minX: -34,
+    maxX: -24,
+    minZ: -356,
+    maxZ: -344,
     label: 'Fosil Tengkorak Naga Purba',
   });
 
-  // B. Retakan Tanah Berlapis Lava Merah Menyala (Glowing Red Molten Magma Cracks)
+  // B. 4 Sharp Black Obsidian Dragon Pillars (Pilar Naga Batas Arena Kawah)
+  const dragonPillars = [
+    { x: -29, z: -358, label: 'Pilar Naga Obsidian Utara' },
+    { x: -29, z: -316, label: 'Pilar Naga Obsidian Selatan' },
+    { x: -8, z: -337, label: 'Pilar Naga Obsidian Timur' },
+    { x: -50, z: -337, label: 'Pilar Naga Obsidian Barat' },
+  ];
+  dragonPillars.forEach((dp) => {
+    const pY = getTerrainHeight(dp.x, dp.z);
+    const pillarGroup = new THREE.Group();
+
+    // Sharp jagged obsidian column
+    const colGeo = new THREE.CylinderGeometry(0.7, 1.9, 10.5, 6);
+    const colMat = new THREE.MeshStandardMaterial({
+      color: 0x09090b,
+      roughness: 0.25,
+      metalness: 0.85,
+      flatShading: true,
+    });
+    const colMesh = new THREE.Mesh(colGeo, colMat);
+    colMesh.position.y = 5.25;
+    pillarGroup.add(colMesh);
+
+    // Flaming volcanic basin atop pillar
+    const basinGeo = new THREE.ConeGeometry(1.5, 1.2, 6);
+    basinGeo.rotateX(Math.PI);
+    const basinMat = new THREE.MeshStandardMaterial({
+      color: 0x18181b,
+      roughness: 0.7,
+    });
+    const basinMesh = new THREE.Mesh(basinGeo, basinMat);
+    basinMesh.position.y = 10.5;
+    pillarGroup.add(basinMesh);
+
+    // Blazing fire flame atop pillar
+    const flameGeo = new THREE.ConeGeometry(0.8, 2.2, 6);
+    const flameMat = new THREE.MeshStandardMaterial({
+      color: 0xff3d00,
+      emissive: 0xff1744,
+      emissiveIntensity: 1.5,
+      roughness: 0.2,
+    });
+    const flameMesh = new THREE.Mesh(flameGeo, flameMat);
+    flameMesh.position.y = 11.6;
+    pillarGroup.add(flameMesh);
+
+    // Local torch light
+    const torchLight = new THREE.PointLight(0xff5722, 1.8, 16);
+    torchLight.position.y = 11.8;
+    pillarGroup.add(torchLight);
+
+    pillarGroup.position.set(dp.x, pY, dp.z);
+    scene.add(pillarGroup);
+    colliders.push({ type: 'circle', x: dp.x, z: dp.z, radius: 1.8, label: dp.label });
+  });
+
+  // C. Retakan Tanah Berlapis Lava Merah Menyala di Seputar Kaldera
   const lavaCrackCoords = [
-    { x: 22, z: -148, r: 4.2 },
-    { x: 15, z: -165, r: 4.8 },
-    { x: 32, z: -190, r: 5.2 },
-    { x: 18, z: -230, r: 4.5 },
+    { x: -29, z: -354, r: 4.8 },
+    { x: -15, z: -348, r: 4.5 },
+    { x: -43, z: -348, r: 4.5 },
+    { x: -12, z: -326, r: 4.6 },
+    { x: -46, z: -326, r: 4.6 },
+    { x: -29, z: -320, r: 5.0 },
     { x: 35, z: -270, r: 5.5 },
     { x: 26, z: -285, r: 4.6 },
   ];
@@ -2367,32 +2430,13 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     scene.add(crack);
   });
 
-  // C. Pilar Batu Vulkanik Berapi / Kolom Basalt (Volcanic Basalt Pillars with Flaming Basins)
-  const volcanicPillarCoords = [
-    { x: 12, z: -140, h: 6.5 },
-    { x: 28, z: -140, h: 7.2 },
-    { x: 8, z: -170, h: 6.0 },
-    { x: 32, z: -180, h: 8.0 },
-    { x: 14, z: -220, h: 6.8 },
-    { x: 38, z: -250, h: 8.5 },
-    { x: 24, z: -280, h: 7.5 },
-    { x: 42, z: -288, h: 8.0 },
-  ];
-  volcanicPillarCoords.forEach((vp) => {
-    const pillar = createVolcanicPillarMesh(vp.h);
-    const py = getTerrainHeight(vp.x, vp.z);
-    pillar.position.set(vp.x, py, vp.z);
-    scene.add(pillar);
-    colliders.push({ type: 'circle', x: vp.x, z: vp.z, radius: 1.2, label: 'Pilar Vulkanik Berapi' });
-  });
-
   // D. Bebatuan Vulkanik Hitam Berurat Magma (Jagged Volcanic Basalt Rocks)
   const basaltRockCoords = [
-    { x: 6, z: -150, s: 1.4 },
-    { x: 25, z: -155, s: 1.6 },
-    { x: 36, z: -165, s: 1.8 },
-    { x: 14, z: -185, s: 1.3 },
-    { x: 28, z: -210, s: 1.7 },
+    { x: -44, z: -350, s: 1.6 },
+    { x: -14, z: -352, s: 1.5 },
+    { x: -48, z: -328, s: 1.7 },
+    { x: -10, z: -325, s: 1.8 },
+    { x: -29, z: -312, s: 1.6 },
     { x: 12, z: -240, s: 1.5 },
     { x: 34, z: -265, s: 1.8 },
     { x: 20, z: -276, s: 1.4 },
@@ -2407,7 +2451,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // E. Surrounding Volcanic Horn Arches
-  for (const hPos of [{ x: 38, z: -138 }, { x: 2, z: -154 }, { x: 32, z: -158 }]) {
+  for (const hPos of [{ x: -10, z: -345 }, { x: -48, z: -345 }, { x: -29, z: -314 }]) {
     const hornGroup = new THREE.Group();
     const horn = new THREE.Mesh(
       new THREE.ConeGeometry(0.8, 6.5, 6),
@@ -2420,6 +2464,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     scene.add(hornGroup);
     colliders.push({ type: 'circle', x: hPos.x, z: hPos.z, radius: 1.0, label: 'Tanduk Karang Naga' });
   }
+
+  // F. Dragon Caldera Center Beacon Light
+  const dragonCalderaLight = new THREE.PointLight(0xff3d00, 3.2, 45);
+  dragonCalderaLight.position.set(dragonArenaCenter.x, dragonArenaBaseY + 4.5, dragonArenaCenter.z);
+  scene.add(dragonCalderaLight);
 
   // ==========================================
   // 8b. GRAND IMPERIAL KINGDOM OF ASTRAEA (Far North Frostpeak Metropolis)
@@ -2869,16 +2918,16 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { id: 'chest_beach', pos: [-3.0, 1.85, 73] as [number, number, number] }, // Seaward Pier Head Platform Stash
     { id: 'chest_ruins', pos: [-120, 0, 36] as [number, number, number] }, // Ancient ruins altar (Upstream Outskirts)
     { id: 'chest_forest', pos: [38, 0, 12] as [number, number, number] }, // Mystic deep forest
-    { id: 'chest_boss_gateway', pos: [0, 0, -38] as [number, number, number] }, // Entrance to Titan Crater
+    { id: 'chest_boss_gateway', pos: [-95, 0, -56] as [number, number, number] }, // Entrance to Ancient Titan Basin
     { id: 'chest_valkragor', pos: [208, 0, -20] as [number, number, number] }, // Fortress keep secret treasury
     { id: 'chest_frostpeak', pos: [115, 0, -65] as [number, number, number] }, // Cryo Altar Summit
     { id: 'chest_shadowfen', pos: [-110, 0, 12] as [number, number, number] }, // Shadowfen smuggler cache
     { id: 'chest_coralcove', pos: [86, 0, 56] as [number, number, number] }, // Shipwreck pirate gold
     { id: 'chest_solaria_palace', pos: [-428, -25 + 1.2, 354] as [number, number, number] }, // Istana Sultan Solaria Vault (Throne Room)
-    { id: 'chest_solaria', pos: [-165, 0, 110] as [number, number, number] }, // Solaria Pharaoh Gold
-    { id: 'chest_thunderpeak', pos: [-155, 0, -135] as [number, number, number] }, // Storm Altar Relic
-    { id: 'chest_jadepagoda', pos: [165, 0, 115] as [number, number, number] }, // Celestial Pagoda Treasure
-    { id: 'chest_dragoncaldera', pos: [20, 0, -145] as [number, number, number] }, // Dragon Hoard
+    { id: 'chest_solaria', pos: [-180, 0, 180] as [number, number, number] }, // Solaria Pharaoh Gold
+    { id: 'chest_thunderpeak', pos: [160, 0, -150] as [number, number, number] }, // Storm Altar Relic
+    { id: 'chest_jadepagoda', pos: [170, 0, 160] as [number, number, number] }, // Celestial Pagoda Treasure
+    { id: 'chest_dragoncaldera', pos: [-29, 0, -337] as [number, number, number] }, // Dragon Hoard
     { id: 'chest_astraea', pos: [204, 0, -260] as [number, number, number] }, // Astraea Imperial Vault
     { id: 'chest_frozen_chasm', pos: [180, 0, -325] as [number, number, number] }, // Ancient Chasm Relic Chest
     { id: 'chest_harbor_galleon', pos: [16, 0, 42] as [number, number, number] }, // Harbor Galleon Stash
@@ -2905,39 +2954,103 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 6. VOLCANIC ARENA (North)
+  // 6. ANCIENT TITAN SANCTUARY BASIN ARENA (North-West: [-95, -75])
+  // Cekungan Danau Lembah Purba (Diameter 35m), Platform Batu Pijakan Tengah, & Formasi 8 Megalit Rune Kuno
   // ==========================================
-  const bossPortalRing = new THREE.Mesh(
-    new THREE.TorusGeometry(8.5, 0.45, 8, 24),
+  const titanArenaCenter = { x: -95, z: -75 };
+  const titanPlatformY = getTerrainHeight(titanArenaCenter.x, titanArenaCenter.z);
+
+  // A. Central Shallow Stone Stepping Platform (Platform Batu Pijakan Tempat Berdiri Titan Kuno)
+  const titanPlatformGeo = new THREE.CylinderGeometry(5.5, 5.8, 0.65, 32);
+  const titanPlatformMat = new THREE.MeshStandardMaterial({
+    color: 0x78716c,
+    roughness: 0.85,
+    metalness: 0.15,
+    flatShading: true,
+  });
+  const titanPlatformMesh = new THREE.Mesh(titanPlatformGeo, titanPlatformMat);
+  titanPlatformMesh.position.set(titanArenaCenter.x, titanPlatformY - 0.15, titanArenaCenter.z);
+  scene.add(titanPlatformMesh);
+
+  // Gold/Cyan Rune Ring Inlay on Platform Rim
+  const titanRuneRing = new THREE.Mesh(
+    new THREE.TorusGeometry(5.2, 0.18, 8, 32),
     new THREE.MeshStandardMaterial({
-      color: 0xff3d00,
-      emissive: 0xd50000,
-      emissiveIntensity: 0.85,
+      color: 0x38bdf8,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.75,
+      roughness: 0.3,
     })
   );
-  bossPortalRing.rotation.x = Math.PI / 2;
-  const bz = -52;
-  bossPortalRing.position.set(0, getTerrainHeight(0, bz) + 0.25, bz);
-  scene.add(bossPortalRing);
+  titanRuneRing.rotation.x = Math.PI / 2;
+  titanRuneRing.position.set(titanArenaCenter.x, titanPlatformY + 0.2, titanArenaCenter.z);
+  scene.add(titanRuneRing);
 
-  // Volcanic Molten Magma pool in center of arena
-  const lavaGeo = new THREE.CircleGeometry(6.5, 20);
-  lavaGeo.rotateX(-Math.PI / 2);
-  const lavaMat = new THREE.MeshStandardMaterial({
-    color: 0xff5722,
-    emissive: 0xff3d00,
-    emissiveIntensity: 0.9,
-    roughness: 0.3,
+  // B. Shallow Valley Lake Basin Water Disk (Air Danau Cekungan Perlindungan)
+  const titanLakeGeo = new THREE.CircleGeometry(16.5, 36);
+  titanLakeGeo.rotateX(-Math.PI / 2);
+  const titanLakeMat = new THREE.MeshStandardMaterial({
+    color: 0x0284c7,
+    roughness: 0.1,
+    metalness: 0.15,
+    transparent: true,
+    opacity: 0.8,
   });
-  const lavaMesh = new THREE.Mesh(lavaGeo, lavaMat);
-  lavaMesh.position.set(0, getTerrainHeight(0, bz) + 0.15, bz);
-  scene.add(lavaMesh);
+  const titanLakeMesh = new THREE.Mesh(titanLakeGeo, titanLakeMat);
+  titanLakeMesh.position.set(titanArenaCenter.x, -0.05, titanArenaCenter.z);
+  scene.add(titanLakeMesh);
 
-  // Boss arena beacon light
-  const bossLight = new THREE.PointLight(0xff3d00, 2.5, 32);
-  bossLight.position.set(0, getTerrainHeight(0, bz) + 4.5, bz);
-  scene.add(bossLight);
+  // C. 8 Megalithic Rune-Carved Stone Formations Ringing Basin at Radius 17.5m
+  const megalithCount = 8;
+  const megalithRadius = 17.5;
+  for (let i = 0; i < megalithCount; i++) {
+    const ang = i * ((Math.PI * 2) / megalithCount);
+    const mx = titanArenaCenter.x + Math.cos(ang) * megalithRadius;
+    const mz = titanArenaCenter.z + Math.sin(ang) * megalithRadius;
+    const my = getTerrainHeight(mx, mz);
 
+    const megalithGroup = new THREE.Group();
+
+    // Weathered ancient stone monolith pillar
+    const monolithGeo = new THREE.BoxGeometry(1.4, 6.2, 1.4);
+    const monolithMat = new THREE.MeshStandardMaterial({
+      color: 0x57534e,
+      roughness: 0.9,
+      flatShading: true,
+    });
+    const monolith = new THREE.Mesh(monolithGeo, monolithMat);
+    monolith.position.y = 3.1;
+    megalithGroup.add(monolith);
+
+    // Glowing cyan rune band
+    const runeBandGeo = new THREE.BoxGeometry(1.48, 0.45, 1.48);
+    const runeBandMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0ea5e9,
+      emissiveIntensity: 0.9,
+    });
+    const runeBand = new THREE.Mesh(runeBandGeo, runeBandMat);
+    runeBand.position.y = 3.6;
+    megalithGroup.add(runeBand);
+
+    // Tapered top monolith capstone
+    const capGeo = new THREE.ConeGeometry(1.0, 1.5, 4);
+    capGeo.rotateY(Math.PI / 4);
+    const cap = new THREE.Mesh(capGeo, monolithMat);
+    cap.position.y = 6.95;
+    megalithGroup.add(cap);
+
+    megalithGroup.rotation.y = -ang + Math.PI / 2;
+    megalithGroup.position.set(mx, my, mz);
+    scene.add(megalithGroup);
+
+    colliders.push({ type: 'circle', x: mx, z: mz, radius: 1.25, label: `Megalit Rune Lembah Titan ${i + 1}` });
+  }
+
+  // D. Ancient Titan Arena Mystic Beacon
+  const titanLight = new THREE.PointLight(0x38bdf8, 2.5, 36);
+  titanLight.position.set(titanArenaCenter.x, titanPlatformY + 3.8, titanArenaCenter.z);
+  scene.add(titanLight);
 
   // 11. REGIONAL CHECKPOINT & WAYPOINT TELEPORTATION MONUMENTS
   const checkpoints: WorldCheckpoint[] = [];
@@ -2967,6 +3080,12 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       pos: [186, -10],
     },
     {
+      id: 'wp_volcano',
+      name: 'Ancient Titan Sanctuary Basin',
+      nameId: 'Lembah Danau Cekungan Titan Kuno',
+      pos: [-95, -75],
+    },
+    {
       id: 'wp_astraea',
       name: 'Grand Imperial Capital Astraea',
       nameId: 'Alun-Alun Ibukota Emas Astraea',
@@ -2988,13 +3107,13 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_solaria',
       name: 'Solaria Golden Desert Pyramid',
       nameId: 'Piramida Emas Gurun Solaria',
-      pos: [-165, 110],
+      pos: [-180, 180],
     },
     {
       id: 'wp_jadepagoda',
       name: 'Jade Bamboo Pagoda Shrine',
       nameId: 'Kuil Pagoda Giok & Bambu',
-      pos: [165, 115],
+      pos: [170, 160],
     },
     {
       id: 'wp_frostpeak',
@@ -3006,13 +3125,13 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_thunderpeak',
       name: 'Thunderpeak Basalt Altar',
       nameId: 'Altar Menara Puncak Halilintar',
-      pos: [-155, -135],
+      pos: [160, -150],
     },
     {
       id: 'wp_dragoncaldera',
       name: 'Primal Dragonfang Caldera',
       nameId: 'Altar Kaldera Sarang Naga Purba',
-      pos: [20, -125],
+      pos: [-29, -337],
     },
   ];
 

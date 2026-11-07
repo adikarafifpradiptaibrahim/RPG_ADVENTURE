@@ -749,10 +749,10 @@ export const IGNIS_DRAGON_BOSS_CONFIG: BossConfig = {
   defense: 22,
   speed: 2.8,
   attackRange: 5.5,
-  detectRange: 32,
+  detectRange: 22,
   expReward: 1200,
   goldReward: 850,
-  pos: [20, -145],
+  pos: [-29, -337],
   scale: [4.2, 4.2, 4.2],
   skills: [
     {
@@ -798,8 +798,8 @@ export const ANCIENT_TITAN_BOSS_CONFIG: BossConfig = {
   id: 'boss_titan',
   name: 'Obsidian Titan Golem',
   nameId: 'Sang Titan Kuno Obsidian',
-  title: 'Ancient Colossus of the Northern Crags',
-  titleId: 'Raksasa Purba Kawah Vulkanik',
+  title: 'Ancient Colossus of the Sanctuary Basin',
+  titleId: 'Raksasa Purba Cekungan Megalit',
   type: 'titan',
   level: 8,
   hp: 850,
@@ -808,10 +808,10 @@ export const ANCIENT_TITAN_BOSS_CONFIG: BossConfig = {
   defense: 18,
   speed: 2.3,
   attackRange: 4.5,
-  detectRange: 26,
+  detectRange: 20,
   expReward: 800,
   goldReward: 550,
-  pos: [0, -52],
+  pos: [-95, -75],
   scale: [3.5, 3.5, 3.5],
   skills: [
     {

@@ -117,8 +117,16 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return 1.2 - chasmDepth * 5.2;
   }
 
-  // 4. Frostpeak Mountain Biome & Grand Imperial Kingdom of Astraea (North-East: x: 45..520, z: -34..-480)
-  if (x >= 45 && z <= -34 && (x >= 70 || z <= -45)) {
+  // 4. Frostpeak Mountain Biome, Astraea & Mage Tower Highlands (North-East: x >= 110 && z <= -40)
+  if (x >= 110 && z <= -40) {
+    // 4.0 Mage Tower Mountain Highlands at [160, -150] (Relocated to North-East Mountain Range)
+    const distMageTower = Math.hypot(x - 160, z - -150);
+    if (distMageTower < 24) {
+      if (distMageTower < 15) return 4.8;
+      const tm = (distMageTower - 15) / 9;
+      return (1 - tm) * 4.8 + tm * 3.8;
+    }
+
     // 4.1 Frozen Chasm (Jurang Es Terjal di Utara Astraea: z: -300..-340, x: 120..245)
     if (z <= -300 && z >= -340 && x >= 120 && x <= 245) {
       // Natural ice bridge crossing the chasm at x: 174..186
@@ -150,19 +158,19 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     }
 
     // Western slope descent towards lower mainland
-    const tWest = clamp((x - 45) / 103, 0, 1);
+    const tWest = clamp((x - 110) / 38, 0, 1);
     const sWest = smoothstep(0, 1, tWest);
     const westBaseElev = 1.8 + sWest * 4.2;
 
     // Southern slope descent towards Val-Kragor
-    const tSouth = clamp((-z - 35) / 197, 0, 1);
+    const tSouth = clamp((-z - 40) / 192, 0, 1);
     const sSouth = smoothstep(0, 1, tSouth);
     const southBaseElev = 3.2 + sSouth * 2.8;
 
     let baseRegionalElev = 6.0;
     if (x < astraeaMinX && z > astraeaMaxZ) {
-      const weightX = (astraeaMinX - x) / (astraeaMinX - 45);
-      const weightZ = (z - astraeaMaxZ) / (-35 - astraeaMaxZ);
+      const weightX = (astraeaMinX - x) / (astraeaMinX - 110);
+      const weightZ = (z - astraeaMaxZ) / (-40 - astraeaMaxZ);
       baseRegionalElev = (weightX * westBaseElev + weightZ * southBaseElev) / (weightX + weightZ + 0.001);
     } else if (x < astraeaMinX) {
       baseRegionalElev = westBaseElev;
@@ -170,7 +178,7 @@ export function getProceduralContinentHeight(x: number, z: number): number {
       baseRegionalElev = southBaseElev;
     }
 
-    // Soft rolling snow mounds with natural gentle slopes (anti-tebing curam)
+    // Soft rolling snow mounds with natural gentle slopes
     const bluntHills =
       Math.sin(x * 0.045) * 0.55 +
       Math.cos(z * 0.042) * 0.45 +
@@ -195,8 +203,8 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return outerElevation;
   }
 
-  // 5. Solaria Golden Dunes, Village, Palace & Secret Palm Oasis (South-West: x < -95 && z > 35)
-  if (x < -95 && z > 35) {
+  // 5. Solaria Golden Dunes, Village, Palace & Sunken Pyramid (South-West: x < -120 && z > 120)
+  if (x < -120 && z > 120) {
     // 5.1 Solaria Desert Village Bazaar & Taj Mahal Palace Plateau
     const inSolariaMetropolis = x >= -445 && x <= -250 && Math.abs(z - 350) <= 42;
     if (inSolariaMetropolis) return 2.4;
@@ -222,8 +230,8 @@ export function getProceduralContinentHeight(x: number, z: number): number {
       return (1 - tO) * 0.2 + tO * 3.8;
     }
 
-    // 5.3 Sunken Pharaoh Pyramid at [-165, 110]
-    const distPyramid = Math.hypot(x - -165, z - 110);
+    // 5.3 Sunken Pharaoh Pyramid at [-180, 180] (Relocated to Solaria South-West buffer boundary)
+    const distPyramid = Math.hypot(x - -180, z - 180);
     if (distPyramid < 25) {
       if (distPyramid < 17) return 1.4;
       const t = (distPyramid - 17) / 8;
@@ -239,8 +247,25 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return Math.max(0.6, 2.2 + dunes);
   }
 
-  // 6. Dragonfang Caldera & Primal Dragon Core (Far North: z < -85 && x >= -120 && x <= 140)
-  if (z < -85 && x >= -120 && x <= 140) {
+  // 6. Dragonfang Caldera & Inferno Archipelago (Far North: z < -250 && Math.abs(x) <= 160)
+  if (z < -250 && Math.abs(x) <= 160) {
+    // 6.1 Dragon Caldera Arena at [-29, -337] (Diameter ~45, Radius 22.5)
+    const distDragonCaldera = Math.hypot(x - -29, z - -337);
+    if (distDragonCaldera < 34) {
+      if (distDragonCaldera < 18) {
+        return 1.25; // Flat scorched arena floor
+      } else if (distDragonCaldera <= 25) {
+        // Steep black obsidian crater cliff edge rising up to y = 6.2
+        const tCliff = (distDragonCaldera - 18) / 7.0;
+        return 1.25 + smoothstep(0, 1, tCliff) * 4.95; // 1.25 -> 6.20
+      } else {
+        // Outer crater slope descending to volcanic terrain
+        const tOuter = clamp((distDragonCaldera - 25) / 9.0, 0, 1);
+        return (1 - tOuter) * 6.20 + tOuter * 2.8;
+      }
+    }
+
+    // 6.2 Primal Dragon Core at [35, -280]
     const distCore = Math.hypot(x - 35, z - -280);
     if (distCore < 36) {
       if (distCore < 18) return -0.4 + Math.sin(x * 0.15) * 0.3;
@@ -248,32 +273,28 @@ export function getProceduralContinentHeight(x: number, z: number): number {
       return (1 - tc) * -0.4 + tc * 3.5;
     }
 
-    const distDragonCaldera = Math.hypot(x - 20, z - -145);
-    if (distDragonCaldera < 24) {
-      if (distDragonCaldera < 16) return 0.2;
-      const t = (distDragonCaldera - 16) / 8;
-      const ridge = 2.2 + Math.sin(x * 0.1) * 1.5;
-      return (1 - t) * 0.2 + t * ridge;
-    }
-
     const volcanicNoise = Math.sin(x * 0.06) * 3.2 + Math.cos(z * 0.07) * 2.8;
     return 2.5 + volcanicNoise;
   }
 
-  // 7. Thunderpeak Lightning Spire Sanctuary (Far North-West: x < -70 && z < -70)
-  if (x < -70 && z < -70) {
-    const distAltar = Math.hypot(x - -155, z - -135);
-    if (distAltar < 22) {
-      if (distAltar < 15) return 5.5;
-      const t = (distAltar - 15) / 7;
-      const crag = 4.0 + Math.sin(x * 0.08) * 2.0;
-      return (1 - t) * 5.5 + t * crag;
+  // 7. Ancient Titan Sanctuary Basin Arena (North-West Open Grassland: [-95, -75], Diameter 35m)
+  const distTitan = Math.hypot(x - -95, z - -75);
+  if (distTitan < 24) {
+    if (distTitan < 5.5) {
+      return 0.35; // Flat central stone stepping platform
+    } else if (distTitan < 16.5) {
+      // Shallow valley lake basin
+      const tLake = (distTitan - 5.5) / 11.0;
+      return 0.35 - Math.sin(tLake * Math.PI) * 0.70; // dips smoothly to -0.35
+    } else {
+      // Gentle basin rim rising to surrounding open meadow
+      const tRim = clamp((distTitan - 16.5) / 7.5, 0, 1);
+      return -0.15 + tRim * 0.75;
     }
-    return 3.8 + Math.sin(x * 0.07) * 2.4 + Math.cos(z * 0.06) * 2.0;
   }
 
-  // 8. Shadowfen Gloom Marsh (Far West: x < -65 && z > -75 && z < 140)
-  if (x < -65 && z > -75 && z < 140) {
+  // 8. Shadowfen Gloom Marsh (Far West: x < -120 && z >= -100 && z <= 120)
+  if (x < -120 && z >= -100 && z <= 120) {
     const distGrotto = Math.hypot(x - -300, z - 25);
     if (distGrotto < 35) {
       if (distGrotto < 16) return -0.35;
@@ -285,8 +306,8 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return Math.max(-0.25, 0.35 + swampWater);
   }
 
-  // 9. Jade Bamboo Grove & Celestial Pagoda (Far South-East: x > 105 && z > 35)
-  if (x > 105 && z > 35) {
+  // 9. Jade Bamboo Grove & Celestial Pagoda (Far South-East: x > 120 && z > 120)
+  if (x > 120 && z > 120) {
     const distOuterPavilion = Math.hypot(x - 310, z - 210);
     if (distOuterPavilion < 28) {
       if (distOuterPavilion < 15) return 3.4;
@@ -294,7 +315,8 @@ export function getProceduralContinentHeight(x: number, z: number): number {
       return (1 - tp) * 3.4 + tp * 2.0;
     }
 
-    const distPagoda = Math.hypot(x - 165, z - 115);
+    // Relocated Jade Pagoda at [170, 160]
+    const distPagoda = Math.hypot(x - 170, z - 160);
     if (distPagoda < 24) {
       if (distPagoda < 16) return 2.5;
       const t = (distPagoda - 16) / 8;
@@ -323,11 +345,17 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return height;
   }
 
-  // 12. General rolling meadow terrain across Eldoria
-  let h =
-    Math.sin(x * 0.06) * 1.5 +
-    Math.cos(z * 0.05) * 1.3 +
-    Math.sin(x * 0.12 + z * 0.12) * 0.6;
+  // 12. General rolling meadow terrain across Eldoria (Central Plains Buffer Zone: |x| <= 80, |z| <= 80)
+  let h = 0.45;
+  if (Math.abs(x) <= 80 && Math.abs(z) <= 80) {
+    // Gentle, low rolling hills in central buffer zone (anti-tebing curam)
+    h = 0.45 + Math.sin(x * 0.05) * 0.45 + Math.cos(z * 0.05) * 0.35;
+  } else {
+    h =
+      Math.sin(x * 0.06) * 1.5 +
+      Math.cos(z * 0.05) * 1.3 +
+      Math.sin(x * 0.12 + z * 0.12) * 0.6;
+  }
 
   // Outer Perimeter mountain wall (Encircles the expanded world)
   if (distCenter > 480 || z < -420 || z > 420 || x < -520 || x > 620) {
@@ -494,8 +522,39 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: y, color: [71, 85, 105], biomeId: 'valkragor_slate', isWater: false, isPath: true, slope };
   }
 
-  // 5. Frostpeak Mountain Glacier (Salju & Es Glasial)
-  if (x >= 45 && z <= -28 && !(z < -95 && x <= 75)) {
+  // 4b. Ancient Titan Sanctuary Basin Arena (North-West Open Grassland: [-95, -75])
+  const distTitanSample = Math.hypot(x - -95, z - -75);
+  if (distTitanSample < 24) {
+    if (distTitanSample < 5.5) {
+      return { height: y, color: [140, 138, 134], biomeId: 'titan_platform', isWater: false, isPath: true, slope: 0 };
+    } else if (distTitanSample < 16.5) {
+      return { height: y, color: [38, 145, 185], biomeId: 'titan_lake', isWater: true, isPath: false, slope };
+    } else {
+      return { height: y, color: [100, 145, 80], biomeId: 'titan_rim', isWater: false, isPath: false, slope };
+    }
+  }
+
+  // 4c. Dragon Caldera Arena at [-29, -337] (Far North Volcano)
+  const distDragonCalderaSample = Math.hypot(x - -29, z - -337);
+  if (distDragonCalderaSample < 34) {
+    if (distDragonCalderaSample < 18) {
+      if (distDragonCalderaSample >= 14 && Math.sin(x * 0.8 + z * 0.8) > 0.3) {
+        return { height: y, color: [245, 80, 20], biomeId: 'dragon_magma', isWater: false, isPath: false, slope };
+      }
+      return { height: y, color: [92, 34, 28], biomeId: 'dragon_arena', isWater: false, isPath: false, slope };
+    } else if (distDragonCalderaSample <= 26) {
+      return { height: y, color: [28, 24, 28], biomeId: 'dragon_obsidian_cliff', isWater: false, isPath: false, slope };
+    }
+  }
+
+  // 5. Frostpeak Mountain Glacier & Thunderpeak Highlands (North-East: x >= 110 && z <= -40)
+  if (x >= 110 && z <= -40) {
+    // Mage Tower Highlands at [160, -150]
+    const distMageTower = Math.hypot(x - 160, z - -150);
+    if (distMageTower < 20) {
+      return { height: y, color: [48, 42, 85], biomeId: 'thunderpeak', isWater: false, isPath: false, slope };
+    }
+
     // Frozen chasm blue ice floor
     if (z <= -300 && z >= -340 && x >= 120 && x <= 245) {
       if (Math.abs(x - 180) <= 6) {
@@ -504,8 +563,8 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
       return { height: y, color: [56, 189, 248], biomeId: 'frozen_chasm', isWater: false, isPath: false, slope };
     }
 
-    const pX = clamp((x - 45) / 45, 0, 1);
-    const pZ = clamp((-z - 28) / 47, 0, 1);
+    const pX = clamp((x - 110) / 45, 0, 1);
+    const pZ = clamp((-z - 40) / 47, 0, 1);
     const noise = Math.sin(x * 0.12) * 0.12 + Math.cos(z * 0.1) * 0.12;
     const frost = clamp(pX * pZ + noise, 0, 1);
 
@@ -523,8 +582,12 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     }
   }
 
-  // 6. Solaria Golden Dunes
-  if (x < -95 && z > 35) {
+  // 6. Solaria Golden Dunes & Sunken Pyramid (South-West: x < -120 && z > 120)
+  if (x < -120 && z > 120) {
+    const distPyramid = Math.hypot(x - -180, z - 180);
+    if (distPyramid < 22) {
+      return { height: y, color: [220, 160, 40], biomeId: 'solaria_pyramid', isWater: false, isPath: false, slope };
+    }
     const duneWave = Math.sin(x * 0.035 + z * 0.028);
     const r = Math.round(234 + duneWave * 15);
     const g = Math.round(179 + duneWave * 20);
@@ -532,26 +595,25 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: y, color: [r, g, b], biomeId: 'solaria_desert', isWater: false, isPath: false, slope };
   }
 
-  // 7. Dragonfang Caldera & Volcano (North)
-  if (z < -85 && x >= -120 && x <= 140) {
+  // 7. Dragonfang Caldera & Volcano (Far North: z < -250 && Math.abs(x) <= 160)
+  if (z < -250 && Math.abs(x) <= 160) {
     if (y < 0.5) {
       return { height: y, color: [239, 68, 68], biomeId: 'dragon_magma', isWater: false, isPath: false, slope };
     }
     return { height: y, color: [45, 30, 30], biomeId: 'dragon_basalt', isWater: false, isPath: false, slope };
   }
 
-  // 8. Thunderpeak Lightning Plateau
-  if (x < -70 && z < -70) {
-    return { height: y, color: [30, 27, 75], biomeId: 'thunderpeak', isWater: false, isPath: false, slope };
-  }
-
-  // 9. Shadowfen Gloom Marsh
-  if (x < -65 && z > -75 && z < 140) {
+  // 8. Shadowfen Gloom Marsh (Far West: x < -120 && z >= -100 && z <= 120)
+  if (x < -120 && z >= -100 && z <= 120) {
     return { height: y, color: [46, 56, 31], biomeId: 'shadowfen_marsh', isWater: false, isPath: false, slope };
   }
 
-  // 10. Jade Bamboo Grove
-  if (x > 105 && z > 35) {
+  // 9. Jade Bamboo Grove & Pagoda (Far South-East: x > 120 && z > 120)
+  if (x > 120 && z > 120) {
+    const distPagoda = Math.hypot(x - 170, z - 160);
+    if (distPagoda < 20) {
+      return { height: y, color: [20, 160, 110], biomeId: 'jade_pagoda', isWater: false, isPath: false, slope };
+    }
     return { height: y, color: [16, 185, 129], biomeId: 'jade_bamboo', isWater: false, isPath: false, slope };
   }
 
@@ -560,10 +622,10 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: y, color: [254, 215, 170], biomeId: 'beach_sand', isWater: false, isPath: false, slope };
   }
 
-  // 12. Temperate Meadow / Forest Grass (Default)
+  // 12. Temperate Meadow / Forest Grass (Dominant Central Plains & Buffer Zone)
   const grassShade = (Math.sin(x * 0.15) + Math.cos(z * 0.15)) * 12;
-  const gr = Math.round(clamp(104 + grassShade, 80, 130));
-  const gg = Math.round(clamp(159 + grassShade, 135, 185));
-  const gb = Math.round(clamp(56 + grassShade * 0.6, 40, 75));
+  const gr = Math.round(clamp(95 + grassShade, 75, 125));
+  const gg = Math.round(clamp(170 + grassShade, 145, 195));
+  const gb = Math.round(clamp(58 + grassShade * 0.6, 42, 78));
   return { height: y, color: [gr, gg, gb], biomeId: 'meadow', isWater: false, isPath: false, slope };
 }
