@@ -288,9 +288,9 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   }
 
   // 5. Plains Zone (Padang Rumput Eldoria)
-  // Road Network in Plains (Medieval Cobblestone & Dirt Trail #857563)
+  // Road Network in Plains (Solid Medieval Cobblestone & Dirt Gravel #6e6255)
   if (isPointOnRoad(x, z)) {
-    return { height: y, color: [133, 117, 99], biomeId: 'eldoria_road', isWater: false, isPath: true, slope: 0 };
+    return { height: y, color: [110, 98, 85], biomeId: 'eldoria_road', isWater: false, isPath: true, slope: 0 };
   }
   // Sanctuary Village Plaza
   if (Math.hypot(x, z - 180) <= 18) {

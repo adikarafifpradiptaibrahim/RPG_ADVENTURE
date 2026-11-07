@@ -278,14 +278,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return getProceduralHeight(x, z);
     }
 
-    // 1. Suspension bridge walkable deck corridor (centered straight at z = 47 and z = 70)
-    if ((Math.abs(z - 47) <= 2.2 || Math.abs(z - 70) <= 2.2) && x >= 135 && x <= 155) {
-      return 2.4;
-    }
-    if (Math.abs(z - 70) <= 2.2 && x >= 120 && x <= 150) {
-      const bridgeT = (x - 120) / 30;
-      const sag = Math.sin(bridgeT * Math.PI) * 0.70;
-      return 2.4 - sag;
+    // 1. Suspension bridge walkable deck corridor (centered straight at z = 47)
+    if (Math.abs(z - 47) <= 2.2 && x >= 135.5 && x <= 154.5) {
+      return 1.35;
     }
 
     // 2. Coastal Wooden Harbor (Seamless Beach Connection, Extended Main Pier, Symmetrical Wings & Pier Head)
@@ -512,10 +507,18 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // 2.2b Pelataran Batu Bundar Alun-Alun di Sekitar Air Mancur Sanctuary
   const sanctuaryPlazaRim = new THREE.Mesh(
     new THREE.RingGeometry(3.8, 8.2, 32),
-    new THREE.MeshStandardMaterial({ color: 0x857563, roughness: 0.9, flatShading: true })
+    new THREE.MeshStandardMaterial({
+      color: 0x857563,
+      roughness: 0.9,
+      flatShading: true,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+      side: THREE.DoubleSide,
+    })
   );
   sanctuaryPlazaRim.rotation.x = -Math.PI / 2;
-  sanctuaryPlazaRim.position.set(0, villageMainlandY + 0.02, fountainZ);
+  sanctuaryPlazaRim.position.set(0, villageMainlandY + 0.04, fountainZ);
   sanctuaryPlazaRim.receiveShadow = true;
   scene.add(sanctuaryPlazaRim);
 
@@ -1194,18 +1197,18 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // Membentang lurus menghubungkan Ngarai Kabut di X: 135..155 pada Z = 47.
   // ==========================================
   const bridge = createSuspensionBridgeMesh(22);
-  bridge.position.set(145, 2.4, 47);
+  bridge.position.set(145, 1.35, 47);
   scene.add(bridge);
 
   // Pilar Penyangga Batu Kokoh (Tinggi 4.4m, duduk di dasar ngarai menopang tepat di bawah dek)
   const chasmStonePier = createStoneBridgePierMesh(4.4);
-  chasmStonePier.position.set(145, -1.2, 47);
+  chasmStonePier.position.set(145, -2.2, 47);
   scene.add(chasmStonePier);
 
   // Pagar Pengaman Jembatan Gantung (Membentang lurus di Z = 44.8 dan Z = 49.2)
   colliders.push(
-    { type: 'box', minX: 135, maxX: 155, minZ: 44.8, maxZ: 45.6, label: 'Pagar Jembatan Kiri' },
-    { type: 'box', minX: 135, maxX: 155, minZ: 48.4, maxZ: 49.2, label: 'Pagar Jembatan Kanan' }
+    { type: 'box', minX: 135.5, maxX: 154.5, minZ: 44.8, maxZ: 45.6, label: 'Pagar Jembatan Kiri' },
+    { type: 'box', minX: 135.5, maxX: 154.5, minZ: 48.4, maxZ: 49.2, label: 'Pagar Jembatan Kanan' }
   );
 
   // 2.9b Jaringan Jalan Raya & Jalan Setapak Terstruktur Benua Eldoria (Road Network & Path System)
@@ -1313,7 +1316,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     // Strict Anti-Overlap Exclusion
     const inSanctuaryMainland = (Math.abs(tx) <= 35 && tz >= 152 && tz <= 200);
     const inSanctuaryHarborOcean = (Math.abs(tx) <= 50 && tz > 200);
-    const inBridgeHighwayCorridor = (tx >= 115 && tx <= 360 && Math.abs(tz - 75) <= 12.0);
+    const inBridgeHighwayCorridor = (tx >= 115 && tx <= 360 && (Math.abs(tz - 47) <= 12.0 || Math.abs(tz - 75) <= 12.0));
     const inValKragor = (tx >= 345 && tx <= 420 && tz >= 48 && tz <= 112);
     const inDesert = (tz < -60 && tx > -115);
     const inDragonCaldera = (tz > 280 && Math.abs(tx - 50) < 60);
@@ -2353,7 +2356,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { id: 'chest_dragoncaldera', pos: [80, 2.5, 360] as [number, number, number] }, // Dragon Caldera Hoard
     { id: 'chest_astraea', pos: [-320, 2.0, -220] as [number, number, number] }, // Astraea Imperial Vault
     { id: 'chest_harbor_galleon', pos: [19.5, 0, 221] as [number, number, number] }, // Harbor Galleon Stash
-    { id: 'chest_bridge', pos: [135, 2.0, 70] as [number, number, number] }, // Gorge Suspension Bridge Cache
+    { id: 'chest_bridge', pos: [135, 1.35, 47] as [number, number, number] }, // Gorge Suspension Bridge Cache
   ];
 
   const chests: WorldObjects['chests'] = [];

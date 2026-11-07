@@ -25,21 +25,18 @@ export interface RoadJunctionDef {
 
 /**
  * 1. TATA LETAK RUTE EKSPLISIT (WAYPOINT ARRAY)
- * Rute jalur eksplisit presisi:
- * - Menjauhi Danau Titan: memutar di selatan danau pada Z: 45 (65m di selatan arena Titan [-260, -20]).
- * - Masuk tepat ke lubang gerbang Astraea [-370..-350, -220] dan Val-Kragor [330..375, 80].
- * - Melintasi dek kayu jembatan gantung lurus dan presisi pada Z: 47 [140..150, 47].
- * - Di Sanctuary Village: satu jalan lurus utama dari pelabuhan ke gapura utara, dengan persimpangan rapi di luar desa pada [0, 155].
- * - Di Gurun Solaria: rute pendek bersih Bazaar [240, -280] ke Istana Sultan [330, -280].
+ * - Rute Barat memutar jauh di selatan Danau Titan (Z: 45) dan masuk tepat ke gerbang barat Astraea [-370..-345, -220].
+ * - Rute Timur melintasi dek kayu jembatan gantung lurus [136..154, 47] dan masuk ke gerbang benteng Val-Kragor [355..375, 80].
+ * - Sanctuary: Satu jalan lurus utama dari pelabuhan [0, 205] ke gerbang gapura [0, 168] hingga persimpangan [0, 155].
+ * - Gurun Solaria: Jalur lurus Bazaar [240, -280] ke Istana Sultan [330, -280].
  */
 export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
   // A. JALUR UTAMA DESA SANCTUARY & PELABUHAN
-  // Dari dermaga pelabuhan [0, 205] -> gerbang pelabuhan [0, 192] -> alun-alun air mancur [0, 180] -> gapura kayu utara [0, 168] -> persimpangan luar desa [0, 155]
   {
     id: 'sanctuary_artery',
-    name: 'Jalan Raya Utama Desa Sanctuary & Pelabuhan',
+    name: 'Jalan Utama Desa Sanctuary & Pelabuhan',
     biome: 'plains',
-    width: 3.2,
+    width: 3.5,
     controlPoints: [
       [0, 205],
       [0, 192],
@@ -47,76 +44,70 @@ export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
       [0, 168],
       [0, 155],
     ],
-    colorHex: 0x857563, // Abu-abu batu tanah paving (#857563)
+    colorHex: 0x6e6255, // Batu tanah cokelat abu-abu medieval padat
     canvasStroke: '#a3917a',
     canvasDash: [],
     canvasWidth: 3.0,
   },
 
   // B. JALUR BARAT (MENUJU IBUKOTA ASTRAEA - MEMUTARI ARENA TITAN)
-  // Mulai dari persimpangan [0, 155] -> [-60, 140] -> [-130, 100] -> [-190, 60] -> [-260, 45] (selatan Titan)
-  // -> [-320, 20] -> [-360, -60] -> [-370, -140] -> masuk lubang gerbang barat [-370, -220] -> [-350, -220] -> alun-alun istana [-335, -220]
   {
     id: 'plains_west_astraea',
     name: 'Jalan Raya Kerajaan Barat Sanctuary - Ibukota Astraea',
     biome: 'plains',
-    width: 3.2,
+    width: 3.5,
     controlPoints: [
       [0, 155],
       [-60, 140],
       [-130, 100],
       [-190, 60],
-      [-260, 45], // 65 meter di selatan danau Titan
+      [-260, 45], // 65m di selatan Danau Titan [-260, -20]
       [-320, 20],
       [-360, -60],
       [-370, -140],
       [-370, -220], // Di depan lubang gerbang barat
-      [-350, -220], // Melewati lubang gerbang barat tepat di tengah
-      [-335, -220], // Masuk ke pelataran istana
+      [-345, -220], // Menembus lubang gerbang gapura tepat di tengah
+      [-335, -220], // Masuk ke pelataran air mancur istana kaisar
     ],
-    colorHex: 0x857563, // Abu-abu batu tanah (#857563)
+    colorHex: 0x6e6255, // Batu tanah cokelat abu-abu medieval padat
     canvasStroke: '#d7c49e',
     canvasDash: [6, 4],
     canvasWidth: 2.8,
   },
 
   // C. JALUR TIMUR (MENUJU BENTENG VAL-KRAGOR VIA JEMBATAN GANTUNG)
-  // Mulai persimpangan [0, 155] -> [50, 130] -> [100, 90] -> [130, 60] -> pangkal jembatan [140, 47]
-  // -> menyeberang jembatan gantung lurus [150, 47] -> depan Mage Tower [165, 47] -> [180, 50] -> [220, 55] -> [290, 65]
-  // -> celah gerbang barat benteng [330, 75] -> [355, 80] -> pelataran dalam [375, 80]
   {
     id: 'plains_east_valkragor',
     name: 'Jalan Raya Timur Sanctuary - Jembatan Gantung - Benteng Val-Kragor',
     biome: 'plains',
-    width: 3.2,
+    width: 3.5,
     controlPoints: [
       [0, 155],
       [50, 130],
-      [100, 90],
-      [130, 60],
-      [140, 47], // Pangkal barat jembatan gantung
-      [150, 47], // Ujung timur jembatan gantung
-      [165, 47],
-      [180, 50], // Pelataran depan Mage Tower (di luar kristal)
-      [220, 55],
+      [95, 90],
+      [125, 60],
+      [136, 47], // Masuk lurus ke bibir barat jembatan gantung
+      [154, 47], // Menyeberang dek kayu jembatan gantung lurus
+      [170, 47], // Keluar jembatan menyambung langsung
+      [185, 50], // Melengkung di luar pilar kristal halaman Mage Tower
+      [225, 55],
       [290, 65],
       [330, 75],
-      [355, 80], // Melewati lubang gerbang benteng tepat di tengah
-      [375, 80], // Pelataran dalam benteng
+      [355, 80], // Melewati celah gerbang benteng tepat di tengah
+      [375, 80], // Masuk ke pelataran dalam benteng
     ],
-    colorHex: 0x857563, // Abu-abu batu tanah (#857563)
+    colorHex: 0x6e6255, // Batu tanah cokelat abu-abu medieval padat
     canvasStroke: '#d7c49e',
     canvasDash: [6, 4],
     canvasWidth: 2.8,
   },
 
   // D. JALUR GURUN SOLARIA (BAZAAR KE ISTANA SULTAN)
-  // Rute pendek dan bersih di gurun: Mulai dari Gerbang Pasar Bazaar [240, -280] lurus menuju Gerbang Masuk Istana [330, -280]
   {
     id: 'desert_bazaar_palace',
-    name: 'Jalan Raya Emas Bazaar Solaria - Istana Taj Mahal Sultan',
+    name: 'Jalur Pasir Padat Bazaar Solaria - Istana Taj Mahal Sultan',
     biome: 'desert',
-    width: 3.2,
+    width: 3.5,
     controlPoints: [
       [240, -280],
       [285, -280],
@@ -144,9 +135,9 @@ export const ROAD_JUNCTIONS: RoadJunctionDef[] = [
     ],
   },
   {
-    id: 'jct_bridge_approach',
+    id: 'jct_bridge_west',
     name: 'Pangkal Barat Jembatan Gantung',
-    pos: [140, 47],
+    pos: [136, 47],
     signDirections: [
       { label: 'Benteng Val-Kragor & Mage Tower ->', angle: 0.0 },
       { label: '<- Desa Sanctuary', angle: Math.PI },
@@ -183,8 +174,10 @@ export const ROAD_JUNCTIONS: RoadJunctionDef[] = [
 
 export interface SampledRoad {
   def: RoadRouteDef;
-  points: [number, number][]; // [X, Z] spaced ~2.0 world units
-  coarsePoints: [number, number][]; // [X, Z] spaced ~4.0 world units for fast collision
+  curve: THREE.CatmullRomCurve3;
+  points: THREE.Vector3[]; // Dense spline points spaced ~1.4 units
+  points2D: [number, number][]; // [X, Z] for 2D map
+  coarsePoints2D: [number, number][]; // [X, Z] spaced ~3.5 units for fast collision
   bbox: { minX: number; maxX: number; minZ: number; maxZ: number };
 }
 
@@ -198,32 +191,34 @@ export function getSampledRoads(): SampledRoad[] {
     const curve = new THREE.CatmullRomCurve3(v3s, false, 'centripetal');
     const length = curve.getLength();
 
-    // 1. Fine points for 3D ribbon mesh & 2D canvas drawing (step ~2.0 units)
-    const fineDivisions = Math.max(4, Math.ceil(length / 2.0));
-    const fineSamples = curve.getSpacedPoints(fineDivisions);
-    const points: [number, number][] = fineSamples.map((p) => [p.x, p.z]);
+    // 1. DENSE CURVE SAMPLING (setiap interval ~1.2 s/d 1.5 unit, misal 150-300 titik per rute)
+    const divisions = Math.max(8, Math.floor(length / 1.4));
+    const points = curve.getSpacedPoints(divisions);
+    const points2D: [number, number][] = points.map((p) => [p.x, p.z]);
 
-    // 2. Coarse points for fast O(1) collision query
-    const coarseDivisions = Math.max(3, Math.ceil(length / 4.0));
-    const coarseSamples = curve.getSpacedPoints(coarseDivisions);
-    const coarsePoints: [number, number][] = coarseSamples.map((p) => [p.x, p.z]);
+    // 2. Coarse points for fast O(1) collision query (step ~3.5 units)
+    const coarseDivisions = Math.max(4, Math.floor(length / 3.5));
+    const coarsePoints = curve.getSpacedPoints(coarseDivisions);
+    const coarsePoints2D: [number, number][] = coarsePoints.map((p) => [p.x, p.z]);
 
     let minX = Infinity;
     let maxX = -Infinity;
     let minZ = Infinity;
     let maxZ = -Infinity;
-    for (const [x, z] of points) {
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (z < minZ) minZ = z;
-      if (z > maxZ) maxZ = z;
+    for (const p of points) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.z < minZ) minZ = p.z;
+      if (p.z > maxZ) maxZ = p.z;
     }
     const pad = route.width * 0.5 + 2.0;
 
     return {
       def: route,
+      curve,
       points,
-      coarsePoints,
+      points2D,
+      coarsePoints2D,
       bbox: {
         minX: minX - pad,
         maxX: maxX + pad,
@@ -263,8 +258,8 @@ export function isPointOnRoad(x: number, z: number): boolean {
       continue;
     }
 
-    const thresholdSq = Math.pow(road.def.width * 0.5 + 0.5, 2);
-    const pts = road.coarsePoints;
+    const thresholdSq = Math.pow(road.def.width * 0.5 + 0.6, 2);
+    const pts = road.coarsePoints2D;
 
     for (let i = 0; i < pts.length - 1; i++) {
       if (distToSegmentSq(x, z, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]) <= thresholdSq) {
@@ -277,21 +272,19 @@ export function isPointOnRoad(x: number, z: number): boolean {
 }
 
 /**
- * 2. PEMBUATAN MESH JALAN (CLEAN RIBBON / SLAB MESH)
- * Geometri jalan menggunakan THREE.BufferGeometry berbentuk Quad Strip (Pita Jalan Datar):
- * - Lebar jalan (width): 3.2 unit.
- * - Ketinggian Y setiap vertex: y = getTerrainHeight(x, z) + 0.04 (stabil di atas kontur).
- * - Pada area jembatan gantung: getTerrainHeight mengembalikan 2.4, sehingga y = 2.44 (tepat di atas permukaan kayu jembatan).
- * - Shading solid bersih:
- *   * Padang Rumput: Abu-abu batu tanah paving (#857563 / #6e6252).
- *   * Gurun: Pasir padat keemasan (#d1b480).
- * - Tidak menggunakan THREE.Line, kawat, tali, atau gradasi hijau lumut compang-camping.
+ * CONTINUOUS RIBBON STRIP DENGAN DENSE SAMPLING & BEBAS Z-FIGHTING
+ * Membangun pita geometri tunggal bersambung:
+ * - DENSE SAMPLING: Titik-titik dievaluasi setiap ~1.4 unit mengikuti kurva spline Catmull-Rom.
+ * - Tangent & normal horizontal dihitung di setiap titik untuk quad strip selebar 3.5 unit.
+ * - Offset +0.08 unit di atas tanah menjamin jalan tidak pernah tenggelam di medan berbukit.
+ * - Pada bentang jembatan gantung [136..154, 47], ketinggian vertex dikunci rata dengan dek kayu (Y = 1.35).
+ * - Material solid dengan polygonOffset (factor: -3, units: -3) agar renderer GPU memprioritaskan render jalan di atas tanah.
  */
-function createCleanRoadRibbonMesh(
-  points: [number, number][],
+function createContinuousRibbonMesh(
+  points: THREE.Vector3[],
   width: number,
   yFunc: (x: number, z: number) => number,
-  colorHex: number
+  biome: RoadBiomeType
 ): THREE.Mesh {
   const positions: number[] = [];
   const indices: number[] = [];
@@ -306,30 +299,36 @@ function createCleanRoadRibbonMesh(
     let dx = 0;
     let dz = 0;
     if (i < points.length - 1) {
-      dx = points[i + 1][0] - cur[0];
-      dz = points[i + 1][1] - cur[1];
+      dx = points[i + 1].x - cur.x;
+      dz = points[i + 1].z - cur.z;
     } else {
-      dx = cur[0] - points[i - 1][0];
-      dz = cur[1] - points[i - 1][1];
+      dx = cur.x - points[i - 1].x;
+      dz = cur.z - points[i - 1].z;
     }
     const len = Math.hypot(dx, dz) || 1;
-    if (i > 0) totalDist += Math.hypot(cur[0] - points[i - 1][0], cur[1] - points[i - 1][1]);
+    if (i > 0) totalDist += Math.hypot(cur.x - points[i - 1].x, cur.z - points[i - 1].z);
 
     const nx = -dz / len;
     const nz = dx / len;
 
-    // Left vertex
-    const lx = cur[0] + nx * halfW;
-    const lz = cur[1] + nz * halfW;
-    const ly = yFunc(lx, lz) + 0.04;
+    const leftX = cur.x + nx * halfW;
+    const leftZ = cur.z + nz * halfW;
+    const rightX = cur.x - nx * halfW;
+    const rightZ = cur.z - nz * halfW;
 
-    // Right vertex
-    const rx = cur[0] - nx * halfW;
-    const rz = cur[1] - nz * halfW;
-    const ry = yFunc(rx, rz) + 0.04;
+    // Offset +0.08 unit di atas tanah menjamin jalan tidak akan pernah tenggelam di medan berbukit
+    let leftY = yFunc(leftX, leftZ) + 0.08;
+    let rightY = yFunc(rightX, rightZ) + 0.08;
 
-    positions.push(lx, ly, lz, rx, ry, rz);
-    uvs.push(0, totalDist / 3.0, 1, totalDist / 3.0);
+    // KONEKSI MULUS DI JEMBATAN GANTUNG:
+    // Pada bentang jembatan [136, 47] s/d [154, 47], ketinggian vertex jalan dikunci rata dengan dek kayu jembatan (Y = 1.35)
+    if (Math.abs(cur.z - 47) <= 2.8 && cur.x >= 135.5 && cur.x <= 154.5) {
+      leftY = 1.35 + 0.02;
+      rightY = 1.35 + 0.02;
+    }
+
+    positions.push(leftX, leftY, leftZ, rightX, rightY, rightZ);
+    uvs.push(0, totalDist / 3.2, 1, totalDist / 3.2);
 
     // Quad Strip Triangles
     if (i < points.length - 1) {
@@ -348,11 +347,15 @@ function createCleanRoadRibbonMesh(
   geo.setIndex(indices);
   geo.computeVertexNormals();
 
+  const isPlains = biome === 'plains';
   const mat = new THREE.MeshStandardMaterial({
-    color: colorHex,
-    roughness: 0.9,
-    metalness: 0.0,
-    flatShading: true,
+    color: isPlains ? 0x6e6255 : 0xd1b480, // Batu tanah cokelat abu-abu (#6e6255) / Pasir padat (#d1b480)
+    roughness: isPlains ? 0.95 : 0.92,
+    metalness: 0.05,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
   });
 
   const mesh = new THREE.Mesh(geo, mat);
@@ -361,7 +364,7 @@ function createCleanRoadRibbonMesh(
 }
 
 /**
- * Papan Petunjuk Arah Kayu Abad Pertengahan (Medieval Wooden Signposts)
+ * Papan Petunjuk Arah Kayu Abad Pertengahan
  */
 export function createRoadSignpostMesh(junction: RoadJunctionDef): THREE.Group {
   const group = new THREE.Group();
@@ -387,23 +390,19 @@ export function createRoadSignpostMesh(junction: RoadJunctionDef): THREE.Group {
     roughness: 0.9,
   });
 
-  // Base Cobble Mound
   const baseMound = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.75, 0.25, 7), stoneMat);
   baseMound.position.y = 0.12;
   group.add(baseMound);
 
-  // Main Vertical Post
   const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 2.5, 6), woodMat);
   post.position.y = 1.25;
   post.castShadow = true;
   group.add(post);
 
-  // Cap / Iron Finial
   const cap = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.3, 5), ironMat);
   cap.position.y = 2.6;
   group.add(cap);
 
-  // Hanging Iron Bracket & Mini Lantern
   const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.04, 0.04), ironMat);
   bracket.position.set(0.18, 2.45, 0);
   group.add(bracket);
@@ -415,7 +414,6 @@ export function createRoadSignpostMesh(junction: RoadJunctionDef): THREE.Group {
   lanternGlow.position.set(0.32, 2.3, 0);
   group.add(lanternGlow);
 
-  // Directional Planks (Arms pointing toward destination)
   junction.signDirections.forEach((dir, idx) => {
     const armGroup = new THREE.Group();
     armGroup.position.y = 1.55 + idx * 0.26;
@@ -451,8 +449,7 @@ export function createRoadSignpostMesh(junction: RoadJunctionDef): THREE.Group {
 }
 
 /**
- * 2. IMPLEMENTASI 3D MESH JALAN (world.ts)
- * Bangun seluruh mesh permukaan pita jalan quad strip, lentera tepi jalan, dan plang penunjuk arah
+ * IMPLEMENTASI 3D CONTINUOUS ROAD STRIP (world.ts)
  */
 export function buildWorldRoadNetwork(
   scene: THREE.Scene,
@@ -465,34 +462,34 @@ export function buildWorldRoadNetwork(
   const roads = getSampledRoads();
   const streetLampsData: { x: number; y: number; z: number }[] = [];
 
-  // 1. Bangun Mesh Permukaan Pita Jalan
+  // 1. Bangun Mesh Pita Jalan Bersambung (Continuous Ribbon Mesh)
   roads.forEach((road) => {
-    // Grand Sandstone Desert Avenue sudah dibangun secara khusus dengan pohon kurma di world.ts
+    // Grand Sandstone Desert Avenue sudah dibangun secara khusus di world.ts
     if (road.def.id === 'desert_bazaar_palace') return;
 
-    const ribbonMesh = createCleanRoadRibbonMesh(
+    const ribbonMesh = createContinuousRibbonMesh(
       road.points,
       road.def.width,
       getTerrainHeight,
-      road.def.colorHex
+      road.def.biome
     );
     roadSystemGroup.add(ribbonMesh);
 
     // 2. Lentera Tepi Jalan setiap ~45 unit
     const isPlains = road.def.biome === 'plains';
     for (let i = 0; i < road.points.length - 1; i++) {
-      if (i > 0 && i % 22 === 0) {
-        const p1 = road.points[i];
-        const p2 = road.points[i + 1];
-        const dx = p2[0] - p1[0];
-        const dz = p2[1] - p1[1];
+      if (i > 0 && i % 32 === 0) {
+        const cur = road.points[i];
+        const next = road.points[i + 1];
+        const dx = next.x - cur.x;
+        const dz = next.z - cur.z;
         const len = Math.hypot(dx, dz) || 1;
         const nx = -dz / len;
         const nz = dx / len;
-        const side = i % 4 === 0 ? 1 : -1;
+        const side = i % 2 === 0 ? 1 : -1;
 
-        const lampX = p1[0] + nx * (road.def.width * 0.5 + 1.2) * side;
-        const lampZ = p1[1] + nz * (road.def.width * 0.5 + 1.2) * side;
+        const lampX = cur.x + nx * (road.def.width * 0.5 + 1.2) * side;
+        const lampZ = cur.z + nz * (road.def.width * 0.5 + 1.2) * side;
         const lampY = getTerrainHeight(lampX, lampZ);
 
         if (!isPlains) {
@@ -568,15 +565,15 @@ export function drawRoadsOnWorldMap(
 
   // 1. Bayangan dasar
   roads.forEach((road) => {
-    if (road.points.length < 2) return;
+    if (road.points2D.length < 2) return;
     ctx.beginPath();
-    const p0 = road.points[0];
+    const p0 = road.points2D[0];
     const sx0 = ((p0[0] - minX) / (maxX - minX)) * width;
     const sy0 = ((p0[1] - minZ) / (maxZ - minZ)) * height;
     ctx.moveTo(sx0, sy0);
 
-    for (let i = 1; i < road.points.length; i++) {
-      const p = road.points[i];
+    for (let i = 1; i < road.points2D.length; i++) {
+      const p = road.points2D[i];
       const sx = ((p[0] - minX) / (maxX - minX)) * width;
       const sy = ((p[1] - minZ) / (maxZ - minZ)) * height;
       ctx.lineTo(sx, sy);
@@ -589,15 +586,15 @@ export function drawRoadsOnWorldMap(
 
   // 2. Garis jalan utama
   roads.forEach((road) => {
-    if (road.points.length < 2) return;
+    if (road.points2D.length < 2) return;
     ctx.beginPath();
-    const p0 = road.points[0];
+    const p0 = road.points2D[0];
     const sx0 = ((p0[0] - minX) / (maxX - minX)) * width;
     const sy0 = ((p0[1] - minZ) / (maxZ - minZ)) * height;
     ctx.moveTo(sx0, sy0);
 
-    for (let i = 1; i < road.points.length; i++) {
-      const p = road.points[i];
+    for (let i = 1; i < road.points2D.length; i++) {
+      const p = road.points2D[i];
       const sx = ((p[0] - minX) / (maxX - minX)) * width;
       const sy = ((p[1] - minZ) / (maxZ - minZ)) * height;
       ctx.lineTo(sx, sy);
@@ -660,8 +657,8 @@ export function drawRoadsOnMiniMap(
     ctx.beginPath();
     let hasStarted = false;
 
-    for (let i = 0; i < road.points.length; i++) {
-      const p = road.points[i];
+    for (let i = 0; i < road.points2D.length; i++) {
+      const p = road.points2D[i];
       const dx = p[0] - playerX;
       const dz = p[1] - playerZ;
 
