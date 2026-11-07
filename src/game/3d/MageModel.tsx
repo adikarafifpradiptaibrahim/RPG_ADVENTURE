@@ -1,3 +1,4 @@
+import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { CharacterClass } from '../../types/game';
 import { PlayerMeshObjects } from './models';
@@ -11,22 +12,22 @@ import { PlayerMeshObjects } from './models';
  * yang dirancang persis sesuai lembar referensi turnaround 6-sudut (Front, Back, Left, Right, 3/4).
  */
 export const USE_LEGACY_MAGE = false;
-export { createLegacyMageMesh } from './MageModel.backup';
+export { createLegacyMageMesh } from './MageModel_v1_backup';
 
 /**
  * ============================================================================
  * PRELOADED GEOMETRY & MATERIAL PALETTE (Zero-Lag & Object Pooling)
  * ============================================================================
- * Palet warna & shading flatShading mengacu persis pada lembar referensi Mage:
- * - Tunic & Skirt: Ungu Kerajaan (#6B21A8)
- * - Pelindung Dada & Rompi: Kulit Cokelat (#78350F)
- * - Sabuk & Bot: Cokelat Gelap (#4A2E18 & #78350F)
+ * Mengacu persis pada lembar referensi turnaround karakter Mage:
+ * - Tunic & Rok Hem: Ungu Kerajaan (#6B21A8)
+ * - Rompi Dada V-Taper: Kulit Cokelat Tua (#78350F)
+ * - Sabuk & Bot: Cokelat Tua (#4A2E18 & #78350F)
  * - Lis Emas, Gesper, Cincin Tongkat & Brim Trim: Emas Murni (#EAB308 / #D4A017)
- * - Pauldron Pundak: Abu-abu Metalik (#9CA3AF) berlis emas
- * - Jubah Belakang (Cape): Merah Marun (#831843) memanjang lurus ke bawah
+ * - Pauldron Pundak: Balok Prisma Abu-abu Metalik (#9CA3AF) berlis emas kaku
+ * - Jubah Luar Belakang (Cape): Merah Marun (#831843) memanjang lurus ke bawah
  * - Mata: Celah Biru Neon (#00F0FF) bersinar tanpa pupil
- * - Kristal Tongkat: Icosahedron Neon Cyan (#00F0FF / Emissive #00E5FF)
- * - Grimoire: Marun (#831843) dengan lis emas & halaman kertas (#FEF08A)
+ * - Kristal Tongkat: Kristal Icosahedron Bersinar Cyan (#00F0FF / Emissive #00E5FF)
+ * - Grimoire: Kitab marun (#831843) dengan lis emas & halaman kertas (#FEF08A)
  */
 
 interface BlockyMageMaterialPalette {
@@ -57,7 +58,7 @@ function getMageMaterials(tier: number): BlockyMageMaterialPalette {
         color: 0x6B21A8,
         flatShading: true,
       }),
-      // 2. Rompi / Chestplate Kulit Cokelat (#78350F)
+      // 2. Rompi Dada Kulit Cokelat Tua (#78350F)
       vestBrownMat: new THREE.MeshLambertMaterial({
         color: 0x78350F,
         flatShading: true,
@@ -76,7 +77,7 @@ function getMageMaterials(tier: number): BlockyMageMaterialPalette {
         emissiveIntensity: 0.25,
         flatShading: true,
       }),
-      // 5. Jubah Merah Marun (#831843)
+      // 5. Jubah Luar Belakang Merah Marun (#831843)
       capeMaroonMat: new THREE.MeshLambertMaterial({
         color: 0x831843,
         side: THREE.DoubleSide,
@@ -94,7 +95,7 @@ function getMageMaterials(tier: number): BlockyMageMaterialPalette {
         color: 0xFFD180,
         flatShading: true,
       }),
-      // 8. Mata Biru Neon (#00F0FF)
+      // 8. Celah Mata Biru Neon (#00F0FF)
       eyesCyanGlowMat: new THREE.MeshBasicMaterial({
         color: 0x00F0FF,
       }),
@@ -136,7 +137,7 @@ function getMageMaterials(tier: number): BlockyMageMaterialPalette {
         roughness: 0.75,
         flatShading: true,
       }),
-      // 15. Sol Sepatu (#2B1407)
+      // 15. Sol Sepatu Bot (#2B1407)
       soleMat: new THREE.MeshStandardMaterial({
         color: 0x2B1407,
         metalness: 0.10,
@@ -195,7 +196,6 @@ interface BlockyMageGeometryPalette {
   staffCollarGeo: THREE.BufferGeometry;
   staffRingHeadGeo: THREE.BufferGeometry;
   staffCrystalGeo: THREE.BufferGeometry;
-  staffSpikeGeo: THREE.BufferGeometry;
   // Grimoire
   grimoireCoverGeo: THREE.BufferGeometry;
   grimoirePagesGeo: THREE.BufferGeometry;
@@ -207,34 +207,59 @@ let cachedGeometries: BlockyMageGeometryPalette | null = null;
 
 function getMageGeometries(): BlockyMageGeometryPalette {
   if (!cachedGeometries) {
-    // Topi Penyihir: Brim bertingkat dengan lis emas
+    // 1. Topi Penyihir: Brim balok persegi/oktagonal datar berlis emas keliling
     const hatBrimGeo = new THREE.CylinderGeometry(0.48, 0.50, 0.045, 8);
-    const hatBrimTrimGeo = new THREE.CylinderGeometry(0.505, 0.51, 0.02, 8);
+    const hatBrimTrimGeo = new THREE.CylinderGeometry(0.505, 0.515, 0.02, 8);
     const hatBandGeo = new THREE.CylinderGeometry(0.28, 0.29, 0.08, 6);
 
-    // Kerucut Topi Miring / Crooked Wizard Cone (Prisma 5 sisi)
-    const hatConeBaseGeo = new THREE.ConeGeometry(0.28, 0.44, 5);
+    // Kerucut Topi Miring / Crooked Wizard Cone (Prisma Piramida 4-5 sisi)
+    const hatConeBaseGeo = new THREE.ConeGeometry(0.28, 0.44, 4);
     hatConeBaseGeo.translate(0, 0.22, 0);
 
-    const hatConeTipGeo = new THREE.ConeGeometry(0.16, 0.36, 5);
+    const hatConeTipGeo = new THREE.ConeGeometry(0.16, 0.36, 4);
     hatConeTipGeo.translate(0, 0.18, 0);
 
-    // Pauldrons: Sloped faceted box dengan lis emas bawah
+    // 2. Pauldrons: Balok prisma abu-abu metalik berlis emas kaku (identik dengan Knight)
     const pauldronDomeGeo = new THREE.BoxGeometry(0.28, 0.16, 0.28);
     const pauldronTrimGeo = new THREE.BoxGeometry(0.30, 0.04, 0.30);
 
-    // Staff Geometries: Cincin emas di kepala tongkat memegang kristal
+    // 3. Torso Vest V-Taper: Panel pelindung dada kulit cokelat dengan sudut V di bawah
+    const vestShape = new THREE.Shape();
+    vestShape.moveTo(-0.35, 0.23);
+    vestShape.lineTo(0.35, 0.23);
+    vestShape.lineTo(0.35, -0.10);
+    vestShape.lineTo(0, -0.24); // V-point meruncing ke arah gesper sabuk
+    vestShape.lineTo(-0.35, -0.10);
+    vestShape.closePath();
+    const torsoVestGeo = new THREE.ExtrudeGeometry(vestShape, {
+      depth: 0.06,
+      bevelEnabled: false,
+    });
+    torsoVestGeo.center();
+
+    // 4. Jubah Luar Belakang (Cape): Datar memanjang lurus ke bawah tanpa gelombang kain
+    const capeShape = new THREE.Shape();
+    capeShape.moveTo(-0.32, 0); // Atas kiri (di antara kedua bahu)
+    capeShape.lineTo(0.32, 0);  // Atas kanan
+    capeShape.lineTo(0.38, -1.18); // Bawah kanan
+    capeShape.lineTo(-0.38, -1.18); // Bawah kiri
+    capeShape.closePath();
+    const capeGeo = new THREE.ExtrudeGeometry(capeShape, {
+      depth: 0.02,
+      bevelEnabled: false,
+    });
+    capeGeo.center();
+
+    // 5. Staff: Silinder bersegi ungu tua dengan hiasan puncak cincin emas & kristal bersinar
     const staffShaftGeo = new THREE.CylinderGeometry(0.032, 0.038, 1.82, 6);
     staffShaftGeo.translate(0, 0.30, 0);
 
     const staffCollarGeo = new THREE.CylinderGeometry(0.052, 0.045, 0.10, 6);
     const staffRingHeadGeo = new THREE.TorusGeometry(0.17, 0.032, 6, 16);
     staffRingHeadGeo.rotateX(Math.PI / 2);
-
     const staffCrystalGeo = new THREE.IcosahedronGeometry(0.11, 0);
-    const staffSpikeGeo = new THREE.ConeGeometry(0.03, 0.10, 5);
 
-    // Grimoire Geometries: Kitab tebal marun berlis emas
+    // 6. Grimoire: Kitab sihir balok datar tipis marun berlis emas
     const grimoireCoverGeo = new THREE.BoxGeometry(0.08, 0.36, 0.26);
     const grimoirePagesGeo = new THREE.BoxGeometry(0.065, 0.33, 0.23);
     const grimoireSpineGeo = new THREE.BoxGeometry(0.085, 0.365, 0.035);
@@ -249,11 +274,11 @@ function getMageGeometries(): BlockyMageGeometryPalette {
       hatConeBaseGeo,
       hatConeTipGeo,
       torsoChestGeo: new THREE.BoxGeometry(0.66, 0.78, 0.42),
-      torsoVestGeo: new THREE.BoxGeometry(0.70, 0.46, 0.45),
+      torsoVestGeo,
       beltGeo: new THREE.BoxGeometry(0.72, 0.12, 0.46),
       buckleGeo: new THREE.BoxGeometry(0.18, 0.15, 0.48),
       skirtHemGeo: new THREE.BoxGeometry(0.68, 0.20, 0.44),
-      capeGeo: new THREE.BoxGeometry(0.66, 1.16, 0.02),
+      capeGeo,
       pauldronDomeGeo,
       pauldronTrimGeo,
       armUpperGeo: new THREE.BoxGeometry(0.22, 0.34, 0.22),
@@ -270,7 +295,6 @@ function getMageGeometries(): BlockyMageGeometryPalette {
       staffCollarGeo,
       staffRingHeadGeo,
       staffCrystalGeo,
-      staffSpikeGeo,
       grimoireCoverGeo,
       grimoirePagesGeo,
       grimoireSpineGeo,
@@ -300,13 +324,13 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
   body.castShadow = true;
   group.add(body);
 
-  // Pelindung Dada & Rompi Kulit Cokelat (#78350F)
+  // Panel Pelindung Dada Datar dari Balok Cokelat Tua (#78350F)
   const vestMesh = new THREE.Mesh(geos.torsoVestGeo, mats.vestBrownMat);
-  vestMesh.position.set(0, 0.06, 0);
+  vestMesh.position.set(0, 0.06, 0.21);
   vestMesh.castShadow = true;
   body.add(vestMesh);
 
-  // Sabuk Cokelat Tua & Gesper Emas
+  // Sabuk Persegi Kaku Cokelat Bergesper Emas
   const beltMesh = new THREE.Mesh(geos.beltGeo, mats.beltDarkMat);
   beltMesh.position.set(0, -0.32, 0);
   body.add(beltMesh);
@@ -315,21 +339,21 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
   buckleMesh.position.set(0, -0.32, 0.01);
   body.add(buckleMesh);
 
-  // Ujung Bawah Tunic (Skirt Hem / Tassets)
+  // Bagian Rok Tunic Bawah (Skirt Hem / Tassets)
   const skirtMesh = new THREE.Mesh(geos.skirtHemGeo, mats.tunicPurpleMat);
   skirtMesh.position.set(0, -0.46, 0);
   skirtMesh.castShadow = true;
   body.add(skirtMesh);
 
-  // 2. Jubah Belakang (Cape): Merah Marun (#831843)
-  // Memanjang lurus ke bawah dari bahu hingga mata kaki tanpa tembus badan
+  // 2. Jubah Luar di Bagian Belakang (Cape): Merah Marun (#831843)
+  // Memanjang lurus ke bawah tanpa lipatan atau gelombang kain
   const cape = new THREE.Mesh(geos.capeGeo, mats.capeMaroonMat);
   cape.position.set(0, 1.25, -0.23);
   cape.rotation.x = 0.06; // Miring tipis ke belakang agar tidak clipping dengan punggung
   cape.castShadow = true;
   group.add(cape);
 
-  // 3. Pauldrons (Pundak Abu-abu Metalik dengan Lis Emas Bawah)
+  // 3. Pelindung Bahu (Shoulder Pads): Balok Prisma Abu-abu Metalik Berlis Emas Kaku
   const buildPauldron = (isLeft: boolean): THREE.Group => {
     const pGroup = new THREE.Group();
     const dome = new THREE.Mesh(geos.pauldronDomeGeo, mats.pauldronGrayMat);
@@ -349,24 +373,24 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
   const rightPauldron = buildPauldron(false);
   group.add(leftPauldron, rightPauldron);
 
-  // 4. Head & Hat Group (Kepala Kubus & Topi Penyihir Prisma)
+  // 4. Head & Hat Group (Kepala Kubus & Topi Runcing Wizard Hat)
   const head = new THREE.Mesh(geos.headGeo, mats.skinPeachMat);
   head.position.y = 2.02;
   head.castShadow = true;
   group.add(head);
 
-  // Dua Celah Mata Bersinar Biru Neon (#00F0FF, tanpa pupil)
+  // Dua Balok Mata Kecil Bersinar Biru Neon (#00F0FF, tanpa pupil)
   const leftEye = new THREE.Mesh(geos.eyeGeo, mats.eyesCyanGlowMat);
   leftEye.position.set(0.12, 0.02, 0.235);
   const rightEye = new THREE.Mesh(geos.eyeGeo, mats.eyesCyanGlowMat);
   rightEye.position.set(-0.12, 0.02, 0.235);
   head.add(leftEye, rightEye);
 
-  // Topi Penyihir (Wizard Hat Group)
+  // Topi Runcing (Wizard Hat Group)
   const hatGroup = new THREE.Group();
   hatGroup.position.set(0, 0.24, 0);
 
-  // Brim Ungu Datar & Lis Emas Keliling
+  // Brim Datar dari Balok Persegi/Oktagon yang Dihas Lis Kuning/Emas
   const hatBrim = new THREE.Mesh(geos.hatBrimGeo, mats.tunicPurpleMat);
   hatBrim.castShadow = true;
   const hatBrimTrim = new THREE.Mesh(geos.hatBrimTrimGeo, mats.goldTrimMat);
@@ -378,7 +402,7 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
   hatBand.position.y = 0.05;
   hatGroup.add(hatBand);
 
-  // Kerucut Topi Miring (Crooked Tip)
+  // Kerucut Topi Runcing Piramida Bersudut Rendah (Crooked Tip)
   const hatConeBase = new THREE.Mesh(geos.hatConeBaseGeo, mats.tunicPurpleMat);
   hatConeBase.position.set(0, 0.08, -0.02);
   hatConeBase.rotation.x = -0.12;
@@ -421,7 +445,7 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
   rightHandMesh.castShadow = true;
   rightHand.add(rightHandMesh);
 
-  // Staff (Tongkat Sihir Prisma Vertikal Ungu Tua dengan Cincin Emas & Kristal Cyan)
+  // Staff (Tongkat lurus silinder bersegi warna ungu tua dengan puncak cincin emas menjepit kristal biru)
   const weapon = new THREE.Group();
   const staffShaft = new THREE.Mesh(geos.staffShaftGeo, mats.staffShaftMat);
   staffShaft.castShadow = true;
@@ -432,12 +456,12 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
   staffCollar.position.y = 1.15;
   weapon.add(staffCollar);
 
-  // Cincin Emas di Kepala Tongkat
+  // Lingkaran Emas yang Kaku (Cincin Bersudut)
   const orbRing = new THREE.Mesh(geos.staffRingHeadGeo, mats.goldTrimMat);
   orbRing.position.y = 1.34;
   weapon.add(orbRing);
 
-  // Kristal Neon Cyan Bersinar di Tengah Cincin
+  // Kristal Biru Neon Icosahedron Kecil yang Dijepit di Tengah Cincin
   const orbMesh = new THREE.Mesh(geos.staffCrystalGeo, mats.crystalCyanMat);
   orbMesh.position.y = 1.34;
   weapon.add(orbMesh);
@@ -477,7 +501,7 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
   leftHandMesh.castShadow = true;
   leftForearm.add(leftHandMesh);
 
-  // Grimoire (Kitab balok datar warna marun/ungu berlis emas)
+  // Grimoire (Kitab sihir sederhana berbentuk balok datar tipis marun dengan lis emas)
   const grimoire = new THREE.Group();
   const gCover = new THREE.Mesh(geos.grimoireCoverGeo, mats.grimoireCoverMat);
   gCover.castShadow = true;
@@ -489,7 +513,7 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
   gRune.rotation.y = Math.PI / 4;
   grimoire.add(gCover, gPages, gSpine, gRune);
 
-  // Pasang rapi di sisi luar lengan bawah kiri / pergelangan tangan tanpa menembus badan
+  // Pasang rapi di sisi luar pergelangan tangan kiri tanpa menembus badan
   grimoire.position.set(0.12, -0.26, 0.04);
   grimoire.rotation.set(0.12, 0.20, -0.15);
   leftForearm.add(grimoire);
@@ -497,42 +521,42 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
   leftArm.add(leftForearm);
   group.add(leftArm);
 
-  // 7. Kaki (leftLegGroup & rightLegGroup) & Sepatu Bot Cokelat
+  // 7. Kaki (leftLegGroup & rightLegGroup) & Boots Cokelat Kaku
   const buildMageLeg = (posX: number): THREE.Group => {
     const leg = new THREE.Group();
     leg.position.set(posX, 0.88, 0);
 
-    // Paha Ungu (Pivot di Pinggul y=0)
+    // Paha Balok Ungu (Pivot di Pinggul y=0)
     const thigh = new THREE.Mesh(geos.thighGeo, mats.tunicPurpleMat);
     thigh.position.y = -0.19;
     thigh.castShadow = true;
     leg.add(thigh);
 
-    // Knee-guard Abu-abu Metalik
+    // Pelindung Lutut Abu-abu Metalik
     const knee = new THREE.Mesh(geos.kneeBandGeo, mats.kneeGrayMat);
     knee.position.set(0, -0.38, 0.02);
     knee.castShadow = true;
     leg.add(knee);
 
-    // Betis / Shin
+    // Betis Balok Ungu
     const shin = new THREE.Mesh(geos.shinGeo, mats.tunicPurpleMat);
     shin.position.y = -0.52;
     shin.castShadow = true;
     leg.add(shin);
 
-    // Pergelangan Sepatu Bot Cokelat
+    // Boots Cokelat Kaku: Pergelangan
     const ankle = new THREE.Mesh(geos.bootAnkleGeo, mats.bootBrownMat);
     ankle.position.set(0, -0.70, 0.01);
     ankle.castShadow = true;
     leg.add(ankle);
 
-    // Bagian Ujung Kaki Sepatu Bot (Toe Cap)
+    // Ujung Kotak Kaku (Toe Block)
     const toe = new THREE.Mesh(geos.bootToeGeo, mats.bootBrownMat);
     toe.position.set(0, -0.78, 0.12);
     toe.castShadow = true;
     leg.add(toe);
 
-    // Sol Sepatu Bot Kokoh (Rata menyentuh tanah y=0.00)
+    // Sol Sepatu Bot Datar (Rata menyentuh tanah y=0.00)
     const sole = new THREE.Mesh(geos.bootSoleGeo, mats.soleMat);
     sole.position.set(0, -0.86, 0.05);
     sole.receiveShadow = true;
@@ -873,3 +897,75 @@ export function animateMageSkillPose(
   // Default Head Angle Recovery
   playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, 0, lerpSpeed);
 }
+
+/**
+ * ============================================================================
+ * OPTIONAL REACT / R3F COMPONENT WRAPPER (Declarative Props Interface)
+ * ============================================================================
+ * Menyediakan antarmuka komponen React jika model dipanggil secara deklaratif
+ * dalam pohon komponen UI / scene viewer dengan props: speed, state, castEvent, tier.
+ */
+export interface MageModelProps {
+  speed?: number;
+  state?: 'idle' | 'walk' | 'attack' | 'casting' | 'blink' | 'dead';
+  castEvent?: string | null;
+  tier?: number;
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  scale?: [number, number, number] | number;
+}
+
+export const MageModel: React.FC<MageModelProps> = ({
+  speed = 0,
+  state = 'idle',
+  castEvent = null,
+  tier = 1,
+  position = [0, 0, 0],
+  rotation = [0, 0, 0],
+  scale = 1,
+}) => {
+  const mountRef = useRef<THREE.Group>(null);
+  const meshObjRef = useRef<PlayerMeshObjects | null>(null);
+
+  useEffect(() => {
+    if (!mountRef.current) return;
+    const meshObj = createHeroicMageMesh(tier);
+    meshObjRef.current = meshObj;
+    mountRef.current.add(meshObj.group);
+
+    return () => {
+      if (mountRef.current && meshObj.group) {
+        mountRef.current.remove(meshObj.group);
+      }
+    };
+  }, [tier]);
+
+  useEffect(() => {
+    if (!meshObjRef.current) return;
+    const isMoving = speed > 0.1 || state === 'walk';
+    animateMageWalk(meshObjRef.current, performance.now() * 0.001, 0, isMoving, state === 'attack');
+    if (state === 'attack' || state === 'casting' || state === 'blink' || castEvent) {
+      animateMageSkillPose(meshObjRef.current, {
+        attackType: castEvent || (state === 'attack' ? 'basic' : state),
+        progress: 0.5,
+        isCasting: state === 'casting',
+        castingProgress: 0.5,
+        isBlinking: state === 'blink',
+        blinkProgress: 0.5,
+      });
+    }
+  }, [speed, state, castEvent]);
+
+  const s = typeof scale === 'number' ? [scale, scale, scale] : scale;
+
+  return (
+    <group
+      ref={mountRef}
+      position={new THREE.Vector3(...position)}
+      rotation={new THREE.Euler(...rotation)}
+      scale={new THREE.Vector3(...(s as [number, number, number]))}
+    />
+  );
+};
+
+export default MageModel;

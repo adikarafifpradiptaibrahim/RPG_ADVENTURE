@@ -8,8 +8,9 @@ export {
   USE_LEGACY_MAGE,
   animateMageWalk,
   animateMageSkillPose,
+  MageModel,
 } from './MageModel';
-export type { MageSkillAnimContext } from './MageModel';
+export type { MageSkillAnimContext, MageModelProps } from './MageModel';
 
 /**
  * Handles character respawn audio sequence:
