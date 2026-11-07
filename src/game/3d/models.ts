@@ -6915,167 +6915,312 @@ export function createDesertOilLanternMesh(): THREE.Group {
 // ==========================================
 
 /**
- * Creates Jarrus, Sang Cacing Purba Solaria (Segmented Sandworm Boss with Circular Fanged Maw)
+ * Creates Jarrus, Sang Cacing Purba Solaria (Colossal Devourer Sandworm Boss with Circular Fanged Maw)
+ * - Diameter tubuh: 3.8 unit (radius 1.9 unit).
+ * - Panjang tubuh saat keluar penuh: 28-35 unit (10 segmen beruas saling terhubung).
+ * - Sisik karapas gurun cokelat pasir keras (#8b6f47) dengan duri runcing di punggung tiap segmen.
+ * - Mulut melingkar dengan 3 lapis gigi taring segitiga tajam (#f3f4f6) dan bagian dalam merah gelap berpendar lava (#991b1b).
  */
 export function createSandwormBossMesh(): {
   group: THREE.Group;
   parts: Record<string, any>;
 } {
   const group = new THREE.Group();
+  group.name = 'Boss_Jarrus_Sandworm';
   const parts: Record<string, any> = {};
 
-  const chitinDarkMat = new THREE.MeshStandardMaterial({
-    color: 0x78350f, // Deep desert chitin
+  // Karapas gurun cokelat pasir keras (#8b6f47)
+  const chitinPrimaryMat = new THREE.MeshStandardMaterial({
+    color: 0x8b6f47, // Cokelat pasir keras (#8b6f47)
+    roughness: 0.88,
+    metalness: 0.12,
+    flatShading: true,
+  });
+
+  const chitinSecondaryMat = new THREE.MeshStandardMaterial({
+    color: 0x735738, // Cokelat tua pelat pelindung
+    roughness: 0.92,
+    metalness: 0.10,
+    flatShading: true,
+  });
+
+  // Duri runcing punggung karapas
+  const dorsalSpikeMat = new THREE.MeshStandardMaterial({
+    color: 0x3d2714,
     roughness: 0.85,
     metalness: 0.15,
     flatShading: true,
   });
 
-  const chitinAmberMat = new THREE.MeshStandardMaterial({
-    color: 0xb45309, // Warm amber chitin
-    roughness: 0.75,
-    metalness: 0.2,
-    flatShading: true,
-  });
-
-  const spikeMat = new THREE.MeshStandardMaterial({
-    color: 0x451a03,
-    roughness: 0.9,
-    flatShading: true,
-  });
-
+  // Gigi taring segitiga tajam (#f3f4f6)
   const toothMat = new THREE.MeshStandardMaterial({
-    color: 0xfef08a, // Sharp bone teeth
-    roughness: 0.3,
-    metalness: 0.2,
+    color: 0xf3f4f6, // Gigi taring tajam (#f3f4f6)
+    roughness: 0.35,
+    metalness: 0.15,
   });
 
-  const acidMawMat = new THREE.MeshStandardMaterial({
-    color: 0x10b981, // Glowing toxic acid maw void
-    emissive: 0x059669,
-    emissiveIntensity: 0.9,
-    roughness: 0.3,
+  // Bagian dalam mulut merah gelap berpendar lava (#991b1b)
+  const lavaThroatMat = new THREE.MeshStandardMaterial({
+    color: 0x991b1b, // Merah gelap berpendar lava (#991b1b)
+    emissive: 0x991b1b,
+    emissiveIntensity: 1.25,
+    roughness: 0.45,
   });
 
+  // Mata majemuk merah membara
   const eyeMat = new THREE.MeshStandardMaterial({
     color: 0xef4444,
     emissive: 0xdc2626,
-    emissiveIntensity: 1.4,
+    emissiveIntensity: 1.6,
   });
 
-  // Body Segments: 9 chained segments emerging from sand
+  // Struktur Tubuh: 10 segmen silinder beruas (diameter 3.8 unit, panjang total ~32 unit)
   const segments: THREE.Group[] = [];
-  const numSegments = 9;
+  const numSegments = 10;
   let currentParent: THREE.Group = group;
 
   for (let i = 0; i < numSegments; i++) {
     const segGroup = new THREE.Group();
+    segGroup.name = `Sandworm_Segment_${i}`;
     const t = i / numSegments;
-    const radius = 1.5 * (1.1 - t * 0.55);
-    const length = 1.35;
+    // Radius mengecil alami dari 1.9 unit di kepala hingga 1.1 unit di ekor
+    const radius = 1.9 * (1.05 - t * 0.48);
+    const length = 3.2;
 
-    // Segment barrel
-    const segGeo = new THREE.CylinderGeometry(radius * 0.92, radius, length, 12);
-    const segMesh = new THREE.Mesh(segGeo, i % 2 === 0 ? chitinDarkMat : chitinAmberMat);
+    // Tabung ruas chitin silinder
+    const segGeo = new THREE.CylinderGeometry(radius * 0.94, radius, length, 14);
+    const segMesh = new THREE.Mesh(segGeo, i % 2 === 0 ? chitinPrimaryMat : chitinSecondaryMat);
     segMesh.rotation.x = Math.PI / 2;
     segMesh.castShadow = true;
     segMesh.receiveShadow = true;
     segGroup.add(segMesh);
 
-    // Chitin ridge / dorsal carapace plates
-    const ridgeGeo = new THREE.BoxGeometry(radius * 1.5, length * 0.7, 0.45);
-    const ridgeMesh = new THREE.Mesh(ridgeGeo, chitinDarkMat);
-    ridgeMesh.position.y = radius * 0.85;
-    segGroup.add(ridgeMesh);
+    // Pelat karapas punggung bertingkat
+    const carapacePlate = new THREE.Mesh(
+      new THREE.BoxGeometry(radius * 1.55, length * 0.75, radius * 0.45),
+      chitinSecondaryMat
+    );
+    carapacePlate.position.y = radius * 0.85;
+    carapacePlate.castShadow = true;
+    segGroup.add(carapacePlate);
 
-    // Lateral spikes on segments
-    for (let s = -1; s <= 1; s += 2) {
-      const spikeGeo = new THREE.ConeGeometry(0.22, 0.85, 5);
-      const spike = new THREE.Mesh(spikeGeo, spikeMat);
-      spike.position.set(s * (radius * 1.05), radius * 0.45, 0);
-      spike.rotation.z = -s * 0.85;
+    // Duri runcing di punggung tiap segmen (Dorsal spines)
+    for (let sp = -1; sp <= 1; sp += 2) {
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.45, 5), dorsalSpikeMat);
+      spike.position.set(sp * (radius * 0.55), radius * 1.15, 0);
+      spike.rotation.z = -sp * 0.35;
+      spike.rotation.x = -0.15;
+      spike.castShadow = true;
       segGroup.add(spike);
     }
 
-    // Arching posture: head emerges high, body curves into the sand
-    const pitchAngle = i === 0 ? 0.35 : (i < 4 ? -0.15 : -0.22);
-    segGroup.position.set(0, i === 0 ? 2.8 : 0, i === 0 ? 0 : -length * 0.9);
+    // Duri lateral samping (Side spikes)
+    for (let s = -1; s <= 1; s += 2) {
+      const sideSpike = new THREE.Mesh(new THREE.ConeGeometry(0.28, 1.1, 5), dorsalSpikeMat);
+      sideSpike.position.set(s * (radius * 1.05), radius * 0.25, 0);
+      sideSpike.rotation.z = -s * 0.85;
+      segGroup.add(sideSpike);
+    }
+
+    // Kurva lekukan alami tubuh cacing keluar dari tanah pasir
+    const pitchAngle = i === 0 ? 0.38 : (i < 4 ? -0.14 : -0.20);
+    segGroup.position.set(0, i === 0 ? 4.5 : 0, i === 0 ? 0 : -length * 0.92);
     segGroup.rotation.x = pitchAngle;
 
     currentParent.add(segGroup);
     segments.push(segGroup);
+    parts[`segment_${i}`] = segGroup;
     currentParent = segGroup;
   }
 
-  // Head Maw (attached to segment 0)
+  // Kepala & Mulut Melingkar Mengerikan (Diameter 3.8 unit)
   const headGroup = new THREE.Group();
-  headGroup.position.set(0, 0, 0.85);
+  headGroup.name = 'Sandworm_Head';
+  headGroup.position.set(0, 0, 1.6);
 
-  // Outer circular lip / rim
-  const rimGeo = new THREE.TorusGeometry(1.5, 0.38, 10, 20);
-  const rimMesh = new THREE.Mesh(rimGeo, chitinDarkMat);
+  // Bibir luar lingkaran karapas
+  const rimGeo = new THREE.TorusGeometry(1.9, 0.45, 12, 24);
+  const rimMesh = new THREE.Mesh(rimGeo, chitinSecondaryMat);
   headGroup.add(rimMesh);
 
-  // Inner acid throat glowing void
-  const throatGeo = new THREE.CircleGeometry(1.35, 16);
-  const throatMesh = new THREE.Mesh(throatGeo, acidMawMat);
-  throatMesh.position.z = -0.3;
+  // Bagian dalam mulut merah gelap berpendar lava (#991b1b)
+  const throatGeo = new THREE.CircleGeometry(1.75, 20);
+  const throatMesh = new THREE.Mesh(throatGeo, lavaThroatMat);
+  throatMesh.position.z = -0.4;
   headGroup.add(throatMesh);
 
-  // Concentric Rings of Razor-Sharp Inward Teeth
+  // 3 Lapis Gigi Taring Segitiga Tajam Berputar Konsentris (#f3f4f6)
   const toothRings = [
-    { count: 12, rad: 1.3, size: 0.4, len: 0.7 },
-    { count: 10, rad: 0.95, size: 0.32, len: 0.6 },
-    { count: 8, rad: 0.6, size: 0.24, len: 0.48 },
+    { count: 16, rad: 1.62, size: 0.48, len: 0.85 }, // Lapis 1 Luar
+    { count: 12, rad: 1.18, size: 0.38, len: 0.72 }, // Lapis 2 Tengah
+    { count: 8,  rad: 0.72, size: 0.28, len: 0.58 }, // Lapis 3 Dalam
   ];
 
   const teethGroup = new THREE.Group();
+  teethGroup.name = 'Sandworm_Rotating_Teeth';
   toothRings.forEach((ring, rIdx) => {
     for (let c = 0; c < ring.count; c++) {
-      const angle = (c / ring.count) * Math.PI * 2 + (rIdx * 0.3);
-      const toothGeo = new THREE.ConeGeometry(ring.size * 0.5, ring.len, 5);
+      const angle = (c / ring.count) * Math.PI * 2 + (rIdx * 0.25);
+      const toothGeo = new THREE.ConeGeometry(ring.size * 0.45, ring.len, 5);
       const tooth = new THREE.Mesh(toothGeo, toothMat);
       const tx = Math.cos(angle) * ring.rad;
       const ty = Math.sin(angle) * ring.rad;
-      tooth.position.set(tx, ty, -0.15 + rIdx * 0.1);
+      tooth.position.set(tx, ty, -0.2 + rIdx * 0.12);
       tooth.rotation.z = angle - Math.PI / 2;
-      tooth.rotation.x = -0.35;
+      tooth.rotation.x = -0.42; // Miring tajam menusuk ke dalam tenggorokan
       teethGroup.add(tooth);
     }
   });
   headGroup.add(teethGroup);
 
-  // Side Mandible Pincers
-  const leftMandible = new THREE.Mesh(new THREE.ConeGeometry(0.38, 1.9, 6), spikeMat);
-  leftMandible.position.set(-1.75, 0, 0.2);
+  // Capit Mandibula Samping Raksasa
+  const leftMandible = new THREE.Mesh(new THREE.ConeGeometry(0.48, 2.5, 6), dorsalSpikeMat);
+  leftMandible.position.set(-2.2, 0, 0.4);
   leftMandible.rotation.z = Math.PI / 3;
   leftMandible.rotation.y = 0.4;
+  leftMandible.castShadow = true;
 
-  const rightMandible = new THREE.Mesh(new THREE.ConeGeometry(0.38, 1.9, 6), spikeMat);
-  rightMandible.position.set(1.75, 0, 0.2);
+  const rightMandible = new THREE.Mesh(new THREE.ConeGeometry(0.48, 2.5, 6), dorsalSpikeMat);
+  rightMandible.position.set(2.2, 0, 0.4);
   rightMandible.rotation.z = -Math.PI / 3;
   rightMandible.rotation.y = -0.4;
+  rightMandible.castShadow = true;
   headGroup.add(leftMandible, rightMandible);
 
-  // Cluster of glowing red compound eyes
+  // Gugusan Mata Majemuk Merah Membara
   for (let eyeSide = -1; eyeSide <= 1; eyeSide += 2) {
-    for (let eIdx = 0; eIdx < 3; eIdx++) {
-      const eyeGeo = new THREE.SphereGeometry(0.14, 6, 6);
+    for (let eIdx = 0; eIdx < 4; eIdx++) {
+      const eyeGeo = new THREE.SphereGeometry(0.18, 6, 6);
       const eye = new THREE.Mesh(eyeGeo, eyeMat);
-      eye.position.set(eyeSide * (1.2 + eIdx * 0.2), 0.75 + (eIdx % 2) * 0.25, -0.1 - eIdx * 0.3);
+      eye.position.set(eyeSide * (1.45 + eIdx * 0.22), 0.95 + (eIdx % 2) * 0.3, -0.15 - eIdx * 0.35);
       headGroup.add(eye);
     }
   }
 
-  // Attach head to front segment
+  // Pasang kepala ke segmen paling depan (segment 0)
   segments[0].add(headGroup);
 
   parts.head = headGroup;
   parts.teeth = teethGroup;
+  parts.throat = throatMesh;
   parts.mandibles = [leftMandible, rightMandible];
   parts.segments = segments;
 
   return { group, parts };
+}
+
+/**
+ * Lingkaran formasi kerangka tulang rusuk fosil monster purba raksasa di bibir kawah
+ */
+export function createAncientMonsterRibMesh(): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'Ancient_Monster_Rib';
+  const boneMat = new THREE.MeshStandardMaterial({
+    color: 0xeadbc8, // Tulang fosil purba memutih
+    roughness: 0.88,
+    metalness: 0.04,
+    flatShading: true,
+  });
+
+  // Tulang rusuk melengkung raksasa (radius 4.2m) mencuat keluar dari tanah pasir
+  const ribGeo = new THREE.TorusGeometry(4.2, 0.38, 6, 16, Math.PI * 0.65);
+  const rib = new THREE.Mesh(ribGeo, boneMat);
+  rib.rotation.z = Math.PI * 0.2;
+  rib.rotation.y = Math.PI * 0.5;
+  rib.position.y = 1.0;
+  rib.castShadow = true;
+  rib.receiveShadow = true;
+  group.add(rib);
+
+  return group;
+}
+
+/**
+ * Obelisk batu pasir kuno retak yang setengah tertimbun pasir di tepi luar arena
+ */
+export function createCrackedSandstoneObeliskMesh(): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'Cracked_Sandstone_Obelisk';
+
+  const stoneMat = new THREE.MeshStandardMaterial({
+    color: 0xc49a6c, // Batu pasir kuno Solaria
+    roughness: 0.85,
+    metalness: 0.05,
+    flatShading: true,
+  });
+
+  const crackMat = new THREE.MeshStandardMaterial({
+    color: 0x5c4028,
+    roughness: 0.95,
+  });
+
+  // Batang pilar obelisk setengah tertimbun bukit pasir
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.4, 7.5, 4), stoneMat);
+  shaft.position.y = 3.2;
+  shaft.rotation.y = Math.PI / 4;
+  shaft.castShadow = true;
+  shaft.receiveShadow = true;
+  group.add(shaft);
+
+  // Ujung piramida (Pyramidion) di puncak
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(1.15, 1.8, 4), stoneMat);
+  tip.position.y = 7.7;
+  tip.rotation.y = Math.PI / 4;
+  tip.castShadow = true;
+  group.add(tip);
+
+  // Alur retakan kuno
+  const crackRing = new THREE.Mesh(new THREE.TorusGeometry(1.05, 0.08, 4, 8), crackMat);
+  crackRing.position.y = 4.2;
+  crackRing.rotation.x = Math.PI / 2 + 0.15;
+  group.add(crackRing);
+
+  // Kemiringan alami obelisk kuno terhempas badai pasir gurun
+  group.rotation.z = 0.12;
+  group.rotation.x = -0.08;
+
+  return group;
+}
+
+/**
+ * Efek partikel pusaran pasir halus (sand vortex / dust whirl) yang berputar melingkar di tengah kawah
+ */
+export function createSandVortexSwirlMesh(): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'Sand_Vortex_Swirl';
+
+  const vortexMat = new THREE.MeshBasicMaterial({
+    color: 0xd97706,
+    transparent: true,
+    opacity: 0.45,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+
+  const innerMat = new THREE.MeshBasicMaterial({
+    color: 0x78350f,
+    transparent: true,
+    opacity: 0.7,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+
+  const r1 = new THREE.Mesh(new THREE.RingGeometry(1.5, 8.0, 32), innerMat);
+  r1.rotation.x = -Math.PI / 2;
+  r1.position.y = 0.04;
+  group.add(r1);
+
+  const r2 = new THREE.Mesh(new THREE.RingGeometry(8.0, 18.0, 32), vortexMat);
+  r2.rotation.x = -Math.PI / 2;
+  r2.position.y = 0.08;
+  group.add(r2);
+
+  const r3 = new THREE.Mesh(new THREE.RingGeometry(18.0, 32.0, 32), vortexMat);
+  r3.rotation.x = -Math.PI / 2;
+  r3.position.y = 0.12;
+  group.add(r3);
+
+  return group;
 }
 
 export interface InstancedItemTransform {

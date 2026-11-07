@@ -109,6 +109,18 @@ export const REGIONS: RegionInfo[] = [
     center: [80, 360],
     recommendedLevel: 7,
   },
+  {
+    id: 'kawah_cacing_purba',
+    name: 'Lair of The Ancient Sandworm Jarrus',
+    nameId: 'Sarang Sang Cacing Purba Solaria (Lv. 10)',
+    icon: '🪱',
+    description: 'A colossal sinkhole depression in the eastern desert dunes, domain of the legendary Devourer Sandworm Jarrus.',
+    descriptionId: 'Kawah pusaran pasir raksasa yang curam di pedalaman timur Gurun Solaria, sarang predator purba pemangsa cacing raksasa Jarrus.',
+    color: '#ea580c',
+    bounds: { minX: 450, maxX: 540, minZ: -407, maxZ: -317 },
+    center: [495, -362],
+    recommendedLevel: 10,
+  },
 ];
 
 export const WAYPOINTS: {
@@ -207,9 +219,21 @@ export const WAYPOINTS: {
     pos: [80, 360],
     desc: 'Pulau kawah lava vulkanik di seberang laut selatan dan sarang Boss Naga Ignis',
   },
+  {
+    id: 'wp_sandworm',
+    nameId: 'Kawah Pusaran Sang Cacing Purba Jarrus',
+    regionId: 'kawah_cacing_purba',
+    icon: '🪱',
+    pos: [495, -362],
+    desc: 'Kawah pusaran pasir raksasa di pedalaman gurun timur tempat bersemayamnya World Boss Cacing Purba Jarrus (Lv. 10)',
+  },
 ];
 
 export function getCurrentRegion(x: number, z: number): RegionInfo {
+  // 0. Sandworm Lair Sinkhole (radius 45 unit from [495, -362])
+  if (Math.hypot(x - 495, z - -362) <= 45) {
+    return REGIONS.find((r) => r.id === 'kawah_cacing_purba') || REGIONS[7];
+  }
   // 1. Dragonfang Caldera & Volcano Island (Curved Ellipse: cx = 80, cz = 360, rx = 160, rz = 85)
   const cx = 80;
   const cz = 360;

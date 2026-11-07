@@ -20,7 +20,7 @@ import { getContinentBiomeSample, getBiomeAt } from '../game/mapSampler';
 import { drawRoadsOnWorldMap } from '../game/RoadSystem';
 
 // Persistent continent map cached image data to eliminate all lag on open & pan
-const MAP_CACHE_VERSION = 'v5.2_medieval_cobblestone_and_sand_tracks';
+const MAP_CACHE_VERSION = 'v5.3_solaria_sandworm_boss';
 let cachedMapVersion = '';
 let cachedMapImageData: ImageData | null = null;
 
@@ -749,6 +749,30 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                       <span className="text-[8px] font-bold text-red-300 whitespace-nowrap">
                         {REGIONS[8].nameId}
                       </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 12. Kawah Pusaran Cacing Purba Jarrus (Gurun Timur Jauh, X: 495, Z: -362) */}
+              {(() => {
+                const sp = worldToScreen(495, -362);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    onClick={() => {
+                      const reg = REGIONS.find((r) => r.id === 'kawah_cacing_purba') || REGIONS[7];
+                      setSelectedRegion(reg);
+                    }}
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center p-1 rounded-lg bg-orange-950/85 border border-orange-500/70 shadow-lg hover:border-orange-400 hover:scale-110 transition-transform">
+                      <span className="text-xs">🪱</span>
+                      <span className="text-[8px] font-bold text-orange-200 whitespace-nowrap">
+                        Kawah Cacing Purba Jarrus
+                      </span>
+                      <span className="text-[7px] text-orange-300/80 font-mono">World Boss (Lv. 10)</span>
                     </div>
                   </div>
                 );

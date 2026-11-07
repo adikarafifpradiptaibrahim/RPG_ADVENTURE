@@ -34,6 +34,8 @@ export interface PlayerStatusDebuffs {
   isBurned: boolean;
   burnTimer: number;
   burnTickTimer: number;
+  isSlowed?: boolean;
+  slowTimer?: number;
 }
 
 export interface BossManagerCallbacks {
@@ -119,6 +121,34 @@ export class BossManager {
       (tel.indicatorMesh.material as THREE.MeshBasicMaterial).opacity = 0.4 + pulse * 0.4;
       (tel.borderMesh.material as THREE.MeshBasicMaterial).opacity = 0.75 + pulse * 0.25;
       tel.indicatorMesh.scale.set(progress, progress, 1);
+
+      // Inward vortex suction & DoT for Desert Sand Whirlpool
+      if (tel.skill.id === 'sand_whirlpool') {
+        const distToCenter = Math.hypot(playerPos.x - tel.center.x, playerPos.z - tel.center.z);
+        if (distToCenter < (tel.radius || 36.0) && distToCenter > 1.2) {
+          const pullDirX = (tel.center.x - playerPos.x) / distToCenter;
+          const pullDirZ = (tel.center.z - playerPos.z) / distToCenter;
+          const pullSpeed = 5.2 * delta; // Sedotan pusaran pasir ke arah tengah kawah
+          playerPos.x += pullDirX * pullSpeed;
+          playerPos.z += pullDirZ * pullSpeed;
+          // Perputaran spiral pusaran pasir
+          playerPos.x += -pullDirZ * (2.4 * delta);
+          playerPos.z += pullDirX * (2.4 * delta);
+
+          // Efek debu pasir abrasif berkala saat tersedot
+          if (Math.random() < 0.08) {
+            this.callbacks.onUpdateStats((stats) => {
+              const sandDmg = 4;
+              const nextHp = Math.max(0, stats.hp - sandDmg);
+              this.callbacks.onAddFloatingText(`-${sandDmg} HP (Pusaran Pasir)`, '#f59e0b', 'damage');
+              if (nextHp <= 0) {
+                this.callbacks.onPlayerDeath?.();
+              }
+              return { ...stats, hp: nextHp };
+            });
+          }
+        }
+      }
 
       // Detonate attack when telegraph timer finishes
       if (tel.timer >= tel.duration) {
@@ -299,34 +329,65 @@ export class BossManager {
       }
     } else if (isWorm) {
       const burrowCd = cdMap.get('burrow_burst') || 0;
-      const acidCd = cdMap.get('acid_spit') || 0;
-      const slamCd = cdMap.get('sand_slam') || 0;
+      const spikeCd = cdMap.get('sand_spike_barrage') || 0;
+      const whirlpoolCd = cdMap.get('sand_whirlpool') || 0;
+      const tailCd = cdMap.get('tail_slam') || 0;
       const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), enemy.mesh.rotation.y);
 
-      // 1. Burrow Attack: Sinks into sand, red circle tracks player, then bursts out under player
-      if (distToPlayer <= 26 && burrowCd <= 0) {
+      // 1. SKILL 3 — DESERT SAND WHIRLPOOL (Ketika HP < 50%, cacing berdiam di tengah & ciptakan pusaran)
+      if (enemy.data.hp < enemy.data.maxHp * 0.5 && whirlpoolCd <= 0 && distToPlayer <= 42) {
+        const skill = config.skills.find((s) => s.id === 'sand_whirlpool');
+        if (skill) {
+          const centerPos = new THREE.Vector3(495, this.getTerrainHeight(495, -362), -362);
+          this.startTelegraphCircle(bossId, enemy, centerPos, 36.0, skill);
+          soundManager.playTitanGroundSlam();
+          this.callbacks.onAddFloatingText('🌪️ SANG CACING MEMICU PUSARAN PASIR RAKSASA!', '#f59e0b', 'crit');
+          cdMap.set('sand_whirlpool', skill.cooldown);
+          return true;
+        }
+      }
+
+      // 2. SKILL 1 — BURROW & ERUPTION (Menyelam & Muncul di bawah kaki pemain)
+      if (distToPlayer <= 38 && burrowCd <= 0) {
         const skill = config.skills.find((s) => s.id === 'burrow_burst')!;
-        this.startTelegraphCircle(bossId, enemy, playerPos.clone(), 5.5, skill);
+        this.startTelegraphCircle(bossId, enemy, playerPos.clone(), 4.5, skill);
         soundManager.playWormBurrow();
+        this.callbacks.onAddFloatingText('⚠️ Cacing Purba Menyelam ke Bawah Pasir!', '#ef4444', 'info');
+        // Fase Bawah Tanah: sembunyikan atau tenggelamkan mesh cacing
+        if (enemy.mesh) {
+          enemy.mesh.position.y -= 14.0;
+        }
         cdMap.set('burrow_burst', skill.cooldown);
         return true;
       }
 
-      // 2. Acid Spit: Cone of corrosive green acid
-      if (distToPlayer <= 16 && acidCd <= 0) {
-        const skill = config.skills.find((s) => s.id === 'acid_spit')!;
-        this.startTelegraphCone(bossId, enemy, ePos, fwd, 15, Math.PI / 3.2, skill);
-        soundManager.playWormAcidSpit();
-        cdMap.set('acid_spit', skill.cooldown);
-        return true;
+      // 3. SKILL 2 — SAND SPIKE BARRAGE (5-8 Duri Pasir Tajam Menusuk Area Beruntun)
+      if (distToPlayer <= 28 && spikeCd <= 0) {
+        const skill = config.skills.find((s) => s.id === 'sand_spike_barrage');
+        if (skill) {
+          // Spawn 6 sequential spike telegraphs around player with small radius
+          for (let sp = 0; sp < 6; sp++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 1.5 + Math.random() * 5.0;
+            const spikeCenter = playerPos.clone().add(new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist));
+            this.startTelegraphCircle(bossId, enemy, spikeCenter, 2.0, skill);
+          }
+          soundManager.playWormBurrow();
+          this.callbacks.onAddFloatingText('⚠️ DURI PASIR MENUSUK DARI BAWAH TANAH!', '#f97316', 'info');
+          cdMap.set('sand_spike_barrage', skill.cooldown);
+          return true;
+        }
       }
 
-      // 3. Sand Slam: Heavy body thrash
-      if (distToPlayer <= 6.5 && slamCd <= 0) {
-        const skill = config.skills.find((s) => s.id === 'sand_slam')!;
-        this.startTelegraphCircle(bossId, enemy, ePos, 6.5, skill);
-        cdMap.set('sand_slam', skill.cooldown);
-        return true;
+      // 4. SKILL 4 — TAIL SLAM / SWEEP (Sapuan Ekor 180 Derajat Jarak Dekat)
+      if (distToPlayer <= 7.0 && tailCd <= 0) {
+        const skill = config.skills.find((s) => s.id === 'tail_slam');
+        if (skill) {
+          this.startTelegraphCone(bossId, enemy, ePos, fwd, 7.5, Math.PI, skill);
+          soundManager.playHit(true);
+          cdMap.set('tail_slam', skill.cooldown);
+          return true;
+        }
       }
     }
 
@@ -594,17 +655,40 @@ export class BossManager {
       this.callbacks.onCameraShake(0.4);
     } else if (tel.skill.id === 'burrow_burst') {
       soundManager.playWormBurstOut();
-      this.callbacks.onCameraShake(1.0);
+      this.callbacks.onCameraShake(1.25);
       if (tel.enemy?.mesh) {
         const gY = this.getTerrainHeight(tel.center.x, tel.center.z);
         tel.enemy.mesh.position.set(tel.center.x, gY, tel.center.z);
       }
-    } else if (tel.skill.id === 'acid_spit') {
-      soundManager.playWormAcidSpit();
-      this.callbacks.onCameraShake(0.4);
-    } else if (tel.skill.id === 'sand_slam') {
+      this.callbacks.onSpawnShockwave?.(tel.center, 0xd97706, 6.5, 0.8);
+    } else if (tel.skill.id === 'sand_spike_barrage') {
       soundManager.playTitanGroundSlam();
-      this.callbacks.onCameraShake(0.65);
+      this.callbacks.onCameraShake(0.5);
+      // Spawn pilar duri batu pasir tajam yang mencuat dari dalam tanah
+      const spikeGeo = new THREE.ConeGeometry(0.55, 3.5, 5);
+      const spikeMat = new THREE.MeshStandardMaterial({
+        color: 0xc49a6c,
+        roughness: 0.85,
+        flatShading: true,
+      });
+      const spikeMesh = new THREE.Mesh(spikeGeo, spikeMat);
+      const groundY = this.getTerrainHeight(tel.center.x, tel.center.z);
+      spikeMesh.position.set(tel.center.x, groundY + 1.7, tel.center.z);
+      spikeMesh.castShadow = true;
+      this.scene.add(spikeMesh);
+      setTimeout(() => {
+        this.scene.remove(spikeMesh);
+        spikeGeo.dispose();
+        spikeMat.dispose();
+      }, 2200);
+      this.callbacks.onSpawnSparks?.(tel.center, 0xd97706, 8, 4.0);
+    } else if (tel.skill.id === 'sand_whirlpool') {
+      soundManager.playTitanGroundSlam();
+      this.callbacks.onCameraShake(1.0);
+      this.callbacks.onSpawnShockwave?.(tel.center, 0xb45309, 36.0, 2.5);
+    } else if (tel.skill.id === 'tail_slam') {
+      soundManager.playHit(true);
+      this.callbacks.onCameraShake(0.7);
     } else {
       soundManager.playHit();
       this.callbacks.onCameraShake(0.55);
@@ -644,24 +728,43 @@ export class BossManager {
       this.applyBurn(skill.effectDuration || 4.0);
     } else if (skill.effect === 'knockback') {
       this.applyKnockback(tel.center, playerPos, playerVel);
+    } else if (skill.effect === 'knockup') {
+      this.applyKnockup(tel.center, playerPos, playerVel);
+    } else if (skill.effect === 'slow') {
+      this.applySlow(skill.effectDuration || 3.0);
     }
 
     this.bossStates.set(tel.bossId, 'recovery');
     this.stateTimers.set(tel.bossId, 0);
   }
 
+  private applyKnockup(from: THREE.Vector3, playerPos: THREE.Vector3, playerVel: THREE.Vector3) {
+    const dir = new THREE.Vector3(playerPos.x - from.x, 0, playerPos.z - from.z).normalize();
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
+    playerVel.x += dir.x * 6.5;
+    playerVel.z += dir.z * 6.5;
+    playerVel.y = 11.5; // Terlempar tinggi ke udara
+    this.callbacks.onAddFloatingText('🌪️ TERLEMPAR KE UDARA (KNOCKUP)!', '#ff5252', 'crit');
+  }
+
+  private applySlow(duration: number) {
+    this.playerDebuffs.isSlowed = true;
+    this.playerDebuffs.slowTimer = Math.max(this.playerDebuffs.slowTimer || 0, duration);
+    this.callbacks.onAddFloatingText('⏳ TERKENA SLOW! (Kecepatan -50%)', '#f59e0b', 'info');
+  }
+
   private applyStun(duration: number, playerVel: THREE.Vector3) {
     this.playerDebuffs.isStunned = true;
     this.playerDebuffs.stunTimer = duration;
     playerVel.set(0, 0, 0); // Lock movement
-    this.callbacks.onAddFloatingText('ðŸ’« TERKENA STUN! (1.5 detik)', '#ffd600', 'crit');
+    this.callbacks.onAddFloatingText('💫 TERKENA STUN! (1.5 detik)', '#ffd600', 'crit');
   }
 
   private applyBurn(duration: number) {
     this.playerDebuffs.isBurned = true;
     this.playerDebuffs.burnTimer = duration;
     this.playerDebuffs.burnTickTimer = 0.6;
-    this.callbacks.onAddFloatingText('ðŸ”¥ TERBAKAR! (DoT)', '#ff3d00', 'damage');
+    this.callbacks.onAddFloatingText('🔥 TERBAKAR! (DoT)', '#ff3d00', 'damage');
   }
 
   private applyKnockback(from: THREE.Vector3, playerPos: THREE.Vector3, playerVel: THREE.Vector3) {
@@ -669,7 +772,7 @@ export class BossManager {
     if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
     playerVel.x += dir.x * 16.0;
     playerVel.z += dir.z * 16.0;
-    this.callbacks.onAddFloatingText('ðŸ’¨ TERPENTAL (KNOCKBACK)!', '#ff9100', 'info');
+    this.callbacks.onAddFloatingText('💨 TERPENTAL (KNOCKBACK)!', '#ff9100', 'info');
   }
 
   private updatePlayerDebuffs(delta: number) {
@@ -683,7 +786,17 @@ export class BossManager {
       }
     }
 
-    // 2. Burn DoT Tick
+    // 2. Slow Countdown
+    if (this.playerDebuffs.isSlowed) {
+      this.playerDebuffs.slowTimer = (this.playerDebuffs.slowTimer || 0) - delta;
+      if (this.playerDebuffs.slowTimer <= 0) {
+        this.playerDebuffs.isSlowed = false;
+        this.playerDebuffs.slowTimer = 0;
+        this.callbacks.onAddFloatingText('Efek Slow Berakhir!', '#76ff03', 'info');
+      }
+    }
+
+    // 3. Burn DoT Tick
     if (this.playerDebuffs.isBurned) {
       this.playerDebuffs.burnTimer -= delta;
       this.playerDebuffs.burnTickTimer -= delta;
@@ -753,6 +866,8 @@ export class BossManager {
     this.playerDebuffs.isBurned = false;
     this.playerDebuffs.burnTimer = 0;
     this.playerDebuffs.burnTickTimer = 0;
+    this.playerDebuffs.isSlowed = false;
+    this.playerDebuffs.slowTimer = 0;
   }
 
   public cleanup() {
@@ -764,6 +879,8 @@ export class BossManager {
     this.skillCooldowns.clear();
     this.playerDebuffs.isStunned = false;
     this.playerDebuffs.isBurned = false;
+    this.playerDebuffs.isSlowed = false;
+    this.playerDebuffs.slowTimer = 0;
     if (soundManager.getCurrentBossMusic()) {
       soundManager.evadeBossMusic();
     }

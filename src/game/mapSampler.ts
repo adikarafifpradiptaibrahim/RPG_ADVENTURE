@@ -177,6 +177,16 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     if (distOasis < 16) return -0.4; // Water depression
     if (distOasis < 26) return 0.6;
 
+    // 3e. The Great Solaria Sinkhole - Sandworm Arena [495, -362]
+    // Radius 45 unit, cekungan bukit pasir melingkar yang menurun landai ke arah tengah (-2.5 unit)
+    const distSinkhole = Math.hypot(x - 495, z - -362);
+    if (distSinkhole <= 45) {
+      const t = distSinkhole / 45;
+      const bowl = Math.pow(t, 1.8) * 2.5 - 2.5; // -2.5 unit di tengah, 0 di bibir
+      const swirlRipple = Math.sin(Math.atan2(z - -362, x - 495) * 3 + distSinkhole * 0.4) * 0.18;
+      return 1.80 + bowl + swirlRipple;
+    }
+
     // Rolling golden dunes
     const duneWave = Math.sin(x * 0.035 + z * 0.028) * 1.1 + Math.cos(x * 0.02 - z * 0.03) * 0.5;
     return clamp(1.4 + duneWave, 0.5, 3.5);
@@ -278,6 +288,17 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     // Pyramid
     if (Math.hypot(x - 20, z - -220) <= 24) {
       return { height: y, color: [220, 160, 40], biomeId: 'solaria_pyramid', isWater: false, isPath: false, slope };
+    }
+    // The Great Solaria Sinkhole - Sandworm Arena [495, -362]
+    const distSinkhole = Math.hypot(x - 495, z - -362);
+    if (distSinkhole <= 45) {
+      const t = distSinkhole / 45;
+      // Concentric swirling sand tones from amber rim to deep golden shadow pit
+      const swirl = Math.sin(Math.atan2(z - -362, x - 495) * 4 + distSinkhole * 0.5);
+      const r = Math.round(180 + t * 50 + swirl * 10);
+      const g = Math.round(110 + t * 65 + swirl * 8);
+      const b = Math.round(30 + t * 50);
+      return { height: y, color: [r, g, b], biomeId: 'solaria_sinkhole', isWater: false, isPath: false, slope };
     }
     // Rolling desert
     const duneWave = Math.sin(x * 0.035 + z * 0.028);

@@ -1560,8 +1560,8 @@ export class GameEngine {
       walkCycle: 0,
     });
 
-    // Solaria Desert Colossal Super Boss: Jarrus, Sang Cacing Purba (Segmented Burrowing Sandworm: [460, -180])
-    const wormPos: [number, number] = [460, -180];
+    // Solaria Desert Colossal Super Boss: Jarrus, Sang Cacing Purba (Segmented Burrowing Sandworm: [495, -362])
+    const wormPos: [number, number] = [495, -362];
     const { group: wormGroup, parts: wormParts } = createEnemyMesh('worm');
     const wormY = this.world.getTerrainHeight(wormPos[0], wormPos[1]);
     wormGroup.position.set(wormPos[0], wormY, wormPos[1]);
@@ -1573,20 +1573,21 @@ export class GameEngine {
       nameId: 'Jarrus, Sang Cacing Purba Solaria',
       type: 'boss',
       level: 10,
-      hp: 1050,
-      maxHp: 1050,
-      attack: 42,
-      defense: 20,
-      expReward: 1050,
-      goldReward: 700,
-      speed: 2.6,
-      attackRange: 5.0,
-      detectRange: 30,
+      hp: 1450,
+      maxHp: 1450,
+      attack: 48,
+      defense: 22,
+      expReward: 1650,
+      goldReward: 1200,
+      speed: 2.8,
+      attackRange: 6.5,
+      detectRange: 45,
       position: [wormPos[0], wormY, wormPos[1]],
       isDead: false,
       dropItems: [
         { item: CHEST_LOOT_POOL[0], chance: 1.0 },
         { item: CHEST_LOOT_POOL[2], chance: 1.0 },
+        { item: CHEST_LOOT_POOL[4], chance: 1.0 },
       ],
     };
 
@@ -1606,7 +1607,7 @@ export class GameEngine {
       }
       e.isReturning = false;
       e.deathTimer = 0;
-      e.leashRadius = e.data.id === 'boss_dragonfang' ? 25 : (e.data.id === 'boss_titan' ? 20 : (e.data.type === 'boss' ? 38 : 22));
+      e.leashRadius = e.data.id === 'boss_dragonfang' ? 25 : (e.data.id === 'boss_titan' ? 20 : (e.data.id === 'boss_jarrus' ? 45 : (e.data.type === 'boss' ? 38 : 22)));
     });
   }
 
@@ -4336,11 +4337,14 @@ export class GameEngine {
 
   private animateEnemyWalk(enemy: (typeof this.enemies)[0], delta: number) {
     if (enemy.data.id === 'boss_jarrus') {
-      for (let i = 1; i <= 8; i++) {
+      if (enemy.parts.teeth) {
+        enemy.parts.teeth.rotation.z += delta * 2.4;
+      }
+      for (let i = 1; i < 10; i++) {
         const seg = enemy.parts[`segment_${i}`];
         if (seg) {
-          seg.position.x = Math.sin(enemy.walkCycle * 2.5 - i * 0.5) * 0.35;
-          seg.position.y = Math.cos(enemy.walkCycle * 2.0 - i * 0.4) * 0.15;
+          seg.rotation.y = Math.sin(enemy.walkCycle * 2.5 - i * 0.45) * 0.22;
+          seg.rotation.z = Math.cos(enemy.walkCycle * 2.0 - i * 0.4) * 0.12;
         }
       }
       return;
@@ -4393,7 +4397,7 @@ export class GameEngine {
   }
 
   private resetEnemyPose(enemy: (typeof this.enemies)[0]) {
-    const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : (enemy.data.id === 'boss_jarrus' ? 2.8 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0)));
+    const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : (enemy.data.id === 'boss_jarrus' ? 1.0 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0)));
     enemy.mesh.scale.set(s, s, s);
     if (enemy.parts) {
       if (enemy.parts.leftLeg) enemy.parts.leftLeg.rotation.set(0, 0, 0);
@@ -4418,7 +4422,7 @@ export class GameEngine {
     const spawnY = this.world.getTerrainHeight(spawn.x, spawn.z);
     enemy.mesh.position.set(spawn.x, spawnY, spawn.z);
     enemy.mesh.rotation.set(0, 0, 0);
-    const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : (enemy.data.id === 'boss_jarrus' ? 2.8 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0)));
+    const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : (enemy.data.id === 'boss_jarrus' ? 1.0 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0)));
     enemy.mesh.scale.set(s, s, s);
     enemy.mesh.visible = true;
     this.resetEnemyPose(enemy);
@@ -4821,6 +4825,9 @@ export class GameEngine {
     }
 
     let targetSpeed = baseSpeed;
+    if (this.bossManager?.playerDebuffs?.isSlowed) {
+      targetSpeed *= 0.5; // Efek Slow -50% pergerakan dari Boss / Sand Spikes
+    }
     if (this.isDashing) {
       targetSpeed = this.charClass === 'rogue' ? 24.0 : this.charClass === 'warrior' ? 19.0 : 16.0;
     } else if (isPointOnRoad(this.playerPos.x, this.playerPos.z)) {
@@ -5470,11 +5477,11 @@ export class GameEngine {
         return;
       }
 
-      // Boss Titan & Dragon permanent scale lock on update loop
+      // Boss Titan, Dragon & Worm permanent scale lock on update loop
       if (enemy.data.id === 'boss_dragonfang') {
         enemy.mesh.scale.set(4.2, 4.2, 4.2);
       } else if (enemy.data.id === 'boss_jarrus') {
-        enemy.mesh.scale.set(2.8, 2.8, 2.8);
+        enemy.mesh.scale.set(1.0, 1.0, 1.0);
       } else if (enemy.data.type === 'boss') {
         enemy.mesh.scale.set(3.5, 3.5, 3.5);
       } else if (enemy.data.type === 'golem') {
@@ -5491,6 +5498,8 @@ export class GameEngine {
           ? 22
           : enemy.data.id === 'boss_titan'
           ? 18
+          : enemy.data.id === 'boss_jarrus'
+          ? 45
           : enemy.data.type === 'boss'
           ? 38
           : 22);
@@ -5654,11 +5663,11 @@ export class GameEngine {
         }
       }
 
-      // Boss Titan & Dragon permanent scale lock in multiplayer loop
+      // Boss Titan, Dragon & Worm permanent scale lock in multiplayer loop
       if (enemy.data.id === 'boss_dragonfang') {
         enemy.mesh.scale.set(4.2, 4.2, 4.2);
       } else if (enemy.data.id === 'boss_jarrus') {
-        enemy.mesh.scale.set(2.8, 2.8, 2.8);
+        enemy.mesh.scale.set(1.0, 1.0, 1.0);
       } else if (enemy.data.type === 'boss') {
         enemy.mesh.scale.set(3.5, 3.5, 3.5);
       } else if (enemy.data.type === 'golem') {
@@ -6461,16 +6470,16 @@ export class GameEngine {
         description: 'Kemegahan Marmer Putih, Menara Minaret, Kolam Pantul & Ruang Takhta',
       });
 
-      // Jarrus, Sang Cacing Purba (Deep South Solaria Dunes)
+      // Jarrus, Sang Cacing Purba (The Great Solaria Sinkhole)
       markers.push({
         id: 'landmark_boss_jarrus',
-        title: 'Sarang Jarrus Sang Cacing Purba',
+        title: 'Kawah Pusaran Sang Cacing Purba Jarrus',
         type: 'boss',
-        x: -240,
-        z: 420,
-        icon: 'ðŸª±',
+        x: 495,
+        z: -362,
+        icon: '🪱',
         color: '#ea580c',
-        description: 'Wilayah Teritorial Cacing Purba Pemangsa Gurun Dalam',
+        description: 'Arena Kawah Pusaran Pasir Raksasa Sang Cacing Purba Solaria (Lv. 10)',
       });
 
       // Secret Palm Oasis of Solaria (South-West)

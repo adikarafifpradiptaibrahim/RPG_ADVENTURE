@@ -90,6 +90,9 @@ import {
   createVolcanicBasaltRockMesh,
   createLightningCrystalMesh,
   createAncientRitualTowerMesh,
+  createAncientMonsterRibMesh,
+  createCrackedSandstoneObeliskMesh,
+  createSandVortexSwirlMesh,
 } from './models';
 import { buildWorldRoadNetwork, isPointOnRoad } from '../RoadSystem';
 
@@ -1798,6 +1801,49 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   scene.add(cactiMesh);
 
   // Gundukan pasir oval melayang (sandDunes) dihapus total sesuai permintaan user.
+
+  // ==========================================
+  // 5D. THE GREAT SOLARIA SINKHOLE - SARANG CACING PURBA JARRUS ([495, -362])
+  // ==========================================
+  const sinkholeCenter = { x: 495, z: -362 };
+  const sinkholeBaseY = getTerrainHeight(sinkholeCenter.x, sinkholeCenter.z);
+
+  // 1. Partikel & Gelombang Pusaran Pasir Berputar di Dasar Kawah
+  const sandVortex = createSandVortexSwirlMesh();
+  sandVortex.position.set(sinkholeCenter.x, sinkholeBaseY + 0.05, sinkholeCenter.z);
+  scene.add(sandVortex);
+  decorativeProps.push(sandVortex);
+
+  // 2. Lingkaran Formasi Kerangka Tulang Rusuk Fosil Monster Purba Raksasa (Radius ~38-42 unit)
+  for (let r = 0; r < 14; r++) {
+    const angle = (r / 14) * Math.PI * 2 + 0.15;
+    const rad = 38.5 + (r % 2) * 3.5;
+    const rx = sinkholeCenter.x + Math.cos(angle) * rad;
+    const rz = sinkholeCenter.z + Math.sin(angle) * rad;
+    const ry = getTerrainHeight(rx, rz);
+    const rib = createAncientMonsterRibMesh();
+    rib.position.set(rx, ry, rz);
+    rib.rotation.y = angle + Math.PI / 2;
+    const s = 0.95 + (r % 3) * 0.22;
+    rib.scale.set(s, s, s);
+    scene.add(rib);
+    decorativeProps.push(rib);
+    colliders.push({ type: 'circle', x: rx, z: rz, radius: 1.2, label: 'Fosil Tulang Rusuk Monster Purba' });
+  }
+
+  // 3. 6 Obelisk Batu Pasir Kuno Retak Setengah Tertimbun Pasir di Tepi Luar Arena (Radius ~44 unit)
+  for (let o = 0; o < 6; o++) {
+    const angle = (o / 6) * Math.PI * 2;
+    const ox = sinkholeCenter.x + Math.cos(angle) * 44.0;
+    const oz = sinkholeCenter.z + Math.sin(angle) * 44.0;
+    const oy = getTerrainHeight(ox, oz) - 0.6; // Setengah tertimbun pasir
+    const obelisk = createCrackedSandstoneObeliskMesh();
+    obelisk.position.set(ox, oy, oz);
+    obelisk.rotation.y = angle + 0.4;
+    scene.add(obelisk);
+    decorativeProps.push(obelisk);
+    colliders.push({ type: 'circle', x: ox, z: oz, radius: 1.5, label: 'Obelisk Kuno Kawah Cacing' });
+  }
   // Seluruh lanskap gurun mengandalkan daratan utama terrainMesh alami yang mulus.
 
   // ==========================================
@@ -2355,6 +2401,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { id: 'chest_astraea', pos: [-320, 2.0, -220] as [number, number, number] }, // Astraea Imperial Vault
     { id: 'chest_harbor_galleon', pos: [19.5, 0, 221] as [number, number, number] }, // Harbor Galleon Stash
     { id: 'chest_bridge', pos: [135, 1.35, 47] as [number, number, number] }, // Gorge Suspension Bridge Cache
+    { id: 'chest_sandworm_cache', pos: [506, -0.6, -370] as [number, number, number] }, // Ancient Sandworm Sinkhole Cache
   ];
 
   const chests: WorldObjects['chests'] = [];
@@ -2545,6 +2592,12 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       name: 'Primal Dragonfang Caldera',
       nameId: 'Kaldera Sarang Naga Purba',
       pos: [80, 360],
+    },
+    {
+      id: 'wp_sandworm',
+      name: 'The Great Solaria Sinkhole',
+      nameId: 'Kawah Pusaran Sang Cacing Purba Jarrus',
+      pos: [495, -362],
     },
   ];
 
