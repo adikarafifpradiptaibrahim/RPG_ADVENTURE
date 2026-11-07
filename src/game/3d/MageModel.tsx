@@ -247,15 +247,14 @@ function getMageGeometries(): BlockyMageGeometryPalette {
     capeGeo.center();
 
     // 5. Staff: Silinder bersegi ungu tua dengan hiasan puncak cincin emas & kristal bersinar
-    // Total panjang tongkat ~1.62 unit. Titik (0, 0, 0) lokal di dalam rightHand adalah titik cengkeraman (grip).
-    // Batang digeser +0.05 unit sehingga tangan menggenggam bagian tengah-bawah yang proporsional.
-    // Kristal menonjol ke atas (+Y = 1.02) dan ujung bawah menggantung wajar (-Y = -0.76).
-    const staffShaftGeo = new THREE.CylinderGeometry(0.032, 0.038, 1.62, 6);
-    staffShaftGeo.translate(0, 0.05, 0);
+    // Total panjang tongkat ~1.70 unit. Titik (0, 0, 0) lokal di dalam rightHand adalah titik cengkeraman (grip).
+    // Genggaman tangan kanan berada sekitar 40% dari puncak kristal (+0.74 unit ke atas, -0.95 unit ke bawah).
+    const staffShaftGeo = new THREE.CylinderGeometry(0.032, 0.038, 1.53, 6);
+    staffShaftGeo.translate(0, -0.185, 0); // dari y = -0.95 sampai y = +0.58
 
     const staffCollarGeo = new THREE.CylinderGeometry(0.052, 0.045, 0.08, 6);
+    // Cincin emas di puncak tongkat tegak di bidang XY menghadap ke depan
     const staffRingHeadGeo = new THREE.TorusGeometry(0.16, 0.030, 6, 16);
-    staffRingHeadGeo.rotateX(Math.PI / 2);
     const staffCrystalGeo = new THREE.IcosahedronGeometry(0.10, 0);
 
     // 6. Grimoire: Kitab sihir balok datar tipis marun berlis emas
@@ -447,22 +446,22 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
 
   // Collar Emas
   const staffCollar = new THREE.Mesh(geos.staffCollarGeo, mats.goldTrimMat);
-  staffCollar.position.y = 0.86;
+  staffCollar.position.y = 0.58;
   weapon.add(staffCollar);
 
-  // Lingkaran Emas yang Kaku (Cincin Bersudut)
+  // Lingkaran Emas yang Kaku (Cincin Bersudut) menghadap ke depan
   const orbRing = new THREE.Mesh(geos.staffRingHeadGeo, mats.goldTrimMat);
-  orbRing.position.y = 1.02;
+  orbRing.position.y = 0.74;
   weapon.add(orbRing);
 
   // Kristal Biru Neon Icosahedron Kecil yang Dijepit di Tengah Cincin
   const orbMesh = new THREE.Mesh(geos.staffCrystalGeo, mats.crystalCyanMat);
-  orbMesh.position.y = 1.02;
+  orbMesh.position.y = 0.74;
   weapon.add(orbMesh);
 
-  // Pasangkan tongkat tepat di telapak tangan kanan dengan cengkeraman di tengah-bawah yang proporsional
-  // Kunci orientasi tetap permanen [0, 0, 0] (kristal selalu mengarah ke atas di sumbu +Y relatif terhadap tangan)
-  weapon.position.set(0, -0.06, 0.04);
+  // Pasangkan tongkat tepat di dalam telapak tangan kanan (child langsung dari rightHand)
+  // Sumbu X dan Z sejajar rapat di dalam telapak tangan tanpa celah melayang atau menembus lengan
+  weapon.position.set(0, -0.06, 0.02);
   weapon.rotation.set(0, 0, 0);
   rightHand.add(weapon);
 
@@ -829,13 +828,15 @@ export function animateMageSkillPose(
   // A. Basic Attack: Arcane Beam (Channeling 1.0 Detik)
   if (ctx.attackType === 'basic') {
     // 1. Lengan Kanan: Angkat lurus ke depan setinggi dada (rotation.x = -Math.PI / 2)
-    // Sendi lengan lurus ke depan otomatis mengarahkan ujung kristal tongkat ke target di depan
+    // Sendi lengan lurus ke depan mengarahkan ujung kristal tongkat ke target di depan
     playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -Math.PI / 2, lerpSpeed);
     playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, lerpSpeed);
     playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, -0.05, lerpSpeed);
 
-    // KUNCI PERMANEN: Mesh tongkat selalu memiliki orientasi tetap [0, 0, 0] tanpa flip 180 derajat manual
-    playerMesh.weapon.rotation.set(0, 0, 0);
+    // Orientasi Tongkat: Ujung kristal biru menghadap lurus ke depan (+Z target)
+    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, Math.PI, lerpSpeed);
+    playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, 0, lerpSpeed);
+    playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0, lerpSpeed);
 
     // 2. Lengan Kiri (Grimoire): Angkat sedikit ke samping depan seolah membaca mantra dari kitab
     playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -0.40, lerpSpeed);
@@ -850,25 +851,33 @@ export function animateMageSkillPose(
     playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, -0.05, lerpSpeed);
     return;
   } else {
-    // Kunci orientasi tetap tongkat (rotasi lokal [0, 0, 0])
-    playerMesh.weapon.rotation.set(0, 0, 0);
+    // Kembalikan orientasi tongkat ke posisi tegak di samping badan
+    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 0, lerpSpeed);
+    playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, 0, lerpSpeed);
+    playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0, lerpSpeed);
   }
 
   // B. Skill 1: Starfall (Fase Casting 1.0 Detik & Fase Barrage Meteor 10-Barrage)
   if (ctx.isCasting) {
     // Detik 0.0 - 1.0 (Fase Casting):
-    // Karakter diam di tempat, kedua tangan diangkat tinggi ke langit, kepala mendongak ke atas
+    // Karakter diam di tempat, kepala mendongak ke atas
     playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0, lerpSpeed);
     playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0, lerpSpeed);
 
-    // Kedua lengan diangkat tinggi ke atas langit
+    // Lengan Kanan (Tongkat): Angkat tinggi ke atas mengacungkan tongkat ke langit
     playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -Math.PI * 0.85, lerpSpeed);
     playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, -0.15, lerpSpeed);
     playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, -0.20, lerpSpeed);
 
-    playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -Math.PI * 0.85, lerpSpeed);
-    playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.15, lerpSpeed);
-    playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.25, lerpSpeed);
+    // Orientasi Tongkat: Bagian berkepala kristal dan cincin emas menunjuk ke langit
+    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, Math.PI, lerpSpeed);
+    playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, 0, lerpSpeed);
+    playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0, lerpSpeed);
+
+    // Lengan Kiri (Buku): TETAP DIAM di samping badan / di pinggul mendekap grimoire (JANGAN MENGANGKAT LENGAN KIRI)
+    playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0.06, lerpSpeed);
+    playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.10, lerpSpeed);
+    playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.12, lerpSpeed);
 
     // Kepala mendongak ke atas (head rotation.x = -0.3 rad)
     playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, -0.30, lerpSpeed);
@@ -885,7 +894,11 @@ export function animateMageSkillPose(
     playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, 0.35);
     playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, -0.10, 0.35);
 
-    playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -0.30, 0.35);
+    // Tongkat tetap terarah ke depan-bawah saat slam
+    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, Math.PI, 0.35);
+
+    // Lengan Kiri tetap di samping mendekap grimoire
+    playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0.06, 0.35);
     playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0.12 * slam, 0.35);
     playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, 0.10, lerpSpeed);
     return;

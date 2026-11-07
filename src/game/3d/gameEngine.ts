@@ -2851,7 +2851,7 @@ export class GameEngine {
       this.playerMesh.group.updateMatrixWorld(true);
       const crystalWorldPos = new THREE.Vector3();
       this.playerMesh.orbMesh.getWorldPosition(crystalWorldPos);
-      origin = crystalWorldPos.clone().add(fwd.clone().multiplyScalar(0.12));
+      origin = crystalWorldPos.clone().add(fwd.clone().multiplyScalar(0.15));
 
       getOriginCb = () => {
         if (!this.playerMesh?.orbMesh) return { origin, direction: fwd };
@@ -2860,7 +2860,7 @@ export class GameEngine {
         this.playerMesh.orbMesh.getWorldPosition(curCrystalPos);
         const curFwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
         return {
-          origin: curCrystalPos.add(curFwd.clone().multiplyScalar(0.12)),
+          origin: curCrystalPos.add(curFwd.clone().multiplyScalar(0.15)),
           direction: curFwd,
         };
       };
@@ -3658,7 +3658,7 @@ export class GameEngine {
       this.attackTimer = 1.0;
       if (this.playerMesh) {
         this.playerMesh.rightArm.rotation.set(-Math.PI / 2, 0, -0.05);
-        this.playerMesh.weapon.rotation.set(0, 0, 0);
+        this.playerMesh.weapon.rotation.set(Math.PI, 0, 0);
         this.playerMesh.group.updateMatrixWorld(true);
       }
       soundManager.playArcaneBeam();
@@ -4719,12 +4719,16 @@ export class GameEngine {
       }
       this.playerMesh.group.position.copy(this.playerPos);
 
-      // Starfall Casting pose: both arms raised high to sky, head tilted up, gentle +0.15 hover
+      // Starfall Casting pose: right arm raised high to sky, left arm holds grimoire at hip, head tilted up
       if (this.charClass === 'mage' && this.playerMesh) {
         this.playerMesh.leftLeg.rotation.x = 0;
         this.playerMesh.rightLeg.rotation.x = 0;
+        // Lengan Kanan (Tongkat): Angkat tinggi mengacungkan tongkat ke langit
         this.playerMesh.rightArm.rotation.set(-Math.PI * 0.85, -0.15, -0.20);
-        this.playerMesh.leftArm.rotation.set(-Math.PI * 0.85, 0.15, 0.25);
+        // Orientasi Tongkat: Bagian kristal dan cincin emas menunjuk ke langit
+        this.playerMesh.weapon.rotation.set(Math.PI, 0, 0);
+        // Lengan Kiri (Buku): TETAP DIAM di samping badan / di pinggul mendekap grimoire
+        this.playerMesh.leftArm.rotation.set(0.06, 0.10, 0.12);
         this.playerMesh.head.rotation.x = -0.30;
         this.playerMesh.group.position.y += Math.sin(progress * Math.PI) * 0.15;
       }
