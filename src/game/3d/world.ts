@@ -278,7 +278,10 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return getProceduralHeight(x, z);
     }
 
-    // 1. Suspension bridge walkable deck corridor (x: 120..150, centered straight at z = 70)
+    // 1. Suspension bridge walkable deck corridor (centered straight at z = 47 and z = 70)
+    if ((Math.abs(z - 47) <= 2.2 || Math.abs(z - 70) <= 2.2) && x >= 135 && x <= 155) {
+      return 2.4;
+    }
     if (Math.abs(z - 70) <= 2.2 && x >= 120 && x <= 150) {
       const bridgeT = (x - 120) / 30;
       const sag = Math.sin(bridgeT * Math.PI) * 0.70;
@@ -505,6 +508,16 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   spout.position.set(0, villageMainlandY + 0.8, fountainZ);
   scene.add(spout);
   colliders.push({ type: 'circle', x: 0, z: fountainZ, radius: 3.9, label: 'Air Mancur Sanctuary' });
+
+  // 2.2b Pelataran Batu Bundar Alun-Alun di Sekitar Air Mancur Sanctuary
+  const sanctuaryPlazaRim = new THREE.Mesh(
+    new THREE.RingGeometry(3.8, 8.2, 32),
+    new THREE.MeshStandardMaterial({ color: 0x857563, roughness: 0.9, flatShading: true })
+  );
+  sanctuaryPlazaRim.rotation.x = -Math.PI / 2;
+  sanctuaryPlazaRim.position.set(0, villageMainlandY + 0.02, fountainZ);
+  sanctuaryPlazaRim.receiveShadow = true;
+  scene.add(sanctuaryPlazaRim);
 
   // 2.3 Balai Tetua Vaelen & Pusat Komunitas (North-West Plaza: X: -13, Z: 170)
   const house1 = createVillageHouseMesh();
@@ -1178,21 +1191,21 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // ==========================================
   // 2.9 MISTY CHASM & SOLID SUSPENSION BRIDGE
-  // Membentang lurus menghubungkan Ngarai Kabut di X: 120..150 pada Z = 70.
+  // Membentang lurus menghubungkan Ngarai Kabut di X: 135..155 pada Z = 47.
   // ==========================================
-  const bridge = createSuspensionBridgeMesh(30);
-  bridge.position.set(135, 2.4, 70);
+  const bridge = createSuspensionBridgeMesh(22);
+  bridge.position.set(145, 2.4, 47);
   scene.add(bridge);
 
   // Pilar Penyangga Batu Kokoh (Tinggi 4.4m, duduk di dasar ngarai menopang tepat di bawah dek)
   const chasmStonePier = createStoneBridgePierMesh(4.4);
-  chasmStonePier.position.set(135, -1.2, 70);
+  chasmStonePier.position.set(145, -1.2, 47);
   scene.add(chasmStonePier);
 
-  // Pagar Pengaman Jembatan Gantung (Membentang lurus di Z = 67.8 dan Z = 72.2)
+  // Pagar Pengaman Jembatan Gantung (Membentang lurus di Z = 44.8 dan Z = 49.2)
   colliders.push(
-    { type: 'box', minX: 120, maxX: 150, minZ: 67.8, maxZ: 68.6, label: 'Pagar Jembatan Kiri' },
-    { type: 'box', minX: 120, maxX: 150, minZ: 71.4, maxZ: 72.2, label: 'Pagar Jembatan Kanan' }
+    { type: 'box', minX: 135, maxX: 155, minZ: 44.8, maxZ: 45.6, label: 'Pagar Jembatan Kiri' },
+    { type: 'box', minX: 135, maxX: 155, minZ: 48.4, maxZ: 49.2, label: 'Pagar Jembatan Kanan' }
   );
 
   // 2.9b Jaringan Jalan Raya & Jalan Setapak Terstruktur Benua Eldoria (Road Network & Path System)

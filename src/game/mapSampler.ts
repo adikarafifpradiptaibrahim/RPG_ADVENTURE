@@ -203,9 +203,9 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     const t = (distMage - 18) / 14;
     return 4.50 - t * 3.5;
   }
-  // 4g. Suspension Bridge Gorge [120..150, 70]
-  if (x >= 120 && x <= 150 && Math.abs(z - 70) <= 14) {
-    const t = 1 - Math.abs(x - 135) / 15;
+  // 4g. Suspension Bridge Gorge [135..155, 47]
+  if (x >= 135 && x <= 155 && Math.abs(z - 47) <= 12) {
+    const t = 1 - Math.abs(x - 145) / 10;
     return Math.max(-1.5, 0.5 - t * 2.2);
   }
 
@@ -267,13 +267,13 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
 
   // 4. Desert Zone (Solaria)
   if (zone.id === 'desert') {
-    // Road Network in Desert (Packed Caravan Sand Trail #cbb17b)
+    // Road Network in Desert (Packed Caravan Sand Trail #d1b480)
     if (isPointOnRoad(x, z)) {
-      return { height: y, color: [203, 177, 123], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
+      return { height: y, color: [209, 180, 128], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
     }
-    // Paved Avenue between Bazaar [250, -280] & Palace [340, -280]
-    if (x >= 240 && x <= 350 && Math.abs(z - -280) <= 6) {
-      return { height: y, color: [203, 177, 123], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
+    // Paved Avenue between Bazaar [240, -280] & Palace [330, -280]
+    if (x >= 238 && x <= 335 && Math.abs(z - -280) <= 5.5) {
+      return { height: y, color: [209, 180, 128], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
     }
     // Pyramid
     if (Math.hypot(x - 20, z - -220) <= 24) {
@@ -288,9 +288,9 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   }
 
   // 5. Plains Zone (Padang Rumput Eldoria)
-  // Road Network in Plains (Medieval Cobblestone & Dirt Trail #6e6355)
+  // Road Network in Plains (Medieval Cobblestone & Dirt Trail #857563)
   if (isPointOnRoad(x, z)) {
-    return { height: y, color: [110, 99, 85], biomeId: 'eldoria_road', isWater: false, isPath: true, slope: 0 };
+    return { height: y, color: [133, 117, 99], biomeId: 'eldoria_road', isWater: false, isPath: true, slope: 0 };
   }
   // Sanctuary Village Plaza
   if (Math.hypot(x, z - 180) <= 18) {
