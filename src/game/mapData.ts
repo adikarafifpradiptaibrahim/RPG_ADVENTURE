@@ -93,8 +93,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'Endless rolling golden sand dunes, the bustling mud-brick Desert Village of Solaria, the Grand Palace of Sultan Malik, and the ancient pharaoh pyramid.',
     descriptionId: 'Hamparan padang pasir emas di wilayah utara dan timur benua! Menampung Desa Bazaar Tanah Liat, Istana Megah Sultan Malik, piramida kuno pharaoh, dan oase tersembunyi.',
     color: '#eab308',
-    bounds: { minX: -115, maxX: 550, minZ: -420, maxZ: -60 },
-    center: [280, -280],
+    bounds: { minX: -20, maxX: 560, minZ: -420, maxZ: -60 },
+    center: [250, -280],
     recommendedLevel: 5,
   },
   {
@@ -105,8 +105,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A blistering volcanic hellscape across the southern ocean featuring smoking magma pools, scorched basalt arches, and the primal dragon nest.',
     descriptionId: 'Wilayah pulau vulkanik berbahaya di seberang laut selatan! Aliran lahar pijar mendidih, kawah melingkar obsidian, dan arena pertarungan Boss Naga Purba Ignis.',
     color: '#dc2626',
-    bounds: { minX: -150, maxX: 250, minZ: 300, maxZ: 460 },
-    center: [50, 360],
+    bounds: { minX: -80, maxX: 240, minZ: 275, maxZ: 445 },
+    center: [80, 360],
     recommendedLevel: 7,
   },
 ];
@@ -172,7 +172,7 @@ export const WAYPOINTS: {
     nameId: 'Desa Bazaar Gurun Solaria',
     regionId: 'gurun_solaria',
     icon: '🎪',
-    pos: [280, -280],
+    pos: [250, -280],
     desc: 'Pemukiman tanah liat dan bazaar rempah eksotis di gurun utara-timur',
   },
   {
@@ -204,26 +204,27 @@ export const WAYPOINTS: {
     nameId: 'Kaldera Sarang Naga Purba',
     regionId: 'kaldera_naga_api',
     icon: '🐉',
-    pos: [50, 360],
+    pos: [80, 360],
     desc: 'Pulau kawah lava vulkanik di seberang laut selatan dan sarang Boss Naga Ignis',
   },
 ];
 
 export function getCurrentRegion(x: number, z: number): RegionInfo {
-  // 1. Dragonfang Caldera & Volcano Island (Curved Ellipse: cx = 40, cz = 360, Rx = 160, Rz = 90)
-  const cx = 40;
+  // 1. Dragonfang Caldera & Volcano Island (Curved Ellipse: cx = 80, cz = 360, rx = 160, rz = 85)
+  const cx = 80;
   const cz = 360;
-  const Rx = 160;
-  const Rz = 90;
-  const edgeWobble = Math.sin(x * 0.05) * 8 + Math.cos(z * 0.06) * 6;
-  const distSq = Math.pow((x - cx) / (Rx + edgeWobble), 2) + Math.pow((z - cz) / (Rz + edgeWobble), 2);
+  const rx = 160;
+  const rz = 85;
+  const edgeNoise = Math.sin(x * 0.06) * 10 + Math.cos(z * 0.07) * 7;
+  const distSq = Math.pow((x - cx) / (rx + edgeNoise), 2) + Math.pow((z - cz) / (rz + edgeNoise), 2);
   if (distSq <= 1.0) {
     return REGIONS[8];
   }
 
-  // 2. Azure Ocean (Natural Wavy Coastline: z > coastLineZ)
-  const coastLineZ = 200 + Math.sin(x * 0.015) * 22 + Math.cos(x * 0.04) * 10;
-  if (z > coastLineZ || x < -550 || x > 650 || z < -450) {
+  // 2. Azure Ocean (Natural Wavy Coastline: z > southCoastZ || x < westCoastX)
+  const southCoastZ = 190 + Math.sin(x * 0.012) * 20 + Math.cos(x * 0.035) * 8;
+  const westCoastX = -460 + Math.sin(z * 0.015) * 35 + Math.cos(z * 0.04) * 15;
+  if (z > southCoastZ || x < westCoastX || x > 650 || z < -450) {
     return REGIONS[1];
   }
 
@@ -253,9 +254,9 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
   }
 
   // 8. Solaria Golden Desert (S-Curve boundary)
-  const desertWestBoundary = -115 + Math.sin(z * 0.018) * 35 + Math.cos(z * 0.035) * 15;
-  const desertSouthBoundary = -50 + Math.cos(x * 0.012) * 45 + Math.sin(x * 0.03) * 15;
-  if (x >= desertWestBoundary && z <= desertSouthBoundary && x <= 560) {
+  const desertWestLimit = -20 + Math.sin(z * 0.018) * 40;
+  const desertSouthLimit = -30 + Math.cos(x * 0.011) * 75 + Math.sin(x * 0.025) * 20;
+  if (x >= desertWestLimit && z <= desertSouthLimit && x <= 560) {
     return REGIONS[7];
   }
 

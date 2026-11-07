@@ -38,13 +38,13 @@ function clamp(val: number, min: number, max: number): number {
  * Evaluasi zona matematis deterministik proporsional dan bersih
  */
 export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
-  // A. KALDERA SARANG NAGA & PULAU VULKANIK (BENTUK ELIPS / MELENGKUNG ALAMI)
-  const cx = 40;
+  // A. KALDERA SARANG NAGA & PULAU VULKANIK ('volcano' - BENTUK ELIPS ORGANIK)
+  const cx = 80;
   const cz = 360;
-  const Rx = 160;
-  const Rz = 90;
-  const edgeWobble = Math.sin(x * 0.05) * 8 + Math.cos(z * 0.06) * 6;
-  const distSq = Math.pow((x - cx) / (Rx + edgeWobble), 2) + Math.pow((z - cz) / (Rz + edgeWobble), 2);
+  const rx = 160;
+  const rz = 85;
+  const edgeNoise = Math.sin(x * 0.06) * 10 + Math.cos(z * 0.07) * 7;
+  const distSq = Math.pow((x - cx) / (rx + edgeNoise), 2) + Math.pow((z - cz) / (rz + edgeNoise), 2);
 
   if (distSq <= 1.0) {
     return {
@@ -57,9 +57,11 @@ export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
     };
   }
 
-  // B. SAMUDRA AZURE (GARIS PANTAI SELATAN MELENGKUNG ALAMI & BATAS TERLUAR BENUA)
-  const coastLineZ = 200 + Math.sin(x * 0.015) * 22 + Math.cos(x * 0.04) * 10;
-  if (z > coastLineZ || x < -550 || x > 650 || z < -450) {
+  // B. SAMUDRA & LAUT LEPAS AZURE ('ocean' - LAUT SELATAN & LAUT BARAT LEGA)
+  const southCoastZ = 190 + Math.sin(x * 0.012) * 20 + Math.cos(x * 0.035) * 8;
+  const westCoastX = -460 + Math.sin(z * 0.015) * 35 + Math.cos(z * 0.04) * 15;
+
+  if (z > southCoastZ || x < westCoastX || x > 650 || z < -450) {
     return {
       id: 'ocean',
       name: 'Azure Coast & South Ocean',
@@ -70,11 +72,11 @@ export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
     };
   }
 
-  // C. BATAS MELENGKUNG GURUN PASIR EMAS VS PADANG RUMPUT (S-CURVE)
-  const desertWestBoundary = -115 + Math.sin(z * 0.018) * 35 + Math.cos(z * 0.035) * 15;
-  const desertSouthBoundary = -50 + Math.cos(x * 0.012) * 45 + Math.sin(x * 0.03) * 15;
+  // C. GURUN PASIR EMAS SOLARIA ('desert' - EKSPANSI UTARA & TIMUR S-CURVE)
+  const desertWestLimit = -20 + Math.sin(z * 0.018) * 40;
+  const desertSouthLimit = -30 + Math.cos(x * 0.011) * 75 + Math.sin(x * 0.025) * 20;
 
-  if (x >= desertWestBoundary && z <= desertSouthBoundary && x <= 560) {
+  if (x >= desertWestLimit && z <= desertSouthLimit && x <= 560) {
     return {
       id: 'desert',
       name: 'Solaria Golden Desert',
@@ -85,7 +87,7 @@ export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
     };
   }
 
-  // D. PADANG RUMPUT ELDORIA (CENTRAL & WEST PLAINS)
+  // D. PADANG RUMPUT ELDORIA ('plains' - BUFFER ZONA DOMINAN TENGAH & BARAT)
   return {
     id: 'plains',
     name: 'Eldoria Central Plains',
@@ -102,21 +104,21 @@ export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
 export function getProceduralContinentHeight(x: number, z: number): number {
   const zone = getBiomeAt(x, z);
 
-  // 1. ZONA VOLCANO: Pulau Kawah Vulkanik Seberang Laut Selatan (Bentuk Elips Organik)
+  // 1. ZONA VOLCANO: Pulau Kawah Vulkanik Seberang Laut Selatan (Bentuk Elips Organik [80, 360])
   if (zone.id === 'volcano') {
-    const cx = 40;
+    const cx = 80;
     const cz = 360;
-    const Rx = 160;
-    const Rz = 90;
-    const edgeWobble = Math.sin(x * 0.05) * 8 + Math.cos(z * 0.06) * 6;
-    const distSq = Math.pow((x - cx) / (Rx + edgeWobble), 2) + Math.pow((z - cz) / (Rz + edgeWobble), 2);
+    const rx = 160;
+    const rz = 85;
+    const edgeNoise = Math.sin(x * 0.06) * 10 + Math.cos(z * 0.07) * 7;
+    const distSq = Math.pow((x - cx) / (rx + edgeNoise), 2) + Math.pow((z - cz) / (rz + edgeNoise), 2);
 
-    // Landing ramp at north entrance [50, 310]
-    if (Math.hypot(x - 50, z - 310) < 16) {
+    // Landing ramp at north entrance [80, 310]
+    if (Math.hypot(x - 80, z - 310) < 16) {
       return 2.0;
     }
-    // Caldera crater floor around dragon arena [50, 360]
-    const distCenter = Math.hypot(x - 50, z - 360);
+    // Caldera crater floor around dragon arena [80, 360]
+    const distCenter = Math.hypot(x - 80, z - 360);
     if (distCenter <= 22) {
       return 2.50;
     }
@@ -133,25 +135,32 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return 1.8;
   }
 
-  // 2. ZONA OCEAN: Samudra Selatan (Melengkung Alami)
+  // 2. ZONA OCEAN: Samudra & Laut Lepas Azure (Garis Pantai Selatan & Barat)
   if (zone.id === 'ocean') {
-    const coastLineZ = 200 + Math.sin(x * 0.015) * 22 + Math.cos(x * 0.04) * 10;
-    // Coastal beach slope transition along coastLineZ .. coastLineZ + 15
-    if (z >= coastLineZ && z <= coastLineZ + 15 && x >= -500 && x <= 500) {
-      const t = (z - coastLineZ) / 15;
+    const southCoastZ = 190 + Math.sin(x * 0.012) * 20 + Math.cos(x * 0.035) * 8;
+    const westCoastX = -460 + Math.sin(z * 0.015) * 35 + Math.cos(z * 0.04) * 15;
+
+    // Coastal beach slope transition along south coast
+    if (z >= southCoastZ && z <= southCoastZ + 15 && x >= westCoastX) {
+      const t = (z - southCoastZ) / 15;
+      return 0.2 - t * 2.8;
+    }
+    // Coastal beach slope transition along west coast
+    if (x <= westCoastX && x >= westCoastX - 20) {
+      const t = (westCoastX - x) / 20;
       return 0.2 - t * 2.8;
     }
     return -3.5;
   }
 
-  // 3. ZONA DESERT: Gurun Pasir Emas Solaria (X >= -115 && Z: -420..-60)
+  // 3. ZONA DESERT: Gurun Pasir Emas Solaria (Ekspansi Utara & Timur)
   if (zone.id === 'desert') {
-    // 3a. Golden Bazaar Village [280, -280]
-    if (Math.hypot(x - 280, z - -280) <= 32) return 1.80;
+    // 3a. Golden Bazaar Village [250, -280]
+    if (Math.hypot(x - 250, z - -280) <= 32) return 1.80;
     // 3b. Sultan Taj Mahal Palace [340, -280]
     if (Math.hypot(x - 340, z - -280) <= 32) return 2.00;
     // Paved avenue connecting Bazaar & Palace
-    if (x >= 280 && x <= 340 && Math.abs(z - -280) <= 5.5) return 1.90;
+    if (x >= 250 && x <= 340 && Math.abs(z - -280) <= 5.5) return 1.90;
     // 3c. Pharaoh Pyramid [20, -220]
     if (Math.hypot(x - 20, z - -220) <= 28) return 1.50;
     // 3d. Hidden Oasis Lake [150, -360]
@@ -230,18 +239,18 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
 
   // 3. Volcanic Zone (Dragonfang Caldera & Volcano Island)
   if (zone.id === 'volcano') {
-    const cx = 40;
+    const cx = 80;
     const cz = 360;
-    const Rx = 160;
-    const Rz = 90;
-    const edgeWobble = Math.sin(x * 0.05) * 8 + Math.cos(z * 0.06) * 6;
-    const distSq = Math.pow((x - cx) / (Rx + edgeWobble), 2) + Math.pow((z - cz) / (Rz + edgeWobble), 2);
+    const rx = 160;
+    const rz = 85;
+    const edgeNoise = Math.sin(x * 0.06) * 10 + Math.cos(z * 0.07) * 7;
+    const distSq = Math.pow((x - cx) / (rx + edgeNoise), 2) + Math.pow((z - cz) / (rz + edgeNoise), 2);
 
-    // Inti kawah terdalam (lava aktif): distSq <= 0.35 atau di sekeliling arena naga
-    if (distSq <= 0.35 || Math.hypot(x - 50, z - 360) <= 16) {
+    // Inti kawah terdalam (lava aktif): distSq <= 0.35 atau di sekeliling arena naga [80, 360]
+    if (distSq <= 0.35 || Math.hypot(x - 80, z - 360) <= 16) {
       return { height: y, color: [220, 38, 38], biomeId: 'dragon_magma', isWater: false, isPath: false, slope };
     }
-    if (Math.hypot(x - 50, z - 360) <= 24) {
+    if (Math.hypot(x - 80, z - 360) <= 24) {
       return { height: y, color: [28, 25, 23], biomeId: 'dragon_arena', isWater: false, isPath: false, slope };
     }
     return { height: y, color: [40, 36, 34], biomeId: 'dragon_basalt', isWater: false, isPath: false, slope };
@@ -249,8 +258,8 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
 
   // 4. Desert Zone (Solaria)
   if (zone.id === 'desert') {
-    // Paved Avenue between Bazaar [280, -280] & Palace [340, -280]
-    if (x >= 270 && x <= 350 && Math.abs(z - -280) <= 6) {
+    // Paved Avenue between Bazaar [250, -280] & Palace [340, -280]
+    if (x >= 240 && x <= 350 && Math.abs(z - -280) <= 6) {
       return { height: y, color: [210, 180, 140], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
     }
     // Pyramid
@@ -291,9 +300,12 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: y, color: [34, 105, 45], biomeId: 'forest_pines', isWater: false, isPath: false, slope };
   }
 
-  // Beach sand fringe along natural wavy coastline
-  const coastLineZ = 200 + Math.sin(x * 0.015) * 22 + Math.cos(x * 0.04) * 10;
-  if (z >= coastLineZ - 8 && z <= coastLineZ + 3 && x >= -500 && x <= 500 && !sampleIsPath(x, z)) {
+  // Beach sand fringe along natural south and west coastlines
+  const southCoastZ = 190 + Math.sin(x * 0.012) * 20 + Math.cos(x * 0.035) * 8;
+  const westCoastX = -460 + Math.sin(z * 0.015) * 35 + Math.cos(z * 0.04) * 15;
+  const isNearCoast = (z >= southCoastZ - 8 && z <= southCoastZ + 3 && x >= westCoastX) ||
+                      (x >= westCoastX - 3 && x <= westCoastX + 10 && z <= southCoastZ);
+  if (isNearCoast && !sampleIsPath(x, z)) {
     return { height: y, color: [254, 215, 170], biomeId: 'beach_sand', isWater: false, isPath: false, slope };
   }
 

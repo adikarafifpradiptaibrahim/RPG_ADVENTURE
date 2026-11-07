@@ -190,10 +190,10 @@ const TOWN_ZONES: TownZoneTrigger[] = [
     id: 'town_solaria',
     waypointId: 'wp_solaria_village',
     name: 'Desa & Istana Gurun Solaria',
-    x: 280,
+    x: 250,
     z: -280,
     radius: 65,
-    respawnX: 280,
+    respawnX: 250,
     respawnZ: -275,
   },
   {
@@ -1520,8 +1520,8 @@ export class GameEngine {
       });
     });
 
-    // Dragonfang Super Boss: Ignis, Sang Naga Purba (Colossal Winged Dragon: [50, 360])
-    const wyrmPos: [number, number] = [50, 360];
+    // Dragonfang Super Boss: Ignis, Sang Naga Purba (Colossal Winged Dragon: [80, 360])
+    const wyrmPos: [number, number] = [80, 360];
     const { group: wyrmGroup, parts: wyrmParts } = createEnemyMesh('dragon');
     const wyrmY = this.world.getTerrainHeight(wyrmPos[0], wyrmPos[1]);
     wyrmGroup.position.set(wyrmPos[0], wyrmY, wyrmPos[1]);

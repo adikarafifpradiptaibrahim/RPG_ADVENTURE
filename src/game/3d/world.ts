@@ -351,7 +351,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     opacity: 0.82,
   });
   const oceanMesh = new THREE.Mesh(oceanGeo, oceanMat);
-  oceanMesh.position.set(50, -0.25, 360);
+  oceanMesh.position.set(80, -0.25, 360);
   scene.add(oceanMesh);
 
   // ==========================================
@@ -1505,21 +1505,23 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   colliders.push({ type: 'circle', x: 356, z: -296, radius: 2.2, label: 'Menara Minaret Timur Laut' });
   colliders.push({ type: 'circle', x: 356, z: -264, radius: 2.2, label: 'Menara Minaret Tenggara' });
 
-  // 2. Alur Jalan Setapak Batu Pasir (Grand Sandstone Desert Avenue: X: 270..330, Z: -280)
-  const pavedRoad = createDesertPavedRoadMesh(270, 330, -280, 6.0);
+  // 2. Alur Jalan Setapak Batu Pasir (Grand Sandstone Desert Avenue: X: 240..330, Z: -280)
+  const pavedRoad = createDesertPavedRoadMesh(240, 330, -280, 6.0);
   pavedRoad.position.set(0, solariaBaseY, 0);
   scene.add(pavedRoad);
 
   // Grand Avenue Date Palms & Brass Desert Oil Lanterns
   const causewayItems = [
+    { type: 'lantern', x: 255, z: -284.5 },
+    { type: 'palm',    x: 270, z: -284.5 },
     { type: 'lantern', x: 285, z: -284.5 },
-    { type: 'palm',    x: 295, z: -284.5 },
-    { type: 'lantern', x: 305, z: -284.5 },
-    { type: 'palm',    x: 315, z: -284.5 },
+    { type: 'palm',    x: 300, z: -284.5 },
+    { type: 'lantern', x: 315, z: -284.5 },
+    { type: 'lantern', x: 255, z: -275.5 },
+    { type: 'palm',    x: 270, z: -275.5 },
     { type: 'lantern', x: 285, z: -275.5 },
-    { type: 'palm',    x: 295, z: -275.5 },
-    { type: 'lantern', x: 305, z: -275.5 },
-    { type: 'palm',    x: 315, z: -275.5 },
+    { type: 'palm',    x: 300, z: -275.5 },
+    { type: 'lantern', x: 315, z: -275.5 },
   ];
 
   causewayItems.forEach((item, idx) => {
@@ -1599,13 +1601,13 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     icon: '🛡️',
   });
 
-  // 4. Sumur Batu Oase di Tepi Jalan (Roadside Oasis Well Plaza: [280, -286])
+  // 4. Sumur Batu Oase di Tepi Jalan (Roadside Oasis Well Plaza: [250, -286])
   const desertWell = createDesertOasisWellMesh();
-  desertWell.position.set(280, solariaBaseY, -286);
+  desertWell.position.set(250, solariaBaseY, -286);
   scene.add(desertWell);
   colliders.push({
     type: 'circle',
-    x: 280,
+    x: 250,
     z: -286,
     radius: 1.8,
     label: 'Sumur Oase Solaria',
@@ -1613,10 +1615,10 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // Pohon Kurma di Sekitar Sumur Oase
   const townPalmOffsets = [
-    { x: 276, z: -289 },
-    { x: 284, z: -289 },
-    { x: 276, z: -283 },
-    { x: 284, z: -283 },
+    { x: 246, z: -289 },
+    { x: 254, z: -289 },
+    { x: 246, z: -283 },
+    { x: 254, z: -283 },
   ];
   townPalmOffsets.forEach((tpo, idx) => {
     const palm = createDesertPalmMesh();
@@ -1629,83 +1631,83 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // 5. Rumah-Rumah Tanah Liat Khas Gurun
   // Sisi Utara Jalan (Z = -273):
   const adobeHouse1 = createDesertMudBrickHouseMesh(1);
-  adobeHouse1.position.set(270, solariaBaseY, -273);
+  adobeHouse1.position.set(240, solariaBaseY, -273);
   adobeHouse1.rotation.y = 0;
   scene.add(adobeHouse1);
-  colliders.push({ type: 'box', minX: 266, maxX: 274, minZ: -277, maxZ: -269, label: 'Rumah Bertingkat Gurun 1' });
+  colliders.push({ type: 'box', minX: 236, maxX: 244, minZ: -277, maxZ: -269, label: 'Rumah Bertingkat Gurun 1' });
 
   const adobeHouse2 = createDesertMudBrickHouseMesh(2);
-  adobeHouse2.position.set(285, solariaBaseY, -273);
+  adobeHouse2.position.set(255, solariaBaseY, -273);
   adobeHouse2.rotation.y = 0;
   scene.add(adobeHouse2);
-  colliders.push({ type: 'box', minX: 281, maxX: 289, minZ: -277, maxZ: -269, label: 'Rumah Saudagar Gurun 2' });
+  colliders.push({ type: 'box', minX: 251, maxX: 259, minZ: -277, maxZ: -269, label: 'Rumah Saudagar Gurun 2' });
 
   const adobeHouse3 = createDesertMudBrickHouseMesh(1);
-  adobeHouse3.position.set(300, solariaBaseY, -273);
+  adobeHouse3.position.set(270, solariaBaseY, -273);
   adobeHouse3.rotation.y = 0;
   scene.add(adobeHouse3);
-  colliders.push({ type: 'box', minX: 296, maxX: 304, minZ: -277, maxZ: -269, label: 'Rumah Bertingkat Gurun 3' });
+  colliders.push({ type: 'box', minX: 266, maxX: 274, minZ: -277, maxZ: -269, label: 'Rumah Bertingkat Gurun 3' });
 
   // Sisi Selatan Jalan (Z = -287):
   const adobeHouse4 = createDesertMudBrickHouseMesh(0);
-  adobeHouse4.position.set(270, solariaBaseY, -287);
+  adobeHouse4.position.set(240, solariaBaseY, -287);
   adobeHouse4.rotation.y = Math.PI;
   scene.add(adobeHouse4);
-  colliders.push({ type: 'box', minX: 266, maxX: 274, minZ: -291, maxZ: -283, label: 'Rumah Tanah Liat Gurun 4' });
+  colliders.push({ type: 'box', minX: 236, maxX: 244, minZ: -291, maxZ: -283, label: 'Rumah Tanah Liat Gurun 4' });
 
   const camelRest = createCamelRestAreaMesh();
-  camelRest.position.set(285, solariaBaseY, -287);
+  camelRest.position.set(255, solariaBaseY, -287);
   scene.add(camelRest);
-  colliders.push({ type: 'box', minX: 279, maxX: 291, minZ: -292, maxZ: -282, label: 'Tempat Peristirahatan Unta Gurun' });
+  colliders.push({ type: 'box', minX: 249, maxX: 261, minZ: -292, maxZ: -282, label: 'Tempat Peristirahatan Unta Gurun' });
 
   const adobeHouse5 = createDesertMudBrickHouseMesh(0);
-  adobeHouse5.position.set(300, solariaBaseY, -287);
+  adobeHouse5.position.set(270, solariaBaseY, -287);
   adobeHouse5.rotation.y = Math.PI;
   scene.add(adobeHouse5);
-  colliders.push({ type: 'box', minX: 296, maxX: 304, minZ: -291, maxZ: -283, label: 'Rumah Tanah Liat Gurun 5' });
+  colliders.push({ type: 'box', minX: 266, maxX: 274, minZ: -291, maxZ: -283, label: 'Rumah Tanah Liat Gurun 5' });
 
   // 6. Pasar Bazaar Gurun Solaria
   const bazaarStall1 = createDesertBazaarStallMesh(0xd97706, 0xfef08a);
-  bazaarStall1.position.set(276, solariaBaseY, -275);
+  bazaarStall1.position.set(246, solariaBaseY, -275);
   bazaarStall1.rotation.y = 0;
   scene.add(bazaarStall1);
-  colliders.push({ type: 'box', minX: 274, maxX: 278, minZ: -276, maxZ: -274, label: 'Kios Rempah Solaria' });
+  colliders.push({ type: 'box', minX: 244, maxX: 248, minZ: -276, maxZ: -274, label: 'Kios Rempah Solaria' });
 
   const bazaarStall2 = createDesertBazaarStallMesh(0x9333ea, 0xfbbf24);
-  bazaarStall2.position.set(294, solariaBaseY, -275);
+  bazaarStall2.position.set(264, solariaBaseY, -275);
   bazaarStall2.rotation.y = 0;
   scene.add(bazaarStall2);
-  colliders.push({ type: 'box', minX: 292, maxX: 296, minZ: -276, maxZ: -274, label: 'Kios Karpet Solaria' });
+  colliders.push({ type: 'box', minX: 262, maxX: 266, minZ: -276, maxZ: -274, label: 'Kios Karpet Solaria' });
 
   const bazaarStall3 = createDesertBazaarStallMesh(0x059669, 0xa7f3d0);
-  bazaarStall3.position.set(276, solariaBaseY, -285);
+  bazaarStall3.position.set(246, solariaBaseY, -285);
   bazaarStall3.rotation.y = Math.PI;
   scene.add(bazaarStall3);
-  colliders.push({ type: 'box', minX: 274, maxX: 278, minZ: -286, maxZ: -284, label: 'Kios Tembikar Solaria' });
+  colliders.push({ type: 'box', minX: 244, maxX: 248, minZ: -286, maxZ: -284, label: 'Kios Tembikar Solaria' });
 
   const bazaarStall4 = createDesertBazaarStallMesh(0xb91c1c, 0xfde047);
-  bazaarStall4.position.set(294, solariaBaseY, -285);
+  bazaarStall4.position.set(264, solariaBaseY, -285);
   bazaarStall4.rotation.y = Math.PI;
   scene.add(bazaarStall4);
-  colliders.push({ type: 'box', minX: 292, maxX: 296, minZ: -286, maxZ: -284, label: 'Kios Baju Zirah Gurun' });
+  colliders.push({ type: 'box', minX: 262, maxX: 266, minZ: -286, maxZ: -284, label: 'Kios Baju Zirah Gurun' });
 
   // 7. Kemah-Kemah Sutra Bazaar
   const desertTent1 = createDesertTentMesh(0x991b1b);
-  desertTent1.position.set(308, solariaBaseY, -275);
+  desertTent1.position.set(278, solariaBaseY, -275);
   desertTent1.rotation.y = 0;
   scene.add(desertTent1);
-  colliders.push({ type: 'circle', x: 308, z: -275, radius: 2.8, label: 'Kemah Sutra Merah' });
+  colliders.push({ type: 'circle', x: 278, z: -275, radius: 2.8, label: 'Kemah Sutra Merah' });
 
   const desertTent2 = createDesertTentMesh(0x047857);
-  desertTent2.position.set(308, solariaBaseY, -285);
+  desertTent2.position.set(278, solariaBaseY, -285);
   desertTent2.rotation.y = Math.PI;
   scene.add(desertTent2);
-  colliders.push({ type: 'circle', x: 308, z: -285, radius: 2.8, label: 'Kemah Sutra Zamrud' });
+  colliders.push({ type: 'circle', x: 278, z: -285, radius: 2.8, label: 'Kemah Sutra Zamrud' });
 
   // Lampu Minyak Sepanjang Kerb Jalan
   const villageKerbLanterns = [
-    { x: 272, z: -283 }, { x: 286, z: -283 }, { x: 300, z: -283 }, { x: 314, z: -283 },
-    { x: 272, z: -277 }, { x: 286, z: -277 }, { x: 300, z: -277 }, { x: 314, z: -277 },
+    { x: 242, z: -283 }, { x: 256, z: -283 }, { x: 270, z: -283 }, { x: 284, z: -283 },
+    { x: 242, z: -277 }, { x: 256, z: -277 }, { x: 270, z: -277 }, { x: 284, z: -277 },
   ];
   villageKerbLanterns.forEach((vkl) => {
     const vLantern = createDesertOilLanternMesh();
@@ -1716,7 +1718,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // 8. Solaria Village NPCs
   const tariqGroup = createCustomNPCMesh('alchemist');
-  const tariqPos: [number, number, number] = [276, solariaBaseY, -273.5];
+  const tariqPos: [number, number, number] = [246, solariaBaseY, -273.5];
   tariqGroup.position.set(...tariqPos);
   tariqGroup.rotation.y = 0;
   scene.add(tariqGroup);
@@ -1733,7 +1735,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   const aminaGroup = createCustomNPCMesh('villager');
-  const aminaPos: [number, number, number] = [280, solariaBaseY, -284];
+  const aminaPos: [number, number, number] = [250, solariaBaseY, -284];
   aminaGroup.position.set(...aminaPos);
   aminaGroup.rotation.y = 0;
   scene.add(aminaGroup);
@@ -1750,7 +1752,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   const zahraGroup = createCustomNPCMesh('bard');
-  const zahraPos: [number, number, number] = [308, solariaBaseY, -274];
+  const zahraPos: [number, number, number] = [278, solariaBaseY, -274];
   zahraGroup.position.set(...zahraPos);
   zahraGroup.rotation.y = Math.PI * 1.5;
   scene.add(zahraGroup);
@@ -1767,7 +1769,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   const sGuardGroup = createCustomNPCMesh('guard');
-  const sGuardPos: [number, number, number] = [266, solariaBaseY, -280];
+  const sGuardPos: [number, number, number] = [236, solariaBaseY, -280];
   sGuardGroup.position.set(...sGuardPos);
   sGuardGroup.rotation.y = Math.PI * 1.5;
   scene.add(sGuardGroup);
@@ -1961,20 +1963,20 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 8. DRAGONFANG CALDERA & INFERNO ARCHIPELAGO (South Across Ocean: [50, 360])
+  // 8. DRAGONFANG CALDERA & INFERNO ARCHIPELAGO (South Across Ocean: [80, 360])
   // Arena Kaldera Naga: Kawah Melingkar (Diameter ~45m), 4 Pilar Obsidian Naga, Fosil Naga, & Lahar Pijar
   // ==========================================
-  const dragonArenaCenter = { x: 50, z: 360 };
+  const dragonArenaCenter = { x: 80, z: 360 };
   const dragonArenaBaseY = 2.50;
 
-  // A. Monumental Dragon Fossil Skull & Ribcage (Placed at North Rim of Caldera: [50, 2.50, 347])
+  // A. Monumental Dragon Fossil Skull & Ribcage (Placed at North Rim of Caldera: [80, 2.50, 347])
   const dragonFossil = createDragonSkullBonesMesh();
   dragonFossil.position.set(dragonArenaCenter.x, dragonArenaBaseY, 347);
   scene.add(dragonFossil);
   colliders.push({
     type: 'box',
-    minX: 45,
-    maxX: 55,
+    minX: 75,
+    maxX: 85,
     minZ: 341,
     maxZ: 353,
     label: 'Fosil Tengkorak Naga Purba',
@@ -1982,10 +1984,10 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // B. 4 Sharp Black Obsidian Dragon Pillars (Pilar Naga Batas Arena Kawah)
   const dragonPillars = [
-    { x: 50, z: 339, label: 'Pilar Naga Obsidian Utara' },
-    { x: 50, z: 381, label: 'Pilar Naga Obsidian Selatan' },
-    { x: 71, z: 360, label: 'Pilar Naga Obsidian Timur' },
-    { x: 29, z: 360, label: 'Pilar Naga Obsidian Barat' },
+    { x: 80, z: 339, label: 'Pilar Naga Obsidian Utara' },
+    { x: 80, z: 381, label: 'Pilar Naga Obsidian Selatan' },
+    { x: 101, z: 360, label: 'Pilar Naga Obsidian Timur' },
+    { x: 59, z: 360, label: 'Pilar Naga Obsidian Barat' },
   ];
   dragonPillars.forEach((dp) => {
     const pY = getTerrainHeight(dp.x, dp.z);
@@ -2038,14 +2040,14 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // C. Retakan Tanah Berlapis Lava Merah Menyala di Seputar Kaldera
   const lavaCrackCoords = [
-    { x: 50, z: 346, r: 4.8 },
-    { x: 64, z: 352, r: 4.5 },
-    { x: 36, z: 352, r: 4.5 },
-    { x: 67, z: 374, r: 4.6 },
-    { x: 33, z: 374, r: 4.6 },
-    { x: 50, z: 380, r: 5.0 },
-    { x: 65, z: 365, r: 5.5 },
-    { x: 35, z: 365, r: 4.6 },
+    { x: 80, z: 346, r: 4.8 },
+    { x: 94, z: 352, r: 4.5 },
+    { x: 66, z: 352, r: 4.5 },
+    { x: 97, z: 374, r: 4.6 },
+    { x: 63, z: 374, r: 4.6 },
+    { x: 80, z: 380, r: 5.0 },
+    { x: 95, z: 365, r: 5.5 },
+    { x: 65, z: 365, r: 4.6 },
   ];
   lavaCrackCoords.forEach((lc) => {
     const crack = createLavaCrackMesh(lc.r);
@@ -2056,15 +2058,15 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // D. Bebatuan Vulkanik Hitam Berurat Magma (Jagged Volcanic Basalt Rocks)
   const basaltRockCoords = [
-    { x: 35, z: 350, s: 1.6 },
-    { x: 65, z: 348, s: 1.5 },
-    { x: 31, z: 372, s: 1.7 },
-    { x: 69, z: 375, s: 1.8 },
-    { x: 50, z: 388, s: 1.6 },
-    { x: 50, z: 332, s: 1.5 },
-    { x: 74, z: 365, s: 1.8 },
-    { x: 26, z: 356, s: 1.4 },
-    { x: 70, z: 380, s: 1.9 },
+    { x: 65, z: 350, s: 1.6 },
+    { x: 95, z: 348, s: 1.5 },
+    { x: 61, z: 372, s: 1.7 },
+    { x: 99, z: 375, s: 1.8 },
+    { x: 80, z: 388, s: 1.6 },
+    { x: 80, z: 332, s: 1.5 },
+    { x: 104, z: 365, s: 1.8 },
+    { x: 56, z: 356, s: 1.4 },
+    { x: 100, z: 380, s: 1.9 },
   ];
   basaltRockCoords.forEach((br) => {
     const rock = createVolcanicBasaltRockMesh(br.s);
@@ -2075,7 +2077,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // E. Surrounding Volcanic Horn Arches
-  for (const hPos of [{ x: 40, z: 345 }, { x: 60, z: 345 }, { x: 50, z: 376 }]) {
+  for (const hPos of [{ x: 70, z: 345 }, { x: 90, z: 345 }, { x: 80, z: 376 }]) {
     const hornGroup = new THREE.Group();
     const horn = new THREE.Mesh(
       new THREE.ConeGeometry(0.8, 6.5, 6),
@@ -2363,7 +2365,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { id: 'chest_solaria_palace', pos: [340, 2.0, -280] as [number, number, number] }, // Solaria Sultan Vault
     { id: 'chest_solaria', pos: [20, 1.5, -220] as [number, number, number] }, // Solaria Pyramid Gold
     { id: 'chest_solaria_oasis', pos: [150, 0.5, -360] as [number, number, number] }, // Solaria Hidden Oasis
-    { id: 'chest_dragoncaldera', pos: [50, 2.5, 360] as [number, number, number] }, // Dragon Caldera Hoard
+    { id: 'chest_dragoncaldera', pos: [80, 2.5, 360] as [number, number, number] }, // Dragon Caldera Hoard
     { id: 'chest_astraea', pos: [-320, 2.0, -220] as [number, number, number] }, // Astraea Imperial Vault
     { id: 'chest_harbor_galleon', pos: [19.5, 0, 221] as [number, number, number] }, // Harbor Galleon Stash
     { id: 'chest_bridge', pos: [135, 2.0, 70] as [number, number, number] }, // Gorge Suspension Bridge Cache
@@ -2532,7 +2534,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_solaria_village',
       name: 'Solaria Desert Village & Bazaar',
       nameId: 'Desa Bazaar Gurun Solaria',
-      pos: [280, -280],
+      pos: [250, -280],
     },
     {
       id: 'wp_solaria_palace',
@@ -2556,7 +2558,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_dragoncaldera',
       name: 'Primal Dragonfang Caldera',
       nameId: 'Kaldera Sarang Naga Purba',
-      pos: [50, 360],
+      pos: [80, 360],
     },
   ];
 

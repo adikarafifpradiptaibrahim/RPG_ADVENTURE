@@ -19,7 +19,7 @@ import { REGIONS, WAYPOINTS } from '../game/mapData';
 import { getContinentBiomeSample, getBiomeAt } from '../game/mapSampler';
 
 // Persistent continent map cached image data to eliminate all lag on open & pan
-const MAP_CACHE_VERSION = 'v4.0_curved_biomes';
+const MAP_CACHE_VERSION = 'v4.5_curved_blueprint_rev35';
 let cachedMapVersion = '';
 let cachedMapImageData: ImageData | null = null;
 
@@ -397,9 +397,12 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
           }
         }
 
-        // Beach sand fringe along natural wavy southern coastline
-        const coastLineZ = 200 + Math.sin(wx * 0.015) * 22 + Math.cos(wx * 0.04) * 10;
-        if (wz >= coastLineZ - 8 && wz <= coastLineZ + 3 && wx >= -500 && wx <= 500 && sample.height < 0.6 && !sample.isPath) {
+        // Beach sand fringe along natural south and west coastlines
+        const southCoastZ = 190 + Math.sin(wx * 0.012) * 20 + Math.cos(wx * 0.035) * 8;
+        const westCoastX = -460 + Math.sin(wz * 0.015) * 35 + Math.cos(wz * 0.04) * 15;
+        const isNearCoast = (wz >= southCoastZ - 8 && wz <= southCoastZ + 3 && wx >= westCoastX) ||
+                            (wx >= westCoastX - 3 && wx <= westCoastX + 10 && wz <= southCoastZ);
+        if (isNearCoast && sample.height < 0.6 && !sample.isPath) {
           r = 254; g = 215; b = 170;
         }
 

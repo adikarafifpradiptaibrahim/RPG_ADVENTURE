@@ -36,7 +36,7 @@ export function isInsideAstraeaSafeZone(x: number, z: number): boolean {
 }
 
 export function isInsideSolariaSafeZone(x: number, z: number): boolean {
-  return Math.hypot(x - 280, z - -280) < 45 || Math.hypot(x - 340, z - -280) < 45;
+  return Math.hypot(x - 250, z - -280) < 45 || Math.hypot(x - 340, z - -280) < 45;
 }
 
 /**
@@ -756,7 +756,7 @@ export const IGNIS_DRAGON_BOSS_CONFIG: BossConfig = {
   detectRange: 22,
   expReward: 1200,
   goldReward: 850,
-  pos: [50, 360],
+  pos: [80, 360],
   scale: [4.2, 4.2, 4.2],
   skills: [
     {
