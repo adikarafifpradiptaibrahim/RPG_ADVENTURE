@@ -462,15 +462,15 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
   weapon.add(orbMesh);
 
   // Pasangkan tongkat tepat di dalam telapak tangan kanan (child langsung dari rightHand)
-  // Kalibrasi pose menyerong ke depan (standby / idle & walk):
+  // Fine-tuning pose menyerong ke depan (standby / idle & walk):
   // 1. Pivot (0, 0, 0) persis di tengah batang (separuh tinggi tongkat 1.6 unit)
-  // 2. Offset lokal di telapak tangan: geser ke luar tubuh (X: -0.12), center grip (Y: 0.0), maju (Z: +0.08)
-  // 3. Sudut kemiringan menyerong diagonal ke depan (miring diagonal alami):
-  //    * Rotasi X (+0.35 rad / ~20°): Mendorong kepala kristal condong ke depan-atas (+Z) dan batang bawah ke belakang-bawah (-Z)
-  //    * Rotasi Z (+0.20 rad / ~11°): Memiringkan kepala kristal ke arah luar kanan (-X) menjauhi bahu, leher, dan topi
-  //    * Rotasi Y (-0.15 rad / ~-8°): Menyelaraskan orientasi cincin emas menghadap ke depan-luar
-  weapon.position.set(-0.12, 0.0, 0.08);
-  weapon.rotation.set(0.35, -0.15, 0.20);
+  // 2. Offset lokal di telapak tangan: geser lebih rapat ke tangan kanan (X: -0.08), center grip (Y: 0.0), maju (Z: +0.10)
+  // 3. Sudut kemiringan menyerong diagonal ke depan (tampak depan lebih ke tengah di depan area bahu/dada kanan):
+  //    * Rotasi X (+0.32 rad / ~18-20°): Mempertahankan sudut condong ke depan (+Z) yang sudah pas
+  //    * Rotasi Y (+0.10 rad): Menyelaraskan orientasi cincin emas menghadap ke depan-tengah
+  //    * Rotasi Z (+0.05 rad): Mereduksi kemiringan ke luar (roll) sehingga kepala kristal berada tepat di depan area bahu kanan
+  weapon.position.set(-0.08, 0.0, 0.10);
+  weapon.rotation.set(0.32, 0.10, 0.05);
   rightHand.add(weapon);
 
   rightForearm.add(rightHand);
@@ -759,9 +759,9 @@ export function animateMageWalk(
     playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.35, lerpSpeed);
 
     // Kembalikan orientasi tongkat ke pose menyerong diagonal ke depan saat bergerak
-    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 0.35, lerpSpeed);
-    playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, -0.15, lerpSpeed);
-    playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0.20, lerpSpeed);
+    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 0.32, lerpSpeed);
+    playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, 0.10, lerpSpeed);
+    playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0.05, lerpSpeed);
 
     if (!isAttacking) {
       // Lengan kiri mengayun dengan rotasi terkontrol (Math.sin(...) * 0.25) dan bawa grimoire secara stabil tanpa menembus jubah belakang (cape)
@@ -800,9 +800,9 @@ export function animateMageWalk(
     playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, lerpSpeed);
 
     // Kembalikan orientasi tongkat ke pose menyerong diagonal ke depan saat idle (tidak menembus leher, pipi, atau shoulder pad)
-    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 0.35, lerpSpeed);
-    playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, -0.15, lerpSpeed);
-    playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0.20, lerpSpeed);
+    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 0.32, lerpSpeed);
+    playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, 0.10, lerpSpeed);
+    playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0.05, lerpSpeed);
 
     // Pernapasan subtil: Math.sin(time * 2.5) * 0.02
     const breathe = Math.sin(walkTime * 2.5) * 0.02;
@@ -876,9 +876,9 @@ export function animateMageSkillPose(
     return;
   } else {
     // Kembalikan orientasi tongkat ke pose menyerong diagonal ke depan saat idle/selesai attack
-    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 0.35, lerpSpeed);
-    playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, -0.15, lerpSpeed);
-    playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0.20, lerpSpeed);
+    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 0.32, lerpSpeed);
+    playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, 0.10, lerpSpeed);
+    playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0.05, lerpSpeed);
   }
 
   // B. Skill 1: Starfall (Fase Casting 1.0 Detik & Fase Barrage Meteor 10-Barrage)
@@ -1034,9 +1034,9 @@ export const MageModel: React.FC<MageModelProps> = ({
           meshObjRef.current.body.rotation.y = THREE.MathUtils.lerp(meshObjRef.current.body.rotation.y, 0, delta * 10);
           meshObjRef.current.body.rotation.z = THREE.MathUtils.lerp(meshObjRef.current.body.rotation.z, 0, delta * 10);
           meshObjRef.current.body.position.y = THREE.MathUtils.lerp(meshObjRef.current.body.position.y, 1.35, delta * 10);
-          meshObjRef.current.weapon.rotation.x = THREE.MathUtils.lerp(meshObjRef.current.weapon.rotation.x, 0.35, delta * 10);
-          meshObjRef.current.weapon.rotation.y = THREE.MathUtils.lerp(meshObjRef.current.weapon.rotation.y, -0.15, delta * 10);
-          meshObjRef.current.weapon.rotation.z = THREE.MathUtils.lerp(meshObjRef.current.weapon.rotation.z, 0.20, delta * 10);
+          meshObjRef.current.weapon.rotation.x = THREE.MathUtils.lerp(meshObjRef.current.weapon.rotation.x, 0.32, delta * 10);
+          meshObjRef.current.weapon.rotation.y = THREE.MathUtils.lerp(meshObjRef.current.weapon.rotation.y, 0.10, delta * 10);
+          meshObjRef.current.weapon.rotation.z = THREE.MathUtils.lerp(meshObjRef.current.weapon.rotation.z, 0.05, delta * 10);
         }
       }
 

@@ -5170,7 +5170,7 @@ export class GameEngine {
         if (this.charClass === 'mage' && this.playerMesh?.body) {
           this.playerMesh.body.rotation.set(0, 0, 0);
           this.playerMesh.body.position.y = 1.35;
-          this.playerMesh.weapon.rotation.set(0.35, -0.15, 0.20);
+          this.playerMesh.weapon.rotation.set(0.32, 0.10, 0.05);
         }
         this.playerMesh.leftArm.rotation.set(0, 0, 0);
         this.playerMesh.rightArm.rotation.set(0, 0, 0);
