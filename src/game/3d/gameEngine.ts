@@ -4942,7 +4942,7 @@ export class GameEngine {
 
         // Peredam bobbing tubuh yang sangat halus pada body (maksimal offset 0.025 unit, TANPA menggeser group.position.y)
         const walkBob = Math.sin(this.walkTime * 10 * 2) * 0.025;
-        this.playerMesh.body.position.y = THREE.MathUtils.lerp(this.playerMesh.body.position.y, 1.35 + walkBob, 0.2);
+        this.playerMesh.body.position.y = THREE.MathUtils.lerp(this.playerMesh.body.position.y, 1.48 + walkBob, 0.2);
 
         // Subtle torso sway
         const targetTorsoSway = Math.sin(this.walkTime * 5) * 0.025;
@@ -4986,7 +4986,7 @@ export class GameEngine {
 
         // Breathing cycle halus saat diam
         const breathe = Math.sin(this.clock.getElapsedTime() * 2.0) * 0.015;
-        this.playerMesh.body.position.y = THREE.MathUtils.lerp(this.playerMesh.body.position.y, 1.35 + breathe, 0.15);
+        this.playerMesh.body.position.y = THREE.MathUtils.lerp(this.playerMesh.body.position.y, 1.48 + breathe, 0.15);
         this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(this.playerMesh.body.rotation.z, 0, 0.15);
         this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y, 0, 0.15);
 
