@@ -164,6 +164,7 @@ function getKnightMaterials(tier: number): BlockyKnightMaterialPalette {
 // 2. Preloaded Geometries Cache
 interface BlockyKnightGeometryPalette {
   headGeo: THREE.BufferGeometry;
+  neckCollarGeo: THREE.BufferGeometry;
   helmetCraniumGeo: THREE.BufferGeometry;
   visorBrowGeo: THREE.BufferGeometry;
   visorLowerBarGeo: THREE.BufferGeometry;
@@ -288,6 +289,7 @@ function getKnightGeometries(): BlockyKnightGeometryPalette {
 
   // 1. Head & Helm
   const headGeo = new THREE.BoxGeometry(0.40, 0.40, 0.40);
+  const neckCollarGeo = new THREE.CylinderGeometry(0.24, 0.27, 0.12, 8);
   const helmetCraniumGeo = new THREE.BoxGeometry(0.48, 0.50, 0.48);
 
   const visorBrowGeo = new THREE.BoxGeometry(0.52, 0.055, 0.08);
@@ -314,6 +316,7 @@ function getKnightGeometries(): BlockyKnightGeometryPalette {
   const beltGeo = new THREE.BoxGeometry(0.70, 0.10, 0.46);
   const buckleGeo = new THREE.BoxGeometry(0.18, 0.14, 0.50);
   const capeGeo = new THREE.PlaneGeometry(0.64, 1.25, 2, 3);
+  capeGeo.translate(0, -0.625, 0); // Anchor pivot at the top edge of the cape
 
   // 3. Pauldrons (Pundak Putih Lis Emas Kubik Bersudut)
   // Kubah putih bersudut (CylinderGeometry 6-segmen miring)
@@ -348,13 +351,28 @@ function getKnightGeometries(): BlockyKnightGeometryPalette {
   const bootSoleGeo = new THREE.BoxGeometry(0.29, 0.04, 0.38);
   bootSoleGeo.translate(0, -0.86, 0.04);
 
-  // 6. Broadsword
-  const bladeGeo = new THREE.BoxGeometry(0.15, 1.22, 0.04);
-  bladeGeo.translate(0, 0.61, 0);
-  const bladeTipGeo = new THREE.ConeGeometry(0.106, 0.22, 4);
-  bladeTipGeo.rotateY(Math.PI / 4);
-  bladeTipGeo.translate(0, 1.33, 0);
-  const bladeFullerGeo = new THREE.BoxGeometry(0.04, 1.05, 0.05);
+  // 6. Broadsword (Flat uniform thickness 0.04 with angled chisel tip)
+  const bladeGeo = new THREE.BoxGeometry(0.15, 1.15, 0.04);
+  bladeGeo.translate(0, 0.575, 0);
+
+  // Broadsword flat chisel point (replaces 3D cone to eliminate arrowhead bug)
+  const tipShape = new THREE.Shape();
+  const halfBladeW = 0.075;
+  tipShape.moveTo(-halfBladeW, 0);
+  tipShape.lineTo(halfBladeW, 0);
+  tipShape.lineTo(halfBladeW, 0.08);
+  tipShape.lineTo(0, 0.20);
+  tipShape.lineTo(-halfBladeW, 0.08);
+  tipShape.closePath();
+
+  const bladeTipGeo = new THREE.ExtrudeGeometry(tipShape, {
+    depth: 0.04,
+    bevelEnabled: false,
+  });
+  // Depth matches blade depth (0.04), centered in Z (-0.02) and positioned atop blade (y = 1.15)
+  bladeTipGeo.translate(0, 1.15, -0.02);
+
+  const bladeFullerGeo = new THREE.BoxGeometry(0.035, 1.05, 0.046);
   bladeFullerGeo.translate(0, 0.58, 0);
   const crossguardGeo = new THREE.BoxGeometry(0.48, 0.10, 0.10);
   const gripGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.32, 6);
@@ -364,6 +382,7 @@ function getKnightGeometries(): BlockyKnightGeometryPalette {
 
   cachedGeometries = {
     headGeo,
+    neckCollarGeo,
     helmetCraniumGeo,
     visorBrowGeo,
     visorLowerBarGeo,
@@ -447,9 +466,9 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   buckle.castShadow = true;
   group.add(belt, buckle);
 
-  // Jubah Merah Tua (#8B1E1E) menjuntai di bagian belakang hingga atas tumit
+  // Jubah Merah Tua (#8B1E1E) menjuntai di bagian belakang luar armor
   const cape = new THREE.Mesh(geos.capeGeo, mats.capeRedMat);
-  cape.position.set(0, 1.15, -0.23);
+  cape.position.set(0, 1.70, -0.27);
   cape.rotation.x = 0.08;
   cape.castShadow = true;
   group.add(cape);
@@ -457,14 +476,20 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   // --------------------------------------------------------------------------
   // 2. Head, Blocky Helmet, Gold Visor Frame & Stepped Comb Crest
   // --------------------------------------------------------------------------
+  // Gorget / Collar baja gelap penutup celah antara torso dan helm
+  const collar = new THREE.Mesh(geos.neckCollarGeo, mats.helmetMat);
+  collar.position.set(0, 1.76, 0);
+  collar.castShadow = true;
+  group.add(collar);
+
   const head = new THREE.Mesh(geos.headGeo, mats.skinMat);
-  head.position.y = 2.05;
+  head.position.y = 1.93;
   head.castShadow = true;
   group.add(head);
 
-  // Group Helm Abu-abu Gelap (#4A4E57)
+  // Group Helm Abu-abu Gelap (#4A4E57) - diturunkan Y -= 0.12 agar menempel pas di bahu
   const helmetGroup = new THREE.Group();
-  helmetGroup.position.set(0, 2.15, 0);
+  helmetGroup.position.set(0, 2.03, 0);
 
   const cranium = new THREE.Mesh(geos.helmetCraniumGeo, mats.helmetMat);
   cranium.castShadow = true;
@@ -649,8 +674,11 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   diamondBoss.castShadow = true;
   shield.add(diamondBoss);
 
-  shield.position.set(0.18, -0.40, 0.16);
-  shield.rotation.set(0, -0.15, 0.12);
+  // Pasang langsung sebagai child dari leftArm pada level gauntlet/forearm,
+  // di sisi luar lengan kiri menghadap ke samping luar (rotation.y = Math.PI / 2)
+  // agar tidak menembus pauldron bahu
+  shield.position.set(0.16, -0.40, 0.05);
+  shield.rotation.set(0, Math.PI / 2, 0);
   leftArm.add(shield);
 
   // --------------------------------------------------------------------------
