@@ -12,7 +12,8 @@ import {
 import { soundManager } from '../audio';
 import { CHEST_LOOT_POOL, MONSTER_MATERIALS } from '../data';
 import { getCurrentRegion } from '../mapData';
-import { createEnemyMesh, createPlayerMesh, createArrowMesh, PlayerMeshObjects } from './models';
+import { createEnemyMesh, createPlayerMesh, createArrowMesh, PlayerMeshObjects, USE_LEGACY_KNIGHT } from './models';
+export { USE_LEGACY_KNIGHT };
 import { buildWorld, WorldObjects, WorldCheckpoint } from './world';
 import { BossManager } from '../BossManager';
 import { RemotePlayerData } from '../multiplayer';
@@ -4922,25 +4923,34 @@ export class GameEngine {
     } else if (this.charClass === 'rogue') {
       // Forward ninja prowl crouch
       this.playerMesh.group.rotation.x = isMoving ? 0.16 : 0.08;
+    } else if (this.charClass === 'warrior' && this.isAttacking) {
+      // Forward lean during combat attacks handled dynamically below
     } else {
       this.playerMesh.group.rotation.x = 0;
     }
 
     // Limb animations
     if (isMoving) {
-      const walkFreq = this.charClass === 'rogue' ? 15 : this.charClass === 'mage' ? 8 : 11;
+      const walkFreq = this.charClass === 'rogue' ? 15 : this.charClass === 'mage' ? 8 : 10.5;
       this.walkTime += delta * walkFreq;
-      const legSwing = Math.sin(this.walkTime) * (this.charClass === 'mage' ? 0.35 : 0.65);
+      const legSwing = Math.sin(this.walkTime) * (this.charClass === 'mage' ? 0.35 : 0.62);
 
       this.playerMesh.leftLeg.rotation.x = legSwing;
       this.playerMesh.rightLeg.rotation.x = -legSwing;
 
       if (!this.isAttacking) {
         if (this.charClass === 'warrior') {
-          // Warrior strides holding broadsword steady
-          this.playerMesh.leftArm.rotation.x = -legSwing * 0.7;
-          this.playerMesh.rightArm.rotation.x = 0.3 + Math.sin(this.walkTime * 0.5) * 0.15;
-          this.playerMesh.rightArm.rotation.z = -0.2;
+          // Warrior heavy armor vertical bobbing & shoulder sway
+          const armorBob = Math.abs(Math.sin(this.walkTime * 2.0)) * 0.08;
+          this.playerMesh.group.position.y += armorBob;
+
+          const torsoSway = Math.sin(this.walkTime) * 0.035;
+          this.playerMesh.body.rotation.z = torsoSway;
+          this.playerMesh.body.rotation.y = torsoSway * 0.7;
+
+          // Arms: steady counter-swings holding shield in guard and broadsword ready
+          this.playerMesh.leftArm.rotation.set(-legSwing * 0.65, 0.18, 0.16);
+          this.playerMesh.rightArm.rotation.set(0.35 + Math.sin(this.walkTime * 0.5) * 0.18, 0, -0.24);
         } else if (this.charClass === 'mage') {
           // Mage glides holding staff aloft
           this.playerMesh.leftArm.rotation.x = -legSwing * 0.3;
@@ -4954,14 +4964,21 @@ export class GameEngine {
           this.playerMesh.rightArm.rotation.z = -0.25;
         }
       }
-      this.playerMesh.cape.rotation.x = 0.35 + Math.sin(this.walkTime * 1.5) * 0.2;
+      this.playerMesh.cape.rotation.x = 0.38 + Math.sin(this.walkTime * 1.5) * 0.22;
     } else {
       this.playerMesh.leftLeg.rotation.x *= 0.8;
       this.playerMesh.rightLeg.rotation.x *= 0.8;
       if (!this.isAttacking) {
         if (this.charClass === 'warrior') {
-          this.playerMesh.leftArm.rotation.set(0, 0, 0);
-          this.playerMesh.rightArm.rotation.set(0.15, 0, -0.15);
+          // Heroic breathing cycle & defensive ready stance
+          const breathe = Math.sin(this.clock.getElapsedTime() * 2.0) * 0.02;
+          this.playerMesh.body.position.y = 1.35 + breathe;
+          this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(this.playerMesh.body.rotation.z, 0, 0.15);
+          this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y, 0, 0.15);
+
+          // Shield raised defensively across left chest, broadsword ready in right hand
+          this.playerMesh.leftArm.rotation.set(-0.35 + breathe * 0.5, 0.22, 0.16);
+          this.playerMesh.rightArm.rotation.set(0.24 - breathe * 0.5, 0, -0.22);
         } else if (this.charClass === 'mage') {
           const hoverFloat = Math.sin(this.clock.getElapsedTime() * 2) * 0.08;
           this.playerMesh.leftArm.rotation.set(hoverFloat, 0, 0.15);
@@ -4982,8 +4999,9 @@ export class GameEngine {
       if (this.attackType === 'basic_spin_360') {
         // Full 360 degree whirlwind cleave spin
         this.playerMesh.group.rotation.y = this.playerRotationY + (1 - progress) * Math.PI * 2;
-        this.playerMesh.rightArm.rotation.set(-1.2, 0, -1.2);
-        this.playerMesh.leftArm.rotation.set(-1.2, 0, 1.2);
+        this.playerMesh.rightArm.rotation.set(-0.25, 0, -1.45);
+        this.playerMesh.leftArm.rotation.set(-0.25, 0, 1.35);
+        this.playerMesh.body.rotation.y = 0;
       } else if (this.attackType === 'bow_shot' || this.attackType === 'bow_barrage') {
         // Hunter Bow draw and release
         this.playerMesh.leftArm.rotation.set(-1.35, 0.3, -0.15);
@@ -4993,25 +5011,34 @@ export class GameEngine {
         if (this.attackType === 'whirlwind') {
           // Rapid 360 degree spin
           this.playerMesh.group.rotation.y += delta * 24;
-          this.playerMesh.leftArm.rotation.set(0, 0, 1.4);
-          this.playerMesh.rightArm.rotation.set(0, 0, -1.4);
+          this.playerMesh.leftArm.rotation.set(-0.25, 0, 1.35);
+          this.playerMesh.rightArm.rotation.set(-0.25, 0, -1.45);
+          this.playerMesh.body.rotation.y = 0;
         } else if (this.attackType === 'shield_charge') {
-          // Guard forward charge
-          this.playerMesh.leftArm.rotation.set(-1.4, 0.4, 0.2);
-          this.playerMesh.rightArm.rotation.set(0.3, 0, -0.5);
+          // Terjang (Guard forward charge with shield thrust)
+          const chargeFactor = Math.sin((1 - progress) * Math.PI);
+          this.playerMesh.group.rotation.x = 0.32 * chargeFactor;
+          this.playerMesh.leftArm.rotation.set(-1.45, 0.35, 0.12);
+          this.playerMesh.rightArm.rotation.set(0.65, -0.2, -0.55);
         } else if (this.attackType === 'iron_fortress') {
-          // Shield planted down
-          this.playerMesh.leftArm.rotation.set(-0.7, 0, 0.3);
-          this.playerMesh.rightArm.rotation.set(-0.7, 0, -0.3);
-        } else if (this.attackType === 'basic_slash_1') {
+          // Benteng (Shield planted down, heavy defensive brace)
+          this.playerMesh.group.position.y -= 0.10 * Math.sin((1 - progress) * Math.PI);
+          this.playerMesh.leftArm.rotation.set(-1.10, 0.30, 0.0);
+          this.playerMesh.rightArm.rotation.set(-0.85, 0, -0.25);
+        } else if (this.attackType === 'basic_slash_1' || this.attackType === 'basic_slash_2') {
+          // Rapid horizontal sword slash arc (0.35s) with smooth lerp recovery
           const swing = Math.sin((1 - progress) * Math.PI);
-          this.playerMesh.rightArm.rotation.set(0.8 - swing * 2.4, 0, -0.4 + swing * 0.8);
-          this.playerMesh.leftArm.rotation.set(swing * 0.4, 0, 0.2);
+          this.playerMesh.group.rotation.x = swing * 0.18;
+          this.playerMesh.body.rotation.y = swing * 0.45;
+          this.playerMesh.rightArm.rotation.set(-0.2 - swing * 1.85, swing * 0.95, -0.35 + swing * 0.7);
+          this.playerMesh.leftArm.rotation.set(-0.35, -swing * 0.3, 0.2);
         } else {
           // Powerful downward cleave swing
           const swing = Math.sin((1 - progress) * Math.PI);
-          this.playerMesh.rightArm.rotation.x = 1.0 - swing * 2.8;
-          this.playerMesh.leftArm.rotation.x = swing * 0.6;
+          this.playerMesh.group.rotation.x = swing * 0.22;
+          this.playerMesh.body.rotation.y = swing * 0.2;
+          this.playerMesh.rightArm.rotation.set(1.1 - swing * 2.9, 0, -0.2);
+          this.playerMesh.leftArm.rotation.set(swing * 0.6, 0, 0.15);
         }
       } else if (this.charClass === 'mage') {
         if (this.attackType === 'supernova' || this.attackType === 'starfall') {
