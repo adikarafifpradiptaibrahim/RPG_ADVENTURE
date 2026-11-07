@@ -1242,9 +1242,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // (Puncak Salju Frostpeak Summit ridge, outer Astraea wilderness, snowy pines, ice boulders, glowing crystals, rounded snowdrifts)
   // ==========================================
   const frostSpire1 = createIceCrystalSpireMesh();
-  frostSpire1.position.set(112, getTerrainHeight(112, -65), -65);
+  frostSpire1.position.set(247, getTerrainHeight(247, -110), -110);
   const frostSpire2 = createIceCrystalSpireMesh();
-  frostSpire2.position.set(118, getTerrainHeight(118, -65), -65);
+  frostSpire2.position.set(253, getTerrainHeight(253, -110), -110);
   frostSpire2.scale.set(1.4, 1.4, 1.4);
   scene.add(frostSpire1, frostSpire2);
 
@@ -1260,10 +1260,10 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     })
   );
   iceRing.rotation.x = Math.PI / 2;
-  const altarY = getTerrainHeight(115, -65);
-  iceRing.position.set(115, altarY + 0.3, -65);
+  const altarY = getTerrainHeight(250, -110);
+  iceRing.position.set(250, altarY + 0.3, -110);
   scene.add(iceRing);
-  colliders.push({ type: 'circle', x: 115, z: -65, radius: 5.2, label: 'Altar Es Frostpeak' });
+  colliders.push({ type: 'circle', x: 250, z: -110, radius: 5.2, label: 'Altar Es Frostpeak' });
 
   // 1. Glowing Ice Crystal Clusters & Spires (Pilar Kristal Es Bercahaya)
   const crystalCoords = [
@@ -2294,37 +2294,37 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 7. JADE BAMBOO GROVE & PAGODA (South-East: [170, 160])
+  // 7. JADE BAMBOO GROVE & PAGODA (South-East: [270, 160])
   // ==========================================
   const jadePagoda = createJadePagodaMesh();
-  const pagodaY = getTerrainHeight(170, 160);
-  jadePagoda.position.set(170, pagodaY, 160);
+  const pagodaY = getTerrainHeight(270, 160);
+  jadePagoda.position.set(270, pagodaY, 160);
   scene.add(jadePagoda);
   colliders.push({
     type: 'box',
-    minX: 164,
-    maxX: 176,
+    minX: 264,
+    maxX: 276,
     minZ: 154,
     maxZ: 166,
     label: 'Kuil Pagoda Giok Tiga Tingkat',
   });
 
-  // Grand Torii Gate at mountain path
+  // Grand Torii Gate at bamboo sanctuary entrance
   const toriiGate = createToriiGateMesh();
-  const toriiY = getTerrainHeight(152, 148);
-  toriiGate.position.set(152, toriiY, 148);
+  const toriiY = getTerrainHeight(252, 148);
+  toriiGate.position.set(252, toriiY, 148);
   toriiGate.rotation.y = 0.55;
   scene.add(toriiGate);
   colliders.push(
-    { type: 'circle', x: 150.5, z: 147, radius: 0.7, label: 'Pilar Torii Kiri' },
-    { type: 'circle', x: 153.5, z: 149, radius: 0.7, label: 'Pilar Torii Kanan' }
+    { type: 'circle', x: 250.5, z: 147, radius: 0.7, label: 'Pilar Torii Kiri' },
+    { type: 'circle', x: 253.5, z: 149, radius: 0.7, label: 'Pilar Torii Kanan' }
   );
 
   // Bamboo / Zen pine clusters
   for (let i = 0; i < 24; i++) {
-    const bx = 135 + Math.random() * 80;
-    const bz = 130 + Math.random() * 80;
-    if (Math.hypot(bx - 170, bz - 160) < 14) continue;
+    const bx = 230 + Math.random() * 80;
+    const bz = 80 + Math.random() * 120;
+    if (Math.hypot(bx - 270, bz - 160) < 14) continue;
     const by = getTerrainHeight(bx, bz);
     const tree = createTreeMesh('fantasy');
     tree.position.set(bx, by, bz);
@@ -2920,13 +2920,13 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { id: 'chest_forest', pos: [38, 0, 12] as [number, number, number] }, // Mystic deep forest
     { id: 'chest_boss_gateway', pos: [-95, 0, -56] as [number, number, number] }, // Entrance to Ancient Titan Basin
     { id: 'chest_valkragor', pos: [208, 0, -20] as [number, number, number] }, // Fortress keep secret treasury
-    { id: 'chest_frostpeak', pos: [115, 0, -65] as [number, number, number] }, // Cryo Altar Summit
+    { id: 'chest_frostpeak', pos: [250, 0, -110] as [number, number, number] }, // Cryo Altar Summit
     { id: 'chest_shadowfen', pos: [-110, 0, 12] as [number, number, number] }, // Shadowfen smuggler cache
     { id: 'chest_coralcove', pos: [86, 0, 56] as [number, number, number] }, // Shipwreck pirate gold
     { id: 'chest_solaria_palace', pos: [-428, -25 + 1.2, 354] as [number, number, number] }, // Istana Sultan Solaria Vault (Throne Room)
     { id: 'chest_solaria', pos: [-180, 0, 180] as [number, number, number] }, // Solaria Pharaoh Gold
     { id: 'chest_thunderpeak', pos: [160, 0, -150] as [number, number, number] }, // Storm Altar Relic
-    { id: 'chest_jadepagoda', pos: [170, 0, 160] as [number, number, number] }, // Celestial Pagoda Treasure
+    { id: 'chest_jadepagoda', pos: [270, 0, 160] as [number, number, number] }, // Celestial Pagoda Treasure
     { id: 'chest_dragoncaldera', pos: [-29, 0, -337] as [number, number, number] }, // Dragon Hoard
     { id: 'chest_astraea', pos: [204, 0, -260] as [number, number, number] }, // Astraea Imperial Vault
     { id: 'chest_frozen_chasm', pos: [180, 0, -325] as [number, number, number] }, // Ancient Chasm Relic Chest
@@ -3113,13 +3113,13 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_jadepagoda',
       name: 'Jade Bamboo Pagoda Shrine',
       nameId: 'Kuil Pagoda Giok & Bambu',
-      pos: [170, 160],
+      pos: [270, 160],
     },
     {
       id: 'wp_frostpeak',
       name: 'Frostpeak Glacier Summit',
       nameId: 'Kuil Es Puncak Frostpeak',
-      pos: [115, -65],
+      pos: [250, -110],
     },
     {
       id: 'wp_thunderpeak',

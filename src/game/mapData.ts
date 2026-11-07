@@ -9,7 +9,7 @@ export const REGIONS: RegionInfo[] = [
     description: 'A thriving coastal settlement with wooden cottages, busy harbor docks, merchant galleons, and wide open grassland plains.',
     descriptionId: 'Pusat desa damai dan padang rumput hijau luas Eldoria dengan rumah panggung kayu, pelabuhan kapal dagang, bengkel tempa, serta perbukitan landai terbuka.',
     color: '#4caf50',
-    bounds: { minX: -120, maxX: 110, minZ: -150, maxZ: 20 },
+    bounds: { minX: -160, maxX: 150, minZ: -200, maxZ: 35 },
     center: [0, -4],
     recommendedLevel: 1,
   },
@@ -21,8 +21,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'Sandy shores with gentle sea breezes, wooden docks, and shimmering ocean waves.',
     descriptionId: 'Hamparan pasir pantai keemasan, dermaga kayu nelayan Pak Joko, perahu kayu, dan deburan ombak laut biru luas.',
     color: '#00b4d8',
-    bounds: { minX: -95, maxX: 50, minZ: 14, maxZ: 440 },
-    center: [6, 42],
+    bounds: { minX: -160, maxX: 220, minZ: 35, maxZ: 440 },
+    center: [0, 80],
     recommendedLevel: 2,
   },
   {
@@ -260,7 +260,7 @@ export const WAYPOINTS: {
     nameId: 'Kuil Es Puncak Frostpeak',
     regionId: 'puncak_frostpeak',
     icon: '❄️',
-    pos: [115, -65],
+    pos: [250, -110],
     desc: 'Altar puncak beku bersalju abadi dan peti kristal es legendaris',
   },
   {
@@ -340,7 +340,7 @@ export const WAYPOINTS: {
     nameId: 'Kuil Pagoda Giok & Gerbang Torii',
     regionId: 'hutan_pagoda_giok',
     icon: '⛩️',
-    pos: [170, 160],
+    pos: [270, 160],
     desc: 'Pagoda megah tiga tingkat beratap giok di tengah rumpun bambu tenggara',
   },
   {
@@ -382,63 +382,59 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
   if (x >= 140 && x <= 220 && z <= -225 && z >= -295) {
     return REGIONS[14];
   }
-  // 1. Dragonfang Caldera & Inferno Core (Far North: z <= -200 and x between -210 and 110, or within 45m of [-29, -337])
-  if (Math.hypot(x - -29, z - -337) < 45 || (z <= -200 && x <= 110 && x >= -210)) {
+  // 1. Dragonfang Caldera & Inferno Core (Far North: z <= -200 or within 45m of [-29, -337])
+  if (Math.hypot(x - -29, z - -337) < 45 || z <= -200) {
     return REGIONS[13];
   }
-  // 2. Ancient Titan Sanctuary Basin Arena (North-West: within 32m of [-95, -75])
+  // 2. Ancient Titan Sanctuary Basin Arena (North-West Central Plains: within 32m of [-95, -75])
   if (Math.hypot(x - -95, z - -75) < 32) {
     return REGIONS[4];
   }
-  // 3. Thunderpeak Lightning Spire & Mage Tower Highlands (North-East: within 32m of [160, -150])
+  // 3. Thunderpeak Lightning Spire & Mage Tower Highlands (Highlands Corridor: within 32m of [160, -150])
   if (Math.hypot(x - 160, z - -150) < 32) {
     return REGIONS[11];
   }
-  // 4. Solaria Golden Dunes & Oasis (Far South-West: x <= -120 && z >= 120)
-  if (x <= -120 && z >= 120) {
+  // 4. Solaria Golden Dunes & Oasis (Far South-West: x < -160 && z > 120)
+  if (x < -160 && z > 120) {
     return REGIONS[10];
   }
-  // 5. Jade Bamboo Grove & Sanctuary (Far South-East: x >= 120 && z >= 20)
-  if (x >= 120 && z >= 20) {
+  // 5. Jade Bamboo Grove & Sanctuary (Far South-East: x > 220 && z > 35 && z <= 350)
+  if (x > 220 && z > 35 && z <= 350) {
     return REGIONS[12];
   }
-  // 6. Frostpeak Summit & Mountain Glacier (North-East: x >= 110 && z <= 20)
-  if (x >= 110 && z <= 20) {
+  // 6. Frostpeak Summit & Mountain Glacier (Far North-East: x > 220 && z < -80)
+  if (x > 220 && z < -80) {
     return REGIONS[7];
   }
-  // 7. Shadowfen Gloom Marsh (Mid-Far West: x <= -120 && z between -200 and 120)
-  if (x <= -120 && z >= -200 && z <= 120) {
-    return REGIONS[8];
-  }
-  // 8. Fortress Village Val-Kragor (Far East Highland)
-  if (x >= 155 && x <= 225 && z >= -48 && z <= 18) {
+  // 7. Fortress Village Val-Kragor & Highlands Corridor (x: 150..220, z: -180..60)
+  if (x >= 150 && x <= 220 && z >= -180 && z <= 60) {
     return REGIONS[6];
   }
+  // 8. Shadowfen Gloom Marsh & Top-Left Corner (Far West: x < -160)
+  if (x < -160) {
+    return REGIONS[8];
+  }
   // 9. Misty Chasm & Suspension Bridge (Mid East)
-  if (x >= 62 && x < 85 && z >= -35 && z <= 12) {
+  if (x >= 62 && x < 88 && z >= -35 && z <= 12) {
     return REGIONS[5];
   }
-  // 10. Coral Cove (South-East Coast)
-  if (x >= 52 && z >= 22) {
+  // 10. Coral Cove (South-East Coast: x >= 52 && z >= 35)
+  if (x >= 52 && z >= 35 && x <= 160) {
     return REGIONS[9];
   }
-  // 11. Azure Coast & Ocean (South)
-  const isSouthOceanWedge =
-    (Math.abs(x) <= 45 && z >= 18) ||
-    (x < -45 && x >= -220 && z > 20 + (-x - 45) * 1.95) ||
-    (x > 45 && x <= 420 && z > 20 + (x - 45) * 1.15) ||
-    z >= 18;
-  if (isSouthOceanWedge) {
+  // 11. Azure Coast & South Ocean (South: z > 35 wide horizontal sea)
+  const isSouthOcean = z > 35 && !(x < -160 && z <= 440) && !(x > 220 && z <= 350);
+  if (isSouthOcean) {
     return REGIONS[1];
   }
-  // 12. Ancient Sunken Ruins (Far-West Outskirts: x: -145..-85, z: 12..65)
+  // 12. Ancient Sunken Ruins of Vael (Outskirts: x: -145..-85, z: 12..65)
   if (x <= -85 && x >= -145 && z >= 12 && z <= 65) {
     return REGIONS[2];
   }
-  // 13. Whispering Mystic Forest (East)
-  if (x >= 16 && x < 62 && z >= -30 && z <= 25) {
+  // 13. Whispering Mystic Forest (East Plains: x: 16..62, z: -30..20)
+  if (x >= 16 && x < 62 && z >= -30 && z <= 20) {
     return REGIONS[3];
   }
-  // Default: Desa Utama & Padang Rumput Eldoria (Central Plains Buffer)
+  // Default: Desa Utama & Padang Rumput Eldoria (Massive Central Plains: x: -160..150, z: -200..35)
   return REGIONS[0];
 }

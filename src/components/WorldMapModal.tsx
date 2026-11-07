@@ -16,10 +16,10 @@ import {
 } from 'lucide-react';
 import { MapMarker, RegionInfo } from '../types/game';
 import { REGIONS, WAYPOINTS } from '../game/mapData';
-import { getContinentBiomeSample } from '../game/mapSampler';
+import { getContinentBiomeSample, getBiomeAt } from '../game/mapSampler';
 
 // Persistent continent map cached image data to eliminate all lag on open & pan
-const MAP_CACHE_VERSION = 'v2.4_blueprint';
+const MAP_CACHE_VERSION = 'v2.5_revamp';
 let cachedMapVersion = '';
 let cachedMapImageData: ImageData | null = null;
 
@@ -357,7 +357,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
     const imgData = ctx.createImageData(width, height);
     const pixels = imgData.data;
 
-    // Direct pixel block sampling across the entire continent
+    // Direct pixel block sampling across the entire continent using getBiomeAt(wx, wz)
     const step = 2; // Crisp resolution
 
     for (let py = 0; py < height; py += step) {
@@ -368,21 +368,63 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
         const u = px / width;
         const wx = minX + u * (maxX - minX);
 
+        // Direct mathematical biome evaluation
+        const zone = getBiomeAt(wx, wz);
         const sample = getContinentBiomeSample(wx, wz);
+
         let [r, g, b] = sample.color;
 
+        // Apply exact requested canvas biome palette
+        if (!sample.isPath && sample.biomeId !== 'ship_deck' && sample.biomeId !== 'ancient_ruins') {
+          switch (zone.id) {
+            case 'south_ocean':
+              r = 2; g = 132; b = 199; // Ocean: #0284c7 (Biru Laut jernih & luas di selatan)
+              break;
+            case 'central_plains':
+              r = 101; g = 163; b = 13; // Plains: #65a30d (Hijau rumput cerah menyatu di pusat)
+              break;
+            case 'west_swamp':
+              r = 71; g = 85; b = 105; // Shadowfen: #475569 (Gelap temaram di barat dan kiri atas)
+              break;
+            case 'southwest_desert':
+              r = 234; g = 179; b = 8; // Solaria: #eab308 (Kuning emas di barat daya)
+              break;
+            case 'east_frostpeak':
+              r = 224; g = 242; b = 254; // Frostpeak: #e0f2fe (Putih es di timur laut jauh)
+              break;
+            case 'east_highlands':
+              r = 71; g = 85; b = 105; // Highlands koridor: #475569
+              break;
+            case 'southeast_bamboo':
+              r = 5; g = 150; b = 105; // Bamboo: #059669 (Hijau zamrud di tenggara jauh)
+              break;
+            case 'north_volcanic':
+              if (sample.biomeId === 'dragon_magma') {
+                r = 220; g = 38; b = 38; // Magma: #dc2626
+              } else {
+                r = 28; g = 25; b = 23; // Caldera: #1c1917
+              }
+              break;
+          }
+        }
+
+        // Beach sand fringe along southern horizontal coastline (Z: 30..36)
+        if (wz >= 30 && wz <= 36 && wx >= -160 && wx <= 220 && sample.height < 0.6 && !sample.isPath) {
+          r = 254; g = 215; b = 170;
+        }
+
         // Dynamic hillshade sun angle (sun from North-West)
-        const sunDot = 1.0 + (sample.slope * 0.45 * (u - v));
-        const shade = Math.max(0.65, Math.min(1.35, sunDot));
+        const sunDot = 1.0 + (sample.slope * 0.42 * (u - v));
+        const shade = Math.max(0.70, Math.min(1.30, sunDot));
         r = Math.min(255, Math.max(0, Math.round(r * shade)));
         g = Math.min(255, Math.max(0, Math.round(g * shade)));
         b = Math.min(255, Math.max(0, Math.round(b * shade)));
 
         // Topographical elevation contours
         if (sample.height > 0.5 && Math.abs(sample.height % 3.0) < 0.28) {
-          r = Math.min(255, r + 40);
-          g = Math.min(255, g + 40);
-          b = Math.min(255, b + 50);
+          r = Math.min(255, r + 35);
+          g = Math.min(255, g + 35);
+          b = Math.min(255, b + 45);
         }
 
         for (let dy = 0; dy < step && py + dy < height; dy++) {
@@ -515,9 +557,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 2. Frostpeak Glacier Summit (Lv.5, X: 115, Z: -65) */}
+              {/* 2. Frostpeak Glacier Summit (Lv.5, X: 250, Z: -110) */}
               {(() => {
-                const sp = worldToScreen(115, -65);
+                const sp = worldToScreen(250, -110);
                 if (!sp.visible) return null;
                 return (
                   <div
@@ -713,9 +755,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 10. Jade Bamboo Grove & Pagoda (South-East, X: 170, Z: 160) */}
+              {/* 10. Jade Bamboo Grove & Pagoda (South-East, X: 270, Z: 160) */}
               {(() => {
-                const sp = worldToScreen(170, 160);
+                const sp = worldToScreen(270, 160);
                 if (!sp.visible) return null;
                 return (
                   <div
