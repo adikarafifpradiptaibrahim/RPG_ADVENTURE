@@ -376,6 +376,7 @@ export function createMageArcaneLaserBeamVfx(params: {
   direction: THREE.Vector3;
   beamLength?: number;
   duration?: number;
+  getOrigin?: () => { origin: THREE.Vector3; direction?: THREE.Vector3 };
   onHitTick?: (isTick: boolean) => void;
   onSpawnSparks?: (pos: THREE.Vector3, color: number, count: number, speed: number) => void;
 }): MageLaserBeamVfxInstance {
@@ -384,6 +385,7 @@ export function createMageArcaneLaserBeamVfx(params: {
     direction: rawDirection,
     beamLength = 32.0,
     duration = 1.0,
+    getOrigin,
     onHitTick,
     onSpawnSparks,
   } = params;
@@ -498,6 +500,24 @@ export function createMageArcaneLaserBeamVfx(params: {
     if (timeLeft <= 0) {
       cleanup();
       return false;
+    }
+
+    // Dynamic position tracking: Keep Magic Circle and beam glued to staff crystal
+    if (getOrigin) {
+      const dynamic = getOrigin();
+      origin.copy(dynamic.origin);
+      if (dynamic.direction) {
+        fwd.copy(dynamic.direction).normalize();
+      }
+      magicCircleGroup.position.copy(origin);
+      magicCircleGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fwd);
+
+      const beamCenter = origin.clone().addScaledVector(fwd, beamLength / 2);
+      laserBeamGroup.position.copy(beamCenter);
+      laserBeamGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), fwd);
+
+      const endPoint = origin.clone().addScaledVector(fwd, beamLength);
+      impactGroup.position.copy(endPoint);
     }
 
     // 1. Rotate Magic Circle components

@@ -2841,10 +2841,32 @@ export class GameEngine {
       ? customFwd.clone().normalize()
       : new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
 
-    // Position Magic Circle right in front of the caster/staff at chest/eye height
-    const origin = customSpawnPos
-      ? customSpawnPos.clone().add(fwd.clone().multiplyScalar(0.7)).add(new THREE.Vector3(0, 1.45, 0))
-      : this.playerPos.clone().add(fwd.clone().multiplyScalar(1.1)).add(new THREE.Vector3(0, 1.5, 0));
+    // Position Magic Circle right in front of the staff crystal tip (+0.12 unit forward)
+    let origin: THREE.Vector3;
+    let getOriginCb: (() => { origin: THREE.Vector3; direction?: THREE.Vector3 }) | undefined;
+
+    if (customSpawnPos) {
+      origin = customSpawnPos.clone().add(fwd.clone().multiplyScalar(0.7)).add(new THREE.Vector3(0, 1.45, 0));
+    } else if (this.playerMesh && this.playerMesh.orbMesh) {
+      this.playerMesh.group.updateMatrixWorld(true);
+      const crystalWorldPos = new THREE.Vector3();
+      this.playerMesh.orbMesh.getWorldPosition(crystalWorldPos);
+      origin = crystalWorldPos.clone().add(fwd.clone().multiplyScalar(0.12));
+
+      getOriginCb = () => {
+        if (!this.playerMesh?.orbMesh) return { origin, direction: fwd };
+        this.playerMesh.group.updateMatrixWorld(true);
+        const curCrystalPos = new THREE.Vector3();
+        this.playerMesh.orbMesh.getWorldPosition(curCrystalPos);
+        const curFwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+        return {
+          origin: curCrystalPos.add(curFwd.clone().multiplyScalar(0.12)),
+          direction: curFwd,
+        };
+      };
+    } else {
+      origin = this.playerPos.clone().add(fwd.clone().multiplyScalar(1.1)).add(new THREE.Vector3(0, 1.5, 0));
+    }
 
     const beamLength = 34.0;
 
@@ -2900,6 +2922,7 @@ export class GameEngine {
       direction: fwd,
       beamLength,
       duration: 1.0,
+      getOrigin: getOriginCb,
       onHitTick: (isTick) => {
         checkLaserHit(isTick);
       },
@@ -3140,6 +3163,9 @@ export class GameEngine {
             this.playerMesh.group.visible = true;
             if (this.charClass === 'mage') {
               this.mageLandingCrouchTimer = 0.15;
+              if (this.playerMesh.body) {
+                this.playerMesh.body.rotation.x = 0;
+              }
             }
           }
 
@@ -3156,6 +3182,9 @@ export class GameEngine {
         vfx.cleanup();
         if (this.playerMesh && this.playerMesh.group) {
           this.playerMesh.group.visible = true;
+          if (this.charClass === 'mage' && this.playerMesh.body) {
+            this.playerMesh.body.rotation.x = 0;
+          }
         }
       }
     );
@@ -3627,6 +3656,11 @@ export class GameEngine {
       this.attackType = 'basic';
       this.attackDuration = 1.0;
       this.attackTimer = 1.0;
+      if (this.playerMesh) {
+        this.playerMesh.rightArm.rotation.set(-Math.PI / 2, 0, -0.05);
+        this.playerMesh.weapon.rotation.set(0, 0, 0);
+        this.playerMesh.group.updateMatrixWorld(true);
+      }
       soundManager.playArcaneBeam();
       this.spawnMageArcaneLaserBeam();
     } else if (this.charClass === 'rogue') {
@@ -5099,7 +5133,7 @@ export class GameEngine {
           isCasting: this.isCasting,
           castingProgress: Math.min(1.0, this.castingTimer / this.castingDuration),
           isBlinking: this.isDashing && this.attackType === 'blink',
-          blinkProgress: Math.max(0, this.dashTimer / 0.2),
+          blinkProgress: Math.min(1.0, Math.max(0, 1.0 - (this.dashTimer / 0.2))),
         });
       } else if (this.charClass === 'rogue') {
         if (this.attackType === 'flurry') {
@@ -5128,6 +5162,11 @@ export class GameEngine {
       if (this.attackTimer <= 0) {
         this.isAttacking = false;
         this.attackType = null;
+        if (this.charClass === 'mage' && this.playerMesh?.body) {
+          this.playerMesh.body.rotation.x = 0;
+          this.playerMesh.body.position.y = 1.35;
+          this.playerMesh.weapon.rotation.set(0, 0, 0);
+        }
         this.playerMesh.leftArm.rotation.set(0, 0, 0);
         this.playerMesh.rightArm.rotation.set(0, 0, 0);
       }
@@ -5138,6 +5177,10 @@ export class GameEngine {
       this.dashTimer -= delta;
       if (this.dashTimer <= 0) {
         this.isDashing = false;
+        if (this.charClass === 'mage' && this.playerMesh?.body) {
+          this.playerMesh.body.rotation.x = 0;
+          this.playerMesh.body.position.y = 1.35;
+        }
       }
     }
 

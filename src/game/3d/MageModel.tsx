@@ -247,13 +247,16 @@ function getMageGeometries(): BlockyMageGeometryPalette {
     capeGeo.center();
 
     // 5. Staff: Silinder bersegi ungu tua dengan hiasan puncak cincin emas & kristal bersinar
-    const staffShaftGeo = new THREE.CylinderGeometry(0.032, 0.038, 1.82, 6);
-    staffShaftGeo.translate(0, 0.30, 0);
+    // Total panjang tongkat ~1.62 unit. Titik (0, 0, 0) lokal di dalam rightHand adalah titik cengkeraman (grip).
+    // Batang digeser +0.05 unit sehingga tangan menggenggam bagian tengah-bawah yang proporsional.
+    // Kristal menonjol ke atas (+Y = 1.02) dan ujung bawah menggantung wajar (-Y = -0.76).
+    const staffShaftGeo = new THREE.CylinderGeometry(0.032, 0.038, 1.62, 6);
+    staffShaftGeo.translate(0, 0.05, 0);
 
-    const staffCollarGeo = new THREE.CylinderGeometry(0.052, 0.045, 0.10, 6);
-    const staffRingHeadGeo = new THREE.TorusGeometry(0.17, 0.032, 6, 16);
+    const staffCollarGeo = new THREE.CylinderGeometry(0.052, 0.045, 0.08, 6);
+    const staffRingHeadGeo = new THREE.TorusGeometry(0.16, 0.030, 6, 16);
     staffRingHeadGeo.rotateX(Math.PI / 2);
-    const staffCrystalGeo = new THREE.IcosahedronGeometry(0.11, 0);
+    const staffCrystalGeo = new THREE.IcosahedronGeometry(0.10, 0);
 
     // 6. Grimoire: Kitab sihir balok datar tipis marun berlis emas
     const grimoireCoverGeo = new THREE.BoxGeometry(0.08, 0.36, 0.26);
@@ -444,22 +447,23 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
 
   // Collar Emas
   const staffCollar = new THREE.Mesh(geos.staffCollarGeo, mats.goldTrimMat);
-  staffCollar.position.y = 1.15;
+  staffCollar.position.y = 0.86;
   weapon.add(staffCollar);
 
   // Lingkaran Emas yang Kaku (Cincin Bersudut)
   const orbRing = new THREE.Mesh(geos.staffRingHeadGeo, mats.goldTrimMat);
-  orbRing.position.y = 1.34;
+  orbRing.position.y = 1.02;
   weapon.add(orbRing);
 
   // Kristal Biru Neon Icosahedron Kecil yang Dijepit di Tengah Cincin
   const orbMesh = new THREE.Mesh(geos.staffCrystalGeo, mats.crystalCyanMat);
-  orbMesh.position.y = 1.34;
+  orbMesh.position.y = 1.02;
   weapon.add(orbMesh);
 
-  // Pasangkan tongkat di telapak tangan kanan dengan posisi vertikal natural tanpa clipping
-  weapon.position.set(0, -0.25, 0.12);
-  weapon.rotation.set(0.08, 0, 0);
+  // Pasangkan tongkat tepat di telapak tangan kanan dengan cengkeraman di tengah-bawah yang proporsional
+  // Kunci orientasi tetap permanen [0, 0, 0] (kristal selalu mengarah ke atas di sumbu +Y relatif terhadap tangan)
+  weapon.position.set(0, -0.06, 0.04);
+  weapon.rotation.set(0, 0, 0);
   rightHand.add(weapon);
 
   rightForearm.add(rightHand);
@@ -732,6 +736,15 @@ export function animateMageWalk(
     playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, legSwing, lerpSpeed);
     playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, -legSwing, lerpSpeed);
 
+    // Pastikan torso tegak kembali (reset bungkuk pasca-Blink atau skill pose)
+    playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, lerpSpeed);
+    playerMesh.body.rotation.y = THREE.MathUtils.lerp(playerMesh.body.rotation.y, 0, lerpSpeed);
+    playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, lerpSpeed);
+    playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.35, lerpSpeed);
+
+    // Kunci orientasi tetap tongkat (rotasi lokal [0, 0, 0])
+    playerMesh.weapon.rotation.set(0, 0, 0);
+
     if (!isAttacking) {
       // Lengan kiri berayun alami seirama langkah: -Math.sin(time * 8.5) * 0.3
       const leftArmSwing = -Math.sin(walkTime * 8.5) * 0.3;
@@ -762,9 +775,19 @@ export function animateMageWalk(
     playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0, lerpSpeed);
     playerMesh.group.rotation.z = THREE.MathUtils.lerp(playerMesh.group.rotation.z, 0, lerpSpeed);
 
+    // Pastikan torso tegak kembali (reset bungkuk pasca-Blink atau skill pose)
+    playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, lerpSpeed);
+    playerMesh.body.rotation.y = THREE.MathUtils.lerp(playerMesh.body.rotation.y, 0, lerpSpeed);
+    playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, lerpSpeed);
+
+    // Kunci orientasi tetap tongkat (rotasi lokal [0, 0, 0])
+    playerMesh.weapon.rotation.set(0, 0, 0);
+
     // Pernapasan subtil: Math.sin(time * 2.5) * 0.02
     const breathe = Math.sin(walkTime * 2.5) * 0.02;
     playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.35 + breathe, lerpSpeed);
+    playerMesh.body.position.x = THREE.MathUtils.lerp(playerMesh.body.position.x, 0, lerpSpeed);
+    playerMesh.body.position.z = THREE.MathUtils.lerp(playerMesh.body.position.z, 0, lerpSpeed);
 
     if (!isAttacking) {
       // Tangan kanan memegang tongkat santai di sisi tubuh
@@ -806,12 +829,13 @@ export function animateMageSkillPose(
   // A. Basic Attack: Arcane Beam (Channeling 1.0 Detik)
   if (ctx.attackType === 'basic') {
     // 1. Lengan Kanan: Angkat lurus ke depan setinggi dada (rotation.x = -Math.PI / 2)
+    // Sendi lengan lurus ke depan otomatis mengarahkan ujung kristal tongkat ke target di depan
     playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -Math.PI / 2, lerpSpeed);
     playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, lerpSpeed);
     playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, -0.05, lerpSpeed);
 
-    // Balik arah pivot tongkat pada tangan kanan agar kepala kristal biru menghadap ke depan (+Z target)
-    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, Math.PI, lerpSpeed);
+    // KUNCI PERMANEN: Mesh tongkat selalu memiliki orientasi tetap [0, 0, 0] tanpa flip 180 derajat manual
+    playerMesh.weapon.rotation.set(0, 0, 0);
 
     // 2. Lengan Kiri (Grimoire): Angkat sedikit ke samping depan seolah membaca mantra dari kitab
     playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -0.40, lerpSpeed);
@@ -826,8 +850,8 @@ export function animateMageSkillPose(
     playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, -0.05, lerpSpeed);
     return;
   } else {
-    // Kembalikan orientasi tegak natural tongkat saat tidak menembakkan Arcane Beam
-    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 0.08, lerpSpeed);
+    // Kunci orientasi tetap tongkat (rotasi lokal [0, 0, 0])
+    playerMesh.weapon.rotation.set(0, 0, 0);
   }
 
   // B. Skill 1: Starfall (Fase Casting 1.0 Detik & Fase Barrage Meteor 10-Barrage)
@@ -880,8 +904,9 @@ export function animateMageSkillPose(
     }
     return;
   } else {
-    // Kembalikan kemiringan torso normal
-    playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, 0.2);
+    // Kembalikan kemiringan torso normal tegak
+    playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, 0.25);
+    playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.35, 0.25);
   }
 
   // D. Skill 3: Cahaya / Celestial Light (Pose Doa / Self-Channel Durasi 0.5 Detik)
@@ -947,19 +972,37 @@ export const MageModel: React.FC<MageModelProps> = ({
   }, [tier]);
 
   useEffect(() => {
-    if (!meshObjRef.current) return;
-    const isMoving = speed > 0.1 || state === 'walk';
-    animateMageWalk(meshObjRef.current, performance.now() * 0.001, 0, isMoving, state === 'attack');
-    if (state === 'attack' || state === 'casting' || state === 'blink' || castEvent) {
-      animateMageSkillPose(meshObjRef.current, {
-        attackType: castEvent || (state === 'attack' ? 'basic' : state),
-        progress: 0.5,
-        isCasting: state === 'casting',
-        castingProgress: 0.5,
-        isBlinking: state === 'blink',
-        blinkProgress: 0.5,
-      });
-    }
+    let animId: number;
+    let lastTime = performance.now();
+
+    const loop = (currentTime: number) => {
+      const delta = Math.min((currentTime - lastTime) * 0.001, 0.1);
+      lastTime = currentTime;
+
+      if (meshObjRef.current) {
+        const isMoving = speed > 0.1 || state === 'walk';
+        animateMageWalk(meshObjRef.current, currentTime * 0.001, 0, isMoving, state === 'attack');
+        if (state === 'attack' || state === 'casting' || state === 'blink' || castEvent) {
+          animateMageSkillPose(meshObjRef.current, {
+            attackType: castEvent || (state === 'attack' ? 'basic' : state),
+            progress: 0.5,
+            isCasting: state === 'casting',
+            castingProgress: 0.5,
+            isBlinking: state === 'blink',
+            blinkProgress: 0.5,
+          });
+        } else {
+          // Reset torso and limb offsets when not in skill pose
+          meshObjRef.current.body.rotation.x = THREE.MathUtils.lerp(meshObjRef.current.body.rotation.x, 0, delta * 10);
+          meshObjRef.current.body.position.y = THREE.MathUtils.lerp(meshObjRef.current.body.position.y, 1.35, delta * 10);
+        }
+      }
+
+      animId = requestAnimationFrame(loop);
+    };
+
+    animId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animId);
   }, [speed, state, castEvent]);
 
   const s = typeof scale === 'number' ? [scale, scale, scale] : scale;
