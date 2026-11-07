@@ -210,13 +210,20 @@ export const WAYPOINTS: {
 ];
 
 export function getCurrentRegion(x: number, z: number): RegionInfo {
-  // 1. Dragonfang Caldera & Volcano Island (South across the sea: z >= 300 && x: -150..250)
-  if (z >= 300 && x >= -150 && x <= 250) {
+  // 1. Dragonfang Caldera & Volcano Island (Curved Ellipse: cx = 40, cz = 360, Rx = 160, Rz = 90)
+  const cx = 40;
+  const cz = 360;
+  const Rx = 160;
+  const Rz = 90;
+  const edgeWobble = Math.sin(x * 0.05) * 8 + Math.cos(z * 0.06) * 6;
+  const distSq = Math.pow((x - cx) / (Rx + edgeWobble), 2) + Math.pow((z - cz) / (Rz + edgeWobble), 2);
+  if (distSq <= 1.0) {
     return REGIONS[8];
   }
 
-  // 2. Azure Ocean (South Sea: z > 220)
-  if (z > 220) {
+  // 2. Azure Ocean (Natural Wavy Coastline: z > coastLineZ)
+  const coastLineZ = 200 + Math.sin(x * 0.015) * 22 + Math.cos(x * 0.04) * 10;
+  if (z > coastLineZ || x < -550 || x > 650 || z < -450) {
     return REGIONS[1];
   }
 
@@ -245,8 +252,10 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
     return REGIONS[6];
   }
 
-  // 8. Solaria Golden Desert (North & East: x >= -115 && z <= -60)
-  if (x >= -115 && z <= -60) {
+  // 8. Solaria Golden Desert (S-Curve boundary)
+  const desertWestBoundary = -115 + Math.sin(z * 0.018) * 35 + Math.cos(z * 0.035) * 15;
+  const desertSouthBoundary = -50 + Math.cos(x * 0.012) * 45 + Math.sin(x * 0.03) * 15;
+  if (x >= desertWestBoundary && z <= desertSouthBoundary && x <= 560) {
     return REGIONS[7];
   }
 
