@@ -3977,8 +3977,8 @@ export class GameEngine {
           this.spawnMageCelestialHealVfx();
           this.isAttacking = true;
           this.attackType = 'celestial_heal';
-          this.attackDuration = 0.7;
-          this.attackTimer = 0.7;
+          this.attackDuration = 0.8;
+          this.attackTimer = 0.8;
 
           // 1. Cleanse Debuff: removes 1 negative status effect (Burn / Stun / Poison / Slow)
           const cleansed = this.bossManager?.cleanseDebuff();
@@ -5139,6 +5139,7 @@ export class GameEngine {
           castingProgress: Math.min(1.0, this.castingTimer / this.castingDuration),
           isBlinking: this.isDashing && this.attackType === 'blink',
           blinkProgress: Math.min(1.0, Math.max(0, 1.0 - (this.dashTimer / 0.2))),
+          isCastingLight: this.attackType === 'celestial_heal',
         });
       } else if (this.charClass === 'rogue') {
         if (this.attackType === 'flurry') {
@@ -5171,6 +5172,10 @@ export class GameEngine {
           this.playerMesh.body.rotation.set(0, 0, 0);
           this.playerMesh.body.position.y = 1.35;
           this.playerMesh.weapon.rotation.set(0.32, 0.10, 0.05);
+          if (this.playerMesh.grimoire) {
+            this.playerMesh.grimoire.position.set(-0.08, 0.08, 0.02);
+            this.playerMesh.grimoire.rotation.set(0.20, 0, 0);
+          }
         }
         this.playerMesh.leftArm.rotation.set(0, 0, 0);
         this.playerMesh.rightArm.rotation.set(0, 0, 0);

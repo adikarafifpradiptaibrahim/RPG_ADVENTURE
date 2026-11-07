@@ -770,6 +770,15 @@ export function animateMageWalk(
       playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.06, lerpSpeed);
       playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.12, lerpSpeed);
 
+      if (playerMesh.grimoire) {
+        playerMesh.grimoire.position.x = THREE.MathUtils.lerp(playerMesh.grimoire.position.x, -0.08, lerpSpeed);
+        playerMesh.grimoire.position.y = THREE.MathUtils.lerp(playerMesh.grimoire.position.y, 0.08, lerpSpeed);
+        playerMesh.grimoire.position.z = THREE.MathUtils.lerp(playerMesh.grimoire.position.z, 0.02, lerpSpeed);
+        playerMesh.grimoire.rotation.x = THREE.MathUtils.lerp(playerMesh.grimoire.rotation.x, 0.20, lerpSpeed);
+        playerMesh.grimoire.rotation.y = THREE.MathUtils.lerp(playerMesh.grimoire.rotation.y, 0, lerpSpeed);
+        playerMesh.grimoire.rotation.z = THREE.MathUtils.lerp(playerMesh.grimoire.rotation.z, 0, lerpSpeed);
+      }
+
       // Isolasi lengan kanan: TIDAK BOLEH mengayun agresif seperti tangan kosong.
       // Dibatasi pada rotasi X maksimal ±0.06 rad (hampir statis dengan bobbing mikro ±0.04 rad), menjaga tongkat tetap tegak stabil.
       const staffBob = Math.sin(walkTime * 4.25) * 0.04;
@@ -820,6 +829,15 @@ export function animateMageWalk(
       playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0.06 - breathe * 0.2, lerpSpeed);
       playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.08, lerpSpeed);
       playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.12, lerpSpeed);
+
+      if (playerMesh.grimoire) {
+        playerMesh.grimoire.position.x = THREE.MathUtils.lerp(playerMesh.grimoire.position.x, -0.08, lerpSpeed);
+        playerMesh.grimoire.position.y = THREE.MathUtils.lerp(playerMesh.grimoire.position.y, 0.08, lerpSpeed);
+        playerMesh.grimoire.position.z = THREE.MathUtils.lerp(playerMesh.grimoire.position.z, 0.02, lerpSpeed);
+        playerMesh.grimoire.rotation.x = THREE.MathUtils.lerp(playerMesh.grimoire.rotation.x, 0.20, lerpSpeed);
+        playerMesh.grimoire.rotation.y = THREE.MathUtils.lerp(playerMesh.grimoire.rotation.y, 0, lerpSpeed);
+        playerMesh.grimoire.rotation.z = THREE.MathUtils.lerp(playerMesh.grimoire.rotation.z, 0, lerpSpeed);
+      }
     }
 
     // Jubah kembali tegak saat diam
@@ -839,6 +857,7 @@ export interface MageSkillAnimContext {
   castingProgress: number; // 0.0 s/d 1.0
   isBlinking: boolean;
   blinkProgress: number; // 0.0 s/d 1.0
+  isCastingLight?: boolean;
 }
 
 export function animateMageSkillPose(
@@ -874,7 +893,15 @@ export function animateMageSkillPose(
 
     playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, -0.05, lerpSpeed);
     return;
-  } else {
+  } else if (
+    !ctx.isCasting &&
+    !ctx.isCastingLight &&
+    ctx.attackType !== 'starfall' &&
+    ctx.attackType !== 'supernova' &&
+    ctx.attackType !== 'celestial_heal' &&
+    ctx.attackType !== 'cahaya' &&
+    ctx.attackType !== 'celestial_light'
+  ) {
     // Kembalikan orientasi tongkat ke pose menyerong diagonal ke depan saat idle/selesai attack
     playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 0.32, lerpSpeed);
     playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, 0.10, lerpSpeed);
@@ -946,19 +973,53 @@ export function animateMageSkillPose(
     playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.35, 0.25);
   }
 
-  // D. Skill 3: Cahaya / Celestial Light (Pose Doa / Self-Channel Durasi 0.5 Detik)
-  if (ctx.attackType === 'celestial_heal') {
-    // Kedua lengan menyilang ke dada, tongkat dirapatkan ke tubuh, grimoire ditekan ke dada
-    playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -0.75, lerpSpeed);
-    playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0.45, lerpSpeed);
-    playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0.35, lerpSpeed);
+  // D. Skill 3: Cahaya / Celestial Light (Pose Merapal Doa Agung / Celestial Light Casting Pose)
+  if (
+    ctx.isCastingLight ||
+    ctx.attackType === 'celestial_heal' ||
+    ctx.attackType === 'cahaya' ||
+    ctx.attackType === 'celestial_light'
+  ) {
+    const castSpeed = 0.28; // lerp dinamis dan responsif (setara delta * 12)
 
-    playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -0.75, lerpSpeed);
-    playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, -0.45, lerpSpeed);
-    playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, -0.35, lerpSpeed);
+    // 1. Lengan Kanan & Tongkat (rightArmGroup & staffGroup):
+    // Angkat lengan kanan ke atas diagonal (-Math.PI * 0.65, z: -0.30)
+    playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -Math.PI * 0.65, castSpeed);
+    playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, castSpeed);
+    playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, -0.30, castSpeed);
 
-    // Kepala sedikit menunduk khidmat (headGroup.rotation.x = 0.2 rad)
-    playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, 0.20, lerpSpeed);
+    // Kunci orientasi tongkat agar kepala kristal biru menghadap ke langit-depan menyerap energi pilar cahaya
+    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, Math.PI - 0.20, castSpeed);
+    playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, 0, castSpeed);
+    playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0, castSpeed);
+
+    // 2. Lengan Kiri & Kitab (leftArmGroup & grimoireGroup):
+    // Angkat lengan kiri ke depan dada (-Math.PI * 0.45, y: 0.35, z: -0.20)
+    playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -Math.PI * 0.45, castSpeed);
+    playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.35, castSpeed);
+    playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, -0.20, castSpeed);
+
+    // Posisikan kitab di depan telapak tangan kiri dengan rotasi miring ke atas (membuka halaman ke arah pandangan wajah penyihir)
+    if (playerMesh.grimoire) {
+      playerMesh.grimoire.position.x = THREE.MathUtils.lerp(playerMesh.grimoire.position.x, -0.06, castSpeed);
+      playerMesh.grimoire.position.y = THREE.MathUtils.lerp(playerMesh.grimoire.position.y, 0.05, castSpeed);
+      playerMesh.grimoire.position.z = THREE.MathUtils.lerp(playerMesh.grimoire.position.z, 0.12, castSpeed);
+      playerMesh.grimoire.rotation.x = THREE.MathUtils.lerp(playerMesh.grimoire.rotation.x, 0.40, castSpeed);
+      playerMesh.grimoire.rotation.y = THREE.MathUtils.lerp(playerMesh.grimoire.rotation.y, -0.20, castSpeed);
+      playerMesh.grimoire.rotation.z = THREE.MathUtils.lerp(playerMesh.grimoire.rotation.z, 0.10, castSpeed);
+    }
+
+    // 3. Kepala (headGroup): Mendongak khidmat menghadap ke atas ke arah turunnya pilar cahaya (-0.35 rad)
+    playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, -0.35, castSpeed);
+
+    // 4. Floating Levitation (Root Offset): Angkat seluruh model naik perlahan +0.10 unit di atas tanah selama casting
+    const floatCurve = ctx.progress ? Math.sin(ctx.progress * Math.PI) : 1.0;
+    playerMesh.group.position.y += 0.10 * floatCurve;
+
+    // Kaki rileks lurus tegak saat melayang & torso tegak lurus
+    playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0, castSpeed);
+    playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0, castSpeed);
+    playerMesh.body.rotation.set(0, 0, 0);
     return;
   }
 
@@ -1037,6 +1098,15 @@ export const MageModel: React.FC<MageModelProps> = ({
           meshObjRef.current.weapon.rotation.x = THREE.MathUtils.lerp(meshObjRef.current.weapon.rotation.x, 0.32, delta * 10);
           meshObjRef.current.weapon.rotation.y = THREE.MathUtils.lerp(meshObjRef.current.weapon.rotation.y, 0.10, delta * 10);
           meshObjRef.current.weapon.rotation.z = THREE.MathUtils.lerp(meshObjRef.current.weapon.rotation.z, 0.05, delta * 10);
+          meshObjRef.current.head.rotation.x = THREE.MathUtils.lerp(meshObjRef.current.head.rotation.x, 0, delta * 10);
+          if (meshObjRef.current.grimoire) {
+            meshObjRef.current.grimoire.position.x = THREE.MathUtils.lerp(meshObjRef.current.grimoire.position.x, -0.08, delta * 10);
+            meshObjRef.current.grimoire.position.y = THREE.MathUtils.lerp(meshObjRef.current.grimoire.position.y, 0.08, delta * 10);
+            meshObjRef.current.grimoire.position.z = THREE.MathUtils.lerp(meshObjRef.current.grimoire.position.z, 0.02, delta * 10);
+            meshObjRef.current.grimoire.rotation.x = THREE.MathUtils.lerp(meshObjRef.current.grimoire.rotation.x, 0.20, delta * 10);
+            meshObjRef.current.grimoire.rotation.y = THREE.MathUtils.lerp(meshObjRef.current.grimoire.rotation.y, 0, delta * 10);
+            meshObjRef.current.grimoire.rotation.z = THREE.MathUtils.lerp(meshObjRef.current.grimoire.rotation.z, 0, delta * 10);
+          }
         }
       }
 
