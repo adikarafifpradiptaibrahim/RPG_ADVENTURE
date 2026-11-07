@@ -16,19 +16,19 @@ export { createLegacyKnightMesh } from './KnightModelLegacy';
  * ============================================================================
  * PRELOADED GEOMETRY & MATERIAL PALETTE (Zero-Lag & Object Pooling)
  * ============================================================================
- * Seluruh geometri dan material dibuat satu kali saat modul dimuat untuk
- * menghindari lonjakan alokasi memori (GC spike) saat inisialisasi karakter.
+ * Mengacu pada lembar turnaround 5-sudut (Front, Back, Left, Right, 3/4 View).
  */
 
 // 1. Materials Cache
 interface KnightMaterialPalette {
   steel: THREE.MeshStandardMaterial;
   darkSteel: THREE.MeshStandardMaterial;
+  helmetFaceMat: THREE.MeshStandardMaterial;
   gold: THREE.MeshStandardMaterial;
   royalBlue: THREE.MeshLambertMaterial;
   plumeRed: THREE.MeshLambertMaterial;
   visorMat: THREE.MeshBasicMaterial;
-  leather: THREE.MeshLambertMaterial;
+  woodLeather: THREE.MeshLambertMaterial;
   bladeSteel: THREE.MeshStandardMaterial;
   shieldFace: THREE.MeshStandardMaterial;
   soleMat: THREE.MeshStandardMaterial;
@@ -41,18 +41,28 @@ let cachedMaterials: KnightMaterialPalette | null = null;
 function getKnightMaterials(tier: number): KnightMaterialPalette {
   if (!cachedMaterials) {
     cachedMaterials = {
+      // 1. Silver Steel Armor (Baja perak bersih mengkilap bersudut sesuai gambar)
       steel: new THREE.MeshStandardMaterial({
-        color: 0x94a3b8,
-        metalness: 0.78,
+        color: 0xd1d5db,
+        metalness: 0.68,
         roughness: 0.32,
         flatShading: true,
       }),
+      // 2. Darker inner joint steel
       darkSteel: new THREE.MeshStandardMaterial({
         color: 0x475569,
-        metalness: 0.75,
+        metalness: 0.70,
         roughness: 0.38,
         flatShading: true,
       }),
+      // 3. Helmet Faceplate (Pelat muka helm bernuansa tembaga-merah kecokelatan sesuai acuan)
+      helmetFaceMat: new THREE.MeshStandardMaterial({
+        color: 0x9e5a52,
+        metalness: 0.58,
+        roughness: 0.38,
+        flatShading: true,
+      }),
+      // 4. Gold Trim (Lis emas tebal berkilau 0xeab308 pada tepi pelindung & perisai)
       gold: new THREE.MeshStandardMaterial({
         color: 0xeab308,
         metalness: 0.88,
@@ -61,31 +71,37 @@ function getKnightMaterials(tier: number): KnightMaterialPalette {
         emissiveIntensity: 0.25,
         flatShading: true,
       }),
+      // 5. Royal Blue Gambeson, Pants & Tabard (Kain biru dongker ksatria)
       royalBlue: new THREE.MeshLambertMaterial({
         color: 0x1e3a8a,
         flatShading: true,
       }),
+      // 6. Plume Red Crest (Jambul merah melengkung menyambung 0xd97706 / 0xdc2626)
       plumeRed: new THREE.MeshLambertMaterial({
-        color: 0xdc2626,
+        color: 0xd97706,
         flatShading: true,
       }),
+      // 7. Visor T-Slit (Celah gelap T pekat)
       visorMat: new THREE.MeshBasicMaterial({
-        color: 0x09090b,
+        color: 0x0f172a,
       }),
-      leather: new THREE.MeshLambertMaterial({
-        color: 0x451a03,
+      // 8. Wood & Leather (Crossguard kayu cokelat pedang & sabuk kulit)
+      woodLeather: new THREE.MeshLambertMaterial({
+        color: 0x78350f,
         flatShading: true,
       }),
+      // 9. Broadsword Blade (Bilah pedang baja perak berujung runcing)
       bladeSteel: new THREE.MeshStandardMaterial({
-        color: 0xdbeafe,
+        color: 0xe2e8f0,
         metalness: 0.92,
         roughness: 0.18,
         flatShading: true,
       }),
+      // 10. Kite Shield Face (Permukaan abu-abu gelap slate steel)
       shieldFace: new THREE.MeshStandardMaterial({
-        color: 0x1e293b,
-        metalness: 0.75,
-        roughness: 0.35,
+        color: 0x334155,
+        metalness: 0.72,
+        roughness: 0.34,
         flatShading: true,
       }),
       soleMat: new THREE.MeshStandardMaterial({
@@ -113,7 +129,7 @@ function getKnightMaterials(tier: number): KnightMaterialPalette {
     cachedMaterials.steel.emissiveIntensity = tier >= 4 ? 0.6 : 0.35;
     cachedMaterials.gold.emissiveIntensity = 0.5;
   } else {
-    cachedMaterials.steel.color.setHex(0x94a3b8);
+    cachedMaterials.steel.color.setHex(0xd1d5db);
     cachedMaterials.steel.emissive.setHex(0x000000);
     cachedMaterials.steel.emissiveIntensity = 0;
     cachedMaterials.gold.emissiveIntensity = 0.25;
@@ -127,6 +143,8 @@ interface KnightGeometryPalette {
   headGeo: THREE.BufferGeometry;
   helmetDomeGeo: THREE.BufferGeometry;
   helmetCrownGeo: THREE.BufferGeometry;
+  helmetFaceplateGeo: THREE.BufferGeometry;
+  helmetNeckGuardGeo: THREE.BufferGeometry;
   visorHorizGeo: THREE.BufferGeometry;
   visorVertGeo: THREE.BufferGeometry;
   browRimGeo: THREE.BufferGeometry;
@@ -134,37 +152,45 @@ interface KnightGeometryPalette {
   plumeContinuousGeo: THREE.BufferGeometry;
   gorgetGeo: THREE.BufferGeometry;
   gorgetInnerGeo: THREE.BufferGeometry;
-  torsoGeo: THREE.BufferGeometry;
+  torsoGambesonGeo: THREE.BufferGeometry;
   chestplateVTaperGeo: THREE.BufferGeometry;
-  chestRimGeo: THREE.BufferGeometry;
+  backplateVTaperGeo: THREE.BufferGeometry;
+  chestNeckRimGeo: THREE.BufferGeometry;
+  chestChevronRimGeo: THREE.BufferGeometry;
   beltGeo: THREE.BufferGeometry;
   buckleGeo: THREE.BufferGeometry;
-  tabardGeo: THREE.BufferGeometry;
+  tabardFrontGeo: THREE.BufferGeometry;
+  tabardBackGeo: THREE.BufferGeometry;
   tassetPlateGeo: THREE.BufferGeometry;
   tassetRimGeo: THREE.BufferGeometry;
-  pauldronTopGeo: THREE.BufferGeometry;
-  pauldronRimGeo: THREE.BufferGeometry;
-  pauldronMidGeo: THREE.BufferGeometry;
-  pauldronMidRimGeo: THREE.BufferGeometry;
-  pauldronLowerGeo: THREE.BufferGeometry;
+  // Pauldrons (2 Lapis Bahu Bersudut dengan Lis Emas)
+  pauldronTier1Geo: THREE.BufferGeometry;
+  pauldronTier1RimGeo: THREE.BufferGeometry;
+  pauldronTier2Geo: THREE.BufferGeometry;
+  pauldronTier2RimGeo: THREE.BufferGeometry;
   armUpperGeo: THREE.BufferGeometry;
   elbowCopGeo: THREE.BufferGeometry;
   gauntletGeo: THREE.BufferGeometry;
   wristCuffGeo: THREE.BufferGeometry;
   handGeo: THREE.BufferGeometry;
+  // Broadsword
   bladeGeo: THREE.BufferGeometry;
   bladeFullerGeo: THREE.BufferGeometry;
+  bladeTipGeo: THREE.BufferGeometry;
   crossguardGeo: THREE.BufferGeometry;
-  crossguardTipGeo: THREE.BufferGeometry;
   gripGeo: THREE.BufferGeometry;
   pommelGeo: THREE.BufferGeometry;
+  // Kite Shield
   shieldFaceGeo: THREE.BufferGeometry;
   shieldRimGeo: THREE.BufferGeometry;
   shieldBossGeo: THREE.BufferGeometry;
+  // Legs & Sabatons
   thighGeo: THREE.BufferGeometry;
-  cuisseGeo: THREE.BufferGeometry;
+  thighStrapGeo: THREE.BufferGeometry;
   kneeCopGeo: THREE.BufferGeometry;
+  kneeUnderGeo: THREE.BufferGeometry;
   greaveGeo: THREE.BufferGeometry;
+  calfBackGeo: THREE.BufferGeometry;
   footGeo: THREE.BufferGeometry;
   toeCapGeo: THREE.BufferGeometry;
   soleGeo: THREE.BufferGeometry;
@@ -174,7 +200,7 @@ interface KnightGeometryPalette {
 let cachedGeometries: KnightGeometryPalette | null = null;
 
 /**
- * Membuat profil 2D Heater Shield berbingkai emas timbul
+ * Membuat profil 2D Heater / Kite Shield dengan bingkai emas timbul tebal
  */
 function createHeaterShieldGeometries(): { faceGeo: THREE.BufferGeometry; rimGeo: THREE.BufferGeometry; bossGeo: THREE.BufferGeometry } {
   const shape = new THREE.Shape();
@@ -248,62 +274,67 @@ function createHeaterShieldGeometries(): { faceGeo: THREE.BufferGeometry; rimGeo
 
 /**
  * Membuat satu geometri tunggal menyambung untuk jambul merah (Plume Crest)
- * Menggunakan ExtrudeGeometry miring melengkung ke belakang tanpa celah terpisah.
+ * Menggunakan kurva dinamis S-curve yang melengkung ke belakang lalu menjentik ke atas di ekor
  */
 function createContinuousPlumeGeometry(): THREE.BufferGeometry {
   const shape = new THREE.Shape();
 
-  // Dimensi kurva 2D profil samping:
-  // X = arah horizontal (akan diputar ke sumbu Z: maju/mundur)
-  // Y = arah vertikal (ketinggian dari mahkota helm)
+  // Titik kurva 2D profil samping sesuai referensi Left View:
   shape.moveTo(0.08, 0.0);
-  shape.lineTo(0.12, 0.10);
-  shape.lineTo(0.08, 0.22);
-  shape.lineTo(-0.04, 0.32);
-  shape.lineTo(-0.18, 0.30);
-  shape.lineTo(-0.34, 0.20);
-  shape.lineTo(-0.48, 0.04);
-  shape.lineTo(-0.46, -0.05);
-  shape.lineTo(-0.38, 0.06);
-  shape.lineTo(-0.24, 0.14);
-  shape.lineTo(-0.10, 0.15);
-  shape.lineTo(-0.02, 0.04);
+  shape.lineTo(0.12, 0.12);
+  shape.lineTo(0.06, 0.26);
+  shape.lineTo(-0.06, 0.36);
+  shape.lineTo(-0.22, 0.30);
+  shape.lineTo(-0.36, 0.18);
+  shape.lineTo(-0.52, 0.06);
+  shape.lineTo(-0.54, 0.12); // Ujung ekor menjentik ke atas
+  shape.lineTo(-0.48, 0.02);
+  shape.lineTo(-0.38, 0.08);
+  shape.lineTo(-0.24, 0.16);
+  shape.lineTo(-0.08, 0.18);
+  shape.lineTo(0.0, 0.04);
   shape.closePath();
 
   const plumeGeo = new THREE.ExtrudeGeometry(shape, {
-    depth: 0.075,
+    depth: 0.08,
     bevelEnabled: true,
     bevelThickness: 0.014,
     bevelSize: 0.014,
     bevelSegments: 1,
   });
   plumeGeo.center();
-
-  // Putar 90 derajat agar profil 2D sejajar sumbu Z (panjang ke belakang)
-  // dan ketebalannya berada di sumbu X (kiri/kanan kepala)
   plumeGeo.rotateY(Math.PI / 2);
 
   return plumeGeo;
 }
 
 /**
- * Membuat geometri dada V-taper (lebar di atas, menyempit di pinggang)
- * dengan prow keel ridge bersudut di tengah.
+ * Membuat dada V-taper (lebar di bahu, menyempit di pinggang dengan keel-ridge tajam di depan)
  */
-function createVTaperChestplate(): { chestGeo: THREE.BufferGeometry; chestRimGeo: THREE.BufferGeometry } {
+function createVTaperChestplate(): { chestGeo: THREE.BufferGeometry; backGeo: THREE.BufferGeometry; neckRimGeo: THREE.BufferGeometry; chevronRimGeo: THREE.BufferGeometry } {
   // 6-sided faceted cylinder:
-  // Lebar atas di pundak: diameter 0.82
-  // Lebar bawah di pinggang: diameter 0.54
+  // Lebar atas di pundak: diameter ~0.82
+  // Lebar bawah di pinggang: diameter ~0.54
   const chestGeo = new THREE.CylinderGeometry(0.41, 0.27, 0.58, 6);
   chestGeo.scale(1.0, 1.0, 0.68);
   chestGeo.translate(0, 0, 0.06);
 
-  // Chevron gold trim rim di pinggang
-  const chestRimGeo = new THREE.CylinderGeometry(0.285, 0.27, 0.085, 6);
-  chestRimGeo.scale(1.02, 1.0, 0.70);
-  chestRimGeo.translate(0, -0.26, 0.06);
+  // Backplate yang melengkapi bagian belakang
+  const backGeo = new THREE.CylinderGeometry(0.39, 0.26, 0.56, 6);
+  backGeo.scale(1.0, 1.0, 0.64);
+  backGeo.translate(0, 0, -0.04);
 
-  return { chestGeo, chestRimGeo };
+  // Gold neck collar rim di atas dada
+  const neckRimGeo = new THREE.CylinderGeometry(0.34, 0.39, 0.06, 6);
+  neckRimGeo.scale(1.02, 1.0, 0.70);
+  neckRimGeo.translate(0, 0.28, 0.06);
+
+  // Chevron gold trim rim di pinggang
+  const chevronRimGeo = new THREE.CylinderGeometry(0.285, 0.27, 0.085, 6);
+  chevronRimGeo.scale(1.02, 1.0, 0.70);
+  chevronRimGeo.translate(0, -0.26, 0.06);
+
+  return { chestGeo, backGeo, neckRimGeo, chevronRimGeo };
 }
 
 function getKnightGeometries(): KnightGeometryPalette {
@@ -311,7 +342,7 @@ function getKnightGeometries(): KnightGeometryPalette {
 
   const { faceGeo, rimGeo, bossGeo } = createHeaterShieldGeometries();
   const plumeContinuousGeo = createContinuousPlumeGeometry();
-  const { chestGeo: chestplateVTaperGeo, chestRimGeo } = createVTaperChestplate();
+  const { chestGeo: chestplateVTaperGeo, backGeo: backplateVTaperGeo, neckRimGeo: chestNeckRimGeo, chevronRimGeo: chestChevronRimGeo } = createVTaperChestplate();
 
   // Head & Helmet
   const headGeo = new THREE.CylinderGeometry(0.24, 0.22, 0.44, 6);
@@ -319,53 +350,59 @@ function getKnightGeometries(): KnightGeometryPalette {
   const helmetCrownGeo = new THREE.ConeGeometry(0.27, 0.16, 8);
   helmetCrownGeo.translate(0, 0.26, 0);
 
-  const visorHorizGeo = new THREE.BoxGeometry(0.32, 0.05, 0.08);
-  const visorVertGeo = new THREE.BoxGeometry(0.065, 0.20, 0.08);
+  // Helmet Faceplate (Pelat muka miring bersudut)
+  const helmetFaceplateGeo = new THREE.CylinderGeometry(0.28, 0.25, 0.28, 8);
+  helmetFaceplateGeo.scale(1.02, 1.0, 1.05);
+
+  // Helmet Back Neck Guard (Pelindung leher belakang)
+  const helmetNeckGuardGeo = new THREE.CylinderGeometry(0.26, 0.30, 0.12, 8);
+  helmetNeckGuardGeo.translate(0, -0.16, -0.06);
+
+  const visorHorizGeo = new THREE.BoxGeometry(0.30, 0.045, 0.08);
+  const visorVertGeo = new THREE.BoxGeometry(0.06, 0.18, 0.08);
   const browRimGeo = new THREE.BoxGeometry(0.34, 0.04, 0.07);
   const plumeBaseGeo = new THREE.CylinderGeometry(0.07, 0.09, 0.08, 6);
 
   // Gorget & Torso (Gambeson V-Taper)
   const gorgetGeo = new THREE.CylinderGeometry(0.28, 0.34, 0.12, 6);
   const gorgetInnerGeo = new THREE.CylinderGeometry(0.25, 0.28, 0.14, 6);
-  const torsoGeo = new THREE.CylinderGeometry(0.39, 0.26, 0.86, 6);
-  torsoGeo.scale(1.0, 1.0, 0.64);
+  const torsoGambesonGeo = new THREE.CylinderGeometry(0.39, 0.26, 0.86, 6);
+  torsoGambesonGeo.scale(1.0, 1.0, 0.64);
 
   // Belt & Tassets
   const beltGeo = new THREE.BoxGeometry(0.72, 0.14, 0.46);
   const buckleGeo = new THREE.BoxGeometry(0.22, 0.18, 0.50);
-  const tabardGeo = new THREE.BoxGeometry(0.30, 0.46, 0.04);
-  tabardGeo.translate(0, -0.23, 0);
+  const tabardFrontGeo = new THREE.BoxGeometry(0.28, 0.46, 0.04);
+  tabardFrontGeo.translate(0, -0.23, 0);
+  const tabardBackGeo = new THREE.BoxGeometry(0.28, 0.46, 0.04);
+  tabardBackGeo.translate(0, -0.23, 0);
 
   const tassetPlateGeo = new THREE.BoxGeometry(0.24, 0.36, 0.06);
   tassetPlateGeo.translate(0, -0.18, 0);
   const tassetRimGeo = new THREE.BoxGeometry(0.26, 0.06, 0.08);
 
   // --------------------------------------------------------------------------
-  // Pauldrons (Bahu Miring Faceted Trapesium 3 Segmen dengan Bingkai Emas)
+  // Pauldrons (2 Lapis Bahu Bersudut dengan Lis Emas sesuai gambar)
   // --------------------------------------------------------------------------
-  // Tingkat 1 (Top Shell Shell Trapesium 6-segmen miring)
-  const pauldronTopGeo = new THREE.CylinderGeometry(0.22, 0.34, 0.26, 6);
-  pauldronTopGeo.scale(1.15, 0.9, 1.3);
+  // Lapis 1 (Top Tier): Shell melengkung bersudut perak
+  const pauldronTier1Geo = new THREE.CylinderGeometry(0.24, 0.36, 0.28, 6);
+  pauldronTier1Geo.scale(1.15, 0.9, 1.3);
 
-  // Bingkai Emas Atas (Gold Trim Flange)
-  const pauldronRimGeo = new THREE.CylinderGeometry(0.24, 0.36, 0.07, 6);
-  pauldronRimGeo.scale(1.18, 1.0, 1.32);
+  // Lis Emas Lapis 1: Bingkai emas menonjol di tepi atas & luar
+  const pauldronTier1RimGeo = new THREE.CylinderGeometry(0.26, 0.38, 0.08, 6);
+  pauldronTier1RimGeo.scale(1.18, 1.0, 1.32);
 
-  // Tingkat 2 (Middle Tier Plate)
-  const pauldronMidGeo = new THREE.CylinderGeometry(0.19, 0.27, 0.20, 6);
-  pauldronMidGeo.scale(1.1, 0.9, 1.25);
-  pauldronMidGeo.translate(0, -0.12, 0);
+  // Lapis 2 (Lower Tier): Lempeng sekunder di bawahnya
+  const pauldronTier2Geo = new THREE.CylinderGeometry(0.20, 0.28, 0.22, 6);
+  pauldronTier2Geo.scale(1.1, 0.9, 1.25);
+  pauldronTier2Geo.translate(0, -0.14, 0);
 
-  const pauldronMidRimGeo = new THREE.CylinderGeometry(0.20, 0.28, 0.05, 6);
-  pauldronMidRimGeo.scale(1.12, 1.0, 1.27);
-  pauldronMidRimGeo.translate(0, -0.20, 0);
+  // Lis Emas Lapis 2: Lis emas di bibir bawah lempeng kedua
+  const pauldronTier2RimGeo = new THREE.CylinderGeometry(0.21, 0.29, 0.05, 6);
+  pauldronTier2RimGeo.scale(1.12, 1.0, 1.27);
+  pauldronTier2RimGeo.translate(0, -0.22, 0);
 
-  // Tingkat 3 (Lower Bicep Guard)
-  const pauldronLowerGeo = new THREE.CylinderGeometry(0.16, 0.22, 0.16, 6);
-  pauldronLowerGeo.scale(1.05, 0.85, 1.2);
-  pauldronLowerGeo.translate(0, -0.22, 0);
-
-  // Arms & Gauntlets (Pivot persis di pangkal bahu y = 0.0)
+  // Arms & Gauntlets (Pivot tepat di pangkal bahu y = 0.0)
   const armUpperGeo = new THREE.CylinderGeometry(0.13, 0.12, 0.34, 6);
   armUpperGeo.translate(0, -0.17, 0);
   const elbowCopGeo = new THREE.BoxGeometry(0.16, 0.12, 0.16);
@@ -376,27 +413,36 @@ function getKnightGeometries(): KnightGeometryPalette {
   const handGeo = new THREE.BoxGeometry(0.14, 0.14, 0.16);
   handGeo.translate(0, -0.68, 0);
 
-  // Broadsword
-  const bladeGeo = new THREE.BoxGeometry(0.15, 1.42, 0.045);
-  bladeGeo.translate(0, 0.71, 0);
-  const bladeFullerGeo = new THREE.BoxGeometry(0.04, 1.15, 0.055);
-  bladeFullerGeo.translate(0, 0.62, 0);
-  const crossguardGeo = new THREE.BoxGeometry(0.48, 0.10, 0.10);
-  const crossguardTipGeo = new THREE.ConeGeometry(0.06, 0.10, 4);
+  // Broadsword (Pedang Besar)
+  const bladeGeo = new THREE.BoxGeometry(0.16, 1.25, 0.045);
+  bladeGeo.translate(0, 0.62, 0);
+  const bladeTipGeo = new THREE.ConeGeometry(0.115, 0.26, 4);
+  bladeTipGeo.rotateY(Math.PI / 4);
+  bladeTipGeo.translate(0, 1.36, 0);
+  const bladeFullerGeo = new THREE.BoxGeometry(0.04, 1.05, 0.055);
+  bladeFullerGeo.translate(0, 0.58, 0);
+  const crossguardGeo = new THREE.BoxGeometry(0.50, 0.11, 0.11);
   const gripGeo = new THREE.CylinderGeometry(0.042, 0.042, 0.34, 6);
   gripGeo.translate(0, -0.17, 0);
-  const pommelGeo = new THREE.OctahedronGeometry(0.075, 0);
+  const pommelGeo = new THREE.OctahedronGeometry(0.08, 0);
   pommelGeo.translate(0, -0.37, 0);
 
-  // Legs & Sabatons (Pivot persis di pangkal paha hip joint y = 0.0)
+  // Legs & Sabatons (Pivot tepat di pangkal paha hip joint y = 0.0)
   const thighGeo = new THREE.CylinderGeometry(0.16, 0.14, 0.40, 6);
   thighGeo.translate(0, -0.20, 0);
-  const cuisseGeo = new THREE.BoxGeometry(0.24, 0.36, 0.12);
-  cuisseGeo.translate(0, -0.19, 0.08);
-  const kneeCopGeo = new THREE.OctahedronGeometry(0.14, 0);
-  kneeCopGeo.scale(1.1, 0.9, 1.2);
+  const thighStrapGeo = new THREE.CylinderGeometry(0.165, 0.165, 0.07, 6);
+  thighStrapGeo.translate(0, -0.10, 0);
+
+  // Knee cop bersudut intan menonjol ke depan
+  const kneeCopGeo = new THREE.OctahedronGeometry(0.15, 0);
+  kneeCopGeo.scale(1.15, 0.95, 1.25);
+  const kneeUnderGeo = new THREE.BoxGeometry(0.24, 0.16, 0.14);
+  kneeUnderGeo.translate(0, -0.42, 0.06);
+
   const greaveGeo = new THREE.CylinderGeometry(0.15, 0.13, 0.36, 6);
   greaveGeo.translate(0, -0.56, 0.02);
+  const calfBackGeo = new THREE.CylinderGeometry(0.14, 0.12, 0.26, 6);
+  calfBackGeo.translate(0, -0.54, -0.04);
 
   const footGeo = new THREE.BoxGeometry(0.30, 0.18, 0.36);
   footGeo.translate(0, -0.74, 0.04);
@@ -412,6 +458,8 @@ function getKnightGeometries(): KnightGeometryPalette {
     headGeo,
     helmetDomeGeo,
     helmetCrownGeo,
+    helmetFaceplateGeo,
+    helmetNeckGuardGeo,
     visorHorizGeo,
     visorVertGeo,
     browRimGeo,
@@ -419,19 +467,21 @@ function getKnightGeometries(): KnightGeometryPalette {
     plumeContinuousGeo,
     gorgetGeo,
     gorgetInnerGeo,
-    torsoGeo,
+    torsoGambesonGeo,
     chestplateVTaperGeo,
-    chestRimGeo,
+    backplateVTaperGeo,
+    chestNeckRimGeo,
+    chestChevronRimGeo,
     beltGeo,
     buckleGeo,
-    tabardGeo,
+    tabardFrontGeo,
+    tabardBackGeo,
     tassetPlateGeo,
     tassetRimGeo,
-    pauldronTopGeo,
-    pauldronRimGeo,
-    pauldronMidGeo,
-    pauldronMidRimGeo,
-    pauldronLowerGeo,
+    pauldronTier1Geo,
+    pauldronTier1RimGeo,
+    pauldronTier2Geo,
+    pauldronTier2RimGeo,
     armUpperGeo,
     elbowCopGeo,
     gauntletGeo,
@@ -439,17 +489,19 @@ function getKnightGeometries(): KnightGeometryPalette {
     handGeo,
     bladeGeo,
     bladeFullerGeo,
+    bladeTipGeo,
     crossguardGeo,
-    crossguardTipGeo,
     gripGeo,
     pommelGeo,
     shieldFaceGeo: faceGeo,
     shieldRimGeo: rimGeo,
     shieldBossGeo: bossGeo,
     thighGeo,
-    cuisseGeo,
+    thighStrapGeo,
     kneeCopGeo,
+    kneeUnderGeo,
     greaveGeo,
+    calfBackGeo,
     footGeo,
     toeCapGeo,
     soleGeo,
@@ -464,7 +516,7 @@ function getKnightGeometries(): KnightGeometryPalette {
  * HEROIC LOW-POLY MODULAR KNIGHT MESH BUILDER
  * ============================================================================
  * Membangun model 3D Ksatria low-poly bersudut (angular & faceted) dengan
- * proporsi heroik V-taper, pauldron miring berbingkai emas, dan jambul menyambung.
+ * proporsi heroik persis seperti lembar turnaround gambar acuan.
  */
 export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   const group = new THREE.Group();
@@ -474,10 +526,10 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   const geos = getKnightGeometries();
 
   // --------------------------------------------------------------------------
-  // 1. Torso, Gambeson & V-Taper Faceted Chestplate
+  // 1. Torso, Gambeson & V-Taper Faceted Chestplate / Backplate
   // --------------------------------------------------------------------------
-  // Gambeson bodi dasar V-taper
-  const body = new THREE.Mesh(geos.torsoGeo, mats.royalBlue);
+  // Gambeson bodi dasar V-taper (biru dongker)
+  const body = new THREE.Mesh(geos.torsoGambesonGeo, mats.royalBlue);
   body.position.y = 1.35;
   body.castShadow = true;
   group.add(body);
@@ -487,12 +539,21 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   chestplate.position.set(0, 1.44, 0.02);
   chestplate.castShadow = true;
 
-  // Gold Chevron Rim di tepi bawah dada
-  const chestRim = new THREE.Mesh(geos.chestRimGeo, mats.gold);
-  chestRim.position.set(0, 1.44, 0.02);
-  chestRim.castShadow = true;
+  // Backplate di bagian punggung
+  const backplate = new THREE.Mesh(geos.backplateVTaperGeo, mats.steel);
+  backplate.position.set(0, 1.44, 0.0);
+  backplate.castShadow = true;
 
-  group.add(chestplate, chestRim);
+  // Lis emas di leher dada & chevron di tepi bawah dada
+  const chestNeckRim = new THREE.Mesh(geos.chestNeckRimGeo, mats.gold);
+  chestNeckRim.position.set(0, 1.44, 0.02);
+  chestNeckRim.castShadow = true;
+
+  const chestChevronRim = new THREE.Mesh(geos.chestChevronRimGeo, mats.gold);
+  chestChevronRim.position.set(0, 1.44, 0.02);
+  chestChevronRim.castShadow = true;
+
+  group.add(chestplate, backplate, chestNeckRim, chestChevronRim);
 
   // Gorget / Collar Neck Armor
   const gorgetInner = new THREE.Mesh(geos.gorgetInnerGeo, mats.royalBlue);
@@ -503,21 +564,27 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   group.add(gorgetInner, gorget);
 
   // Belt & Gold Rectangular Buckle
-  const belt = new THREE.Mesh(geos.beltGeo, mats.leather);
+  const belt = new THREE.Mesh(geos.beltGeo, mats.woodLeather);
   belt.position.y = 0.98;
   const buckle = new THREE.Mesh(geos.buckleGeo, mats.gold);
-  buckle.position.set(0, 0.98, 0);
+  buckle.position.set(0, 0.98, 0.02);
   buckle.castShadow = true;
   group.add(belt, buckle);
 
-  // Royal Blue Tabard (front drape)
-  const tabard = new THREE.Mesh(geos.tabardGeo, mats.royalBlue);
-  tabard.position.set(0, 0.92, 0.22);
-  tabard.rotation.x = 0.08;
-  tabard.castShadow = true;
-  group.add(tabard);
+  // Tabard Depan & Belakang (Royal Blue drapes)
+  const tabardFront = new THREE.Mesh(geos.tabardFrontGeo, mats.royalBlue);
+  tabardFront.position.set(0, 0.92, 0.22);
+  tabardFront.rotation.x = 0.08;
+  tabardFront.castShadow = true;
 
-  // Side Flared Tassets (Left & Right Hip Armor)
+  const tabardBack = new THREE.Mesh(geos.tabardBackGeo, mats.royalBlue);
+  tabardBack.position.set(0, 0.92, -0.20);
+  tabardBack.rotation.x = -0.06;
+  tabardBack.castShadow = true;
+
+  group.add(tabardFront, tabardBack);
+
+  // Side Flared Tassets (Pelindung pinggul berlapis lis emas)
   const leftTasset = new THREE.Group();
   leftTasset.position.set(0.36, 0.94, 0.02);
   leftTasset.rotation.set(0.10, 0, -0.32);
@@ -550,11 +617,20 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   const helmetGroup = new THREE.Group();
   helmetGroup.position.set(0, 2.12, 0);
 
+  // Kubah atas helm perak
   const helmetDome = new THREE.Mesh(geos.helmetDomeGeo, mats.steel);
   helmetDome.castShadow = true;
   const helmetCrown = new THREE.Mesh(geos.helmetCrownGeo, mats.steel);
   helmetCrown.castShadow = true;
-  helmetGroup.add(helmetDome, helmetCrown);
+  const helmetNeckGuard = new THREE.Mesh(geos.helmetNeckGuardGeo, mats.steel);
+  helmetNeckGuard.castShadow = true;
+  helmetGroup.add(helmetDome, helmetCrown, helmetNeckGuard);
+
+  // Pelat muka bernuansa tembaga-merah (helmetFaceMat) sesuai gambar acuan
+  const helmetFaceplate = new THREE.Mesh(geos.helmetFaceplateGeo, mats.helmetFaceMat);
+  helmetFaceplate.position.set(0, -0.06, 0.03);
+  helmetFaceplate.castShadow = true;
+  helmetGroup.add(helmetFaceplate);
 
   // Gold Brow Accent Rim
   const browRim = new THREE.Mesh(geos.browRimGeo, mats.gold);
@@ -563,16 +639,16 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
 
   // Signature T-Shaped Dark Visor Slit
   const visorHoriz = new THREE.Mesh(geos.visorHorizGeo, mats.visorMat);
-  visorHoriz.position.set(0, -0.02, 0.27);
+  visorHoriz.position.set(0, -0.02, 0.28);
   const visorVert = new THREE.Mesh(geos.visorVertGeo, mats.visorMat);
-  visorVert.position.set(0, -0.10, 0.27);
+  visorVert.position.set(0, -0.10, 0.28);
   helmetGroup.add(visorHoriz, visorVert);
 
   // Jambul Merah Menyambung Utuh (Continuous Extruded Crest Plume)
   const plumeGroup = new THREE.Group();
-  plumeGroup.position.set(0, 0.28, -0.06);
+  plumeGroup.position.set(0, 0.28, -0.04);
 
-  const plumeBase = new THREE.Mesh(geos.plumeBaseGeo, mats.gold);
+  const plumeBase = new THREE.Mesh(geos.plumeBaseGeo, mats.steel);
   plumeBase.position.set(0, -0.02, 0.10);
   plumeGroup.add(plumeBase);
 
@@ -584,40 +660,35 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   group.add(helmetGroup);
 
   // --------------------------------------------------------------------------
-  // 3. Faceted Pauldrons (Bahu Miring Trapesium Bertingkat dengan Bingkai Emas)
+  // 3. 2-Tier Faceted Pauldrons (Bahu 2 Lapis Bersudut dengan Lis Emas Tebal)
   // --------------------------------------------------------------------------
   const pauldronScale = tier >= 4 ? 1.30 : tier >= 2 ? 1.15 : 1.0;
 
   const buildPauldron = (isLeft: boolean): THREE.Group => {
     const pGroup = new THREE.Group();
     const sign = isLeft ? 1 : -1;
-    // Posisikan tepat di atas sendi bahu
     pGroup.position.set(0.52 * sign, 1.82, 0);
     pGroup.rotation.z = -0.22 * sign;
     pGroup.scale.set(pauldronScale, pauldronScale, pauldronScale);
 
-    // Tingkat 1: Pelat Atas Trapesium
-    const pTop = new THREE.Mesh(geos.pauldronTopGeo, mats.steel);
-    pTop.castShadow = true;
+    // Lapis 1 (Top Tier): Shell atas perak bersudut
+    const pTier1 = new THREE.Mesh(geos.pauldronTier1Geo, mats.steel);
+    pTier1.castShadow = true;
 
-    // Bingkai Emas Menonjol pada Tepi Bahu (Gold Trim 0xeab308)
-    const pRim = new THREE.Mesh(geos.pauldronRimGeo, mats.gold);
-    pRim.position.set(0.04 * sign, 0.08, 0);
-    pRim.castShadow = true;
+    // Lis Emas Lapis 1 (Gold Trim 0xeab308 menonjol di tepi)
+    const pTier1Rim = new THREE.Mesh(geos.pauldronTier1RimGeo, mats.gold);
+    pTier1Rim.position.set(0.04 * sign, 0.08, 0);
+    pTier1Rim.castShadow = true;
 
-    // Tingkat 2: Pelat Tengah Miring
-    const pMid = new THREE.Mesh(geos.pauldronMidGeo, mats.darkSteel);
-    pMid.castShadow = true;
+    // Lapis 2 (Lower Tier): Lempeng sekunder di bawahnya
+    const pTier2 = new THREE.Mesh(geos.pauldronTier2Geo, mats.steel);
+    pTier2.castShadow = true;
 
-    // Lis Emas Tingkat Tengah
-    const pMidRim = new THREE.Mesh(geos.pauldronMidRimGeo, mats.gold);
-    pMidRim.castShadow = true;
+    // Lis Emas Lapis 2
+    const pTier2Rim = new THREE.Mesh(geos.pauldronTier2RimGeo, mats.gold);
+    pTier2Rim.castShadow = true;
 
-    // Tingkat 3: Pelindung Lengan Atas Bawah
-    const pLower = new THREE.Mesh(geos.pauldronLowerGeo, mats.steel);
-    pLower.castShadow = true;
-
-    pGroup.add(pTop, pRim, pMid, pMidRim, pLower);
+    pGroup.add(pTier1, pTier1Rim, pTier2, pTier2Rim);
 
     // Tier 2+ Extra Gold Crest Spikes
     if (tier >= 2) {
@@ -660,7 +731,7 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
     const cuff = new THREE.Mesh(geos.wristCuffGeo, mats.gold);
     cuff.castShadow = true;
 
-    // Armored Hand / Fist
+    // Armored Hand / Fist (Dark Steel)
     const hand = new THREE.Mesh(geos.handGeo, mats.darkSteel);
     hand.castShadow = true;
 
@@ -673,30 +744,34 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   const { armGroup: rightArm } = buildArm(false);
 
   // --------------------------------------------------------------------------
-  // 5. Right Hand Weapon: Heroic Low-Poly Broadsword
+  // 5. Right Hand Weapon: Heroic Low-Poly Broadsword (Guard Kayu & Blade Runcing)
   // --------------------------------------------------------------------------
   const weapon = new THREE.Group();
 
   const blade = new THREE.Mesh(geos.bladeGeo, mats.bladeSteel);
   blade.castShadow = true;
 
-  const fuller = new THREE.Mesh(geos.bladeFullerGeo, mats.gold);
+  const bladeTip = new THREE.Mesh(geos.bladeTipGeo, mats.bladeSteel);
+  bladeTip.castShadow = true;
+
+  const fuller = new THREE.Mesh(geos.bladeFullerGeo, mats.darkSteel);
   fuller.castShadow = true;
 
-  const crossguard = new THREE.Mesh(geos.crossguardGeo, mats.gold);
+  // Crossguard kayu cokelat bersudut quillons
+  const crossguard = new THREE.Mesh(geos.crossguardGeo, mats.woodLeather);
   crossguard.castShadow = true;
 
-  const grip = new THREE.Mesh(geos.gripGeo, mats.leather);
-  const pommel = new THREE.Mesh(geos.pommelGeo, mats.gold);
+  const grip = new THREE.Mesh(geos.gripGeo, mats.woodLeather);
+  const pommel = new THREE.Mesh(geos.pommelGeo, mats.steel);
   pommel.castShadow = true;
 
-  weapon.add(blade, fuller, crossguard, grip, pommel);
+  weapon.add(blade, bladeTip, fuller, crossguard, grip, pommel);
   weapon.position.set(0, -0.68, 0.15);
   weapon.rotation.x = Math.PI / 4;
   rightArm.add(weapon);
 
   // --------------------------------------------------------------------------
-  // 6. Left Arm Shield: Large Low-Poly Heater / Kite Shield (Bingkai Emas 0xeab308)
+  // 6. Left Arm Shield: Large Low-Poly Kite Shield (Abu-abu Gelap + Lis Emas Tebal)
   // --------------------------------------------------------------------------
   const shield = new THREE.Mesh(geos.shieldFaceGeo, mats.shieldFace);
   shield.castShadow = true;
@@ -728,29 +803,39 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   group.add(cape);
 
   // --------------------------------------------------------------------------
-  // 8. Legs, Knee Cops (Poleyns) & Heavy Sabatons (Pivot di pangkal paha y = 0.88)
+  // 8. Legs, Knee Cops (Poleyns) & Heavy Sabatons (Heroic Idle Stance Terbuka)
   // --------------------------------------------------------------------------
-  const buildLeg = (posX: number): THREE.Group => {
+  const buildLeg = (posX: number, isLeft: boolean): THREE.Group => {
     const leg = new THREE.Group();
+    // Pivot tepat di pangkal paha hip joint y = 0.88
     leg.position.set(posX, 0.88, 0);
 
-    // Thigh (Royal Blue Pants) + Cuisse Armor Plate
+    // Stance terbuka heroik (A-frame stance)
+    const sign = isLeft ? 1 : -1;
+    leg.rotation.z = -0.04 * sign;
+    leg.rotation.y = 0.08 * sign;
+
+    // Thigh (Royal Blue Pants) + Leather Thigh Band
     const thigh = new THREE.Mesh(geos.thighGeo, mats.royalBlue);
     thigh.castShadow = true;
-    const cuisse = new THREE.Mesh(geos.cuisseGeo, mats.steel);
-    cuisse.castShadow = true;
-    leg.add(thigh, cuisse);
+    const thighStrap = new THREE.Mesh(geos.thighStrapGeo, mats.woodLeather);
+    thighStrap.castShadow = true;
+    leg.add(thigh, thighStrap);
 
-    // Faceted Diamond Knee Cop (Poleyn)
+    // Faceted Diamond Knee Cop (Poleyn) bersudut intan menonjol
     const knee = new THREE.Mesh(geos.kneeCopGeo, mats.steel);
-    knee.position.set(0, -0.42, 0.12);
+    knee.position.set(0, -0.42, 0.13);
     knee.castShadow = true;
-    leg.add(knee);
+    const kneeUnder = new THREE.Mesh(geos.kneeUnderGeo, mats.darkSteel);
+    kneeUnder.castShadow = true;
+    leg.add(knee, kneeUnder);
 
-    // Shin Greave
+    // Shin Greave & Pelat Belakang Betis
     const shin = new THREE.Mesh(geos.greaveGeo, mats.steel);
     shin.castShadow = true;
-    leg.add(shin);
+    const calfBack = new THREE.Mesh(geos.calfBackGeo, mats.steel);
+    calfBack.castShadow = true;
+    leg.add(shin, calfBack);
 
     // Sabaton Armored Boot (Anatomically Grounded flush at world terrain y = 0.00)
     const foot = new THREE.Mesh(geos.footGeo, mats.steel);
@@ -765,8 +850,8 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
     return leg;
   };
 
-  const leftLeg = buildLeg(0.20);
-  const rightLeg = buildLeg(-0.20);
+  const leftLeg = buildLeg(0.22, true);
+  const rightLeg = buildLeg(-0.22, false);
 
   // --------------------------------------------------------------------------
   // 9. Tier 3+ Legendary Celestial FX (Wings, Halos, Orbs, Auras)
