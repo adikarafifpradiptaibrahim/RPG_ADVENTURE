@@ -23,8 +23,10 @@ import {
   USE_LEGACY_MAGE,
   animateMageWalk,
   animateMageSkillPose,
+  USE_LEGACY_HUNTER,
+  animateHunterWalk,
 } from './models';
-export { USE_LEGACY_KNIGHT, USE_LEGACY_MAGE };
+export { USE_LEGACY_KNIGHT, USE_LEGACY_MAGE, USE_LEGACY_HUNTER };
 import { buildWorld, WorldObjects, WorldCheckpoint } from './world';
 import { BossManager } from '../BossManager';
 import { BOSS_ARENA_ZONES, BossArenaZone } from '../monsterAI';
@@ -3254,24 +3256,24 @@ export class GameEngine {
     }
   }
 
-  // 9. Rogue X-Slash VFX (Dual crossing emerald & shadow blades with intersection starburst)
+  // 9. Rogue X-Slash VFX (Dual crossing cyan & shadow blades with intersection starburst)
   private spawnRogueXSlashVfx() {
     const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
     const spawnPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(1.05)).add(new THREE.Vector3(0, 1.2, 0));
 
-    // Blade 1: Emerald razor arc tilted +40Â°
-    this.spawnCrescentSlash(spawnPos, fwd, 0.7, 0x10b981, 1.35, Math.PI * 0.75);
-    // Blade 2: Shadow-violet razor arc tilted -40Â°
-    this.spawnCrescentSlash(spawnPos, fwd, -0.7, 0x6366f1, 1.35, Math.PI * 0.75);
+    // Blade 1: Glowing Cyan razor arc tilted +40°
+    this.spawnCrescentSlash(spawnPos, fwd, 0.7, 0x00f5ff, 1.35, Math.PI * 0.75);
+    // Blade 2: Electric Cyan-Azure razor arc tilted -40°
+    this.spawnCrescentSlash(spawnPos, fwd, -0.7, 0x38bdf8, 1.35, Math.PI * 0.75);
 
     // Focal intersection starburst
-    this.spawnHitStarburst(spawnPos, 0x34d399, 0.9);
-    this.spawnSparks(spawnPos, 0x34d399, 12, 4.0);
-    this.spawnSparks(spawnPos, 0x818cf8, 8, 3.2);
+    this.spawnHitStarburst(spawnPos, 0x00f5ff, 0.9);
+    this.spawnSparks(spawnPos, 0x00f5ff, 14, 4.2);
+    this.spawnSparks(spawnPos, 0x38bdf8, 10, 3.5);
     this.triggerCameraShake(0.15);
   }
 
-  // 10. Rogue Shadow Flurry VFX (Rapid multi-strike phantom daggers & shadow arcs)
+  // 10. Rogue Shadow Flurry VFX (Rapid multi-strike phantom daggers & cyan shadow arcs)
   private spawnRogueShadowFlurryVfx() {
     const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
 
@@ -3284,9 +3286,9 @@ export class GameEngine {
           .add(offsetFwd.clone().multiplyScalar(1.0 + Math.random() * 0.6))
           .add(new THREE.Vector3(0, 0.9 + Math.random() * 0.7, 0));
 
-        const color = i % 3 === 0 ? 0x10b981 : i % 3 === 1 ? 0x6366f1 : 0x34d399;
+        const color = i % 3 === 0 ? 0x00f5ff : i % 3 === 1 ? 0x38bdf8 : 0x00e5ff;
         this.spawnCrescentSlash(spawnPos, offsetFwd, (Math.random() - 0.5) * 1.6, color, 1.2, Math.PI * 0.7);
-        this.spawnSparks(spawnPos, color, 6, 3.5);
+        this.spawnSparks(spawnPos, color, 7, 3.8);
         this.triggerCameraShake(0.08);
       }, i * 55);
     }
@@ -3702,7 +3704,7 @@ export class GameEngine {
           this.attackDuration = 0.32;
           this.attackTimer = 0.32;
           soundManager.playRogueDoubleSlash();
-          this.spawn360BladeSpinVfx(0x10b981, 3.4);
+          this.spawn360BladeSpinVfx(0x00f5ff, 3.4);
           this.executeMeleeAttack({
             range: 3.4,
             is360: true,
@@ -5064,6 +5066,10 @@ export class GameEngine {
         // Heroic Blocky Low-Poly Mage Walk Cycle
         const walkTime = this.clock.getElapsedTime();
         animateMageWalk(this.playerMesh, walkTime, this.playerPos.y, true, this.isAttacking);
+      } else if (this.charClass === 'rogue') {
+        // Blocky Low-Poly Hunter Walk Cycle with Dynamic Stance
+        const walkTime = this.clock.getElapsedTime();
+        animateHunterWalk(this.playerMesh, walkTime, this.playerPos.y, true, this.isAttacking, this.hunterWeaponMode);
       } else {
         const legSwing = Math.sin(this.walkTime) * 0.62;
         this.playerMesh.leftLeg.rotation.x = legSwing;
@@ -5102,6 +5108,10 @@ export class GameEngine {
         // Heroic Blocky Low-Poly Mage Idle State (Subtle Breathing & Relaxed Staff/Grimoire Pose)
         const walkTime = this.clock.getElapsedTime();
         animateMageWalk(this.playerMesh, walkTime, this.playerPos.y, false, this.isAttacking);
+      } else if (this.charClass === 'rogue') {
+        // Blocky Low-Poly Hunter Idle State (Subtle Breathing & Ready Dagger/Bow Stance)
+        const walkTime = this.clock.getElapsedTime();
+        animateHunterWalk(this.playerMesh, walkTime, this.playerPos.y, false, this.isAttacking, this.hunterWeaponMode);
       } else {
         this.playerMesh.leftLeg.rotation.x *= 0.8;
         this.playerMesh.rightLeg.rotation.x *= 0.8;

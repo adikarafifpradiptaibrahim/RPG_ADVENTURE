@@ -1,0 +1,320 @@
+/**
+ * LEGACY HUNTER (PEMBURU / ROGUE) MODEL ARCHIVE
+ * Archived at: 2026-11-08
+ *
+ * Model lama generasi pertama:
+ * - Seragam hijau polos / dark emerald (#065f46 / #022c22)
+ * - Topi / beanie cowl & ninja face mask (#1f2937)
+ * - Vest zirah hitam / void leather
+ * - Belati hijau lurus beracun
+ * - Busur lurus kayu sederhana dengan quiver silinder
+ *
+ * Gameplay & skill lama yang dipertahankan:
+ * Stance Belati (Jarak Dekat):
+ *   - Skill 1: Belati (Serangan dasar sabetan cepat, CD 0.4s)
+ *   - Skill 2: Belati 360° (Tebasan memutar sapuan area horizontal, CD 3.0s)
+ *   - Skill 3: 1000 Belati (Flurry serangan tusukan beruntun cepat, 15 MP)
+ *   - Skill 4: Siluman (Invisibility / Shadow Camouflage mode menyusup, 15 Stm)
+ *   - Skill 5: Bom Asap (Smoke Bomb escape & blind enemy, 25 MP)
+ *   - Skill Pasif/Spasi: Lompat (Acrobatic Vault jump)
+ * Stance Busur (Jarak Jauh):
+ *   - Skill 1: Busur (Bidik panah dasar proyektil lurus)
+ *   - Skill 2: Panah Cepat (Quick Shot beruntun)
+ *   - Skill 3: Badai Panah (Rain of Arrows proyektil jatuh dari langit, 15 MP)
+ *   - Skill 4: Akrobatik (Backflip evade menjauh dari musuh, 15 Stm)
+ *   - Skill 5: Panah Racun / Bom (Explosive/Poison Arrow area, 25 MP)
+ *   - Skill Pasif/Spasi: Lompat
+ */
+
+import * as THREE from 'three';
+import { CharacterClass } from '../../../types/game';
+import { PlayerMeshObjects } from '../models';
+
+export function createLegacyHunterMesh(tier: number = 1): PlayerMeshObjects {
+  const group = new THREE.Group();
+  const charClass: CharacterClass = 'rogue';
+
+  const primaryColor = tier >= 3 ? 0x022c22 : 0x065f46;
+  const secondaryColor = tier >= 3 ? 0x09090b : 0x1f2937;
+  const capeColor = tier >= 3 ? 0x030712 : 0x064e3b;
+
+  const primaryMat = new THREE.MeshLambertMaterial({ color: primaryColor, flatShading: true });
+  const armorMat = new THREE.MeshStandardMaterial({
+    color: secondaryColor,
+    metalness: tier >= 3 ? 0.9 : 0.6,
+    roughness: tier >= 3 ? 0.2 : 0.35,
+    flatShading: true,
+  });
+  const skinMat = new THREE.MeshLambertMaterial({ color: 0xffd180, flatShading: true });
+  const capeMat = new THREE.MeshLambertMaterial({ color: capeColor, side: THREE.DoubleSide, flatShading: true });
+  const poisonMat = new THREE.MeshStandardMaterial({
+    color: tier >= 3 ? 0x34d399 : 0x10b981,
+    emissive: tier >= 3 ? 0x10b981 : 0x059669,
+    emissiveIntensity: tier >= 4 ? 1.0 : tier >= 2 ? 0.75 : 0.4,
+    metalness: 0.5,
+  });
+  const woodBowMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.6 });
+  const bowstringMat = new THREE.MeshBasicMaterial({ color: 0x34d399 });
+  const quiverLeatherMat = new THREE.MeshLambertMaterial({ color: 0x271c19 });
+  const fletchMat = new THREE.MeshLambertMaterial({ color: 0x10b981 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.85, roughness: 0.25 });
+
+  // Torso / Chest
+  const torsoGeo = new THREE.BoxGeometry(0.7, 0.9, 0.45);
+  const body = new THREE.Mesh(torsoGeo, primaryMat);
+  body.position.y = 1.35;
+  body.castShadow = true;
+  group.add(body);
+
+  // Chestplate / Armor vest
+  const chestPlateGeo = new THREE.BoxGeometry(0.74, 0.52, 0.48);
+  const chestPlate = new THREE.Mesh(chestPlateGeo, armorMat);
+  chestPlate.position.y = 1.45;
+  chestPlate.castShadow = true;
+  group.add(chestPlate);
+
+  // Pauldrons
+  if (tier >= 2) {
+    const pauldronGeo = new THREE.BoxGeometry(0.24, 0.18, 0.28);
+    const lp = new THREE.Mesh(pauldronGeo, armorMat);
+    lp.position.set(0.5, 1.82, 0);
+    const rp = new THREE.Mesh(pauldronGeo, armorMat);
+    rp.position.set(-0.5, 1.82, 0);
+    group.add(lp, rp);
+  }
+
+  // Belt
+  const beltGeo = new THREE.BoxGeometry(0.72, 0.14, 0.48);
+  const beltMat = new THREE.MeshLambertMaterial({ color: 0x212121 });
+  const belt = new THREE.Mesh(beltGeo, beltMat);
+  belt.position.y = 0.98;
+  group.add(belt);
+
+  const buckleGeo = new THREE.BoxGeometry(0.2, 0.16, 0.5);
+  const buckle = new THREE.Mesh(buckleGeo, goldMat);
+  buckle.position.y = 0.98;
+  group.add(buckle);
+
+  // Head
+  const headGeo = new THREE.BoxGeometry(0.48, 0.48, 0.48);
+  const head = new THREE.Mesh(headGeo, skinMat);
+  head.position.y = 2.05;
+  head.castShadow = true;
+  group.add(head);
+
+  // Rogue hood cowl & ninja face mask
+  const cowlGeo = new THREE.BoxGeometry(0.52, 0.32, 0.52);
+  const cowl = new THREE.Mesh(cowlGeo, primaryMat);
+  cowl.position.y = 2.24;
+  group.add(cowl);
+
+  const maskGeo = new THREE.BoxGeometry(0.49, 0.22, 0.2);
+  const maskMat = new THREE.MeshLambertMaterial({ color: 0x1f2937 });
+  const mask = new THREE.Mesh(maskGeo, maskMat);
+  mask.position.set(0, 1.96, 0.18);
+  group.add(mask);
+
+  // Eyes
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0x34d399 });
+  const eyeGeo = new THREE.BoxGeometry(0.08, 0.06, 0.05);
+  const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+  leftEye.position.set(0.14, 2.06, 0.24);
+  const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+  rightEye.position.set(-0.14, 2.06, 0.24);
+  group.add(leftEye, rightEye);
+
+  // Cape
+  const capeGeo = new THREE.PlaneGeometry(0.65, 1.1, 3, 3);
+  const cape = new THREE.Mesh(capeGeo, capeMat);
+  cape.position.set(0, 1.3, -0.25);
+  cape.rotation.x = 0.1;
+  cape.castShadow = true;
+  group.add(cape);
+
+  // Arm pivots
+  const armGeo = new THREE.BoxGeometry(0.24, 0.75, 0.24);
+  armGeo.translate(0, -0.32, 0);
+
+  const leftArm = new THREE.Group();
+  leftArm.position.set(0.5, 1.7, 0);
+  const leftArmMesh = new THREE.Mesh(armGeo, primaryMat);
+  leftArmMesh.castShadow = true;
+  leftArm.add(leftArmMesh);
+  group.add(leftArm);
+
+  const rightArm = new THREE.Group();
+  rightArm.position.set(-0.5, 1.7, 0);
+  const rightArmMesh = new THREE.Mesh(armGeo, primaryMat);
+  rightArmMesh.castShadow = true;
+  rightArm.add(rightArmMesh);
+  group.add(rightArm);
+
+  // Weapons
+  const weapon = new THREE.Group();
+  let leftWeapon: THREE.Group | undefined;
+  let daggerRight: THREE.Group | undefined;
+  let daggerLeft: THREE.Group | undefined;
+  let hunterBow: THREE.Group | undefined;
+  let hunterBowStowed: THREE.Group | undefined;
+  let hunterQuiver: THREE.Group | undefined;
+  let sheathedDaggers: THREE.Group | undefined;
+  let hunterWeaponMode: 'dagger' | 'bow' = 'dagger';
+  let setHunterWeaponMode: ((mode: 'dagger' | 'bow') => void) | undefined;
+
+  // 1. Mainhand Dagger (Right)
+  const daggerGeo = new THREE.BoxGeometry(0.08, 0.75, 0.03);
+  daggerGeo.translate(0, 0.35, 0);
+  const daggerBlade = new THREE.Mesh(daggerGeo, poisonMat);
+  const guardGeo = new THREE.BoxGeometry(0.22, 0.05, 0.06);
+  const guard = new THREE.Mesh(guardGeo, armorMat);
+  daggerRight = new THREE.Group();
+  daggerRight.add(daggerBlade, guard);
+  weapon.add(daggerRight);
+  weapon.position.set(0, -0.55, 0.1);
+  weapon.rotation.x = Math.PI / 2.5;
+
+  // 2. Offhand Dagger (Left)
+  leftWeapon = new THREE.Group();
+  daggerLeft = new THREE.Group();
+  const leftDaggerBlade = new THREE.Mesh(daggerGeo.clone(), poisonMat);
+  const leftGuard = new THREE.Mesh(guardGeo.clone(), armorMat);
+  daggerLeft.add(leftDaggerBlade, leftGuard);
+  leftWeapon.add(daggerLeft);
+  leftWeapon.position.set(0, -0.55, 0.1);
+  leftWeapon.rotation.x = Math.PI / 2.5;
+  leftArm.add(leftWeapon);
+
+  // 3. Hunter Recurve Bow (Attached to Left Hand)
+  hunterBow = new THREE.Group();
+  const bowGrip = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.042, 0.32, 6), goldMat);
+  hunterBow.add(bowGrip);
+
+  const upperLimb1 = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.42, 0.028), woodBowMat);
+  upperLimb1.position.set(0, 0.32, 0.05);
+  upperLimb1.rotation.x = 0.32;
+  const upperLimb2 = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.32, 0.022), woodBowMat);
+  upperLimb2.position.set(0, 0.62, -0.03);
+  upperLimb2.rotation.x = -0.42;
+  hunterBow.add(upperLimb1, upperLimb2);
+
+  const lowerLimb1 = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.42, 0.028), woodBowMat);
+  lowerLimb1.position.set(0, -0.32, 0.05);
+  lowerLimb1.rotation.x = -0.32;
+  const lowerLimb2 = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.32, 0.022), woodBowMat);
+  lowerLimb2.position.set(0, -0.62, -0.03);
+  lowerLimb2.rotation.x = 0.42;
+  hunterBow.add(lowerLimb1, lowerLimb2);
+
+  const bowString = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 1.45, 4), bowstringMat);
+  bowString.position.set(0, 0, -0.14);
+  hunterBow.add(bowString);
+
+  hunterBow.position.set(0.08, -0.4, 0.1);
+  hunterBow.rotation.set(0, Math.PI / 2, 0);
+  hunterBow.visible = false;
+  leftArm.add(hunterBow);
+
+  // 4. Stowed Bow on Back
+  hunterBowStowed = hunterBow.clone();
+  hunterBowStowed.position.set(0, 0, -0.3);
+  hunterBowStowed.rotation.set(0.1, 0, 0.7);
+  hunterBowStowed.visible = true;
+  body.add(hunterBowStowed);
+
+  // 5. Quiver
+  hunterQuiver = new THREE.Group();
+  const quiverPouch = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.075, 0.72, 6), quiverLeatherMat);
+  quiverPouch.rotation.z = -0.32;
+  hunterQuiver.add(quiverPouch);
+
+  for (let i = -1; i <= 1; i++) {
+    const arrowShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.85, 4), woodBowMat);
+    arrowShaft.position.set(i * 0.05 - 0.08, 0.42, (i % 2) * 0.03);
+    arrowShaft.rotation.z = -0.32 + i * 0.06;
+
+    const fletch1 = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.14, 0.01), fletchMat);
+    fletch1.position.set(0, 0.34, 0);
+    arrowShaft.add(fletch1);
+    hunterQuiver.add(arrowShaft);
+  }
+  hunterQuiver.position.set(-0.16, 0.12, -0.3);
+  hunterQuiver.rotation.set(0.08, 0, -0.28);
+  body.add(hunterQuiver);
+
+  // 6. Sheathed Daggers at Hips
+  sheathedDaggers = new THREE.Group();
+  const sheathGeo = new THREE.BoxGeometry(0.09, 0.55, 0.05);
+  const sheath1 = new THREE.Mesh(sheathGeo, quiverLeatherMat);
+  sheath1.position.set(-0.4, -0.28, 0.05);
+  sheath1.rotation.set(0.2, 0, 0.2);
+  const sheath2 = new THREE.Mesh(sheathGeo.clone(), quiverLeatherMat);
+  sheath2.position.set(0.4, -0.28, 0.05);
+  sheath2.rotation.set(0.2, 0, -0.2);
+  sheathedDaggers.add(sheath1, sheath2);
+  sheathedDaggers.visible = false;
+  body.add(sheathedDaggers);
+
+  // Toggle Function
+  setHunterWeaponMode = (mode: 'dagger' | 'bow') => {
+    hunterWeaponMode = mode;
+    if (daggerRight && daggerLeft && hunterBow && hunterBowStowed && sheathedDaggers) {
+      if (mode === 'bow') {
+        daggerRight.visible = false;
+        daggerLeft.visible = false;
+        hunterBow.visible = true;
+        hunterBowStowed.visible = false;
+        sheathedDaggers.visible = true;
+      } else {
+        daggerRight.visible = true;
+        daggerLeft.visible = true;
+        hunterBow.visible = false;
+        hunterBowStowed.visible = true;
+        sheathedDaggers.visible = false;
+      }
+    }
+  };
+
+  rightArm.add(weapon);
+
+  // Legs
+  const legGeo = new THREE.BoxGeometry(0.26, 0.95, 0.26);
+  legGeo.translate(0, -0.42, 0);
+  const legMat = new THREE.MeshLambertMaterial({ color: 0x18181b, flatShading: true });
+
+  const leftLeg = new THREE.Group();
+  leftLeg.position.set(0.22, 0.95, 0);
+  const leftLegMesh = new THREE.Mesh(legGeo, legMat);
+  leftLegMesh.castShadow = true;
+  leftLeg.add(leftLegMesh);
+  group.add(leftLeg);
+
+  const rightLeg = new THREE.Group();
+  rightLeg.position.set(-0.22, 0.95, 0);
+  const rightLegMesh = new THREE.Mesh(legGeo, legMat);
+  rightLegMesh.castShadow = true;
+  rightLeg.add(rightLegMesh);
+  group.add(rightLeg);
+
+  return {
+    group,
+    leftArm,
+    rightArm,
+    leftLeg,
+    rightLeg,
+    weapon,
+    leftWeapon,
+    cape,
+    body,
+    head,
+    charClass,
+    tier,
+    daggerRight,
+    daggerLeft,
+    hunterBow,
+    hunterBowStowed,
+    hunterQuiver,
+    sheathedDaggers,
+    hunterWeaponMode,
+    setHunterWeaponMode,
+  };
+}

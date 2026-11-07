@@ -11,6 +11,14 @@ export {
   MageModel,
 } from './MageModel';
 export type { MageSkillAnimContext, MageModelProps } from './MageModel';
+export {
+  createBlockyHunterMesh,
+  createLegacyHunterMesh,
+  USE_LEGACY_HUNTER,
+  animateHunterWalk,
+  HunterModel,
+} from './HunterModel';
+export type { HunterModelProps } from './HunterModel';
 
 /**
  * Handles character respawn audio sequence:

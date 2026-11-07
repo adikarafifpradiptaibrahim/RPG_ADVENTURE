@@ -10,6 +10,12 @@ import {
   animateMageWalk,
   animateMageSkillPose,
 } from './MageModel';
+import {
+  createBlockyHunterMesh,
+  createLegacyHunterMesh,
+  USE_LEGACY_HUNTER,
+  animateHunterWalk,
+} from './HunterModel';
 
 export {
   createHeroicKnightMesh,
@@ -21,6 +27,10 @@ export {
   USE_LEGACY_MAGE,
   animateMageWalk,
   animateMageSkillPose,
+  createBlockyHunterMesh,
+  createLegacyHunterMesh,
+  USE_LEGACY_HUNTER,
+  animateHunterWalk,
 };
 
 // Materials cache to optimize performance and prevent memory duplication
@@ -108,11 +118,14 @@ export interface PlayerMeshObjects {
 }
 
 export function createPlayerMesh(charClass: CharacterClass = 'warrior', tier: number = 1): PlayerMeshObjects {
-  if (charClass === 'warrior') {
+  if ((charClass as string) === 'warrior') {
     return USE_LEGACY_KNIGHT ? createLegacyKnightMesh(tier) : createHeroicKnightMesh(tier);
   }
-  if ((charClass as CharacterClass) === 'mage') {
+  if ((charClass as string) === 'mage') {
     return USE_LEGACY_MAGE ? createLegacyMageMesh(tier) : createHeroicMageMesh(tier);
+  }
+  if ((charClass as string) === 'rogue') {
+    return USE_LEGACY_HUNTER ? createLegacyHunterMesh(tier) : createBlockyHunterMesh(tier);
   }
 
   const group = new THREE.Group();
