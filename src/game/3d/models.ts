@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CharacterClass } from '../../types/game';
-import { createHeroicKnightMesh, USE_LEGACY_KNIGHT } from './KnightModel';
+import { createHeroicKnightMesh, USE_LEGACY_KNIGHT, animateKnightWalk } from './KnightModel';
 import { createLegacyKnightMesh } from './KnightModelLegacy';
 
-export { createHeroicKnightMesh, createLegacyKnightMesh, USE_LEGACY_KNIGHT };
+export { createHeroicKnightMesh, createLegacyKnightMesh, USE_LEGACY_KNIGHT, animateKnightWalk };
 
 // Materials cache to optimize performance and prevent memory duplication
 export const createPaletteMaterials = () => {
@@ -61,6 +61,7 @@ export interface PlayerMeshObjects {
   weapon: THREE.Group;
   leftWeapon?: THREE.Group;
   shield?: THREE.Mesh;
+  shieldGroup?: THREE.Group;
   cape: THREE.Mesh;
   body: THREE.Mesh;
   head: THREE.Mesh;

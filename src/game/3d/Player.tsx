@@ -1,7 +1,7 @@
 export * from '../player';
 export * from '../skills';
 export { soundManager } from '../audio';
-export { createHeroicKnightMesh, createLegacyKnightMesh, USE_LEGACY_KNIGHT } from './KnightModel';
+export { createHeroicKnightMesh, createLegacyKnightMesh, USE_LEGACY_KNIGHT, animateKnightWalk } from './KnightModel';
 
 /**
  * Handles character respawn audio sequence:

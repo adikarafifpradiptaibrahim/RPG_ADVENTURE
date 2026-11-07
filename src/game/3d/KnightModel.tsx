@@ -674,12 +674,14 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   diamondBoss.castShadow = true;
   shield.add(diamondBoss);
 
-  // Pasang langsung sebagai child dari leftArm pada level gauntlet/forearm,
-  // di sisi luar lengan kiri menghadap ke samping luar (rotation.y = Math.PI / 2)
-  // agar tidak menembus pauldron bahu
-  shield.position.set(0.16, -0.40, 0.05);
-  shield.rotation.set(0, Math.PI / 2, 0);
-  leftArm.add(shield);
+  // Group perisai dipasang langsung sebagai child dari leftArm (leftArmGroup)
+  // Geser posisi X (-0.25), Y (-0.05), Z (+0.12) dan rotasi (0, PI/6, -PI/12)
+  // agar melayang di luar lengan kiri tanpa menembus pauldron atau torso
+  const shieldGroup = new THREE.Group();
+  shieldGroup.add(shield);
+  shieldGroup.position.set(-0.25, -0.05, 0.12);
+  shieldGroup.rotation.set(0, Math.PI / 6, -Math.PI / 12);
+  leftArm.add(shieldGroup);
 
   // --------------------------------------------------------------------------
   // 7. Legs & Boots (Heroic Stance, Pivot di paha y = 0.88, Sol rata y = 0.00)
@@ -841,6 +843,7 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
     rightLeg,
     weapon,
     shield,
+    shieldGroup,
     cape,
     body,
     head,
@@ -853,4 +856,48 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
     auraRing,
     auraRing2,
   };
+}
+
+/**
+ * ============================================================================
+ * SMOOTH KNIGHT WALK ANIMATION
+ * ============================================================================
+ * Menghaluskan animasi jalan Ksatria:
+ * - Siklus frekuensi langkah seimbang (walkTime = clock.getElapsedTime() * 6)
+ * - Ayunan kaki sinusoidal halus (+/- 0.45)
+ * - Ayunan lengan stabil (lengan perisai -0.25, lengan pedang +0.4)
+ * - Hip sway (kemiringan rotasi Z 0.03) dan body bobbing alami (naik-turun Y 0.05)
+ */
+export function animateKnightWalk(
+  playerMesh: PlayerMeshObjects,
+  walkTime: number,
+  playerPosY: number,
+  isAttacking: boolean = false
+): void {
+  // 1. Leg Swing: Kurva Math.sin() seimbang untuk langkah luwes
+  const targetLeftLeg = Math.sin(walkTime) * 0.45;
+  const targetRightLeg = -Math.sin(walkTime) * 0.45;
+  playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, targetLeftLeg, 0.2);
+  playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, targetRightLeg, 0.2);
+
+  // 2. Arm Swing: Ayunan tangan perisai stabil (-Math.sin * 0.25), tangan pedang dinamis (+Math.sin * 0.4)
+  if (!isAttacking) {
+    const targetLeftArmX = -Math.sin(walkTime) * 0.25;
+    const targetRightArmX = Math.sin(walkTime) * 0.4;
+    playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, targetLeftArmX, 0.2);
+    playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.16, 0.2);
+    playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.16, 0.2);
+
+    playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, targetRightArmX, 0.2);
+    playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, -0.22, 0.2);
+  }
+
+  // 3. Hip Sway & Body Bobbing alami
+  // Naik-turun badan: Math.abs(Math.sin(walkTime * 2)) * 0.05
+  const walkBob = Math.abs(Math.sin(walkTime * 2)) * 0.05;
+  // Kemiringan pinggul saat melangkah: Math.sin(walkTime) * 0.03
+  const hipSway = Math.sin(walkTime) * 0.03;
+
+  playerMesh.group.position.y = playerPosY + walkBob;
+  playerMesh.group.rotation.z = hipSway;
 }

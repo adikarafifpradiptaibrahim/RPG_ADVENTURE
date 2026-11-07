@@ -12,7 +12,7 @@ import {
 import { soundManager } from '../audio';
 import { CHEST_LOOT_POOL, MONSTER_MATERIALS } from '../data';
 import { getCurrentRegion } from '../mapData';
-import { createEnemyMesh, createPlayerMesh, createArrowMesh, PlayerMeshObjects, USE_LEGACY_KNIGHT } from './models';
+import { createEnemyMesh, createPlayerMesh, createArrowMesh, PlayerMeshObjects, USE_LEGACY_KNIGHT, animateKnightWalk } from './models';
 export { USE_LEGACY_KNIGHT };
 import { buildWorld, WorldObjects, WorldCheckpoint } from './world';
 import { BossManager } from '../BossManager';
@@ -4935,31 +4935,14 @@ export class GameEngine {
       this.walkTime += delta * walkFreq;
 
       if (this.charClass === 'warrior') {
-        // Smooth lerp limb swing untuk mengeliminasi getar
-        const targetLegSwing = Math.sin(this.walkTime * 10) * 0.6;
-        this.playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftLeg.rotation.x, targetLegSwing, 0.2);
-        this.playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightLeg.rotation.x, -targetLegSwing, 0.2);
-
-        // Peredam bobbing tubuh yang sangat halus pada body (maksimal offset 0.025 unit, TANPA menggeser group.position.y)
-        const walkBob = Math.sin(this.walkTime * 10 * 2) * 0.025;
-        this.playerMesh.body.position.y = THREE.MathUtils.lerp(this.playerMesh.body.position.y, 1.48 + walkBob, 0.2);
-
-        // Subtle torso sway
-        const targetTorsoSway = Math.sin(this.walkTime * 5) * 0.025;
-        this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(this.playerMesh.body.rotation.z, targetTorsoSway, 0.2);
-        this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y, targetTorsoSway * 0.6, 0.2);
-
-        if (!this.isAttacking) {
-          // Smooth counter-swings pada sendi bahu
-          const targetLeftArmX = -targetLegSwing * 0.55;
-          this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, targetLeftArmX, 0.2);
-          this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, 0.16, 0.2);
-          this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, 0.16, 0.2);
-
-          const targetRightArmX = 0.28 + Math.sin(this.walkTime * 5) * 0.12;
-          this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, targetRightArmX, 0.2);
-          this.playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.z, -0.22, 0.2);
-        }
+        // Penghalusan Animasi Berjalan Ksatria (Smooth Knight Walk):
+        // Frekuensi stabil walkTime = clock.getElapsedTime() * 6
+        const walkTime = this.clock.getElapsedTime() * 6;
+        animateKnightWalk(this.playerMesh, walkTime, this.playerPos.y, this.isAttacking);
+        this.playerMesh.body.position.y = 1.48;
+        this.playerMesh.body.rotation.z = 0;
+        this.playerMesh.body.rotation.y = 0;
+        this.playerMesh.cape.rotation.x = 0.30 + Math.sin(walkTime * 0.5) * 0.15;
       } else {
         const legSwing = Math.sin(this.walkTime) * (this.charClass === 'mage' ? 0.35 : 0.62);
         this.playerMesh.leftLeg.rotation.x = legSwing;
@@ -4977,12 +4960,13 @@ export class GameEngine {
             this.playerMesh.rightArm.rotation.z = -0.25;
           }
         }
+        this.playerMesh.cape.rotation.x = 0.35 + Math.sin(this.walkTime * 1.5) * 0.20;
       }
-      this.playerMesh.cape.rotation.x = 0.35 + Math.sin(this.walkTime * 1.5) * 0.20;
     } else {
       if (this.charClass === 'warrior') {
         this.playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftLeg.rotation.x, 0, 0.2);
         this.playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightLeg.rotation.x, 0, 0.2);
+        this.playerMesh.group.rotation.z = THREE.MathUtils.lerp(this.playerMesh.group.rotation.z, 0, 0.2);
 
         // Breathing cycle halus saat diam
         const breathe = Math.sin(this.clock.getElapsedTime() * 2.0) * 0.015;
