@@ -20,7 +20,7 @@ import { getContinentBiomeSample, getBiomeAt } from '../game/mapSampler';
 import { drawRoadsOnWorldMap } from '../game/RoadSystem';
 
 // Persistent continent map cached image data to eliminate all lag on open & pan
-const MAP_CACHE_VERSION = 'v4.7_road_network_system';
+const MAP_CACHE_VERSION = 'v4.8_clean_medieval_road_network';
 let cachedMapVersion = '';
 let cachedMapImageData: ImageData | null = null;
 

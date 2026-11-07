@@ -92,7 +92,7 @@ import {
   createLightningCrystalMesh,
   createAncientRitualTowerMesh,
 } from './models';
-import { buildWorldRoadNetwork } from '../RoadSystem';
+import { buildWorldRoadNetwork, isPointOnRoad } from '../RoadSystem';
 
 export interface WorldCollider {
   type: 'box' | 'circle';
@@ -1275,6 +1275,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   for (let i = 0; i < 45; i++) {
     const px = -80 + Math.random() * 40;
     const pz = 80 + Math.random() * 60;
+    // Pembersihan rintangan jalan: Jangan spawn pohon di atas jalan
+    if (isPointOnRoad(px, pz)) continue;
+
     const py = getTerrainHeight(px, pz);
     const pine = createTreeMesh('pine');
     pine.position.set(px, py, pz);
@@ -1304,6 +1307,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     const inAstraea = Math.hypot(tx - -340, tz - -220) < 60;
     const inTitan = Math.hypot(tx - -260, tz - -20) < 35;
     if (inSanctuaryMainland || inSanctuaryHarborOcean || inBridgeHighwayCorridor || inValKragor || inDesert || inDragonCaldera || inAstraea || inTitan) continue;
+
+    // Pembersihan rintangan jalan: Jangan spawn pohon padang rumput di atas permukaan jalan
+    if (isPointOnRoad(tx, tz)) continue;
 
     const ty = getTerrainHeight(tx, tz);
     const tree = createTreeMesh(i % 3 === 0 ? 'fantasy' : 'oak');
@@ -1344,7 +1350,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { x: 28, z: 202, type: 'oak', scale: 1.15 },
   ];
 
-  const villageTreesData = curatedVillageTrees.map(vt => {
+  const villageTreesData = curatedVillageTrees
+    .filter(vt => !isPointOnRoad(vt.x, vt.z))
+    .map(vt => {
     colliders.push({
       type: 'circle',
       x: vt.x,

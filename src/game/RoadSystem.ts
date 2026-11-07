@@ -1,17 +1,16 @@
 import * as THREE from 'three';
-import { createStoneRoadRibbonMesh, createInstancedStreetLamps, createDesertOilLanternMesh } from './3d/models';
+import { createInstancedStreetLamps, createDesertOilLanternMesh } from './3d/models';
 import { WorldCollider } from './3d/world';
 
-export type RoadType = 'plains' | 'desert' | 'wood';
+export type RoadBiomeType = 'plains' | 'desert';
 
 export interface RoadRouteDef {
   id: string;
   name: string;
-  type: RoadType;
+  biome: RoadBiomeType;
   width: number;
-  controlPoints: [number, number][]; // [X, Z]
-  roadColor: number;
-  curbColor: number;
+  controlPoints: [number, number][]; // [X, Z] waypoints
+  baseColor: number;
   canvasStroke: string;
   canvasDash: number[];
   canvasWidth: number;
@@ -25,235 +24,184 @@ export interface RoadJunctionDef {
 }
 
 /**
- * 1. DEFINISI JARINGAN JALUR UTAMA (ROAD WAYPOINTS)
- * Jaringan jalan raya dan setapak antarkota/desa di benua Eldoria
+ * 3. RUTE JALUR MEDIEVAL YANG LOGIS & RAPI
+ * Menggantikan rute lama dengan segmen kurva lengkung Catmull-Rom yang terhubung rapi
+ * dari gerbang ke gerbang tanpa memotong air mancur, menembus pohon, pilar kristal, piramida, atau oase.
  */
 export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
-  // A. JALUR UTAMA SANCTUARY (THE ROYAL ARTERY)
-  // 1. Rute Pelabuhan ke Alun-Alun: [0, 205] -> [0, 180]
+  // 1. RUTE SANCTUARY VILLAGE (MEDIEVAL STARTER)
+  // A. Dermaga Pelabuhan ke Gerbang Selatan Desa
   {
-    id: 'sanctuary_harbor',
+    id: 'sanctuary_pier',
     name: 'Jalan Dermaga Pelabuhan Sanctuary',
-    type: 'wood',
-    width: 5.0,
+    biome: 'plains',
+    width: 3.8,
     controlPoints: [
       [0, 205],
-      [0, 192],
-      [0, 180],
+      [0, 198],
+      [0, 190],
     ],
-    roadColor: 0x8d7b68,
-    curbColor: 0x5c4d3c,
+    baseColor: 0x75695b,
     canvasStroke: '#a38f78',
     canvasDash: [5, 3],
     canvasWidth: 3.0,
   },
-  // 2. Jalur Barat Laut Menuju Ibukota Emas Astraea:
-  // [0, 180] -> [-100, 130] -> [-180, 50] -> [-260, -80] -> [-340, -220]
+  // B. Alun-Alun: Jalur melingkari Air Mancur Rejuvenasi (X: 0, Z: 180, R: 3.9) secara elegan
+  // Sisi Timur Bundaran Alun-Alun
   {
-    id: 'sanctuary_astraea',
-    name: 'Jalan Raya Kerajaan Barat Sanctuary - Astraea',
-    type: 'plains',
-    width: 4.8,
+    id: 'sanctuary_plaza_east',
+    name: 'Bundaran Alun-Alun Sanctuary (Sisi Timur)',
+    biome: 'plains',
+    width: 3.4,
     controlPoints: [
-      [0, 180],
-      [-50, 160],
-      [-100, 130],
-      [-145, 95],
-      [-180, 50],
-      [-220, -15],
-      [-260, -80],
-      [-300, -150],
-      [-340, -220],
+      [0, 190],
+      [4.8, 185],
+      [5.5, 180],
+      [4.8, 175],
+      [0, 168],
     ],
-    roadColor: 0x8d7b68,
-    curbColor: 0x5c4d3c,
+    baseColor: 0x6e6355,
     canvasStroke: '#d7c49e',
     canvasDash: [6, 4],
     canvasWidth: 2.6,
   },
-  // 3. Jalur Timur Menuju Benteng Val-Kragor:
-  // [0, 180] -> [90, 150] -> [180, 60] -> [280, 70] -> [380, 80]
+  // Sisi Barat Bundaran Alun-Alun
   {
-    id: 'sanctuary_valkragor',
-    name: 'Jalan Raya Timur Sanctuary - Val-Kragor',
-    type: 'plains',
-    width: 4.5,
+    id: 'sanctuary_plaza_west',
+    name: 'Bundaran Alun-Alun Sanctuary (Sisi Barat)',
+    biome: 'plains',
+    width: 3.4,
     controlPoints: [
-      [0, 180],
-      [45, 170],
-      [90, 150],
-      [140, 105],
-      [180, 60],
-      [230, 64],
-      [280, 70],
-      [330, 75],
-      [380, 80],
+      [0, 190],
+      [-4.8, 185],
+      [-5.5, 180],
+      [-4.8, 175],
+      [0, 168],
     ],
-    roadColor: 0x8d7b68,
-    curbColor: 0x5c4d3c,
+    baseColor: 0x6e6355,
     canvasStroke: '#d7c49e',
     canvasDash: [6, 4],
     canvasWidth: 2.6,
   },
 
-  // B. JALUR PERDAGANGAN GURUN SUTRA (SILK DESERT HIGHWAY)
-  // 1. Jalur Penghubung Padang Rumput ke Wilayah Gurun:
-  // [180, 60] -> [150, -60] -> [20, -220] -> [150, -360]
+  // 2. RUTE PADANG RUMPUT BARAT KE GERBANG ASTRAEA
+  // Dari Gapura Desa [0, 168] -> meliuk ke barat [-140, 100] -> melewati pelataran selatan Danau Titan [-220, 20]
+  // -> berbelok ke utara menuju GERBANG BARAT ASTRAEA: [-360, -220]
   {
-    id: 'silk_road_ascent',
-    name: 'Jalur Sutra Gurun: Mage Tower - Piramida - Oase',
-    type: 'desert',
-    width: 4.5,
+    id: 'plains_west_astraea',
+    name: 'Jalan Raya Kerajaan Barat Sanctuary - Gerbang Astraea',
+    biome: 'plains',
+    width: 3.6,
     controlPoints: [
-      [180, 60],
-      [165, 0],
-      [150, -60],
-      [100, -140],
-      [20, -220],
-      [80, -290],
-      [150, -360],
+      [0, 168],
+      [-70, 140],
+      [-140, 100],
+      [-220, 20],
+      [-290, -80],
+      [-330, -160],
+      [-360, -220],
     ],
-    roadColor: 0xd4a373,
-    curbColor: 0xa8794c,
-    canvasStroke: '#fde047',
-    canvasDash: [],
-    canvasWidth: 2.8,
+    baseColor: 0x6e6355,
+    canvasStroke: '#d7c49e',
+    canvasDash: [6, 4],
+    canvasWidth: 2.6,
   },
-  // 2. Jalur Emas Oase ke Bazaar Solaria:
+
+  // 3. RUTE PADANG RUMPUT TIMUR & JEMBATAN GANTUNG
+  // Dari Gapura Desa [0, 168] -> mengarah ke timur [80, 120] -> masuk ke lantai Jembatan Gantung [120..150, 70]
+  // -> keluar jembatan -> melengkung melewati sisi luar halaman Mage Tower (aman dari pilar)
+  // -> berakhir di Gerbang Barat Benteng Val-Kragor [380, 80]
   {
-    id: 'silk_road_oasis_bazaar',
-    name: 'Jalur Penghubung Oase - Bazaar Solaria',
-    type: 'desert',
-    width: 4.5,
+    id: 'plains_east_valkragor',
+    name: 'Jalan Raya Timur Sanctuary - Jembatan Gantung - Benteng Val-Kragor',
+    biome: 'plains',
+    width: 3.5,
     controlPoints: [
-      [150, -360],
-      [195, -325],
-      [250, -280],
+      [0, 168],
+      [45, 150],
+      [80, 120],
+      [118, 70],
+      [135, 70],
+      [150, 70],
+      [195, 78],
+      [240, 78],
+      [290, 79],
+      [350, 80],
+      [380, 80],
     ],
-    roadColor: 0xd4a373,
-    curbColor: 0xa8794c,
-    canvasStroke: '#fde047',
-    canvasDash: [],
-    canvasWidth: 2.8,
+    baseColor: 0x6e6355,
+    canvasStroke: '#d7c49e',
+    canvasDash: [6, 4],
+    canvasWidth: 2.6,
   },
-  // 3. Jalur Emas Bazaar ke Istana Sultan:
-  // [250, -280] (Bazaar Solaria) lurus ke [340, -280] (Istana Taj Mahal Sultan)
+
+  // 4. RUTE GURUN PASIR EMAS (PACKED CARAVAN SAND TRAIL)
+  // Jalur jejak pasir lebar menghubungkan Gerbang Depan Bazaar Solaria [250, -280]
+  // lurus menuju Gerbang Masuk Istana Taj Mahal Sultan Malik [340, -280]
   {
-    id: 'bazaar_palace_avenue',
-    name: 'Jalan Raya Emas Grand Avenue Solaria',
-    type: 'desert',
-    width: 6.0,
+    id: 'desert_bazaar_palace',
+    name: 'Jejak Kafilah Karavan Bazaar Solaria - Istana Taj Mahal Sultan',
+    biome: 'desert',
+    width: 4.8,
     controlPoints: [
       [250, -280],
       [295, -280],
       [340, -280],
     ],
-    roadColor: 0xd4a373,
-    curbColor: 0xa8794c,
+    baseColor: 0xcbb17b, // Pasir padat hangat kecokelatan (#cbb17b)
     canvasStroke: '#fde047',
     canvasDash: [],
-    canvasWidth: 3.5,
-  },
-  // 4. Konektor Piramida ke Bazaar Solaria:
-  {
-    id: 'pyramid_bazaar_link',
-    name: 'Jalur Karavan Piramida - Bazaar',
-    type: 'desert',
-    width: 4.2,
-    controlPoints: [
-      [20, -220],
-      [130, -250],
-      [250, -280],
-    ],
-    roadColor: 0xd4a373,
-    curbColor: 0xa8794c,
-    canvasStroke: '#fde047',
-    canvasDash: [8, 3],
-    canvasWidth: 2.5,
-  },
-
-  // C. JALUR ZIARAH PENDAPATAN LEMBAH TITAN
-  // Percabangan dari jalan raya Astraea di [-180, 50] menuju pelataran luar Cekungan Danau Titan di [-230, -20]
-  {
-    id: 'titan_pilgrimage',
-    name: 'Jalur Ziarah Cekungan Danau Titan',
-    type: 'plains',
-    width: 3.6,
-    controlPoints: [
-      [-180, 50],
-      [-205, 18],
-      [-230, -20],
-    ],
-    roadColor: 0x78716c,
-    curbColor: 0x44403c,
-    canvasStroke: '#a38f78',
-    canvasDash: [4, 4],
-    canvasWidth: 2.2,
+    canvasWidth: 3.2,
   },
 ];
 
 /**
- * Persimpangan Jalan Utama & Papan Petunjuk Arah (Signposts)
+ * Persimpangan Jalan Utama & Papan Petunjuk Arah Kayu Pedesaan
  */
 export const ROAD_JUNCTIONS: RoadJunctionDef[] = [
   {
-    id: 'jct_sanctuary',
-    name: 'Persimpangan Alun-Alun Sanctuary',
-    pos: [0, 180],
+    id: 'jct_sanctuary_gate',
+    name: 'Gapura Kayu Utara Desa Sanctuary',
+    pos: [0, 168],
     signDirections: [
-      { label: 'Ibukota Astraea', angle: -Math.PI * 0.75 }, // Barat Laut
-      { label: 'Benteng Val-Kragor', angle: 0.15 },        // Timur
-      { label: 'Pelabuhan Samudra', angle: Math.PI * 0.5 }, // Selatan
+      { label: 'Ibukota Kerajaan Astraea', angle: -Math.PI * 0.72 }, // Barat Laut
+      { label: 'Benteng Val-Kragor & Mage Tower', angle: 0.18 },    // Timur
+      { label: 'Alun-Alun & Pelabuhan', angle: Math.PI * 0.5 },      // Selatan
     ],
   },
   {
-    id: 'jct_titan_cross',
-    name: 'Simpang Tiga Lembah Titan',
-    pos: [-180, 50],
+    id: 'jct_bridge_approach',
+    name: 'Pintu Masuk Barat Jembatan Gantung',
+    pos: [118, 70],
     signDirections: [
-      { label: 'Ibukota Astraea', angle: -Math.PI * 0.65 }, // Barat Laut
-      { label: 'Danau Titan (Ziarah)', angle: -Math.PI * 0.25 }, // Utara-Barat
-      { label: 'Desa Sanctuary', angle: Math.PI * 0.45 },   // Tenggara
+      { label: 'Benteng Val-Kragor ->', angle: 0.0 },              // Timur (menyeberang)
+      { label: '<- Desa Sanctuary', angle: Math.PI },              // Barat
     ],
   },
   {
-    id: 'jct_mage_tower',
-    name: 'Simpang Empat Menara Penyihir',
-    pos: [180, 60],
+    id: 'jct_titan_trail',
+    name: 'Pelataran Selatan Danau Titan',
+    pos: [-220, 20],
     signDirections: [
-      { label: 'Benteng Val-Kragor', angle: 0.1 },          // Timur
-      { label: 'Jalur Sutra Gurun', angle: -Math.PI * 0.55 }, // Utara
-      { label: 'Desa Sanctuary', angle: Math.PI * 0.85 },   // Barat-Daya
+      { label: 'Ibukota Astraea ->', angle: -Math.PI * 0.55 },     // Utara
+      { label: '<- Desa Sanctuary', angle: Math.PI * 0.42 },       // Tenggara
     ],
   },
   {
-    id: 'jct_pyramid',
-    name: 'Simpang Piramida Solaria',
-    pos: [20, -220],
-    signDirections: [
-      { label: 'Oase Solaria', angle: -Math.PI * 0.35 },    // Timur Laut
-      { label: 'Bazaar Solaria', angle: 0.0 },              // Timur
-      { label: 'Lembah Padang Rumput', angle: Math.PI * 0.6 }, // Tenggara
-    ],
-  },
-  {
-    id: 'jct_bazaar',
-    name: 'Gerbang Barat Bazaar Solaria',
+    id: 'jct_solaria_bazaar',
+    name: 'Gerbang Depan Bazaar Gurun Solaria',
     pos: [250, -280],
     signDirections: [
-      { label: 'Istana Sultan Malik', angle: 0.0 },         // Timur
-      { label: 'Oase & Piramida', angle: Math.PI },         // Barat
+      { label: 'Istana Sultan Malik ->', angle: 0.0 },             // Timur
+      { label: '<- Jalur Kafilah Karavan', angle: Math.PI },       // Barat
     ],
   },
 ];
 
-/**
- * Pre-computed high-density sampled points per route for fast rendering and collision
- */
 export interface SampledRoad {
   def: RoadRouteDef;
-  points: [number, number][]; // [X, Z] spaced ~2.5 world units
-  coarsePoints: [number, number][]; // [X, Z] spaced ~5.0 world units for collision
+  points: [number, number][]; // [X, Z] spaced ~2.2 world units
+  coarsePoints: [number, number][]; // [X, Z] spaced ~4.5 world units for collision
   bbox: { minX: number; maxX: number; minZ: number; maxZ: number };
 }
 
@@ -267,17 +215,17 @@ export function getSampledRoads(): SampledRoad[] {
     const curve = new THREE.CatmullRomCurve3(v3s, false, 'centripetal');
     const length = curve.getLength();
 
-    // 1. Fine points for 3D ribbon mesh & detailed 2D canvas drawing (step ~2.5 units)
-    const fineDivisions = Math.max(6, Math.ceil(length / 2.5));
+    // 1. Fine points for 3D ribbon mesh & 2D canvas drawing (step ~2.2 units)
+    const fineDivisions = Math.max(5, Math.ceil(length / 2.2));
     const fineSamples = curve.getSpacedPoints(fineDivisions);
     const points: [number, number][] = fineSamples.map((p) => [p.x, p.z]);
 
     // 2. Coarse points for fast O(1) collision query
-    const coarseDivisions = Math.max(4, Math.ceil(length / 5.0));
+    const coarseDivisions = Math.max(3, Math.ceil(length / 4.5));
     const coarseSamples = curve.getSpacedPoints(coarseDivisions);
     const coarsePoints: [number, number][] = coarseSamples.map((p) => [p.x, p.z]);
 
-    // Compute bounding box with width padding
+    // Bounding box with width padding
     let minX = Infinity;
     let maxX = -Infinity;
     let minZ = Infinity;
@@ -288,7 +236,7 @@ export function getSampledRoads(): SampledRoad[] {
       if (z < minZ) minZ = z;
       if (z > maxZ) maxZ = z;
     }
-    const pad = route.width * 0.5 + 3.0;
+    const pad = route.width * 0.5 + 2.5;
 
     return {
       def: route,
@@ -320,8 +268,11 @@ function distToSegmentSq(px: number, pz: number, x1: number, z1: number, x2: num
 }
 
 /**
- * 4. LOGIKA INTEGRASI ENGINE & VELOCITY BOOST
- * Helper ultra-cepat untuk mendeteksi apakah pemain sedang berdiri/berjalan di atas jalan
+ * 4. PEMBERSIHAN TABRAKAN OBJEK (OBSTACLE CLEARING) & VELOCITY BOOST
+ * Helper ultra-cepat untuk mendeteksi apakah suatu titik (x, z) berada di atas jalan.
+ * Digunakan untuk:
+ * 1. Mencegah pohon dan batu liar spawn di atas jalan.
+ * 2. Memberikan boost kecepatan jalan (+15%) bagi pemain.
  */
 export function isPointOnRoad(x: number, z: number): boolean {
   const roads = getSampledRoads();
@@ -333,7 +284,7 @@ export function isPointOnRoad(x: number, z: number): boolean {
       continue;
     }
 
-    const thresholdSq = Math.pow(road.def.width * 0.5 + 0.8, 2);
+    const thresholdSq = Math.pow(road.def.width * 0.5 + 0.6, 2);
     const pts = road.coarsePoints;
 
     for (let i = 0; i < pts.length - 1; i++) {
@@ -347,8 +298,116 @@ export function isPointOnRoad(x: number, z: number): boolean {
 }
 
 /**
- * 3D Signpost Mesh Generator:
- * Papan petunjuk arah kayu pedesaan dengan panah terukir dan lentera gantung
+ * 2. BUILDER GEOMETRI PITA DATAR (QUAD STRIP SEGMENTED PLANE)
+ * Menggunakan THREE.BufferGeometry permukaan jalan nyata dengan vertex color blending:
+ * - Tidak menggunakan THREE.Line / LineBasicMaterial.
+ * - Tidak menggunakan tali atau kawat tipis.
+ * - y = getTerrainHeight(x, z) + 0.05 untuk mencegah z-fighting.
+ * - Tepi memudar halus (alpha/color falloff) menyatu ke rumput atau pasir gurun.
+ */
+function createRibbonSurfaceMesh(
+  points: [number, number][],
+  width: number,
+  yFunc: (x: number, z: number) => number,
+  biome: RoadBiomeType
+): THREE.Mesh {
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const indices: number[] = [];
+  const halfW = width * 0.5;
+
+  const isPlains = biome === 'plains';
+
+  // Base Road Core Color & Outer Shoulder Blend Color
+  // Padang rumput: Abu-abu kecokelatan (#6e6355 / #7d7163) memudar ke hijau rumput (#65a30d)
+  // Gurun: Kuning pasir padat (#cbb17b / #bfa268) memudar ke warna bukit pasir (#eab308)
+  const coreColor = isPlains ? new THREE.Color(0x6e6355) : new THREE.Color(0xcbb17b);
+  const shoulderColor = isPlains ? new THREE.Color(0x65a30d) : new THREE.Color(0xeab308);
+
+  for (let i = 0; i < points.length; i++) {
+    const cur = points[i];
+
+    // Hitung vektor arah dan normal segmen jalan
+    let dx = 0;
+    let dz = 0;
+    if (i < points.length - 1) {
+      dx = points[i + 1][0] - cur[0];
+      dz = points[i + 1][1] - cur[1];
+    } else {
+      dx = cur[0] - points[i - 1][0];
+      dz = cur[1] - points[i - 1][1];
+    }
+    const len = Math.hypot(dx, dz) || 1;
+    const nx = -dz / len;
+    const nz = dx / len;
+
+    // Lekukan organik halus pada tepian jalan (soft/jagged falloff alami)
+    const wobbleL = Math.sin(i * 0.85) * (isPlains ? 0.22 : 0.15);
+    const wobbleR = Math.cos(i * 0.95) * (isPlains ? 0.22 : 0.15);
+
+    const wL = halfW + wobbleL;
+    const wR = halfW + wobbleR;
+
+    // 1. Left Outer Shoulder
+    const lx = cur[0] + nx * wL;
+    const lz = cur[1] + nz * wL;
+    const ly = yFunc(lx, lz) + 0.05;
+
+    // 2. Road Center Core
+    const cx = cur[0];
+    const cz = cur[1];
+    const cy = yFunc(cx, cz) + 0.052;
+
+    // 3. Right Outer Shoulder
+    const rx = cur[0] - nx * wR;
+    const rz = cur[1] - nz * wR;
+    const ry = yFunc(rx, rz) + 0.05;
+
+    // 3 vertices per cross section: [Left, Center, Right]
+    positions.push(lx, ly, lz, cx, cy, cz, rx, ry, rz);
+
+    // Vertex Colors: Shoulder blends to biome color, center is authentic road paver/dirt
+    colors.push(
+      shoulderColor.r, shoulderColor.g, shoulderColor.b,
+      coreColor.r, coreColor.g, coreColor.b,
+      shoulderColor.r, shoulderColor.g, shoulderColor.b
+    );
+
+    // Quad Strips
+    if (i < points.length - 1) {
+      const row = i * 3;
+      const nextRow = (i + 1) * 3;
+
+      // Quad 1: Left shoulder to Center core
+      indices.push(row, nextRow, row + 1);
+      indices.push(row + 1, nextRow, nextRow + 1);
+
+      // Quad 2: Center core to Right shoulder
+      indices.push(row + 1, nextRow + 1, row + 2);
+      indices.push(row + 2, nextRow + 1, nextRow + 2);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: isPlains ? 0.9 : 0.88,
+    metalness: 0.0,
+    flatShading: true,
+  });
+
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+/**
+ * Papan Petunjuk Arah Kayu Abad Pertengahan (Medieval Wooden Signposts)
  */
 export function createRoadSignpostMesh(junction: RoadJunctionDef): THREE.Group {
   const group = new THREE.Group();
@@ -442,7 +501,7 @@ export function createRoadSignpostMesh(junction: RoadJunctionDef): THREE.Group {
 
 /**
  * 2. IMPLEMENTASI 3D MESH JALAN (world.ts)
- * Bangun seluruh mesh jalan pita, lentera pinggir jalan, dan plang penunjuk arah
+ * Bangun seluruh mesh permukaan jalan nyata, batu kali kecil tepi jalan, lentera, dan plang penunjuk arah
  */
 export function buildWorldRoadNetwork(
   scene: THREE.Scene,
@@ -455,48 +514,76 @@ export function buildWorldRoadNetwork(
   const roads = getSampledRoads();
   const streetLampsData: { x: number; y: number; z: number }[] = [];
 
-  // 1. Bangun Mesh Pita Jalan Mengikuti Elevasi Tanah
+  // Low-poly pebble material for wayside stones
+  const pebbleMat = new THREE.MeshStandardMaterial({
+    color: 0x6b6052,
+    roughness: 0.92,
+    metalness: 0.05,
+    flatShading: true,
+  });
+  const pebbleGeo = new THREE.DodecahedronGeometry(0.2, 0);
+
+  // 1. Bangun Mesh Permukaan Pita Jalan
   roads.forEach((road) => {
     // Grand Sandstone Desert Avenue sudah dibangun secara khusus dengan pohon kurma di world.ts
-    if (road.def.id === 'bazaar_palace_avenue') return;
+    if (road.def.id === 'desert_bazaar_palace') return;
 
-    const roadMesh = createStoneRoadRibbonMesh(
+    // Mesh pita datar quad-strip bergradasi alami
+    const ribbonMesh = createRibbonSurfaceMesh(
       road.points,
       road.def.width,
-      (x, z) => getTerrainHeight(x, z),
-      road.def.roadColor,
-      road.def.curbColor
+      getTerrainHeight,
+      road.def.biome
     );
-    roadSystemGroup.add(roadMesh);
+    roadSystemGroup.add(ribbonMesh);
 
-    // 2. Tempatkan Lentera Tepi Jalan setiap ~36-40 unit
-    let accumulatedDist = 0;
-    const interval = 38.0;
+    // 2. Taburan Batu Kali Kecil (Low-Poly Pebble Stones) & Lentera Tepi Jalan
+    let distCounter = 0;
+    const isPlains = road.def.biome === 'plains';
 
     for (let i = 0; i < road.points.length - 1; i++) {
       const p1 = road.points[i];
       const p2 = road.points[i + 1];
       const segLen = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
-      accumulatedDist += segLen;
+      distCounter += segLen;
 
-      if (accumulatedDist >= interval) {
-        accumulatedDist = 0;
+      // Hiasan Tepi: Sesekali batu kali kecil (pebble stones) di bibir jalan (setiap ~14 unit di padang rumput)
+      if (isPlains && distCounter >= 14.0) {
+        distCounter = 0;
 
-        // Hitung vektor normal tegak lurus arah jalan
         const dx = p2[0] - p1[0];
         const dz = p2[1] - p1[1];
         const len = Math.hypot(dx, dz) || 1;
         const nx = -dz / len;
         const nz = dx / len;
+        const side = i % 2 === 0 ? 1 : -1;
 
-        // Sisi kanan atau kiri bergantian
-        const side = (i % 2 === 0 ? 1 : -1);
+        const pebX = p1[0] + nx * (road.def.width * 0.5 + 0.35) * side;
+        const pebZ = p1[1] + nz * (road.def.width * 0.5 + 0.35) * side;
+        const pebY = getTerrainHeight(pebX, pebZ) + 0.05;
+
+        const pebble = new THREE.Mesh(pebbleGeo, pebbleMat);
+        pebble.position.set(pebX, pebY, pebZ);
+        const s = 0.7 + (i % 5) * 0.15;
+        pebble.scale.set(s, s * 0.7, s);
+        pebble.rotation.set((i % 3) * 0.4, (i % 7) * 0.6, (i % 2) * 0.3);
+        roadSystemGroup.add(pebble);
+      }
+
+      // Lentera Tepi Jalan setiap ~42 unit
+      if (i > 0 && i % 20 === 0) {
+        const dx = p2[0] - p1[0];
+        const dz = p2[1] - p1[1];
+        const len = Math.hypot(dx, dz) || 1;
+        const nx = -dz / len;
+        const nz = dx / len;
+        const side = i % 4 === 0 ? 1 : -1;
+
         const lampX = p1[0] + nx * (road.def.width * 0.5 + 1.2) * side;
         const lampZ = p1[1] + nz * (road.def.width * 0.5 + 1.2) * side;
         const lampY = getTerrainHeight(lampX, lampZ);
 
-        if (road.def.type === 'desert') {
-          // Lentera Minyak Kuningan Solaria di Gurun
+        if (!isPlains) {
           const lanternMesh = createDesertOilLanternMesh();
           lanternMesh.position.set(lampX, lampY, lampZ);
           roadSystemGroup.add(lanternMesh);
@@ -508,7 +595,6 @@ export function buildWorldRoadNetwork(
             label: 'Lentera Tepi Jalan Gurun',
           });
         } else {
-          // Lentera Tiang Besi Padang Rumput
           streetLampsData.push({ x: lampX, y: lampY, z: lampZ });
           colliders.push({
             type: 'circle',
@@ -522,17 +608,16 @@ export function buildWorldRoadNetwork(
     }
   });
 
-  // Tambahkan instanced mesh untuk seluruh lampu jalan padang rumput (zero draw call overhead)
+  // Instanced lamps untuk efisiensi performa 60 FPS
   if (streetLampsData.length > 0) {
     const instancedLamps = createInstancedStreetLamps(streetLampsData);
     roadSystemGroup.add(instancedLamps);
   }
 
-  // 3. Tempatkan Papan Penunjuk Arah (Signposts) di setiap Persimpangan Jalan
+  // 3. Papan Penunjuk Arah (Signposts) di Persimpangan Jalan Utama
   ROAD_JUNCTIONS.forEach((jct) => {
-    // Geser sedikit dari titik tengah agar tidak menghalangi poros jalan
-    const signX = jct.pos[0] + 3.2;
-    const signZ = jct.pos[1] + 3.2;
+    const signX = jct.pos[0] + 3.0;
+    const signZ = jct.pos[1] + 3.0;
     const signY = getTerrainHeight(signX, signZ);
 
     const signMesh = createRoadSignpostMesh(jct);
@@ -567,11 +652,11 @@ export function drawRoadsOnWorldMap(
 ): void {
   const roads = getSampledRoads();
 
-  // 1. Layer Bayangan Dasar Jalan (Memberikan kedalaman & kontras di atas bioma)
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
+  // 1. Layer Bayangan Dasar Jalan (Memberikan kedalaman & kontras di atas bioma)
   roads.forEach((road) => {
     if (road.points.length < 2) return;
     ctx.beginPath();
@@ -592,7 +677,7 @@ export function drawRoadsOnWorldMap(
     ctx.stroke();
   });
 
-  // 2. Layer Garis Jalan Utama (Dashed / Solid sesuai spesifikasi)
+  // 2. Layer Garis Jalan Utama (Dashed / Solid)
   roads.forEach((road) => {
     if (road.points.length < 2) return;
     ctx.beginPath();
@@ -614,13 +699,12 @@ export function drawRoadsOnWorldMap(
     ctx.stroke();
   });
 
-  // 3. Titik Simpul Persimpangan (Junction Waypoints)
+  // 3. Titik Simpul Persimpangan Bercahaya
   ctx.setLineDash([]);
   ROAD_JUNCTIONS.forEach((jct) => {
     const sx = ((jct.pos[0] - minX) / (maxX - minX)) * width;
     const sy = ((jct.pos[1] - minZ) / (maxZ - minZ)) * height;
 
-    // Glowing circle hub
     ctx.beginPath();
     ctx.arc(sx, sy, 3.8, 0, Math.PI * 2);
     ctx.fillStyle = '#fde047';
@@ -655,7 +739,6 @@ export function drawRoadsOnMiniMap(
   ctx.lineJoin = 'round';
 
   roads.forEach((road) => {
-    // Cek apakah jalan berada dekat pemain
     if (
       playerX + radarRadius < road.bbox.minX ||
       playerX - radarRadius > road.bbox.maxX ||
@@ -673,7 +756,6 @@ export function drawRoadsOnMiniMap(
       const dx = p[0] - playerX;
       const dz = p[1] - playerZ;
 
-      // Koordinat canvas minimap
       const mx = halfSize + (dx / radarRadius) * halfSize;
       const my = halfSize + (dz / radarRadius) * halfSize;
 
