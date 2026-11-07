@@ -11,6 +11,10 @@ export interface BossArenaZone {
   aggroRange: number;
 }
 
+export const SPAWN_NAGA: [number, number] = [80, 360];
+export const NAGA_CALDERA_RADIUS = 48;
+export const STATE_FLYING_PURSUIT = 'STATE_FLYING_PURSUIT';
+
 export const BOSS_ARENA_ZONES: Record<string, BossArenaZone> = {
   boss_titan: {
     id: 'boss_titan',
@@ -99,25 +103,45 @@ export class MonsterCombatAI {
   }
 
   /**
+   * Evaluates if Naga Ignis should initiate Flying Pursuit (Gap Closer)
+   */
+  public static shouldTriggerFlyingPursuit(
+    nagaPos: { x: number; z: number },
+    playerPos: { x: number; z: number },
+    flyingCooldown: number
+  ): boolean {
+    const distToCenter = Math.hypot(playerPos.x - SPAWN_NAGA[0], playerPos.z - SPAWN_NAGA[1]);
+    const distToPlayer = Math.hypot(playerPos.x - nagaPos.x, playerPos.z - nagaPos.z);
+
+    // Rule:
+    // 1. Pemain masih di dalam arena kaldera (jarak ke pusat <= 48 unit)
+    // 2. Jarak pemain ke naga menjauh (distToPlayer > 12 unit)
+    // 3. Skill terbang tidak sedang cooldown (flyingCooldown <= 0)
+    return distToCenter <= NAGA_CALDERA_RADIUS && distToPlayer > 12.0 && flyingCooldown <= 0;
+  }
+
+  /**
    * Evaluates the best available skill for Naga Purba Ignis (Lv. 12)
    */
   public static selectDragonSkill(
     distToPlayer: number,
     dotWithPlayer: number, // dot product with forward facing vector
-    cdMap: Map<string, number>
+    cdMap: Map<string, number>,
+    playerDistToCenter?: number
   ): string | null {
     // Out of arena engagement range: do not trigger any skills
     if (distToPlayer > 48.0) {
       return null;
     }
 
-    const dashCd = cdMap.get('flying_dash') ?? 0;
+    const dashCd = cdMap.get('flying_dash') ?? cdMap.get('flying_pursuit') ?? 0;
     const fireballCd = cdMap.get('fireball_barrage') ?? 0;
     const breathCd = cdMap.get('flame_breath') ?? cdMap.get('fire_breath') ?? 0;
     const clawCd = cdMap.get('dragon_claw') ?? cdMap.get('tail_swipe') ?? 0;
 
-    // 1. Gap Closer: Flying Dash (Jarak > 15 unit, Cooldown 9s)
-    if (distToPlayer > 15.0 && distToPlayer <= 48.0 && dashCd <= 0) {
+    // 1. TOP PRIORITY GAP CLOSER: Flying Dive / Dash Pursuit (Jarak > 12 unit, jika pemain di kaldera & Cooldown <= 0)
+    const inArena = playerDistToCenter !== undefined ? playerDistToCenter <= NAGA_CALDERA_RADIUS : true;
+    if (inArena && distToPlayer > 12.0 && distToPlayer <= 48.0 && dashCd <= 0) {
       return 'flying_dash';
     }
 

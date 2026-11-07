@@ -5604,12 +5604,13 @@ export class GameEngine {
         enemy.mesh.rotation.y = targetRotY;
 
         if (distToPlayer > enemy.data.attackRange) {
-          const moveSpeed = enemy.data.speed * delta;
+          const baseSpeed = enemy.data.id === 'boss_dragonfang' ? 5.8 : enemy.data.speed;
+          const moveSpeed = baseSpeed * delta;
           ePos.x += toPlayer.x * moveSpeed;
           ePos.z += toPlayer.z * moveSpeed;
           ePos.y = this.world.getTerrainHeight(ePos.x, ePos.z);
 
-          enemy.walkCycle += delta * 6;
+          enemy.walkCycle += delta * (enemy.data.id === 'boss_dragonfang' ? 9.5 : 6);
           this.animateEnemyWalk(enemy, delta);
 
         // Monster attack lunge / arm swing animation

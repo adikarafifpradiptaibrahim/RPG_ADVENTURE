@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { EnemyData, PlayerStats } from '../types/game';
 import { soundManager } from './audio';
-import { MonsterCombatAI } from './monsterAI';
+import { MonsterCombatAI, SPAWN_NAGA, NAGA_CALDERA_RADIUS } from './monsterAI';
 import {
   IGNIS_DRAGON_BOSS_CONFIG,
   ANCIENT_TITAN_BOSS_CONFIG,
@@ -64,7 +64,7 @@ export class BossManager {
 
   // Boss internal states keyed by boss ID
   private skillCooldowns: Map<string, Map<string, number>> = new Map();
-  private bossStates: Map<string, 'idle' | 'chase' | 'telegraph' | 'executing' | 'recovery'> = new Map();
+  private bossStates: Map<string, 'idle' | 'chase' | 'telegraph' | 'executing' | 'recovery' | 'flying_pursuit'> = new Map();
   private stateTimers: Map<string, number> = new Map();
   private activeTelegraphMap: Map<string, ActiveTelegraph> = new Map();
 
@@ -253,6 +253,10 @@ export class BossManager {
       return true; // Prevents normal chase/walk movement during skill wind-up
     }
 
+    if (currentState === 'flying_pursuit') {
+      return this.updateDragonFlyingPursuit(enemy, playerPos, delta, this.skillCooldowns.get(bossId)!);
+    }
+
     if (currentState === 'recovery') {
       if (stateTimer >= 0.6) {
         this.bossStates.set(bossId, 'chase');
@@ -280,18 +284,33 @@ export class BossManager {
     const cdMap = this.skillCooldowns.get(bossId)!;
 
     if (isIgnis) {
+      const distToCenter = Math.hypot(playerPos.x - SPAWN_NAGA[0], playerPos.z - SPAWN_NAGA[1]);
+      const flyingCooldown = cdMap.get('flying_dash') ?? cdMap.get('flying_pursuit') ?? 0;
+
+      // ATURAN PEMICU TERBANG (Flying Dive / Dash Pursuit):
+      // JIKA pemain masih berada di dalam arena kaldera (jarak ke pusat <= 48 unit),
+      // DAN jarak pemain ke naga menjauh (distToPlayer > 12 unit),
+      // DAN skill terbang tidak sedang cooldown (flyingCooldown <= 0),
+      // MAKA PAKSA naga beralih ke state: STATE_FLYING_PURSUIT.
+      if (distToCenter <= NAGA_CALDERA_RADIUS && distToPlayer > 12.0 && flyingCooldown <= 0) {
+        this.bossStates.set(bossId, 'flying_pursuit');
+        this.stateTimers.set(bossId, 0);
+        soundManager.playDragonRoar();
+        this.callbacks.onAddFloatingText('🦅 IGNIS TERBANG MENUKIK MENGEJAR!', '#f97316', 'crit');
+        return this.updateDragonFlyingPursuit(enemy, playerPos, delta, cdMap);
+      }
+
       const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), enemy.mesh.rotation.y);
       const toPlayer = new THREE.Vector3(playerPos.x - ePos.x, 0, playerPos.z - ePos.z).normalize();
       const dot = fwd.dot(toPlayer);
 
-      const selected = MonsterCombatAI.selectDragonSkill(distToPlayer, dot, cdMap);
+      const selected = MonsterCombatAI.selectDragonSkill(distToPlayer, dot, cdMap, distToCenter);
       if (selected === 'flying_dash') {
-        const skill = config.skills.find((s) => s.id === 'flying_dash')!;
-        this.startTelegraphLine(bossId, enemy, ePos, toPlayer, Math.min(48, distToPlayer + 4), 5.0, skill);
+        this.bossStates.set(bossId, 'flying_pursuit');
+        this.stateTimers.set(bossId, 0);
         soundManager.playDragonRoar();
-        this.callbacks.onAddFloatingText('🦅 IGNIS TERBANG MENUKIK CEPAT!', '#f97316', 'crit');
-        cdMap.set('flying_dash', skill.cooldown);
-        return true;
+        this.callbacks.onAddFloatingText('🦅 IGNIS TERBANG MENUKIK MENGEJAR!', '#f97316', 'crit');
+        return this.updateDragonFlyingPursuit(enemy, playerPos, delta, cdMap);
       } else if (selected === 'fireball_barrage') {
         const skill = config.skills.find((s) => s.id === 'fireball_barrage')!;
         this.startTelegraphCircle(bossId, enemy, playerPos.clone(), 3.0, skill);
@@ -404,6 +423,192 @@ export class BossManager {
     }
 
     return false;
+  }
+
+  /**
+   * STATE_FLYING_PURSUIT (Boss Naga Purba Ignis)
+   * Eksekusi terbang mulus dalam 3 fase: Take-off, Glide/Dive Rush, dan Landing Slam
+   */
+  public updateDragonFlyingPursuit(
+    enemy: {
+      data: EnemyData;
+      mesh: THREE.Group;
+      parts: Record<string, any>;
+      spawnPos?: THREE.Vector3;
+      leashRadius?: number;
+      isReturning?: boolean;
+    },
+    playerPos: THREE.Vector3,
+    delta: number,
+    cdMap: Map<string, number>
+  ): boolean {
+    const bossId = enemy.data.id;
+    const stateTimer = (this.stateTimers.get(bossId) || 0) + delta;
+    this.stateTimers.set(bossId, stateTimer);
+
+    const naga = enemy.mesh;
+    const nagaPos = naga.position;
+    const distPlayerToCenter = Math.hypot(playerPos.x - SPAWN_NAGA[0], playerPos.z - SPAWN_NAGA[1]);
+    const distNagaToCenter = Math.hypot(nagaPos.x - SPAWN_NAGA[0], nagaPos.z - SPAWN_NAGA[1]);
+
+    // ==========================================
+    // 3. PENGECUALIAN & FALLBACK
+    // ==========================================
+    // Pastikan naga TIDAK TERBANG keluar dari radius kaldera 48 unit.
+    // Jika pemain keluar batas, naga membatalkan terbang dan kembali ke pusat sarang.
+    if (distPlayerToCenter > NAGA_CALDERA_RADIUS || distNagaToCenter > NAGA_CALDERA_RADIUS + 2.0) {
+      this.bossStates.set(bossId, 'chase');
+      this.stateTimers.set(bossId, 0);
+      cdMap.set('flying_dash', 9.0);
+      cdMap.set('flying_pursuit', 9.0);
+      enemy.isReturning = true;
+
+      // Pendaratan darurat ke tanah
+      nagaPos.y = this.getTerrainHeight(nagaPos.x, nagaPos.z);
+      if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
+        enemy.parts.leftWing.rotation.set(0, 0, 0);
+        enemy.parts.rightWing.rotation.set(0, 0, 0);
+      }
+      return false;
+    }
+
+    const groundY = this.getTerrainHeight(nagaPos.x, nagaPos.z);
+    const targetFlightY = groundY + 6.0;
+    const distToPlayer = Math.hypot(playerPos.x - nagaPos.x, playerPos.z - nagaPos.z);
+
+    // ==========================================
+    // 1. FASE TAKE-OFF (Lepas Landas ~ 0.5s)
+    // ==========================================
+    if (stateTimer < 0.5) {
+      // Mengangkat posisinya ke udara secara halus: targetY = getTerrainHeight + 6.0
+      nagaPos.y = THREE.MathUtils.lerp(nagaPos.y, targetFlightY, delta * 8.0);
+
+      // Animasi rotasi sayap mengepak cepat (flapping wings):
+      if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
+        enemy.parts.leftWing.rotation.z = Math.sin(stateTimer * 24.0) * 0.55;
+        enemy.parts.rightWing.rotation.z = -Math.sin(stateTimer * 24.0) * 0.55;
+      }
+      if (enemy.parts?.neck) {
+        enemy.parts.neck.rotation.x = -0.3 + Math.sin(stateTimer * 10.0) * 0.15;
+      }
+      if (enemy.parts?.frontLeftLeg && enemy.parts?.frontRightLeg) {
+        enemy.parts.frontLeftLeg.rotation.x = -0.4;
+        enemy.parts.frontRightLeg.rotation.x = -0.4;
+      }
+      if (enemy.parts?.leftLeg && enemy.parts?.rightLeg) {
+        enemy.parts.leftLeg.rotation.x = 0.4;
+        enemy.parts.rightLeg.rotation.x = 0.4;
+      }
+
+      // Hadap ke arah pemain
+      const toP = new THREE.Vector3(playerPos.x - nagaPos.x, 0, playerPos.z - nagaPos.z).normalize();
+      if (toP.lengthSq() > 0.001) {
+        naga.rotation.y = Math.atan2(toP.x, toP.z);
+      }
+      return true;
+    }
+
+    // ==========================================
+    // 3. FASE LANDING SLAM (Mendarat di Dekat Pemain)
+    // ==========================================
+    // Ketika jarak horizontal ke pemain sudah dekat (distToPlayer <= 5 unit) atau batas durasi terbang tercapai
+    if (distToPlayer <= 5.0 || stateTimer >= 3.5) {
+      // Naga menukik tajam mendarat ke tanah:
+      nagaPos.y = groundY;
+
+      // Hasilkan efek benturan tanah (ground slam): partikel debu/magma meledak kecil dan guncangan layar
+      this.callbacks.onCameraShake(0.65);
+      soundManager.playMeteorImpact();
+      this.callbacks.onSpawnShockwave?.(nagaPos.clone(), 0xff3d00, 7.5, 0.5);
+      this.callbacks.onSpawnSparks?.(nagaPos.clone().add(new THREE.Vector3(0, 0.6, 0)), 0xdc2626, 18, 5.5);
+      this.callbacks.onAddFloatingText('💥 IGNIS MENDARAT MENUKIK (GROUND SLAM)!', '#ef4444', 'crit');
+
+      // Serangan benturan landing slam jika pemain berada di area benturan:
+      if (distToPlayer <= 5.5) {
+        this.callbacks.onUpdateStats((stats) => {
+          const actualDmg = Math.max(5, 45 - Math.round(stats.baseDefense * 0.4));
+          return { ...stats, hp: Math.max(0, stats.hp - actualDmg) };
+        });
+        this.callbacks.onAddFloatingText('-45 HP (Ignis Slam!)', '#ef4444', 'damage');
+      }
+
+      // Berikan jeda Cooldown untuk skill terbang selama 9 detik sebelum bisa digunakan lagi
+      cdMap.set('flying_dash', 9.0);
+      cdMap.set('flying_pursuit', 9.0);
+
+      // Reset rotasi sayap dan kaki
+      if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
+        enemy.parts.leftWing.rotation.set(0, 0, 0);
+        enemy.parts.rightWing.rotation.set(0, 0, 0);
+      }
+      if (enemy.parts?.frontLeftLeg && enemy.parts?.frontRightLeg) {
+        enemy.parts.frontLeftLeg.rotation.set(0, 0, 0);
+        enemy.parts.frontRightLeg.rotation.set(0, 0, 0);
+      }
+      if (enemy.parts?.leftLeg && enemy.parts?.rightLeg) {
+        enemy.parts.leftLeg.rotation.set(0, 0, 0);
+        enemy.parts.rightLeg.rotation.set(0, 0, 0);
+      }
+
+      // Segera transisikan naga ke serangan jarak dekat: Dragon Claw Strike atau Flame Breath
+      const clawCd = cdMap.get('dragon_claw') ?? 0;
+      const breathCd = cdMap.get('flame_breath') ?? cdMap.get('fire_breath') ?? 0;
+      const config = IGNIS_DRAGON_BOSS_CONFIG;
+
+      if (clawCd <= 0) {
+        const skill = config.skills.find((s) => s.id === 'dragon_claw')!;
+        const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), naga.rotation.y);
+        this.startTelegraphCircle(bossId, enemy, nagaPos.clone().addScaledVector(fwd, 2.5), 4.5, skill);
+        soundManager.playHit(true);
+        cdMap.set('dragon_claw', skill.cooldown);
+        return true;
+      } else if (breathCd <= 0) {
+        const skill = config.skills.find((s) => s.id === 'flame_breath') || config.skills.find((s) => s.id === 'fire_breath')!;
+        const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), naga.rotation.y);
+        this.startTelegraphCone(bossId, enemy, nagaPos.clone(), fwd, 14, Math.PI / 3, skill);
+        soundManager.playDragonFireBreath();
+        this.callbacks.onAddFloatingText('🔥 SEMBURAN LIDAH API KIPAS!', '#dc2626', 'damage');
+        cdMap.set('flame_breath', skill.cooldown);
+        return true;
+      } else {
+        this.bossStates.set(bossId, 'chase');
+        this.stateTimers.set(bossId, 0);
+        return true;
+      }
+    }
+
+    // ==========================================
+    // 2. FASE GLIDE / DIVE RUSH (Menukik Mengejar)
+    // ==========================================
+    // Gerakkan naga meluncur di udara menuju posisi pemain dengan kecepatan tinggi (16 - 20 m/s):
+    const playerGroundY = this.getTerrainHeight(playerPos.x, playerPos.z);
+    const targetY = THREE.MathUtils.lerp(targetFlightY, playerGroundY + 1.2, 0.45);
+    const targetPos = new THREE.Vector3(playerPos.x, targetY, playerPos.z);
+
+    // Lerp naga meluncur:
+    naga.position.lerp(targetPos, delta * 4.5);
+
+    // Kecepatan meluncur konstan ~18 m/s:
+    const toTarget = new THREE.Vector3().subVectors(targetPos, nagaPos);
+    if (toTarget.lengthSq() > 0.01) {
+      toTarget.normalize();
+      const flySpeed = 18.0 * delta;
+      nagaPos.addScaledVector(toTarget, flySpeed);
+    }
+
+    // Buat orientasi tubuh naga menghadap lurus ke arah gerak pemain:
+    naga.lookAt(playerPos.x, targetY, playerPos.z);
+
+    // Sayap mengepak kuat meluncur:
+    if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
+      enemy.parts.leftWing.rotation.z = Math.sin(stateTimer * 16.0) * 0.45;
+      enemy.parts.rightWing.rotation.z = -Math.sin(stateTimer * 16.0) * 0.45;
+    }
+    if (enemy.parts?.tail) {
+      enemy.parts.tail.rotation.y = Math.sin(stateTimer * 8.0) * 0.35;
+    }
+
+    return true;
   }
 
   // ==========================================
