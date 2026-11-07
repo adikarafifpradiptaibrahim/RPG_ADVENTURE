@@ -3,8 +3,25 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { CharacterClass } from '../../types/game';
 import { createHeroicKnightMesh, USE_LEGACY_KNIGHT, animateKnightWalk } from './KnightModel';
 import { createLegacyKnightMesh } from './KnightModelLegacy';
+import {
+  createHeroicMageMesh,
+  createLegacyMageMesh,
+  USE_LEGACY_MAGE,
+  animateMageWalk,
+  animateMageSkillPose,
+} from './MageModel';
 
-export { createHeroicKnightMesh, createLegacyKnightMesh, USE_LEGACY_KNIGHT, animateKnightWalk };
+export {
+  createHeroicKnightMesh,
+  createLegacyKnightMesh,
+  USE_LEGACY_KNIGHT,
+  animateKnightWalk,
+  createHeroicMageMesh,
+  createLegacyMageMesh,
+  USE_LEGACY_MAGE,
+  animateMageWalk,
+  animateMageSkillPose,
+};
 
 // Materials cache to optimize performance and prevent memory duplication
 export const createPaletteMaterials = () => {
@@ -93,6 +110,9 @@ export function createPlayerMesh(charClass: CharacterClass = 'warrior', tier: nu
   if (charClass === 'warrior') {
     return USE_LEGACY_KNIGHT ? createLegacyKnightMesh(tier) : createHeroicKnightMesh(tier);
   }
+  if ((charClass as CharacterClass) === 'mage') {
+    return USE_LEGACY_MAGE ? createLegacyMageMesh(tier) : createHeroicMageMesh(tier);
+  }
 
   const group = new THREE.Group();
 
@@ -101,7 +121,7 @@ export function createPlayerMesh(charClass: CharacterClass = 'warrior', tier: nu
   let secondaryColor = tier >= 3 ? 0xffd700 : 0xb0bec5; // Gold armor at tier 3+
   let capeColor = tier >= 3 ? 0xb91c1c : 0xd32f2f;
 
-  if (charClass === 'mage') {
+  if ((charClass as CharacterClass) === 'mage') {
     primaryColor = tier >= 3 ? 0x3b0764 : 0x5b21b6; // Deep cosmic violet
     secondaryColor = 0xf59e0b; // Amber gold trim
     capeColor = tier >= 3 ? 0x1e1b4b : 0x4c1d95; // Starlight nebula cape
@@ -164,7 +184,7 @@ export function createPlayerMesh(charClass: CharacterClass = 'warrior', tier: nu
     const rp = new THREE.Mesh(pauldronGeo, armorMat);
     rp.position.set(-0.5, 1.82, 0);
     group.add(lp, rp);
-  } else if (charClass === 'mage' && tier >= 2) {
+  } else if ((charClass as CharacterClass) === 'mage' && tier >= 2) {
     // Arcane shoulder mantle runes
     const mantleGeo = new THREE.BoxGeometry(0.26, 0.08, 0.3);
     const lm = new THREE.Mesh(mantleGeo, arcaneMat);
@@ -194,7 +214,7 @@ export function createPlayerMesh(charClass: CharacterClass = 'warrior', tier: nu
   group.add(head);
 
   // Class Headgear
-  if (charClass === 'mage') {
+  if ((charClass as CharacterClass) === 'mage') {
     // Wizard pointed hat with brim and star
     const hatBaseGeo = new THREE.CylinderGeometry(0.52, 0.6, 0.08, 8);
     const hatBase = new THREE.Mesh(hatBaseGeo, primaryMat);
@@ -228,7 +248,7 @@ export function createPlayerMesh(charClass: CharacterClass = 'warrior', tier: nu
   // Eyes (Glowing for rogue & mage)
   const eyeMat = charClass === 'rogue'
     ? new THREE.MeshBasicMaterial({ color: 0x34d399 }) // Glowing green assassin eyes
-    : charClass === 'mage'
+    : (charClass as CharacterClass) === 'mage'
     ? new THREE.MeshBasicMaterial({ color: 0x38bdf8 }) // Glowing celestial cyan eyes
     : new THREE.MeshBasicMaterial({ color: 0x111111 });
   const eyeGeo = new THREE.BoxGeometry(0.08, 0.06, 0.05);
@@ -280,7 +300,7 @@ export function createPlayerMesh(charClass: CharacterClass = 'warrior', tier: nu
   let hunterWeaponMode: 'dagger' | 'bow' = 'dagger';
   let setHunterWeaponMode: ((mode: 'dagger' | 'bow') => void) | undefined;
 
-  if (charClass === 'mage') {
+  if ((charClass as CharacterClass) === 'mage') {
     // Archmage Staff
     const shaftGeo = new THREE.CylinderGeometry(0.04, 0.055, 1.8, 6);
     shaftGeo.translate(0, 0.35, 0);
@@ -528,7 +548,7 @@ export function createPlayerMesh(charClass: CharacterClass = 'warrior', tier: nu
 
   // 1. Halos (Tier 3+: Single Halo, Tier 5+: Crown Rays, Tier 6: Twin Hyper-Radiant Celestial Halos)
   if (tier >= 3) {
-    const haloColor = charClass === 'mage'
+    const haloColor = (charClass as CharacterClass) === 'mage'
       ? (tier >= 6 ? 0xe0e7ff : 0x38bdf8)
       : (tier >= 6 ? 0x6ee7b7 : 0x10b981);
     const haloRadius = tier >= 5 ? 0.42 : 0.35;
@@ -564,7 +584,7 @@ export function createPlayerMesh(charClass: CharacterClass = 'warrior', tier: nu
     wings = new THREE.Group();
     wings.position.set(0, 1.6, -0.26);
 
-    const wingMat = charClass === 'mage'
+    const wingMat = (charClass as CharacterClass) === 'mage'
       ? new THREE.MeshStandardMaterial({
           color: tier >= 6 ? 0xe0e7ff : 0x818cf8,
           emissive: tier >= 6 ? 0xa5b4fc : 0x4f46e5,
@@ -609,8 +629,8 @@ export function createPlayerMesh(charClass: CharacterClass = 'warrior', tier: nu
 
   // 3. Orbiting Relics & Mana Crystals (Mage: Crystals, Warrior: Golden Sigils, Rogue: Emerald Shurikens)
   if (tier >= 3) {
-    const orbCount = tier >= 6 ? 6 : tier >= 5 ? 4 : (charClass === 'mage' ? (tier >= 4 ? 3 : 2) : 2);
-    const orbColors = charClass === 'mage'
+    const orbCount = tier >= 6 ? 6 : tier >= 5 ? 4 : ((charClass as CharacterClass) === 'mage' ? (tier >= 4 ? 3 : 2) : 2);
+    const orbColors = (charClass as CharacterClass) === 'mage'
       ? [0x00e5ff, 0xa855f7, 0xfbbf24, 0x67e8f9, 0xffffff, 0xc084fc]
       : [0x10b981, 0x34d399, 0x059669, 0x6ee7b7, 0xffffff, 0x14b8a6];
 
@@ -631,7 +651,7 @@ export function createPlayerMesh(charClass: CharacterClass = 'warrior', tier: nu
 
   // 4. Ground Aura Rings & Sacred Mandalas (Tier 3+: Single Ring, Tier 5+: Dual Rings, Tier 6: Transcendent Sun Mandala)
   if (tier >= 3) {
-    const auraColor = charClass === 'mage' ? 0x8b5cf6 : 0x10b981;
+    const auraColor = (charClass as CharacterClass) === 'mage' ? 0x8b5cf6 : 0x10b981;
     const ringGeo = new THREE.RingGeometry(0.65, tier >= 5 ? 0.85 : 0.78, 24);
     ringGeo.rotateX(-Math.PI / 2);
     const ringMat = new THREE.MeshBasicMaterial({

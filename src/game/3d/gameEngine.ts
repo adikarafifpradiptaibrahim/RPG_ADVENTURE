@@ -12,8 +12,18 @@ import {
 import { soundManager } from '../audio';
 import { CHEST_LOOT_POOL, MONSTER_MATERIALS } from '../data';
 import { getCurrentRegion } from '../mapData';
-import { createEnemyMesh, createPlayerMesh, createArrowMesh, PlayerMeshObjects, USE_LEGACY_KNIGHT, animateKnightWalk } from './models';
-export { USE_LEGACY_KNIGHT };
+import {
+  createEnemyMesh,
+  createPlayerMesh,
+  createArrowMesh,
+  PlayerMeshObjects,
+  USE_LEGACY_KNIGHT,
+  animateKnightWalk,
+  USE_LEGACY_MAGE,
+  animateMageWalk,
+  animateMageSkillPose,
+} from './models';
+export { USE_LEGACY_KNIGHT, USE_LEGACY_MAGE };
 import { buildWorld, WorldObjects, WorldCheckpoint } from './world';
 import { BossManager } from '../BossManager';
 import { RemotePlayerData } from '../multiplayer';
@@ -268,6 +278,7 @@ export class GameEngine {
   public arcaneShieldTimer = 0;
   private hunterWeaponMode: 'dagger' | 'bow' = 'dagger';
   private attackComboIndex = 0;
+  private mageLandingCrouchTimer = 0;
   private lastAttackTime = 0;
 
   // Multiplayer Synchronization State (Reusable for both Single Player & Multiplayer)
@@ -2953,6 +2964,12 @@ export class GameEngine {
     this.isCasting = false;
     this.callbacks.onCastingUpdate?.(null);
 
+    // Trigger Phase 2 Starfall Barrage Animation (2.0s downward staff strike pose)
+    this.isAttacking = true;
+    this.attackType = 'starfall';
+    this.attackDuration = 2.0;
+    this.attackTimer = 2.0;
+
     // Stop casting hum and immediately trigger Phase 2 Meteor Fall Impact SFX (meteor_fall.wav)
     soundManager.stopStarfallCharge();
     soundManager.playStarfallImpact(false, 0);
@@ -3104,9 +3121,12 @@ export class GameEngine {
       (delta) => {
         return vfx.update(delta, () => {
           // OnArrival landing trigger at 0.18s - 0.20s:
-          // 1. Restore player avatar visibility at landing coordinates
+          // 1. Restore player avatar visibility at landing coordinates & trigger crouch landing
           if (this.playerMesh && this.playerMesh.group) {
             this.playerMesh.group.visible = true;
+            if (this.charClass === 'mage') {
+              this.mageLandingCrouchTimer = 0.15;
+            }
           }
 
           // 2. Dual-color neon spark bursts (Cyan & Magenta) at character's feet
@@ -3591,8 +3611,8 @@ export class GameEngine {
       }
     } else if (this.charClass === 'mage') {
       this.attackType = 'basic';
-      this.attackDuration = 0.45;
-      this.attackTimer = 0.45;
+      this.attackDuration = 1.0;
+      this.attackTimer = 1.0;
       soundManager.playArcaneBeam();
       this.spawnMageArcaneLaserBeam();
     } else if (this.charClass === 'rogue') {
@@ -3808,8 +3828,15 @@ export class GameEngine {
           this.invulnerableTimer = 0.2;
           this.isDashing = true;
           this.dashTimer = 0.2;
+          this.isAttacking = true;
           this.attackType = 'blink';
+          this.attackDuration = 0.2;
           this.attackTimer = 0.2;
+
+          // Torso leans forward in blink direction
+          if (this.playerMesh && this.playerMesh.body) {
+            this.playerMesh.body.rotation.x = 0.40;
+          }
 
           // Align rotation to blink direction
           this.playerRotationY = Math.atan2(blinkDir.x, blinkDir.z);
@@ -4644,10 +4671,14 @@ export class GameEngine {
       }
       this.playerMesh.group.position.copy(this.playerPos);
 
-      // Starfall Casting pose: right arm raised high with glowing staff, left arm channeling celestial energy
+      // Starfall Casting pose: both arms raised high to sky, head tilted up, gentle +0.15 hover
       if (this.charClass === 'mage' && this.playerMesh) {
-        this.playerMesh.rightArm.rotation.set(-2.4, 0, -0.25);
-        this.playerMesh.leftArm.rotation.set(-2.0, 0, 0.4);
+        this.playerMesh.leftLeg.rotation.x = 0;
+        this.playerMesh.rightLeg.rotation.x = 0;
+        this.playerMesh.rightArm.rotation.set(-Math.PI * 0.85, -0.15, -0.20);
+        this.playerMesh.leftArm.rotation.set(-Math.PI * 0.85, 0.15, 0.25);
+        this.playerMesh.head.rotation.x = -0.30;
+        this.playerMesh.group.position.y += Math.sin(progress * Math.PI) * 0.15;
       }
 
       if (this.castingTimer >= this.castingDuration) {
@@ -4916,9 +4947,11 @@ export class GameEngine {
 
     // Role-specific posture offsets
     if (this.charClass === 'mage') {
-      // Gentle levitation float
-      const hover = Math.sin(this.clock.getElapsedTime() * 3.5) * 0.12;
-      this.playerMesh.group.position.y += hover;
+      if (this.mageLandingCrouchTimer > 0) {
+        this.mageLandingCrouchTimer = Math.max(0, this.mageLandingCrouchTimer - delta);
+        const crouchRatio = this.mageLandingCrouchTimer / 0.15;
+        this.playerMesh.group.position.y -= 0.10 * crouchRatio;
+      }
       this.playerMesh.group.rotation.x = 0;
     } else if (this.charClass === 'rogue') {
       // Forward ninja prowl crouch
@@ -4943,22 +4976,20 @@ export class GameEngine {
         this.playerMesh.body.rotation.z = 0;
         this.playerMesh.body.rotation.y = 0;
         this.playerMesh.cape.rotation.x = 0.30 + Math.sin(walkTime * 0.5) * 0.15;
+      } else if (this.charClass === 'mage') {
+        // Heroic Blocky Low-Poly Mage Walk Cycle
+        const walkTime = this.clock.getElapsedTime();
+        animateMageWalk(this.playerMesh, walkTime, this.playerPos.y, true, this.isAttacking);
       } else {
-        const legSwing = Math.sin(this.walkTime) * (this.charClass === 'mage' ? 0.35 : 0.62);
+        const legSwing = Math.sin(this.walkTime) * 0.62;
         this.playerMesh.leftLeg.rotation.x = legSwing;
         this.playerMesh.rightLeg.rotation.x = -legSwing;
 
         if (!this.isAttacking) {
-          if (this.charClass === 'mage') {
-            this.playerMesh.leftArm.rotation.x = -legSwing * 0.3;
-            this.playerMesh.rightArm.rotation.x = -0.4 + Math.sin(this.clock.getElapsedTime() * 2) * 0.1;
-            this.playerMesh.rightArm.rotation.z = 0;
-          } else if (this.charClass === 'rogue') {
-            this.playerMesh.leftArm.rotation.x = -0.5 - legSwing * 0.4;
-            this.playerMesh.rightArm.rotation.x = -0.5 + legSwing * 0.4;
-            this.playerMesh.leftArm.rotation.z = 0.25;
-            this.playerMesh.rightArm.rotation.z = -0.25;
-          }
+          this.playerMesh.leftArm.rotation.x = -0.5 - legSwing * 0.4;
+          this.playerMesh.rightArm.rotation.x = -0.5 + legSwing * 0.4;
+          this.playerMesh.leftArm.rotation.z = 0.25;
+          this.playerMesh.rightArm.rotation.z = -0.25;
         }
         this.playerMesh.cape.rotation.x = 0.35 + Math.sin(this.walkTime * 1.5) * 0.20;
       }
@@ -4983,21 +5014,19 @@ export class GameEngine {
           this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0.22 - breathe * 0.4, 0.15);
           this.playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.z, -0.20, 0.15);
         }
+      } else if (this.charClass === 'mage') {
+        // Heroic Blocky Low-Poly Mage Idle State (Subtle Breathing & Relaxed Staff/Grimoire Pose)
+        const walkTime = this.clock.getElapsedTime();
+        animateMageWalk(this.playerMesh, walkTime, this.playerPos.y, false, this.isAttacking);
       } else {
         this.playerMesh.leftLeg.rotation.x *= 0.8;
         this.playerMesh.rightLeg.rotation.x *= 0.8;
         if (!this.isAttacking) {
-          if (this.charClass === 'mage') {
-            const hoverFloat = Math.sin(this.clock.getElapsedTime() * 2) * 0.08;
-            this.playerMesh.leftArm.rotation.set(hoverFloat, 0, 0.15);
-            this.playerMesh.rightArm.rotation.set(-0.3 + hoverFloat, 0, -0.1);
-          } else if (this.charClass === 'rogue') {
-            this.playerMesh.leftArm.rotation.set(0.2, 0, 0.2);
-            this.playerMesh.rightArm.rotation.set(0.2, 0, -0.2);
-          }
+          this.playerMesh.leftArm.rotation.set(0.2, 0, 0.2);
+          this.playerMesh.rightArm.rotation.set(0.2, 0, -0.2);
         }
+        this.playerMesh.cape.rotation.x = 0.1 + Math.sin(this.clock.getElapsedTime() * 2) * 0.05;
       }
-      this.playerMesh.cape.rotation.x = 0.1 + Math.sin(this.clock.getElapsedTime() * 2) * 0.05;
     }
 
     // Role-specific attack animation
@@ -5050,21 +5079,14 @@ export class GameEngine {
           this.playerMesh.leftArm.rotation.set(swing * 0.6, 0, 0.15);
         }
       } else if (this.charClass === 'mage') {
-        if (this.attackType === 'supernova' || this.attackType === 'starfall') {
-          // Channeling both arms to sky
-          this.playerMesh.leftArm.rotation.set(-2.4, 0, 0.5);
-          this.playerMesh.rightArm.rotation.set(-2.4, 0, -0.5);
-          this.playerMesh.group.position.y += Math.sin((1 - progress) * Math.PI) * 0.4;
-        } else if (this.attackType === 'celestial_heal') {
-          // Divine invocation pose
-          this.playerMesh.leftArm.rotation.set(-2.2, 0, 0.3);
-          this.playerMesh.rightArm.rotation.set(-2.2, 0, -0.3);
-        } else {
-          // Staff thrust forward channeling Laser Beam through Magic Circle
-          const cast = Math.sin((1 - progress) * Math.PI);
-          this.playerMesh.rightArm.rotation.set(-1.52 - cast * 0.15, 0, -0.05);
-          this.playerMesh.leftArm.rotation.set(-0.6, 0, 0.35);
-        }
+        animateMageSkillPose(this.playerMesh, {
+          attackType: this.attackType,
+          progress,
+          isCasting: this.isCasting,
+          castingProgress: Math.min(1.0, this.castingTimer / this.castingDuration),
+          isBlinking: this.isDashing && this.attackType === 'blink',
+          blinkProgress: Math.max(0, this.dashTimer / 0.2),
+        });
       } else if (this.charClass === 'rogue') {
         if (this.attackType === 'flurry') {
           // Rapid alternating scissor blade thrusts
