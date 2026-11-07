@@ -19,6 +19,8 @@ import { REGIONS, WAYPOINTS } from '../game/mapData';
 import { getContinentBiomeSample } from '../game/mapSampler';
 
 // Persistent continent map cached image data to eliminate all lag on open & pan
+const MAP_CACHE_VERSION = 'v2.4_blueprint';
+let cachedMapVersion = '';
 let cachedMapImageData: ImageData | null = null;
 
 interface WorldMapModalProps {
@@ -346,7 +348,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
     const height = canvas.height;
 
     // Use cached image data if already generated
-    if (cachedMapImageData && cachedMapImageData.width === width && cachedMapImageData.height === height) {
+    if (cachedMapVersion === MAP_CACHE_VERSION && cachedMapImageData && cachedMapImageData.width === width && cachedMapImageData.height === height) {
       ctx.putImageData(cachedMapImageData, 0, 0);
       return;
     }
@@ -396,6 +398,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
       }
     }
 
+    cachedMapVersion = MAP_CACHE_VERSION;
     cachedMapImageData = imgData;
     ctx.putImageData(imgData, 0, 0);
   }, [isOpen]);

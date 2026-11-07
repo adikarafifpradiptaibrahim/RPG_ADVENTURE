@@ -9,7 +9,7 @@ export const REGIONS: RegionInfo[] = [
     description: 'A thriving coastal settlement with wooden cottages, busy harbor docks, merchant galleons, and wide open grassland plains.',
     descriptionId: 'Pusat desa damai dan padang rumput hijau luas Eldoria dengan rumah panggung kayu, pelabuhan kapal dagang, bengkel tempa, serta perbukitan landai terbuka.',
     color: '#4caf50',
-    bounds: { minX: -80, maxX: 80, minZ: -80, maxZ: 80 },
+    bounds: { minX: -120, maxX: 110, minZ: -150, maxZ: 20 },
     center: [0, -4],
     recommendedLevel: 1,
   },
@@ -382,8 +382,8 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
   if (x >= 140 && x <= 220 && z <= -225 && z >= -295) {
     return REGIONS[14];
   }
-  // 1. Dragonfang Caldera & Inferno Core (Far North: z <= -260 or within 45m of [-29, -337])
-  if (Math.hypot(x - -29, z - -337) < 45 || (z <= -260 && Math.abs(x) < 140)) {
+  // 1. Dragonfang Caldera & Inferno Core (Far North: z <= -200 and x between -210 and 110, or within 45m of [-29, -337])
+  if (Math.hypot(x - -29, z - -337) < 45 || (z <= -200 && x <= 110 && x >= -210)) {
     return REGIONS[13];
   }
   // 2. Ancient Titan Sanctuary Basin Arena (North-West: within 32m of [-95, -75])
@@ -398,16 +398,16 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
   if (x <= -120 && z >= 120) {
     return REGIONS[10];
   }
-  // 5. Jade Bamboo Grove & Sanctuary (Far South-East: x >= 120 && z >= 120)
-  if (x >= 120 && z >= 120) {
+  // 5. Jade Bamboo Grove & Sanctuary (Far South-East: x >= 120 && z >= 20)
+  if (x >= 120 && z >= 20) {
     return REGIONS[12];
   }
-  // 6. Frostpeak Summit & Mountain Glacier (North-East: x >= 110 && z <= -40)
-  if (x >= 110 && z <= -40) {
+  // 6. Frostpeak Summit & Mountain Glacier (North-East: x >= 110 && z <= 20)
+  if (x >= 110 && z <= 20) {
     return REGIONS[7];
   }
-  // 7. Shadowfen Gloom Marsh (Mid-Far West: x <= -120 && z between -100 and 120)
-  if (x <= -120 && z >= -100 && z <= 120) {
+  // 7. Shadowfen Gloom Marsh (Mid-Far West: x <= -120 && z between -200 and 120)
+  if (x <= -120 && z >= -200 && z <= 120) {
     return REGIONS[8];
   }
   // 8. Fortress Village Val-Kragor (Far East Highland)
@@ -423,7 +423,12 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
     return REGIONS[9];
   }
   // 11. Azure Coast & Ocean (South)
-  if (z >= 18) {
+  const isSouthOceanWedge =
+    (Math.abs(x) <= 45 && z >= 18) ||
+    (x < -45 && x >= -220 && z > 20 + (-x - 45) * 1.95) ||
+    (x > 45 && x <= 420 && z > 20 + (x - 45) * 1.15) ||
+    z >= 18;
+  if (isSouthOceanWedge) {
     return REGIONS[1];
   }
   // 12. Ancient Sunken Ruins (Far-West Outskirts: x: -145..-85, z: 12..65)
