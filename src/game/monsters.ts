@@ -881,6 +881,33 @@ export const ANCIENT_TITAN_BOSS_CONFIG: BossConfig = {
   ],
 };
 
+export const SPAWN_SANDWORM = {
+  x: 495,
+  y: 0,
+  z: -362,
+  homeX: 495,
+  homeZ: -362,
+  leashRadius: 48, // Terkunci di dalam arena kawah pasir
+};
+
+export const SPAWN_TITAN = {
+  x: -196,
+  y: 0,
+  z: -254,
+  homeX: -196,
+  homeZ: -254,
+  leashRadius: 42,
+};
+
+export const SPAWN_DRAGON = {
+  x: 80,
+  y: 0,
+  z: 360,
+  homeX: 80,
+  homeZ: 360,
+  leashRadius: 48,
+};
+
 export const JARRUS_WORM_BOSS_CONFIG: BossConfig = {
   id: 'boss_jarrus',
   name: 'Jarrus, The Devourer Sandworm',
@@ -895,10 +922,10 @@ export const JARRUS_WORM_BOSS_CONFIG: BossConfig = {
   defense: 22,
   speed: 2.8,
   attackRange: 6.5,
-  detectRange: 48,
+  detectRange: SPAWN_SANDWORM.leashRadius,
   expReward: 1600,
   goldReward: 1100,
-  pos: [495, -362], // Kawah Pusaran Pasir Raksasa Solaria (The Great Solaria Sinkhole)
+  pos: [SPAWN_SANDWORM.x, SPAWN_SANDWORM.z], // Kawah Pusaran Pasir Raksasa Solaria (The Great Solaria Sinkhole)
   scale: [1.0, 1.0, 1.0], // Full 1:1 Scale dengan diameter 3.8 unit & panjang 32 unit
   skills: [
     {

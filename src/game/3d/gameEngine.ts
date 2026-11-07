@@ -32,6 +32,7 @@ import { RemotePlayerData } from '../multiplayer';
 import { GraphicsSettings, loadGraphicsSettings } from '../graphicsSettings';
 import {
   isInsideSafeZone,
+  SPAWN_SANDWORM,
   MEADOW_SLIME_SPAWNS,
   MAGMA_SLIME_SPAWNS,
   SKELETON_SENTINEL_SPAWNS,
@@ -1570,10 +1571,9 @@ export class GameEngine {
     });
 
     // Solaria Desert Colossal Super Boss: Jarrus, Sang Cacing Purba (Segmented Burrowing Sandworm: [495, -362])
-    const wormPos: [number, number] = [495, -362];
+    const wormY = this.world.getTerrainHeight(SPAWN_SANDWORM.x, SPAWN_SANDWORM.z);
     const { group: wormGroup, parts: wormParts } = createEnemyMesh('worm');
-    const wormY = this.world.getTerrainHeight(wormPos[0], wormPos[1]);
-    wormGroup.position.set(wormPos[0], wormY, wormPos[1]);
+    wormGroup.position.set(SPAWN_SANDWORM.x, wormY, SPAWN_SANDWORM.z);
     this.scene.add(wormGroup);
 
     const wormData: EnemyData = {
@@ -1590,8 +1590,8 @@ export class GameEngine {
       goldReward: 1200,
       speed: 2.8,
       attackRange: 6.5,
-      detectRange: 48,
-      position: [wormPos[0], wormY, wormPos[1]],
+      detectRange: SPAWN_SANDWORM.leashRadius,
+      position: [SPAWN_SANDWORM.x, wormY, SPAWN_SANDWORM.z],
       isDead: false,
       dropItems: [
         { item: CHEST_LOOT_POOL[0], chance: 1.0 },
@@ -1607,6 +1607,10 @@ export class GameEngine {
       baseY: wormY,
       attackCooldown: 0,
       walkCycle: 0,
+      spawnPos: new THREE.Vector3(SPAWN_SANDWORM.homeX, wormY, SPAWN_SANDWORM.homeZ),
+      leashRadius: SPAWN_SANDWORM.leashRadius,
+      isReturning: false,
+      deathTimer: 0,
     });
 
     // Initialize territory origin points and leash parameters for all monsters
@@ -5579,11 +5583,14 @@ export class GameEngine {
         if (distFromSpawn > 1.2) {
           enemy.isReturning = true;
           return;
+        } else {
+          // Monster berada di sarang dan pemain di luar jangkauan: tetap tenang/idle di sarang
+          return;
         }
       }
 
-      // STATE 2.5: Boss Specialized Attack Skills & Ground Telegraph Danger Zones
-      if (enemy.data.type === 'boss') {
+      // STATE 2.5: Boss Specialized Attack Skills & Ground Telegraph Danger Zones (Hanya jika pemain dalam jangkauan & boss di arena)
+      if (enemy.data.type === 'boss' && distToPlayer <= enemy.data.detectRange && distFromSpawn <= territoryRadius) {
         const isCasting = this.bossManager.updateBossBehavior(enemy, this.playerPos, delta);
         if (isCasting) {
           return;

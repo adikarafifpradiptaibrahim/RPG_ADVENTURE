@@ -26,7 +26,7 @@ export interface ActiveTelegraph {
   duration: number;
   skill: BossSkill;
   bossId: string;
-  enemy?: { mesh: THREE.Group };
+  enemy?: { mesh: THREE.Group; spawnPos?: THREE.Vector3; leashRadius?: number };
 }
 
 export interface PlayerStatusDebuffs {
@@ -179,6 +179,9 @@ export class BossManager {
       data: EnemyData;
       mesh: THREE.Group;
       parts: Record<string, any>;
+      spawnPos?: THREE.Vector3;
+      leashRadius?: number;
+      isReturning?: boolean;
     },
     playerPos: THREE.Vector3,
     delta: number
@@ -259,8 +262,21 @@ export class BossManager {
     }
 
     // Evaluate Boss Skills
+    if (enemy.isReturning) {
+      return false;
+    }
     const ePos = enemy.mesh.position;
     const distToPlayer = Math.hypot(playerPos.x - ePos.x, playerPos.z - ePos.z);
+    if (distToPlayer > enemy.data.detectRange) {
+      return false; // Out of detection range, do not cast boss skills
+    }
+    const homeX = enemy.spawnPos ? enemy.spawnPos.x : (isWorm ? 495 : (isTitan ? -196 : 80));
+    const homeZ = enemy.spawnPos ? enemy.spawnPos.z : (isWorm ? -362 : (isTitan ? -254 : 360));
+    const distFromHome = Math.hypot(ePos.x - homeX, ePos.z - homeZ);
+    const maxLeash = enemy.leashRadius || 48;
+    if (distFromHome > maxLeash) {
+      return false; // Beyond leash territory
+    }
     const cdMap = this.skillCooldowns.get(bossId)!;
 
     if (isIgnis) {
@@ -343,7 +359,17 @@ export class BossManager {
         }
       } else if (selected === 'burrow_burst') {
         const skill = config.skills.find((s) => s.id === 'burrow_burst')!;
-        this.startTelegraphCircle(bossId, enemy, playerPos.clone(), 4.5, skill);
+        const targetPos = playerPos.clone();
+        // Leash territory safeguard: Cacing tidak boleh burrow keluar dari arena kawah pasir
+        const homePos = enemy.spawnPos || new THREE.Vector3(495, 0, -362);
+        const distFromHome = Math.hypot(targetPos.x - homePos.x, targetPos.z - homePos.z);
+        const maxRadius = enemy.leashRadius || 48;
+        if (distFromHome > maxRadius) {
+          const ratio = (maxRadius - 2.0) / distFromHome;
+          targetPos.x = homePos.x + (targetPos.x - homePos.x) * ratio;
+          targetPos.z = homePos.z + (targetPos.z - homePos.z) * ratio;
+        }
+        this.startTelegraphCircle(bossId, enemy, targetPos, 4.5, skill);
         soundManager.playWormBurrow();
         this.callbacks.onAddFloatingText('⚠️ Cacing Purba Menyelam ke Bawah Pasir!', '#ef4444', 'info');
         if (enemy.mesh) {
@@ -386,7 +412,7 @@ export class BossManager {
 
   private startTelegraphCircle(
     bossId: string,
-    enemy: { mesh: THREE.Group },
+    enemy: { mesh: THREE.Group; spawnPos?: THREE.Vector3; leashRadius?: number },
     center: THREE.Vector3,
     radius: number,
     skill: BossSkill
@@ -441,7 +467,7 @@ export class BossManager {
 
   private startTelegraphCone(
     bossId: string,
-    enemy: { mesh: THREE.Group },
+    enemy: { mesh: THREE.Group; spawnPos?: THREE.Vector3; leashRadius?: number },
     origin: THREE.Vector3,
     direction: THREE.Vector3,
     length: number,
@@ -505,7 +531,7 @@ export class BossManager {
 
   private startTelegraphLine(
     bossId: string,
-    enemy: { mesh: THREE.Group },
+    enemy: { mesh: THREE.Group; spawnPos?: THREE.Vector3; leashRadius?: number },
     origin: THREE.Vector3,
     direction: THREE.Vector3,
     length: number,
@@ -670,8 +696,20 @@ export class BossManager {
       this.callbacks.onCameraShake(0.95);
       this.callbacks.onSpawnShockwave?.(tel.center, 0xff3d00, 8.0, 0.6);
       if (tel.enemy?.mesh) {
-        const destY = this.getTerrainHeight(tel.center.x, tel.center.z);
-        tel.enemy.mesh.position.set(tel.center.x, destY, tel.center.z);
+        let posX = tel.center.x;
+        let posZ = tel.center.z;
+        if (tel.enemy.spawnPos && tel.enemy.leashRadius) {
+          const dX = posX - tel.enemy.spawnPos.x;
+          const dZ = posZ - tel.enemy.spawnPos.z;
+          const distH = Math.hypot(dX, dZ);
+          if (distH > tel.enemy.leashRadius) {
+            const r = (tel.enemy.leashRadius - 2.0) / distH;
+            posX = tel.enemy.spawnPos.x + dX * r;
+            posZ = tel.enemy.spawnPos.z + dZ * r;
+          }
+        }
+        const destY = this.getTerrainHeight(posX, posZ);
+        tel.enemy.mesh.position.set(posX, destY, posZ);
       }
     } else if (tel.skill.id === 'fireball_barrage') {
       soundManager.playDragonFireBreath();
@@ -699,8 +737,20 @@ export class BossManager {
       soundManager.playWormBurstOut();
       this.callbacks.onCameraShake(1.3);
       if (tel.enemy?.mesh) {
-        const gY = this.getTerrainHeight(tel.center.x, tel.center.z);
-        tel.enemy.mesh.position.set(tel.center.x, gY, tel.center.z);
+        let posX = tel.center.x;
+        let posZ = tel.center.z;
+        if (tel.enemy.spawnPos && tel.enemy.leashRadius) {
+          const dX = posX - tel.enemy.spawnPos.x;
+          const dZ = posZ - tel.enemy.spawnPos.z;
+          const distH = Math.hypot(dX, dZ);
+          if (distH > tel.enemy.leashRadius) {
+            const r = (tel.enemy.leashRadius - 2.0) / distH;
+            posX = tel.enemy.spawnPos.x + dX * r;
+            posZ = tel.enemy.spawnPos.z + dZ * r;
+          }
+        }
+        const gY = this.getTerrainHeight(posX, posZ);
+        tel.enemy.mesh.position.set(posX, gY, posZ);
       }
       this.callbacks.onSpawnShockwave?.(tel.center, 0xd97706, 6.5, 0.8);
     } else if (tel.skill.id === 'sand_spike_barrage') {

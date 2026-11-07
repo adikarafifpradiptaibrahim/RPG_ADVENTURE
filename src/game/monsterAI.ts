@@ -70,18 +70,23 @@ export class MonsterCombatAI {
     const boulderCd = cdMap.get('boulder_hurl') ?? cdMap.get('rock_throw') ?? 0;
     const punchCd = cdMap.get('heavy_punch') ?? 0;
 
+    // Out of arena engagement range: do not trigger any skills
+    if (distToPlayer > 42.0) {
+      return null;
+    }
+
     // 1. High-Priority AOE: Seismic Ground Slam (Semua jarak, Cooldown 14s)
     if (slamCd <= 0 && distToPlayer <= 25) {
       return 'seismic_slam';
     }
 
     // 2. Long-Range Gap Threat: Boulder Hurl (Jarak > 8 unit, Cooldown 6s)
-    if (distToPlayer > 8.0 && boulderCd <= 0) {
+    if (distToPlayer > 8.0 && distToPlayer <= 42.0 && boulderCd <= 0) {
       return 'boulder_hurl';
     }
 
     // 3. Mid/Long Ground Wave: Earth Fissure Strike (Jarak > 6 unit, Cooldown 8s)
-    if (distToPlayer > 6.0 && fissureCd <= 0) {
+    if (distToPlayer > 6.0 && distToPlayer <= 42.0 && fissureCd <= 0) {
       return 'earth_fissure';
     }
 
@@ -101,18 +106,23 @@ export class MonsterCombatAI {
     dotWithPlayer: number, // dot product with forward facing vector
     cdMap: Map<string, number>
   ): string | null {
+    // Out of arena engagement range: do not trigger any skills
+    if (distToPlayer > 48.0) {
+      return null;
+    }
+
     const dashCd = cdMap.get('flying_dash') ?? 0;
     const fireballCd = cdMap.get('fireball_barrage') ?? 0;
     const breathCd = cdMap.get('flame_breath') ?? cdMap.get('fire_breath') ?? 0;
     const clawCd = cdMap.get('dragon_claw') ?? cdMap.get('tail_swipe') ?? 0;
 
     // 1. Gap Closer: Flying Dash (Jarak > 15 unit, Cooldown 9s)
-    if (distToPlayer > 15.0 && dashCd <= 0) {
+    if (distToPlayer > 15.0 && distToPlayer <= 48.0 && dashCd <= 0) {
       return 'flying_dash';
     }
 
     // 2. Ranged Bombardment: Fireball Barrage (Jarak > 8 unit, Cooldown 5s)
-    if (distToPlayer > 8.0 && fireballCd <= 0) {
+    if (distToPlayer > 8.0 && distToPlayer <= 48.0 && fireballCd <= 0) {
       return 'fireball_barrage';
     }
 
@@ -138,18 +148,23 @@ export class MonsterCombatAI {
     maxHp: number,
     cdMap: Map<string, number>
   ): string | null {
+    // Out of arena engagement range: do not trigger any skills
+    if (distToPlayer > 48.0) {
+      return null;
+    }
+
     const whirlpoolCd = cdMap.get('sand_whirlpool') ?? 0;
     const burrowCd = cdMap.get('burrow_burst') ?? 0;
     const spikeCd = cdMap.get('sand_spike_barrage') ?? 0;
     const tailCd = cdMap.get('tail_slam') ?? 0;
 
     // 1. Desperation Mechanic: Sand Whirlpool (HP < 50%, Cooldown 18s)
-    if (currentHp < maxHp * 0.5 && whirlpoolCd <= 0 && distToPlayer <= 45) {
+    if (currentHp < maxHp * 0.5 && whirlpoolCd <= 0 && distToPlayer <= 45.0) {
       return 'sand_whirlpool';
     }
 
     // 2. Long Distance Eruption: Burrow & Surface Eruption (Jarak > 12 unit, Cooldown 6.5s)
-    if (distToPlayer > 12.0 && burrowCd <= 0) {
+    if (distToPlayer > 12.0 && distToPlayer <= 48.0 && burrowCd <= 0) {
       return 'burrow_burst';
     }
 
@@ -166,3 +181,4 @@ export class MonsterCombatAI {
     return null;
   }
 }
+
