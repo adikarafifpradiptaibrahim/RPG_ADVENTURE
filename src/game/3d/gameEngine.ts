@@ -304,7 +304,9 @@ export class GameEngine {
     object: THREE.Object3D;
     update: (delta: number) => boolean;
     cleanup?: () => void;
+    isPriority?: boolean;
   }[] = [];
+  private starfallTimeoutIds: Array<ReturnType<typeof setTimeout>> = [];
   private activeProjectiles: {
     object: THREE.Object3D;
     direction: THREE.Vector3;
@@ -2329,21 +2331,22 @@ export class GameEngine {
     this.cameraFovPunch = Math.max(this.cameraFovPunch, amount);
   }
 
-  private addVfx(object: THREE.Object3D, update: (delta: number) => boolean, cleanup?: () => void) {
-    // Lightweight rendering optimization: prune oldest VFX if pool exceeds 75 to keep 60 FPS
+  private addVfx(object: THREE.Object3D, update: (delta: number) => boolean, cleanup?: () => void, isPriority = false) {
+    // Lightweight rendering optimization: prune oldest non-priority VFX if pool exceeds 75 to keep 60 FPS
     if (this.activeVfx.length > 75) {
-      const oldest = this.activeVfx.shift();
-      if (oldest) {
-        this.scene.remove(oldest.object);
-        if (oldest.cleanup) {
+      const indexToPrune = this.activeVfx.findIndex((v) => !v.isPriority);
+      if (indexToPrune !== -1) {
+        const pruned = this.activeVfx.splice(indexToPrune, 1)[0];
+        this.scene.remove(pruned.object);
+        if (pruned.cleanup) {
           try {
-            oldest.cleanup();
+            pruned.cleanup();
           } catch {}
         }
       }
     }
     this.scene.add(object);
-    this.activeVfx.push({ object, update, cleanup });
+    this.activeVfx.push({ object, update, cleanup, isPriority });
   }
 
   // Radiant 4-pointed Starburst Cross on Crits and Heavy Impacts
@@ -2949,7 +2952,8 @@ export class GameEngine {
         if (this.castingCircleInstance === circle) {
           this.castingCircleInstance = null;
         }
-      }
+      },
+      true // Priority VFX: never prune during casting
     );
 
     // Notify UI: Display casting progress bar ("Casting... 1.0s")
@@ -2964,11 +2968,13 @@ export class GameEngine {
     this.isCasting = false;
     this.callbacks.onCastingUpdate?.(null);
 
-    // Trigger Phase 2 Starfall Barrage Animation (2.0s downward staff strike pose)
+    // Trigger Phase 2 Starfall Slam Gesture (0.2s downward staff strike pose)
+    // Karakter mengayunkan tongkat ke depan selama 0.2 detik (Detik 1.0 s/d 1.2),
+    // lalu kembali ke IDLE / WALK normal sehingga pemain bebas bergerak saat 10 meteor turun
     this.isAttacking = true;
     this.attackType = 'starfall';
-    this.attackDuration = 2.0;
-    this.attackTimer = 2.0;
+    this.attackDuration = 0.20;
+    this.attackTimer = 0.20;
 
     // Stop casting hum and immediately trigger Phase 2 Meteor Fall Impact SFX (meteor_fall.wav)
     soundManager.stopStarfallCharge();
@@ -2980,15 +2986,23 @@ export class GameEngine {
 
     // Calculate target impact area in front of character (14.5 units ahead: safe 12-15 range)
     const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
-    const targetPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(14.5));
-    targetPos.y = this.world.getTerrainHeight(targetPos.x, targetPos.z);
+    let targetPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(14.5));
+    let terrainH = this.world.getTerrainHeight(targetPos.x, targetPos.z);
+    if (isNaN(terrainH) || terrainH < -20 || isNaN(targetPos.x) || isNaN(targetPos.z)) {
+      targetPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(14.5));
+      terrainH = this.world.getTerrainHeight(targetPos.x, targetPos.z);
+    }
+    targetPos.y = Math.max(isNaN(terrainH) ? 0 : terrainH, 0);
 
     this.spawnStarfallMeteorBarrage(targetPos);
   }
 
   private spawnStarfallMeteorBarrage(targetCenter: THREE.Vector3, isRemote = false) {
+    const safeTargetCenter = targetCenter.clone();
+    safeTargetCenter.y = Math.max(safeTargetCenter.y, 0);
+
     const vfx = createStarfallMeteorBarrageVfx({
-      targetCenter,
+      targetCenter: safeTargetCenter,
       onImpact: (impactPos, isLast, idx) => {
         soundManager.playStarfallImpact(isLast, idx);
         this.triggerCameraShake(isLast ? 0.44 : 0.20);
@@ -3027,7 +3041,7 @@ export class GameEngine {
       },
     });
 
-    this.addVfx(vfx.group, vfx.update, vfx.cleanup);
+    this.addVfx(vfx.group, vfx.update, vfx.cleanup, true);
   }
 
   // 6. Mage Supernova Astral VFX (Celestial Pillar, Concentric Cosmic Shockwaves & Radial Astral Beams)
@@ -6488,6 +6502,8 @@ export class GameEngine {
     window.removeEventListener('touchcancel', this.handleTouchEnd);
 
     // Clean up active VFX and projectiles
+    this.starfallTimeoutIds.forEach((id) => clearTimeout(id));
+    this.starfallTimeoutIds = [];
     this.activeVfx.forEach((v) => {
       this.scene.remove(v.object);
       if (v.cleanup) {

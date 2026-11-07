@@ -167,8 +167,7 @@ interface BlockyMageGeometryPalette {
   hatBrimGeo: THREE.BufferGeometry;
   hatBrimTrimGeo: THREE.BufferGeometry;
   hatBandGeo: THREE.BufferGeometry;
-  hatConeBaseGeo: THREE.BufferGeometry;
-  hatConeTipGeo: THREE.BufferGeometry;
+  hatConeGeo: THREE.BufferGeometry;
   // Torso & Armor
   torsoChestGeo: THREE.BufferGeometry;
   torsoVestGeo: THREE.BufferGeometry;
@@ -207,17 +206,14 @@ let cachedGeometries: BlockyMageGeometryPalette | null = null;
 
 function getMageGeometries(): BlockyMageGeometryPalette {
   if (!cachedGeometries) {
-    // 1. Topi Penyihir: Brim balok persegi/oktagonal datar berlis emas keliling
-    const hatBrimGeo = new THREE.CylinderGeometry(0.48, 0.50, 0.045, 8);
-    const hatBrimTrimGeo = new THREE.CylinderGeometry(0.505, 0.515, 0.02, 8);
-    const hatBandGeo = new THREE.CylinderGeometry(0.28, 0.29, 0.08, 6);
+    // 1. Topi Penyihir: Brim silinder datar berlis emas keliling & kerucut piramida bersih
+    const hatBrimGeo = new THREE.CylinderGeometry(0.55, 0.58, 0.06, 6);
+    const hatBrimTrimGeo = new THREE.CylinderGeometry(0.585, 0.595, 0.02, 6);
+    const hatBandGeo = new THREE.CylinderGeometry(0.382, 0.39, 0.06, 6);
 
-    // Kerucut Topi Miring / Crooked Wizard Cone (Prisma Piramida 4-5 sisi)
-    const hatConeBaseGeo = new THREE.ConeGeometry(0.28, 0.44, 4);
-    hatConeBaseGeo.translate(0, 0.22, 0);
-
-    const hatConeTipGeo = new THREE.ConeGeometry(0.16, 0.36, 4);
-    hatConeTipGeo.translate(0, 0.18, 0);
+    // Kerucut Piramida Bersih (Clean 4-sided Pyramid Cone: radius 0.38, height 0.75, radialSegments 4)
+    const hatConeGeo = new THREE.ConeGeometry(0.38, 0.75, 4);
+    hatConeGeo.translate(0, 0.375, 0); // Base at y=0, peak at y=0.75
 
     // 2. Pauldrons: Balok prisma abu-abu metalik berlis emas kaku (identik dengan Knight)
     const pauldronDomeGeo = new THREE.BoxGeometry(0.28, 0.16, 0.28);
@@ -271,8 +267,7 @@ function getMageGeometries(): BlockyMageGeometryPalette {
       hatBrimGeo,
       hatBrimTrimGeo,
       hatBandGeo,
-      hatConeBaseGeo,
-      hatConeTipGeo,
+      hatConeGeo,
       torsoChestGeo: new THREE.BoxGeometry(0.66, 0.78, 0.42),
       torsoVestGeo,
       beltGeo: new THREE.BoxGeometry(0.72, 0.12, 0.46),
@@ -388,32 +383,28 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
 
   // Topi Runcing (Wizard Hat Group)
   const hatGroup = new THREE.Group();
-  hatGroup.position.set(0, 0.24, 0);
+  hatGroup.position.set(0, 0.23, 0); // Menempel rapat di atas kepala (head top y=0.23)
 
-  // Brim Datar dari Balok Persegi/Oktagon yang Dihas Lis Kuning/Emas
+  // Brim Datar dari CylinderGeometry berlis emas (#eab308)
   const hatBrim = new THREE.Mesh(geos.hatBrimGeo, mats.tunicPurpleMat);
+  hatBrim.position.y = 0.03;
   hatBrim.castShadow = true;
+
   const hatBrimTrim = new THREE.Mesh(geos.hatBrimTrimGeo, mats.goldTrimMat);
-  hatBrimTrim.position.y = -0.012;
+  hatBrimTrim.position.y = 0.01;
   hatGroup.add(hatBrim, hatBrimTrim);
 
   // Hatband Emas
   const hatBand = new THREE.Mesh(geos.hatBandGeo, mats.goldTrimMat);
-  hatBand.position.y = 0.05;
+  hatBand.position.y = 0.07;
   hatGroup.add(hatBand);
 
-  // Kerucut Topi Runcing Piramida Bersudut Rendah (Crooked Tip)
-  const hatConeBase = new THREE.Mesh(geos.hatConeBaseGeo, mats.tunicPurpleMat);
-  hatConeBase.position.set(0, 0.08, -0.02);
-  hatConeBase.rotation.x = -0.12;
-  hatConeBase.castShadow = true;
-  hatGroup.add(hatConeBase);
-
-  const hatConeTip = new THREE.Mesh(geos.hatConeTipGeo, mats.tunicPurpleMat);
-  hatConeTip.position.set(0.04, 0.44, -0.08);
-  hatConeTip.rotation.set(-0.25, 0, 0.18);
-  hatConeTip.castShadow = true;
-  hatGroup.add(hatConeTip);
+  // Satu Kerucut Piramida Bersih (Tegak Lurus Meruncing ke Atas, Tanpa Lekukan/Tumpukan Aneh)
+  const hatCone = new THREE.Mesh(geos.hatConeGeo, mats.tunicPurpleMat);
+  hatCone.position.set(0, 0.06, 0);
+  hatCone.rotation.y = Math.PI / 4;
+  hatCone.castShadow = true;
+  hatGroup.add(hatCone);
 
   head.add(hatGroup);
 
@@ -814,28 +805,39 @@ export function animateMageSkillPose(
 
   // A. Basic Attack: Arcane Beam (Channeling 1.0 Detik)
   if (ctx.attackType === 'basic') {
-    // Lengan Kanan terangkat lurus ke depan sejajar bahu (rotation.x = -Math.PI / 2)
+    // 1. Lengan Kanan: Angkat lurus ke depan setinggi dada (rotation.x = -Math.PI / 2)
     playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -Math.PI / 2, lerpSpeed);
     playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, lerpSpeed);
     playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, -0.05, lerpSpeed);
 
-    // Lengan Kiri terbuka sedikit ke samping luar menjaga keseimbangan casting mantra
-    playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -0.55, lerpSpeed);
-    playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.15, lerpSpeed);
-    playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.35, lerpSpeed);
+    // Balik arah pivot tongkat pada tangan kanan agar kepala kristal biru menghadap ke depan (+Z target)
+    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, Math.PI, lerpSpeed);
 
-    playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, 0, lerpSpeed);
+    // 2. Lengan Kiri (Grimoire): Angkat sedikit ke samping depan seolah membaca mantra dari kitab
+    playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -0.40, lerpSpeed);
+    playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.50, lerpSpeed);
+    playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.20, lerpSpeed);
+
+    // 3. Tubuh & Kaki: Berikan kuda-kuda kokoh (tekukan lutut & tubuh condong ke depan 0.1 rad menahan daya dorong laser)
+    playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0.10, lerpSpeed);
+    playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, -0.15, lerpSpeed);
+    playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0.15, lerpSpeed);
+
+    playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, -0.05, lerpSpeed);
     return;
+  } else {
+    // Kembalikan orientasi tegak natural tongkat saat tidak menembakkan Arcane Beam
+    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 0.08, lerpSpeed);
   }
 
-  // B. Skill 1: Starfall (Fase Casting 1.0 Detik & Fase Barrage 2.0 Detik)
+  // B. Skill 1: Starfall (Fase Casting 1.0 Detik & Fase Barrage Meteor 10-Barrage)
   if (ctx.isCasting) {
-    // Fase Casting:
-    // - Kaki berhenti melangkah
+    // Detik 0.0 - 1.0 (Fase Casting):
+    // Karakter diam di tempat, kedua tangan diangkat tinggi ke langit, kepala mendongak ke atas
     playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0, lerpSpeed);
     playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0, lerpSpeed);
 
-    // - Kedua lengan diangkat tinggi ke atas (rotation.x = -Math.PI * 0.85), mengangkat tongkat & grimoire
+    // Kedua lengan diangkat tinggi ke atas langit
     playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -Math.PI * 0.85, lerpSpeed);
     playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, -0.15, lerpSpeed);
     playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, -0.20, lerpSpeed);
@@ -844,20 +846,24 @@ export function animateMageSkillPose(
     playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.15, lerpSpeed);
     playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.25, lerpSpeed);
 
-    // - Kepala mendongak ke atas (headGroup.rotation.x = -0.3 rad)
+    // Kepala mendongak ke atas (head rotation.x = -0.3 rad)
     playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, -0.30, lerpSpeed);
 
-    // - Seluruh model terangkat halus (+0.15 unit Y) melayang selama casting
+    // Seluruh model terangkat halus (+0.15 unit Y) melayang selama casting
     playerMesh.group.position.y += THREE.MathUtils.lerp(0, 0.15, ctx.castingProgress);
     return;
   }
 
   if (ctx.attackType === 'starfall' || ctx.attackType === 'supernova') {
-    // Fase Barrage: Sentakkan tongkat ke arah tanah di depan saat meteor turun
-    const swingProgress = Math.sin((1 - ctx.progress) * Math.PI);
-    playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(-Math.PI * 0.85, -0.85 - swingProgress * 0.5, 0.35);
-    playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(-Math.PI * 0.85, -0.40, 0.35);
-    playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, 0.05, lerpSpeed);
+    // Tepat di Detik 1.0: Ayunkan tongkat ke arah tanah di depannya (slam/point gesture singkat 0.2 detik)
+    const slam = Math.sin((1 - ctx.progress) * Math.PI);
+    playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -0.65 - slam * 0.85, 0.45);
+    playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, 0.35);
+    playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, -0.10, 0.35);
+
+    playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -0.30, 0.35);
+    playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0.12 * slam, 0.35);
+    playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, 0.10, lerpSpeed);
     return;
   }
 
