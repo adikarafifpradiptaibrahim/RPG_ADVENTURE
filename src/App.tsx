@@ -109,9 +109,10 @@ export default function App() {
     return ['wp_village'];
   });
 
-  // Spectator Mode State
+  // Spectator Mode State & Cinematic UI Toggle
   const [isSpectatorMode, setIsSpectatorMode] = useState(false);
   const [spectatorSpeed, setSpectatorSpeed] = useState(22);
+  const [isUIVisible, setIsUIVisible] = useState(true);
 
   // World Map & Minimap Live Position State
   const [playerPos, setPlayerPos] = useState({ x: 0, z: 4, rotationY: 0 });
@@ -438,6 +439,8 @@ export default function App() {
     setIsSpectatorMode(nextState);
     if (nextState) {
       setSpectatorSpeed(engineRef.current.getSpectatorSpeed());
+    } else {
+      setIsUIVisible(true);
     }
   }, []);
 
@@ -887,6 +890,12 @@ export default function App() {
           return;
         }
 
+        // If UI was hidden, restore it first on Escape
+        if (!isUIVisible) {
+          setIsUIVisible(true);
+          return;
+        }
+
         // If any sub-modal is open, close that first
         if (
           isInventoryOpen ||
@@ -936,7 +945,12 @@ export default function App() {
       } else if (key === 'l') {
         setIsQuestsOpen((prev) => !prev);
       } else if (key === 'h') {
-        setIsHelpOpen((prev) => !prev);
+        if (isSpectatorMode) {
+          e.preventDefault();
+          setIsUIVisible((prev) => !prev);
+        } else {
+          setIsHelpOpen((prev) => !prev);
+        }
       } else if (key === 'm') {
         setIsMapOpen((prev) => !prev);
       } else if (key === 'k') {
@@ -959,6 +973,9 @@ export default function App() {
     shopState.isOpen,
     dialogueState.isOpen,
     showTouchControls,
+    isSpectatorMode,
+    isUIVisible,
+    handleToggleSpectator,
   ]);
 
   return (
@@ -1016,6 +1033,7 @@ export default function App() {
             hunterWeaponMode={hunterWeaponMode}
             onSwitchHunterWeapon={() => engineRef.current?.switchHunterWeapon()}
             isSpectatorMode={isSpectatorMode}
+            isUIVisible={isUIVisible}
             onToggleSpectator={() => handleToggleSpectator(false)}
             onLandSpectator={() => handleToggleSpectator(true)}
             castingState={castingState}
@@ -1047,6 +1065,8 @@ export default function App() {
           <CameraControls
             isSpectatorMode={isSpectatorMode}
             spectatorSpeed={spectatorSpeed}
+            isUIVisible={isUIVisible}
+            onToggleUIVisibility={() => setIsUIVisible((prev) => !prev)}
             onToggleSpectator={() => handleToggleSpectator(false)}
             onLandSpectator={() => handleToggleSpectator(true)}
             onAdjustSpeed={(delta) => {
@@ -1058,7 +1078,7 @@ export default function App() {
           />
 
           {/* Multiplayer In-Game Chat Box */}
-          {gameMode === 'multiplayer' && (
+          {gameMode === 'multiplayer' && isUIVisible && (
             <MultiplayerChat
               isOpen={isChatOpen}
               onClose={() => setIsChatOpen(false)}
@@ -1072,8 +1092,8 @@ export default function App() {
             />
           )}
 
-          {/* Virtual Joystick for Touch / Mobile devices (Hidden when showTouchControls is false) */}
-          {!isAnyModalOpen && showTouchControls && (
+          {/* Virtual Joystick for Touch / Mobile devices (Hidden in spectator mode or when UI is hidden) */}
+          {!isAnyModalOpen && !isSpectatorMode && isUIVisible && showTouchControls && (
             <VirtualJoystick
               onMove={(vec) => {
                 if (engineRef.current) {

@@ -89,6 +89,7 @@ interface HUDProps {
   onToggleSpectator?: () => void;
   onLandSpectator?: () => void;
   castingState?: { isCasting: boolean; progress: number; text: string } | null;
+  isUIVisible?: boolean;
 }
 
 export const HUD: React.FC<HUDProps> = ({
@@ -133,7 +134,9 @@ export const HUD: React.FC<HUDProps> = ({
   onToggleSpectator,
   onLandSpectator,
   castingState,
+  isUIVisible = true,
 }) => {
+  if (!isUIVisible) return null;
   const [dismissMobileTip, setDismissMobileTip] = useState(false);
   const [isMobileSystemMenuOpen, setIsMobileSystemMenuOpen] = useState(false);
 
@@ -164,123 +167,129 @@ export const HUD: React.FC<HUDProps> = ({
   return (
     <div id="ui-root" className="hud-container pointer-events-none absolute inset-0 select-none overflow-hidden font-sans">
       {/* 3D Floating Numbers / Combat Text (Clean & Compact) */}
-      <div className="absolute inset-0 pointer-events-none">
-        {floatingTexts.map((ft) => (
-          <div
-            key={ft.id}
-            className="absolute -translate-x-1/2 -translate-y-1/2 font-black tracking-wider transition-all duration-300 drop-shadow-lg"
-            style={{
-              left: `${ft.x}%`,
-              top: `${ft.y}%`,
-              color: ft.color,
-              textShadow: '0 2px 6px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.6)',
-              fontSize: ft.type === 'crit' ? '22px' : '16px',
-            }}
-          >
-            {ft.text}
-          </div>
-        ))}
-      </div>
+      {!isSpectatorMode && (
+        <div className="absolute inset-0 pointer-events-none">
+          {floatingTexts.map((ft) => (
+            <div
+              key={ft.id}
+              className="absolute -translate-x-1/2 -translate-y-1/2 font-black tracking-wider transition-all duration-300 drop-shadow-lg"
+              style={{
+                left: `${ft.x}%`,
+                top: `${ft.y}%`,
+                color: ft.color,
+                textShadow: '0 2px 6px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.6)',
+                fontSize: ft.type === 'crit' ? '22px' : '16px',
+              }}
+            >
+              {ft.text}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Top Left: Player Status Orb & Bars */}
-      <div className="hud-player-status pointer-events-none absolute top-4 left-4 flex flex-col gap-2 max-w-xs md:max-w-sm z-30">
-        <div className="pointer-events-auto flex items-center gap-3 bg-stone-900/80 backdrop-blur-md p-3 rounded-2xl border border-stone-700/60 shadow-xl">
-          {/* Avatar / Class Icon */}
-          <div className="relative flex-shrink-0">
-            <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl shadow-inner border border-stone-600 ${classBadge.color}`}>
-              {classBadge.icon}
+      {!isSpectatorMode && (
+        <div className="hud-player-status pointer-events-none absolute top-4 left-4 flex flex-col gap-2 max-w-xs md:max-w-sm z-30">
+          <div className="pointer-events-auto flex items-center gap-3 bg-stone-900/80 backdrop-blur-md p-3 rounded-2xl border border-stone-700/60 shadow-xl">
+            {/* Avatar / Class Icon */}
+            <div className="relative flex-shrink-0">
+              <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl shadow-inner border border-stone-600 ${classBadge.color}`}>
+                {classBadge.icon}
+              </div>
+              <div className="absolute -bottom-1 -right-1 bg-amber-500 text-stone-950 font-bold text-xs px-1.5 py-0.5 rounded-md shadow border border-amber-300">
+                Lv.{stats.level}
+              </div>
             </div>
-            <div className="absolute -bottom-1 -right-1 bg-amber-500 text-stone-950 font-bold text-xs px-1.5 py-0.5 rounded-md shadow border border-amber-300">
-              Lv.{stats.level}
+
+            {/* Vitals Bars */}
+            <div className="flex-1 min-w-[170px] flex flex-col gap-1.5">
+              {/* HP Bar */}
+              <div className="relative w-full h-4 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
+                <div
+                  className="h-full bg-gradient-to-r from-red-600 to-rose-400 transition-all duration-200"
+                  style={{ width: `${hpPercent}%` }}
+                />
+                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow">
+                  <Heart className="w-2.5 h-2.5 inline mr-1 text-red-300" />
+                  {Math.round(stats.hp)} / {stats.maxHp} HP
+                </span>
+              </div>
+
+              {/* MP Bar */}
+              <div className="relative w-full h-3.5 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-all duration-200"
+                  style={{ width: `${mpPercent}%` }}
+                />
+                <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white drop-shadow">
+                  <Sparkles className="w-2 h-2 inline mr-1 text-cyan-300" />
+                  {Math.round(stats.mp)} / {stats.maxMp} MP
+                </span>
+              </div>
+
+              {/* Stamina Bar */}
+              <div className="relative w-full h-2.5 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
+                <div
+                  className="h-full bg-gradient-to-r from-emerald-600 to-teal-400 transition-all duration-150"
+                  style={{ width: `${staminaPercent}%` }}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Vitals Bars */}
-          <div className="flex-1 min-w-[170px] flex flex-col gap-1.5">
-            {/* HP Bar */}
-            <div className="relative w-full h-4 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
-              <div
-                className="h-full bg-gradient-to-r from-red-600 to-rose-400 transition-all duration-200"
-                style={{ width: `${hpPercent}%` }}
-              />
-              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow">
-                <Heart className="w-2.5 h-2.5 inline mr-1 text-red-300" />
-                {Math.round(stats.hp)} / {stats.maxHp} HP
-              </span>
+          {/* Currency & Stat Points Reminder */}
+          <div className="pointer-events-auto flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-1.5 bg-stone-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-500/30 text-amber-300 font-semibold shadow">
+              <Coins className="w-3.5 h-3.5 text-amber-400" />
+              <span>{stats.gold} Gold</span>
             </div>
 
-            {/* MP Bar */}
-            <div className="relative w-full h-3.5 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
-              <div
-                className="h-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-all duration-200"
-                style={{ width: `${mpPercent}%` }}
-              />
-              <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white drop-shadow">
-                <Sparkles className="w-2 h-2 inline mr-1 text-cyan-300" />
-                {Math.round(stats.mp)} / {stats.maxMp} MP
-              </span>
-            </div>
-
-            {/* Stamina Bar */}
-            <div className="relative w-full h-2.5 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
-              <div
-                className="h-full bg-gradient-to-r from-emerald-600 to-teal-400 transition-all duration-150"
-                style={{ width: `${staminaPercent}%` }}
-              />
-            </div>
+            {stats.statPoints > 0 && (
+              <button
+                onClick={onOpenStats}
+                className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-bold px-3 py-1.5 rounded-xl shadow-lg animate-pulse cursor-pointer border border-amber-200"
+              >
+                <span>+{stats.statPoints} Poin Status!</span>
+              </button>
+            )}
           </div>
         </div>
-
-        {/* Currency & Stat Points Reminder */}
-        <div className="pointer-events-auto flex items-center gap-2 text-xs">
-          <div className="flex items-center gap-1.5 bg-stone-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-500/30 text-amber-300 font-semibold shadow">
-            <Coins className="w-3.5 h-3.5 text-amber-400" />
-            <span>{stats.gold} Gold</span>
-          </div>
-
-          {stats.statPoints > 0 && (
-            <button
-              onClick={onOpenStats}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-bold px-3 py-1.5 rounded-xl shadow-lg animate-pulse cursor-pointer border border-amber-200"
-            >
-              <span>+{stats.statPoints} Poin Status!</span>
-            </button>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Top Right: MiniMap / Compass / Audio & System Controls */}
       <div className="hud-minimap-cluster pointer-events-none absolute top-2 right-2 sm:top-4 sm:right-4 flex flex-col items-end gap-1.5 sm:gap-2.5 max-w-xs z-30">
         {/* Desktop System Buttons Row (Visible on PC) */}
         <div className="pointer-events-none hidden md:flex items-center gap-1.5 flex-wrap justify-end">
           {/* Game Mode Badge */}
-          {gameMode === 'singleplayer' ? (
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-950/80 border border-blue-500/40 text-blue-300 text-[11px] font-bold shadow pointer-events-none">
-              <Shield className="w-3 h-3 text-blue-400" />
-              <span>Solo</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 pointer-events-none">
-              <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-950/80 border border-amber-500/40 text-amber-300 text-[11px] font-bold shadow pointer-events-none">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                <Users className="w-3 h-3 text-amber-400" />
-                <span>{multiplayerInfo?.onlineCount || 1} Online</span>
+          {!isSpectatorMode && (
+            gameMode === 'singleplayer' ? (
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-950/80 border border-blue-500/40 text-blue-300 text-[11px] font-bold shadow pointer-events-none">
+                <Shield className="w-3 h-3 text-blue-400" />
+                <span>Solo</span>
               </div>
-              {onToggleChat && (
-                <button
-                  onClick={onToggleChat}
-                  title="Buka Chat Multiplayer"
-                  className="pointer-events-auto relative p-2 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-amber-500/40 text-amber-300 text-xs font-bold transition shadow cursor-pointer"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  {unreadChatCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center animate-bounce shadow">
-                      {unreadChatCount}
-                    </span>
-                  )}
-                </button>
-              )}
-            </div>
+            ) : (
+              <div className="flex items-center gap-1.5 pointer-events-none">
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-950/80 border border-amber-500/40 text-amber-300 text-[11px] font-bold shadow pointer-events-none">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  <Users className="w-3 h-3 text-amber-400" />
+                  <span>{multiplayerInfo?.onlineCount || 1} Online</span>
+                </div>
+                {onToggleChat && (
+                  <button
+                    onClick={onToggleChat}
+                    title="Buka Chat Multiplayer"
+                    className="pointer-events-auto relative p-2 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-amber-500/40 text-amber-300 text-xs font-bold transition shadow cursor-pointer"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    {unreadChatCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center animate-bounce shadow">
+                        {unreadChatCount}
+                      </span>
+                    )}
+                  </button>
+                )}
+              </div>
+            )
           )}
 
           {/* Pause / Menu Button (Esc) */}
@@ -304,7 +313,7 @@ export const HUD: React.FC<HUDProps> = ({
             </button>
           )}
 
-          {onToggleTouchControls && (
+          {!isSpectatorMode && onToggleTouchControls && (
             <button
               onClick={onToggleTouchControls}
               title={
@@ -323,7 +332,6 @@ export const HUD: React.FC<HUDProps> = ({
             </button>
           )}
 
-
           {onToggleSpectator && (
             <button
               onClick={onToggleSpectator}
@@ -341,6 +349,7 @@ export const HUD: React.FC<HUDProps> = ({
               <Camera className="w-4 h-4 text-sky-400" />
             </button>
           )}
+
           {onToggleFullscreen && (
             <button
               onClick={onToggleFullscreen}
@@ -355,14 +364,16 @@ export const HUD: React.FC<HUDProps> = ({
             </button>
           )}
 
-          <button
-            onClick={onOpenMap}
-            title="Buka Peta Dunia (M)"
-            className="pointer-events-auto px-2.5 py-1.5 rounded-xl bg-amber-600/80 hover:bg-amber-500 border border-amber-400 text-white text-xs font-bold flex items-center gap-1.5 backdrop-blur-md shadow cursor-pointer transition-all"
-          >
-            <Map className="w-4 h-4" />
-            <span>Peta (M)</span>
-          </button>
+          {!isSpectatorMode && (
+            <button
+              onClick={onOpenMap}
+              title="Buka Peta Dunia (M)"
+              className="pointer-events-auto px-2.5 py-1.5 rounded-xl bg-amber-600/80 hover:bg-amber-500 border border-amber-400 text-white text-xs font-bold flex items-center gap-1.5 backdrop-blur-md shadow cursor-pointer transition-all"
+            >
+              <Map className="w-4 h-4" />
+              <span>Peta (M)</span>
+            </button>
+          )}
 
           {onOpenSettings && (
             <button
@@ -395,13 +406,16 @@ export const HUD: React.FC<HUDProps> = ({
           >
             {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </button>
-          <button
-            onClick={onOpenHelp}
-            title="Bantuan Kontrol (H)"
-            className="pointer-events-auto p-2 rounded-xl bg-stone-900/80 backdrop-blur-md border border-stone-700 text-stone-300 hover:text-white transition-all cursor-pointer shadow"
-          >
-            <HelpCircle className="w-4 h-4" />
-          </button>
+
+          {!isSpectatorMode && (
+            <button
+              onClick={onOpenHelp}
+              title="Bantuan Kontrol (H)"
+              className="pointer-events-auto p-2 rounded-xl bg-stone-900/80 backdrop-blur-md border border-stone-700 text-stone-300 hover:text-white transition-all cursor-pointer shadow"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Mobile Single System Menu Button & Dropdown Sheet (Clutter-free top bar on HP) */}
@@ -427,7 +441,7 @@ export const HUD: React.FC<HUDProps> = ({
                   onClick={() => setIsMobileSystemMenuOpen(false)}
                   className="text-stone-400 hover:text-white p-0.5 rounded cursor-pointer"
                 >
-                  âœ•
+                  ✕
                 </button>
               </div>
 
@@ -446,16 +460,18 @@ export const HUD: React.FC<HUDProps> = ({
               )}
 
               {/* Peta */}
-              <button
-                onClick={() => {
-                  setIsMobileSystemMenuOpen(false);
-                  onOpenMap();
-                }}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-stone-800/80 text-amber-300 text-xs text-left cursor-pointer transition active:scale-95"
-              >
-                <Map className="w-3.5 h-3.5 text-amber-400" />
-                <span>Peta Dunia (M)</span>
-              </button>
+              {!isSpectatorMode && (
+                <button
+                  onClick={() => {
+                    setIsMobileSystemMenuOpen(false);
+                    onOpenMap();
+                  }}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-stone-800/80 text-amber-300 text-xs text-left cursor-pointer transition active:scale-95"
+                >
+                  <Map className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Peta Dunia (M)</span>
+                </button>
+              )}
 
               {/* Fullscreen */}
               {onToggleFullscreen && (
@@ -472,7 +488,7 @@ export const HUD: React.FC<HUDProps> = ({
               )}
 
               {/* Kontrol Layar */}
-              {onToggleTouchControls && (
+              {!isSpectatorMode && onToggleTouchControls && (
                 <button
                   onClick={() => {
                     setIsMobileSystemMenuOpen(false);
@@ -521,16 +537,18 @@ export const HUD: React.FC<HUDProps> = ({
               </button>
 
               {/* Bantuan */}
-              <button
-                onClick={() => {
-                  setIsMobileSystemMenuOpen(false);
-                  onOpenHelp();
-                }}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-stone-800/80 text-stone-200 text-xs text-left cursor-pointer transition active:scale-95"
-              >
-                <HelpCircle className="w-3.5 h-3.5 text-stone-400" />
-                <span>Bantuan (H)</span>
-              </button>
+              {!isSpectatorMode && (
+                <button
+                  onClick={() => {
+                    setIsMobileSystemMenuOpen(false);
+                    onOpenHelp();
+                  }}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-stone-800/80 text-stone-200 text-xs text-left cursor-pointer transition active:scale-95"
+                >
+                  <HelpCircle className="w-3.5 h-3.5 text-stone-400" />
+                  <span>Bantuan (H)</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -545,10 +563,12 @@ export const HUD: React.FC<HUDProps> = ({
       </div>
 
       {/* Independent Quest Tracker: Positioned at Left side of screen */}
-      <QuestTracker activeQuest={activeQuest} onOpenQuests={onOpenQuests} />
+      {!isSpectatorMode && (
+        <QuestTracker activeQuest={activeQuest} onOpenQuests={onOpenQuests} />
+      )}
 
       {/* Mobile Landscape Orientation Recommendation Banner */}
-      {!dismissMobileTip && (
+      {!isSpectatorMode && !dismissMobileTip && (
         <div className="md:hidden pointer-events-auto absolute top-20 left-1/2 -translate-x-1/2 w-[92%] max-w-sm bg-gradient-to-r from-amber-950/95 via-stone-900/95 to-stone-950/95 border border-amber-500/50 rounded-xl p-2.5 shadow-2xl backdrop-blur-md flex items-center justify-between gap-2 z-40 animate-fade-in text-xs text-amber-200">
           <div className="flex items-center gap-2">
             <Smartphone className="w-5 h-5 text-amber-400 rotate-90 flex-shrink-0 animate-pulse" />
@@ -567,7 +587,7 @@ export const HUD: React.FC<HUDProps> = ({
       )}
 
       {/* Absolute Victory Banner (Boss Defeated) */}
-      {bossVictoryName && (
+      {!isSpectatorMode && bossVictoryName && (
         <div className="absolute top-10 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-1.5 pointer-events-none animate-bounce">
           <div className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-600/95 via-yellow-400 to-amber-600/95 border-2 border-yellow-200 shadow-[0_0_50px_rgba(234,179,8,0.7)] text-stone-950 font-black tracking-widest text-sm sm:text-base uppercase flex items-center gap-2 drop-shadow-2xl">
             🏆 KEMENANGAN MUTLAK!
@@ -579,7 +599,7 @@ export const HUD: React.FC<HUDProps> = ({
       )}
 
       {/* Center Top: Boss Health Bar when engaged */}
-      {bossState.active && (
+      {!isSpectatorMode && bossState.active && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 w-80 md:w-96 flex flex-col items-center gap-1 z-20 pointer-events-none">
           <div className="text-sm font-black tracking-widest text-red-400 uppercase drop-shadow flex items-center gap-1.5">
             💀 {bossState.name || 'SANG TITAN KUNO OBSIDIAN'}
@@ -599,7 +619,7 @@ export const HUD: React.FC<HUDProps> = ({
       )}
 
       {/* Center Interactive Prompt (NPC / Chest) - Compact & Raised to top: 38% */}
-      {nearbyPrompt && (
+      {!isSpectatorMode && nearbyPrompt && (
         <div
           id="hud-interaction-prompt-container"
           style={{ touchAction: 'none', top: '38%', left: '50%', transform: 'translate(-50%, -50%)' }}
@@ -624,17 +644,18 @@ export const HUD: React.FC<HUDProps> = ({
 
 
       {/* Mobile Compact Menu Strip (Tas, Toko, Status, Misi, Peta) - Centered neatly above Skill Bar */}
-      <div
-        id="hud-mobile-nav-bar"
-        style={{
-          touchAction: 'none',
-          userSelect: 'none',
-          WebkitUserSelect: 'none',
-          pointerEvents: 'auto',
-          width: 'fit-content',
-        }}
-        className="hud-mobile-nav-bar pointer-events-auto fixed bottom-[56px] sm:bottom-[60px] left-1/2 -translate-x-1/2 md:hidden w-fit inline-flex items-center gap-1 bg-stone-950/85 backdrop-blur-md px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-xl border border-stone-800/70 shadow-xl z-35 select-none"
-      >
+      {!isSpectatorMode && (
+        <div
+          id="hud-mobile-nav-bar"
+          style={{
+            touchAction: 'none',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            pointerEvents: 'auto',
+            width: 'fit-content',
+          }}
+          className="hud-mobile-nav-bar pointer-events-auto fixed bottom-[56px] sm:bottom-[60px] left-1/2 -translate-x-1/2 md:hidden w-fit inline-flex items-center gap-1 bg-stone-950/85 backdrop-blur-md px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-xl border border-stone-800/70 shadow-xl z-35 select-none"
+        >
         <button
           type="button"
           onTouchStart={(e) => {
@@ -715,9 +736,10 @@ export const HUD: React.FC<HUDProps> = ({
           <Map className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-400" />
         </button>
       </div>
+      )}
 
       {/* 1.0s Starfall Casting Indicator Bar (image_68.png) */}
-      {castingState && castingState.isCasting && (
+      {!isSpectatorMode && castingState && castingState.isCasting && (
         <div className="fixed bottom-20 md:bottom-23 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex flex-col items-center select-none animate-in fade-in duration-150">
           <div className="relative w-56 sm:w-64 h-6 sm:h-7 bg-stone-950/90 rounded-full border border-amber-500/70 shadow-[0_0_15px_rgba(245,158,11,0.5)] overflow-hidden flex items-center px-2.5">
             {/* Progress Fill */}
@@ -740,75 +762,81 @@ export const HUD: React.FC<HUDProps> = ({
       )}
 
       {/* Primary Skill Bar (Responsive: Mobile Arc at bottom-right vs Desktop Horizontal at bottom-center) */}
-      <SkillBar
-        stats={stats}
-        hunterWeaponMode={hunterWeaponMode}
-        onPerformAttack={onPerformAttack}
-        onCastSkill={onCastSkill}
-        onJump={onJump}
-        onSwitchHunterWeapon={onSwitchHunterWeapon}
-      />
+      {!isSpectatorMode && (
+        <SkillBar
+          stats={stats}
+          hunterWeaponMode={hunterWeaponMode}
+          onPerformAttack={onPerformAttack}
+          onCastSkill={onCastSkill}
+          onJump={onJump}
+          onSwitchHunterWeapon={onSwitchHunterWeapon}
+        />
+      )}
 
       {/* Desktop Bottom Right: Full Menu Navigation Buttons */}
-      <div className="hud-desktop-hotbar pointer-events-auto absolute bottom-5 right-4 hidden md:flex items-center gap-2">
-        <button
-          onClick={onOpenInventory}
-          className="flex flex-col items-center justify-center w-11 h-11 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 shadow cursor-pointer transition-all active:scale-95"
-          title="Tas & Perlengkapan (I)"
-        >
-          <Backpack className="w-5 h-5 text-amber-400" />
-          <span className="text-[8px] font-bold text-stone-400 mt-0.5">Tas</span>
-        </button>
-
-        {onOpenShop && (
+      {!isSpectatorMode && (
+        <div className="hud-desktop-hotbar pointer-events-auto absolute bottom-5 right-4 hidden md:flex items-center gap-2">
           <button
-            onClick={onOpenShop}
-            className="flex flex-col items-center justify-center w-11 h-11 bg-gradient-to-b from-amber-950/80 to-stone-900/90 hover:from-amber-900/90 hover:to-stone-800 text-amber-300 rounded-xl border border-amber-500/60 shadow cursor-pointer transition-all active:scale-95"
-            title="Toko & Pandai Besi (B)"
+            onClick={onOpenInventory}
+            className="flex flex-col items-center justify-center w-11 h-11 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 shadow cursor-pointer transition-all active:scale-95"
+            title="Tas & Perlengkapan (I)"
           >
-            <ShoppingBag className="w-5 h-5 text-yellow-400" />
-            <span className="text-[8px] font-bold text-amber-300 mt-0.5">Toko</span>
+            <Backpack className="w-5 h-5 text-amber-400" />
+            <span className="text-[8px] font-bold text-stone-400 mt-0.5">Tas</span>
           </button>
-        )}
 
-        <button
-          onClick={onOpenStats}
-          className="relative flex flex-col items-center justify-center w-11 h-11 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 shadow cursor-pointer transition-all active:scale-95"
-          title="Status Karakter (C)"
-        >
-          <User className="w-5 h-5 text-blue-400" />
-          <span className="text-[8px] font-bold text-stone-400 mt-0.5">Status</span>
-          {stats.statPoints > 0 && (
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-stone-900" />
+          {onOpenShop && (
+            <button
+              onClick={onOpenShop}
+              className="flex flex-col items-center justify-center w-11 h-11 bg-gradient-to-b from-amber-950/80 to-stone-900/90 hover:from-amber-900/90 hover:to-stone-800 text-amber-300 rounded-xl border border-amber-500/60 shadow cursor-pointer transition-all active:scale-95"
+              title="Toko & Pandai Besi (B)"
+            >
+              <ShoppingBag className="w-5 h-5 text-yellow-400" />
+              <span className="text-[8px] font-bold text-amber-300 mt-0.5">Toko</span>
+            </button>
           )}
-        </button>
 
-        <button
-          onClick={onOpenQuests}
-          className="flex flex-col items-center justify-center w-11 h-11 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 shadow cursor-pointer transition-all active:scale-95"
-          title="Buku Misi (L)"
-        >
-          <Scroll className="w-5 h-5 text-emerald-400" />
-          <span className="text-[8px] font-bold text-stone-400 mt-0.5">Misi</span>
-        </button>
+          <button
+            onClick={onOpenStats}
+            className="relative flex flex-col items-center justify-center w-11 h-11 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 shadow cursor-pointer transition-all active:scale-95"
+            title="Status Karakter (C)"
+          >
+            <User className="w-5 h-5 text-blue-400" />
+            <span className="text-[8px] font-bold text-stone-400 mt-0.5">Status</span>
+            {stats.statPoints > 0 && (
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-stone-900" />
+            )}
+          </button>
 
-        <button
-          onClick={onOpenMap}
-          className="flex flex-col items-center justify-center w-11 h-11 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 shadow cursor-pointer transition-all active:scale-95"
-          title="Peta Dunia (M)"
-        >
-          <Map className="w-5 h-5 text-cyan-400" />
-          <span className="text-[8px] font-bold text-stone-400 mt-0.5">Peta</span>
-        </button>
-      </div>
+          <button
+            onClick={onOpenQuests}
+            className="flex flex-col items-center justify-center w-11 h-11 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 shadow cursor-pointer transition-all active:scale-95"
+            title="Buku Misi (L)"
+          >
+            <Scroll className="w-5 h-5 text-emerald-400" />
+            <span className="text-[8px] font-bold text-stone-400 mt-0.5">Misi</span>
+          </button>
+
+          <button
+            onClick={onOpenMap}
+            className="flex flex-col items-center justify-center w-11 h-11 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 shadow cursor-pointer transition-all active:scale-95"
+            title="Peta Dunia (M)"
+          >
+            <Map className="w-5 h-5 text-cyan-400" />
+            <span className="text-[8px] font-bold text-stone-400 mt-0.5">Peta</span>
+          </button>
+        </div>
+      )}
 
       {/* Bottom Left: EXP Bar across viewport */}
-      <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-stone-950 overflow-hidden">
-        <div
-          className="h-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-300 transition-all duration-300"
-          style={{ width: `${expPercent}%` }}
-        />
-      </div>
+      {!isSpectatorMode && (
+        <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-stone-950 overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-300 transition-all duration-300"
+            style={{ width: `${expPercent}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 };

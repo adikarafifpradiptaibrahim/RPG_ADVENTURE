@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, Zap, Gauge, ArrowUp, ArrowDown, ChevronUp, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Camera, Zap, Gauge, ArrowUp, ArrowDown, ChevronUp, ChevronDown, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 export * from '../game/CameraControls';
 import {
   CAMERA_CONFIG,
@@ -14,6 +14,8 @@ import {
 export interface CameraControlsProps {
   isSpectatorMode?: boolean;
   spectatorSpeed?: number;
+  isUIVisible?: boolean;
+  onToggleUIVisibility?: () => void;
   onToggleSpectator?: () => void;
   onLandSpectator?: () => void;
   onAdjustSpeed?: (delta: number) => void;
@@ -29,15 +31,35 @@ export interface CameraControlsProps {
  * - Sprint Fly (3x Speed) when holding [Shift]
  * - Slow Precision Fly (0.3x Speed) when holding [Ctrl] or [Alt]
  * - Scroll Wheel Mouse / On-screen steppers to tune base flight speed
+ * - Hide UI / Cinematic toggle (H)
  */
 export const CameraControls: React.FC<CameraControlsProps> = ({
   isSpectatorMode = false,
   spectatorSpeed = SPECTATOR_CONFIG.DEFAULT_SPEED,
+  isUIVisible = true,
+  onToggleUIVisibility,
   onToggleSpectator,
   onLandSpectator,
   onAdjustSpeed,
 }) => {
   if (!isSpectatorMode) return null;
+
+  // When UI is hidden for cinematic freecam, show only a sleek floating pill in the corner
+  if (!isUIVisible) {
+    return (
+      <div className="pointer-events-none fixed top-4 right-4 z-50 select-none animate-fade-in">
+        <button
+          type="button"
+          onClick={onToggleUIVisibility}
+          className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/80 hover:bg-slate-900/95 backdrop-blur-md border border-cyan-500/40 text-cyan-300 hover:text-white text-xs font-semibold shadow-2xl transition cursor-pointer active:scale-95 group"
+          title="Tampilkan Kembali Seluruh UI (H)"
+        >
+          <Eye className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
+          <span>👁️ Tampilkan UI (H)</span>
+        </button>
+      </div>
+    );
+  }
 
   const currentSpeed = Math.round(spectatorSpeed);
   const sprintSpeed = Math.round(spectatorSpeed * SPECTATOR_CONFIG.SPRINT_MULTIPLIER);
@@ -85,8 +107,20 @@ export const CameraControls: React.FC<CameraControlsProps> = ({
 
         <div className="h-4 w-px bg-slate-700/80" />
 
-        {/* Action Buttons: Land / Exit */}
+        {/* Action Buttons: Hide UI / Land / Exit */}
         <div className="flex items-center gap-1.5">
+          {onToggleUIVisibility && (
+            <button
+              type="button"
+              onClick={onToggleUIVisibility}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white text-[11px] font-medium border border-slate-700 shadow transition cursor-pointer active:scale-95"
+              title="Sembunyikan Seluruh UI untuk Tampilan Sinematik (H)"
+            >
+              <EyeOff className="w-3 h-3 text-cyan-400" />
+              <span>Sembunyikan UI (H)</span>
+            </button>
+          )}
+
           {onLandSpectator && (
             <button
               type="button"
@@ -129,6 +163,10 @@ export const CameraControls: React.FC<CameraControlsProps> = ({
         <span className="text-slate-600">•</span>
         <span className="text-slate-400">
           <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[9px] font-mono">Spasi</kbd> Naik | <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[9px] font-mono">Q / E / C</kbd> Turun
+        </span>
+        <span className="text-slate-600">•</span>
+        <span className="flex items-center gap-1 text-sky-300 font-semibold">
+          <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[9px] font-mono">H</kbd> Sembunyikan UI
         </span>
       </div>
     </div>
