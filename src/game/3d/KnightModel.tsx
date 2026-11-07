@@ -213,6 +213,7 @@ interface BlockyKnightGeometryPalette {
   shieldFaceGeo: THREE.BufferGeometry;
   shieldRimGeo: THREE.BufferGeometry;
   shieldDiamondGeo: THREE.BufferGeometry;
+  shieldGripGeo: THREE.BufferGeometry;
 }
 
 let cachedGeometries: BlockyKnightGeometryPalette | null = null;
@@ -330,11 +331,9 @@ function getKnightGeometries(): BlockyKnightGeometryPalette {
   const armUpperGeo = new THREE.BoxGeometry(0.22, 0.32, 0.22);
   armUpperGeo.translate(0, -0.16, 0);
   const gauntletGeo = new THREE.BoxGeometry(0.24, 0.34, 0.24);
-  gauntletGeo.translate(0, -0.46, 0);
   const wristGoldGeo = new THREE.BoxGeometry(0.25, 0.06, 0.25);
-  wristGoldGeo.translate(0, -0.58, 0);
+  wristGoldGeo.translate(0, -0.14, 0);
   const handGeo = new THREE.BoxGeometry(0.18, 0.16, 0.18);
-  handGeo.translate(0, -0.66, 0);
 
   // 5. Kaki & Boots
   const thighGeo = new THREE.BoxGeometry(0.24, 0.36, 0.24);
@@ -351,9 +350,15 @@ function getKnightGeometries(): BlockyKnightGeometryPalette {
   const bootSoleGeo = new THREE.BoxGeometry(0.29, 0.04, 0.38);
   bootSoleGeo.translate(0, -0.86, 0.04);
 
-  // 6. Broadsword (Flat uniform thickness 0.04 with angled chisel tip)
+  // 6. Broadsword (Flat uniform thickness 0.04 with angled chisel tip, pivot centered at grip)
+  const gripGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.28, 6);
+  const crossguardGeo = new THREE.BoxGeometry(0.48, 0.10, 0.10);
+  crossguardGeo.translate(0, 0.14, 0);
+  const pommelGeo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
+  pommelGeo.translate(0, -0.18, 0);
+
   const bladeGeo = new THREE.BoxGeometry(0.15, 1.15, 0.04);
-  bladeGeo.translate(0, 0.575, 0);
+  bladeGeo.translate(0, 0.765, 0);
 
   // Broadsword flat chisel point (replaces 3D cone to eliminate arrowhead bug)
   const tipShape = new THREE.Shape();
@@ -369,16 +374,14 @@ function getKnightGeometries(): BlockyKnightGeometryPalette {
     depth: 0.04,
     bevelEnabled: false,
   });
-  // Depth matches blade depth (0.04), centered in Z (-0.02) and positioned atop blade (y = 1.15)
-  bladeTipGeo.translate(0, 1.15, -0.02);
+  // Depth matches blade depth (0.04), centered in Z (-0.02) and positioned atop blade (y = 1.34)
+  bladeTipGeo.translate(0, 1.34, -0.02);
 
   const bladeFullerGeo = new THREE.BoxGeometry(0.035, 1.05, 0.046);
-  bladeFullerGeo.translate(0, 0.58, 0);
-  const crossguardGeo = new THREE.BoxGeometry(0.48, 0.10, 0.10);
-  const gripGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.32, 6);
-  gripGeo.translate(0, -0.16, 0);
-  const pommelGeo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
-  pommelGeo.translate(0, -0.34, 0);
+  bladeFullerGeo.translate(0, 0.77, 0);
+
+  // Handle pegangan perisai di pergelangan tangan
+  const shieldGripGeo = new THREE.BoxGeometry(0.04, 0.18, 0.04);
 
   cachedGeometries = {
     headGeo,
@@ -424,6 +427,7 @@ function getKnightGeometries(): BlockyKnightGeometryPalette {
     shieldFaceGeo,
     shieldRimGeo,
     shieldDiamondGeo,
+    shieldGripGeo,
   };
 
   return cachedGeometries;
@@ -535,34 +539,34 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
 
   // Jambul Merah Bertingkat (Stepped Red Crest #D32F2F)
   const crestGroup = new THREE.Group();
-  crestGroup.position.set(0, 0.25, 0);
+  crestGroup.position.set(0, 0.20, -0.02); // Dikencangkan agar menempel pas di kurva atas helm tanpa celah
 
   const crestMount = new THREE.Mesh(geos.crestMountGeo, mats.goldTrimMat);
   crestGroup.add(crestMount);
 
-  // 6 Fin balok merah bertingkat fanning ke belakang
+  // 6 Fin balok merah bertingkat fanning ke belakang mengikuti kurva kubah helm
   const fin1 = new THREE.Mesh(geos.crestFin1Geo, mats.crestRedMat);
-  fin1.position.set(0, 0.12, 0.18);
-  fin1.rotation.x = 0.18;
+  fin1.position.set(0, 0.08, 0.17);
+  fin1.rotation.x = 0.16;
 
   const fin2 = new THREE.Mesh(geos.crestFin2Geo, mats.crestRedMat);
-  fin2.position.set(0, 0.16, 0.11);
-  fin2.rotation.x = 0.08;
+  fin2.position.set(0, 0.12, 0.10);
+  fin2.rotation.x = 0.06;
 
   const fin3 = new THREE.Mesh(geos.crestFin3Geo, mats.crestRedMat);
-  fin3.position.set(0, 0.19, 0.03);
-  fin3.rotation.x = -0.04;
+  fin3.position.set(0, 0.15, 0.02);
+  fin3.rotation.x = -0.06;
 
   const fin4 = new THREE.Mesh(geos.crestFin4Geo, mats.crestRedMat);
-  fin4.position.set(0, 0.17, -0.06);
+  fin4.position.set(0, 0.13, -0.06);
   fin4.rotation.x = -0.18;
 
   const fin5 = new THREE.Mesh(geos.crestFin5Geo, mats.crestRedMat);
-  fin5.position.set(0, 0.13, -0.14);
+  fin5.position.set(0, 0.09, -0.14);
   fin5.rotation.x = -0.32;
 
   const fin6 = new THREE.Mesh(geos.crestFin6Geo, mats.crestRedMat);
-  fin6.position.set(0, 0.08, -0.21);
+  fin6.position.set(0, 0.04, -0.21);
   fin6.rotation.x = -0.48;
 
   crestGroup.add(fin1, fin2, fin3, fin4, fin5, fin6);
@@ -601,14 +605,23 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   // --------------------------------------------------------------------------
   // 4. Arms & Gauntlets (Pivot di sendi bahu y = 1.68)
   // --------------------------------------------------------------------------
-  const buildArm = (isLeft: boolean): { armGroup: THREE.Group } => {
+  const buildArm = (isLeft: boolean): {
+    armGroup: THREE.Group;
+    forearmGroup: THREE.Group;
+    handGroup: THREE.Group;
+  } => {
     const armGroup = new THREE.Group();
     const sign = isLeft ? 1 : -1;
     armGroup.position.set(0.46 * sign, 1.68, 0);
 
-    // Lengan atas baju biru (#1953A6)
+    // 1. Lengan atas baju biru (#1953A6)
     const upperArm = new THREE.Mesh(geos.armUpperGeo, mats.royalBlueMat);
     upperArm.castShadow = true;
+    armGroup.add(upperArm);
+
+    // 2. Forearm Group (Lengan bawah & Gauntlet, pivot di y = -0.46)
+    const forearmGroup = new THREE.Group();
+    forearmGroup.position.set(0, -0.46, 0);
 
     // Sarung tangan / gauntlet abu-abu kubik (#6C757D)
     const gauntlet = new THREE.Mesh(geos.gauntletGeo, mats.gauntletGrayMat);
@@ -618,20 +631,29 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
     const cuff = new THREE.Mesh(geos.wristGoldGeo, mats.goldTrimMat);
     cuff.castShadow = true;
 
+    forearmGroup.add(gauntlet, cuff);
+
+    // 3. Hand Group (Telapak tangan / pergelangan, y = -0.20 di bawah gauntlet)
+    const handGroup = new THREE.Group();
+    handGroup.position.set(0, -0.20, 0);
+
     // Tangan gelap (#4A4E57)
     const hand = new THREE.Mesh(geos.handGeo, mats.legDarkGrayMat);
     hand.castShadow = true;
+    handGroup.add(hand);
 
-    armGroup.add(upperArm, gauntlet, cuff, hand);
+    forearmGroup.add(handGroup);
+    armGroup.add(forearmGroup);
     group.add(armGroup);
-    return { armGroup };
+
+    return { armGroup, forearmGroup, handGroup };
   };
 
-  const { armGroup: leftArm } = buildArm(true);
-  const { armGroup: rightArm } = buildArm(false);
+  const { armGroup: leftArm, forearmGroup: leftForearm } = buildArm(true);
+  const { armGroup: rightArm, handGroup: rightHand } = buildArm(false);
 
   // --------------------------------------------------------------------------
-  // 5. Right Hand: Broadsword (Bilah Silver #A8B2C1, Guard Cokelat #7A4B28)
+  // 5. Right Hand: Broadsword (Child langsung dari rightHandGroup)
   // --------------------------------------------------------------------------
   const weapon = new THREE.Group();
 
@@ -652,12 +674,15 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   pommel.castShadow = true;
 
   weapon.add(blade, bladeTip, fuller, crossguard, grip, pommel);
-  weapon.position.set(0, -0.66, 0.15);
-  weapon.rotation.x = Math.PI / 4;
-  rightArm.add(weapon);
+
+  // Pivot gagang (hilt) tepat di telapak tangan kanan dengan rotasi menghadap ke depan-bawah
+  // (~39 derajat alami, sedikit miring keluar dari paha agar tidak menembus kaki)
+  weapon.position.set(0, 0, 0.02);
+  weapon.rotation.set(0.68, 0, 0.08);
+  rightHand.add(weapon);
 
   // --------------------------------------------------------------------------
-  // 6. Left Hand: Kite Shield (Abu Gelap #1F2428, Lis Emas #D4A017, Diamond Boss)
+  // 6. Left Hand: Kite Shield (Child langsung dari leftForearmGroup)
   // --------------------------------------------------------------------------
   const shield = new THREE.Mesh(geos.shieldFaceGeo, mats.shieldDarkMat);
   shield.castShadow = true;
@@ -674,14 +699,20 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   diamondBoss.castShadow = true;
   shield.add(diamondBoss);
 
-  // Group perisai dipasang langsung sebagai child dari leftArm (leftArmGroup)
-  // Geser posisi X (-0.25), Y (-0.05), Z (+0.12) dan rotasi (0, PI/6, -PI/12)
-  // agar melayang di luar lengan kiri tanpa menembus pauldron atau torso
+  // Pegangan / grip kulit di belakang perisai sejajar dengan pergelangan tangan
+  const shieldGrip = new THREE.Mesh(geos.shieldGripGeo, mats.leatherBrownMat);
+  shieldGrip.position.set(0, 0, -0.02);
+  shieldGrip.castShadow = true;
+  shield.add(shieldGrip);
+
+  // Group perisai dipasang langsung sebagai child dari leftForearm (leftForearmGroup)
+  // di sisi luar lengan kiri (offset X = 0.18), sejajar pergelangan tangan (Y = -0.08)
+  // Rotasi Y = Math.PI / 2 agar permukaan depan menghadap ke arah luar/kiri tubuh
   const shieldGroup = new THREE.Group();
   shieldGroup.add(shield);
-  shieldGroup.position.set(-0.25, -0.05, 0.12);
-  shieldGroup.rotation.set(0, Math.PI / 6, -Math.PI / 12);
-  leftArm.add(shieldGroup);
+  shieldGroup.position.set(0.18, -0.08, 0.02);
+  shieldGroup.rotation.set(0, Math.PI / 2, 0);
+  leftForearm.add(shieldGroup);
 
   // --------------------------------------------------------------------------
   // 7. Legs & Boots (Heroic Stance, Pivot di paha y = 0.88, Sol rata y = 0.00)
@@ -839,6 +870,8 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
     group,
     leftArm,
     rightArm,
+    leftForearm,
+    rightHand,
     leftLeg,
     rightLeg,
     weapon,
