@@ -103,6 +103,19 @@ export class MonsterCombatAI {
   }
 
   /**
+   * Evaluates if Naga Ignis should initiate Meteor Dive / Sky Crash
+   */
+  public static shouldTriggerMeteorDive(
+    nagaPos: { x: number; z: number },
+    playerPos: { x: number; z: number },
+    meteorDiveCooldown: number
+  ): boolean {
+    const distToCenter = Math.hypot(playerPos.x - SPAWN_NAGA[0], playerPos.z - SPAWN_NAGA[1]);
+    const distToPlayer = Math.hypot(playerPos.x - nagaPos.x, playerPos.z - nagaPos.z);
+    return distToCenter <= NAGA_CALDERA_RADIUS && distToPlayer >= 8.0 && distToPlayer <= 30.0 && meteorDiveCooldown <= 0;
+  }
+
+  /**
    * Evaluates if Naga Ignis should initiate Flying Pursuit (Gap Closer)
    */
   public static shouldTriggerFlyingPursuit(
@@ -134,13 +147,20 @@ export class MonsterCombatAI {
       return null;
     }
 
+    const meteorDiveCd = cdMap.get('meteor_dive') ?? 0;
     const dashCd = cdMap.get('flying_dash') ?? cdMap.get('flying_pursuit') ?? 0;
     const fireballCd = cdMap.get('fireball_barrage') ?? 0;
     const breathCd = cdMap.get('flame_breath') ?? cdMap.get('fire_breath') ?? 0;
     const clawCd = cdMap.get('dragon_claw') ?? cdMap.get('tail_swipe') ?? 0;
 
-    // 1. TOP PRIORITY GAP CLOSER: Flying Dive / Dash Pursuit (Jarak > 12 unit, jika pemain di kaldera & Cooldown <= 0)
     const inArena = playerDistToCenter !== undefined ? playerDistToCenter <= NAGA_CALDERA_RADIUS : true;
+
+    // 1. SUPREME BOSS SKILL: Meteor Dive / Sky Crash (Jarak 8 - 30 unit, Cooldown 18s)
+    if (inArena && distToPlayer >= 8.0 && distToPlayer <= 30.0 && meteorDiveCd <= 0) {
+      return 'meteor_dive';
+    }
+
+    // 2. GAP CLOSER: Flying Dive / Dash Pursuit (Jarak > 12 unit, jika pemain di kaldera & Cooldown <= 0)
     if (inArena && distToPlayer > 12.0 && distToPlayer <= 48.0 && dashCd <= 0) {
       return 'flying_dash';
     }

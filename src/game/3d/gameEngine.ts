@@ -219,6 +219,10 @@ export class GameEngine {
   private animationFrameId: number | null = null;
   private callbacks: GameEngineCallbacks;
   private bossManager: BossManager;
+  // Dynamic Boss Aerial Camera & Airborne tracking
+  private isDragonAirborne = false;
+  private cameraTargetOffsetY = 0;
+  private cameraAerialZoom = 0;
   // Zone-Based Boss Combat & BGM System
   private currentBossZone: BossArenaZone | null = null;
   private activeBossEnemyData: EnemyData | null = null;
@@ -468,6 +472,9 @@ export class GameEngine {
           this.respawnPlayerAtLastVisitedTown();
         },
         onDamageAbsorb: (rawDmg) => this.absorbDamageWithShield(rawDmg).remainingDamage,
+        onAirborneChange: (isAirborne: boolean) => {
+          this.isDragonAirborne = isAirborne;
+        },
       }
     );
 
@@ -5460,7 +5467,7 @@ export class GameEngine {
   private updateMonsterSinglePlayer(delta: number) {
     let bossInView = false;
     let activeBoss: EnemyData | null = null;
-    this.bossManager.update(delta, this.playerPos, this.playerVel, this.isDashing || this.isInvulnerable);
+    this.bossManager.update(delta, this.playerPos, this.playerVel, this.isDashing || this.isInvulnerable, !this.isGrounded);
 
     this.enemies.forEach((enemy) => {
       // 1. Mayat Monster & Hitung Mundur Hilangnya Mayat (Corpse Decay)
@@ -5591,7 +5598,7 @@ export class GameEngine {
 
       // STATE 2.5: Boss Specialized Attack Skills & Ground Telegraph Danger Zones (Hanya jika pemain dalam jangkauan & boss di arena)
       if (enemy.data.type === 'boss' && distToPlayer <= enemy.data.detectRange && distFromSpawn <= territoryRadius) {
-        const isCasting = this.bossManager.updateBossBehavior(enemy, this.playerPos, delta);
+        const isCasting = this.bossManager.updateBossBehavior(enemy, this.playerPos, delta, !this.isGrounded, this.playerVel);
         if (isCasting) {
           return;
         }
@@ -6041,10 +6048,21 @@ export class GameEngine {
 
   private updateCamera(delta = 0.016) {
     if (this.isSpectatorMode) return;
-    // Orbit camera calculation
-    const offsetX = Math.sin(this.cameraAngleH) * Math.cos(this.cameraAngleV) * this.cameraDistance;
-    const offsetZ = Math.cos(this.cameraAngleH) * Math.cos(this.cameraAngleV) * this.cameraDistance;
-    const offsetY = Math.sin(this.cameraAngleV) * this.cameraDistance + 1.2;
+
+    // Dynamic Boss Aerial Camera lerping
+    if (this.isDragonAirborne) {
+      this.cameraTargetOffsetY = THREE.MathUtils.lerp(this.cameraTargetOffsetY, 4.5, delta * 3.0);
+      this.cameraAerialZoom = THREE.MathUtils.lerp(this.cameraAerialZoom, 3.5, delta * 3.0);
+    } else {
+      this.cameraTargetOffsetY = THREE.MathUtils.lerp(this.cameraTargetOffsetY, 0, delta * 4.0);
+      this.cameraAerialZoom = THREE.MathUtils.lerp(this.cameraAerialZoom, 0, delta * 4.0);
+    }
+
+    // Orbit camera calculation with aerial zoom adjustment
+    const effectiveDist = this.cameraDistance + this.cameraAerialZoom;
+    const offsetX = Math.sin(this.cameraAngleH) * Math.cos(this.cameraAngleV) * effectiveDist;
+    const offsetZ = Math.cos(this.cameraAngleH) * Math.cos(this.cameraAngleV) * effectiveDist;
+    const offsetY = Math.sin(this.cameraAngleV) * effectiveDist + 1.2;
 
     const targetPos = new THREE.Vector3(
       this.playerPos.x + offsetX,
@@ -6055,7 +6073,7 @@ export class GameEngine {
     // Instant snap without lerp during interior teleport grace period (eliminates black screen / void clipping)
     if (this.teleportGraceTimer > 0) {
       this.camera.position.copy(targetPos);
-      this.camera.lookAt(this.playerPos.x, this.playerPos.y + 1.4, this.playerPos.z);
+      this.camera.lookAt(this.playerPos.x, this.playerPos.y + 1.4 + this.cameraTargetOffsetY, this.playerPos.z);
       return;
     }
 
@@ -6080,7 +6098,7 @@ export class GameEngine {
     }
 
     this.camera.position.lerp(targetPos, 0.15);
-    this.camera.lookAt(this.playerPos.x, this.playerPos.y + 1.4, this.playerPos.z);
+    this.camera.lookAt(this.playerPos.x, this.playerPos.y + 1.4 + this.cameraTargetOffsetY, this.playerPos.z);
   }
 
   private updateRemotePlayers(delta: number) {

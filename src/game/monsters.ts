@@ -760,6 +760,18 @@ export const IGNIS_DRAGON_BOSS_CONFIG: BossConfig = {
   scale: [4.2, 4.2, 4.2],
   skills: [
     {
+      id: 'meteor_dive',
+      name: 'Meteor Dive / Sky Crash',
+      nameId: 'Terjun Meteor / Sky Crash',
+      description: 'Naga melesat naik vertikal ke udara 14 unit, spiral hover, lalu menukik tajam menghantam tanah dengan direct damage 85 dan seismic shockwave 16 unit',
+      telegraphType: 'circle',
+      telegraphDuration: 1.0,
+      cooldown: 18.0,
+      damage: 85,
+      effect: 'knockup',
+      effectDuration: 1.2,
+    },
+    {
       id: 'dragon_claw',
       name: 'Dragon Claw Strike',
       nameId: 'Sabetan Cakar Naga',

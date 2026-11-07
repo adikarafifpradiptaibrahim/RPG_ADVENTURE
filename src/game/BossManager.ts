@@ -49,6 +49,7 @@ export interface BossManagerCallbacks {
   onSpawnFireballProjectile?: (fromPos: THREE.Vector3, toPos: THREE.Vector3, damage: number) => void;
   onPlayerDeath?: () => void;
   onDamageAbsorb?: (rawDmg: number) => number;
+  onAirborneChange?: (isAirborne: boolean) => void;
 }
 
 /**
@@ -64,9 +65,25 @@ export class BossManager {
 
   // Boss internal states keyed by boss ID
   private skillCooldowns: Map<string, Map<string, number>> = new Map();
-  private bossStates: Map<string, 'idle' | 'chase' | 'telegraph' | 'executing' | 'recovery' | 'flying_pursuit'> = new Map();
+  private bossStates: Map<string, 'idle' | 'chase' | 'telegraph' | 'executing' | 'recovery' | 'flying_pursuit' | 'meteor_dive'> = new Map();
   private stateTimers: Map<string, number> = new Map();
   private activeTelegraphMap: Map<string, ActiveTelegraph> = new Map();
+
+  // Aerial & Meteor Dive state
+  public isDragonAirborne: boolean = false;
+  private meteorDiveTarget: THREE.Vector3 | null = null;
+  private meteorDiveIndicatorGroup: THREE.Group | null = null;
+  private activeSeismicShockwaves: Array<{
+    center: THREE.Vector3;
+    mesh: THREE.Mesh;
+    mat: THREE.MeshBasicMaterial;
+    currentRadius: number;
+    maxRadius: number;
+    speed: number;
+    damage: number;
+    innerSafeRadius: number;
+    hasHitPlayer: boolean;
+  }> = [];
 
   // Player Debuff State
   public playerDebuffs: PlayerStatusDebuffs = {
@@ -107,12 +124,16 @@ export class BossManager {
     delta: number,
     playerPos: THREE.Vector3,
     playerVel: THREE.Vector3,
-    isPlayerDashing: boolean
+    isPlayerDashing: boolean,
+    isPlayerJumping: boolean = false
   ) {
     // 1. Update Player Status Debuffs (Stun & Burn DoT)
     this.updatePlayerDebuffs(delta);
 
-    // 2. Update and advance Active Telegraph Indicators
+    // 2. Update active seismic shockwaves
+    this.updateSeismicShockwaves(delta, playerPos, playerVel, isPlayerJumping);
+
+    // 3. Update and advance Active Telegraph Indicators
     for (let i = this.telegraphs.length - 1; i >= 0; i--) {
       const tel = this.telegraphs[i];
       tel.timer += delta;
@@ -184,7 +205,9 @@ export class BossManager {
       isReturning?: boolean;
     },
     playerPos: THREE.Vector3,
-    delta: number
+    delta: number,
+    isPlayerJumping: boolean = false,
+    playerVel?: THREE.Vector3
   ): boolean {
     const bossId = enemy.data.id;
     const isIgnis = bossId === 'boss_dragonfang';
@@ -193,6 +216,11 @@ export class BossManager {
     if (!isIgnis && !isTitan && !isWorm) return false;
 
     if (enemy.data.hp <= 0) {
+      if (this.isDragonAirborne && isIgnis) {
+        this.isDragonAirborne = false;
+        this.callbacks.onAirborneChange?.(false);
+        this.removeMeteorDiveIndicator();
+      }
       if (soundManager.getCurrentBossMusic()) {
         const config = isIgnis ? IGNIS_DRAGON_BOSS_CONFIG : (isWorm ? JARRUS_WORM_BOSS_CONFIG : ANCIENT_TITAN_BOSS_CONFIG);
         soundManager.playBossVictory(config.nameId || config.name);
@@ -253,6 +281,10 @@ export class BossManager {
       return true; // Prevents normal chase/walk movement during skill wind-up
     }
 
+    if (currentState === 'meteor_dive') {
+      return this.updateDragonMeteorDive(enemy, playerPos, delta, this.skillCooldowns.get(bossId)!, isPlayerJumping, playerVel);
+    }
+
     if (currentState === 'flying_pursuit') {
       return this.updateDragonFlyingPursuit(enemy, playerPos, delta, this.skillCooldowns.get(bossId)!);
     }
@@ -285,13 +317,21 @@ export class BossManager {
 
     if (isIgnis) {
       const distToCenter = Math.hypot(playerPos.x - SPAWN_NAGA[0], playerPos.z - SPAWN_NAGA[1]);
+      const meteorDiveCd = cdMap.get('meteor_dive') ?? 0;
       const flyingCooldown = cdMap.get('flying_dash') ?? cdMap.get('flying_pursuit') ?? 0;
 
-      // ATURAN PEMICU TERBANG (Flying Dive / Dash Pursuit):
-      // JIKA pemain masih berada di dalam arena kaldera (jarak ke pusat <= 48 unit),
-      // DAN jarak pemain ke naga menjauh (distToPlayer > 12 unit),
-      // DAN skill terbang tidak sedang cooldown (flyingCooldown <= 0),
-      // MAKA PAKSA naga beralih ke state: STATE_FLYING_PURSUIT.
+      // 1. SUPREME BOSS SKILL: Meteor Dive / Sky Crash (Jarak 8 - 30 unit, Cooldown 18s)
+      if (distToCenter <= NAGA_CALDERA_RADIUS && distToPlayer >= 8.0 && distToPlayer <= 30.0 && meteorDiveCd <= 0) {
+        this.bossStates.set(bossId, 'meteor_dive');
+        this.stateTimers.set(bossId, 0);
+        this.isDragonAirborne = true;
+        this.callbacks.onAirborneChange?.(true);
+        soundManager.playDragonRoar();
+        this.callbacks.onAddFloatingText('☄️ IGNIS TERBANG TINGGI: METEOR DIVE!', '#ff1744', 'crit');
+        return this.updateDragonMeteorDive(enemy, playerPos, delta, cdMap, isPlayerJumping, playerVel);
+      }
+
+      // 2. GAP CLOSER: Flying Dive / Dash Pursuit (Jarak > 12 unit, jika pemain di kaldera & Cooldown <= 0)
       if (distToCenter <= NAGA_CALDERA_RADIUS && distToPlayer > 12.0 && flyingCooldown <= 0) {
         this.bossStates.set(bossId, 'flying_pursuit');
         this.stateTimers.set(bossId, 0);
@@ -305,7 +345,15 @@ export class BossManager {
       const dot = fwd.dot(toPlayer);
 
       const selected = MonsterCombatAI.selectDragonSkill(distToPlayer, dot, cdMap, distToCenter);
-      if (selected === 'flying_dash') {
+      if (selected === 'meteor_dive') {
+        this.bossStates.set(bossId, 'meteor_dive');
+        this.stateTimers.set(bossId, 0);
+        this.isDragonAirborne = true;
+        this.callbacks.onAirborneChange?.(true);
+        soundManager.playDragonRoar();
+        this.callbacks.onAddFloatingText('☄️ IGNIS TERBANG TINGGI: METEOR DIVE!', '#ff1744', 'crit');
+        return this.updateDragonMeteorDive(enemy, playerPos, delta, cdMap, isPlayerJumping, playerVel);
+      } else if (selected === 'flying_dash') {
         this.bossStates.set(bossId, 'flying_pursuit');
         this.stateTimers.set(bossId, 0);
         soundManager.playDragonRoar();
@@ -609,6 +657,396 @@ export class BossManager {
     }
 
     return true;
+  }
+
+  /**
+   * STATE_METEOR_DIVE (Boss Naga Purba Ignis)
+   * Eksekusi skill Meteor Dive / Sky Crash dalam 3 Fase:
+   * Fase 1: Ascend & Spiral Hover (1.2 detik) - naga naik vertikal ke +14m
+   * Fase 2: Telegraph Warning (1.0 detik) - kunci target, red decal ring 6.5 unit, falling embers
+   * Fase 3: Impact & Seismic Shockwave (0.35 detik) - menukik curam ke target, direct 85 dmg + knockup, seismic shockwave 16 unit (35 dmg + knockback, dodge lompat)
+   */
+  public updateDragonMeteorDive(
+    enemy: {
+      data: EnemyData;
+      mesh: THREE.Group;
+      parts: Record<string, any>;
+      spawnPos?: THREE.Vector3;
+      leashRadius?: number;
+      isReturning?: boolean;
+    },
+    playerPos: THREE.Vector3,
+    delta: number,
+    cdMap: Map<string, number>,
+    isPlayerJumping: boolean = false,
+    playerVel?: THREE.Vector3
+  ): boolean {
+    const bossId = enemy.data.id;
+    const stateTimer = (this.stateTimers.get(bossId) || 0) + delta;
+    this.stateTimers.set(bossId, stateTimer);
+
+    const naga = enemy.mesh;
+    const nagaPos = naga.position;
+    const distPlayerToCenter = Math.hypot(playerPos.x - SPAWN_NAGA[0], playerPos.z - SPAWN_NAGA[1]);
+    const distNagaToCenter = Math.hypot(nagaPos.x - SPAWN_NAGA[0], nagaPos.z - SPAWN_NAGA[1]);
+
+    // Safety leash check: if player exits caldera or boss drifts too far
+    if (distPlayerToCenter > NAGA_CALDERA_RADIUS + 4.0 || distNagaToCenter > NAGA_CALDERA_RADIUS + 10.0) {
+      this.bossStates.set(bossId, 'chase');
+      this.stateTimers.set(bossId, 0);
+      this.isDragonAirborne = false;
+      this.callbacks.onAirborneChange?.(false);
+      this.removeMeteorDiveIndicator();
+      this.meteorDiveTarget = null;
+      cdMap.set('meteor_dive', 12.0);
+      enemy.isReturning = true;
+
+      nagaPos.y = this.getTerrainHeight(nagaPos.x, nagaPos.z);
+      if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
+        enemy.parts.leftWing.rotation.set(0, 0, 0);
+        enemy.parts.rightWing.rotation.set(0, 0, 0);
+      }
+      return false;
+    }
+
+    const groundY = this.getTerrainHeight(nagaPos.x, nagaPos.z);
+    const targetAirborneY = groundY + 14.0;
+
+    // ==========================================
+    // FASE 1: ASCEND & SPIRAL (0 - 1.2 detik)
+    // ==========================================
+    if (stateTimer < 1.2) {
+      if (!this.isDragonAirborne) {
+        this.isDragonAirborne = true;
+        this.callbacks.onAirborneChange?.(true);
+      }
+
+      // Melesat naik vertikal ke udara 14 unit di atas tanah
+      nagaPos.y = THREE.MathUtils.lerp(nagaPos.y, targetAirborneY, delta * 6.5);
+
+      // Animasi kepakan sayap cepat saat menanjak
+      if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
+        enemy.parts.leftWing.rotation.z = Math.sin(stateTimer * 24.0) * 0.65;
+        enemy.parts.rightWing.rotation.z = -Math.sin(stateTimer * 24.0) * 0.65;
+      }
+      if (enemy.parts?.neck) {
+        enemy.parts.neck.rotation.x = -0.4 + Math.sin(stateTimer * 12.0) * 0.15;
+      }
+      if (enemy.parts?.frontLeftLeg && enemy.parts?.frontRightLeg) {
+        enemy.parts.frontLeftLeg.rotation.x = -0.45;
+        enemy.parts.frontRightLeg.rotation.x = -0.45;
+      }
+      if (enemy.parts?.leftLeg && enemy.parts?.rightLeg) {
+        enemy.parts.leftLeg.rotation.x = 0.45;
+        enemy.parts.rightLeg.rotation.x = 0.45;
+      }
+
+      // Spiral hover menghadap ke arah pemain
+      const toPlayer = new THREE.Vector3(playerPos.x - nagaPos.x, 0, playerPos.z - nagaPos.z).normalize();
+      if (toPlayer.lengthSq() > 0.001) {
+        naga.rotation.y = Math.atan2(toPlayer.x, toPlayer.z) + Math.sin(stateTimer * 5.0) * 0.3;
+      }
+
+      // Percikan bara api dari tubuh naga
+      if (Math.random() < 0.35) {
+        const sparkPos = nagaPos.clone().add(new THREE.Vector3(
+          (Math.random() - 0.5) * 4.0,
+          -1.0,
+          (Math.random() - 0.5) * 4.0
+        ));
+        this.callbacks.onSpawnSparks?.(sparkPos, 0xff4500, 3, 2.5);
+      }
+      return true;
+    }
+
+    // ==========================================
+    // FASE 2: TELEGRAPH WARNING (1.2 - 2.2 detik)
+    // ==========================================
+    if (stateTimer < 2.2) {
+      // Kunci koordinat target jatuhnya naga pada posisi pemain saat awal Fase 2
+      if (!this.meteorDiveTarget) {
+        const diveGroundY = this.getTerrainHeight(playerPos.x, playerPos.z);
+        this.meteorDiveTarget = new THREE.Vector3(playerPos.x, diveGroundY, playerPos.z);
+        this.spawnMeteorDiveIndicator(this.meteorDiveTarget, 6.5);
+        soundManager.playDragonRoar();
+        this.callbacks.onAddFloatingText('⚠️ TARGET TERKUNCI! HINDARI ZONA MERAH!', '#ff1744', 'crit');
+      }
+
+      // Naga melayang diam sejenak di udara 14m
+      nagaPos.y = THREE.MathUtils.lerp(nagaPos.y, targetAirborneY, delta * 3.5);
+
+      // Menghadap lurus ke bawah arah diveTarget
+      naga.lookAt(this.meteorDiveTarget.x, this.meteorDiveTarget.y, this.meteorDiveTarget.z);
+
+      // Kepakan sayap stabil melayang
+      if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
+        enemy.parts.leftWing.rotation.z = Math.sin(stateTimer * 12.0) * 0.45;
+        enemy.parts.rightWing.rotation.z = -Math.sin(stateTimer * 12.0) * 0.45;
+      }
+
+      // Animasi denyutan indikator & bara api jatuh dari langit
+      const phase2Timer = stateTimer - 1.2;
+      this.updateMeteorDiveIndicator(phase2Timer);
+
+      if (Math.random() < 0.4) {
+        const emberPos = this.meteorDiveTarget.clone().add(new THREE.Vector3(
+          (Math.random() - 0.5) * 6.5,
+          4.0 + Math.random() * 3.0,
+          (Math.random() - 0.5) * 6.5
+        ));
+        this.callbacks.onSpawnSparks?.(emberPos, 0xff2200, 2, 2.0);
+      }
+      return true;
+    }
+
+    // ==========================================
+    // FASE 3: IMPACT & SEISMIC SHOCKWAVE (2.2 - 2.55 detik)
+    // ==========================================
+    const diveTarget = this.meteorDiveTarget || new THREE.Vector3(playerPos.x, this.getTerrainHeight(playerPos.x, playerPos.z), playerPos.z);
+
+    if (stateTimer < 2.55) {
+      // Menukik curam meluncur lurus ke diveTarget dengan kecepatan sangat tinggi
+      nagaPos.lerp(diveTarget, Math.min(1.0, delta * 24.0));
+      naga.lookAt(diveTarget.x, diveTarget.y, diveTarget.z);
+
+      // Pose sayap melipat menukik
+      if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
+        enemy.parts.leftWing.rotation.z = 0.9;
+        enemy.parts.rightWing.rotation.z = -0.9;
+      }
+      if (enemy.parts?.neck) {
+        enemy.parts.neck.rotation.x = 0.3;
+      }
+
+      // Ekor api menukik
+      this.callbacks.onSpawnSparks?.(nagaPos.clone(), 0xff3d00, 5, 5.0);
+      return true;
+    }
+
+    // Benturan Tanah (Ground Impact Moment)
+    const impactPos = diveTarget.clone();
+    impactPos.y = this.getTerrainHeight(impactPos.x, impactPos.z);
+    nagaPos.copy(impactPos);
+
+    // Reset postur naga tegak di tanah
+    naga.rotation.x = 0;
+    naga.rotation.z = 0;
+    const toPlayer = new THREE.Vector3(playerPos.x - nagaPos.x, 0, playerPos.z - nagaPos.z).normalize();
+    if (toPlayer.lengthSq() > 0.001) {
+      naga.rotation.y = Math.atan2(toPlayer.x, toPlayer.z);
+    }
+    if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
+      enemy.parts.leftWing.rotation.set(0, 0, 0);
+      enemy.parts.rightWing.rotation.set(0, 0, 0);
+    }
+    if (enemy.parts?.neck) enemy.parts.neck.rotation.x = 0;
+    if (enemy.parts?.frontLeftLeg && enemy.parts?.frontRightLeg) {
+      enemy.parts.frontLeftLeg.rotation.set(0, 0, 0);
+      enemy.parts.frontRightLeg.rotation.set(0, 0, 0);
+    }
+    if (enemy.parts?.leftLeg && enemy.parts?.rightLeg) {
+      enemy.parts.leftLeg.rotation.set(0, 0, 0);
+      enemy.parts.rightLeg.rotation.set(0, 0, 0);
+    }
+
+    // 1. Direct Impact Damage (Radius 6.5 unit): 85 damage + High Knockup
+    const distToImpact = Math.hypot(playerPos.x - impactPos.x, playerPos.z - impactPos.z);
+    if (distToImpact <= 6.5) {
+      this.callbacks.onUpdateStats((stats) => {
+        const rawDmg = 85;
+        const absorbed = this.callbacks.onDamageAbsorb ? this.callbacks.onDamageAbsorb(rawDmg) : rawDmg;
+        const actualDmg = Math.max(12, absorbed - Math.round(stats.baseDefense * 0.4));
+        const nextHp = Math.max(0, stats.hp - actualDmg);
+        this.callbacks.onAddFloatingText(`-${actualDmg} HP (CRASH!)`, '#ef4444', 'crit');
+        if (nextHp <= 0) this.callbacks.onPlayerDeath?.();
+        return { ...stats, hp: nextHp };
+      });
+      this.applyKnockup(impactPos, playerPos, playerVel || new THREE.Vector3());
+    }
+
+    // 2. Gelombang Kejut Seismik (Seismic Shockwave Ring): radius 2.0 -> 16.0 at 10 unit/s, 35 damage + knockback (dodge via lompat)
+    this.spawnSeismicShockwave(impactPos.clone(), 2.0, 16.0, 10.0, 35);
+
+    // 3. Efek Visual & Audio Ledakan Benturan
+    soundManager.playMeteorImpact();
+    this.callbacks.onCameraShake(0.5); // 0.5s medium intensity camera shake
+    this.callbacks.onSpawnShockwave?.(impactPos.clone(), 0xff2200, 12.0, 0.7);
+    this.callbacks.onSpawnSparks?.(impactPos.clone().add(new THREE.Vector3(0, 0.6, 0)), 0xff3d00, 35, 9.0);
+    this.callbacks.onAddFloatingText('💥 METEOR DIVE IMPACT!', '#ff1744', 'crit');
+
+    // 4. Bersihkan Indikator Visual Decal & kembalikan status Airborne
+    this.removeMeteorDiveIndicator();
+    this.meteorDiveTarget = null;
+    this.isDragonAirborne = false;
+    this.callbacks.onAirborneChange?.(false);
+
+    // 5. Cooldown 18.0s & transisi Recovery
+    cdMap.set('meteor_dive', 18.0);
+    this.bossStates.set(bossId, 'recovery');
+    this.stateTimers.set(bossId, 0);
+
+    return true;
+  }
+
+  private spawnMeteorDiveIndicator(center: THREE.Vector3, radius = 6.5) {
+    this.removeMeteorDiveIndicator();
+    const group = new THREE.Group();
+    const groundY = this.getTerrainHeight(center.x, center.z) + 0.12;
+    group.position.set(center.x, groundY, center.z);
+    group.rotation.x = -Math.PI / 2;
+
+    // Cincin luar tebal warna merah menyala
+    const ringGeom = new THREE.RingGeometry(radius - 0.4, radius, 48);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xff1744,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+    });
+    const ringMesh = new THREE.Mesh(ringGeom, ringMat);
+    group.add(ringMesh);
+
+    // Permukaan zona merah transparan
+    const fillGeom = new THREE.CircleGeometry(radius - 0.4, 48);
+    const fillMat = new THREE.MeshBasicMaterial({
+      color: 0xd50000,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false,
+    });
+    const fillMesh = new THREE.Mesh(fillGeom, fillMat);
+    group.add(fillMesh);
+
+    // Cincin inti bahaya tengah
+    const coreGeom = new THREE.RingGeometry(0.2, 2.0, 32);
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0xff9100,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.75,
+      depthWrite: false,
+    });
+    const coreMesh = new THREE.Mesh(coreGeom, coreMat);
+    group.add(coreMesh);
+
+    this.scene.add(group);
+    this.meteorDiveIndicatorGroup = group;
+  }
+
+  private updateMeteorDiveIndicator(phaseTimer: number) {
+    if (!this.meteorDiveIndicatorGroup) return;
+    const pulse = 0.5 + Math.sin(phaseTimer * 14.0) * 0.4;
+    this.meteorDiveIndicatorGroup.children.forEach((child, idx) => {
+      const mat = (child as THREE.Mesh).material as THREE.MeshBasicMaterial;
+      if (mat) {
+        if (idx === 0) mat.opacity = 0.7 + pulse * 0.3;
+        else if (idx === 1) mat.opacity = 0.25 + pulse * 0.25;
+        else if (idx === 2) mat.opacity = 0.5 + pulse * 0.4;
+      }
+    });
+  }
+
+  private removeMeteorDiveIndicator() {
+    if (this.meteorDiveIndicatorGroup) {
+      this.scene.remove(this.meteorDiveIndicatorGroup);
+      this.meteorDiveIndicatorGroup.traverse((obj) => {
+        if ((obj as THREE.Mesh).geometry) (obj as THREE.Mesh).geometry.dispose();
+        if ((obj as THREE.Mesh).material) {
+          const mat = (obj as THREE.Mesh).material;
+          if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+          else mat.dispose();
+        }
+      });
+      this.meteorDiveIndicatorGroup = null;
+    }
+  }
+
+  public spawnSeismicShockwave(
+    center: THREE.Vector3,
+    startRadius = 2.0,
+    maxRadius = 16.0,
+    speed = 10.0,
+    damage = 35
+  ) {
+    const ringGeom = new THREE.RingGeometry(startRadius - 0.45, startRadius + 0.45, 48);
+    ringGeom.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xff3d00,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(ringGeom, ringMat);
+    mesh.position.set(center.x, center.y + 0.15, center.z);
+    this.scene.add(mesh);
+
+    this.activeSeismicShockwaves.push({
+      center,
+      mesh,
+      mat: ringMat,
+      currentRadius: startRadius,
+      maxRadius,
+      speed,
+      damage,
+      innerSafeRadius: 6.5,
+      hasHitPlayer: false,
+    });
+  }
+
+  public updateSeismicShockwaves(
+    delta: number,
+    playerPos: THREE.Vector3,
+    playerVel: THREE.Vector3,
+    isPlayerJumping: boolean
+  ) {
+    for (let i = this.activeSeismicShockwaves.length - 1; i >= 0; i--) {
+      const sw = this.activeSeismicShockwaves[i];
+      sw.currentRadius += sw.speed * delta;
+
+      // Expand ring mesh scale
+      const scale = sw.currentRadius / 2.0;
+      sw.mesh.scale.set(scale, 1, scale);
+
+      // Fade out opacity as it expands
+      const progress = Math.min(1.0, (sw.currentRadius - 2.0) / (sw.maxRadius - 2.0));
+      sw.mat.opacity = Math.max(0, (1.0 - progress) * 0.85);
+
+      // Collision check with player
+      if (!sw.hasHitPlayer) {
+        const distToCenter = Math.hypot(playerPos.x - sw.center.x, playerPos.z - sw.center.z);
+        // Wavefront collision window ~1.5 units
+        if (Math.abs(distToCenter - sw.currentRadius) <= 1.5) {
+          sw.hasHitPlayer = true;
+          if (isPlayerJumping) {
+            // Player jumped over the seismic wave!
+            this.callbacks.onAddFloatingText('✨ TERHINDAR DENGAN LOMPAT!', '#00e676', 'info');
+          } else {
+            // Player grounded -> takes 35 damage and knockback
+            this.callbacks.onUpdateStats((stats) => {
+              const rawDmg = sw.damage;
+              const absorbed = this.callbacks.onDamageAbsorb ? this.callbacks.onDamageAbsorb(rawDmg) : rawDmg;
+              const actualDmg = Math.max(8, absorbed - Math.round(stats.baseDefense * 0.35));
+              const nextHp = Math.max(0, stats.hp - actualDmg);
+              this.callbacks.onAddFloatingText(`-${actualDmg} HP (Gelombang Kejut)`, '#ff3d00', 'damage');
+              if (nextHp <= 0) this.callbacks.onPlayerDeath?.();
+              return { ...stats, hp: nextHp };
+            });
+            this.applyKnockback(sw.center, playerPos, playerVel, 14.0);
+          }
+        }
+      }
+
+      // Expire shockwave
+      if (sw.currentRadius >= sw.maxRadius) {
+        this.scene.remove(sw.mesh);
+        sw.mesh.geometry.dispose();
+        sw.mat.dispose();
+        this.activeSeismicShockwaves.splice(i, 1);
+      }
+    }
   }
 
   // ==========================================
@@ -1180,6 +1618,18 @@ export class BossManager {
   }
 
   public cleanup() {
+    this.removeMeteorDiveIndicator();
+    this.meteorDiveTarget = null;
+    this.activeSeismicShockwaves.forEach((sw) => {
+      this.scene.remove(sw.mesh);
+      sw.mesh.geometry.dispose();
+      sw.mat.dispose();
+    });
+    this.activeSeismicShockwaves = [];
+    if (this.isDragonAirborne) {
+      this.isDragonAirborne = false;
+      this.callbacks.onAirborneChange?.(false);
+    }
     this.telegraphs.forEach((t) => this.removeTelegraph(t));
     this.telegraphs = [];
     this.activeTelegraphMap.clear();
