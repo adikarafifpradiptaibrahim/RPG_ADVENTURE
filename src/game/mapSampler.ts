@@ -38,15 +38,16 @@ function clamp(val: number, min: number, max: number): number {
  * Evaluasi zona matematis deterministik proporsional dan bersih
  */
 export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
-  // A. KALDERA SARANG NAGA & PULAU VULKANIK ('volcano' - BENTUK ELIPS ORGANIK)
+  // A. KALDERA SARANG NAGA & PULAU VULKANIK ('volcano' - BENTUK ELIPS ORGANIK [80, 360])
   const cx = 80;
   const cz = 360;
   const rx = 160;
   const rz = 85;
   const edgeNoise = Math.sin(x * 0.06) * 10 + Math.cos(z * 0.07) * 7;
   const distSq = Math.pow((x - cx) / (rx + edgeNoise), 2) + Math.pow((z - cz) / (rz + edgeNoise), 2);
+  const isVolcanoIsland = distSq <= 1.0;
 
-  if (distSq <= 1.0) {
+  if (isVolcanoIsland) {
     return {
       id: 'volcano',
       name: 'Dragonfang Caldera & Volcano Island',
@@ -57,11 +58,11 @@ export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
     };
   }
 
-  // B. SAMUDRA & LAUT LEPAS AZURE ('ocean' - LAUT SELATAN & LAUT BARAT LEGA)
+  // B. SAMUDRA & LAUT LEPAS AZURE ('ocean' - LAUT BARAT & LAUT SELATAN)
   const southCoastZ = 190 + Math.sin(x * 0.012) * 20 + Math.cos(x * 0.035) * 8;
   const westCoastX = -460 + Math.sin(z * 0.015) * 35 + Math.cos(z * 0.04) * 15;
 
-  if (z > southCoastZ || x < westCoastX || x > 650 || z < -450) {
+  if (x < westCoastX || z > southCoastZ) {
     return {
       id: 'ocean',
       name: 'Azure Coast & South Ocean',
@@ -72,11 +73,16 @@ export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
     };
   }
 
-  // C. GURUN PASIR EMAS SOLARIA ('desert' - EKSPANSI UTARA & TIMUR S-CURVE)
-  const desertWestLimit = -20 + Math.sin(z * 0.018) * 40;
-  const desertSouthLimit = -30 + Math.cos(x * 0.011) * 75 + Math.sin(x * 0.025) * 20;
+  // C. GURUN PASIR EMAS SOLARIA ('desert' - EKSPANSI UTARA & TIMUR BEBAS TANPA PEMBATAS KANAN)
+  const desertCurveZ = -20 
+    + Math.sin((x + 100) * 0.008) * 110 
+    + Math.cos(x * 0.02) * 25;
 
-  if (x >= desertWestLimit && z <= desertSouthLimit && x <= 560) {
+  const desertCurveX = -60 
+    + Math.sin((z + 100) * 0.012) * 50;
+
+  // Jika posisi berada di dalam lekukan gurun (timur laut):
+  if (x >= desertCurveX && z <= desertCurveZ) {
     return {
       id: 'desert',
       name: 'Solaria Golden Desert',

@@ -224,7 +224,7 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
   // 2. Azure Ocean (Natural Wavy Coastline: z > southCoastZ || x < westCoastX)
   const southCoastZ = 190 + Math.sin(x * 0.012) * 20 + Math.cos(x * 0.035) * 8;
   const westCoastX = -460 + Math.sin(z * 0.015) * 35 + Math.cos(z * 0.04) * 15;
-  if (z > southCoastZ || x < westCoastX || x > 650 || z < -450) {
+  if (z > southCoastZ || x < westCoastX) {
     return REGIONS[1];
   }
 
@@ -253,10 +253,15 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
     return REGIONS[6];
   }
 
-  // 8. Solaria Golden Desert (S-Curve boundary)
-  const desertWestLimit = -20 + Math.sin(z * 0.018) * 40;
-  const desertSouthLimit = -30 + Math.cos(x * 0.011) * 75 + Math.sin(x * 0.025) * 20;
-  if (x >= desertWestLimit && z <= desertSouthLimit && x <= 560) {
+  // 8. Solaria Golden Desert (Continuous Boundary Curve without eastern cutoff)
+  const desertCurveZ = -20 
+    + Math.sin((x + 100) * 0.008) * 110 
+    + Math.cos(x * 0.02) * 25;
+
+  const desertCurveX = -60 
+    + Math.sin((z + 100) * 0.012) * 50;
+
+  if (x >= desertCurveX && z <= desertCurveZ) {
     return REGIONS[7];
   }
 

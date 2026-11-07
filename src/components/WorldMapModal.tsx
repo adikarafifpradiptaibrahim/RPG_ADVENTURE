@@ -19,7 +19,7 @@ import { REGIONS, WAYPOINTS } from '../game/mapData';
 import { getContinentBiomeSample, getBiomeAt } from '../game/mapSampler';
 
 // Persistent continent map cached image data to eliminate all lag on open & pan
-const MAP_CACHE_VERSION = 'v4.5_curved_blueprint_rev35';
+const MAP_CACHE_VERSION = 'v4.6_desert_unbounded_east';
 let cachedMapVersion = '';
 let cachedMapImageData: ImageData | null = null;
 
