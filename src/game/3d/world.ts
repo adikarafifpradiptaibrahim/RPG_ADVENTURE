@@ -50,7 +50,6 @@ import {
   createDesertPalaceMesh,
   createTajMahalPalaceMesh,
   createDesertPalaceFortressWallMesh,
-  createDesertPavedRoadMesh,
   createDesertOilLanternMesh,
   createThroneRoomInteriorMesh,
   createDesertTentMesh,
@@ -1493,10 +1492,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   colliders.push({ type: 'circle', x: 356, z: -296, radius: 2.2, label: 'Menara Minaret Timur Laut' });
   colliders.push({ type: 'circle', x: 356, z: -264, radius: 2.2, label: 'Menara Minaret Tenggara' });
 
-  // 2. Alur Jalan Setapak Batu Pasir (Grand Sandstone Desert Avenue: X: 240..330, Z: -280)
-  const pavedRoad = createDesertPavedRoadMesh(240, 330, -280, 6.0);
-  pavedRoad.position.set(0, solariaBaseY, 0);
-  scene.add(pavedRoad);
+  // 2. Alur Jalan Setapak Kafilah Gurun (Grand Sandstone Desert Avenue: X: 238..330, Z: -280)
+  // Dibangun secara dinamis dan presisi oleh buildWorldRoadNetwork (RoadSystem.ts)
+  // dengan material pasir padat #d9be8b dan lempengan batu pasir bakar #bfa16a.
 
   // Grand Avenue Date Palms & Brass Desert Oil Lanterns
   const causewayItems = [

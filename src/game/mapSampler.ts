@@ -267,13 +267,13 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
 
   // 4. Desert Zone (Solaria)
   if (zone.id === 'desert') {
-    // Road Network in Desert (Packed Caravan Sand Trail #d1b480)
+    // Road Network in Desert (Packed Caravan Sand Trail #d9be8b)
     if (isPointOnRoad(x, z)) {
-      return { height: y, color: [209, 180, 128], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
+      return { height: y, color: [217, 190, 139], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
     }
-    // Paved Avenue between Bazaar [240, -280] & Palace [330, -280]
-    if (x >= 238 && x <= 335 && Math.abs(z - -280) <= 5.5) {
-      return { height: y, color: [209, 180, 128], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
+    // Paved Avenue between Bazaar [238, -280] & Palace [330, -280]
+    if (x >= 238 && x <= 330 && Math.abs(z - -280) <= 3.5) {
+      return { height: y, color: [217, 190, 139], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
     }
     // Pyramid
     if (Math.hypot(x - 20, z - -220) <= 24) {
@@ -288,9 +288,9 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   }
 
   // 5. Plains Zone (Padang Rumput Eldoria)
-  // Road Network in Plains (Solid Medieval Cobblestone & Dirt Gravel #6e6255)
+  // Road Network in Plains (Medieval Cobblestone Dirt Trail #8c7a65)
   if (isPointOnRoad(x, z)) {
-    return { height: y, color: [110, 98, 85], biomeId: 'eldoria_road', isWater: false, isPath: true, slope: 0 };
+    return { height: y, color: [140, 122, 101], biomeId: 'eldoria_road', isWater: false, isPath: true, slope: 0 };
   }
   // Sanctuary Village Plaza
   if (Math.hypot(x, z - 180) <= 18) {
