@@ -293,20 +293,19 @@ export function createHunterModel(): THREE.Group {
   leftDagger.add(leftHilt, leftGuard, leftBlade);
   leftArmPose.add(leftDagger);
 
-  // Busur Tangan Kiri (Ranged Mode - Sesuai Gambar Referensi 1 & 2)
+  // Busur Tangan Kiri (Ranged Mode - Digenggam Tegak Lurus)
   const handBow = createSegmentedBow(matWood, matString);
   handBow.name = 'HandBow';
-  // Letakkan pas di genggaman telapak tangan kiri
-  handBow.position.set(0, -0.44, 0.08);
+  // Posisikan tepat di telapak tangan kiri
+  handBow.position.set(0, -0.44, 0.04);
 
-  // Orientasi Busur Alami:
-  // - Berdiri vertikal di samping paha
-  // - Punggung busur melengkung ke DEPAN (sumbu Z+)
-  // - Tali busur menghadap ke BELAKANG (ke arah tubuh)
-  handBow.rotation.x = 0.20;           // Sedikit condong maju mengikuti langkah
-  handBow.rotation.y = Math.PI / 2;    // Menghadap ke depan musuh
-  handBow.rotation.z = -0.15;          // Miring natural mengikuti garis A paha luar
-  handBow.visible = false;             // Default tersembunyi saat mode belati
+  // KOREKSI SUMBU BUSUR:
+  // Menetralkan rotasi bawaan lengan agar busur berdiri vertikal lurus ke bawah
+  handBow.rotation.x = -0.35; // Meluruskan kemiringan tangan ke sumbu tegak
+  handBow.rotation.y = 0;     // Tali busur menghadap ke belakang (ke tubuh), lengkungan ke depan
+  handBow.rotation.z = 0.16;  // Mengimbangi sudut lengan agar sejajar dengan paha luar
+
+  handBow.visible = false;
   leftArmPose.add(handBow);
 
   leftArmGroup.add(leftArmPose);
