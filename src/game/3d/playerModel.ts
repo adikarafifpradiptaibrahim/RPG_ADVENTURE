@@ -12,16 +12,16 @@ function createHunterFaceTexture(): THREE.CanvasTexture {
   canvas.height = 128;
   const ctx = canvas.getContext('2d')!;
 
-  ctx.fillStyle = '#c68642';
+  ctx.fillStyle = '#c68642'; // Kulit dahi & mata
   ctx.fillRect(0, 0, 128, 128);
 
-  ctx.fillStyle = '#141619';
+  ctx.fillStyle = '#141619'; // Masker kain
   ctx.fillRect(0, 64, 128, 64);
 
   ctx.fillStyle = '#2b2e35';
   ctx.fillRect(0, 60, 128, 4);
 
-  ctx.fillStyle = '#00f5ff';
+  ctx.fillStyle = '#00f5ff'; // Mata cyan berpendar
   ctx.shadowColor = '#00f5ff';
   ctx.shadowBlur = 12;
   ctx.fillRect(20, 36, 28, 14);
@@ -87,7 +87,7 @@ export function createHunterModel(): THREE.Group {
   const matString = new THREE.LineBasicMaterial({ color: 0x00f0ff });
 
   // ==========================================
-  // 1. KAKI & SEPATU BOT (RAMPING & ATLETIS)
+  // 1. KAKI & SEPATU BOT
   // ==========================================
   const legGroup = new THREE.Group();
   legGroup.name = 'LegGroup';
@@ -135,7 +135,7 @@ export function createHunterModel(): THREE.Group {
   root.add(pelvis, belt, buckle);
 
   // ==========================================
-  // 3. TORSO RAMPING (TIDAK GENDUT) & PLAT DADA
+  // 3. TORSO & PLAT DADA
   // ==========================================
   const torsoGroup = new THREE.Group();
   torsoGroup.name = 'TorsoGroup';
@@ -156,135 +156,144 @@ export function createHunterModel(): THREE.Group {
   root.add(torsoGroup);
 
   // ==========================================
-  // 4. JUBAH MENYELIMUTI TUBUH (ROB-LIKE CLOAK)
+  // 4. JUBAH BERVOLUME MENYELIMUTI TUBUH
   // ==========================================
   const cloakGroup = new THREE.Group();
   cloakGroup.name = 'HunterCloak';
-  cloakGroup.position.set(0, 1.50, -0.20);
+  cloakGroup.position.set(0, 1.50, -0.22);
 
-  // Jubah belakang menjuntai
-  const backCloak = new THREE.Mesh(new THREE.BoxGeometry(0.66, 1.05, 0.04), matCloak);
+  // Jubah belakang tebal melambai
+  const backCloak = new THREE.Mesh(new THREE.BoxGeometry(0.70, 1.05, 0.05), matCloak);
   backCloak.position.set(0, -0.52, 0);
-  backCloak.rotation.x = -0.10;
+  backCloak.rotation.x = -0.16;
   cloakGroup.add(backCloak);
 
-  // Ujung gerigi bawah jubah
-  const fringe1 = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.18, 0.04), matCloak);
-  fringe1.position.set(-0.20, -1.08, 0);
-  const fringe2 = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.26, 0.04), matCloak);
-  fringe2.position.set(0.01, -1.12, 0);
-  const fringe3 = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.16, 0.04), matCloak);
-  fringe3.position.set(0.22, -1.06, 0);
+  // Gerigi tangga ujung jubah
+  const fringe1 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.05), matCloak);
+  fringe1.position.set(-0.22, -1.08, 0);
+  const fringe2 = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.28, 0.05), matCloak);
+  fringe2.position.set(0.01, -1.13, 0);
+  const fringe3 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, 0.05), matCloak);
+  fringe3.position.set(0.24, -1.07, 0);
   cloakGroup.add(fringe1, fringe2, fringe3);
 
   root.add(cloakGroup);
 
-  // Quiver & Busur Punggung
+  // Quiver & Busur Punggung (Bertengger di luar jubah)
   const quiver = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.68, 0.16), matLeather);
-  quiver.position.set(0.16, 1.28, -0.26);
+  quiver.position.set(0.18, 1.28, -0.30);
   quiver.rotation.z = -0.50;
   root.add(quiver);
 
   const backBow = createSegmentedBow(matWood, matString);
   backBow.name = 'BackBow';
-  backBow.position.set(-0.06, 1.25, -0.28);
+  backBow.position.set(-0.06, 1.25, -0.32);
   backBow.rotation.z = 0.65;
   backBow.rotation.y = Math.PI;
   root.add(backBow);
 
   // ==========================================
-  // 5. KEPALA, TUDUNG & MASKER
+  // 5. KEPALA, KERAH TUDUNG (COWL) & TUDUNG
   // ==========================================
   const headGroup = new THREE.Group();
   headGroup.name = 'HunterHeadGroup';
   headGroup.position.set(0, 1.55, 0);
 
-  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.12, 0.20), matSuit);
-  neck.position.set(0, 0.06, 0);
-  headGroup.add(neck);
+  // Kerah tudung melingkar di leher (Cowl Collar)
+  const cowl = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.14, 0.50), matCloak);
+  cowl.position.set(0, -0.04, 0);
+  headGroup.add(cowl);
 
+  // Batok kepala bertekstur
   const faceTexture = createHunterFaceTexture();
   const matFace = new THREE.MeshBasicMaterial({ map: faceTexture });
   const headMaterials = [matCloak, matCloak, matCloak, matCloak, matFace, matCloak];
 
   const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.46, 0.46), headMaterials);
   headMesh.name = 'HunterHead';
-  headMesh.position.set(0, 0.30, 0);
+  headMesh.position.set(0, 0.26, 0);
   headGroup.add(headMesh);
 
+  // Atap tudung miring
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.12, 0.50), matCloak);
-  visor.position.set(0, 0.54, 0.04);
+  visor.position.set(0, 0.50, 0.04);
   visor.rotation.x = 0.16;
   headGroup.add(visor);
 
   root.add(headGroup);
 
   // ==========================================
-  // 6. LENGAN & POSE BELATI A-POSE (ATTACK ON TITAN / ASSASSIN)
+  // 6. LENGAN: A-POSE SEJATI & DUAL BELATI TERBUKA (FLARING OUTWARD)
   // ==========================================
   let armLeft: THREE.Group | undefined;
   let armRight: THREE.Group | undefined;
 
-  [-0.36, 0.36].forEach((xSide, idx) => {
+  [-0.38, 0.38].forEach((xSide, idx) => {
     const isLeft = idx === 0;
     const armGroup = new THREE.Group();
     armGroup.name = isLeft ? 'LeftArm' : 'RightArm';
     armGroup.position.set(xSide, 1.44, 0);
 
-    // Bahu
-    const shoulder = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.20), matArmor);
+    // Pauldron Bahu
+    const shoulder = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.18, 0.20), matArmor);
     armGroup.add(shoulder);
 
-    // Lengan mengarah serong ke bawah samping (garis A-Pose)
-    const limb = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.46, 0.14), matSuit);
-    limb.position.set(isLeft ? -0.05 : 0.05, -0.24, 0.02);
-    limb.rotation.z = isLeft ? 0.26 : -0.26;
-    limb.rotation.x = 0.08;
-    armGroup.add(limb);
+    // LENGAN ATAS & BAWAH: Membuka ke LUAR (Huruf A, BUKAN V)
+    const armLimb = new THREE.Group();
+    armLimb.position.set(0, 0, 0);
+    // Sudut Z positif pada tangan kiri & negatif pada tangan kanan melebarkan lengan ke luar
+    armLimb.rotation.z = isLeft ? 0.38 : -0.38;
+    armLimb.rotation.x = 0.12; // Sedikit santai ke depan
 
-    // Tangan (menghadap ke paha luar)
+    const limbMesh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.46, 0.14), matSuit);
+    limbMesh.position.set(0, -0.24, 0);
+    armLimb.add(limbMesh);
+
+    // Telapak Tangan
     const hand = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.12), matSuit);
-    hand.position.set(isLeft ? -0.10 : 0.10, -0.50, 0.04);
-    armGroup.add(hand);
+    hand.position.set(0, -0.50, 0);
+    armLimb.add(hand);
 
-    // Dagger Group: Mengarah ke bawah-belakang menyerong
+    // DUAL DAGGER: Posisi Terbuka ke Luar (Outward Flare Grip)
     const dagger = new THREE.Group();
     dagger.name = 'HandDagger';
-    dagger.position.set(isLeft ? -0.10 : 0.10, -0.50, 0.04);
+    dagger.position.set(0, -0.50, 0);
 
-    // Rotasi agar bilah menukik ke bawah dan menyerong ke luar
-    dagger.rotation.x = 2.45; // Mengarah menukik ke bawah-belakang
-    dagger.rotation.z = isLeft ? -0.40 : 0.40; // Menyerong ke luar dari paha
-    dagger.rotation.y = isLeft ? 0.20 : -0.20;
+    // Rotasi bilah: Menukik ke bawah-belakang dan MELEBAR TERBUKA KE LUAR
+    dagger.rotation.x = 2.30;
+    // Rotasi Z positif untuk tangan kiri (menjauh ke samping kiri), negatif untuk kanan (menjauh ke kanan)
+    dagger.rotation.z = isLeft ? 0.55 : -0.55;
+    dagger.rotation.y = isLeft ? -0.25 : 0.25;
 
-    // Gagang di telapak
+    // Gagang belati
     const hilt = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.05), matLeather);
     hilt.position.set(0, 0, 0);
 
-    // Guard
+    // Guard belati
     const guard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.06), matArmor);
     guard.position.set(0, 0.08, 0);
 
-    // Bilah Cyan
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.48, 0.02), matCyanGlow);
-    blade.position.set(0, 0.34, 0);
+    // Bilah belati cyan memanjang mencuat ke samping luar
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.50, 0.02), matCyanGlow);
+    blade.position.set(0, 0.35, 0);
 
     dagger.add(hilt, guard, blade);
-    armGroup.add(dagger);
+    armLimb.add(dagger);
 
-    // Busur Tangan (saat stance busur)
+    // Busur tangan kiri saat stance busur aktif
     if (isLeft) {
       const handBow = createSegmentedBow(matWood, matString);
       handBow.name = 'HandBow';
       handBow.position.set(0, -0.50, 0.10);
       handBow.rotation.y = -Math.PI / 2;
       handBow.visible = false;
-      armGroup.add(handBow);
+      armLimb.add(handBow);
       armLeft = armGroup;
     } else {
       armRight = armGroup;
     }
 
+    armGroup.add(armLimb);
     root.add(armGroup);
   });
 
@@ -461,7 +470,7 @@ export function animateHunterWalk(
 
     // Melambai jubah belakang
     if (playerMesh.cape) {
-      playerMesh.cape.rotation.x = -0.10 - Math.abs(Math.sin(walkTime * 1.2)) * 0.14;
+      playerMesh.cape.rotation.x = -0.16 - Math.abs(Math.sin(walkTime * 1.2)) * 0.14;
     }
 
     const walkBob = Math.abs(Math.sin(walkTime * 2.4)) * 0.04;
@@ -506,7 +515,7 @@ export function animateHunterWalk(
     }
 
     if (playerMesh.cape) {
-      playerMesh.cape.rotation.x = -0.10 - Math.sin(walkTime * 2.0) * 0.02;
+      playerMesh.cape.rotation.x = -0.16 - Math.sin(walkTime * 2.0) * 0.02;
     }
   }
 }
