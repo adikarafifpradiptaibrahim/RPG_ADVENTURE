@@ -296,8 +296,8 @@ export function createHunterModel(): THREE.Group {
   // Busur Horizontal Membujur (Senar Cyan di Atas, Gagang di Bawah)
   const handBow = createSegmentedBow(matWood, matString);
   handBow.name = 'HandBow';
-  // Letakkan pas di bawah kepalan tangan kanan setinggi pinggul
-  handBow.position.set(-0.06, -0.42, 0.04);
+  // Letakkan pas di celah sisi dalam lengan dan pinggang
+  handBow.position.set(0.05, -0.42, 0.04);
 
   // KOREKSI MATEMATIS MURNI (BEBAS GIMBAL LOCK):
   // Rotasi X = -Math.PI / 2 memutar bidang Y-Z sehingga senar naik ke atas dan busur membujur ke belakang

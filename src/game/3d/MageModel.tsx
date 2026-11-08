@@ -464,12 +464,8 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
   // Pasangkan tongkat tepat di dalam telapak tangan kanan (child langsung dari rightHand)
   // Fine-tuning pose menyerong ke depan (standby / idle & walk):
   // 1. Pivot (0, 0, 0) persis di tengah batang (separuh tinggi tongkat 1.6 unit)
-  // 2. Offset lokal di telapak tangan: geser lebih rapat ke tangan kanan (X: -0.08), center grip (Y: 0.0), maju (Z: +0.10)
-  // 3. Sudut kemiringan menyerong diagonal ke depan (tampak depan lebih ke tengah di depan area bahu/dada kanan):
-  //    * Rotasi X (+0.32 rad / ~18-20°): Mempertahankan sudut condong ke depan (+Z) yang sudah pas
-  //    * Rotasi Y (+0.10 rad): Menyelaraskan orientasi cincin emas menghadap ke depan-tengah
-  //    * Rotasi Z (+0.05 rad): Mereduksi kemiringan ke luar (roll) sehingga kepala kristal berada tepat di depan area bahu kanan
-  weapon.position.set(-0.08, 0.0, 0.10);
+  // Offset lokal di telapak tangan: pas di genggaman kepalan tangan (geser ke dalam mendekat ke badan/ibu jari: X: +0.01), center grip (Y: 0.0), maju (Z: +0.10)
+  weapon.position.set(0.01, 0.0, 0.10);
   weapon.rotation.set(0.32, 0.10, 0.05);
   rightHand.add(weapon);
 
