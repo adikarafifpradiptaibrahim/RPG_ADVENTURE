@@ -296,10 +296,10 @@ export function createHunterModel(): THREE.Group {
   // Busur Horizontal Membujur (Senar di Atas, Gagang di Bawah)
   const handBow = createSegmentedBow(matWood, matString);
   handBow.name = 'HandBow';
-  handBow.position.set(-0.10, -0.42, 0.02);
+  handBow.position.set(-0.06, -0.42, 0.04);
 
-  // KOREKSI: Balik 180 derajat agar senar menghadap ke atas
-  handBow.rotation.set(Math.PI, Math.PI / 2, Math.PI / 2);
+  // ROTASI TERKUNCI: Senar Cyan di Atas, Gagang Kayu di Bawah, Membujur Depan-Belakang
+  handBow.rotation.set(0, -Math.PI / 2, -Math.PI / 2);
   handBow.visible = false;
   leftArmPose.add(handBow);
 
