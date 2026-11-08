@@ -11,11 +11,12 @@ import {
   animateMageSkillPose,
 } from './MageModel';
 import {
+  createHunterModel,
   createBlockyHunterMesh,
   createLegacyHunterMesh,
   USE_LEGACY_HUNTER,
   animateHunterWalk,
-} from './HunterModel';
+} from './playerModel';
 
 export {
   createHeroicKnightMesh,
@@ -27,6 +28,7 @@ export {
   USE_LEGACY_MAGE,
   animateMageWalk,
   animateMageSkillPose,
+  createHunterModel,
   createBlockyHunterMesh,
   createLegacyHunterMesh,
   USE_LEGACY_HUNTER,
