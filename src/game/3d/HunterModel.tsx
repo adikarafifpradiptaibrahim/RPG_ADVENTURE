@@ -7,10 +7,6 @@ import { PlayerMeshObjects } from './models';
  * ============================================================================
  * CONFIGURATION & SAFETY ROLLBACK TOGGLE
  * ============================================================================
- * Jika USE_LEGACY_HUNTER bernilai true: Game akan menggunakan model lama dari backup.
- * Jika USE_LEGACY_HUNTER bernilai false: Game menggunakan model "THE HUNTER - BLOCKY REVISION"
- * dengan sambungan pelvis padat (bebas celah), masker wajah solid, jubah bergerigi tangga,
- * dan plat zirah dada kontras tinggi.
  */
 export const USE_LEGACY_HUNTER = false;
 import { createLegacyHunterMesh } from './HunterModelLegacy';
@@ -18,52 +14,47 @@ export { createLegacyHunterMesh };
 
 /**
  * ============================================================================
- * PRELOADED MATERIAL PALETTE (High-Contrast Tactical Stealth Theme)
+ * PRELOADED MATERIAL PALETTE (Standard Humanoid High-Contrast Palette)
  * ============================================================================
- * Menghilangkan kesan balok kusam menyatu dengan kontras tajam:
- * - Kulit Kepala & Wajah: #c68642
- * - Masker Wajah Solid: #1f2022
+ * - Kulit Kepala & Leher: #c68642
+ * - Masker Wajah: #1a1a1d
  * - Mata Cyan Glow Emisi: #00f5ff (emissiveIntensity: 2.5)
- * - Tudung Rogue Medium: #32353b
+ * - Tudung Rogue Ramping: #33363d
  * - Baju Dalam Torso: #1f2022
- * - Pelvis & Celana: #18181b
- * - Plat Zirah Dada Abu-abu Baja Kontras: #545860
- * - Lis Strip Logam: #7b8290
- * - Pauldron Bahu Bersiku: #3e4147
- * - Sabuk Kulit Cokelat: #4a2e18 dengan Kepala Sabuk Perak #d1d5db
- * - Sepatu Bot Kulit Cokelat Gelap: #301c10 dengan Shin Guard #545860
- * - Jubah Bergerigi Tangga: #26282c
- * - Quiver & Panah: #4a2e18 & #7b8290
- * - Senjata Belati & Busur: #545860, #7b8290, Tali & Tepi Cyan #00f5ff
+ * - Zirah Dada Abu-Abu Baja Kontras: #6b7280 (Terlihat jelas, tidak tertutup tudung)
+ * - Lis Logam: #9ca3af
+ * - Sabuk Kulit Cokelat: #452b19 dengan Gesper Perak #d1d5db
+ * - Celana Hitam: #18181b
+ * - Sepatu Bot Kulit Cokelat Tua: #2d1b0f
+ * - Jubah Belakang: #282a2e
+ * - Quiver & Panah: #452b19 & #9ca3af
+ * - Belati & Busur: #6b7280 & #00f5ff
  */
 
 interface BlockyHunterMaterialPalette {
   skinMat: THREE.MeshLambertMaterial; // #c68642
-  hoodMat: THREE.MeshLambertMaterial; // #32353b
-  faceMaskMat: THREE.MeshLambertMaterial; // #1f2022
+  hoodMat: THREE.MeshLambertMaterial; // #33363d
+  faceMaskMat: THREE.MeshLambertMaterial; // #1a1a1d
   eyesCyanMat: THREE.MeshStandardMaterial; // #00f5ff + Emissive 2.5
   bajuDalamMat: THREE.MeshLambertMaterial; // #1f2022
-  pelvisMat: THREE.MeshLambertMaterial; // #18181b
-  chestplateMat: THREE.MeshStandardMaterial; // #545860
-  chestplateTrimMat: THREE.MeshStandardMaterial; // #7b8290
+  chestplateMat: THREE.MeshStandardMaterial; // #6b7280
+  chestplateTrimMat: THREE.MeshStandardMaterial; // #9ca3af
   pauldronMat: THREE.MeshStandardMaterial; // #3e4147
-  beltMat: THREE.MeshLambertMaterial; // #4a2e18
+  beltMat: THREE.MeshLambertMaterial; // #452b19
   buckleMat: THREE.MeshStandardMaterial; // #d1d5db
-  pouchMat: THREE.MeshLambertMaterial; // #4a2e18
-  bootsMat: THREE.MeshStandardMaterial; // #301c10
-  shinGuardMat: THREE.MeshStandardMaterial; // #545860
-  soleMat: THREE.MeshLambertMaterial; // #18181b
-  capeMat: THREE.MeshLambertMaterial; // #26282c
-  quiverMat: THREE.MeshLambertMaterial; // #4a2e18
-  arrowMat: THREE.MeshStandardMaterial; // #7b8290
-  arrowShaftMat: THREE.MeshLambertMaterial; // #4a2e18
-  daggerBladeMat: THREE.MeshStandardMaterial; // #545860
+  pantsMat: THREE.MeshLambertMaterial; // #18181b
+  bootsMat: THREE.MeshStandardMaterial; // #2d1b0f
+  capeMat: THREE.MeshLambertMaterial; // #282a2e
+  quiverMat: THREE.MeshLambertMaterial; // #452b19
+  arrowMat: THREE.MeshStandardMaterial; // #9ca3af
+  arrowShaftMat: THREE.MeshLambertMaterial; // #452b19
+  daggerBladeMat: THREE.MeshStandardMaterial; // #6b7280
   daggerCyanEdgeMat: THREE.MeshStandardMaterial; // #00f5ff + Emissive 2.0
-  daggerGripMat: THREE.MeshLambertMaterial; // #18181b
-  daggerGuardMat: THREE.MeshStandardMaterial; // #7b8290
-  sheathMat: THREE.MeshLambertMaterial; // #18181b
-  bowWoodMat: THREE.MeshStandardMaterial; // #4a2e18
-  bowMetalMat: THREE.MeshStandardMaterial; // #7b8290
+  daggerGripMat: THREE.MeshLambertMaterial; // #1a1a1d
+  daggerGuardMat: THREE.MeshStandardMaterial; // #9ca3af
+  sheathMat: THREE.MeshLambertMaterial; // #1a1a1d
+  bowWoodMat: THREE.MeshStandardMaterial; // #452b19
+  bowMetalMat: THREE.MeshStandardMaterial; // #9ca3af
   bowstringCyanMat: THREE.MeshBasicMaterial; // #00f5ff
 }
 
@@ -77,11 +68,11 @@ function getHunterMaterials(tier: number): BlockyHunterMaterialPalette {
         flatShading: true,
       }),
       hoodMat: new THREE.MeshLambertMaterial({
-        color: 0x32353b,
+        color: 0x33363d,
         flatShading: true,
       }),
       faceMaskMat: new THREE.MeshLambertMaterial({
-        color: 0x1f2022,
+        color: 0x1a1a1d,
         flatShading: true,
       }),
       eyesCyanMat: new THREE.MeshStandardMaterial({
@@ -95,20 +86,16 @@ function getHunterMaterials(tier: number): BlockyHunterMaterialPalette {
         color: 0x1f2022,
         flatShading: true,
       }),
-      pelvisMat: new THREE.MeshLambertMaterial({
-        color: 0x18181b,
-        flatShading: true,
-      }),
       chestplateMat: new THREE.MeshStandardMaterial({
-        color: 0x545860,
+        color: 0x6b7280,
         metalness: 0.65,
         roughness: 0.30,
         flatShading: true,
       }),
       chestplateTrimMat: new THREE.MeshStandardMaterial({
-        color: 0x7b8290,
+        color: 0x9ca3af,
         metalness: 0.85,
-        roughness: 0.25,
+        roughness: 0.20,
         flatShading: true,
       }),
       pauldronMat: new THREE.MeshStandardMaterial({
@@ -118,7 +105,7 @@ function getHunterMaterials(tier: number): BlockyHunterMaterialPalette {
         flatShading: true,
       }),
       beltMat: new THREE.MeshLambertMaterial({
-        color: 0x4a2e18,
+        color: 0x452b19,
         flatShading: true,
       }),
       buckleMat: new THREE.MeshStandardMaterial({
@@ -127,47 +114,37 @@ function getHunterMaterials(tier: number): BlockyHunterMaterialPalette {
         roughness: 0.20,
         flatShading: true,
       }),
-      pouchMat: new THREE.MeshLambertMaterial({
-        color: 0x4a2e18,
+      pantsMat: new THREE.MeshLambertMaterial({
+        color: 0x18181b,
         flatShading: true,
       }),
       bootsMat: new THREE.MeshStandardMaterial({
-        color: 0x301c10,
+        color: 0x2d1b0f,
         roughness: 0.60,
         metalness: 0.20,
         flatShading: true,
       }),
-      shinGuardMat: new THREE.MeshStandardMaterial({
-        color: 0x545860,
-        metalness: 0.75,
-        roughness: 0.30,
-        flatShading: true,
-      }),
-      soleMat: new THREE.MeshLambertMaterial({
-        color: 0x18181b,
-        flatShading: true,
-      }),
       capeMat: new THREE.MeshLambertMaterial({
-        color: 0x26282c,
+        color: 0x282a2e,
         side: THREE.DoubleSide,
         flatShading: true,
       }),
       quiverMat: new THREE.MeshLambertMaterial({
-        color: 0x4a2e18,
+        color: 0x452b19,
         flatShading: true,
       }),
       arrowMat: new THREE.MeshStandardMaterial({
-        color: 0x7b8290,
+        color: 0x9ca3af,
         metalness: 0.85,
         roughness: 0.25,
         flatShading: true,
       }),
       arrowShaftMat: new THREE.MeshLambertMaterial({
-        color: 0x4a2e18,
+        color: 0x452b19,
         flatShading: true,
       }),
       daggerBladeMat: new THREE.MeshStandardMaterial({
-        color: 0x545860,
+        color: 0x6b7280,
         metalness: 0.80,
         roughness: 0.25,
         flatShading: true,
@@ -180,27 +157,27 @@ function getHunterMaterials(tier: number): BlockyHunterMaterialPalette {
         metalness: 0.25,
       }),
       daggerGripMat: new THREE.MeshLambertMaterial({
-        color: 0x18181b,
+        color: 0x1a1a1d,
         flatShading: true,
       }),
       daggerGuardMat: new THREE.MeshStandardMaterial({
-        color: 0x7b8290,
+        color: 0x9ca3af,
         metalness: 0.85,
         roughness: 0.25,
         flatShading: true,
       }),
       sheathMat: new THREE.MeshLambertMaterial({
-        color: 0x18181b,
+        color: 0x1a1a1d,
         flatShading: true,
       }),
       bowWoodMat: new THREE.MeshStandardMaterial({
-        color: 0x4a2e18,
+        color: 0x452b19,
         roughness: 0.60,
         metalness: 0.15,
         flatShading: true,
       }),
       bowMetalMat: new THREE.MeshStandardMaterial({
-        color: 0x7b8290,
+        color: 0x9ca3af,
         metalness: 0.80,
         roughness: 0.30,
         flatShading: true,
@@ -230,34 +207,28 @@ function getHunterMaterials(tier: number): BlockyHunterMaterialPalette {
 // Preloaded Geometries Cache
 // ----------------------------------------------------------------------------
 interface BlockyHunterGeometryPalette {
-  pelvisGeo: THREE.BufferGeometry;
-  beltGeo: THREE.BufferGeometry;
-  buckleGeo: THREE.BufferGeometry;
-  pouchGeo: THREE.BufferGeometry;
-  crossStrapGeo: THREE.BufferGeometry;
-  torsoGeo: THREE.BufferGeometry;
-  chestplateGeo: THREE.BufferGeometry;
-  chestplateTrimTopGeo: THREE.BufferGeometry;
-  chestplateTrimVertGeo: THREE.BufferGeometry;
-  pauldronGeo: THREE.BufferGeometry;
-  thighGeo: THREE.BufferGeometry;
-  bootGeo: THREE.BufferGeometry;
-  shinGuardGeo: THREE.BufferGeometry;
-  soleGeo: THREE.BufferGeometry;
+  neckGeo: THREE.BufferGeometry;
   headGeo: THREE.BufferGeometry;
   faceMaskGeo: THREE.BufferGeometry;
   eyeGeo: THREE.BufferGeometry;
   hoodRoofGeo: THREE.BufferGeometry;
-  hoodVisorGeo: THREE.BufferGeometry;
   hoodSideGeo: THREE.BufferGeometry;
   hoodBackGeo: THREE.BufferGeometry;
+  torsoGeo: THREE.BufferGeometry;
+  chestplateGeo: THREE.BufferGeometry;
+  chestplateTrimGeo: THREE.BufferGeometry;
+  beltGeo: THREE.BufferGeometry;
+  buckleGeo: THREE.BufferGeometry;
+  pouchGeo: THREE.BufferGeometry;
+  pauldronGeo: THREE.BufferGeometry;
+  thighGeo: THREE.BufferGeometry;
+  bootGeo: THREE.BufferGeometry;
   capeMainGeo: THREE.BufferGeometry;
   capeFringe1Geo: THREE.BufferGeometry;
   capeFringe2Geo: THREE.BufferGeometry;
   capeFringe3Geo: THREE.BufferGeometry;
   armUpperGeo: THREE.BufferGeometry;
   forearmGeo: THREE.BufferGeometry;
-  bracerGeo: THREE.BufferGeometry;
   handGeo: THREE.BufferGeometry;
   daggerGripGeo: THREE.BufferGeometry;
   daggerGuardGeo: THREE.BufferGeometry;
@@ -265,13 +236,11 @@ interface BlockyHunterGeometryPalette {
   daggerEdgeGeo: THREE.BufferGeometry;
   daggerTipGeo: THREE.BufferGeometry;
   sheathGeo: THREE.BufferGeometry;
-  sheathBandGeo: THREE.BufferGeometry;
   bowHandleGeo: THREE.BufferGeometry;
   bowLimbGeo: THREE.BufferGeometry;
   bowTipGeo: THREE.BufferGeometry;
   bowstringGeo: THREE.BufferGeometry;
   quiverGeo: THREE.BufferGeometry;
-  quiverBandGeo: THREE.BufferGeometry;
   arrowShaftGeo: THREE.BufferGeometry;
   arrowFletchGeo: THREE.BufferGeometry;
   arrowTipGeo: THREE.BufferGeometry;
@@ -281,99 +250,81 @@ let cachedGeometries: BlockyHunterGeometryPalette | null = null;
 
 function getHunterGeometries(): BlockyHunterGeometryPalette {
   if (!cachedGeometries) {
-    // 1. Pelvis & Sabuk (Penyambung Tubuh & Kaki)
-    const pelvisGeo = new THREE.BoxGeometry(0.9, 0.35, 0.6);
-    const beltGeo = new THREE.BoxGeometry(0.95, 0.22, 0.65);
-    const buckleGeo = new THREE.BoxGeometry(0.24, 0.24, 0.68);
-    const pouchGeo = new THREE.BoxGeometry(0.18, 0.22, 0.14);
-    const crossStrapGeo = new THREE.BoxGeometry(0.14, 0.95, 0.05);
+    // 1. Kepala & Tudung Ramping
+    const neckGeo = new THREE.BoxGeometry(0.25, 0.15, 0.25);
+    const headGeo = new THREE.BoxGeometry(0.55, 0.55, 0.55);
+    const faceMaskGeo = new THREE.BoxGeometry(0.56, 0.22, 0.15);
+    const eyeGeo = new THREE.BoxGeometry(0.12, 0.06, 0.04);
+    const hoodRoofGeo = new THREE.BoxGeometry(0.68, 0.15, 0.68);
+    const hoodSideGeo = new THREE.BoxGeometry(0.08, 0.55, 0.66);
+    const hoodBackGeo = new THREE.BoxGeometry(0.68, 0.55, 0.08);
 
-    // 2. Kaki & Sepatu Bot
-    const thighGeo = new THREE.BoxGeometry(0.38, 0.85, 0.42);
-    const bootGeo = new THREE.BoxGeometry(0.42, 0.45, 0.52);
-    const shinGuardGeo = new THREE.BoxGeometry(0.34, 0.40, 0.10);
-    const soleGeo = new THREE.BoxGeometry(0.44, 0.06, 0.54);
+    // 2. Badan & Zirah Dada Terbuka
+    const torsoGeo = new THREE.BoxGeometry(0.75, 0.70, 0.42);
+    const chestplateGeo = new THREE.BoxGeometry(0.76, 0.45, 0.12);
+    const chestplateTrimGeo = new THREE.BoxGeometry(0.77, 0.06, 0.13);
+    const beltGeo = new THREE.BoxGeometry(0.77, 0.14, 0.44);
+    const buckleGeo = new THREE.BoxGeometry(0.18, 0.16, 0.46);
+    const pouchGeo = new THREE.BoxGeometry(0.14, 0.15, 0.10);
+    const pauldronGeo = new THREE.BoxGeometry(0.28, 0.28, 0.28);
 
-    // 3. Torso & Zirah Dada
-    const torsoGeo = new THREE.BoxGeometry(0.92, 0.68, 0.55);
-    const chestplateGeo = new THREE.BoxGeometry(1.05, 0.70, 0.15);
-    const chestplateTrimTopGeo = new THREE.BoxGeometry(1.07, 0.08, 0.17);
-    const chestplateTrimVertGeo = new THREE.BoxGeometry(0.12, 0.72, 0.17);
-    const pauldronGeo = new THREE.BoxGeometry(0.42, 0.42, 0.42);
+    // 3. Kaki Proporsional Ramping (Tinggi Kaki 0.80)
+    const thighGeo = new THREE.BoxGeometry(0.30, 0.80, 0.32);
+    const bootGeo = new THREE.BoxGeometry(0.32, 0.32, 0.38);
 
-    // 4. Kepala, Masker Padat & Tudung
-    const headGeo = new THREE.BoxGeometry(0.75, 0.75, 0.75);
-    const faceMaskGeo = new THREE.BoxGeometry(0.78, 0.38, 0.30);
-    const eyeGeo = new THREE.BoxGeometry(0.16, 0.08, 0.05);
-    const hoodRoofGeo = new THREE.BoxGeometry(0.95, 0.25, 0.95);
-    const hoodVisorGeo = new THREE.BoxGeometry(0.85, 0.12, 0.25);
-    const hoodSideGeo = new THREE.BoxGeometry(0.18, 0.85, 0.92);
-    const hoodBackGeo = new THREE.BoxGeometry(0.95, 0.85, 0.18);
+    // 4. Jubah Belakang
+    const capeMainGeo = new THREE.BoxGeometry(0.72, 1.05, 0.05);
+    const capeFringe1Geo = new THREE.BoxGeometry(0.20, 0.18, 0.05);
+    const capeFringe2Geo = new THREE.BoxGeometry(0.18, 0.24, 0.05);
+    const capeFringe3Geo = new THREE.BoxGeometry(0.20, 0.14, 0.05);
 
-    // 5. Jubah Bergerigi Tangga (Stair-Case Cape)
-    const capeMainGeo = new THREE.BoxGeometry(1.1, 1.4, 0.08);
-    const capeFringe1Geo = new THREE.BoxGeometry(0.28, 0.25, 0.08);
-    const capeFringe2Geo = new THREE.BoxGeometry(0.24, 0.35, 0.08);
-    const capeFringe3Geo = new THREE.BoxGeometry(0.28, 0.20, 0.08);
+    // 5. Lengan & Tangan
+    const armUpperGeo = new THREE.BoxGeometry(0.22, 0.42, 0.22);
+    const forearmGeo = new THREE.BoxGeometry(0.18, 0.38, 0.18);
+    const handGeo = new THREE.BoxGeometry(0.16, 0.16, 0.16);
 
-    // 6. Lengan & Tangan
-    const armUpperGeo = new THREE.BoxGeometry(0.32, 0.55, 0.32);
-    const forearmGeo = new THREE.BoxGeometry(0.28, 0.50, 0.28);
-    const bracerGeo = new THREE.BoxGeometry(0.30, 0.32, 0.10);
-    const handGeo = new THREE.BoxGeometry(0.24, 0.22, 0.24);
-
-    // 7. Belati & Sarung Pinggul
-    const daggerGripGeo = new THREE.BoxGeometry(0.07, 0.28, 0.07);
-    const daggerGuardGeo = new THREE.BoxGeometry(0.24, 0.05, 0.08);
-    const daggerBladeGeo = new THREE.BoxGeometry(0.14, 0.75, 0.035);
-    const daggerEdgeGeo = new THREE.BoxGeometry(0.018, 0.75, 0.04);
-    const daggerTipGeo = new THREE.ConeGeometry(0.07, 0.18, 4);
+    // 6. Belati & Sarung Pinggul
+    const daggerGripGeo = new THREE.BoxGeometry(0.05, 0.20, 0.05);
+    const daggerGuardGeo = new THREE.BoxGeometry(0.18, 0.04, 0.06);
+    const daggerBladeGeo = new THREE.BoxGeometry(0.10, 0.55, 0.025);
+    const daggerEdgeGeo = new THREE.BoxGeometry(0.014, 0.55, 0.03);
+    const daggerTipGeo = new THREE.ConeGeometry(0.05, 0.14, 4);
     daggerTipGeo.rotateY(Math.PI / 4);
+    const sheathGeo = new THREE.BoxGeometry(0.12, 0.48, 0.09);
 
-    const sheathGeo = new THREE.BoxGeometry(0.16, 0.65, 0.12);
-    const sheathBandGeo = new THREE.BoxGeometry(0.18, 0.06, 0.14);
-
-    // 8. Busur & Tabung Panah (Quiver)
-    const bowHandleGeo = new THREE.BoxGeometry(0.10, 0.55, 0.10);
-    const bowLimbGeo = new THREE.BoxGeometry(0.08, 0.50, 0.08);
-    const bowTipGeo = new THREE.BoxGeometry(0.07, 0.35, 0.07);
-    const bowstringGeo = new THREE.CylinderGeometry(0.01, 0.01, 1.85, 4);
-
-    const quiverGeo = new THREE.BoxGeometry(0.28, 0.95, 0.28);
-    const quiverBandGeo = new THREE.BoxGeometry(0.30, 0.08, 0.30);
-    const arrowShaftGeo = new THREE.CylinderGeometry(0.014, 0.014, 1.15, 4);
-    const arrowFletchGeo = new THREE.BoxGeometry(0.10, 0.22, 0.02);
-    const arrowTipGeo = new THREE.ConeGeometry(0.03, 0.12, 4);
+    // 7. Busur & Tabung Panah
+    const bowHandleGeo = new THREE.BoxGeometry(0.08, 0.42, 0.08);
+    const bowLimbGeo = new THREE.BoxGeometry(0.06, 0.38, 0.06);
+    const bowTipGeo = new THREE.BoxGeometry(0.05, 0.28, 0.05);
+    const bowstringGeo = new THREE.CylinderGeometry(0.008, 0.008, 1.45, 4);
+    const quiverGeo = new THREE.BoxGeometry(0.20, 0.70, 0.20);
+    const arrowShaftGeo = new THREE.CylinderGeometry(0.01, 0.01, 0.85, 4);
+    const arrowFletchGeo = new THREE.BoxGeometry(0.08, 0.18, 0.015);
+    const arrowTipGeo = new THREE.ConeGeometry(0.025, 0.10, 4);
 
     cachedGeometries = {
-      pelvisGeo,
-      beltGeo,
-      buckleGeo,
-      pouchGeo,
-      crossStrapGeo,
-      torsoGeo,
-      chestplateGeo,
-      chestplateTrimTopGeo,
-      chestplateTrimVertGeo,
-      pauldronGeo,
-      thighGeo,
-      bootGeo,
-      shinGuardGeo,
-      soleGeo,
+      neckGeo,
       headGeo,
       faceMaskGeo,
       eyeGeo,
       hoodRoofGeo,
-      hoodVisorGeo,
       hoodSideGeo,
       hoodBackGeo,
+      torsoGeo,
+      chestplateGeo,
+      chestplateTrimGeo,
+      beltGeo,
+      buckleGeo,
+      pouchGeo,
+      pauldronGeo,
+      thighGeo,
+      bootGeo,
       capeMainGeo,
       capeFringe1Geo,
       capeFringe2Geo,
       capeFringe3Geo,
       armUpperGeo,
       forearmGeo,
-      bracerGeo,
       handGeo,
       daggerGripGeo,
       daggerGuardGeo,
@@ -381,13 +332,11 @@ function getHunterGeometries(): BlockyHunterGeometryPalette {
       daggerEdgeGeo,
       daggerTipGeo,
       sheathGeo,
-      sheathBandGeo,
       bowHandleGeo,
       bowLimbGeo,
       bowTipGeo,
       bowstringGeo,
       quiverGeo,
-      quiverBandGeo,
       arrowShaftGeo,
       arrowFletchGeo,
       arrowTipGeo,
@@ -399,13 +348,8 @@ function getHunterGeometries(): BlockyHunterGeometryPalette {
 
 /**
  * ============================================================================
- * MAIN BUILDER: createBlockyHunterMesh
+ * MAIN BUILDER: createBlockyHunterMesh (Standar Humanoid 2.05 unit)
  * ============================================================================
- * Memperbaiki 4 bug fatal:
- * 1. Pelvis solid [0.9, 0.35, 0.6] di Y: 0.95 menyambung torso ke pangkal kaki (Y: 0.85).
- * 2. Kepala inti + Masker solid [0.78, 0.38, 0.3] di Y: 1.82 + Mata cyan + Tudung padat.
- * 3. Jubah bergerigi tangga [1.1, 1.4, 0.08] di Y: 1.15 Z: -0.42 menempel di punggung.
- * 4. Zirah dada kontras baja [1.05, 0.7, 0.15] di Y: 1.45 Z: 0.35 di atas baju dalam hitam.
  */
 export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
   const group = new THREE.Group();
@@ -415,241 +359,202 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
   const geos = getHunterGeometries();
 
   // --------------------------------------------------------------------------
-  // 1. ROOT PELVIS & SABUK PINGGUL (MENGHILANGKAN CELAH MELAYANG)
+  // 1. KAKI PROPORSIONAL (PINGGUL Y = 0.80, PANJANG KAKI RAMPING)
   // --------------------------------------------------------------------------
-  // Balok pinggul/pelvis penyambung tubuh ke kaki pada posisi Y: 0.95
-  const pelvis = new THREE.Mesh(geos.pelvisGeo, mats.pelvisMat);
-  pelvis.position.set(0, 0.95, 0);
-  pelvis.castShadow = true;
-  group.add(pelvis);
+  const buildHunterLeg = (sign: number) => {
+    // Pivot kaki menyatu rapat di bawah sabuk pada Y = 0.80
+    const legGroup = new THREE.Group();
+    legGroup.position.set(sign * 0.20, 0.80, 0);
 
-  // Sabuk kulit cokelat melingkar di sekeliling pelvis
+    // Paha & Tulang Kering: BoxGeometry(0.30, 0.80, 0.32) posisi [-0.20, 0.40, 0] / [0.20, 0.40, 0]
+    const thigh = new THREE.Mesh(geos.thighGeo, mats.pantsMat);
+    thigh.position.set(0, -0.40, 0); // World Y = 0.80 - 0.40 = 0.40
+    thigh.castShadow = true;
+    legGroup.add(thigh);
+
+    // Sepatu Bot: BoxGeometry(0.32, 0.32, 0.38) di ujung bawah kaki (Y = 0.16)
+    const boot = new THREE.Mesh(geos.bootGeo, mats.bootsMat);
+    boot.position.set(0, -0.64, 0.03); // World Y = 0.80 - 0.64 = 0.16
+    boot.castShadow = true;
+    legGroup.add(boot);
+
+    group.add(legGroup);
+    return legGroup;
+  };
+
+  const leftLeg = buildHunterLeg(-1); // Kaki Kiri: [-0.20, 0.40, 0]
+  const rightLeg = buildHunterLeg(1);  // Kaki Kanan: [0.20, 0.40, 0]
+
+  // --------------------------------------------------------------------------
+  // 2. BADAN UTAMA (TORSO Y = 1.15), ZIRAH DADA TERBUKA & SABUK
+  // --------------------------------------------------------------------------
+  // Badan Utama: BoxGeometry(0.75, 0.70, 0.42) di posisi Y = 1.15
+  const body = new THREE.Mesh(geos.torsoGeo, mats.bajuDalamMat);
+  body.position.set(0, 1.15, 0);
+  body.castShadow = true;
+  group.add(body);
+
+  // Plat Zirah Dada Abu-Abu Baja (Chestplate): BoxGeometry(0.76, 0.45, 0.12) posisi [0, 1.25, 0.20]
+  const chestplate = new THREE.Mesh(geos.chestplateGeo, mats.chestplateMat);
+  chestplate.position.set(0, 1.25, 0.20);
+  chestplate.castShadow = true;
+  group.add(chestplate);
+
+  // Lis logam perak di bagian atas zirah dada
+  const chestTrim = new THREE.Mesh(geos.chestplateTrimGeo, mats.chestplateTrimMat);
+  chestTrim.position.set(0, 1.45, 0.21);
+  chestTrim.castShadow = true;
+  group.add(chestTrim);
+
+  // Sabuk Kulit Cokelat: BoxGeometry(0.77, 0.14, 0.44) di posisi [0, 0.87, 0]
   const belt = new THREE.Mesh(geos.beltGeo, mats.beltMat);
-  belt.position.set(0, 0.95, 0);
+  belt.position.set(0, 0.87, 0);
   belt.castShadow = true;
   group.add(belt);
 
-  // Kepala sabuk perak persegi di depan
+  // Kepala sabuk perak
   const buckle = new THREE.Mesh(geos.buckleGeo, mats.buckleMat);
-  buckle.position.set(0, 0.95, 0.02);
+  buckle.position.set(0, 0.87, 0.02);
   buckle.castShadow = true;
   group.add(buckle);
 
-  // Kantong amunisi kecil di depan sabuk
-  [-0.26, 0.26].forEach((posX) => {
-    const pouch = new THREE.Mesh(geos.pouchGeo, mats.pouchMat);
-    pouch.position.set(posX, 0.95, 0.34);
+  // 2 Kotak kantong amunisi kecil di depan kanan dan kiri sabuk
+  [-0.22, 0.22].forEach((posX) => {
+    const pouch = new THREE.Mesh(geos.pouchGeo, mats.beltMat);
+    pouch.position.set(posX, 0.87, 0.24);
     pouch.castShadow = true;
     group.add(pouch);
   });
 
   // --------------------------------------------------------------------------
-  // 2. TORSO, ZIRAH DADA KONTRAS & SELEMPANG
+  // 3. JUBAH BELAKANG BERGERIGI TANGGA (CAPE)
   // --------------------------------------------------------------------------
-  // Baju dalam hitam (#1f2022) menempel pas di atas pelvis
-  const body = new THREE.Mesh(geos.torsoGeo, mats.bajuDalamMat);
-  body.position.set(0, 1.45, 0);
-  body.castShadow = true;
-  group.add(body);
-
-  // Plat Zirah Dada Abu-abu Baja Kontras (#545860) di bagian depan torso (Y: 1.45, Z: 0.35)
-  const chestplate = new THREE.Mesh(geos.chestplateGeo, mats.chestplateMat);
-  chestplate.position.set(0, 1.45, 0.35);
-  chestplate.castShadow = true;
-  group.add(chestplate);
-
-  // Lis aksen strip logam perak (#7b8290)
-  const chestTrimTop = new THREE.Mesh(geos.chestplateTrimTopGeo, mats.chestplateTrimMat);
-  chestTrimTop.position.set(0, 1.76, 0.36);
-  chestTrimTop.castShadow = true;
-  group.add(chestTrimTop);
-
-  const chestTrimVert = new THREE.Mesh(geos.chestplateTrimVertGeo, mats.chestplateTrimMat);
-  chestTrimVert.position.set(0, 1.45, 0.365);
-  chestTrimVert.castShadow = true;
-  group.add(chestTrimVert);
-
-  // Selempang diagonal kulit cokelat (#4a2e18)
-  const crossStrap = new THREE.Mesh(geos.crossStrapGeo, mats.beltMat);
-  crossStrap.position.set(0, 1.45, 0.38);
-  crossStrap.rotation.z = -0.52;
-  crossStrap.castShadow = true;
-  group.add(crossStrap);
-
-  // --------------------------------------------------------------------------
-  // 3. JUBAH BERGERIGI TANGGA (STAIR-CASE CAPE) DI PUNGGUNG
-  // --------------------------------------------------------------------------
-  // Lembaran jubah utama BoxGeometry(1.1, 1.4, 0.08) di posisi (0, 1.15, -0.42)
+  // Balok tipis BoxGeometry(0.72, 1.05, 0.05) menempel di punggung: position.set(0, 0.95, -0.24)
   const cape = new THREE.Mesh(geos.capeMainGeo, mats.capeMat);
-  cape.position.set(0, 1.15, -0.42);
-  cape.rotation.x = -0.15; // Melambai lembut ke belakang 8-9 derajat
+  cape.position.set(0, 0.95, -0.24);
+  cape.rotation.x = -0.14; // Miring ke belakang
   cape.castShadow = true;
 
-  // 3 Gerigi bawah kaku asimetris di ujung bawah jubah (Y: 0.4 world)
+  // 3 Balok kecil bergerigi tangga di ujung bawah jubah (Y = 0.40)
   const fringe1 = new THREE.Mesh(geos.capeFringe1Geo, mats.capeMat);
-  fringe1.position.set(-0.35, 0.35 - 1.15, -0.48 - (-0.42)); // World: [-0.35, 0.35, -0.48]
+  fringe1.position.set(-0.22, -0.55, -0.01);
   fringe1.castShadow = true;
   cape.add(fringe1);
 
   const fringe2 = new THREE.Mesh(geos.capeFringe2Geo, mats.capeMat);
-  fringe2.position.set(0.0, 0.30 - 1.15, -0.48 - (-0.42)); // World: [0.0, 0.30, -0.48]
+  fringe2.position.set(0.0, -0.58, -0.01);
   fringe2.castShadow = true;
   cape.add(fringe2);
 
   const fringe3 = new THREE.Mesh(geos.capeFringe3Geo, mats.capeMat);
-  fringe3.position.set(0.35, 0.38 - 1.15, -0.48 - (-0.42)); // World: [0.35, 0.38, -0.48]
+  fringe3.position.set(0.22, -0.53, -0.01);
   fringe3.castShadow = true;
   cape.add(fringe3);
 
   group.add(cape);
 
   // --------------------------------------------------------------------------
-  // 4. ANATOMI KEPALA, TUDUNG & MASKER PADAT (SOLID, TIDAK BERLUBANG)
+  // 4. STANDARISASI KEPALA, TUDUNG RAMPING & MASKER (TIDAK MENELAN DADA)
   // --------------------------------------------------------------------------
-  // Kepala Inti (Head Base) BoxGeometry(0.75, 0.75, 0.75) kulit (#c68642) di [0, 1.95, 0]
+  // Leher: BoxGeometry(0.25, 0.15, 0.25), posisi Y = 1.45
+  const neck = new THREE.Mesh(geos.neckGeo, mats.skinMat);
+  neck.position.set(0, 1.45, 0);
+  neck.castShadow = true;
+  group.add(neck);
+
+  // Kepala Inti (Head Base): BoxGeometry(0.55, 0.55, 0.55) di posisi Y = 1.75
   const head = new THREE.Mesh(geos.headGeo, mats.skinMat);
-  head.position.set(0, 1.95, 0);
+  head.position.set(0, 1.75, 0);
   head.castShadow = true;
   group.add(head);
 
-  // Masker Wajah Solid [0.78, 0.38, 0.3] di [0, 1.82, 0.26] warna #1f2022
+  // Masker Wajah (Face Mask): BoxGeometry(0.56, 0.22, 0.15) di posisi [0, 1.66, 0.22]
   const faceMask = new THREE.Mesh(geos.faceMaskGeo, mats.faceMaskMat);
-  faceMask.position.set(0, 1.82, 0.26);
+  faceMask.position.set(0, 1.66, 0.22);
   faceMask.castShadow = true;
   group.add(faceMask);
 
-  // Mata Bercahaya Cyan [0.16, 0.08, 0.05] di atas masker (emissiveIntensity: 2.5)
+  // Mata Cyan: BoxGeometry(0.12, 0.06, 0.04) di [-0.14, 1.80, 0.28] dan [0.14, 1.80, 0.28]
   const leftEye = new THREE.Mesh(geos.eyeGeo, mats.eyesCyanMat);
-  leftEye.position.set(-0.18, 2.02, 0.39);
+  leftEye.position.set(-0.14, 1.80, 0.28);
 
   const rightEye = new THREE.Mesh(geos.eyeGeo, mats.eyesCyanMat);
-  rightEye.position.set(0.18, 2.02, 0.39);
+  rightEye.position.set(0.14, 1.80, 0.28);
   group.add(leftEye, rightEye);
 
-  // Tudung Rogue Menyelimuti Kepala (Medium Grey #32353b):
-  // Atap Tudung: BoxGeometry(0.95, 0.25, 0.95) miring ke depan di [0, 2.35, 0]
+  // Tudung Rogue Ramping (Outer Hood):
+  // Atap Tudung: BoxGeometry(0.68, 0.15, 0.68) di posisi Y = 2.05 (miring sedikit ke depan 10 derajat)
   const hoodRoof = new THREE.Mesh(geos.hoodRoofGeo, mats.hoodMat);
-  hoodRoof.position.set(0, 2.35, 0);
-  hoodRoof.rotation.x = 0.10;
+  hoodRoof.position.set(0, 2.05, 0);
+  hoodRoof.rotation.x = 0.17; // 10 derajat
   hoodRoof.castShadow = true;
   group.add(hoodRoof);
 
-  // Paruh dahi pelindung (Visor)
-  const hoodVisor = new THREE.Mesh(geos.hoodVisorGeo, mats.hoodMat);
-  hoodVisor.position.set(0, 2.31, 0.44);
-  hoodVisor.rotation.x = 0.18;
-  hoodVisor.castShadow = true;
-  group.add(hoodVisor);
-
-  // Sisi Kiri & Kanan Tudung [0.18, 0.85, 0.92]
+  // Sisi Samping Kiri/Kanan: BoxGeometry(0.08, 0.55, 0.66) di [-0.32, 1.78, 0] dan [0.32, 1.78, 0]
+  // Berhenti tepat di leher (Y = 1.50), TIDAK diteruskan ke bawah menutupi dada!
   const hoodLeft = new THREE.Mesh(geos.hoodSideGeo, mats.hoodMat);
-  hoodLeft.position.set(-0.42, 1.95, 0);
+  hoodLeft.position.set(-0.32, 1.78, 0);
   hoodLeft.castShadow = true;
 
   const hoodRight = new THREE.Mesh(geos.hoodSideGeo, mats.hoodMat);
-  hoodRight.position.set(0.42, 1.95, 0);
+  hoodRight.position.set(0.32, 1.78, 0);
   hoodRight.castShadow = true;
   group.add(hoodLeft, hoodRight);
 
-  // Belakang Tudung [0.95, 0.85, 0.18] di [0, 1.95, -0.40]
+  // Belakang Tudung: BoxGeometry(0.68, 0.55, 0.08) di [0, 1.78, -0.32]
   const hoodBack = new THREE.Mesh(geos.hoodBackGeo, mats.hoodMat);
-  hoodBack.position.set(0, 1.95, -0.40);
+  hoodBack.position.set(0, 1.78, -0.32);
   hoodBack.castShadow = true;
   group.add(hoodBack);
 
   // --------------------------------------------------------------------------
-  // 5. PANGKAL KAKI & SEPATU BOT (TERHUBUNG KE BAWAH PELVIS Y: 0.85)
-  // --------------------------------------------------------------------------
-  const buildHunterLeg = (sign: number) => {
-    // Pivot kaki tepat di bawah pelvis (Y: 0.85)
-    const legGroup = new THREE.Group();
-    legGroup.position.set(sign * 0.24, 0.85, 0);
-
-    // Kaki [0.38, 0.85, 0.42], posisi relatif y = -0.40 (world center y = 0.45)
-    const thigh = new THREE.Mesh(geos.thighGeo, mats.pelvisMat);
-    thigh.position.set(0, -0.40, 0);
-    thigh.castShadow = true;
-    legGroup.add(thigh);
-
-    // Sepatu bot cokelat gelap [0.42, 0.45, 0.52] di bawah kaki
-    const boot = new THREE.Mesh(geos.bootGeo, mats.bootsMat);
-    boot.position.set(0, -0.63, 0.04);
-    boot.castShadow = true;
-    legGroup.add(boot);
-
-    // Pelindung tulang kering baja (#545860)
-    const shinGuard = new THREE.Mesh(geos.shinGuardGeo, mats.shinGuardMat);
-    shinGuard.position.set(0, -0.55, 0.22);
-    shinGuard.castShadow = true;
-    legGroup.add(shinGuard);
-
-    // Sol sepatu gelap menapak tanah (Y: 0.0)
-    const sole = new THREE.Mesh(geos.soleGeo, mats.soleMat);
-    sole.position.set(0, -0.84, 0.04);
-    sole.receiveShadow = true;
-    legGroup.add(sole);
-
-    group.add(legGroup);
-    return legGroup;
-  };
-
-  const leftLeg = buildHunterLeg(-1); // Kiri [-0.24, 0.85, 0]
-  const rightLeg = buildHunterLeg(1);  // Kanan [0.24, 0.85, 0]
-
-  // --------------------------------------------------------------------------
-  // 6. PAULDRON BAHU BERCORAK BAJA (#3e4147)
+  // 5. PAULDRON BAHU BERSUDUT
   // --------------------------------------------------------------------------
   const pauldronLeft = new THREE.Mesh(geos.pauldronGeo, mats.pauldronMat);
-  pauldronLeft.position.set(-0.52, 1.70, 0);
+  pauldronLeft.position.set(-0.46, 1.45, 0);
   pauldronLeft.rotation.z = 0.20;
   pauldronLeft.castShadow = true;
 
   const pauldronRight = new THREE.Mesh(geos.pauldronGeo, mats.pauldronMat);
-  pauldronRight.position.set(0.52, 1.70, 0);
+  pauldronRight.position.set(0.46, 1.45, 0);
   pauldronRight.rotation.z = -0.20;
   pauldronRight.castShadow = true;
   group.add(pauldronLeft, pauldronRight);
 
   // --------------------------------------------------------------------------
-  // 7. LENGAN, SENDI SIKU ALAMI & TANGAN
+  // 6. LENGAN, SENDI SIKU & TANGAN (SETINGGI PINGGANG)
   // --------------------------------------------------------------------------
   const buildHunterArm = (isLeft: boolean) => {
     const sign = isLeft ? -1 : 1;
 
     // Sendi bahu
     const armGroup = new THREE.Group();
-    armGroup.position.set(sign * 0.50, 1.68, 0);
-    armGroup.rotation.z = sign * 0.17; // Miring sedikit ke luar
+    armGroup.position.set(sign * 0.44, 1.42, 0);
+    armGroup.rotation.z = sign * 0.17;
     armGroup.rotation.x = -0.10;
 
     const upperArm = new THREE.Mesh(geos.armUpperGeo, mats.bajuDalamMat);
-    upperArm.position.y = -0.275;
+    upperArm.position.y = -0.21;
     upperArm.castShadow = true;
     armGroup.add(upperArm);
 
-    // Sendi siku (Forearm Pivot)
+    // Sendi siku (Forearm)
     const forearmGroup = new THREE.Group();
-    forearmGroup.position.set(0, -0.55, 0);
-    forearmGroup.rotation.x = -0.20; // Menekuk ke depan
-    forearmGroup.rotation.z = -sign * 0.26; // Menekuk ke dalam
+    forearmGroup.position.set(0, -0.42, 0);
+    forearmGroup.rotation.x = -0.20;
+    forearmGroup.rotation.z = -sign * 0.26;
 
     const forearm = new THREE.Mesh(geos.forearmGeo, mats.bajuDalamMat);
-    forearm.position.y = -0.25;
+    forearm.position.y = -0.19;
     forearm.castShadow = true;
     forearmGroup.add(forearm);
 
-    // Bracer baja di lengan bawah
-    const bracer = new THREE.Mesh(geos.bracerGeo, mats.chestplateMat);
-    bracer.position.set(sign * 0.12, -0.25, 0.06);
-    bracer.castShadow = true;
-    forearmGroup.add(bracer);
-
-    // Telapak tangan
+    // Tangan (setinggi pinggang Y ~ 0.85)
     const handGroup = new THREE.Group();
-    handGroup.position.set(0, -0.50, 0);
+    handGroup.position.set(0, -0.38, 0);
 
     const hand = new THREE.Mesh(geos.handGeo, mats.skinMat);
-    hand.position.y = -0.10;
+    hand.position.y = -0.08;
     hand.castShadow = true;
     handGroup.add(hand);
 
@@ -671,32 +576,28 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
   const rightHand = rightArmData.handGroup;
 
   // --------------------------------------------------------------------------
-  // 8. SARUNG BELATI PINGGUL GANDA (DUAL HIP DAGGER SHEATHS)
+  // 7. SARUNG BELATI PINGGUL GANDA
   // --------------------------------------------------------------------------
   const sheathedDaggers = new THREE.Group();
 
   const buildHipSheath = (sign: number) => {
     const sheathAnchor = new THREE.Group();
-    sheathAnchor.position.set(sign * 0.48, 0.95, 0.05);
+    sheathAnchor.position.set(sign * 0.40, 0.87, 0.04);
     sheathAnchor.rotation.set(0.18, 0, -sign * 0.28);
 
     const holster = new THREE.Mesh(geos.sheathGeo, mats.sheathMat);
     holster.castShadow = true;
     sheathAnchor.add(holster);
 
-    const band = new THREE.Mesh(geos.sheathBandGeo, mats.buckleMat);
-    band.position.y = 0.22;
-    sheathAnchor.add(band);
-
     const hiltGroup = new THREE.Group();
-    hiltGroup.position.set(0, 0.35, 0);
+    hiltGroup.position.set(0, 0.26, 0);
 
     const grip = new THREE.Mesh(geos.daggerGripGeo, mats.daggerGripMat);
     grip.castShadow = true;
     hiltGroup.add(grip);
 
     const guard = new THREE.Mesh(geos.daggerGuardGeo, mats.daggerGuardMat);
-    guard.position.y = -0.12;
+    guard.position.y = -0.09;
     guard.castShadow = true;
     hiltGroup.add(guard);
 
@@ -707,10 +608,10 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
 
   buildHipSheath(-1);
   buildHipSheath(1);
-  sheathedDaggers.visible = false; // Awalnya dipegang di tangan
+  sheathedDaggers.visible = false;
 
   // --------------------------------------------------------------------------
-  // 9. SEPASANG BELATI BAJA (STEEL DAGGERS) DI TANGAN
+  // 8. SEPASANG BELATI BAJA DI TANGAN
   // --------------------------------------------------------------------------
   const buildDagger = () => {
     const daggerGroup = new THREE.Group();
@@ -719,33 +620,33 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
     grip.castShadow = true;
     daggerGroup.add(grip);
 
-    const pommel = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.04, 0.09), mats.daggerGuardMat);
-    pommel.position.y = -0.14;
+    const pommel = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.03, 0.07), mats.daggerGuardMat);
+    pommel.position.y = -0.10;
     daggerGroup.add(pommel);
 
     const guard = new THREE.Mesh(geos.daggerGuardGeo, mats.daggerGuardMat);
-    guard.position.y = 0.14;
+    guard.position.y = 0.10;
     guard.castShadow = true;
     daggerGroup.add(guard);
 
     const blade = new THREE.Mesh(geos.daggerBladeGeo, mats.daggerBladeMat);
-    blade.position.y = 0.14 + 0.375;
+    blade.position.y = 0.10 + 0.275;
     blade.castShadow = true;
     daggerGroup.add(blade);
 
     const edgeLeft = new THREE.Mesh(geos.daggerEdgeGeo, mats.daggerCyanEdgeMat);
-    edgeLeft.position.set(-0.065, 0.14 + 0.375, 0);
+    edgeLeft.position.set(-0.045, 0.10 + 0.275, 0);
     const edgeRight = new THREE.Mesh(geos.daggerEdgeGeo, mats.daggerCyanEdgeMat);
-    edgeRight.position.set(0.065, 0.14 + 0.375, 0);
+    edgeRight.position.set(0.045, 0.10 + 0.275, 0);
     daggerGroup.add(edgeLeft, edgeRight);
 
     const tip = new THREE.Mesh(geos.daggerTipGeo, mats.daggerBladeMat);
-    tip.position.y = 0.14 + 0.75 + 0.07;
+    tip.position.y = 0.10 + 0.55 + 0.05;
     tip.castShadow = true;
     daggerGroup.add(tip);
 
-    const tipCyan = new THREE.Mesh(new THREE.ConeGeometry(0.072, 0.10, 4), mats.daggerCyanEdgeMat);
-    tipCyan.position.y = 0.14 + 0.75 + 0.03;
+    const tipCyan = new THREE.Mesh(new THREE.ConeGeometry(0.052, 0.08, 4), mats.daggerCyanEdgeMat);
+    tipCyan.position.y = 0.10 + 0.55 + 0.02;
     tipCyan.rotateY(Math.PI / 4);
     daggerGroup.add(tipCyan);
 
@@ -755,19 +656,19 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
   const weapon = new THREE.Group();
   const daggerRight = buildDagger();
   weapon.add(daggerRight);
-  weapon.position.set(0, -0.10, 0.05);
+  weapon.position.set(0, -0.08, 0.04);
   weapon.rotation.set(Math.PI / 2.3, 0.12, 0);
   rightHand.add(weapon);
 
   const leftWeapon = new THREE.Group();
   const daggerLeft = buildDagger();
   leftWeapon.add(daggerLeft);
-  leftWeapon.position.set(0, -0.10, 0.05);
+  leftWeapon.position.set(0, -0.08, 0.04);
   leftWeapon.rotation.set(Math.PI / 2.3, -0.12, 0);
   leftHand.add(leftWeapon);
 
   // --------------------------------------------------------------------------
-  // 10. BUSUR 5-SEGMEN DI TANGAN KIRI & QUIVER DI PUNGGUNG KANAN ATAS
+  // 9. BUSUR DI TANGAN KIRI & QUIVER DI PUNGGUNG KANAN ATAS
   // --------------------------------------------------------------------------
   const buildAngularRecurveBow = () => {
     const bowGroup = new THREE.Group();
@@ -776,90 +677,82 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
     handle.castShadow = true;
     bowGroup.add(handle);
 
-    const handleGrip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.22, 0.12), mats.bowMetalMat);
-    bowGroup.add(handleGrip);
-
     const upperLimb = new THREE.Mesh(geos.bowLimbGeo, mats.bowWoodMat);
-    upperLimb.position.set(0, 0.44, 0.10);
+    upperLimb.position.set(0, 0.35, 0.08);
     upperLimb.rotation.x = 0.52;
     upperLimb.castShadow = true;
     bowGroup.add(upperLimb);
 
     const upperTip = new THREE.Mesh(geos.bowTipGeo, mats.bowMetalMat);
-    upperTip.position.set(0, 0.80, -0.03);
+    upperTip.position.set(0, 0.65, -0.02);
     upperTip.rotation.x = -0.52;
     upperTip.castShadow = true;
     bowGroup.add(upperTip);
 
     const lowerLimb = new THREE.Mesh(geos.bowLimbGeo, mats.bowWoodMat);
-    lowerLimb.position.set(0, -0.44, 0.10);
+    lowerLimb.position.set(0, -0.35, 0.08);
     lowerLimb.rotation.x = -0.52;
     lowerLimb.castShadow = true;
     bowGroup.add(lowerLimb);
 
     const lowerTip = new THREE.Mesh(geos.bowTipGeo, mats.bowMetalMat);
-    lowerTip.position.set(0, -0.80, -0.03);
+    lowerTip.position.set(0, -0.65, -0.02);
     lowerTip.rotation.x = 0.52;
     lowerTip.castShadow = true;
     bowGroup.add(lowerTip);
 
     const bowstring = new THREE.Mesh(geos.bowstringGeo, mats.bowstringCyanMat);
-    bowstring.position.set(0, 0, -0.16);
+    bowstring.position.set(0, 0, -0.13);
     bowGroup.add(bowstring);
 
     return bowGroup;
   };
 
   const hunterBow = buildAngularRecurveBow();
-  hunterBow.position.set(0, -0.10, 0.05);
-  hunterBow.rotation.set(0, 0, 0); // Tegak lurus di telapak tangan kiri
+  hunterBow.position.set(0, -0.08, 0.04);
+  hunterBow.rotation.set(0, 0, 0);
   hunterBow.visible = false;
   leftHand.add(hunterBow);
 
   const hunterBowStowed = buildAngularRecurveBow();
-  hunterBowStowed.position.set(0.04, 1.35, -0.45);
+  hunterBowStowed.position.set(0.04, 1.10, -0.28);
   hunterBowStowed.rotation.set(0.12, 0, 0.65);
   hunterBowStowed.visible = true;
   group.add(hunterBowStowed);
 
-  // Tabung Panah (Quiver) BoxGeometry(0.28, 0.95, 0.28) miring 35° di punggung kanan atas (Z: -0.48)
+  // Quiver (Tabung Panah) miring 35 derajat di punggung kanan atas
   const hunterQuiver = new THREE.Group();
-  hunterQuiver.position.set(-0.24, 1.55, -0.48);
+  hunterQuiver.position.set(-0.18, 1.30, -0.28);
   hunterQuiver.rotation.set(0.10, -0.08, -0.61);
 
   const quiverTube = new THREE.Mesh(geos.quiverGeo, mats.quiverMat);
   quiverTube.castShadow = true;
   hunterQuiver.add(quiverTube);
 
-  const quiverBand = new THREE.Mesh(geos.quiverBandGeo, mats.buckleMat);
-  quiverBand.position.y = 0.32;
-  hunterQuiver.add(quiverBand);
-
-  // 4 Anak panah mencuat ke atas
   const arrowOffsets = [
-    { x: -0.05, z: -0.05, rot: 0.04 },
-    { x: 0.05, z: -0.05, rot: -0.05 },
-    { x: -0.04, z: 0.05, rot: -0.03 },
-    { x: 0.04, z: 0.05, rot: 0.06 },
+    { x: -0.04, z: -0.04, rot: 0.04 },
+    { x: 0.04, z: -0.04, rot: -0.05 },
+    { x: -0.03, z: 0.04, rot: -0.03 },
+    { x: 0.03, z: 0.04, rot: 0.06 },
   ];
 
   arrowOffsets.forEach((off) => {
     const arrow = new THREE.Group();
-    arrow.position.set(off.x, 0.50, off.z);
+    arrow.position.set(off.x, 0.38, off.z);
     arrow.rotation.z = off.rot;
 
     const shaft = new THREE.Mesh(geos.arrowShaftGeo, mats.arrowShaftMat);
     arrow.add(shaft);
 
     const fletchX = new THREE.Mesh(geos.arrowFletchGeo, mats.arrowMat);
-    fletchX.position.y = 0.45;
+    fletchX.position.y = 0.35;
     const fletchZ = new THREE.Mesh(geos.arrowFletchGeo, mats.arrowMat);
-    fletchZ.position.y = 0.45;
+    fletchZ.position.y = 0.35;
     fletchZ.rotation.y = Math.PI / 2;
     arrow.add(fletchX, fletchZ);
 
     const headArrow = new THREE.Mesh(geos.arrowTipGeo, mats.arrowMat);
-    headArrow.position.y = -0.55;
+    headArrow.position.y = -0.42;
     arrow.add(headArrow);
 
     hunterQuiver.add(arrow);
@@ -868,7 +761,7 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
   group.add(hunterQuiver);
 
   // --------------------------------------------------------------------------
-  // 11. SISTEM TRANSISI SENJATA (DYNAMIC STANCE SWAPPING)
+  // 10. SISTEM TRANSISI SENJATA
   // --------------------------------------------------------------------------
   let hunterWeaponMode: 'dagger' | 'bow' = 'dagger';
 
@@ -890,7 +783,7 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
   };
 
   // --------------------------------------------------------------------------
-  // 12. TIER 3+ EFEK EMISI & SHURIKEN PHANTOM
+  // 11. TIER 3+ EFEK EMISI
   // --------------------------------------------------------------------------
   const orbitingOrbs: THREE.Mesh[] = [];
   let halo: THREE.Mesh | undefined;
@@ -900,7 +793,7 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
   let auraRing2: THREE.Mesh | undefined;
 
   if (tier >= 3) {
-    const ringGeo = new THREE.RingGeometry(0.65, 0.78, 24);
+    const ringGeo = new THREE.RingGeometry(0.55, 0.68, 24);
     ringGeo.rotateX(-Math.PI / 2);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0x00f5ff,
@@ -919,9 +812,9 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
         emissive: 0x00f5ff,
         emissiveIntensity: 1.6,
       });
-      const shuriken = new THREE.Mesh(new THREE.OctahedronGeometry(0.12, 0), shurikenMat);
+      const shuriken = new THREE.Mesh(new THREE.OctahedronGeometry(0.10, 0), shurikenMat);
       const angle = (i / orbCount) * Math.PI * 2;
-      shuriken.position.set(Math.cos(angle) * 0.9, 1.35, Math.sin(angle) * 0.9);
+      shuriken.position.set(Math.cos(angle) * 0.8, 1.15, Math.sin(angle) * 0.8);
       group.add(shuriken);
       orbitingOrbs.push(shuriken);
     }
@@ -960,7 +853,6 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
   };
 
   (result as any).rightForearm = rightForearm;
-  (result as any).pelvis = pelvis;
   (result as any).chestplate = chestplate;
   (result as any).faceMask = faceMask;
 
@@ -1027,8 +919,7 @@ export function animateHunterWalk(
       }
     }
 
-    // Kibasan jubah ke belakang
-    playerMesh.cape.rotation.x = -0.15 - Math.abs(Math.sin(walkTime * 1.2)) * 0.20;
+    playerMesh.cape.rotation.x = -0.14 - Math.abs(Math.sin(walkTime * 1.2)) * 0.18;
 
     const walkBob = Math.abs(Math.sin(walkTime * 2.4)) * 0.04;
     playerMesh.group.position.y = playerPosY + walkBob;
@@ -1038,8 +929,8 @@ export function animateHunterWalk(
     playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0, 0.2);
     playerMesh.group.rotation.z = THREE.MathUtils.lerp(playerMesh.group.rotation.z, 0, 0.2);
 
-    const breathe = Math.sin(walkTime * 2.2) * 0.015;
-    playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.45 + breathe, 0.15);
+    const breathe = Math.sin(walkTime * 2.2) * 0.012;
+    playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.15 + breathe, 0.15);
 
     if (!isAttacking) {
       if (isBow) {
@@ -1079,7 +970,7 @@ export function animateHunterWalk(
       }
     }
 
-    playerMesh.cape.rotation.x = -0.15 - Math.sin(walkTime * 2.0) * 0.03;
+    playerMesh.cape.rotation.x = -0.14 - Math.sin(walkTime * 2.0) * 0.03;
   }
 }
 
@@ -1109,7 +1000,7 @@ export const HunterModel: React.FC<HunterModelProps> = ({
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, 1.4, 4.0);
+    camera.position.set(0, 1.2, 3.5);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(width, height);
