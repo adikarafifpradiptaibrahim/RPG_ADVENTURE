@@ -6058,13 +6058,13 @@ export class GameEngine {
           this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, 0.18, 0.15);
           this.playerMesh.leftArm.position.copy(this.playerMesh.leftArm.userData.defaultPos || new THREE.Vector3(0.46, 1.68, 0));
 
-          // Lengan Kanan (Pedang): Siku rileks di samping pinggul
-          this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0.05 - breathe * 0.2, 0.15);
+          // Lengan Kanan (Pedang): Lurus menggantung rileks ke bawah di samping badan
+          this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0.0, 0.15);
           this.playerMesh.rightArm.rotation.y = 0;
-          this.playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.z, -0.12, 0.15);
+          this.playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.z, -0.15, 0.15);
           this.playerMesh.rightArm.position.copy(this.playerMesh.rightArm.userData.defaultPos || new THREE.Vector3(-0.46, 1.68, 0));
-          this.playerMesh.weapon.position.set(0, -0.08, 0.02);
-          this.playerMesh.weapon.rotation.set(0.45, 0, 0.05);
+          this.playerMesh.weapon.rotation.set(1.45, 0, 0.1);
+          this.playerMesh.weapon.position.set(0, -0.05, 0.02);
         }
       } else if (this.charClass === 'mage') {
         // Heroic Blocky Low-Poly Mage Idle State (Subtle Breathing & Relaxed Staff/Grimoire Pose)
@@ -6218,9 +6218,9 @@ export class GameEngine {
           this.playerMesh.leftArm.position.copy(this.playerMesh.leftArm.userData.defaultPos || new THREE.Vector3(0.46, 1.68, 0));
           this.playerMesh.rightArm.position.copy(this.playerMesh.rightArm.userData.defaultPos || new THREE.Vector3(-0.46, 1.68, 0));
           this.playerMesh.leftArm.rotation.set(-0.35, 0.25, 0.18);
-          this.playerMesh.rightArm.rotation.set(0.05, 0, -0.12);
-          this.playerMesh.weapon.position.set(0, -0.08, 0.02);
-          this.playerMesh.weapon.rotation.set(0.45, 0, 0.05);
+          this.playerMesh.rightArm.rotation.set(0.0, 0, -0.15);
+          this.playerMesh.weapon.position.set(0, -0.05, 0.02);
+          this.playerMesh.weapon.rotation.set(1.45, 0, 0.1);
           resetKnightBladeGlow(this.playerMesh);
         } else if (this.charClass === 'mage' && this.playerMesh?.body) {
           this.playerMesh.body.rotation.set(0, 0, 0);
