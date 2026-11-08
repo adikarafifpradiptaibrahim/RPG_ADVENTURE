@@ -293,15 +293,15 @@ export function createHunterModel(): THREE.Group {
   leftDagger.add(leftHilt, leftGuard, leftBlade);
   leftArmPose.add(leftDagger);
 
-  // Busur Horizontal Membujur (Senar di Atas, Gagang di Bawah)
+  // Busur Horizontal Membujur (Senar Cyan di Atas, Gagang di Bawah)
   const handBow = createSegmentedBow(matWood, matString);
   handBow.name = 'HandBow';
-  handBow.position.set(-0.06, -0.42, 0.02);
+  // Letakkan pas di bawah kepalan tangan kanan setinggi pinggul
+  handBow.position.set(-0.06, -0.42, 0.04);
 
-  // KOREKSI ROTASI POROS:
-  // Rotasi X = -90 derajat mengangkat senar langsung ke atas
-  // Rotasi Y = 90 derajat membujur dari depan ke belakang
-  handBow.rotation.set(-Math.PI / 2, Math.PI / 2, 0);
+  // KOREKSI MATEMATIS MURNI (BEBAS GIMBAL LOCK):
+  // Rotasi X = -Math.PI / 2 memutar bidang Y-Z sehingga senar naik ke atas dan busur membujur ke belakang
+  handBow.rotation.set(-Math.PI / 2, 0, 0);
   handBow.visible = false;
   leftArmPose.add(handBow);
 
