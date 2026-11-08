@@ -293,21 +293,6 @@ export function createHunterModel(): THREE.Group {
   leftDagger.add(leftHilt, leftGuard, leftBlade);
   leftArmPose.add(leftDagger);
 
-  // Busur Tangan Kiri (Ranged Mode - Digenggam Tegak Lurus)
-  const handBow = createSegmentedBow(matWood, matString);
-  handBow.name = 'HandBow';
-  // Posisikan tepat di telapak tangan kiri
-  handBow.position.set(0, -0.44, 0.04);
-
-  // KOREKSI SUMBU BUSUR:
-  // Menetralkan rotasi bawaan lengan agar busur berdiri vertikal lurus ke bawah
-  handBow.rotation.x = -0.35; // Meluruskan kemiringan tangan ke sumbu tegak
-  handBow.rotation.y = 0;     // Tali busur menghadap ke belakang (ke tubuh), lengkungan ke depan
-  handBow.rotation.z = 0.16;  // Mengimbangi sudut lengan agar sejajar dengan paha luar
-
-  handBow.visible = false;
-  leftArmPose.add(handBow);
-
   leftArmGroup.add(leftArmPose);
   root.add(leftArmGroup);
 
@@ -354,6 +339,18 @@ export function createHunterModel(): THREE.Group {
   rightDagger.add(rightHilt, rightGuard, rightBlade);
   rightArmPose.add(rightDagger);
 
+  // Busur di Tangan Kanan (Posisi vertikal tegak sejajar pinggul seperti buku Mage)
+  const handBow = createSegmentedBow(matWood, matString);
+  handBow.name = 'HandBow';
+  handBow.position.set(0.04, -0.42, 0.06);
+
+  // Orientasi: Berdiri tegak lurus menyusuri pinggul luar, lengkungan ke depan (Z+)
+  handBow.rotation.x = 0;
+  handBow.rotation.y = 0;
+  handBow.rotation.z = 0;
+  handBow.visible = false;
+  rightArmPose.add(handBow);
+
   rightArmGroup.add(rightArmPose);
   root.add(rightArmGroup);
 
@@ -378,18 +375,44 @@ export function updateHunterWeaponStance(model: THREE.Group, stance: 'dagger' | 
   const leftDagger = model.getObjectByName('LeftArm')?.getObjectByName('HandDagger');
   const rightDagger = model.getObjectByName('RightArm')?.getObjectByName('HandDagger');
 
+  const leftArmPose = model.getObjectByName('LeftArmPose');
+  const rightArmPose = model.getObjectByName('RightArmPose');
+
   if (stance === 'bow') {
-    // Mode Pemanah:
-    if (backBow) backBow.visible = false;      // Busur punggung dicabut
-    if (handBow) handBow.visible = true;       // Busur muncul di tangan kiri
-    if (leftDagger) leftDagger.visible = false; // Belati kiri disimpan
-    if (rightDagger) rightDagger.visible = false; // Belati kanan disimpan rapi
+    // Sembunyikan belati & busur punggung, munculkan busur tangan
+    if (backBow) backBow.visible = false;
+    if (handBow) handBow.visible = true;
+    if (leftDagger) leftDagger.visible = false;
+    if (rightDagger) rightDagger.visible = false;
+
+    // TANGAN KIRI (Tidak pegang senjata): Turun lurus santai
+    if (leftArmPose) {
+      leftArmPose.rotation.set(0.05, 0, -0.06);
+    }
+
+    // TANGAN KANAN (Memegang Busur): Ketiak agak terbuka, lengan sejajar badan (seperti buku Mage)
+    if (rightArmPose) {
+      rightArmPose.rotation.set(-0.08, -0.10, 0.26); // Ketiak terbuka keluar (~15 derajat)
+    }
+
+    // Koreksi orientasi busur di genggaman agar tegak sempurna
+    if (handBow) {
+      handBow.rotation.set(0.08, 0, -0.26);
+    }
   } else {
-    // Mode Belati (Melee):
-    if (backBow) backBow.visible = true;       // Busur kembali tersampir di punggung
-    if (handBow) handBow.visible = false;      // Busur di tangan kiri hilang
-    if (leftDagger) leftDagger.visible = true;  // Belati kiri keluar (A-Pose)
-    if (rightDagger) rightDagger.visible = true; // Belati kanan keluar (A-Pose)
+    // KEMBALI KE MODE BELATI (A-Pose Melee yang sudah stabil)
+    if (backBow) backBow.visible = true;
+    if (handBow) handBow.visible = false;
+    if (leftDagger) leftDagger.visible = true;
+    if (rightDagger) rightDagger.visible = true;
+
+    // Kembalikan pose belati asli
+    if (leftArmPose) {
+      leftArmPose.rotation.set(-0.30, 0.20, -0.16);
+    }
+    if (rightArmPose) {
+      rightArmPose.rotation.set(0.12, -0.20, 0.16);
+    }
   }
 }
 
@@ -508,14 +531,14 @@ export function animateHunterWalk(
     if (!isAttacking) {
       if (isBow) {
         if (playerMesh.leftArm) {
-          playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -0.65, 0.2);
-          playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.22, 0.2);
-          playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.10, 0.2);
+          playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -legSwing * 0.35, 0.2);
+          playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0, 0.2);
+          playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0, 0.2);
         }
         if (playerMesh.rightArm) {
-          playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -0.25 + legSwing * 0.3, 0.2);
-          playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, -0.15, 0.2);
-          playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, -0.12, 0.2);
+          playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, legSwing * 0.15, 0.2);
+          playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, 0.2);
+          playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0, 0.2);
         }
       } else {
         // A-Pose Walk Dynamic Swing (Menggerakkan ShoulderRoot sehingga ArmPivot A-Pose tetap stabil)
@@ -556,12 +579,14 @@ export function animateHunterWalk(
     if (!isAttacking) {
       if (isBow) {
         if (playerMesh.leftArm) {
-          playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -0.55, 0.15);
-          playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.18, 0.15);
+          playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, breathe * 0.25, 0.15);
+          playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0, 0.15);
+          playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0, 0.15);
         }
         if (playerMesh.rightArm) {
-          playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -0.20 + breathe * 0.25, 0.15);
-          playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, -0.12, 0.15);
+          playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, breathe * 0.25, 0.15);
+          playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, 0.15);
+          playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0, 0.15);
         }
       } else {
         // Idle Tactical A-Pose
