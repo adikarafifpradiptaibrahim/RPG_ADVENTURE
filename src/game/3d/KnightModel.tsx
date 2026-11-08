@@ -690,9 +690,10 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
 
   weapon.add(blade, bladeTip, fuller, crossguard, grip, pommel);
 
-  // Pivot gagang (hilt) tepat di telapak tangan kanan dengan rotasi menghadap santai ke samping paha
-  weapon.position.set(0, -0.05, 0.02);
-  weapon.rotation.set(1.45, 0, 0.1);
+  // KUNCI STANDARISASI ATTACHMENT PEDANG:
+  // Bilah pedang SELALU lurus menjadi perpanjangan tangan (sejajar arah tinju)
+  weapon.position.set(0, -0.06, 0.04);
+  weapon.rotation.set(-Math.PI / 2, 0, 0);
   rightHand.add(weapon);
 
   // --------------------------------------------------------------------------
@@ -944,8 +945,8 @@ export function animateKnightWalk(
     playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, -0.10, 0.2);
     playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, -0.20, 0.2);
 
-    playerMesh.weapon.position.set(0, -0.05, 0.02);
-    playerMesh.weapon.rotation.set(1.45, 0, 0.1);
+    playerMesh.weapon.position.set(0, -0.06, 0.04);
+    playerMesh.weapon.rotation.set(-Math.PI / 2, 0, 0);
   }
 
   // 3. Hip Sway & Body Bobbing alami
@@ -1075,6 +1076,7 @@ export function animateKnightCombatPose(
   const duration = ctx.attackDuration && ctx.attackDuration > 0 ? ctx.attackDuration : 0.35;
   const timer = ctx.attackTimer !== undefined ? ctx.attackTimer : 0;
   const t = Math.max(0, Math.min(1, 1 - (timer / duration)));
+  const easeOutQuad = 1 - (1 - t) * (1 - t);
 
   // Kunci posisi bahu default (Requirement 1 & 4)
   playerMesh.leftArm.position.copy(playerMesh.leftArm.userData.defaultPos || new THREE.Vector3(0.46, 1.68, 0));
@@ -1084,72 +1086,54 @@ export function animateKnightCombatPose(
   playerMesh.body.rotation.x = 0;
   playerMesh.body.rotation.z = 0;
 
+  // Standarisasi Weapon (Requirement 1):
+  // Bilah SELALU lurus menjadi perpanjangan tangan (-Math.PI / 2, 0, 0), tidak diubah-ubah secara lokal!
+  playerMesh.weapon.position.set(0, -0.06, 0.04);
+  playerMesh.weapon.rotation.set(-Math.PI / 2, 0, 0);
+
   switch (ctx.attackType) {
     case 'warrior_combo_1': {
-      // Hit 1: Tebas Diagonal Kanan ke Kiri (rentang lebar dan tegas)
-      const easeOutQuad = 1 - (1 - t) * (1 - t);
+      // Hit 1: Tebasan Diagonal Kanan Atas ke Kiri Bawah (Requirement 2.A)
       playerMesh.rightArm.rotation.set(
-        THREE.MathUtils.lerp(-1.4, 0.6, easeOutQuad),
-        THREE.MathUtils.lerp(-0.8, 0.9, easeOutQuad),
-        THREE.MathUtils.lerp(-0.6, 0.4, easeOutQuad)
+        THREE.MathUtils.lerp(-1.6, -0.2, easeOutQuad), // Mengayun turun dari atas
+        THREE.MathUtils.lerp(0.9, -0.9, easeOutQuad),  // Menyapu melintang dari kanan ke kiri depan
+        THREE.MathUtils.lerp(-0.4, 0.4, easeOutQuad)
       );
-      // Rotasi pedang saat tebas:
-      playerMesh.weapon.rotation.set(-Math.PI / 2 + 0.3, 0, 0);
-      playerMesh.weapon.position.set(0, -0.05, 0.02);
-      // Badan sedikit memutar mengikuti ayunan:
-      playerMesh.body.rotation.y = THREE.MathUtils.lerp(-0.4, 0.4, easeOutQuad);
-
-      playerMesh.leftArm.rotation.set(-0.35, 0.25, 0.15);
+      playerMesh.body.rotation.y = THREE.MathUtils.lerp(-0.25, 0.25, easeOutQuad);
+      playerMesh.leftArm.rotation.set(-0.35, 0.25, 0.15); // Perisai di samping badan
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
       break;
     }
     case 'warrior_combo_2': {
-      // Hit 2: Tebasan Balasan Kiri ke Kanan
-      const easeOutQuad = 1 - (1 - t) * (1 - t);
+      // Hit 2: Tebasan Balasan Kiri Bawah ke Kanan Atas (Requirement 2.B)
       playerMesh.rightArm.rotation.set(
-        THREE.MathUtils.lerp(-0.5, 0.7, easeOutQuad),
-        THREE.MathUtils.lerp(0.8, -0.8, easeOutQuad),
+        THREE.MathUtils.lerp(-0.2, -1.4, easeOutQuad), // Mengangkat dari bawah ke atas
+        THREE.MathUtils.lerp(-0.9, 0.8, easeOutQuad),  // Menyapu balik dari kiri ke kanan
         THREE.MathUtils.lerp(0.4, -0.4, easeOutQuad)
       );
-      // Rotasi pedang saat tebas:
-      playerMesh.weapon.rotation.set(-Math.PI / 2 + 0.3, 0, 0);
-      playerMesh.weapon.position.set(0, -0.05, 0.02);
-      // Badan memutar balik:
-      playerMesh.body.rotation.y = THREE.MathUtils.lerp(0.4, -0.4, easeOutQuad);
-
+      playerMesh.body.rotation.y = THREE.MathUtils.lerp(0.25, -0.25, easeOutQuad);
       playerMesh.leftArm.rotation.set(-0.35, 0.25, 0.15);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
       break;
     }
     case 'warrior_combo_3_shield': {
-      // Hit 3: Shield Bash
-      // Lengan kanan ditarik sedikit ke belakang (-0.2, -0.2, -0.3)
-      playerMesh.rightArm.rotation.set(-0.2, -0.2, -0.3);
-      playerMesh.weapon.position.set(0, -0.05, 0.02);
-      playerMesh.weapon.rotation.set(1.45, 0, 0.1);
-
-      // Lengan kiri: Menghantamkan perisai lurus ke depan!
-      // Rotasi: leftArm.rotation.set(-1.50 * Math.sin(t * Math.PI), 0.30, 0.10)
-      // Translasi: leftArm.position.set(0.46, 1.68, Math.sin(t * Math.PI) * 0.35)
+      // Hit 3: Shield Bash (Requirement 2.C)
       const bashSin = Math.sin(t * Math.PI);
-      playerMesh.leftArm.rotation.set(-1.50 * bashSin, 0.30, 0.10);
+      playerMesh.leftArm.rotation.set(-1.4 * bashSin, 0.3, 0.1);
       playerMesh.leftArm.position.set(0.46, 1.68, bashSin * 0.35);
+      playerMesh.rightArm.rotation.set(-0.3, 0.2, -0.2);
+      playerMesh.rightArm.position.set(-0.46, 1.68, 0);
       playerMesh.body.rotation.y = bashSin * 0.15;
       break;
     }
     case 'warrior_combo_4_thrust': {
-      // Hit 4: Thrust menusuk horizontal lurus ke depan
-      const swingSin = Math.sin(t * Math.PI);
-      // Lengan kanan lurus ke depan menusuk:
+      // Hit 4: Thrust Pierce Finisher (Requirement 2.D)
+      const thrustSin = Math.sin(t * Math.PI);
       playerMesh.rightArm.rotation.set(-Math.PI / 2, 0, 0);
-      // Putar pedang agar bilahnya sejajar horizontal lurus ke depan (menjadi perpanjangan dari tangan):
-      playerMesh.weapon.rotation.set(-Math.PI / 2, 0, 0);
-      playerMesh.weapon.position.set(0, 0.05, 0.25 * swingSin);
-
-      // Lengan kiri (perisai) tetap di samping dada/pinggang menjaga keseimbangan:
+      playerMesh.rightArm.position.set(-0.46, 1.68, thrustSin * 0.4);
+      playerMesh.body.rotation.y = 0;
       playerMesh.leftArm.rotation.set(-0.35, 0.25, 0.15);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
-      playerMesh.body.rotation.set(0, 0, 0);
       break;
     }
     case 'warrior_charge_release_quick':
@@ -1163,9 +1147,6 @@ export function animateKnightCombatPose(
         0,
         -0.15
       );
-      playerMesh.weapon.position.set(0, -0.05, 0.08);
-      playerMesh.weapon.rotation.set(-Math.PI / 2, 0, 0);
-
       playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
       playerMesh.body.rotation.set(0, 0, 0);
@@ -1173,32 +1154,24 @@ export function animateKnightCombatPose(
     }
     case 'warrior_crescent_1': {
       // Crescent 1: Ayunan cepat diagonal kanan ke kiri
-      const easeOutQuad = 1 - (1 - t) * (1 - t);
       playerMesh.rightArm.rotation.set(
-        THREE.MathUtils.lerp(-1.4, 0.6, easeOutQuad),
-        THREE.MathUtils.lerp(-0.8, 0.9, easeOutQuad),
-        THREE.MathUtils.lerp(-0.6, 0.4, easeOutQuad)
+        THREE.MathUtils.lerp(-1.6, -0.2, easeOutQuad),
+        THREE.MathUtils.lerp(0.9, -0.9, easeOutQuad),
+        THREE.MathUtils.lerp(-0.4, 0.4, easeOutQuad)
       );
-      playerMesh.weapon.rotation.set(-Math.PI / 2 + 0.3, 0, 0);
-      playerMesh.weapon.position.set(0, -0.05, 0.02);
-      playerMesh.body.rotation.y = THREE.MathUtils.lerp(-0.4, 0.4, easeOutQuad);
-
+      playerMesh.body.rotation.y = THREE.MathUtils.lerp(-0.25, 0.25, easeOutQuad);
       playerMesh.leftArm.rotation.set(-0.35, 0.25, 0.15);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
       break;
     }
     case 'warrior_crescent_2': {
       // Crescent 2: Ayunan balasan cepat kiri ke kanan
-      const easeOutQuad = 1 - (1 - t) * (1 - t);
       playerMesh.rightArm.rotation.set(
-        THREE.MathUtils.lerp(-0.5, 0.7, easeOutQuad),
-        THREE.MathUtils.lerp(0.8, -0.8, easeOutQuad),
+        THREE.MathUtils.lerp(-0.2, -1.4, easeOutQuad),
+        THREE.MathUtils.lerp(-0.9, 0.8, easeOutQuad),
         THREE.MathUtils.lerp(0.4, -0.4, easeOutQuad)
       );
-      playerMesh.weapon.rotation.set(-Math.PI / 2 + 0.3, 0, 0);
-      playerMesh.weapon.position.set(0, -0.05, 0.02);
-      playerMesh.body.rotation.y = THREE.MathUtils.lerp(0.4, -0.4, easeOutQuad);
-
+      playerMesh.body.rotation.y = THREE.MathUtils.lerp(0.25, -0.25, easeOutQuad);
       playerMesh.leftArm.rotation.set(-0.35, 0.25, 0.15);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
       break;
@@ -1211,8 +1184,6 @@ export function animateKnightCombatPose(
         0,
         -0.15
       );
-      playerMesh.weapon.position.set(0, -0.05, 0.08);
-      playerMesh.weapon.rotation.set(-Math.PI / 2, 0, 0);
       playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
       playerMesh.body.rotation.set(0, 0, 0);
@@ -1222,9 +1193,6 @@ export function animateKnightCombatPose(
       // Skill 3 di Udara: Tangan kanan mengangkat pedang tinggi (-2.95, 0, -0.15)
       // Tangan KIRI (Perisai) TETAP DI SAMPING PINGGANG SIAGA (-0.25, 0.20, 0.18), TIDAK BOLEH IKUT TERANGKAT!
       playerMesh.rightArm.rotation.set(-2.95, 0, -0.15);
-      playerMesh.weapon.position.set(0, -0.05, 0.08);
-      playerMesh.weapon.rotation.set(-Math.PI / 2, 0, 0);
-
       playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
       playerMesh.body.rotation.set(0, 0, 0);
@@ -1238,9 +1206,6 @@ export function animateKnightCombatPose(
         0,
         -0.1
       );
-      playerMesh.weapon.position.set(0, -0.05, 0.08);
-      playerMesh.weapon.rotation.set(-Math.PI / 2, 0, 0);
-
       playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
       playerMesh.body.rotation.set(0, 0, 0);
@@ -1251,10 +1216,7 @@ export function animateKnightCombatPose(
       const slamSin = Math.sin(t * Math.PI);
       playerMesh.leftArm.rotation.set(-1.60 * slamSin - 0.25, 0.30, 0.15);
       playerMesh.leftArm.position.set(0.46, 1.68, slamSin * 0.15);
-
-      playerMesh.rightArm.rotation.set(-0.55, -0.10, -0.20);
-      playerMesh.weapon.position.set(0, -0.05, 0.08);
-      playerMesh.weapon.rotation.set(-0.20, 0, 0);
+      playerMesh.rightArm.rotation.set(-0.35, -0.1, -0.15);
       playerMesh.body.rotation.set(0, 0, 0);
       break;
     }
@@ -1263,19 +1225,15 @@ export function animateKnightCombatPose(
       // Dash: Lengan kiri mengangkat perisai di depan dada sebagai bumper
       playerMesh.leftArm.rotation.set(-1.45, 0.35, 0.15);
       playerMesh.leftArm.position.set(0.46, 1.68, 0.25);
-
-      playerMesh.rightArm.rotation.set(-0.20, -0.15, -0.20);
-      playerMesh.weapon.position.set(0, -0.05, 0.08);
-      playerMesh.weapon.rotation.set(-Math.PI / 2, 0, 0);
+      playerMesh.rightArm.rotation.set(-0.35, -0.1, -0.15);
       playerMesh.body.rotation.set(0, 0, 0);
       break;
     }
     default: {
-      playerMesh.rightArm.rotation.set(0.0, 0, -0.15);
-      playerMesh.leftArm.rotation.set(-0.35, 0.25, 0.18);
+      playerMesh.rightArm.rotation.set(-0.35, -0.1, -0.15);
+      playerMesh.rightArm.position.set(-0.46, 1.68, 0);
+      playerMesh.leftArm.rotation.set(-0.35, 0.25, 0.15);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
-      playerMesh.weapon.position.set(0, -0.05, 0.02);
-      playerMesh.weapon.rotation.set(1.45, 0, 0.1);
       playerMesh.body.rotation.set(0, 0, 0);
       break;
     }
