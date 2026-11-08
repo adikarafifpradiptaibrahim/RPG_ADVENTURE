@@ -5,6 +5,7 @@ import {
   createHeroicKnightMesh,
   USE_LEGACY_KNIGHT,
   animateKnightWalk,
+  animateKnightCombatPose,
   setKnightBladeGlow,
   resetKnightBladeGlow,
 } from './KnightModel';
@@ -29,6 +30,7 @@ export {
   createLegacyKnightMesh,
   USE_LEGACY_KNIGHT,
   animateKnightWalk,
+  animateKnightCombatPose,
   setKnightBladeGlow,
   resetKnightBladeGlow,
   createHeroicMageMesh,

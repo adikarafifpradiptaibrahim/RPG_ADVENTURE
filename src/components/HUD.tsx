@@ -54,6 +54,7 @@ interface HUDProps {
   onAttackEnd?: () => void;
   onCastSkill: (slot: 1 | 2 | 3) => void;
   onJump: () => void;
+  onDash?: () => void;
   onRotateCamera?: (deltaX: number, deltaY: number) => void;
   onZoomCamera?: (deltaZoom: number) => void;
   bossState: {
@@ -111,6 +112,7 @@ export const HUD: React.FC<HUDProps> = ({
   onAttackEnd,
   onCastSkill,
   onJump,
+  onDash,
   onRotateCamera,
   onZoomCamera,
   bossState,
@@ -789,6 +791,7 @@ export const HUD: React.FC<HUDProps> = ({
           onAttackEnd={onAttackEnd}
           onCastSkill={onCastSkill}
           onJump={onJump}
+          onDash={onDash}
           onSwitchHunterWeapon={onSwitchHunterWeapon}
         />
       )}

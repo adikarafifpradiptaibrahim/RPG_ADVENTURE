@@ -20,6 +20,7 @@ import {
   PlayerMeshObjects,
   USE_LEGACY_KNIGHT,
   animateKnightWalk,
+  animateKnightCombatPose,
   setKnightBladeGlow,
   resetKnightBladeGlow,
   USE_LEGACY_MAGE,
@@ -285,6 +286,7 @@ export class GameEngine {
     | 'warrior_crescent_2'
     | 'warrior_crescent_3'
     | 'cataclysmic_leap'
+    | 'cataclysmic_slam'
     | 'aegis_retribution'
     | 'shield_dash'
     | null = null;
@@ -317,6 +319,8 @@ export class GameEngine {
   private chargeTimer = 0;
   private warriorComboIndex = 0;
   private chargeParticleTimer = 0;
+  private cataclysmicLeaping = false;
+  private cataclysmicLanded = false;
   private sprintDrainAccum = 0;
   private staminaRegenAccum = 0;
   private auraRegenAccum = 0;
@@ -1981,7 +1985,9 @@ export class GameEngine {
         this.startBasicAttack();
       }
     } else if (key === ' ' || code === 'space') {
-      this.jumpOrDodge();
+      this.jump();
+    } else if (key === 'c' || code === 'keyc') {
+      this.performDash();
     } else if (key === 'q' || code === 'keyq') {
       this.castSkill(1);
     } else if (key === 'e' || code === 'keye') {
@@ -3063,24 +3069,23 @@ export class GameEngine {
     });
   }
 
-  // 4d. Warrior Charge Gathering Particles (Gold energy sucked into blade)
+  // 4d. Warrior Charge Gathering Particles (Gold energy sucked strictly into the raised blade)
   private spawnChargeGatherParticles() {
     if (!this.playerMesh || !this.playerMesh.weapon) return;
-    const swordTip = new THREE.Vector3();
-    this.playerMesh.weapon.getWorldPosition(swordTip);
-    swordTip.y += 1.1;
+    const bladeWorld = new THREE.Vector3();
+    this.playerMesh.weapon.localToWorld(bladeWorld.set(0, 0.85, 0));
 
     for (let i = 0; i < 3; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const radius = 1.2 + Math.random() * 1.5;
-      const height = (Math.random() - 0.5) * 1.0;
+      const radius = 0.35 + Math.random() * 0.45; // Mengambang rapat di sekitar bilah pedang
+      const heightOffset = (Math.random() - 0.5) * 0.6;
       const startPos = new THREE.Vector3(
-        swordTip.x + Math.cos(angle) * radius,
-        swordTip.y + height,
-        swordTip.z + Math.sin(angle) * radius
+        bladeWorld.x + Math.cos(angle) * radius,
+        bladeWorld.y + heightOffset,
+        bladeWorld.z + Math.sin(angle) * radius
       );
 
-      const pGeom = new THREE.SphereGeometry(0.045, 4, 4);
+      const pGeom = new THREE.SphereGeometry(0.035, 4, 4);
       const pMat = new THREE.MeshBasicMaterial({
         color: 0xffd700,
         transparent: true,
@@ -3092,17 +3097,16 @@ export class GameEngine {
       this.scene.add(pMesh);
 
       let life = 0;
-      const maxLife = 0.28;
+      const maxLife = 0.24;
       this.activeVfx.push({
         object: pMesh,
         update: (delta) => {
           life += delta;
           const t = Math.min(1.0, life / maxLife);
-          const curTip = new THREE.Vector3();
-          this.playerMesh?.weapon.getWorldPosition(curTip);
-          curTip.y += 1.1;
-          pMesh.position.lerpVectors(startPos, curTip, t * t);
-          pMesh.scale.setScalar(1.0 - t * 0.8);
+          const curBlade = new THREE.Vector3();
+          this.playerMesh?.weapon.localToWorld(curBlade.set(0, 0.85, 0));
+          pMesh.position.lerpVectors(startPos, curBlade, t * t);
+          pMesh.scale.setScalar(1.0 - t * 0.75);
           pMat.opacity = 0.9 * (1.0 - t * 0.5);
           return life < maxLife;
         },
@@ -3267,37 +3271,81 @@ export class GameEngine {
     });
   }
 
-  // 4g. Warrior Aegis Retribution Barrier VFX
+  // 4g. Warrior Aegis Retribution Barrier VFX (Radiant Projected Shield Crest & Subtle Ground Halo - NO opaque yellow cylinder)
   private spawnAegisRetributionBarrierVfx() {
     const origin = this.playerPos.clone();
     const barrierGroup = new THREE.Group();
     barrierGroup.position.copy(origin);
 
-    const geom = new THREE.CylinderGeometry(1.6, 1.8, 2.4, 16, 1, true);
-    const mat = new THREE.MeshBasicMaterial({
+    // 1. Radiant Projected Shield Crest di depan perisai
+    const crestGroup = new THREE.Group();
+    crestGroup.position.set(0.25, 1.35, 0.65); // Tepat melayang di depan perisai kiri karakter
+
+    // Bentuk perisai layang-layang (Kite Shield Crest) halus bercahaya
+    const shieldShape = new THREE.Shape();
+    shieldShape.moveTo(0, -0.65);
+    shieldShape.lineTo(-0.45, 0.05);
+    shieldShape.lineTo(-0.40, 0.55);
+    shieldShape.lineTo(0, 0.65);
+    shieldShape.lineTo(0.40, 0.55);
+    shieldShape.lineTo(0.45, 0.05);
+    shieldShape.closePath();
+
+    const crestGeom = new THREE.ShapeGeometry(shieldShape);
+    const crestMat = new THREE.MeshBasicMaterial({
       color: 0xffd700,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.35,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
       depthWrite: false,
     });
-    const mesh = new THREE.Mesh(geom, mat);
-    mesh.position.y = 1.2;
-    barrierGroup.add(mesh);
+    const crestMesh = new THREE.Mesh(crestGeom, crestMat);
+    crestGroup.add(crestMesh);
 
-    const ringGeom = new THREE.RingGeometry(1.4, 1.8, 24);
+    // Garis bingkai perisai emas
+    const rimGeom = new THREE.EdgesGeometry(crestGeom);
+    const rimMat = new THREE.LineBasicMaterial({
+      color: 0xffea00,
+      transparent: true,
+      opacity: 0.75,
+      blending: THREE.AdditiveBlending,
+    });
+    const rimLine = new THREE.LineSegments(rimGeom, rimMat);
+    crestGroup.add(rimLine);
+
+    // Salib suci emas di tengah crest
+    const crossGeom = new THREE.PlaneGeometry(0.12, 0.65);
+    const crossGeom2 = new THREE.PlaneGeometry(0.45, 0.12);
+    const crossMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.6,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const crossMesh1 = new THREE.Mesh(crossGeom, crossMat);
+    crossMesh1.position.z = 0.01;
+    const crossMesh2 = new THREE.Mesh(crossGeom2, crossMat);
+    crossMesh2.position.set(0, 0.12, 0.01);
+    crestGroup.add(crossMesh1, crossMesh2);
+
+    barrierGroup.add(crestGroup);
+
+    // 2. Lingkaran Runic Halus di Tanah (Tanpa silinder pekat)
+    const ringGeom = new THREE.RingGeometry(1.2, 1.45, 32);
     ringGeom.rotateX(-Math.PI / 2);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xffaa00,
+      color: 0xf59e0b,
       transparent: true,
-      opacity: 0.7,
+      opacity: 0.35,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
       depthWrite: false,
     });
     const ringMesh = new THREE.Mesh(ringGeom, ringMat);
-    ringMesh.position.y = 0.04;
+    ringMesh.position.y = 0.03;
     barrierGroup.add(ringMesh);
 
     this.scene.add(barrierGroup);
@@ -3308,15 +3356,22 @@ export class GameEngine {
       update: (delta) => {
         elapsed += delta;
         barrierGroup.position.copy(this.playerPos);
-        barrierGroup.rotation.y += delta * 1.5;
-        const pulse = 0.4 + Math.sin(elapsed * 6) * 0.15;
-        mat.opacity = pulse;
-        ringMat.opacity = pulse + 0.15;
+        barrierGroup.rotation.y = this.playerRotationY; // Selalu menghadap searah karakter
+        const pulse = 0.30 + Math.sin(elapsed * 5) * 0.10;
+        crestMat.opacity = pulse;
+        rimMat.opacity = pulse + 0.35;
+        ringMat.opacity = pulse * 0.9;
+        crestGroup.position.y = 1.35 + Math.sin(elapsed * 3) * 0.04;
         return elapsed < 5.0 && this.aegisRetributionTimer > 0;
       },
       cleanup: () => {
-        geom.dispose();
-        mat.dispose();
+        crestGeom.dispose();
+        crestMat.dispose();
+        rimGeom.dispose();
+        rimMat.dispose();
+        crossGeom.dispose();
+        crossGeom2.dispose();
+        crossMat.dispose();
         ringGeom.dispose();
         ringMat.dispose();
       },
@@ -4421,6 +4476,46 @@ export class GameEngine {
     }, 280);
   }
 
+  private triggerCataclysmicLandingImpact() {
+    if (!this.isRunning || this.cataclysmicLanded) return;
+    this.cataclysmicLanded = true;
+    this.cataclysmicLeaping = false;
+
+    // Hentikan dorongan horizontal saat mendarat
+    this.playerVel.x = 0;
+    this.playerVel.z = 0;
+
+    // Pose tebasan vertikal ke bawah saat pedang menghantam tanah
+    this.attackType = 'cataclysmic_slam';
+    this.attackDuration = 0.45;
+    this.attackTimer = 0.45;
+    this.isAttacking = true;
+
+    const impactPos = this.playerPos.clone();
+    soundManager.playWarriorShieldSlam();
+    this.triggerCameraShake(0.38, 0.35);
+
+    const aoeRadius = 7.5;
+    this.callbacks.onUpdateStats((stats) => {
+      const baseDmg = stats.baseAttack + stats.strength * 2.8;
+      const finalDmg = Math.round(baseDmg * 2.2);
+
+      this.enemies.forEach((enemy) => {
+        if (enemy.data.isDead) return;
+        if (impactPos.distanceTo(enemy.mesh.position) <= aoeRadius) {
+          this.damageEnemy(enemy, finalDmg, true, 1.8);
+          this.spawnSparks(enemy.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xffaa00, 12, 4);
+        }
+      });
+      return stats;
+    });
+
+    this.spawnShockwaveRing(impactPos, 0xfbbf24, aoeRadius, 0.5);
+    this.spawnSparks(impactPos, 0xffd700, 28, 5.5);
+    this.spawnCataclysmicRockSpikesVfx(impactPos);
+    this.callbacks.onAddFloatingText('Cataclysmic Leap Slam! 💥⛰️', '#ffd700', 'crit');
+  }
+
   private castWarriorCataclysmicLeap() {
     this.alignPlayerOrientationToInputOrTarget(16);
     const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
@@ -4428,42 +4523,23 @@ export class GameEngine {
     soundManager.playSkillLompat();
     this.isAttacking = true;
     this.attackType = 'cataclysmic_leap';
-    this.attackDuration = 0.65;
-    this.attackTimer = 0.65;
+    this.attackDuration = 1.5;
+    this.attackTimer = 1.5;
     this.isGrounded = false;
+    this.cataclysmicLeaping = true;
+    this.cataclysmicLanded = false;
 
-    // Parabolic leap: 6m forward, vy = 11.5, fwd vel = 13.5
-    this.playerVel.y = 11.5;
-    this.playerVel.x = forward.x * 13.5;
-    this.playerVel.z = forward.z * 13.5;
+    // Parabolic leap: 6.5m forward, vy = 10.8 (durasi terbang ~0.95s, forward vel = 7.0 m/s)
+    this.playerVel.y = 10.8;
+    this.playerVel.x = forward.x * 7.0;
+    this.playerVel.z = forward.z * 7.0;
 
-    // Landing impact slam at 440ms
+    // Fallback safety timeout jika karakter mendarat di dataran rendah
     setTimeout(() => {
-      if (!this.isRunning) return;
-      const impactPos = this.playerPos.clone();
-      soundManager.playWarriorShieldSlam();
-      this.triggerCameraShake(0.35, 0.35);
-
-      const aoeRadius = 7.5;
-      this.callbacks.onUpdateStats((stats) => {
-        const baseDmg = stats.baseAttack + stats.strength * 2.8;
-        const finalDmg = Math.round(baseDmg * 2.2);
-
-        this.enemies.forEach((enemy) => {
-          if (enemy.data.isDead) return;
-          if (impactPos.distanceTo(enemy.mesh.position) <= aoeRadius) {
-            this.damageEnemy(enemy, finalDmg, true, 1.8);
-            this.spawnSparks(enemy.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xffaa00, 12, 4);
-          }
-        });
-        return stats;
-      });
-
-      this.spawnShockwaveRing(impactPos, 0xfbbf24, aoeRadius, 0.5);
-      this.spawnSparks(impactPos, 0xffd700, 28, 5.5);
-      this.spawnCataclysmicRockSpikesVfx(impactPos);
-      this.callbacks.onAddFloatingText('Cataclysmic Leap Slam! 💥⛰️', '#ffd700', 'crit');
-    }, 440);
+      if (this.cataclysmicLeaping && !this.cataclysmicLanded) {
+        this.triggerCataclysmicLandingImpact();
+      }
+    }, 1100);
   }
 
   private castWarriorAegisRetribution() {
@@ -4909,19 +4985,8 @@ export class GameEngine {
     }
   }
 
-  public jumpOrDodge() {
+  public jump() {
     if (this.isControlsLocked || this.isCasting) return;
-    if (this.charClass === 'warrior') {
-      const isMoving =
-        Math.abs(this.playerVel.x) > 1.0 ||
-        Math.abs(this.playerVel.z) > 1.0 ||
-        this.isKeyPressed('w', 'keyw', 'arrowup', 's', 'keys', 'arrowdown', 'a', 'keya', 'arrowleft', 'd', 'keyd', 'arrowright') ||
-        Math.hypot(this.joystickVector.x, this.joystickVector.y) > 0.1;
-      if (isMoving && !this.isDashing) {
-        this.performShieldDash();
-        return;
-      }
-    }
     if (this.isGrounded) {
       if (this.charClass === 'warrior') {
         this.playerVel.y = 8.2;
@@ -4937,6 +5002,19 @@ export class GameEngine {
       }
       this.isGrounded = false;
     }
+  }
+
+  public performDash() {
+    if (this.isControlsLocked || this.isCasting) return;
+    if (this.charClass === 'warrior') {
+      this.performShieldDash();
+    } else {
+      this.castSkill(2);
+    }
+  }
+
+  public jumpOrDodge() {
+    this.jump();
   }
 
   private damageEnemy(enemy: (typeof this.enemies)[0], rawDamage: number, isCrit: boolean, knockback = 0.4) {
@@ -5895,6 +5973,11 @@ export class GameEngine {
     }
     }
 
+    // Cataclysmic Leap Slam: Deteksi pendaratan presisi saat menyentuh tanah
+    if (this.cataclysmicLeaping && this.isGrounded && !this.cataclysmicLanded) {
+      this.triggerCataclysmicLandingImpact();
+    }
+
     // Update mesh position and rotation
     this.playerMesh.group.position.copy(this.playerPos);
     this.playerMesh.group.rotation.y = this.playerRotationY;
@@ -5911,11 +5994,11 @@ export class GameEngine {
       // Forward ninja prowl crouch
       this.playerMesh.group.rotation.x = isMoving ? 0.16 : 0.08;
     } else if (this.charClass === 'warrior') {
-      if (this.isSprinting && !this.isAttacking) {
-        this.playerMesh.group.rotation.x = THREE.MathUtils.lerp(this.playerMesh.group.rotation.x, 0.28, 0.2);
-      } else if (!this.isAttacking) {
-        this.playerMesh.group.rotation.x = THREE.MathUtils.lerp(this.playerMesh.group.rotation.x, 0, 0.2);
-      }
+      // Requirement 5: Stabilitas postur tegak lurus tanpa tilt/roll goyang saat bergerak, lari, maupun berputar
+      this.playerMesh.group.rotation.x = 0;
+      this.playerMesh.group.rotation.z = 0;
+      this.playerMesh.body.rotation.x = 0;
+      this.playerMesh.body.rotation.z = 0;
     } else {
       this.playerMesh.group.rotation.x = 0;
     }
@@ -5932,7 +6015,9 @@ export class GameEngine {
         animateKnightWalk(this.playerMesh, walkTime, this.playerPos.y, this.isAttacking || this.isChargingAttack);
         this.playerMesh.body.position.y = 1.48;
         this.playerMesh.body.rotation.z = 0;
-        this.playerMesh.body.rotation.y = 0;
+        if (!this.isAttacking) {
+          this.playerMesh.body.rotation.y = 0;
+        }
         this.playerMesh.cape.rotation.x = (this.isSprinting ? 0.60 : 0.30) + Math.sin(walkTime * 0.5) * 0.15;
       } else if (this.charClass === 'mage') {
         // Heroic Blocky Low-Poly Mage Walk Cycle
@@ -5965,16 +6050,21 @@ export class GameEngine {
         const breathe = Math.sin(this.clock.getElapsedTime() * 2.0) * 0.015;
         this.playerMesh.body.position.y = THREE.MathUtils.lerp(this.playerMesh.body.position.y, 1.48 + breathe, 0.15);
         this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(this.playerMesh.body.rotation.z, 0, 0.15);
-        this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y, 0, 0.15);
+        if (!this.isAttacking) {
+          this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y, 0, 0.15);
+        }
 
         if (!this.isAttacking && !this.isChargingAttack) {
           // Shield raised defensively across left chest, broadsword ready in right hand
           this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, -0.32 + breathe * 0.4, 0.15);
           this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, 0.20, 0.15);
           this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, 0.16, 0.15);
+          this.playerMesh.leftArm.position.set(0, 0, 0);
 
           this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0.22 - breathe * 0.4, 0.15);
           this.playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.z, -0.20, 0.15);
+          this.playerMesh.weapon.rotation.set(0.68, 0, 0.08);
+          this.playerMesh.weapon.position.set(0, 0, 0.02);
         }
       } else if (this.charClass === 'mage') {
         // Heroic Blocky Low-Poly Mage Idle State (Subtle Breathing & Relaxed Staff/Grimoire Pose)
@@ -6000,26 +6090,30 @@ export class GameEngine {
       this.chargeTimer += delta;
 
       if (this.chargeTimer < 1.0) {
-        // Detik 0.0 - 1.0 (Mengangkat): Pedang berputar 90 derajat berlawanan arah jarum jam secara perlahan dari posisi pinggang hingga tegak lurus di atas kepala
+        // Detik 0.0 - 1.0 (Mengangkat): Lengan kanan mengayunkan pedang dari depan bawah -> berputar melengkung ke atas kepala -> bertumpu sedikit ke belakang kepala siap menebas
         const p = this.chargeTimer / 1.0;
         const ease = p * p * (3 - 2 * p);
         this.playerMesh.rightArm.rotation.set(
-          THREE.MathUtils.lerp(0.22, -2.8, ease),
-          0,
-          THREE.MathUtils.lerp(-0.20, -0.4, ease)
+          THREE.MathUtils.lerp(0.35, -2.95, ease),
+          THREE.MathUtils.lerp(-0.15, 0.15, ease),
+          THREE.MathUtils.lerp(-0.25, -0.35, ease)
         );
         this.playerMesh.weapon.rotation.set(
-          0.68 - ease * (Math.PI / 2),
+          THREE.MathUtils.lerp(0.68, -0.35, ease),
           0,
-          0.08
+          0.05
         );
-        this.playerMesh.leftArm.rotation.set(-0.5 * ease, 0.3 * ease, 0.2);
-        setKnightBladeGlow(this.playerMesh, 0.2 * ease, 0xffd700);
+        this.playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
+        this.playerMesh.leftArm.position.set(0, 0, 0);
+        this.playerMesh.body.rotation.set(0, 0, 0);
+        setKnightBladeGlow(this.playerMesh, 0.3 * ease, 0xffd700);
       } else if (this.chargeTimer <= 5.0) {
         // Detik 1.0 - 5.0 (Menahan & Penyerapan Energi): Mengonsumsi 10 stamina/detik saat ditahan
-        this.playerMesh.rightArm.rotation.set(-2.8, 0, -0.4);
-        this.playerMesh.weapon.rotation.set(0.68 - Math.PI / 2, 0, 0.08);
-        this.playerMesh.leftArm.rotation.set(-0.5, 0.3, 0.2);
+        this.playerMesh.rightArm.rotation.set(-2.95, 0.15, -0.35);
+        this.playerMesh.weapon.rotation.set(-0.35, 0, 0.05);
+        this.playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
+        this.playerMesh.leftArm.position.set(0, 0, 0);
+        this.playerMesh.body.rotation.set(0, 0, 0);
 
         this.chargeDrainAccum += delta * 10;
         if (this.chargeDrainAccum >= 1.0) {
@@ -6040,13 +6134,15 @@ export class GameEngine {
 
         // Emisi cahaya pedang menguat bertahap dari redup hingga berpendar kuat di detik ke-5
         const glowRatio = (this.chargeTimer - 1.0) / 4.0;
-        setKnightBladeGlow(this.playerMesh, 0.3 + glowRatio * 2.2, 0xffd700);
+        setKnightBladeGlow(this.playerMesh, 0.4 + glowRatio * 2.2, 0xffd700);
       } else {
         // Detik > 5.0: Karakter tetap mempertahankan pose siap tebas (tidak mengonsumsi stamina tambahan, tidak menambah damage lagi)
-        this.playerMesh.rightArm.rotation.set(-2.8, 0, -0.4);
-        this.playerMesh.weapon.rotation.set(0.68 - Math.PI / 2, 0, 0.08);
-        this.playerMesh.leftArm.rotation.set(-0.5, 0.3, 0.2);
-        setKnightBladeGlow(this.playerMesh, 2.5, 0xffd700);
+        this.playerMesh.rightArm.rotation.set(-2.95, 0.15, -0.35);
+        this.playerMesh.weapon.rotation.set(-0.35, 0, 0.05);
+        this.playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
+        this.playerMesh.leftArm.position.set(0, 0, 0);
+        this.playerMesh.body.rotation.set(0, 0, 0);
+        setKnightBladeGlow(this.playerMesh, 2.6, 0xffd700);
       }
     }
 
@@ -6067,98 +6163,13 @@ export class GameEngine {
         const draw = Math.sin((1 - progress) * Math.PI);
         this.playerMesh.rightArm.rotation.set(-1.3, -0.4, 0.4 + draw * 0.35);
       } else if (this.charClass === 'warrior') {
-        const swing = Math.sin((1 - progress) * Math.PI);
-
-        if (this.attackType === 'warrior_combo_1') {
-          // Hit 1: Tebasan pedang diagonal kanan-ke-kiri (jangkauan 3.2m)
-          this.playerMesh.group.rotation.x = swing * 0.14;
-          this.playerMesh.body.rotation.y = -swing * 0.45;
-          this.playerMesh.rightArm.rotation.set(-0.2 - swing * 1.6, swing * 0.8, -0.3 + swing * 0.8);
-          this.playerMesh.leftArm.rotation.set(-0.35, -swing * 0.2, 0.2);
-        } else if (this.attackType === 'warrior_combo_2') {
-          // Hit 2: Tebasan pedang diagonal kiri-ke-kanan (jangkauan 3.2m)
-          this.playerMesh.group.rotation.x = swing * 0.14;
-          this.playerMesh.body.rotation.y = swing * 0.45;
-          this.playerMesh.rightArm.rotation.set(0.2 - swing * 1.5, -swing * 0.8, -0.8 + swing * 0.7);
-          this.playerMesh.leftArm.rotation.set(-0.35, swing * 0.2, 0.2);
-        } else if (this.attackType === 'warrior_combo_3_shield') {
-          // Hit 3 (Shield Bash): Mendorong perisai ke depan dengan langkah maju pendek (micro-stagger 0.2s)
-          this.playerMesh.group.rotation.x = swing * 0.26;
-          this.playerMesh.body.rotation.y = swing * 0.35;
-          this.playerMesh.leftArm.rotation.set(-1.45 * swing, 0.45 * swing, 0.1);
-          this.playerMesh.rightArm.rotation.set(0.4, -0.2, -0.3);
-        } else if (this.attackType === 'warrior_combo_4_thrust') {
-          // Hit 4 (Thrust Pierce Finisher): Tusukan pedang lurus menusuk ke depan (jangkauan 4.2m)
-          this.playerMesh.group.rotation.x = swing * 0.28;
-          this.playerMesh.body.rotation.y = 0;
-          this.playerMesh.rightArm.rotation.set(-1.55 * swing, 0, -0.1);
-          this.playerMesh.weapon.position.set(0, 0, 0.02 + swing * 0.35);
-          this.playerMesh.leftArm.rotation.set(-0.25, 0.2, 0.2);
-        } else if (
-          this.attackType === 'warrior_charge_release_quick' ||
-          this.attackType === 'warrior_charge_release_tier1' ||
-          this.attackType === 'warrior_charge_release_tier2' ||
-          this.attackType === 'warrior_charge_release_tier3'
-        ) {
-          // Downward overhead cleave with full body forward snap
-          this.playerMesh.group.rotation.x = swing * 0.36;
-          this.playerMesh.body.rotation.y = 0;
-          this.playerMesh.rightArm.rotation.set(-2.8 + swing * 3.6, 0, -0.2);
-          this.playerMesh.weapon.rotation.set(0.68 - (1 - swing) * (Math.PI / 2), 0, 0.08);
-          this.playerMesh.leftArm.rotation.set(swing * 0.5, 0, 0.2);
-        } else if (this.attackType === 'warrior_crescent_1') {
-          // Crescent Gale 1: Horizontal slash
-          this.playerMesh.group.rotation.x = swing * 0.16;
-          this.playerMesh.body.rotation.y = -swing * 0.5;
-          this.playerMesh.rightArm.rotation.set(-0.3 - swing * 1.8, swing * 0.9, -0.3 + swing * 0.9);
-          this.playerMesh.leftArm.rotation.set(-0.35, -swing * 0.2, 0.2);
-        } else if (this.attackType === 'warrior_crescent_2') {
-          // Crescent Gale 2: Reverse slash
-          this.playerMesh.group.rotation.x = swing * 0.16;
-          this.playerMesh.body.rotation.y = swing * 0.5;
-          this.playerMesh.rightArm.rotation.set(0.3 - swing * 1.7, -swing * 0.9, -0.7 + swing * 0.8);
-          this.playerMesh.leftArm.rotation.set(-0.35, swing * 0.2, 0.2);
-        } else if (this.attackType === 'warrior_crescent_3') {
-          // Crescent Gale 3: Heavy downward cleave
-          this.playerMesh.group.rotation.x = swing * 0.32;
-          this.playerMesh.body.rotation.y = 0;
-          this.playerMesh.rightArm.rotation.set(1.1 - swing * 3.0, 0, -0.2);
-          this.playerMesh.leftArm.rotation.set(swing * 0.6, 0, 0.15);
-        } else if (this.attackType === 'cataclysmic_leap') {
-          // Cataclysmic Leap Slam: Airborne overhead hold -> Landing slam
-          const leapProgress = 1 - progress;
-          if (leapProgress < 0.65) {
-            this.playerMesh.group.rotation.x = -0.25;
-            this.playerMesh.rightArm.rotation.set(-2.8, 0, -0.3);
-            this.playerMesh.leftArm.rotation.set(-2.4, 0, 0.3);
-          } else {
-            const slam = Math.sin(((leapProgress - 0.65) / 0.35) * Math.PI);
-            this.playerMesh.group.rotation.x = 0.45 * slam;
-            this.playerMesh.rightArm.rotation.set(0.85, 0, -0.2);
-            this.playerMesh.leftArm.rotation.set(0.85, 0, 0.2);
-          }
-        } else if (this.attackType === 'aegis_retribution') {
-          // Aegis Retribution: Shield raised high then slammed down
-          this.playerMesh.group.rotation.x = 0.25 * swing;
-          this.playerMesh.leftArm.rotation.set(-1.6 * swing, 0.35, 0.1);
-          this.playerMesh.rightArm.rotation.set(-0.8 * swing, -0.2, -0.3);
-        } else if (this.attackType === 'shield_dash' || this.attackType === 'shield_charge') {
-          // Shield forward guard dash
-          this.playerMesh.group.rotation.x = 0.35 * swing;
-          this.playerMesh.leftArm.rotation.set(-1.45, 0.35, 0.12);
-          this.playerMesh.rightArm.rotation.set(0.65, -0.2, -0.55);
-        } else if (this.attackType === 'whirlwind') {
-          this.playerMesh.group.rotation.y += delta * 24;
-          this.playerMesh.leftArm.rotation.set(-0.25, 0, 1.35);
-          this.playerMesh.rightArm.rotation.set(-0.25, 0, -1.45);
-          this.playerMesh.body.rotation.y = 0;
-        } else {
-          // Default downward cleave
-          this.playerMesh.group.rotation.x = swing * 0.22;
-          this.playerMesh.body.rotation.y = swing * 0.2;
-          this.playerMesh.rightArm.rotation.set(1.1 - swing * 2.9, 0, -0.2);
-          this.playerMesh.leftArm.rotation.set(swing * 0.6, 0, 0.15);
-        }
+        animateKnightCombatPose(this.playerMesh, {
+          attackType: this.attackType,
+          progress,
+          attackDuration: this.attackDuration || 0.35,
+          attackTimer: this.attackTimer,
+          delta,
+        });
       } else if (this.charClass === 'mage') {
         animateMageSkillPose(this.playerMesh, {
           attackType: this.attackType,
@@ -6198,6 +6209,7 @@ export class GameEngine {
         this.attackType = null;
         if (this.charClass === 'warrior' && this.playerMesh) {
           this.playerMesh.body.rotation.set(0, 0, 0);
+          this.playerMesh.leftArm.position.set(0, 0, 0);
           this.playerMesh.weapon.position.set(0, 0, 0.02);
           this.playerMesh.weapon.rotation.set(0.68, 0, 0.08);
           resetKnightBladeGlow(this.playerMesh);

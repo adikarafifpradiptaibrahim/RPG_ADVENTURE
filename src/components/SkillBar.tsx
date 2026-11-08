@@ -9,6 +9,7 @@ export interface SkillBarProps {
   onAttackEnd?: () => void;
   onCastSkill: (slot: 1 | 2 | 3) => void;
   onJump: () => void;
+  onDash?: () => void;
   onSwitchHunterWeapon?: () => void;
 }
 
@@ -20,6 +21,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
   onAttackEnd,
   onCastSkill,
   onJump,
+  onDash,
   onSwitchHunterWeapon,
 }) => {
   const [isMobile, setIsMobile] = useState(() => {
@@ -207,7 +209,33 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         </span>
       </button>
 
-      {/* Jump / Dodge (Spasi) */}
+      {/* Dash Button (C) */}
+      <button
+        type="button"
+        onTouchStart={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (onDash) onDash();
+        }}
+        onClick={() => {
+          if (onDash) onDash();
+        }}
+        style={{ touchAction: 'none', userSelect: 'none' }}
+        className="skill-btn skill-btn-dash touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-800 to-stone-900 hover:from-stone-700 text-amber-200 border border-amber-600/70 shadow-lg cursor-pointer active:scale-90 transition-all select-none"
+        title="Dash [C]"
+      >
+        <span className="text-sm sm:text-base md:text-base">
+          {stats.characterClass === 'warrior' ? '🛡️' : '💨'}
+        </span>
+        <span className="hidden md:inline text-[8px] font-bold text-amber-300">
+          Dash
+        </span>
+        <span className="absolute -top-1 -right-1 bg-amber-700 text-white text-[6px] md:text-[7px] font-mono px-0.5 rounded border border-amber-500">
+          C
+        </span>
+      </button>
+
+      {/* Jump Button (Spasi) */}
       <button
         type="button"
         onTouchStart={(e) => {
@@ -218,13 +246,11 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         onClick={onJump}
         style={{ touchAction: 'none', userSelect: 'none' }}
         className="skill-btn skill-btn-jump touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-800 to-stone-900 hover:from-stone-700 text-stone-200 border border-stone-600 shadow-lg cursor-pointer active:scale-90 transition-all select-none"
-        title={stats.characterClass === 'warrior' ? "Shield Dash / Lompat (Spasi)" : "Lompat / Menghindar (Spasi)"}
+        title="Lompat [Spasi]"
       >
-        <span className="text-sm sm:text-base md:text-base">
-          {stats.characterClass === 'warrior' ? '🛡️' : '🦘'}
-        </span>
+        <span className="text-sm sm:text-base md:text-base">🦘</span>
         <span className="hidden md:inline text-[8px] font-bold text-stone-400">
-          {stats.characterClass === 'warrior' ? 'Dash' : 'Lompat'}
+          Lompat
         </span>
         <span className="absolute -top-1 -right-1 bg-stone-700 text-stone-300 text-[6px] md:text-[7px] font-mono px-0.5 rounded border border-stone-500">
           Spasi

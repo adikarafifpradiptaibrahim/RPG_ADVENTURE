@@ -1013,7 +1013,8 @@ export default function App() {
             onAttackStart={() => engineRef.current?.startBasicAttack()}
             onAttackEnd={() => engineRef.current?.releaseBasicAttack()}
             onCastSkill={(slot) => engineRef.current?.castSkill(slot)}
-            onJump={() => engineRef.current?.jumpOrDodge()}
+            onJump={() => engineRef.current?.jump()}
+            onDash={() => engineRef.current?.performDash()}
             onRotateCamera={(dx, dy) => engineRef.current?.rotateCameraByDelta(dx, dy)}
             onZoomCamera={(dz) => engineRef.current?.zoomCameraByDelta(dz)}
             bossState={bossState}

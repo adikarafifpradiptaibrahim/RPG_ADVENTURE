@@ -657,10 +657,18 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
   // --------------------------------------------------------------------------
   const weapon = new THREE.Group();
 
-  const blade = new THREE.Mesh(geos.bladeGeo, mats.bladeSilverMat);
+  // Isolasi material khusus bilah pedang agar tidak berbagi dengan material armor/helm karakter
+  const swordBladeMat = mats.bladeSilverMat.clone();
+  swordBladeMat.userData.isSwordBlade = true;
+
+  const blade = new THREE.Mesh(geos.bladeGeo, swordBladeMat);
+  blade.name = 'Blade';
+  blade.userData.isBlade = true;
   blade.castShadow = true;
 
-  const bladeTip = new THREE.Mesh(geos.bladeTipGeo, mats.bladeSilverMat);
+  const bladeTip = new THREE.Mesh(geos.bladeTipGeo, swordBladeMat);
+  bladeTip.name = 'BladeTip';
+  bladeTip.userData.isBlade = true;
   bladeTip.castShadow = true;
 
   const fuller = new THREE.Mesh(geos.bladeFullerGeo, mats.gauntletGrayMat);
@@ -928,15 +936,15 @@ export function animateKnightWalk(
   // 3. Hip Sway & Body Bobbing alami
   // Naik-turun badan: Math.abs(Math.sin(walkTime * 2)) * 0.05
   const walkBob = Math.abs(Math.sin(walkTime * 2)) * 0.05;
-  // Kemiringan pinggul saat melangkah: Math.sin(walkTime) * 0.03
-  const hipSway = Math.sin(walkTime) * 0.03;
 
   playerMesh.group.position.y = playerPosY + walkBob;
-  playerMesh.group.rotation.z = hipSway;
+  // Kunci stabilitas tegak (Requirement 5): Badan tetap tegak lurus tanpa roll/kemiringan goyang
+  playerMesh.group.rotation.z = 0;
 }
 
 /**
- * Sets emissive glow on the Knight's broadsword blade during charge attack
+ * Sets emissive glow on the Knight's broadsword blade during charge attack.
+ * HANYA bilah pedang (Blade / BladeTip) yang berpendar, tubuh karakter tetap warna asli.
  */
 export function setKnightBladeGlow(
   playerMesh: PlayerMeshObjects,
@@ -945,7 +953,7 @@ export function setKnightBladeGlow(
 ): void {
   if (!playerMesh || !playerMesh.weapon) return;
   playerMesh.weapon.traverse((child) => {
-    if (child instanceof THREE.Mesh && child.material) {
+    if (child instanceof THREE.Mesh && child.userData.isBlade && child.material) {
       const mat = child.material as THREE.MeshStandardMaterial;
       if (mat.isMeshStandardMaterial) {
         if (mat.userData.origEmissive === undefined) {
@@ -960,12 +968,12 @@ export function setKnightBladeGlow(
 }
 
 /**
- * Resets emissive glow on the Knight's broadsword blade
+ * Resets emissive glow on the Knight's broadsword blade.
  */
 export function resetKnightBladeGlow(playerMesh: PlayerMeshObjects): void {
   if (!playerMesh || !playerMesh.weapon) return;
   playerMesh.weapon.traverse((child) => {
-    if (child instanceof THREE.Mesh && child.material) {
+    if (child instanceof THREE.Mesh && child.userData.isBlade && child.material) {
       const mat = child.material as THREE.MeshStandardMaterial;
       if (mat.isMeshStandardMaterial && mat.userData.origEmissive !== undefined) {
         mat.emissive.setHex(mat.userData.origEmissive);
@@ -973,4 +981,198 @@ export function resetKnightBladeGlow(playerMesh: PlayerMeshObjects): void {
       }
     }
   });
+}
+
+export interface KnightCombatAnimContext {
+  attackType: string | null;
+  progress: number; // 1.0 (start) -> 0.0 (end)
+  attackDuration?: number;
+  attackTimer?: number;
+  isCharging?: boolean;
+  chargeTimer?: number;
+  delta?: number;
+}
+
+/**
+ * Kinematika animasi tempur Ksatria:
+ * - Hit 1: Ayunan tebas menyapu dari kanan atas ke kiri bawah
+ * - Hit 2: Tebasan balasan dari kiri ke kanan
+ * - Hit 3 (Shield Bash): Lengan kiri mendorong perisai ke depan dengan cepat (knockback ringan)
+ * - Hit 4 (Thrust): Lengan kanan menusukkan pedang lurus ke depan secara horizontal
+ * - Crescent 1, 2, 3: Interpolasi serupa dengan finis vertical downward slam
+ * - Cataclysmic Leap & Slam: Lengan kiri di pinggang, slam terjadi saat mendarat
+ * - Aegis Retribution: Hanya lengan kiri yang mengangkat dan menghantamkan perisai
+ * - Shield Dash: Lengan kiri mengangkat perisai di depan dada sebagai bumper
+ * - Torso / Badan: Terkunci tegak lurus dan stabil tanpa kemiringan goyang
+ */
+export function animateKnightCombatPose(
+  playerMesh: PlayerMeshObjects,
+  ctx: KnightCombatAnimContext
+): void {
+  if (!playerMesh) return;
+  const t = Math.max(0, Math.min(1, 1 - ctx.progress));
+  const easeOutQuad = 1 - (1 - t) * (1 - t);
+  const swingSin = Math.sin(t * Math.PI);
+
+  // Kunci stabilitas badan tegak lurus (Requirement 5)
+  playerMesh.group.rotation.x = 0;
+  playerMesh.group.rotation.z = 0;
+  playerMesh.body.rotation.x = 0;
+  playerMesh.body.rotation.z = 0;
+
+  switch (ctx.attackType) {
+    case 'warrior_combo_1': {
+      // Hit 1: Ayunan tebas menyapu dari kanan atas ke kiri bawah
+      playerMesh.rightArm.rotation.set(
+        THREE.MathUtils.lerp(-1.85, 0.65, easeOutQuad),
+        THREE.MathUtils.lerp(0.55, -0.75, easeOutQuad),
+        THREE.MathUtils.lerp(-0.45, 0.15, easeOutQuad)
+      );
+      playerMesh.body.rotation.y = THREE.MathUtils.lerp(-0.35, 0.35, easeOutQuad);
+      playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
+      playerMesh.leftArm.position.set(0, 0, 0);
+      playerMesh.weapon.position.set(0, 0, 0.02);
+      playerMesh.weapon.rotation.set(0.68, 0, 0.08);
+      break;
+    }
+    case 'warrior_combo_2': {
+      // Hit 2: Tebasan balasan dari kiri ke kanan
+      playerMesh.rightArm.rotation.set(
+        THREE.MathUtils.lerp(-1.55, 0.35, easeOutQuad),
+        THREE.MathUtils.lerp(-0.65, 0.85, easeOutQuad),
+        THREE.MathUtils.lerp(0.25, -0.85, easeOutQuad)
+      );
+      playerMesh.body.rotation.y = THREE.MathUtils.lerp(0.35, -0.35, easeOutQuad);
+      playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
+      playerMesh.leftArm.position.set(0, 0, 0);
+      playerMesh.weapon.position.set(0, 0, 0.02);
+      playerMesh.weapon.rotation.set(0.68, 0, 0.08);
+      break;
+    }
+    case 'warrior_combo_3_shield': {
+      // Hit 3 (Shield Bash): Lengan kiri mendorong perisai ke depan dengan cepat
+      playerMesh.leftArm.rotation.set(-1.55 * swingSin - 0.2, 0.35 * swingSin + 0.15, 0.15);
+      playerMesh.leftArm.position.set(0, 0, swingSin * 0.28);
+      playerMesh.rightArm.rotation.set(0.35, -0.2, -0.3);
+      playerMesh.weapon.position.set(0, 0, 0.02);
+      playerMesh.weapon.rotation.set(0.68, 0, 0.08);
+      playerMesh.body.rotation.y = swingSin * 0.18;
+      break;
+    }
+    case 'warrior_combo_4_thrust': {
+      // Hit 4 (Thrust): Lengan kanan menusukkan pedang lurus ke depan secara horizontal
+      playerMesh.rightArm.rotation.set(-Math.PI / 2, 0, -0.05);
+      playerMesh.weapon.position.set(0, 0, 0.02 + swingSin * 0.55);
+      playerMesh.weapon.rotation.set(0, 0, 0);
+      playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
+      playerMesh.leftArm.position.set(0, 0, 0);
+      playerMesh.body.rotation.y = 0;
+      break;
+    }
+    case 'warrior_charge_release_quick':
+    case 'warrior_charge_release_tier1':
+    case 'warrior_charge_release_tier2':
+    case 'warrior_charge_release_tier3': {
+      // Tebasan tebas vertikal ke bawah dari atas kepala
+      const cleaveEase = 1 - Math.pow(1 - t, 3);
+      playerMesh.rightArm.rotation.set(THREE.MathUtils.lerp(-2.95, 0.95, cleaveEase), 0, -0.2);
+      playerMesh.weapon.rotation.set(THREE.MathUtils.lerp(-0.35, 0.2, cleaveEase), 0, 0.05);
+      playerMesh.weapon.position.set(0, 0, 0.02);
+      playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
+      playerMesh.leftArm.position.set(0, 0, 0);
+      playerMesh.body.rotation.y = 0;
+      break;
+    }
+    case 'warrior_crescent_1': {
+      // Crescent 1: Ayunan tebas menyapu dari kanan atas ke kiri bawah
+      playerMesh.rightArm.rotation.set(
+        THREE.MathUtils.lerp(-2.0, 0.7, easeOutQuad),
+        THREE.MathUtils.lerp(0.6, -0.8, easeOutQuad),
+        THREE.MathUtils.lerp(-0.5, 0.1, easeOutQuad)
+      );
+      playerMesh.body.rotation.y = THREE.MathUtils.lerp(-0.4, 0.4, easeOutQuad);
+      playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
+      playerMesh.leftArm.position.set(0, 0, 0);
+      playerMesh.weapon.position.set(0, 0, 0.02);
+      playerMesh.weapon.rotation.set(0.68, 0, 0.08);
+      break;
+    }
+    case 'warrior_crescent_2': {
+      // Crescent 2: Tebasan balasan dari kiri ke kanan
+      playerMesh.rightArm.rotation.set(
+        THREE.MathUtils.lerp(-1.7, 0.4, easeOutQuad),
+        THREE.MathUtils.lerp(-0.7, 0.9, easeOutQuad),
+        THREE.MathUtils.lerp(0.2, -0.9, easeOutQuad)
+      );
+      playerMesh.body.rotation.y = THREE.MathUtils.lerp(0.4, -0.4, easeOutQuad);
+      playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
+      playerMesh.leftArm.position.set(0, 0, 0);
+      playerMesh.weapon.position.set(0, 0, 0.02);
+      playerMesh.weapon.rotation.set(0.68, 0, 0.08);
+      break;
+    }
+    case 'warrior_crescent_3': {
+      // Crescent 3: Tebasan vertikal ke bawah
+      const cleaveEase = 1 - Math.pow(1 - t, 3);
+      playerMesh.rightArm.rotation.set(THREE.MathUtils.lerp(-2.95, 0.95, cleaveEase), 0, -0.2);
+      playerMesh.weapon.rotation.set(THREE.MathUtils.lerp(-0.35, 0.2, cleaveEase), 0, 0.05);
+      playerMesh.weapon.position.set(0, 0, 0.02);
+      playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
+      playerMesh.leftArm.position.set(0, 0, 0);
+      playerMesh.body.rotation.y = 0;
+      break;
+    }
+    case 'cataclysmic_leap': {
+      // Skill 3 In Air: Lengan kiri perisai TIDAK diangkat (tetap di pinggang siaga)
+      playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
+      playerMesh.leftArm.position.set(0, 0, 0);
+      // Lengan kanan pedang diangkat tinggi di atas kepala siap menghujam
+      playerMesh.rightArm.rotation.set(-2.95, 0.1, -0.25);
+      playerMesh.weapon.rotation.set(-0.35, 0, 0.05);
+      playerMesh.weapon.position.set(0, 0, 0.02);
+      playerMesh.body.rotation.set(0, 0, 0);
+      break;
+    }
+    case 'cataclysmic_slam': {
+      // Skill 3 Landing Slam: Tebasan pedang vertikal menghantam tanah saat mendarat
+      const slamEase = 1 - Math.pow(1 - t, 3);
+      playerMesh.rightArm.rotation.set(THREE.MathUtils.lerp(-2.95, 0.95, slamEase), 0, -0.2);
+      playerMesh.weapon.rotation.set(THREE.MathUtils.lerp(-0.35, 0.2, slamEase), 0, 0.05);
+      playerMesh.weapon.position.set(0, 0, 0.02);
+      playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
+      playerMesh.leftArm.position.set(0, 0, 0);
+      playerMesh.body.rotation.set(0, 0, 0);
+      break;
+    }
+    case 'aegis_retribution': {
+      // Skill 4: Hanya lengan kiri yang mengangkat perisai lalu menghantamkannya ke bawah. Torso tetap tegak lurus
+      playerMesh.leftArm.rotation.set(-1.6 * swingSin - 0.2, 0.35, 0.15);
+      playerMesh.leftArm.position.set(0, 0, swingSin * 0.15);
+      playerMesh.rightArm.rotation.set(0.2, 0, -0.2);
+      playerMesh.weapon.position.set(0, 0, 0.02);
+      playerMesh.weapon.rotation.set(0.68, 0, 0.08);
+      playerMesh.body.rotation.set(0, 0, 0);
+      break;
+    }
+    case 'shield_dash':
+    case 'shield_charge': {
+      // Dash: Lengan kiri mengangkat perisai di depan dada sebagai bumper penahan benturan saat meluncur ke depan
+      playerMesh.leftArm.rotation.set(-1.45, 0.35, 0.15);
+      playerMesh.leftArm.position.set(0, 0, 0.18);
+      playerMesh.rightArm.rotation.set(0.3, -0.15, -0.3);
+      playerMesh.weapon.position.set(0, 0, 0.02);
+      playerMesh.weapon.rotation.set(0.68, 0, 0.08);
+      playerMesh.body.rotation.set(0, 0, 0);
+      break;
+    }
+    default: {
+      playerMesh.rightArm.rotation.set(THREE.MathUtils.lerp(-1.8, 0.6, easeOutQuad), 0, -0.2);
+      playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
+      playerMesh.leftArm.position.set(0, 0, 0);
+      playerMesh.weapon.position.set(0, 0, 0.02);
+      playerMesh.weapon.rotation.set(0.68, 0, 0.08);
+      playerMesh.body.rotation.set(0, 0, 0);
+      break;
+    }
+  }
 }

@@ -265,8 +265,8 @@
     left: auto !important;
     top: auto !important;
     transform: none !important;
-    width: 190px !important;
-    height: 160px !important;
+    width: 220px !important;
+    height: 165px !important;
     background: transparent !important;
     backdrop-filter: none !important;
     border: none !important;
@@ -297,36 +297,43 @@
   }
 
   .hud-action-cluster-mobile .skill-btn-3 {
-    bottom: 76px !important;
+    bottom: 78px !important;
     right: 8px !important;
     width: 40px !important;
     height: 40px !important;
   }
 
   .hud-action-cluster-mobile .skill-btn-2 {
-    bottom: 64px !important;
-    right: 64px !important;
+    bottom: 74px !important;
+    right: 66px !important;
     width: 40px !important;
     height: 40px !important;
   }
 
   .hud-action-cluster-mobile .skill-btn-1 {
-    bottom: 28px !important;
-    right: 88px !important;
+    bottom: 44px !important;
+    right: 104px !important;
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .hud-action-cluster-mobile .skill-btn-dash {
+    bottom: 0px !important;
+    right: 68px !important;
     width: 40px !important;
     height: 40px !important;
   }
 
   .hud-action-cluster-mobile .skill-btn-jump {
     bottom: 0px !important;
-    right: 72px !important;
+    right: 116px !important;
     width: 40px !important;
     height: 40px !important;
   }
 
   .hud-action-cluster-mobile .skill-btn-switch {
-    bottom: 102px !important;
-    right: 48px !important;
+    bottom: 116px !important;
+    right: 44px !important;
     width: 32px !important;
     height: 32px !important;
   }
@@ -429,8 +436,8 @@
     left: auto !important;
     top: auto !important;
     transform: none !important;
-    width: 190px !important;
-    height: 160px !important;
+    width: 220px !important;
+    height: 165px !important;
     background: transparent !important;
     backdrop-filter: none !important;
     border: none !important;
@@ -463,7 +470,7 @@
 
   /* Skill 3 (Cahaya / Benteng / Bom Asap): Top of the curve */
   .hud-action-cluster:not(.hud-action-cluster-desktop) .skill-btn-3 {
-    bottom: 76px !important;
+    bottom: 78px !important;
     right: 8px !important;
     width: 40px !important;
     height: 40px !important;
@@ -471,32 +478,40 @@
 
   /* Skill 2 (Blink / Terjang / Siluman): Upper-left diagonal */
   .hud-action-cluster:not(.hud-action-cluster-desktop) .skill-btn-2 {
-    bottom: 64px !important;
-    right: 64px !important;
+    bottom: 74px !important;
+    right: 66px !important;
     width: 40px !important;
     height: 40px !important;
   }
 
   /* Skill 1 (Supernova / Pusaran / 1000 Belati): Left flank */
   .hud-action-cluster:not(.hud-action-cluster-desktop) .skill-btn-1 {
-    bottom: 28px !important;
-    right: 88px !important;
+    bottom: 44px !important;
+    right: 104px !important;
     width: 40px !important;
     height: 40px !important;
   }
 
-  /* Jump / Dodge (Spasi): Lower-left of Attack */
+  /* Dash Button (C): Next to Attack */
+  .hud-action-cluster:not(.hud-action-cluster-desktop) .skill-btn-dash {
+    bottom: 0px !important;
+    right: 68px !important;
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  /* Jump / Dodge (Spasi): Lower-left flank */
   .hud-action-cluster:not(.hud-action-cluster-desktop) .skill-btn-jump {
     bottom: 0px !important;
-    right: 72px !important;
+    right: 116px !important;
     width: 40px !important;
     height: 40px !important;
   }
 
   /* Hunter Weapon Switcher (Belati <-> Busur) */
   .hud-action-cluster:not(.hud-action-cluster-desktop) .skill-btn-switch {
-    bottom: 102px !important;
-    right: 48px !important;
+    bottom: 116px !important;
+    right: 44px !important;
     width: 32px !important;
     height: 32px !important;
   }
