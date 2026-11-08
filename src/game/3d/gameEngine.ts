@@ -6044,27 +6044,28 @@ export class GameEngine {
       if (this.charClass === 'warrior') {
         this.playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftLeg.rotation.x, 0, 0.2);
         this.playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightLeg.rotation.x, 0, 0.2);
-        this.playerMesh.group.rotation.z = THREE.MathUtils.lerp(this.playerMesh.group.rotation.z, 0, 0.2);
+        this.playerMesh.group.rotation.z = 0;
 
         // Breathing cycle halus saat diam
         const breathe = Math.sin(this.clock.getElapsedTime() * 2.0) * 0.015;
         this.playerMesh.body.position.y = THREE.MathUtils.lerp(this.playerMesh.body.position.y, 1.48 + breathe, 0.15);
-        this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(this.playerMesh.body.rotation.z, 0, 0.15);
-        if (!this.isAttacking) {
-          this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y, 0, 0.15);
-        }
+        this.playerMesh.body.rotation.set(0, 0, 0);
 
         if (!this.isAttacking && !this.isChargingAttack) {
-          // Shield raised defensively across left chest, broadsword ready in right hand
-          this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, -0.32 + breathe * 0.4, 0.15);
-          this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, 0.20, 0.15);
-          this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, 0.16, 0.15);
-          this.playerMesh.leftArm.position.set(0, 0, 0);
+          // Lengan Kiri (Perisai): Tergenggam mantap di samping pinggang/dada luar (Requirement 2.1)
+          this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, -0.35 + breathe * 0.2, 0.15);
+          this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, 0.25, 0.15);
+          this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, 0.18, 0.15);
+          this.playerMesh.leftArm.position.copy(this.playerMesh.leftArm.userData.defaultPos || new THREE.Vector3(0.46, 1.68, 0));
 
-          this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0.22 - breathe * 0.4, 0.15);
+          // Lengan Kanan (Pedang): Siku ditekuk, bilah pedang berdiri serong 45 derajat siap menebas (Requirement 2.1)
+          this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, -0.55 + breathe * 0.2, 0.15);
+          this.playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.y, -0.10, 0.15);
           this.playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.z, -0.20, 0.15);
-          this.playerMesh.weapon.rotation.set(0.68, 0, 0.08);
-          this.playerMesh.weapon.position.set(0, 0, 0.02);
+          this.playerMesh.rightArm.position.copy(this.playerMesh.rightArm.userData.defaultPos || new THREE.Vector3(-0.46, 1.68, 0));
+
+          this.playerMesh.weapon.position.set(0, -0.05, 0.08);
+          this.playerMesh.weapon.rotation.set(-0.20, 0, 0);
         }
       } else if (this.charClass === 'mage') {
         // Heroic Blocky Low-Poly Mage Idle State (Subtle Breathing & Relaxed Staff/Grimoire Pose)
@@ -6090,29 +6091,33 @@ export class GameEngine {
       this.chargeTimer += delta;
 
       if (this.chargeTimer < 1.0) {
-        // Detik 0.0 - 1.0 (Mengangkat): Lengan kanan mengayunkan pedang dari depan bawah -> berputar melengkung ke atas kepala -> bertumpu sedikit ke belakang kepala siap menebas
+        // Detik 0.0 - 1.0 (Mengangkat): Lengan kanan mengayunkan pedang melengkung dari depan-bawah, naik vertikal ke atas kepala, lalu bertumpu ke belakang kepala
         const p = this.chargeTimer / 1.0;
         const ease = p * p * (3 - 2 * p);
         this.playerMesh.rightArm.rotation.set(
-          THREE.MathUtils.lerp(0.35, -2.95, ease),
-          THREE.MathUtils.lerp(-0.15, 0.15, ease),
-          THREE.MathUtils.lerp(-0.25, -0.35, ease)
+          THREE.MathUtils.lerp(-0.55, -2.85, ease),
+          THREE.MathUtils.lerp(-0.10, 0.10, ease),
+          THREE.MathUtils.lerp(-0.20, -0.20, ease)
         );
+        this.playerMesh.rightArm.position.copy(this.playerMesh.rightArm.userData.defaultPos || new THREE.Vector3(-0.46, 1.68, 0));
+        this.playerMesh.weapon.position.set(0, -0.05, 0.08);
         this.playerMesh.weapon.rotation.set(
-          THREE.MathUtils.lerp(0.68, -0.35, ease),
+          THREE.MathUtils.lerp(-0.20, -Math.PI / 2, ease),
           0,
-          0.05
+          0
         );
         this.playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
-        this.playerMesh.leftArm.position.set(0, 0, 0);
+        this.playerMesh.leftArm.position.copy(this.playerMesh.leftArm.userData.defaultPos || new THREE.Vector3(0.46, 1.68, 0));
         this.playerMesh.body.rotation.set(0, 0, 0);
         setKnightBladeGlow(this.playerMesh, 0.3 * ease, 0xffd700);
       } else if (this.chargeTimer <= 5.0) {
         // Detik 1.0 - 5.0 (Menahan & Penyerapan Energi): Mengonsumsi 10 stamina/detik saat ditahan
-        this.playerMesh.rightArm.rotation.set(-2.95, 0.15, -0.35);
-        this.playerMesh.weapon.rotation.set(-0.35, 0, 0.05);
+        this.playerMesh.rightArm.rotation.set(-2.85, 0.10, -0.20);
+        this.playerMesh.rightArm.position.copy(this.playerMesh.rightArm.userData.defaultPos || new THREE.Vector3(-0.46, 1.68, 0));
+        this.playerMesh.weapon.position.set(0, -0.05, 0.08);
+        this.playerMesh.weapon.rotation.set(-Math.PI / 2, 0, 0);
         this.playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
-        this.playerMesh.leftArm.position.set(0, 0, 0);
+        this.playerMesh.leftArm.position.copy(this.playerMesh.leftArm.userData.defaultPos || new THREE.Vector3(0.46, 1.68, 0));
         this.playerMesh.body.rotation.set(0, 0, 0);
 
         this.chargeDrainAccum += delta * 10;
@@ -6137,10 +6142,12 @@ export class GameEngine {
         setKnightBladeGlow(this.playerMesh, 0.4 + glowRatio * 2.2, 0xffd700);
       } else {
         // Detik > 5.0: Karakter tetap mempertahankan pose siap tebas (tidak mengonsumsi stamina tambahan, tidak menambah damage lagi)
-        this.playerMesh.rightArm.rotation.set(-2.95, 0.15, -0.35);
-        this.playerMesh.weapon.rotation.set(-0.35, 0, 0.05);
+        this.playerMesh.rightArm.rotation.set(-2.85, 0.10, -0.20);
+        this.playerMesh.rightArm.position.copy(this.playerMesh.rightArm.userData.defaultPos || new THREE.Vector3(-0.46, 1.68, 0));
+        this.playerMesh.weapon.position.set(0, -0.05, 0.08);
+        this.playerMesh.weapon.rotation.set(-Math.PI / 2, 0, 0);
         this.playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
-        this.playerMesh.leftArm.position.set(0, 0, 0);
+        this.playerMesh.leftArm.position.copy(this.playerMesh.leftArm.userData.defaultPos || new THREE.Vector3(0.46, 1.68, 0));
         this.playerMesh.body.rotation.set(0, 0, 0);
         setKnightBladeGlow(this.playerMesh, 2.6, 0xffd700);
       }
@@ -6209,12 +6216,14 @@ export class GameEngine {
         this.attackType = null;
         if (this.charClass === 'warrior' && this.playerMesh) {
           this.playerMesh.body.rotation.set(0, 0, 0);
-          this.playerMesh.leftArm.position.set(0, 0, 0);
-          this.playerMesh.weapon.position.set(0, 0, 0.02);
-          this.playerMesh.weapon.rotation.set(0.68, 0, 0.08);
+          this.playerMesh.leftArm.position.copy(this.playerMesh.leftArm.userData.defaultPos || new THREE.Vector3(0.46, 1.68, 0));
+          this.playerMesh.rightArm.position.copy(this.playerMesh.rightArm.userData.defaultPos || new THREE.Vector3(-0.46, 1.68, 0));
+          this.playerMesh.leftArm.rotation.set(-0.35, 0.25, 0.18);
+          this.playerMesh.rightArm.rotation.set(-0.55, -0.10, -0.20);
+          this.playerMesh.weapon.position.set(0, -0.05, 0.08);
+          this.playerMesh.weapon.rotation.set(-0.20, 0, 0);
           resetKnightBladeGlow(this.playerMesh);
-        }
-        if (this.charClass === 'mage' && this.playerMesh?.body) {
+        } else if (this.charClass === 'mage' && this.playerMesh?.body) {
           this.playerMesh.body.rotation.set(0, 0, 0);
           this.playerMesh.body.position.y = 1.35;
           this.playerMesh.weapon.rotation.set(0.32, 0.10, 0.05);
@@ -6222,9 +6231,12 @@ export class GameEngine {
             this.playerMesh.grimoire.position.set(-0.08, 0.08, 0.02);
             this.playerMesh.grimoire.rotation.set(0.20, 0, 0);
           }
+          this.playerMesh.leftArm.rotation.set(0, 0, 0);
+          this.playerMesh.rightArm.rotation.set(0, 0, 0);
+        } else if (this.playerMesh) {
+          this.playerMesh.leftArm.rotation.set(0, 0, 0);
+          this.playerMesh.rightArm.rotation.set(0, 0, 0);
         }
-        this.playerMesh.leftArm.rotation.set(0, 0, 0);
-        this.playerMesh.rightArm.rotation.set(0, 0, 0);
       }
     }
 
