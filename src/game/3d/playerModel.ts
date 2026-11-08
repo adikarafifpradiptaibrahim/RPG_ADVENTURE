@@ -339,17 +339,16 @@ export function createHunterModel(): THREE.Group {
   rightDagger.add(rightHilt, rightGuard, rightBlade);
   rightArmPose.add(rightDagger);
 
-  // Busur di Tangan Kanan (Horizontal melintang setinggi pinggul seperti buku Mage)
+  // Busur Horizontal di Tangan KANAN Karakter (Membujur depan-belakang di pinggang)
   const handBow = createSegmentedBow(matWood, matString);
   handBow.name = 'HandBow';
-  // Letakkan di celah antara badan dan telapak tangan kanan
-  handBow.position.set(-0.02, -0.42, 0.04);
+  // Letakkan di telapak tangan kanan sejajar pinggul
+  handBow.position.set(0, -0.42, 0.04);
 
-  // Orientasi Horizontal:
-  // Diputar 90 derajat agar membujur horizontal dari depan ke belakang
-  handBow.rotation.x = Math.PI / 2;  // Rebahkan menjadi horizontal
+  // Orientasi: Membujur horizontal depan-belakang, tali menghadap ke pinggul
+  handBow.rotation.x = Math.PI / 2; // Rebahkan horizontal
   handBow.rotation.y = 0;
-  handBow.rotation.z = 0.20;         // Sedikit menyudut keluar mengikuti pinggul
+  handBow.rotation.z = Math.PI / 2; // Putar membujur sejajar langkah kaki
   handBow.visible = false;
   rightArmPose.add(handBow);
 
@@ -381,30 +380,30 @@ export function updateHunterWeaponStance(model: THREE.Group, stance: 'dagger' | 
   const rightArmPose = model.getObjectByName('RightArmPose');
 
   if (stance === 'bow') {
-    // Sembunyikan belati & busur punggung, aktifkan busur tangan kanan
+    // Mode Panah Aktif:
     if (backBow) backBow.visible = false;
     if (handBow) handBow.visible = true;
     if (leftDagger) leftDagger.visible = false;
     if (rightDagger) rightDagger.visible = false;
 
-    // TANGAN KIRI (X < 0): Lurus ke bawah santai tanpa senjata
+    // TANGAN KIRI KARAKTER (X < 0): Lurus vertikal santai di samping badan
     if (leftArmPose) {
-      leftArmPose.rotation.set(0, 0, 0); // Lurus tegak sejajar badan
+      leftArmPose.rotation.set(0, 0, 0);
     }
 
-    // TANGAN KANAN (X > 0): Ketiak terbuka keluar memegang busur di pinggul (Pose Mage)
+    // TANGAN KANAN KARAKTER (X > 0): Menjepit busur di samping pinggul (Pose Buku Mage)
     if (rightArmPose) {
-      // Rotasi Z membuka ketiak ke samping, rotasi X sedikit maju
-      rightArmPose.rotation.set(-0.05, -0.05, 0.28);
+      // Ketiak tidak mengangkang, hanya sedikit membuka ke luar menyusuri pinggul
+      rightArmPose.rotation.set(-0.06, 0.04, 0.12);
     }
   } else {
-    // KEMBALI KE MODE BELATI (A-Pose Melee Asli)
+    // Mode Belati (A-Pose Melee yang sudah stabil)
     if (backBow) backBow.visible = true;
     if (handBow) handBow.visible = false;
     if (leftDagger) leftDagger.visible = true;
     if (rightDagger) rightDagger.visible = true;
 
-    // Reset ke pose tempur belati
+    // Kembalikan ke pose belati siap serang
     if (leftArmPose) {
       leftArmPose.rotation.set(-0.30, 0.20, -0.16);
     }
