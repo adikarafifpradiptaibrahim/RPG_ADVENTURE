@@ -247,45 +247,49 @@ export function createHunterModel(): THREE.Group {
   root.add(headGroup);
 
   // ==========================================
-  // 6. LENGAN & DUAL BELATI: STRUKTUR LEBAR PERSIS KNIGHT
+  // 6. LENGAN & DUAL BELATI: OUTWARD A-POSE
   // ==========================================
   let armLeft: THREE.Group | undefined;
   let armRight: THREE.Group | undefined;
 
-  [-0.52, 0.52].forEach((xSide, idx) => {
+  [-0.48, 0.48].forEach((xSide, idx) => {
     const isLeft = idx === 0;
     const armGroup = new THREE.Group();
     armGroup.name = isLeft ? 'LeftArm' : 'RightArm';
     
-    // 1. Pangkal Bahu Lebar Setara Knight (X = ±0.52, Z = 0.02)
+    // Pangkal bahu
     armGroup.position.set(xSide, 1.44, 0.02);
 
-    // Pauldron Bahu Baja Lebar (Identik Knight)
-    const shoulder = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.20, 0.24), matArmorPlate);
+    // Pauldron Bahu Baja
+    const shoulder = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.22), matArmorPlate);
     armGroup.add(shoulder);
 
-    // 2. Batang Lengan Menggantung Lurus Lebar (Bebas Clipping dari Torso)
-    const limb = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.48, 0.16), matTunic);
-    limb.position.set(0, -0.24, 0);
-    // Sedikit saja sudut ke luar agar membentuk garis A natural
-    limb.rotation.z = isLeft ? 0.08 : -0.08;
+    // Batang Lengan: Membuka ke samping luar membentuk siluet huruf "A"
+    const limb = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.46, 0.15), matTunic);
+    limb.position.set(isLeft ? -0.06 : 0.06, -0.24, 0);
+    // Buka sedikit ke luar (Z) dan sedikit condong ke depan (X)
+    limb.rotation.z = isLeft ? 0.22 : -0.22;
+    limb.rotation.x = 0.16;
     armGroup.add(limb);
 
-    // 3. Telapak Tangan Hitam
-    const hand = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.14), matPants);
-    hand.position.set(isLeft ? -0.02 : 0.02, -0.52, 0.04);
+    // Telapak Tangan Hitam
+    const hand = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.13, 0.13), matPants);
+    hand.position.set(isLeft ? -0.12 : 0.12, -0.48, 0.04);
     armGroup.add(hand);
 
-    // 4. Dual Belati (Menghadap Maju ke Depan & Terbuka ke Luar)
+    // DUAL DAGGERS: MENCUAT TERBUKA KE DEPAN-LUAR (FLARING OUTWARD)
     const dagger = new THREE.Group();
     dagger.name = 'HandDagger';
-    dagger.position.set(isLeft ? -0.02 : 0.02, -0.52, 0.06);
+    dagger.position.set(isLeft ? -0.12 : 0.12, -0.48, 0.06);
 
-    // Rotasi: Bilah menghadap lurus ke depan (Z+) dan serong ke samping luar
-    dagger.rotation.x = -0.15; // Sedikit mendongak ke depan siap serang
-    dagger.rotation.y = isLeft ? 0.40 : -0.40; // Terbuka keluar dari paha
+    // KOREKSI UTAMA ARAH BELATI:
+    // Tangan kiri: diputar ke kiri luar (Y negatif: -0.55)
+    // Tangan kanan: diputar ke kanan luar (Y positif: +0.55)
+    dagger.rotation.y = isLeft ? -0.55 : 0.55; 
+    dagger.rotation.x = 0.25;                  // Bilah sedikit mendongak siap tusuk ke depan
+    dagger.rotation.z = isLeft ? -0.10 : 0.10; // Sedikit miring alami
 
-    // Gagang di kepalan
+    // Gagang di genggaman
     const hilt = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.05), matLeather);
     hilt.position.set(0, 0, 0);
 
@@ -293,18 +297,18 @@ export function createHunterModel(): THREE.Group {
     const guard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.06), matArmorPlate);
     guard.position.set(0, 0.02, 0.08);
 
-    // Bilah Cyan Memanjang Tegas ke Depan Lawan
+    // Bilah Cyan Memanjang Tegas ke Depan
     const blade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.52), matCyanGlow);
-    blade.position.set(0, 0.02, 0.36); // Mencuat jelas ke depan Z+
+    blade.position.set(0, 0.02, 0.34); // Mencuat ke depan sumbu Z
 
     dagger.add(hilt, guard, blade);
     armGroup.add(dagger);
 
-    // Busur Tangan Kiri (Stance Busur)
+    // Busur Tangan Kiri saat mode busur
     if (isLeft) {
       const handBow = createSegmentedBow(matWood, matString);
       handBow.name = 'HandBow';
-      handBow.position.set(0, -0.52, 0.12);
+      handBow.position.set(0, -0.48, 0.12);
       handBow.rotation.y = -Math.PI / 2;
       handBow.visible = false;
       armGroup.add(handBow);
