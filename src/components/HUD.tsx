@@ -50,6 +50,8 @@ interface HUDProps {
   onOpenHelp: () => void;
   onOpenMap: () => void;
   onPerformAttack: () => void;
+  onAttackStart?: () => void;
+  onAttackEnd?: () => void;
   onCastSkill: (slot: 1 | 2 | 3) => void;
   onJump: () => void;
   onRotateCamera?: (deltaX: number, deltaY: number) => void;
@@ -105,6 +107,8 @@ export const HUD: React.FC<HUDProps> = ({
   onOpenHelp,
   onOpenMap,
   onPerformAttack,
+  onAttackStart,
+  onAttackEnd,
   onCastSkill,
   onJump,
   onRotateCamera,
@@ -209,21 +213,35 @@ export const HUD: React.FC<HUDProps> = ({
                   className="h-full bg-gradient-to-r from-red-600 to-rose-400 transition-all duration-200"
                   style={{ width: `${hpPercent}%` }}
                 />
+                {/* Secondary Shield Overlay Bar */}
+                {stats.shield !== undefined && stats.shield > 0 && (
+                  <div
+                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-300/80 via-yellow-100/90 to-amber-200/80 border-r-2 border-white shadow-[0_0_8px_rgba(255,215,0,0.8)] transition-all duration-200"
+                    style={{ width: `${Math.min(100, (stats.shield / (stats.maxShield || stats.maxHp)) * 100)}%` }}
+                  />
+                )}
                 <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow">
                   <Heart className="w-2.5 h-2.5 inline mr-1 text-red-300" />
                   {Math.round(stats.hp)} / {stats.maxHp} HP
+                  {stats.shield !== undefined && stats.shield > 0 && (
+                    <span className="ml-1 text-yellow-300 drop-shadow font-extrabold">(+{Math.round(stats.shield)})</span>
+                  )}
                 </span>
               </div>
 
-              {/* MP Bar */}
+              {/* MP / Aura Bar */}
               <div className="relative w-full h-3.5 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
                 <div
-                  className="h-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-all duration-200"
+                  className={`h-full transition-all duration-200 ${
+                    stats.characterClass === 'warrior'
+                      ? 'bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-300'
+                      : 'bg-gradient-to-r from-blue-600 to-cyan-400'
+                  }`}
                   style={{ width: `${mpPercent}%` }}
                 />
                 <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white drop-shadow">
-                  <Sparkles className="w-2 h-2 inline mr-1 text-cyan-300" />
-                  {Math.round(stats.mp)} / {stats.maxMp} MP
+                  <Sparkles className={`w-2 h-2 inline mr-1 ${stats.characterClass === 'warrior' ? 'text-amber-200' : 'text-cyan-300'}`} />
+                  {Math.round(stats.mp)} / {stats.maxMp} {stats.characterClass === 'warrior' ? 'Aura' : 'MP'}
                 </span>
               </div>
 
@@ -767,6 +785,8 @@ export const HUD: React.FC<HUDProps> = ({
           stats={stats}
           hunterWeaponMode={hunterWeaponMode}
           onPerformAttack={onPerformAttack}
+          onAttackStart={onAttackStart}
+          onAttackEnd={onAttackEnd}
           onCastSkill={onCastSkill}
           onJump={onJump}
           onSwitchHunterWeapon={onSwitchHunterWeapon}

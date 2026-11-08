@@ -10,6 +10,9 @@ export interface PlayerStats {
   maxMp: number;
   stamina: number;
   maxStamina: number;
+  shield?: number;
+  maxShield?: number;
+  shieldDuration?: number;
   gold: number;
   statPoints: number;
   strength: number;     // boosts physical attack & max HP

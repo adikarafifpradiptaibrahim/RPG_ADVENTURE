@@ -20,6 +20,8 @@ import {
   PlayerMeshObjects,
   USE_LEGACY_KNIGHT,
   animateKnightWalk,
+  setKnightBladeGlow,
+  resetKnightBladeGlow,
   USE_LEGACY_MAGE,
   animateMageWalk,
   animateMageSkillPose,
@@ -271,6 +273,20 @@ export class GameEngine {
     | 'flurry'
     | 'shadow_step'
     | 'smoke_bomb'
+    | 'warrior_combo_1'
+    | 'warrior_combo_2'
+    | 'warrior_combo_3_shield'
+    | 'warrior_combo_4_thrust'
+    | 'warrior_charge_release_quick'
+    | 'warrior_charge_release_tier1'
+    | 'warrior_charge_release_tier2'
+    | 'warrior_charge_release_tier3'
+    | 'warrior_crescent_1'
+    | 'warrior_crescent_2'
+    | 'warrior_crescent_3'
+    | 'cataclysmic_leap'
+    | 'aegis_retribution'
+    | 'shield_dash'
     | null = null;
   public isCasting = false;
   private castingTimer = 0;
@@ -290,6 +306,22 @@ export class GameEngine {
   private regenTimer = 0;
   public arcaneShieldHp = 0;
   public arcaneShieldTimer = 0;
+
+  // Warrior Overhaul: Shield, Resources & Charge Attack
+  public playerShield = 0;
+  public playerMaxShield = 0;
+  public playerShieldTimer = 0;
+  public aegisRetributionTimer = 0;
+  private isSprinting = false;
+  private isChargingAttack = false;
+  private chargeTimer = 0;
+  private warriorComboIndex = 0;
+  private chargeParticleTimer = 0;
+  private sprintDrainAccum = 0;
+  private staminaRegenAccum = 0;
+  private auraRegenAccum = 0;
+  private chargeDrainAccum = 0;
+
   private hunterWeaponMode: 'dagger' | 'bow' = 'dagger';
   private attackComboIndex = 0;
   private mageLandingCrouchTimer = 0;
@@ -400,6 +432,7 @@ export class GameEngine {
     deathTimer?: number;
     leashRadius?: number;
     attackAnimTimer?: number;
+    staggerTimer?: number;
   }[] = [];
 
   // Active 3D Physical Loot Pickups (Materials & Items dropped by defeated monsters)
@@ -1748,6 +1781,11 @@ export class GameEngine {
     this.isMouseDown = false;
     this.playerVel.x = 0;
     this.playerVel.z = 0;
+    if (this.isChargingAttack) {
+      this.isChargingAttack = false;
+      this.chargeTimer = 0;
+      if (this.playerMesh) resetKnightBladeGlow(this.playerMesh);
+    }
   }
 
   public isKeyPressed(...names: string[]): boolean {
@@ -1939,7 +1977,9 @@ export class GameEngine {
     if (key === 'f' || code === 'keyf') {
       this.checkInteract();
     } else if (key === 'j' || code === 'keyj') {
-      this.performBasicAttack();
+      if (!this.isChargingAttack) {
+        this.startBasicAttack();
+      }
     } else if (key === ' ' || code === 'space') {
       this.jumpOrDodge();
     } else if (key === 'q' || code === 'keyq') {
@@ -1992,6 +2032,10 @@ export class GameEngine {
       delete this.keys[e.code];
     }
 
+    if (key === 'j' || code === 'keyj') {
+      this.releaseBasicAttack();
+    }
+
     // If no movement keys are currently pressed and joystick is centered, cancel momentum immediately
     if (!this.isKeyPressed('w', 'keyw', 'arrowup', 's', 'keys', 'arrowdown', 'a', 'keya', 'arrowleft', 'd', 'keyd', 'arrowright')) {
       if (Math.abs(this.joystickVector.x) <= 0.08 && Math.abs(this.joystickVector.y) <= 0.08) {
@@ -2008,6 +2052,10 @@ export class GameEngine {
     this.isDraggingCamera = false;
     this.prevMouseX = e.clientX;
     this.prevMouseY = e.clientY;
+
+    if (e.button === 0 && !this.isSpectatorMode) {
+      this.startBasicAttack();
+    }
   };
 
   private handleMouseMove = (e: MouseEvent) => {
@@ -2015,8 +2063,13 @@ export class GameEngine {
     const deltaX = e.clientX - this.prevMouseX;
     const deltaY = e.clientY - this.prevMouseY;
 
-    if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
       this.isDraggingCamera = true;
+      if (this.isChargingAttack) {
+        this.isChargingAttack = false;
+        this.chargeTimer = 0;
+        if (this.playerMesh) resetKnightBladeGlow(this.playerMesh);
+      }
     }
 
     this.prevMouseX = e.clientX;
@@ -2047,9 +2100,12 @@ export class GameEngine {
       this.isDraggingCamera = false;
       return;
     }
-    // If left-click and user didn't drag the camera, perform normal attack
     if (this.isMouseDown && !this.isDraggingCamera && e.button === 0) {
-      this.performBasicAttack();
+      this.releaseBasicAttack();
+    } else if (this.isChargingAttack) {
+      this.isChargingAttack = false;
+      this.chargeTimer = 0;
+      if (this.playerMesh) resetKnightBladeGlow(this.playerMesh);
     }
     this.isMouseDown = false;
     this.isDraggingCamera = false;
@@ -2347,7 +2403,7 @@ export class GameEngine {
   };
 
   // --- Combat VFX and Helpers ---
-  public triggerCameraShake(intensity = 0.2) {
+  public triggerCameraShake(intensity = 0.2, duration?: number) {
     this.cameraShake = Math.max(this.cameraShake, intensity);
   }
 
@@ -2859,6 +2915,414 @@ export class GameEngine {
     this.triggerCameraShake(0.24);
   }
 
+  // 4b. Warrior Thrust Pierce VFX (Hit 4 Finisher - High-velocity straight spear of light)
+  private spawnWarriorThrustVfx(fwd: THREE.Vector3) {
+    const origin = this.playerPos.clone().add(new THREE.Vector3(0, 1.2, 0)).add(fwd.clone().multiplyScalar(0.4));
+    const length = 4.2;
+    const geom = new THREE.CylinderGeometry(0.06, 0.22, length, 6);
+    geom.rotateX(Math.PI / 2);
+    geom.translate(0, 0, length / 2);
+
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffea00,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.copy(origin);
+    mesh.rotation.y = Math.atan2(fwd.x, fwd.z);
+    this.scene.add(mesh);
+
+    let elapsed = 0;
+    this.activeVfx.push({
+      object: mesh,
+      update: (delta) => {
+        elapsed += delta;
+        mesh.scale.set(1.0 + elapsed * 3, 1.0 + elapsed * 3, 1.0);
+        mat.opacity = Math.max(0, 0.95 - elapsed * 3.8);
+        return elapsed < 0.25;
+      },
+      cleanup: () => {
+        geom.dispose();
+        mat.dispose();
+      },
+    });
+  }
+
+  // 4c. Warrior Glowing Fissure VFX (Charge Attack Floor Cracks with branching veins)
+  private spawnWarriorFissureVfx(origin: THREE.Vector3, fwd: THREE.Vector3, length: number, tier: 1 | 2 | 3) {
+    const group = new THREE.Group();
+    const groundY = this.world.getTerrainHeight(origin.x, origin.z);
+    group.position.set(origin.x, groundY + 0.02, origin.z);
+
+    const fwdAngle = Math.atan2(fwd.x, fwd.z);
+    group.rotation.y = fwdAngle;
+
+    // Main central glowing fissure plane (width: 0.6 + tier * 0.2)
+    const width = 0.5 + tier * 0.2;
+    const geom = new THREE.PlaneGeometry(width, length, 1, 8);
+    geom.rotateX(-Math.PI / 2);
+    geom.translate(0, 0, length / 2);
+
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffaa00,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const mainFissure = new THREE.Mesh(geom, mat);
+    group.add(mainFissure);
+
+    // Inner bright hot-white crack vein
+    const innerGeom = new THREE.PlaneGeometry(width * 0.35, length, 1, 8);
+    innerGeom.rotateX(-Math.PI / 2);
+    innerGeom.translate(0, 0.005, length / 2);
+    const innerMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const innerFissure = new THREE.Mesh(innerGeom, innerMat);
+    group.add(innerFissure);
+
+    // Tier 3: Lateral branching fissures
+    const branchMeshes: THREE.Mesh[] = [];
+    if (tier === 3) {
+      const branchAngles = [-0.65, 0.65, -0.75, 0.75];
+      const branchDists = [2.8, 3.2, 6.0, 6.4];
+      const branchLengths = [2.8, 3.0, 2.4, 2.6];
+
+      for (let b = 0; b < branchAngles.length; b++) {
+        const bLen = branchLengths[b];
+        const bGeom = new THREE.PlaneGeometry(0.35, bLen);
+        bGeom.rotateX(-Math.PI / 2);
+        bGeom.translate(0, 0, bLen / 2);
+
+        const bMat = new THREE.MeshBasicMaterial({
+          color: 0xffaa00,
+          transparent: true,
+          opacity: 0.85,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        });
+        const bMesh = new THREE.Mesh(bGeom, bMat);
+        bMesh.position.set(0, 0.003, branchDists[b]);
+        bMesh.rotation.y = branchAngles[b];
+        group.add(bMesh);
+        branchMeshes.push(bMesh);
+      }
+    }
+
+    this.scene.add(group);
+
+    let elapsed = 0;
+    const totalDuration = 1.35; // 0.15s expansion + 1.2s fade out
+
+    this.activeVfx.push({
+      object: group,
+      update: (delta: number) => {
+        elapsed += delta;
+        if (elapsed < 0.15) {
+          // Rapid expansion in 0.15s
+          const p = elapsed / 0.15;
+          group.scale.set(1 + p * 0.2, 1, p);
+          mat.opacity = 0.95;
+          innerMat.opacity = 0.95;
+        } else {
+          // Pulsing and smooth fade out over 1.2s
+          group.scale.set(1.2, 1, 1);
+          const fadeProgress = (elapsed - 0.15) / 1.2;
+          const pulse = 1.0 + Math.sin(elapsed * 18) * 0.12;
+          const baseOpacity = Math.max(0, (1 - fadeProgress) * 0.95);
+          mat.opacity = Math.min(1.0, baseOpacity * pulse);
+          innerMat.opacity = Math.min(1.0, baseOpacity * 0.8 * pulse);
+          branchMeshes.forEach((bm) => {
+            (bm.material as THREE.MeshBasicMaterial).opacity = mat.opacity * 0.8;
+          });
+        }
+        return elapsed < totalDuration;
+      },
+      cleanup: () => {
+        geom.dispose();
+        mat.dispose();
+        innerGeom.dispose();
+        innerMat.dispose();
+        branchMeshes.forEach((bm) => {
+          bm.geometry.dispose();
+          (bm.material as THREE.Material).dispose();
+        });
+      },
+    });
+  }
+
+  // 4d. Warrior Charge Gathering Particles (Gold energy sucked into blade)
+  private spawnChargeGatherParticles() {
+    if (!this.playerMesh || !this.playerMesh.weapon) return;
+    const swordTip = new THREE.Vector3();
+    this.playerMesh.weapon.getWorldPosition(swordTip);
+    swordTip.y += 1.1;
+
+    for (let i = 0; i < 3; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 1.2 + Math.random() * 1.5;
+      const height = (Math.random() - 0.5) * 1.0;
+      const startPos = new THREE.Vector3(
+        swordTip.x + Math.cos(angle) * radius,
+        swordTip.y + height,
+        swordTip.z + Math.sin(angle) * radius
+      );
+
+      const pGeom = new THREE.SphereGeometry(0.045, 4, 4);
+      const pMat = new THREE.MeshBasicMaterial({
+        color: 0xffd700,
+        transparent: true,
+        opacity: 0.9,
+        blending: THREE.AdditiveBlending,
+      });
+      const pMesh = new THREE.Mesh(pGeom, pMat);
+      pMesh.position.copy(startPos);
+      this.scene.add(pMesh);
+
+      let life = 0;
+      const maxLife = 0.28;
+      this.activeVfx.push({
+        object: pMesh,
+        update: (delta) => {
+          life += delta;
+          const t = Math.min(1.0, life / maxLife);
+          const curTip = new THREE.Vector3();
+          this.playerMesh?.weapon.getWorldPosition(curTip);
+          curTip.y += 1.1;
+          pMesh.position.lerpVectors(startPos, curTip, t * t);
+          pMesh.scale.setScalar(1.0 - t * 0.8);
+          pMat.opacity = 0.9 * (1.0 - t * 0.5);
+          return life < maxLife;
+        },
+        cleanup: () => {
+          pGeom.dispose();
+          pMat.dispose();
+        },
+      });
+    }
+  }
+
+  // 4e. Warrior Triple Crescent Gale Projectile (12m range wind blade)
+  private spawnCrescentProjectile(forward: THREE.Vector3, tiltAngle: number, dmgMult: number, waveIndex: number) {
+    const origin = this.playerPos.clone().add(new THREE.Vector3(0, 1.25, 0)).add(forward.clone().multiplyScalar(1.0));
+    const crescentGroup = new THREE.Group();
+    crescentGroup.position.copy(origin);
+    crescentGroup.rotation.y = Math.atan2(forward.x, forward.z);
+    crescentGroup.rotation.z = tiltAngle;
+
+    const radius = waveIndex === 3 ? 1.6 : 1.2;
+    const geom = new THREE.TorusGeometry(radius, 0.12, 6, 18, Math.PI * 0.85);
+    geom.rotateZ(-Math.PI * 0.425);
+    const mat = new THREE.MeshBasicMaterial({
+      color: waveIndex === 3 ? 0xffea00 : 0xfff8e1,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+    });
+    const crescentMesh = new THREE.Mesh(geom, mat);
+    crescentGroup.add(crescentMesh);
+    this.scene.add(crescentGroup);
+
+    const speed = 22.0;
+    const maxDist = 12.0;
+    let traveled = 0;
+    const hitEnemies = new Set<string>();
+
+    this.activeVfx.push({
+      object: crescentGroup,
+      update: (delta) => {
+        const step = speed * delta;
+        traveled += step;
+        crescentGroup.position.add(forward.clone().multiplyScalar(step));
+
+        this.enemies.forEach((enemy) => {
+          if (enemy.data.isDead || hitEnemies.has(enemy.mesh.uuid)) return;
+          if (crescentGroup.position.distanceTo(enemy.mesh.position) <= radius + 0.6) {
+            hitEnemies.add(enemy.mesh.uuid);
+            this.callbacks.onUpdateStats((stats) => {
+              const baseDmg = stats.baseAttack + stats.strength * 1.8;
+              const finalDmg = Math.round(baseDmg * dmgMult);
+              this.damageEnemy(enemy, finalDmg, waveIndex === 3, waveIndex === 3 ? 1.6 : 0.6);
+              return stats;
+            });
+            this.spawnHitStarburst(enemy.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xfff59d, 2.0);
+          }
+        });
+
+        if (traveled > maxDist * 0.8) {
+          mat.opacity = Math.max(0, 1.0 - (traveled - maxDist * 0.8) / (maxDist * 0.2));
+        }
+
+        return traveled < maxDist;
+      },
+      cleanup: () => {
+        geom.dispose();
+        mat.dispose();
+      },
+    });
+  }
+
+  // 4f. Warrior Cataclysmic Leap Slam - 3D Rock Spikes VFX (Cone / Dodecahedron)
+  private spawnCataclysmicRockSpikesVfx(impactPos: THREE.Vector3) {
+    const rockCount = 8;
+    const group = new THREE.Group();
+    group.position.copy(impactPos);
+
+    interface RockInstance {
+      mesh: THREE.Mesh;
+      targetY: number;
+      initY: number;
+      basePos: THREE.Vector3;
+      geom: THREE.BufferGeometry;
+      mat: THREE.Material;
+    }
+
+    const rocks: RockInstance[] = [];
+
+    for (let i = 0; i < rockCount; i++) {
+      const angle = (i / rockCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+      const dist = 2.5 + Math.random() * 1.3;
+      const height = 0.8 + Math.random() * 0.6;
+      const width = 0.35 + Math.random() * 0.15;
+
+      const geom = new THREE.ConeGeometry(width, height, 5);
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x4a4744,
+        roughness: 0.85,
+        metalness: 0.25,
+        emissive: 0xffaa00,
+        emissiveIntensity: 0.2,
+        flatShading: true,
+      });
+      const rockMesh = new THREE.Mesh(geom, mat);
+      rockMesh.castShadow = true;
+
+      const lx = Math.cos(angle) * dist;
+      const lz = Math.sin(angle) * dist;
+      const groundY = this.world.getTerrainHeight(impactPos.x + lx, impactPos.z + lz) - impactPos.y;
+
+      const basePos = new THREE.Vector3(lx, groundY, lz);
+      const initY = groundY - 0.5;
+      const targetY = groundY + height * 0.5;
+
+      rockMesh.position.set(lx, initY, lz);
+      rockMesh.rotation.set((Math.random() - 0.5) * 0.4, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.4);
+      group.add(rockMesh);
+
+      rocks.push({ mesh: rockMesh, targetY, initY, basePos, geom, mat });
+    }
+
+    this.scene.add(group);
+
+    let elapsed = 0;
+    this.activeVfx.push({
+      object: group,
+      update: (delta) => {
+        elapsed += delta;
+
+        if (elapsed <= 0.18) {
+          // Fase 1: Erupsi Cepat (0.0s - 0.18s)
+          const p = elapsed / 0.18;
+          const easeOut = Math.sin((p * Math.PI) / 2);
+          rocks.forEach((r) => {
+            r.mesh.position.y = THREE.MathUtils.lerp(r.initY, r.targetY, easeOut);
+          });
+        } else if (elapsed <= 0.6) {
+          // Fase 2: Diam & Bergetar (0.18s - 0.6s)
+          const shakeFactor = Math.sin(elapsed * 45) * 0.03;
+          rocks.forEach((r) => {
+            r.mesh.position.y = r.targetY;
+            r.mesh.position.x = r.basePos.x + shakeFactor;
+          });
+        } else if (elapsed <= 1.0) {
+          // Fase 3: Tenggelam & Hancur (0.6s - 1.0s)
+          const p = (elapsed - 0.6) / 0.4;
+          const s = Math.max(0, 1.0 - p);
+          rocks.forEach((r) => {
+            r.mesh.position.y = THREE.MathUtils.lerp(r.targetY, r.initY - 0.3, p);
+            r.mesh.scale.set(s, s, s);
+          });
+        }
+
+        return elapsed < 1.0;
+      },
+      cleanup: () => {
+        rocks.forEach((r) => {
+          r.geom.dispose();
+          r.mat.dispose();
+        });
+      },
+    });
+  }
+
+  // 4g. Warrior Aegis Retribution Barrier VFX
+  private spawnAegisRetributionBarrierVfx() {
+    const origin = this.playerPos.clone();
+    const barrierGroup = new THREE.Group();
+    barrierGroup.position.copy(origin);
+
+    const geom = new THREE.CylinderGeometry(1.6, 1.8, 2.4, 16, 1, true);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffd700,
+      transparent: true,
+      opacity: 0.5,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.y = 1.2;
+    barrierGroup.add(mesh);
+
+    const ringGeom = new THREE.RingGeometry(1.4, 1.8, 24);
+    ringGeom.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xffaa00,
+      transparent: true,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const ringMesh = new THREE.Mesh(ringGeom, ringMat);
+    ringMesh.position.y = 0.04;
+    barrierGroup.add(ringMesh);
+
+    this.scene.add(barrierGroup);
+
+    let elapsed = 0;
+    this.activeVfx.push({
+      object: barrierGroup,
+      update: (delta) => {
+        elapsed += delta;
+        barrierGroup.position.copy(this.playerPos);
+        barrierGroup.rotation.y += delta * 1.5;
+        const pulse = 0.4 + Math.sin(elapsed * 6) * 0.15;
+        mat.opacity = pulse;
+        ringMat.opacity = pulse + 0.15;
+        return elapsed < 5.0 && this.aegisRetributionTimer > 0;
+      },
+      cleanup: () => {
+        geom.dispose();
+        mat.dispose();
+        ringGeom.dispose();
+        ringMat.dispose();
+      },
+    });
+  }
+
   // 5. Mage Arcane Laser Beam & 3D Magic Circle (1.0s Channel with continuous raycast hit detection)
   private spawnMageArcaneLaserBeam(customFwd?: THREE.Vector3, customSpawnPos?: THREE.Vector3, isRemote = false) {
     const fwd = customFwd
@@ -3228,32 +3692,81 @@ export class GameEngine {
   }
 
   /**
-   * Absorbs incoming damage using active Mage Arcane Shield
+   * Absorbs incoming damage using active Warrior Aegis Shield & Mage Arcane Shield
    */
-  public absorbDamageWithShield(rawDamage: number): { remainingDamage: number; absorbed: number } {
+  public absorbDamageWithShield(
+    rawDamage: number,
+    attackerEnemy?: (typeof this.enemies)[0]
+  ): { remainingDamage: number; absorbed: number } {
     if (this.isInvulnerable) {
       return { remainingDamage: 0, absorbed: 0 };
     }
-    if (this.arcaneShieldHp <= 0 || this.arcaneShieldTimer <= 0) {
-      return { remainingDamage: rawDamage, absorbed: 0 };
+
+    let dmg = rawDamage;
+    let totalAbsorbed = 0;
+
+    // 1. Aegis Retribution: 35% passive Damage Reduction + 20% Counter-Reflect
+    if (this.aegisRetributionTimer > 0) {
+      const reflectAmt = Math.max(1, Math.round(rawDamage * 0.20));
+      dmg = Math.round(rawDamage * 0.65); // 35% passive Damage Reduction
+
+      if (attackerEnemy && !attackerEnemy.data.isDead) {
+        attackerEnemy.data.hp -= reflectAmt;
+        this.spawnHitStarburst(attackerEnemy.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xffea00, 2.5);
+        this.callbacks.onAddFloatingText(`⚡ ${reflectAmt} Pantulan Suci!`, '#ffd700', 'crit');
+      }
     }
-    if (this.arcaneShieldHp >= rawDamage) {
-      this.arcaneShieldHp -= rawDamage;
-      this.callbacks.onAddFloatingText(`🛡️ Perisai Menyerap ${rawDamage} Dmg!`, '#38bdf8', 'info');
-      if (this.arcaneShieldHp <= 0) {
+
+    // 2. Warrior Absorption Shield
+    if (this.playerShield > 0 && this.playerShieldTimer > 0) {
+      if (this.playerShield >= dmg) {
+        this.playerShield -= dmg;
+        totalAbsorbed += dmg;
+        this.callbacks.onAddFloatingText(`🛡️ Perisai Menyerap ${dmg} Dmg!`, '#facc15', 'info');
+        dmg = 0;
+      } else {
+        totalAbsorbed += this.playerShield;
+        dmg -= this.playerShield;
+        this.callbacks.onAddFloatingText(`🛡️ Perisai Menyerap ${this.playerShield} Dmg (Habis)!`, '#facc15', 'info');
+        this.playerShield = 0;
+        this.playerShieldTimer = 0;
+      }
+
+      this.callbacks.onUpdateStats((s) => ({
+        ...s,
+        shield: this.playerShield,
+        maxShield: this.playerMaxShield,
+      }));
+
+      if (dmg <= 0) {
+        return { remainingDamage: 0, absorbed: totalAbsorbed };
+      }
+    }
+
+    // 3. Mage Arcane Shield
+    if (this.arcaneShieldHp > 0 && this.arcaneShieldTimer > 0) {
+      if (this.arcaneShieldHp >= dmg) {
+        this.arcaneShieldHp -= dmg;
+        totalAbsorbed += dmg;
+        this.callbacks.onAddFloatingText(`🛡️ Perisai Menyerap ${dmg} Dmg!`, '#38bdf8', 'info');
+        if (this.arcaneShieldHp <= 0) {
+          this.arcaneShieldHp = 0;
+          this.arcaneShieldTimer = 0;
+          this.callbacks.onAddFloatingText('Perisai Sihir Habis!', '#f59e0b', 'info');
+        }
+        return { remainingDamage: 0, absorbed: totalAbsorbed };
+      } else {
+        const absorbed = this.arcaneShieldHp;
+        dmg -= this.arcaneShieldHp;
+        totalAbsorbed += absorbed;
         this.arcaneShieldHp = 0;
         this.arcaneShieldTimer = 0;
-        this.callbacks.onAddFloatingText('Perisai Sihir Habis!', '#f59e0b', 'info');
+        this.callbacks.onAddFloatingText(`🛡️ Perisai Menyerap ${absorbed} Dmg (Hancur)!`, '#38bdf8', 'info');
+        return { remainingDamage: dmg, absorbed: totalAbsorbed };
       }
-      return { remainingDamage: 0, absorbed: rawDamage };
-    } else {
-      const absorbed = this.arcaneShieldHp;
-      const remaining = rawDamage - this.arcaneShieldHp;
-      this.arcaneShieldHp = 0;
-      this.arcaneShieldTimer = 0;
-      this.callbacks.onAddFloatingText(`🛡️ Perisai Menyerap ${absorbed} Dmg (Hancur)!`, '#38bdf8', 'info');
-      return { remainingDamage: remaining, absorbed };
     }
+
+    return { remainingDamage: dmg, absorbed: totalAbsorbed };
   }
 
   // 9. Rogue X-Slash VFX (Dual crossing cyan & shadow blades with intersection starburst)
@@ -3572,6 +4085,8 @@ export class GameEngine {
     dmgMultiplier: number;
     critBonus: number;
     knockback: number;
+    microStagger?: number;
+    isKnockUp?: boolean;
   }) {
     const playerForward = new THREE.Vector3(0, 0, 1).applyAxisAngle(
       new THREE.Vector3(0, 1, 0),
@@ -3608,6 +4123,13 @@ export class GameEngine {
 
           if (hit) {
             this.damageEnemy(enemy, finalDmg, isCrit, params.knockback);
+            if (params.microStagger) {
+              enemy.attackCooldown = Math.max(enemy.attackCooldown, params.microStagger);
+              enemy.staggerTimer = params.microStagger;
+            }
+            if (params.isKnockUp) {
+              enemy.mesh.position.y += 1.8;
+            }
             this.spawnSparks(enemyPos.clone().add(new THREE.Vector3(0, 1.2, 0)), isCrit ? 0xfacc15 : 0xff5252, 6, 3);
           }
         }
@@ -3617,9 +4139,374 @@ export class GameEngine {
     });
   }
 
+  // --- Warrior Combat Actions & Skills ---
+  public startBasicAttack() {
+    if (this.isControlsLocked || this.isAttacking || this.isCasting) return;
+    this.alignPlayerOrientationToInputOrTarget(this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' ? 22 : 16);
+
+    if (this.charClass !== 'warrior') {
+      this.performBasicAttack();
+      return;
+    }
+
+    this.isChargingAttack = true;
+    this.chargeTimer = 0;
+    this.chargeParticleTimer = 0;
+  }
+
+  public releaseBasicAttack() {
+    if (this.charClass !== 'warrior') {
+      return;
+    }
+    if (!this.isChargingAttack) {
+      return;
+    }
+
+    const holdTime = this.chargeTimer;
+    this.isChargingAttack = false;
+    this.chargeTimer = 0;
+    if (this.playerMesh) {
+      resetKnightBladeGlow(this.playerMesh);
+    }
+
+    if (holdTime < 1.0) {
+      this.performWarriorComboAttack();
+    } else {
+      this.executeWarriorChargeCleave(holdTime);
+    }
+  }
+
+  public performWarriorComboAttack() {
+    if (this.isControlsLocked || this.isAttacking || this.isCasting) return;
+    this.alignPlayerOrientationToInputOrTarget(16);
+
+    const now = performance.now();
+    if (now - this.lastAttackTime > 1000) {
+      this.warriorComboIndex = 0;
+    }
+    this.lastAttackTime = now;
+    const currentCombo = this.warriorComboIndex;
+    this.warriorComboIndex = (this.warriorComboIndex + 1) % 4;
+
+    this.isAttacking = true;
+
+    if (this.gameMode === 'multiplayer') {
+      this.callbacks.onLocalPlayerAttack?.({
+        attackType: `warrior_combo_${currentCombo + 1}`,
+        charClass: this.charClass,
+        x: Math.round(this.playerPos.x * 100) / 100,
+        y: Math.round(this.playerPos.y * 100) / 100,
+        z: Math.round(this.playerPos.z * 100) / 100,
+        rotationY: Math.round(this.playerRotationY * 100) / 100,
+      });
+    }
+
+    const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+
+    if (currentCombo === 0) {
+      // Hit 1: Tebasan pedang diagonal kanan-ke-kiri (jangkauan 3.2m)
+      this.attackType = 'warrior_combo_1';
+      this.attackDuration = 0.32;
+      this.attackTimer = 0.32;
+      soundManager.playWarriorCleave(1);
+      this.spawnWarriorSlashVfx(0);
+      this.executeMeleeAttack({
+        range: 3.2,
+        coneAngle: -0.35,
+        dmgMultiplier: 1.25,
+        critBonus: 0.05,
+        knockback: 0.4,
+      });
+      this.callbacks.onAddFloatingText('Tebasan 1! ⚔️', '#fbbf24', 'info');
+    } else if (currentCombo === 1) {
+      // Hit 2: Tebasan pedang diagonal kiri-ke-kanan (jangkauan 3.2m)
+      this.attackType = 'warrior_combo_2';
+      this.attackDuration = 0.32;
+      this.attackTimer = 0.32;
+      soundManager.playWarriorCleave(2);
+      this.spawnWarriorSlashVfx(1);
+      this.executeMeleeAttack({
+        range: 3.2,
+        coneAngle: -0.35,
+        dmgMultiplier: 1.45,
+        critBonus: 0.10,
+        knockback: 0.45,
+      });
+      this.callbacks.onAddFloatingText('Tebasan 2! ⚔️', '#fbbf24', 'info');
+    } else if (currentCombo === 2) {
+      // Hit 3 (Shield Bash): Mendorong perisai ke depan dengan langkah maju pendek (micro-stagger 0.2s)
+      this.attackType = 'warrior_combo_3_shield';
+      this.attackDuration = 0.35;
+      this.attackTimer = 0.35;
+      soundManager.playWarriorShieldSlam();
+      this.playerVel.add(forward.clone().multiplyScalar(5.5));
+      this.spawnShockwaveRing(this.playerPos.clone().add(forward.clone().multiplyScalar(0.8)), 0xf59e0b, 2.8, 0.3);
+      this.spawnSparks(this.playerPos.clone().add(forward.clone().multiplyScalar(1.2)).add(new THREE.Vector3(0, 1.2, 0)), 0xfbbf24, 12, 3.5);
+      this.executeMeleeAttack({
+        range: 2.8,
+        coneAngle: 0.0,
+        dmgMultiplier: 1.5,
+        critBonus: 0.12,
+        knockback: 0.8,
+        microStagger: 0.2,
+      });
+      this.callbacks.onAddFloatingText('Shield Bash! 🛡️ (Stagger 0.2s)', '#f59e0b', 'crit');
+    } else {
+      // Hit 4 (Thrust Pierce Finisher): Tusukan pedang lurus ke depan (jangkauan 4.2m, garis lurus, bonus crit tinggi)
+      this.attackType = 'warrior_combo_4_thrust';
+      this.attackDuration = 0.40;
+      this.attackTimer = 0.40;
+      soundManager.playWarriorCleave(3);
+      this.spawnWarriorThrustVfx(forward);
+      this.executeMeleeAttack({
+        range: 4.2,
+        coneAngle: 0.65,
+        dmgMultiplier: 2.2,
+        critBonus: 0.40,
+        knockback: 1.2,
+      });
+      this.callbacks.onAddFloatingText('Thrust Pierce Finisher! ⚡', '#ffd700', 'crit');
+    }
+  }
+
+  private executeWarriorChargeCleave(holdTime: number) {
+    if (this.isControlsLocked || this.isAttacking || this.isCasting) return;
+    this.alignPlayerOrientationToInputOrTarget(16);
+
+    const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+    this.isAttacking = true;
+
+    if (holdTime < 1.0) {
+      this.attackType = 'warrior_charge_release_quick';
+      this.attackDuration = 0.32;
+      this.attackTimer = 0.32;
+      soundManager.playWarriorCleave(1);
+      this.spawnWarriorSlashVfx(0);
+      this.executeMeleeAttack({
+        range: 3.2,
+        dmgMultiplier: 1.0,
+        critBonus: 0.05,
+        knockback: 0.4,
+      });
+      this.callbacks.onAddFloatingText('Tebas Cepat!', '#fbbf24', 'info');
+    } else if (holdTime < 2.5) {
+      // Tier 1: Tebasan vertikal, damage 1.8x, Retakan 3.5m
+      this.attackType = 'warrior_charge_release_tier1';
+      this.attackDuration = 0.42;
+      this.attackTimer = 0.42;
+      soundManager.playWarriorCleave(2);
+      this.spawnWarriorFissureVfx(this.playerPos.clone(), fwd, 3.5, 1);
+      this.executeMeleeAttack({
+        range: 3.5,
+        coneAngle: 0.2,
+        dmgMultiplier: 1.8,
+        critBonus: 0.15,
+        knockback: 0.5,
+      });
+      this.triggerCameraShake(0.12, 0.12);
+      this.callbacks.onAddFloatingText('Tebasan Retakan Tier 1 (3.5m)! 🔥', '#f59e0b', 'crit');
+    } else if (holdTime < 5.0) {
+      // Tier 2: Tebasan bertenaga, damage 2.8x, knockback ringan, Retakan 6.0m + percikan partikel
+      this.attackType = 'warrior_charge_release_tier2';
+      this.attackDuration = 0.48;
+      this.attackTimer = 0.48;
+      soundManager.playWarriorCleave(3);
+      soundManager.playWarriorShieldSlam();
+      this.spawnWarriorFissureVfx(this.playerPos.clone(), fwd, 6.0, 2);
+      this.spawnSparks(this.playerPos.clone().add(fwd.clone().multiplyScalar(3.0)), 0xffaa00, 20, 4.5);
+      this.executeMeleeAttack({
+        range: 6.0,
+        coneAngle: 0.1,
+        dmgMultiplier: 2.8,
+        critBonus: 0.25,
+        knockback: 0.9,
+      });
+      this.triggerCameraShake(0.22, 0.2);
+      this.callbacks.onAddFloatingText('Tebasan Retakan Tier 2 (6.0m)! 💥', '#ff9800', 'crit');
+    } else {
+      // Tier 3 Maksimal (>= 5.0s): Tebasan membelah tanah masif, damage 4.2x, efek knock-up, camera shake kuat, Retakan 9.5m dengan cabang ke samping
+      this.attackType = 'warrior_charge_release_tier3';
+      this.attackDuration = 0.55;
+      this.attackTimer = 0.55;
+      soundManager.playWarriorCleave(3);
+      soundManager.playWarriorShieldSlam();
+      this.spawnWarriorFissureVfx(this.playerPos.clone(), fwd, 9.5, 3);
+      this.spawnSparks(this.playerPos.clone().add(fwd.clone().multiplyScalar(4.5)), 0xffaa00, 32, 6.0);
+      this.spawnShockwaveRing(this.playerPos.clone().add(fwd.clone().multiplyScalar(2.0)), 0xffaa00, 6.0, 0.4);
+      this.executeMeleeAttack({
+        range: 9.5,
+        coneAngle: -0.1,
+        dmgMultiplier: 4.2,
+        critBonus: 0.45,
+        knockback: 2.0,
+        isKnockUp: true,
+      });
+      this.triggerCameraShake(0.40, 0.4);
+      this.callbacks.onAddFloatingText('RETISAN MEMBELAH TANAH TIER 3 (9.5m)! ⚡⚔️', '#ffd700', 'crit');
+    }
+  }
+
+  public performShieldDash() {
+    if (this.isControlsLocked || this.isDashing || this.isCasting) return;
+    this.callbacks.onUpdateStats((stats) => {
+      if (stats.stamina < 15) {
+        this.callbacks.onAddFloatingText('Stamina Tidak Cukup!', '#ffb74d', 'info');
+        return stats;
+      }
+
+      const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+
+      soundManager.playSkillTerjang();
+      this.isDashing = true;
+      this.dashTimer = 0.25;
+      this.isAttacking = true;
+      this.attackType = 'shield_dash';
+      this.attackDuration = 0.25;
+      this.attackTimer = 0.25;
+
+      // 4.5m forward in 0.25s: velocity = 18 m/s
+      this.playerVel.x = forward.x * 18;
+      this.playerVel.z = forward.z * 18;
+
+      this.spawnWarriorShieldChargeVfx();
+
+      setTimeout(() => {
+        if (!this.isRunning) return;
+        this.enemies.forEach((enemy) => {
+          if (enemy.data.isDead) return;
+          if (this.playerPos.distanceTo(enemy.mesh.position) <= 3.2) {
+            const dmg = Math.round(stats.baseAttack * 0.75 + stats.baseDefense * 0.8);
+            this.damageEnemy(enemy, dmg, false, 1.2);
+            this.spawnSparks(enemy.mesh.position, 0xfbbf24, 8, 3.5);
+          }
+        });
+      }, 100);
+
+      this.callbacks.onAddFloatingText('Shield Dash! 🛡️', '#fbbf24', 'info');
+      return { ...stats, stamina: Math.max(0, stats.stamina - 15) };
+    });
+  }
+
+  private castWarriorTripleCrescentGale() {
+    this.alignPlayerOrientationToInputOrTarget(16);
+    const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+
+    this.isAttacking = true;
+    this.attackDuration = 0.65;
+    this.attackTimer = 0.65;
+
+    // Swing 1 (0ms): Cross Left
+    this.attackType = 'warrior_crescent_1';
+    soundManager.playWarriorCleave(1);
+    this.spawnCrescentProjectile(forward, -0.4, 1.25, 1);
+
+    // Swing 2 (140ms): Cross Right
+    setTimeout(() => {
+      if (!this.isRunning) return;
+      this.attackType = 'warrior_crescent_2';
+      soundManager.playWarriorCleave(2);
+      const curFwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+      this.spawnCrescentProjectile(curFwd, 0.4, 1.45, 2);
+    }, 140);
+
+    // Swing 3 (280ms): Vertical Down (Greatest damage & knockback)
+    setTimeout(() => {
+      if (!this.isRunning) return;
+      this.attackType = 'warrior_crescent_3';
+      soundManager.playWarriorCleave(3);
+      soundManager.playSkillTebas360();
+      const curFwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+      this.spawnCrescentProjectile(curFwd, 0.0, 2.4, 3);
+      this.callbacks.onAddFloatingText('Triple Crescent Gale! 🌙⚡', '#ffd700', 'crit');
+    }, 280);
+  }
+
+  private castWarriorCataclysmicLeap() {
+    this.alignPlayerOrientationToInputOrTarget(16);
+    const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+
+    soundManager.playSkillLompat();
+    this.isAttacking = true;
+    this.attackType = 'cataclysmic_leap';
+    this.attackDuration = 0.65;
+    this.attackTimer = 0.65;
+    this.isGrounded = false;
+
+    // Parabolic leap: 6m forward, vy = 11.5, fwd vel = 13.5
+    this.playerVel.y = 11.5;
+    this.playerVel.x = forward.x * 13.5;
+    this.playerVel.z = forward.z * 13.5;
+
+    // Landing impact slam at 440ms
+    setTimeout(() => {
+      if (!this.isRunning) return;
+      const impactPos = this.playerPos.clone();
+      soundManager.playWarriorShieldSlam();
+      this.triggerCameraShake(0.35, 0.35);
+
+      const aoeRadius = 7.5;
+      this.callbacks.onUpdateStats((stats) => {
+        const baseDmg = stats.baseAttack + stats.strength * 2.8;
+        const finalDmg = Math.round(baseDmg * 2.2);
+
+        this.enemies.forEach((enemy) => {
+          if (enemy.data.isDead) return;
+          if (impactPos.distanceTo(enemy.mesh.position) <= aoeRadius) {
+            this.damageEnemy(enemy, finalDmg, true, 1.8);
+            this.spawnSparks(enemy.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xffaa00, 12, 4);
+          }
+        });
+        return stats;
+      });
+
+      this.spawnShockwaveRing(impactPos, 0xfbbf24, aoeRadius, 0.5);
+      this.spawnSparks(impactPos, 0xffd700, 28, 5.5);
+      this.spawnCataclysmicRockSpikesVfx(impactPos);
+      this.callbacks.onAddFloatingText('Cataclysmic Leap Slam! 💥⛰️', '#ffd700', 'crit');
+    }, 440);
+  }
+
+  private castWarriorAegisRetribution() {
+    this.callbacks.onUpdateStats((stats) => {
+      if (stats.mp < 25 || stats.stamina < 15) {
+        this.callbacks.onAddFloatingText('Aura / Stamina Tidak Cukup (25 Aura + 15 Stm)!', '#e57373', 'info');
+        return stats;
+      }
+
+      soundManager.playSkillBenteng();
+      this.isAttacking = true;
+      this.attackType = 'aegis_retribution';
+      this.attackDuration = 0.6;
+      this.attackTimer = 0.6;
+
+      this.aegisRetributionTimer = 5.0;
+      const shieldVal = Math.round(stats.maxHp * 0.25 + stats.baseDefense * 2.0);
+      this.playerShield = shieldVal;
+      this.playerMaxShield = shieldVal;
+      this.playerShieldTimer = 5.0;
+
+      this.spawnAegisRetributionBarrierVfx();
+      this.callbacks.onAddFloatingText(`Aegis Retribution (+${shieldVal} Shield | 35% Redux | 20% Reflect)! 🛡️✨`, '#ffd700', 'heal');
+
+      return {
+        ...stats,
+        mp: Math.max(0, stats.mp - 25),
+        stamina: Math.max(0, stats.stamina - 15),
+        shield: shieldVal,
+        maxShield: shieldVal,
+        shieldDuration: 5.0,
+      };
+    });
+  }
+
   // --- Role-Specific Combat Skills & Combos ---
   public performBasicAttack() {
     if (this.isControlsLocked || this.isAttacking || this.isCasting) return;
+
+    if (this.charClass === 'warrior') {
+      this.performWarriorComboAttack();
+      return;
+    }
 
     // Align player facing to movement direction or closest 360Â° enemy
     this.alignPlayerOrientationToInputOrTarget(this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' ? 22 : 16);
@@ -3646,37 +4533,7 @@ export class GameEngine {
       });
     }
 
-    if (this.charClass === 'warrior') {
-      if (currentCombo === 2) {
-        // Combo 3 Finisher: Full 360Â° Spin Cleave (Hits front, left, right, back!)
-        this.attackType = 'basic_spin_360';
-        this.attackDuration = 0.42;
-        this.attackTimer = 0.42;
-        soundManager.playSkillTebas360();
-        this.spawn360BladeSpinVfx(0xfbbf24, 3.8);
-        this.executeMeleeAttack({
-          range: 3.8,
-          is360: true,
-          dmgMultiplier: 1.85,
-          critBonus: 0.15,
-          knockback: 1.0,
-        });
-      } else {
-        // Combo 1 & 2: Wide sweeping cleaves (front, flanks, and 360Â° close combat)
-        this.attackType = currentCombo === 0 ? 'basic_slash_1' : 'basic_slash_2';
-        this.attackDuration = 0.35;
-        this.attackTimer = 0.35;
-        soundManager.playWarriorCleave();
-        this.spawnWarriorSlashVfx(currentCombo);
-        this.executeMeleeAttack({
-          range: 3.4,
-          coneAngle: -0.35,
-          dmgMultiplier: 1.5,
-          critBonus: 0.08,
-          knockback: 0.6,
-        });
-      }
-    } else if (this.charClass === 'mage') {
+    if (this.charClass === 'mage') {
       this.attackType = 'basic';
       this.attackDuration = 1.0;
       this.attackTimer = 1.0;
@@ -3751,6 +4608,18 @@ export class GameEngine {
     }
 
     if (skillSlot === 1) {
+      if (this.charClass === 'warrior') {
+        this.callbacks.onUpdateStats((stats) => {
+          if (stats.mp < 20) {
+            this.callbacks.onAddFloatingText('Aura Tidak Cukup (Butuh 20)!', '#e57373', 'info');
+            return stats;
+          }
+          this.castWarriorTripleCrescentGale();
+          return { ...stats, mp: Math.max(0, stats.mp - 20) };
+        });
+        return;
+      }
+
       // Skill 1 (Cost: 15 MP)
       this.callbacks.onUpdateStats((stats) => {
         if (stats.mp < 15) {
@@ -3758,25 +4627,7 @@ export class GameEngine {
           return stats;
         }
 
-        if (this.charClass === 'warrior') {
-          // Warrior: Pusaran Badai Baja (Full 360Â° Whirlwind)
-          soundManager.playSkillPusaran();
-          this.spawnWarriorWhirlwindVfx();
-          this.isAttacking = true;
-          this.attackType = 'whirlwind';
-          this.attackDuration = 0.55;
-          this.attackTimer = 0.55;
-
-          const skillDmg = Math.round((stats.baseAttack + stats.strength * 2.2) * 1.6);
-          const radius = 4.8;
-          this.enemies.forEach((enemy) => {
-            if (enemy.data.isDead) return;
-            if (this.playerPos.distanceTo(enemy.mesh.position) <= radius) {
-              this.damageEnemy(enemy, skillDmg, true, 0.8);
-            }
-          });
-          this.callbacks.onAddFloatingText('Pusaran Badai Baja 360Â°!', '#fbbf24', 'crit');
-        } else if (this.charClass === 'mage') {
+        if (this.charClass === 'mage') {
           // Mage: Starfall (Hujan Meteor 10-Meteor Barrage with 1.0s Cast Time, Circuit Magic Circle & Movement Lock)
           this.startStarfallCasting();
           return { ...stats, mp: Math.max(0, stats.mp - 15) };
@@ -3821,6 +4672,18 @@ export class GameEngine {
         return { ...stats, mp: stats.mp - 15 };
       });
     } else if (skillSlot === 2) {
+      if (this.charClass === 'warrior') {
+        this.callbacks.onUpdateStats((stats) => {
+          if (stats.mp < 30) {
+            this.callbacks.onAddFloatingText('Aura Tidak Cukup (Butuh 30)!', '#e57373', 'info');
+            return stats;
+          }
+          this.castWarriorCataclysmicLeap();
+          return { ...stats, mp: Math.max(0, stats.mp - 30) };
+        });
+        return;
+      }
+
       // Skill 2 (Cost: 15 Stamina)
       this.callbacks.onUpdateStats((stats) => {
         if (stats.stamina < 15) {
@@ -3833,28 +4696,7 @@ export class GameEngine {
           this.playerRotationY
         );
 
-        if (this.charClass === 'warrior') {
-          // Warrior: Terjangan Perisai Suci
-          soundManager.playSkillTerjang();
-          this.isDashing = true;
-          this.dashTimer = 0.35;
-          this.attackType = 'shield_charge';
-          this.spawnWarriorShieldChargeVfx();
-
-          this.playerVel.add(forward.clone().multiplyScalar(22));
-          setTimeout(() => {
-            if (!this.isRunning) return;
-            this.enemies.forEach((enemy) => {
-              if (enemy.data.isDead) return;
-              if (this.playerPos.distanceTo(enemy.mesh.position) <= 3.2) {
-                const dmg = Math.round(stats.baseAttack * 1.2 + stats.baseDefense * 1.5);
-                this.damageEnemy(enemy, dmg, false, 1.4);
-                this.spawnSparks(enemy.mesh.position, 0xfbbf24, 8, 4);
-              }
-            });
-          }, 150);
-          this.callbacks.onAddFloatingText('Terjangan Perisai!', '#fbbf24', 'crit');
-        } else if (this.charClass === 'mage') {
+        if (this.charClass === 'mage') {
           // Mage: Langkah Dimensi (Instant Blink Teleport with Dual Runic Circles, Afterimages & Enemy Penetration)
           soundManager.playMageBlink();
           const startPos = this.playerPos.clone();
@@ -3966,6 +4808,11 @@ export class GameEngine {
         return { ...stats, stamina: stats.stamina - 15 };
       });
     } else if (skillSlot === 3) {
+      if (this.charClass === 'warrior') {
+        this.castWarriorAegisRetribution();
+        return;
+      }
+
       // Skill 3 (Cost: 25 MP)
       this.callbacks.onUpdateStats((stats) => {
         if (stats.mp < 25) {
@@ -3973,29 +4820,7 @@ export class GameEngine {
           return stats;
         }
 
-        if (this.charClass === 'warrior') {
-          // Warrior: Benteng Besi Suci
-          soundManager.playSkillBenteng();
-          this.spawnWarriorIronFortressVfx();
-          this.isAttacking = true;
-          this.attackType = 'iron_fortress';
-          this.attackDuration = 0.6;
-          this.attackTimer = 0.6;
-
-          const healAmt = Math.round(55 + stats.strength * 2.5 + stats.baseDefense * 1.5);
-          const newHp = Math.min(stats.maxHp, stats.hp + healAmt);
-
-          this.enemies.forEach((enemy) => {
-            if (enemy.data.isDead) return;
-            if (this.playerPos.distanceTo(enemy.mesh.position) <= 3.6) {
-              const push = new THREE.Vector3().subVectors(enemy.mesh.position, this.playerPos).normalize();
-              enemy.mesh.position.add(push.multiplyScalar(2.0));
-            }
-          });
-
-          this.callbacks.onAddFloatingText(`+${healAmt} HP (Benteng Besi)`, '#facc15', 'heal');
-          return { ...stats, mp: stats.mp - 25, hp: newHp };
-        } else if (this.charClass === 'mage') {
+        if (this.charClass === 'mage') {
           // Mage: Hujan Cahaya Astral (Revamped Zero-Lag Celestial Light Pillar & Arcane Shield)
           soundManager.playMageCelestialHeal();
           this.spawnMageCelestialHealVfx();
@@ -4086,6 +4911,17 @@ export class GameEngine {
 
   public jumpOrDodge() {
     if (this.isControlsLocked || this.isCasting) return;
+    if (this.charClass === 'warrior') {
+      const isMoving =
+        Math.abs(this.playerVel.x) > 1.0 ||
+        Math.abs(this.playerVel.z) > 1.0 ||
+        this.isKeyPressed('w', 'keyw', 'arrowup', 's', 'keys', 'arrowdown', 'a', 'keya', 'arrowleft', 'd', 'keyd', 'arrowright') ||
+        Math.hypot(this.joystickVector.x, this.joystickVector.y) > 0.1;
+      if (isMoving && !this.isDashing) {
+        this.performShieldDash();
+        return;
+      }
+    }
     if (this.isGrounded) {
       if (this.charClass === 'warrior') {
         this.playerVel.y = 8.2;
@@ -4846,15 +5682,47 @@ export class GameEngine {
       baseSpeed += 3.2;
     }
 
+    // Sprint detection for Warrior
+    const isShiftPressed = this.isKeyPressed('shift', 'shiftleft', 'shiftright');
+    const joyDist = Math.hypot(this.joystickVector.x, this.joystickVector.y);
+    const isJoySprint = joyDist > 0.80;
+
+    if (
+      this.charClass === 'warrior' &&
+      isMoving &&
+      (isShiftPressed || isJoySprint) &&
+      !this.isDashing &&
+      !this.isChargingAttack
+    ) {
+      this.isSprinting = true;
+      this.sprintDrainAccum += delta * 12;
+      if (this.sprintDrainAccum >= 1.0) {
+        const drain = Math.floor(this.sprintDrainAccum);
+        this.sprintDrainAccum -= drain;
+        this.callbacks.onUpdateStats((s) => ({
+          ...s,
+          stamina: Math.max(0, s.stamina - drain),
+        }));
+      }
+    } else {
+      this.isSprinting = false;
+      this.sprintDrainAccum = 0;
+    }
+
     let targetSpeed = baseSpeed;
     if (this.bossManager?.playerDebuffs?.isSlowed) {
       targetSpeed *= 0.5; // Efek Slow -50% pergerakan dari Boss / Sand Spikes
     }
     if (this.isDashing) {
       targetSpeed = this.charClass === 'rogue' ? 24.0 : this.charClass === 'warrior' ? 19.0 : 16.0;
-    } else if (isPointOnRoad(this.playerPos.x, this.playerPos.z)) {
-      // Buff Pergerakan Jalur Jalan (Movement Speed +15% saat berlari di atas jalan raya/setapak)
-      targetSpeed *= 1.15;
+    } else {
+      if (this.isSprinting) {
+        targetSpeed *= 1.45; // Sprint: +45% movement speed
+      }
+      if (isPointOnRoad(this.playerPos.x, this.playerPos.z)) {
+        // Buff Pergerakan Jalur Jalan (Movement Speed +15% saat berlari di atas jalan raya/setapak)
+        targetSpeed *= 1.15;
+      }
     }
 
     if (isMoving) {
@@ -5042,8 +5910,12 @@ export class GameEngine {
     } else if (this.charClass === 'rogue') {
       // Forward ninja prowl crouch
       this.playerMesh.group.rotation.x = isMoving ? 0.16 : 0.08;
-    } else if (this.charClass === 'warrior' && this.isAttacking) {
-      // Forward lean during combat attacks handled dynamically below
+    } else if (this.charClass === 'warrior') {
+      if (this.isSprinting && !this.isAttacking) {
+        this.playerMesh.group.rotation.x = THREE.MathUtils.lerp(this.playerMesh.group.rotation.x, 0.28, 0.2);
+      } else if (!this.isAttacking) {
+        this.playerMesh.group.rotation.x = THREE.MathUtils.lerp(this.playerMesh.group.rotation.x, 0, 0.2);
+      }
     } else {
       this.playerMesh.group.rotation.x = 0;
     }
@@ -5055,13 +5927,13 @@ export class GameEngine {
 
       if (this.charClass === 'warrior') {
         // Penghalusan Animasi Berjalan Ksatria (Smooth Knight Walk):
-        // Frekuensi stabil walkTime = clock.getElapsedTime() * 6
-        const walkTime = this.clock.getElapsedTime() * 6;
-        animateKnightWalk(this.playerMesh, walkTime, this.playerPos.y, this.isAttacking);
+        const kWalkFreq = this.isSprinting ? 9 : 6;
+        const walkTime = this.clock.getElapsedTime() * kWalkFreq;
+        animateKnightWalk(this.playerMesh, walkTime, this.playerPos.y, this.isAttacking || this.isChargingAttack);
         this.playerMesh.body.position.y = 1.48;
         this.playerMesh.body.rotation.z = 0;
         this.playerMesh.body.rotation.y = 0;
-        this.playerMesh.cape.rotation.x = 0.30 + Math.sin(walkTime * 0.5) * 0.15;
+        this.playerMesh.cape.rotation.x = (this.isSprinting ? 0.60 : 0.30) + Math.sin(walkTime * 0.5) * 0.15;
       } else if (this.charClass === 'mage') {
         // Heroic Blocky Low-Poly Mage Walk Cycle
         const walkTime = this.clock.getElapsedTime();
@@ -5095,7 +5967,7 @@ export class GameEngine {
         this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(this.playerMesh.body.rotation.z, 0, 0.15);
         this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y, 0, 0.15);
 
-        if (!this.isAttacking) {
+        if (!this.isAttacking && !this.isChargingAttack) {
           // Shield raised defensively across left chest, broadsword ready in right hand
           this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, -0.32 + breathe * 0.4, 0.15);
           this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, 0.20, 0.15);
@@ -5123,6 +5995,61 @@ export class GameEngine {
       }
     }
 
+    // Warrior Dynamic Charge Attack Stance & Resource Loop
+    if (this.charClass === 'warrior' && this.isChargingAttack) {
+      this.chargeTimer += delta;
+
+      if (this.chargeTimer < 1.0) {
+        // Detik 0.0 - 1.0 (Mengangkat): Pedang berputar 90 derajat berlawanan arah jarum jam secara perlahan dari posisi pinggang hingga tegak lurus di atas kepala
+        const p = this.chargeTimer / 1.0;
+        const ease = p * p * (3 - 2 * p);
+        this.playerMesh.rightArm.rotation.set(
+          THREE.MathUtils.lerp(0.22, -2.8, ease),
+          0,
+          THREE.MathUtils.lerp(-0.20, -0.4, ease)
+        );
+        this.playerMesh.weapon.rotation.set(
+          0.68 - ease * (Math.PI / 2),
+          0,
+          0.08
+        );
+        this.playerMesh.leftArm.rotation.set(-0.5 * ease, 0.3 * ease, 0.2);
+        setKnightBladeGlow(this.playerMesh, 0.2 * ease, 0xffd700);
+      } else if (this.chargeTimer <= 5.0) {
+        // Detik 1.0 - 5.0 (Menahan & Penyerapan Energi): Mengonsumsi 10 stamina/detik saat ditahan
+        this.playerMesh.rightArm.rotation.set(-2.8, 0, -0.4);
+        this.playerMesh.weapon.rotation.set(0.68 - Math.PI / 2, 0, 0.08);
+        this.playerMesh.leftArm.rotation.set(-0.5, 0.3, 0.2);
+
+        this.chargeDrainAccum += delta * 10;
+        if (this.chargeDrainAccum >= 1.0) {
+          const drain = Math.floor(this.chargeDrainAccum);
+          this.chargeDrainAccum -= drain;
+          this.callbacks.onUpdateStats((s) => ({
+            ...s,
+            stamina: Math.max(0, s.stamina - drain),
+          }));
+        }
+
+        // Partikel energi emas terserap masuk ke bilah pedang
+        this.chargeParticleTimer -= delta;
+        if (this.chargeParticleTimer <= 0) {
+          this.chargeParticleTimer = 0.06;
+          this.spawnChargeGatherParticles();
+        }
+
+        // Emisi cahaya pedang menguat bertahap dari redup hingga berpendar kuat di detik ke-5
+        const glowRatio = (this.chargeTimer - 1.0) / 4.0;
+        setKnightBladeGlow(this.playerMesh, 0.3 + glowRatio * 2.2, 0xffd700);
+      } else {
+        // Detik > 5.0: Karakter tetap mempertahankan pose siap tebas (tidak mengonsumsi stamina tambahan, tidak menambah damage lagi)
+        this.playerMesh.rightArm.rotation.set(-2.8, 0, -0.4);
+        this.playerMesh.weapon.rotation.set(0.68 - Math.PI / 2, 0, 0.08);
+        this.playerMesh.leftArm.rotation.set(-0.5, 0.3, 0.2);
+        setKnightBladeGlow(this.playerMesh, 2.5, 0xffd700);
+      }
+    }
+
     // Role-specific attack animation
     if (this.isAttacking) {
       this.attackTimer -= delta;
@@ -5140,33 +6067,93 @@ export class GameEngine {
         const draw = Math.sin((1 - progress) * Math.PI);
         this.playerMesh.rightArm.rotation.set(-1.3, -0.4, 0.4 + draw * 0.35);
       } else if (this.charClass === 'warrior') {
-        if (this.attackType === 'whirlwind') {
-          // Rapid 360 degree spin
+        const swing = Math.sin((1 - progress) * Math.PI);
+
+        if (this.attackType === 'warrior_combo_1') {
+          // Hit 1: Tebasan pedang diagonal kanan-ke-kiri (jangkauan 3.2m)
+          this.playerMesh.group.rotation.x = swing * 0.14;
+          this.playerMesh.body.rotation.y = -swing * 0.45;
+          this.playerMesh.rightArm.rotation.set(-0.2 - swing * 1.6, swing * 0.8, -0.3 + swing * 0.8);
+          this.playerMesh.leftArm.rotation.set(-0.35, -swing * 0.2, 0.2);
+        } else if (this.attackType === 'warrior_combo_2') {
+          // Hit 2: Tebasan pedang diagonal kiri-ke-kanan (jangkauan 3.2m)
+          this.playerMesh.group.rotation.x = swing * 0.14;
+          this.playerMesh.body.rotation.y = swing * 0.45;
+          this.playerMesh.rightArm.rotation.set(0.2 - swing * 1.5, -swing * 0.8, -0.8 + swing * 0.7);
+          this.playerMesh.leftArm.rotation.set(-0.35, swing * 0.2, 0.2);
+        } else if (this.attackType === 'warrior_combo_3_shield') {
+          // Hit 3 (Shield Bash): Mendorong perisai ke depan dengan langkah maju pendek (micro-stagger 0.2s)
+          this.playerMesh.group.rotation.x = swing * 0.26;
+          this.playerMesh.body.rotation.y = swing * 0.35;
+          this.playerMesh.leftArm.rotation.set(-1.45 * swing, 0.45 * swing, 0.1);
+          this.playerMesh.rightArm.rotation.set(0.4, -0.2, -0.3);
+        } else if (this.attackType === 'warrior_combo_4_thrust') {
+          // Hit 4 (Thrust Pierce Finisher): Tusukan pedang lurus menusuk ke depan (jangkauan 4.2m)
+          this.playerMesh.group.rotation.x = swing * 0.28;
+          this.playerMesh.body.rotation.y = 0;
+          this.playerMesh.rightArm.rotation.set(-1.55 * swing, 0, -0.1);
+          this.playerMesh.weapon.position.set(0, 0, 0.02 + swing * 0.35);
+          this.playerMesh.leftArm.rotation.set(-0.25, 0.2, 0.2);
+        } else if (
+          this.attackType === 'warrior_charge_release_quick' ||
+          this.attackType === 'warrior_charge_release_tier1' ||
+          this.attackType === 'warrior_charge_release_tier2' ||
+          this.attackType === 'warrior_charge_release_tier3'
+        ) {
+          // Downward overhead cleave with full body forward snap
+          this.playerMesh.group.rotation.x = swing * 0.36;
+          this.playerMesh.body.rotation.y = 0;
+          this.playerMesh.rightArm.rotation.set(-2.8 + swing * 3.6, 0, -0.2);
+          this.playerMesh.weapon.rotation.set(0.68 - (1 - swing) * (Math.PI / 2), 0, 0.08);
+          this.playerMesh.leftArm.rotation.set(swing * 0.5, 0, 0.2);
+        } else if (this.attackType === 'warrior_crescent_1') {
+          // Crescent Gale 1: Horizontal slash
+          this.playerMesh.group.rotation.x = swing * 0.16;
+          this.playerMesh.body.rotation.y = -swing * 0.5;
+          this.playerMesh.rightArm.rotation.set(-0.3 - swing * 1.8, swing * 0.9, -0.3 + swing * 0.9);
+          this.playerMesh.leftArm.rotation.set(-0.35, -swing * 0.2, 0.2);
+        } else if (this.attackType === 'warrior_crescent_2') {
+          // Crescent Gale 2: Reverse slash
+          this.playerMesh.group.rotation.x = swing * 0.16;
+          this.playerMesh.body.rotation.y = swing * 0.5;
+          this.playerMesh.rightArm.rotation.set(0.3 - swing * 1.7, -swing * 0.9, -0.7 + swing * 0.8);
+          this.playerMesh.leftArm.rotation.set(-0.35, swing * 0.2, 0.2);
+        } else if (this.attackType === 'warrior_crescent_3') {
+          // Crescent Gale 3: Heavy downward cleave
+          this.playerMesh.group.rotation.x = swing * 0.32;
+          this.playerMesh.body.rotation.y = 0;
+          this.playerMesh.rightArm.rotation.set(1.1 - swing * 3.0, 0, -0.2);
+          this.playerMesh.leftArm.rotation.set(swing * 0.6, 0, 0.15);
+        } else if (this.attackType === 'cataclysmic_leap') {
+          // Cataclysmic Leap Slam: Airborne overhead hold -> Landing slam
+          const leapProgress = 1 - progress;
+          if (leapProgress < 0.65) {
+            this.playerMesh.group.rotation.x = -0.25;
+            this.playerMesh.rightArm.rotation.set(-2.8, 0, -0.3);
+            this.playerMesh.leftArm.rotation.set(-2.4, 0, 0.3);
+          } else {
+            const slam = Math.sin(((leapProgress - 0.65) / 0.35) * Math.PI);
+            this.playerMesh.group.rotation.x = 0.45 * slam;
+            this.playerMesh.rightArm.rotation.set(0.85, 0, -0.2);
+            this.playerMesh.leftArm.rotation.set(0.85, 0, 0.2);
+          }
+        } else if (this.attackType === 'aegis_retribution') {
+          // Aegis Retribution: Shield raised high then slammed down
+          this.playerMesh.group.rotation.x = 0.25 * swing;
+          this.playerMesh.leftArm.rotation.set(-1.6 * swing, 0.35, 0.1);
+          this.playerMesh.rightArm.rotation.set(-0.8 * swing, -0.2, -0.3);
+        } else if (this.attackType === 'shield_dash' || this.attackType === 'shield_charge') {
+          // Shield forward guard dash
+          this.playerMesh.group.rotation.x = 0.35 * swing;
+          this.playerMesh.leftArm.rotation.set(-1.45, 0.35, 0.12);
+          this.playerMesh.rightArm.rotation.set(0.65, -0.2, -0.55);
+        } else if (this.attackType === 'whirlwind') {
           this.playerMesh.group.rotation.y += delta * 24;
           this.playerMesh.leftArm.rotation.set(-0.25, 0, 1.35);
           this.playerMesh.rightArm.rotation.set(-0.25, 0, -1.45);
           this.playerMesh.body.rotation.y = 0;
-        } else if (this.attackType === 'shield_charge') {
-          // Terjang (Guard forward charge with shield thrust)
-          const chargeFactor = Math.sin((1 - progress) * Math.PI);
-          this.playerMesh.group.rotation.x = 0.32 * chargeFactor;
-          this.playerMesh.leftArm.rotation.set(-1.45, 0.35, 0.12);
-          this.playerMesh.rightArm.rotation.set(0.65, -0.2, -0.55);
-        } else if (this.attackType === 'iron_fortress') {
-          // Benteng (Shield planted down, heavy defensive brace)
-          this.playerMesh.group.position.y -= 0.10 * Math.sin((1 - progress) * Math.PI);
-          this.playerMesh.leftArm.rotation.set(-1.10, 0.30, 0.0);
-          this.playerMesh.rightArm.rotation.set(-0.85, 0, -0.25);
-        } else if (this.attackType === 'basic_slash_1' || this.attackType === 'basic_slash_2') {
-          // Rapid horizontal sword slash arc (0.35s) with smooth lerp recovery
-          const swing = Math.sin((1 - progress) * Math.PI);
-          this.playerMesh.group.rotation.x = swing * 0.18;
-          this.playerMesh.body.rotation.y = swing * 0.45;
-          this.playerMesh.rightArm.rotation.set(-0.2 - swing * 1.85, swing * 0.95, -0.35 + swing * 0.7);
-          this.playerMesh.leftArm.rotation.set(-0.35, -swing * 0.3, 0.2);
         } else {
-          // Powerful downward cleave swing
-          const swing = Math.sin((1 - progress) * Math.PI);
+          // Default downward cleave
           this.playerMesh.group.rotation.x = swing * 0.22;
           this.playerMesh.body.rotation.y = swing * 0.2;
           this.playerMesh.rightArm.rotation.set(1.1 - swing * 2.9, 0, -0.2);
@@ -5209,6 +6196,12 @@ export class GameEngine {
       if (this.attackTimer <= 0) {
         this.isAttacking = false;
         this.attackType = null;
+        if (this.charClass === 'warrior' && this.playerMesh) {
+          this.playerMesh.body.rotation.set(0, 0, 0);
+          this.playerMesh.weapon.position.set(0, 0, 0.02);
+          this.playerMesh.weapon.rotation.set(0.68, 0, 0.08);
+          resetKnightBladeGlow(this.playerMesh);
+        }
         if (this.charClass === 'mage' && this.playerMesh?.body) {
           this.playerMesh.body.rotation.set(0, 0, 0);
           this.playerMesh.body.position.y = 1.35;
@@ -5220,6 +6213,24 @@ export class GameEngine {
         }
         this.playerMesh.leftArm.rotation.set(0, 0, 0);
         this.playerMesh.rightArm.rotation.set(0, 0, 0);
+      }
+    }
+
+    // Shield and Aegis Retribution timers
+    if (this.aegisRetributionTimer > 0) {
+      this.aegisRetributionTimer = Math.max(0, this.aegisRetributionTimer - delta);
+    }
+    if (this.playerShieldTimer > 0) {
+      this.playerShieldTimer = Math.max(0, this.playerShieldTimer - delta);
+      if (this.playerShieldTimer <= 0 && this.playerShield > 0) {
+        this.playerShield = 0;
+        this.playerMaxShield = 0;
+        this.callbacks.onUpdateStats((s) => ({
+          ...s,
+          shield: 0,
+          maxShield: 0,
+          shieldDuration: 0,
+        }));
       }
     }
 
@@ -5256,13 +6267,51 @@ export class GameEngine {
       });
     }
 
-    // Stamina regeneration
-    this.callbacks.onUpdateStats((stats) => {
-      if (stats.stamina < stats.maxStamina) {
-        return { ...stats, stamina: Math.min(stats.maxStamina, stats.stamina + delta * 8) };
+    // Resource regeneration
+    if (this.charClass === 'warrior') {
+      // HP has NO natural passive regeneration for Warrior (only items/potions/fountain)
+
+      // Aura passive regen (+5 pts/s up to maxMp)
+      this.auraRegenAccum += delta * 5;
+      let auraGain = 0;
+      if (this.auraRegenAccum >= 1.0) {
+        auraGain = Math.floor(this.auraRegenAccum);
+        this.auraRegenAccum -= auraGain;
       }
-      return stats;
-    });
+
+      // Stamina fast passive regen (+25 pts/s when not dashing, sprinting, or charging)
+      let staminaGain = 0;
+      if (!this.isDashing && !this.isSprinting && !this.isChargingAttack) {
+        this.staminaRegenAccum += delta * 25;
+        if (this.staminaRegenAccum >= 1.0) {
+          staminaGain = Math.floor(this.staminaRegenAccum);
+          this.staminaRegenAccum -= staminaGain;
+        }
+      } else {
+        this.staminaRegenAccum = 0;
+      }
+
+      if (auraGain > 0 || staminaGain > 0) {
+        this.callbacks.onUpdateStats((stats) => {
+          let updated = stats;
+          if (auraGain > 0 && stats.mp < stats.maxMp) {
+            updated = { ...updated, mp: Math.min(stats.maxMp, stats.mp + auraGain) };
+          }
+          if (staminaGain > 0 && stats.stamina < stats.maxStamina) {
+            updated = { ...updated, stamina: Math.min(stats.maxStamina, stats.stamina + staminaGain) };
+          }
+          return updated;
+        });
+      }
+    } else {
+      // Stamina regeneration for other classes
+      this.callbacks.onUpdateStats((stats) => {
+        if (stats.stamina < stats.maxStamina) {
+          return { ...stats, stamina: Math.min(stats.maxStamina, stats.stamina + delta * 8) };
+        }
+        return stats;
+      });
+    }
 
     // Multiplayer position & transform broadcast
     if (this.gameMode === 'multiplayer') {
@@ -6034,7 +7083,7 @@ export class GameEngine {
     this.callbacks.onUpdateStats((stats) => {
       const enemyDmg = enemy.data.attack;
       let finalDmg = Math.max(2, enemyDmg - Math.round(stats.baseDefense * 0.6));
-      const { remainingDamage } = this.absorbDamageWithShield(finalDmg);
+      const { remainingDamage } = this.absorbDamageWithShield(finalDmg, enemy);
       finalDmg = remainingDamage;
       const nextHp = Math.max(0, stats.hp - finalDmg);
 

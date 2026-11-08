@@ -27,6 +27,7 @@ export interface PlayerStatusDebuffs {
 export interface PlayerMovementConfig {
   charClass: CharacterClass;
   isDashing: boolean;
+  isSprinting?: boolean;
   speedBuffTimer: number;
   isStunned?: boolean;
   isCasting?: boolean;
@@ -69,9 +70,14 @@ export class PlayerController {
     }
     if (config.isDashing) {
       speed = config.charClass === 'rogue' ? 24.0 : config.charClass === 'warrior' ? 19.0 : 16.0;
-    } else if (config.isOnRoad) {
-      // Movement speed buff (+15%) on road
-      speed *= 1.15;
+    } else {
+      if (config.isSprinting) {
+        speed *= 1.45; // Sprint: +45% movement speed
+      }
+      if (config.isOnRoad) {
+        // Movement speed buff (+15%) on road
+        speed *= 1.15;
+      }
     }
     return speed;
   }

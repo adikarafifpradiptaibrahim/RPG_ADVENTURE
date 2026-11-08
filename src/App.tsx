@@ -1010,6 +1010,8 @@ export default function App() {
             onOpenHelp={() => setIsHelpOpen(true)}
             onOpenMap={() => setIsMapOpen(true)}
             onPerformAttack={() => engineRef.current?.performBasicAttack()}
+            onAttackStart={() => engineRef.current?.startBasicAttack()}
+            onAttackEnd={() => engineRef.current?.releaseBasicAttack()}
             onCastSkill={(slot) => engineRef.current?.castSkill(slot)}
             onJump={() => engineRef.current?.jumpOrDodge()}
             onRotateCamera={(dx, dy) => engineRef.current?.rotateCameraByDelta(dx, dy)}

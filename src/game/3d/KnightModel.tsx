@@ -934,3 +934,43 @@ export function animateKnightWalk(
   playerMesh.group.position.y = playerPosY + walkBob;
   playerMesh.group.rotation.z = hipSway;
 }
+
+/**
+ * Sets emissive glow on the Knight's broadsword blade during charge attack
+ */
+export function setKnightBladeGlow(
+  playerMesh: PlayerMeshObjects,
+  intensity: number,
+  colorHex: number = 0xffaa00
+): void {
+  if (!playerMesh || !playerMesh.weapon) return;
+  playerMesh.weapon.traverse((child) => {
+    if (child instanceof THREE.Mesh && child.material) {
+      const mat = child.material as THREE.MeshStandardMaterial;
+      if (mat.isMeshStandardMaterial) {
+        if (mat.userData.origEmissive === undefined) {
+          mat.userData.origEmissive = mat.emissive.getHex();
+          mat.userData.origIntensity = mat.emissiveIntensity;
+        }
+        mat.emissive.setHex(colorHex);
+        mat.emissiveIntensity = intensity;
+      }
+    }
+  });
+}
+
+/**
+ * Resets emissive glow on the Knight's broadsword blade
+ */
+export function resetKnightBladeGlow(playerMesh: PlayerMeshObjects): void {
+  if (!playerMesh || !playerMesh.weapon) return;
+  playerMesh.weapon.traverse((child) => {
+    if (child instanceof THREE.Mesh && child.material) {
+      const mat = child.material as THREE.MeshStandardMaterial;
+      if (mat.isMeshStandardMaterial && mat.userData.origEmissive !== undefined) {
+        mat.emissive.setHex(mat.userData.origEmissive);
+        mat.emissiveIntensity = mat.userData.origIntensity ?? 0;
+      }
+    }
+  });
+}

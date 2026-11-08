@@ -5,6 +5,8 @@ export interface SkillBarProps {
   stats: PlayerStats;
   hunterWeaponMode?: 'dagger' | 'bow';
   onPerformAttack: () => void;
+  onAttackStart?: () => void;
+  onAttackEnd?: () => void;
   onCastSkill: (slot: 1 | 2 | 3) => void;
   onJump: () => void;
   onSwitchHunterWeapon?: () => void;
@@ -14,6 +16,8 @@ export const SkillBar: React.FC<SkillBarProps> = ({
   stats,
   hunterWeaponMode = 'dagger',
   onPerformAttack,
+  onAttackStart,
+  onAttackEnd,
   onCastSkill,
   onJump,
   onSwitchHunterWeapon,
@@ -36,10 +40,10 @@ export const SkillBar: React.FC<SkillBarProps> = ({
     switch (stats.characterClass) {
       case 'warrior':
         return {
-          basic: { label: 'Tebas 360°', icon: '⚔️', hint: 'Klik / J' },
-          skill1: { name: 'Pusaran', icon: '🌪️', cost: '15 MP', key: 'Q', color: 'border-amber-500/70 text-amber-300 bg-amber-950/40' },
-          skill2: { name: 'Terjang', icon: '🛡️', cost: '15 Stm', key: 'E', color: 'border-yellow-500/70 text-yellow-300 bg-yellow-950/40' },
-          skill3: { name: 'Benteng', icon: '🏰', cost: '25 MP', key: 'R', color: 'border-orange-500/70 text-orange-300 bg-orange-950/40' },
+          basic: { label: 'Tebas / Charge', icon: '⚔️', hint: 'Klik / Tahan / J' },
+          skill1: { name: 'Triple Crescent', icon: '🌙', cost: '20 Aura', key: 'Q', color: 'border-amber-500/70 text-amber-300 bg-amber-950/40' },
+          skill2: { name: 'Cataclysmic Leap', icon: '💥', cost: '30 Aura', key: 'E', color: 'border-yellow-500/70 text-yellow-300 bg-yellow-950/40' },
+          skill3: { name: 'Aegis Retribution', icon: '🛡️', cost: '25 Au/15 St', key: 'R', color: 'border-orange-500/70 text-orange-300 bg-orange-950/40' },
         };
       case 'mage':
         return {
@@ -103,15 +107,29 @@ export const SkillBar: React.FC<SkillBarProps> = ({
       {/* Main Attack Button (Arcane / Tebas / Panah - Largest in Bottom-Right Corner on Mobile) */}
       <button
         type="button"
+        onMouseDown={() => {
+          if (onAttackStart) onAttackStart();
+        }}
+        onMouseUp={() => {
+          if (onAttackEnd) onAttackEnd();
+        }}
         onTouchStart={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          onPerformAttack();
+          if (onAttackStart) onAttackStart();
+          else onPerformAttack();
         }}
-        onClick={onPerformAttack}
+        onTouchEnd={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (onAttackEnd) onAttackEnd();
+        }}
+        onClick={() => {
+          if (!onAttackStart && !onAttackEnd) onPerformAttack();
+        }}
         style={{ touchAction: 'none', userSelect: 'none' }}
         className="skill-btn skill-btn-attack touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-amber-600 via-stone-800 to-stone-950 hover:from-amber-500 hover:to-stone-900 text-stone-100 border-2 border-amber-400/90 shadow-2xl cursor-pointer active:scale-90 transition-all select-none"
-        title={`${classSkills.basic.label} (Klik Kiri / J)`}
+        title={`${classSkills.basic.label} (Klik Kiri / Tahan / J)`}
       >
         <span className="text-xl sm:text-2xl md:text-xl drop-shadow">{classSkills.basic.icon}</span>
         <span className="hidden md:inline text-[8px] font-bold text-stone-300 line-clamp-1">{classSkills.basic.label}</span>
@@ -200,10 +218,14 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         onClick={onJump}
         style={{ touchAction: 'none', userSelect: 'none' }}
         className="skill-btn skill-btn-jump touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-800 to-stone-900 hover:from-stone-700 text-stone-200 border border-stone-600 shadow-lg cursor-pointer active:scale-90 transition-all select-none"
-        title="Lompat / Menghindar (Spasi)"
+        title={stats.characterClass === 'warrior' ? "Shield Dash / Lompat (Spasi)" : "Lompat / Menghindar (Spasi)"}
       >
-        <span className="text-sm sm:text-base md:text-base">🦘</span>
-        <span className="hidden md:inline text-[8px] font-bold text-stone-400">Lompat</span>
+        <span className="text-sm sm:text-base md:text-base">
+          {stats.characterClass === 'warrior' ? '🛡️' : '🦘'}
+        </span>
+        <span className="hidden md:inline text-[8px] font-bold text-stone-400">
+          {stats.characterClass === 'warrior' ? 'Dash' : 'Lompat'}
+        </span>
         <span className="absolute -top-1 -right-1 bg-stone-700 text-stone-300 text-[6px] md:text-[7px] font-mono px-0.5 rounded border border-stone-500">
           Spasi
         </span>

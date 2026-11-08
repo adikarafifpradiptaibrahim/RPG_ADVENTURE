@@ -1,7 +1,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CharacterClass } from '../../types/game';
-import { createHeroicKnightMesh, USE_LEGACY_KNIGHT, animateKnightWalk } from './KnightModel';
+import {
+  createHeroicKnightMesh,
+  USE_LEGACY_KNIGHT,
+  animateKnightWalk,
+  setKnightBladeGlow,
+  resetKnightBladeGlow,
+} from './KnightModel';
 import { createLegacyKnightMesh } from './KnightModelLegacy';
 import {
   createHeroicMageMesh,
@@ -23,6 +29,8 @@ export {
   createLegacyKnightMesh,
   USE_LEGACY_KNIGHT,
   animateKnightWalk,
+  setKnightBladeGlow,
+  resetKnightBladeGlow,
   createHeroicMageMesh,
   createLegacyMageMesh,
   USE_LEGACY_MAGE,
