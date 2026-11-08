@@ -293,12 +293,20 @@ export function createHunterModel(): THREE.Group {
   leftDagger.add(leftHilt, leftGuard, leftBlade);
   leftArmPose.add(leftDagger);
 
-  // Busur tangan kiri saat mode ranged
+  // Busur Tangan Kiri (Ranged Mode - Sesuai Gambar Referensi 1 & 2)
   const handBow = createSegmentedBow(matWood, matString);
   handBow.name = 'HandBow';
-  handBow.position.set(0, -0.44, 0.10);
-  handBow.rotation.y = -Math.PI / 2;
-  handBow.visible = false;
+  // Letakkan pas di genggaman telapak tangan kiri
+  handBow.position.set(0, -0.44, 0.08);
+
+  // Orientasi Busur Alami:
+  // - Berdiri vertikal di samping paha
+  // - Punggung busur melengkung ke DEPAN (sumbu Z+)
+  // - Tali busur menghadap ke BELAKANG (ke arah tubuh)
+  handBow.rotation.x = 0.20;           // Sedikit condong maju mengikuti langkah
+  handBow.rotation.y = Math.PI / 2;    // Menghadap ke depan musuh
+  handBow.rotation.z = -0.15;          // Miring natural mengikuti garis A paha luar
+  handBow.visible = false;             // Default tersembunyi saat mode belati
   leftArmPose.add(handBow);
 
   leftArmGroup.add(leftArmPose);
@@ -372,15 +380,17 @@ export function updateHunterWeaponStance(model: THREE.Group, stance: 'dagger' | 
   const rightDagger = model.getObjectByName('RightArm')?.getObjectByName('HandDagger');
 
   if (stance === 'bow') {
-    if (backBow) backBow.visible = false;
-    if (handBow) handBow.visible = true;
-    if (leftDagger) leftDagger.visible = false;
-    if (rightDagger) rightDagger.visible = false;
+    // Mode Pemanah:
+    if (backBow) backBow.visible = false;      // Busur punggung dicabut
+    if (handBow) handBow.visible = true;       // Busur muncul di tangan kiri
+    if (leftDagger) leftDagger.visible = false; // Belati kiri disimpan
+    if (rightDagger) rightDagger.visible = false; // Belati kanan disimpan rapi
   } else {
-    if (backBow) backBow.visible = true;
-    if (handBow) handBow.visible = false;
-    if (leftDagger) leftDagger.visible = true;
-    if (rightDagger) rightDagger.visible = true;
+    // Mode Belati (Melee):
+    if (backBow) backBow.visible = true;       // Busur kembali tersampir di punggung
+    if (handBow) handBow.visible = false;      // Busur di tangan kiri hilang
+    if (leftDagger) leftDagger.visible = true;  // Belati kiri keluar (A-Pose)
+    if (rightDagger) rightDagger.visible = true; // Belati kanan keluar (A-Pose)
   }
 }
 
