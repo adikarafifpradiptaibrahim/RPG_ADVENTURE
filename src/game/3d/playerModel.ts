@@ -298,10 +298,10 @@ export function createHunterModel(): THREE.Group {
   handBow.name = 'HandBow';
   handBow.position.set(-0.06, -0.42, 0.02);
 
-  // KOREKSI MATEMATIS ROTASI:
-  // (0, Math.PI / 2, -Math.PI / 2) mengunci busur membujur depan-belakang
-  // dan membalik senar menghadap ke atas, gagang melengkung di bawah
-  handBow.rotation.set(0, Math.PI / 2, -Math.PI / 2);
+  // KOREKSI ROTASI POROS:
+  // Rotasi X = -90 derajat mengangkat senar langsung ke atas
+  // Rotasi Y = 90 derajat membujur dari depan ke belakang
+  handBow.rotation.set(-Math.PI / 2, Math.PI / 2, 0);
   handBow.visible = false;
   leftArmPose.add(handBow);
 
