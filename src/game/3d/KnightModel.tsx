@@ -690,10 +690,10 @@ export function createHeroicKnightMesh(tier: number = 1): PlayerMeshObjects {
 
   weapon.add(blade, bladeTip, fuller, crossguard, grip, pommel);
 
-  // KOREKSI ORIENTASI PEDANG (Requirement 2):
+  // KOREKSI ORIENTASI PEDANG:
   // Pivot dasar pedang keluar tegak lurus dari atas kepalan tangan (menghadap ke depan horizontal sejajar tangan)
-  weapon.position.set(0, -0.05, 0.08);
-  weapon.rotation.set(-Math.PI / 2, 0, 0);
+  weapon.position.set(0, -0.04, 0.06);
+  weapon.rotation.set(Math.PI / 2, 0, 0);
   rightHand.add(weapon);
 
   // --------------------------------------------------------------------------
@@ -945,8 +945,8 @@ export function animateKnightWalk(
     playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, -0.10, 0.2);
     playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, -0.20, 0.2);
 
-    playerMesh.weapon.position.set(0, -0.05, 0.08);
-    playerMesh.weapon.rotation.set(-Math.PI / 2, 0, 0);
+    playerMesh.weapon.position.set(0, -0.04, 0.06);
+    playerMesh.weapon.rotation.set(0.2, 0, 0);
   }
 
   // 3. Hip Sway & Body Bobbing alami
@@ -1294,11 +1294,11 @@ export function animateKnightCombatPose(
       break;
     }
     default: {
-      playerMesh.rightArm.rotation.set(-0.55, -0.10, -0.20);
+      playerMesh.rightArm.rotation.set(-0.4, -0.1, -0.2);
       playerMesh.leftArm.rotation.set(-0.35, 0.25, 0.18);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
-      playerMesh.weapon.position.set(0, -0.05, 0.08);
-      playerMesh.weapon.rotation.set(-0.20, 0, 0);
+      playerMesh.weapon.position.set(0, -0.04, 0.06);
+      playerMesh.weapon.rotation.set(0.2, 0, 0);
       playerMesh.body.rotation.set(0, 0, 0);
       break;
     }
