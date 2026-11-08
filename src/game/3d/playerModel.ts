@@ -238,61 +238,65 @@ export function createHunterModel(): THREE.Group {
   root.add(headGroup);
 
   // ==========================================
-  // 6. LENGAN & BELATI: A-POSE MELEBAR KE SAMPING (GAMBAR 1 STANCE)
+  // 6. LENGAN & BELATI: FORWARD A-POSE (MENGHADAP KE DEPAN LUAR)
   // ==========================================
   let armLeft: THREE.Group | undefined;
   let armRight: THREE.Group | undefined;
 
-  [-0.36, 0.36].forEach((xSide, idx) => {
+  [-0.38, 0.38].forEach((xSide, idx) => {
     const isLeft = idx === 0;
     const armGroup = new THREE.Group();
     armGroup.name = isLeft ? 'LeftArm' : 'RightArm';
-    // Titik sendi bahu agak lebar
-    armGroup.position.set(xSide, 1.44, 0);
+    
+    // Titik sendi bahu agak maju (Z = 0.04) agar tidak menabrak jubah
+    armGroup.position.set(xSide, 1.44, 0.04);
 
     // Pauldron Bahu Baja
     const shoulder = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.18, 0.22), matArmorPlate);
     armGroup.add(shoulder);
 
-    // LENGAN: Membuka ke samping luar (A-Pose sejati)
+    // Hierarki Lengan (Arm Limb)
     const armLimb = new THREE.Group();
-    // Lengan terbuka ke arah luar (Z-rotation) dan sedikit mengarah ke depan
-    armLimb.rotation.z = isLeft ? 0.42 : -0.42;
-    armLimb.rotation.y = isLeft ? 0.20 : -0.20;
-    armLimb.rotation.x = -0.15; // Siku agak tertarik mundur
+    // Membuka ke samping luar (A-Pose) dan condong ke DEPAN (X = +0.28, BUKAN MINUS!)
+    armLimb.rotation.z = isLeft ? 0.36 : -0.36; // Melebar keluar
+    armLimb.rotation.x = 0.28;                  // Lengan maju ke depan paha
+    armLimb.rotation.y = isLeft ? 0.15 : -0.15; // Sedikit rotasi keluar
 
+    // Lengan Tangan (Tunic Sleeve)
     const limbMesh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.44, 0.14), matTunic);
     limbMesh.position.set(0, -0.22, 0);
     armLimb.add(limbMesh);
 
-    // Tangan (Kepalan Sarung Tangan)
+    // Telapak Tangan (Glove)
     const hand = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.13, 0.13), matPants);
-    hand.position.set(0, -0.46, 0.04);
+    hand.position.set(0, -0.46, 0.02);
     armLimb.add(hand);
 
-    // DUAL DAGGERS: Bilah Mencuat ke DEPAN & Menyerong ke LUAR
+    // DUAL DAGGERS: Bilah Mencuat Jelas ke Depan (Z+)
     const dagger = new THREE.Group();
     dagger.name = 'HandDagger';
-    dagger.position.set(0, -0.46, 0.04);
+    dagger.position.set(0, -0.46, 0.06);
 
-    // Bilah diarahkan lurus ke depan musuh dengan sudut serong keluar
-    dagger.rotation.x = 0.15; // Sedikit mendongak siap tusuk
-    dagger.rotation.y = isLeft ? 0.35 : -0.35; // Membuka ke luar
+    // Rotasi belati: sedikit menukik ke bawah dan menyerong ke samping luar
+    dagger.rotation.x = 0.20;                   // Siap tusuk ke depan
+    dagger.rotation.y = isLeft ? 0.35 : -0.35; // Terbuka keluar paha
 
+    // Gagang di genggaman
     const hilt = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.05), matLeather);
     hilt.position.set(0, 0, 0);
 
+    // Guard Belati
     const guard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.06), matArmorPlate);
     guard.position.set(0, 0.02, 0.08);
 
-    // Bilah Belati Cyan Memanjang ke Depan (Z+)
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.48), matCyanGlow);
-    blade.position.set(0, 0.02, 0.34);
+    // Bilah Belati Cyan Memanjang ke Depan (Panjang 0.52 unit)
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.52), matCyanGlow);
+    blade.position.set(0, 0.02, 0.36); // Mencuat jauh ke depan tangan bebas clipping
 
     dagger.add(hilt, guard, blade);
     armLimb.add(dagger);
 
-    // Busur di Tangan Kiri
+    // Busur di Tangan Kiri saat mode busur
     if (isLeft) {
       const handBow = createSegmentedBow(matWood, matString);
       handBow.name = 'HandBow';
