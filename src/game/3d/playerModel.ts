@@ -298,8 +298,9 @@ export function createHunterModel(): THREE.Group {
   handBow.name = 'HandBow';
   handBow.position.set(-0.06, -0.42, 0.04);
 
-  // ROTASI TERKUNCI: Senar Cyan di Atas, Gagang Kayu di Bawah, Membujur Depan-Belakang
-  handBow.rotation.set(0, -Math.PI / 2, -Math.PI / 2);
+  // KOREKSI SUMBU TUNGGAL:
+  // Cukup putar 90 derajat di sumbu Z agar busur tidur membujur dengan senar menghadap lurus ke ATAS
+  handBow.rotation.set(0, 0, Math.PI / 2);
   handBow.visible = false;
   leftArmPose.add(handBow);
 
