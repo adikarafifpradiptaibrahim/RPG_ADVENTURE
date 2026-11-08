@@ -258,8 +258,8 @@ export function createHunterModel(): THREE.Group {
   // Sub-grup pose statis kebal override animasi
   const leftArmPose = new THREE.Group();
   leftArmPose.name = 'LeftArmPose';
-  leftArmPose.rotation.z = -0.32; // Membuka ke samping kiri luar (A-Pose sejati)
-  leftArmPose.rotation.x = -0.45; // Siku ditekuk maju ke depan dada
+  leftArmPose.rotation.z = -0.16; // Membuka ke samping kiri luar (A-Pose sejati)
+  leftArmPose.rotation.x = -0.30; // Siku ditekuk maju ke depan dada
   leftArmPose.rotation.y = 0.20;
 
   // Pauldron Bahu Kiri
@@ -281,8 +281,8 @@ export function createHunterModel(): THREE.Group {
   const leftDagger = new THREE.Group();
   leftDagger.name = 'HandDagger';
   leftDagger.position.set(0, -0.44, 0.04);
-  leftDagger.rotation.x = 0.55;  // Menyeimbangkan tekukan lengan agar bilah mendatar ke depan
-  leftDagger.rotation.y = -0.35; // Terbuka ke kiri luar
+  leftDagger.rotation.x = 0.35;  // Menyeimbangkan tekukan lengan agar bilah mendatar ke depan
+  leftDagger.rotation.y = -0.28; // Terbuka ke kiri luar
 
   const leftHilt = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.14), matLeather);
   const leftGuard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.06), matArmorPlate);
@@ -312,8 +312,8 @@ export function createHunterModel(): THREE.Group {
   // Sub-grup pose statis kebal override animasi
   const rightArmPose = new THREE.Group();
   rightArmPose.name = 'RightArmPose';
-  rightArmPose.rotation.z = 0.32; // Membuka ke samping kanan luar (A-Pose sejati)
-  rightArmPose.rotation.x = 0.20; // Lengan menjulur di samping paha
+  rightArmPose.rotation.z = 0.16; // Membuka ke samping kanan luar (A-Pose sejati)
+  rightArmPose.rotation.x = 0.12; // Lengan menjulur di samping paha
   rightArmPose.rotation.y = -0.20;
 
   // Pauldron Bahu Kanan
@@ -335,8 +335,8 @@ export function createHunterModel(): THREE.Group {
   const rightDagger = new THREE.Group();
   rightDagger.name = 'HandDagger';
   rightDagger.position.set(0, -0.44, 0.04);
-  rightDagger.rotation.x = -0.10; // Mendatar ke depan
-  rightDagger.rotation.y = 0.35;  // Terbuka ke kanan luar
+  rightDagger.rotation.x = -0.05; // Mendatar ke depan
+  rightDagger.rotation.y = 0.28;  // Terbuka ke kanan luar
 
   const rightHilt = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.14), matLeather);
   const rightGuard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.06), matArmorPlate);
