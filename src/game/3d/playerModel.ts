@@ -293,14 +293,16 @@ export function createHunterModel(): THREE.Group {
   leftDagger.add(leftHilt, leftGuard, leftBlade);
   leftArmPose.add(leftDagger);
 
-  // Busur di Tangan Kiri (Sisi senjata seperti posisi buku Mage)
+  // Busur Horizontal Setinggi Pinggul (Sesuai Gambar 3)
   const handBow = createSegmentedBow(matWood, matString);
   handBow.name = 'HandBow';
-  // Letakkan pas di genggaman tangan di samping pinggul
-  handBow.position.set(-0.02, -0.42, 0.04);
+  // Letakkan pas di genggaman kepalan tangan di samping pinggul
+  handBow.position.set(-0.04, -0.42, 0.06);
 
-  // Berdiri tegak vertikal menyusuri pinggang, lengkungan ke depan (Z+)
-  handBow.rotation.set(0, 0, 0);
+  // KOREKSI ROTASI: REBAHKAN MENJADI HORIZONTAL MEMBUJUR DEPAN-BELAKANG
+  // Rotasi X = 90 derajat (Math.PI / 2) agar busur tidur mendatar
+  // Rotasi Z = -90 derajat (-Math.PI / 2) agar membujur dari depan ke belakang
+  handBow.rotation.set(Math.PI / 2, 0, -Math.PI / 2);
   handBow.visible = false;
   leftArmPose.add(handBow);
 
@@ -378,31 +380,29 @@ export function updateHunterWeaponStance(model: THREE.Group, stance: 'dagger' | 
   const rightArmPose = model.getObjectByName('RightArmPose');
 
   if (stance === 'bow') {
-    // Sembunyikan belati dan busur punggung, aktifkan busur tangan
+    // Mode Panah:
     if (backBow) backBow.visible = false;
     if (handBow) handBow.visible = true;
     if (leftDagger) leftDagger.visible = false;
     if (rightDagger) rightDagger.visible = false;
 
-    // TANGAN PEMEGANG BUSUR (Sisi kiri layar / LeftArmPose):
-    // Ketiak sedikit terbuka, tangan menjepit busur di samping pinggul (Pose Buku Mage)
+    // TANGAN PEMEGANG BUSUR: Turun menyusuri pinggul, ketiak sedikit santai
     if (leftArmPose) {
-      leftArmPose.rotation.set(-0.06, 0.04, -0.14);
+      leftArmPose.rotation.set(0.04, 0.02, -0.10);
     }
 
-    // TANGAN TANPA SENJATA (Sisi kanan layar / RightArmPose):
-    // Lurus santai ke bawah sejajar badan
+    // TANGAN TANPA SENJATA: Lurus vertikal ke bawah sejajar badan
     if (rightArmPose) {
       rightArmPose.rotation.set(0, 0, 0);
     }
   } else {
-    // KEMBALI KE MODE BELATI (Melee A-Pose Asli)
+    // Mode Belati (Melee A-Pose Asli):
     if (backBow) backBow.visible = true;
     if (handBow) handBow.visible = false;
     if (leftDagger) leftDagger.visible = true;
     if (rightDagger) rightDagger.visible = true;
 
-    // Reset ke rotasi belati yang sudah stabil
+    // Kembalikan ke pose belati siap tempur
     if (leftArmPose) {
       leftArmPose.rotation.set(-0.30, 0.20, -0.16);
     }
