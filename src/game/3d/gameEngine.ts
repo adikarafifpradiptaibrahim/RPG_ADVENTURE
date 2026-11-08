@@ -6049,7 +6049,9 @@ export class GameEngine {
         // Breathing cycle halus saat diam
         const breathe = Math.sin(this.clock.getElapsedTime() * 2.0) * 0.015;
         this.playerMesh.body.position.y = THREE.MathUtils.lerp(this.playerMesh.body.position.y, 1.48 + breathe, 0.15);
-        this.playerMesh.body.rotation.set(0, 0, 0);
+        if (!this.isAttacking) {
+          this.playerMesh.body.rotation.set(0, 0, 0);
+        }
 
         if (!this.isAttacking && !this.isChargingAttack) {
           // Lengan Kiri (Perisai): Tergenggam mantap di samping pinggang/dada luar (Requirement 2.1)
