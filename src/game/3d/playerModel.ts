@@ -149,8 +149,8 @@ export function createHunterModel(): THREE.Group {
   // 4. JUBAH BERGERIGI (CAPE)
   const capeGroup = new THREE.Group();
   capeGroup.name = 'HunterCape';
-  capeGroup.position.set(0, 1.45, -0.18);
-  capeGroup.rotation.x = -0.16;
+  capeGroup.position.set(0, 1.45, -0.32);
+  capeGroup.rotation.x = -0.22;
 
   const capeMain = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.76, 0.03), matHoodCape);
   capeMain.position.set(0, -0.38, 0);
@@ -221,11 +221,12 @@ export function createHunterModel(): THREE.Group {
     const daggerGroup = new THREE.Group();
     daggerGroup.name = 'HandDagger';
     const hilt = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.16), matLeather);
-    hilt.position.set(0, -0.38, 0.20);
+    hilt.position.set(0, -0.38, 0.18);
     const guard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.04), matArmor);
     guard.position.set(0, -0.38, 0.28);
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.02, 0.46), matGlow);
-    blade.position.set(0, -0.38, 0.52);
+    // Bilah belati cyan memanjang tegas ke depan (+0.38 dari telapak tangan)
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.03, 0.50), matGlow);
+    blade.position.set(0, -0.38, 0.56);
     blade.rotation.y = isLeft ? -0.10 : 0.10;
     daggerGroup.add(hilt, guard, blade);
     arm.add(daggerGroup);
@@ -421,7 +422,7 @@ export function animateHunterWalk(
     }
 
     if (playerMesh.cape) {
-      playerMesh.cape.rotation.x = -0.16 - Math.abs(Math.sin(walkTime * 1.2)) * 0.18;
+      playerMesh.cape.rotation.x = -0.22 - Math.abs(Math.sin(walkTime * 1.2)) * 0.18;
     }
 
     const walkBob = Math.abs(Math.sin(walkTime * 2.4)) * 0.04;
@@ -468,7 +469,7 @@ export function animateHunterWalk(
     }
 
     if (playerMesh.cape) {
-      playerMesh.cape.rotation.x = -0.16 - Math.sin(walkTime * 2.0) * 0.03;
+      playerMesh.cape.rotation.x = -0.22 - Math.sin(walkTime * 2.0) * 0.03;
     }
   }
 }
