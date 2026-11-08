@@ -293,15 +293,13 @@ export function createHunterModel(): THREE.Group {
   leftDagger.add(leftHilt, leftGuard, leftBlade);
   leftArmPose.add(leftDagger);
 
-  // Busur Horizontal Membujur di Samping Pinggul
+  // Busur Horizontal Membujur (Senar di Atas, Gagang di Bawah)
   const handBow = createSegmentedBow(matWood, matString);
   handBow.name = 'HandBow';
-  // Letakkan di luar pinggang tepat di genggaman tangan
-  handBow.position.set(-0.10, -0.44, 0.02);
+  handBow.position.set(-0.10, -0.42, 0.02);
 
-  // KOREKSI ROTASI HORIZONTAL MEMBUJUR DEPAN-BELAKANG:
-  // Diputar agar sumbu panjang busur sejajar sumbu Z (depan-belakang)
-  handBow.rotation.set(0, Math.PI / 2, Math.PI / 2);
+  // KOREKSI: Balik 180 derajat agar senar menghadap ke atas
+  handBow.rotation.set(Math.PI, Math.PI / 2, Math.PI / 2);
   handBow.visible = false;
   leftArmPose.add(handBow);
 
