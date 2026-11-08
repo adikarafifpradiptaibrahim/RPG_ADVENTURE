@@ -247,31 +247,10 @@ export function createHunterModel(): THREE.Group {
   root.add(headGroup);
 
   // ==========================================
-  // 6. LENGAN & DUAL BELATI: POSE ASIMETRIS GAMBAR 4
+  // 6. LENGAN & DUAL BELATI: AKURAT GAMBAR 4
   // ==========================================
-  
-  // Helper pembuatan belati (Bilah memanjang di sumbu Z+ ke arah depan)
-  const createDaggerMesh = () => {
-    const dGroup = new THREE.Group();
-    dGroup.name = 'HandDagger';
-    
-    // Gagang di telapak tangan
-    const hilt = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.14), matLeather);
-    hilt.position.set(0, 0, 0);
-    
-    // Guard belati melintang
-    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.06), matArmorPlate);
-    guard.position.set(0, 0, 0.07);
-    
-    // Bilah Cyan Memanjang ke Depan (Z+)
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.48), matCyanGlow);
-    blade.position.set(0, 0, 0.32);
-    
-    dGroup.add(hilt, guard, blade);
-    return dGroup;
-  };
 
-  // --- A. TANGAN KIRI KARAKTER (X = -0.42, Sudut Pandang Belakang Karakter) ---
+  // --- 1. TANGAN KIRI KARAKTER (X = -0.42, Dilihat dari Belakang) ---
   const leftArmGroup = new THREE.Group();
   leftArmGroup.name = 'LeftArm';
   leftArmGroup.position.set(-0.42, 1.42, 0.02);
@@ -280,12 +259,12 @@ export function createHunterModel(): THREE.Group {
   const leftShoulder = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.22), matArmorPlate);
   leftArmGroup.add(leftShoulder);
 
-  // Lengan Kiri (Ditekuk ke depan-atas, siap serbu)
+  // Lengan Kiri (Membuka ke samping kiri luar dan condong maju ke depan)
   const leftLimb = new THREE.Group();
-  leftLimb.position.set(-0.04, -0.06, 0);
-  leftLimb.rotation.x = -0.65; // Lengan terangkat ke depan dada
-  leftLimb.rotation.z = -0.22; // Membuka ke samping kiri
-  leftLimb.rotation.y = 0.20;
+  leftLimb.position.set(-0.02, -0.08, 0); // Rapat di bawah pauldron
+  leftLimb.rotation.z = 0.20;            // Membuka ke kiri (A-pose)
+  leftLimb.rotation.x = 0.35;            // Siku maju ke depan
+  leftLimb.rotation.y = 0.15;
 
   const leftLimbMesh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.44, 0.14), matTunic);
   leftLimbMesh.position.set(0, -0.20, 0);
@@ -296,14 +275,23 @@ export function createHunterModel(): THREE.Group {
   leftHand.position.set(0, -0.42, 0.02);
   leftLimb.add(leftHand);
 
-  // Belati Kiri: Mengacung mendongak ke depan-kiri
-  const leftDagger = createDaggerMesh();
+  // Belati Kiri: Mengacung mendatar ke DEPAN (Z+) & serong ke KIRI LUAR
+  const leftDagger = new THREE.Group();
+  leftDagger.name = 'HandDagger';
   leftDagger.position.set(0, -0.42, 0.04);
-  leftDagger.rotation.x = 0.45;  // Mendongak ke atas
-  leftDagger.rotation.y = -0.30; // Serong ke kiri luar
+  leftDagger.rotation.x = -0.20; // Mengimbangi tekukan lengan agar bilah mendatar
+  leftDagger.rotation.y = -0.35; // Terbuka ke kiri luar
+
+  const leftHilt = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.14), matLeather);
+  const leftGuard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.06), matArmorPlate);
+  leftGuard.position.set(0, 0, 0.07);
+  const leftBlade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.50), matCyanGlow);
+  leftBlade.position.set(0, 0, 0.32);
+
+  leftDagger.add(leftHilt, leftGuard, leftBlade);
   leftLimb.add(leftDagger);
 
-  // Busur Tangan Kiri (khusus mode panah)
+  // Busur Tangan Kiri (mode panah)
   const handBow = createSegmentedBow(matWood, matString);
   handBow.name = 'HandBow';
   handBow.position.set(0, -0.42, 0.12);
@@ -314,7 +302,7 @@ export function createHunterModel(): THREE.Group {
   leftArmGroup.add(leftLimb);
   root.add(leftArmGroup);
 
-  // --- B. TANGAN KANAN KARAKTER (X = +0.42, Sudut Pandang Belakang Karakter) ---
+  // --- 2. TANGAN KANAN KARAKTER (X = +0.42, Dilihat dari Belakang) ---
   const rightArmGroup = new THREE.Group();
   rightArmGroup.name = 'RightArm';
   rightArmGroup.position.set(0.42, 1.42, 0.02);
@@ -323,11 +311,11 @@ export function createHunterModel(): THREE.Group {
   const rightShoulder = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.22), matArmorPlate);
   rightArmGroup.add(rightShoulder);
 
-  // Lengan Kanan (Menjulur di samping paha, sedikit ditarik ke belakang)
+  // Lengan Kanan (Membuka ke samping kanan luar di samping paha)
   const rightLimb = new THREE.Group();
-  rightLimb.position.set(0.04, -0.06, 0);
-  rightLimb.rotation.x = 0.25;  // Menjulur ke samping bawah paha
-  rightLimb.rotation.z = -0.18; // Membuka ke samping kanan luar
+  rightLimb.position.set(0.02, -0.08, 0); // Rapat di bawah pauldron
+  rightLimb.rotation.z = -0.20;           // Membuka ke kanan (A-pose)
+  rightLimb.rotation.x = 0.15;            // Santai sedikit maju
   rightLimb.rotation.y = -0.15;
 
   const rightLimbMesh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.44, 0.14), matTunic);
@@ -339,11 +327,20 @@ export function createHunterModel(): THREE.Group {
   rightHand.position.set(0, -0.42, 0.02);
   rightLimb.add(rightHand);
 
-  // Belati Kanan: Mengacung horizontal ke depan-kanan
-  const rightDagger = createDaggerMesh();
+  // Belati Kanan: Mengacung mendatar ke DEPAN (Z+) & serong ke KANAN LUAR
+  const rightDagger = new THREE.Group();
+  rightDagger.name = 'HandDagger';
   rightDagger.position.set(0, -0.42, 0.04);
-  rightDagger.rotation.x = -0.10; // Mendatar horizontal
-  rightDagger.rotation.y = 0.35;  // Serong ke kanan luar
+  rightDagger.rotation.x = -0.05; // Mendatar horizontal
+  rightDagger.rotation.y = 0.35;  // Terbuka ke kanan luar
+
+  const rightHilt = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.14), matLeather);
+  const rightGuard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.06), matArmorPlate);
+  rightGuard.position.set(0, 0, 0.07);
+  const rightBlade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.50), matCyanGlow);
+  rightBlade.position.set(0, 0, 0.32);
+
+  rightDagger.add(rightHilt, rightGuard, rightBlade);
   rightLimb.add(rightDagger);
 
   rightArmGroup.add(rightLimb);
