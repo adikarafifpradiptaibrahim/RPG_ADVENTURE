@@ -6058,15 +6058,16 @@ export class GameEngine {
           this.playerMesh.leftArm.rotation.set(-0.30, 0.20, 0.15);
           this.playerMesh.leftArm.position.set(0.46, 1.68, 0);
 
-          // Lengan Kanan (Pedang): Rileks menggantung di samping paha, bilah pedang mengarah serong alami (Requirement 2)
+          // Lengan Kanan (Pedang): Rileks di samping pinggang (Requirement 2)
           this.playerMesh.rightArm.rotation.set(
-            THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0.15 - breathe * 0.2, 0.15),
+            THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0.10 - breathe * 0.15, 0.15),
             0,
             THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.z, -0.15, 0.15)
           );
           this.playerMesh.rightArm.position.set(-0.46, 1.68, 0);
-          this.playerMesh.weapon.position.set(0, 0, 0.02);
-          this.playerMesh.weapon.rotation.set(0, 0, 0);
+          this.playerMesh.leftArm.position.set(0.46, 1.68, 0);
+          this.playerMesh.weapon.position.set(0, -0.04, 0.04);
+          this.playerMesh.weapon.rotation.set(2.35, 0, 0.15);
         }
       } else if (this.charClass === 'mage') {
         // Heroic Blocky Low-Poly Mage Idle State (Subtle Breathing & Relaxed Staff/Grimoire Pose)
@@ -6101,8 +6102,12 @@ export class GameEngine {
           THREE.MathUtils.lerp(-0.20, -0.20, ease)
         );
         this.playerMesh.rightArm.position.set(-0.46, 1.68, 0);
-        this.playerMesh.weapon.position.set(0, 0, 0.02);
-        this.playerMesh.weapon.rotation.set(0, 0, 0);
+        this.playerMesh.weapon.position.set(0, -0.04, 0.04);
+        this.playerMesh.weapon.rotation.set(
+          THREE.MathUtils.lerp(2.35, 1.57, ease),
+          0,
+          THREE.MathUtils.lerp(0.15, 0, ease)
+        );
         this.playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
         this.playerMesh.leftArm.position.set(0.46, 1.68, 0);
         this.playerMesh.body.rotation.set(0, 0, 0);
@@ -6111,8 +6116,8 @@ export class GameEngine {
         // Detik 1.0 - 5.0 (Menahan & Penyerapan Energi): Mengonsumsi 10 stamina/detik saat ditahan
         this.playerMesh.rightArm.rotation.set(-2.85, 0.10, -0.20);
         this.playerMesh.rightArm.position.set(-0.46, 1.68, 0);
-        this.playerMesh.weapon.position.set(0, 0, 0.02);
-        this.playerMesh.weapon.rotation.set(0, 0, 0);
+        this.playerMesh.weapon.position.set(0, -0.04, 0.04);
+        this.playerMesh.weapon.rotation.set(1.57, 0, 0);
         this.playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
         this.playerMesh.leftArm.position.set(0.46, 1.68, 0);
         this.playerMesh.body.rotation.set(0, 0, 0);
@@ -6141,8 +6146,8 @@ export class GameEngine {
         // Detik > 5.0: Karakter tetap mempertahankan pose siap tebas (tidak mengonsumsi stamina tambahan, tidak menambah damage lagi)
         this.playerMesh.rightArm.rotation.set(-2.85, 0.10, -0.20);
         this.playerMesh.rightArm.position.set(-0.46, 1.68, 0);
-        this.playerMesh.weapon.position.set(0, 0, 0.02);
-        this.playerMesh.weapon.rotation.set(0, 0, 0);
+        this.playerMesh.weapon.position.set(0, -0.04, 0.04);
+        this.playerMesh.weapon.rotation.set(1.57, 0, 0);
         this.playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
         this.playerMesh.leftArm.position.set(0.46, 1.68, 0);
         this.playerMesh.body.rotation.set(0, 0, 0);
@@ -6216,9 +6221,9 @@ export class GameEngine {
           this.playerMesh.leftArm.position.set(0.46, 1.68, 0);
           this.playerMesh.rightArm.position.set(-0.46, 1.68, 0);
           this.playerMesh.leftArm.rotation.set(-0.30, 0.20, 0.15);
-          this.playerMesh.rightArm.rotation.set(0.15, 0, -0.15);
-          this.playerMesh.weapon.position.set(0, 0, 0.02);
-          this.playerMesh.weapon.rotation.set(0, 0, 0);
+          this.playerMesh.rightArm.rotation.set(0.10, 0, -0.15);
+          this.playerMesh.weapon.position.set(0, -0.04, 0.04);
+          this.playerMesh.weapon.rotation.set(2.35, 0, 0.15);
           resetKnightBladeGlow(this.playerMesh);
         } else if (this.charClass === 'mage' && this.playerMesh?.body) {
           this.playerMesh.body.rotation.set(0, 0, 0);
