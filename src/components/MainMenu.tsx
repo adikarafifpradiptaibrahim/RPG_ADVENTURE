@@ -434,7 +434,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-auto select-none overflow-hidden font-sans">
+    <div
+      className={`fixed inset-0 z-50 select-none overflow-hidden font-sans ${
+        view === 'character_select' ? 'pointer-events-none' : 'pointer-events-auto'
+      }`}
+    >
       {/* Fade To Black Overlay for 1-Second Cinematic Transition */}
       <div
         className={`fixed inset-0 z-[100] bg-black pointer-events-none transition-opacity duration-1000 ease-in-out ${
@@ -740,16 +744,16 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           )}
 
           {/* Bottom Section: 360° Drag Hint, Action Buttons, and Skill Bars (Positioned cleanly below the 3D character bodies) */}
-          <div className="w-full flex flex-col items-center gap-2.5 pointer-events-auto pb-2 z-20">
+          <div className="w-full flex flex-col items-center gap-2.5 pointer-events-none pb-2 z-20">
             {/* 360° Rotation & Interaction Hint Pill */}
-            <div className="text-[11px] font-semibold text-amber-200/90 bg-stone-950/75 border border-amber-500/30 px-3 py-1 rounded-full shadow-lg backdrop-blur-sm select-none">
+            <div className="pointer-events-none text-[11px] font-semibold text-amber-200/90 bg-stone-950/75 border border-amber-500/30 px-3 py-1 rounded-full shadow-lg backdrop-blur-sm select-none">
               💡 Geser mouse / drag untuk memutar karakter 360° • Klik role untuk memilih
             </div>
 
             {/* Action Buttons: PILIH KNIGHT / MAGE / ASSASSIN (Shifted down so they do not obstruct characters' bodies) */}
-            <div className="w-full max-w-4xl mx-auto grid grid-cols-3 gap-3 sm:gap-6 px-4">
+            <div className="w-full max-w-4xl mx-auto grid grid-cols-3 gap-3 sm:gap-6 px-4 pointer-events-none">
               {/* 1. Knight Button (Left) */}
-              <div className="flex justify-center">
+              <div className="flex justify-center pointer-events-none">
                 <button
                   type="button"
                   onClick={() => {
@@ -761,7 +765,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                     setSelectedRole('warrior');
                     onSelectPreviewRole?.('warrior');
                   }}
-                  className={`w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl backdrop-blur-md active:scale-95 transition cursor-pointer text-center ${
+                  className={`pointer-events-auto w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl backdrop-blur-md active:scale-95 transition cursor-pointer text-center ${
                     selectedRole === 'warrior'
                       ? 'bg-amber-500/90 border-amber-200 text-stone-950 shadow-amber-500/40 ring-2 ring-amber-400/60 scale-105'
                       : 'bg-stone-950/85 hover:bg-stone-900 border-stone-400/60 text-white'
@@ -772,7 +776,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               </div>
 
               {/* 2. Mage Button (Center) */}
-              <div className="flex justify-center">
+              <div className="flex justify-center pointer-events-none">
                 <button
                   type="button"
                   onClick={() => {
@@ -784,7 +788,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                     setSelectedRole('mage');
                     onSelectPreviewRole?.('mage');
                   }}
-                  className={`w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl backdrop-blur-md active:scale-95 transition cursor-pointer text-center ${
+                  className={`pointer-events-auto w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl backdrop-blur-md active:scale-95 transition cursor-pointer text-center ${
                     selectedRole === 'mage'
                       ? 'bg-purple-500/90 border-purple-200 text-stone-950 shadow-purple-500/40 ring-2 ring-purple-400/60 scale-105'
                       : 'bg-stone-950/85 hover:bg-stone-900 border-stone-400/60 text-white'
@@ -795,7 +799,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               </div>
 
               {/* 3. Assassin Button (Right) */}
-              <div className="flex justify-center">
+              <div className="flex justify-center pointer-events-none">
                 <button
                   type="button"
                   onClick={() => {
@@ -807,7 +811,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                     setSelectedRole('rogue');
                     onSelectPreviewRole?.('rogue');
                   }}
-                  className={`w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl backdrop-blur-md active:scale-95 transition cursor-pointer text-center ${
+                  className={`pointer-events-auto w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl backdrop-blur-md active:scale-95 transition cursor-pointer text-center ${
                     selectedRole === 'rogue'
                       ? 'bg-emerald-500/90 border-emerald-200 text-stone-950 shadow-emerald-500/40 ring-2 ring-emerald-400/60 scale-105'
                       : 'bg-stone-950/85 hover:bg-stone-900 border-stone-400/60 text-white'
@@ -819,10 +823,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             </div>
 
             {/* Bottom Skill Icon Bars (Grouped in 3 Rounded Dark Glassy Capsules) */}
-            <div className="w-full flex items-center justify-center gap-2 sm:gap-4 md:gap-6 flex-wrap">
+            <div className="w-full flex items-center justify-center gap-2 sm:gap-4 md:gap-6 flex-wrap pointer-events-none">
               {/* Knight Skills Bar */}
               <div
-                className={`flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-black/80 border backdrop-blur-md shadow-2xl transition-all ${
+                className={`pointer-events-auto flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-black/80 border backdrop-blur-md shadow-2xl transition-all cursor-pointer ${
                   selectedRole === 'warrior'
                     ? 'border-amber-400 ring-1 ring-amber-400/50 scale-[1.02]'
                     : 'border-amber-600/30'
@@ -839,7 +843,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                     onMouseEnter={() => setActiveTooltip(skill)}
                     onMouseLeave={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : prev))}
                     onClick={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : skill))}
-                    className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+                    className={`pointer-events-auto w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
                       activeTooltip?.id === skill.id
                         ? 'bg-amber-500/30 border-2 border-amber-400 scale-105 shadow-lg shadow-amber-500/30'
                         : 'bg-stone-900/60 hover:bg-stone-800 border border-stone-700/70 hover:border-amber-500/60'
@@ -855,7 +859,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
               {/* Mage Skills Bar */}
               <div
-                className={`flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-black/80 border backdrop-blur-md shadow-2xl transition-all ${
+                className={`pointer-events-auto flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-black/80 border backdrop-blur-md shadow-2xl transition-all cursor-pointer ${
                   selectedRole === 'mage'
                     ? 'border-blue-400 ring-1 ring-blue-400/50 scale-[1.02]'
                     : 'border-blue-600/30'
@@ -872,7 +876,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                     onMouseEnter={() => setActiveTooltip(skill)}
                     onMouseLeave={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : prev))}
                     onClick={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : skill))}
-                    className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+                    className={`pointer-events-auto w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
                       activeTooltip?.id === skill.id
                         ? 'bg-blue-500/30 border-2 border-blue-400 scale-105 shadow-lg shadow-blue-500/30'
                         : 'bg-stone-900/60 hover:bg-stone-800 border border-stone-700/70 hover:border-blue-500/60'
@@ -888,7 +892,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
               {/* Assassin Skills Bar */}
               <div
-                className={`flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-black/80 border backdrop-blur-md shadow-2xl transition-all ${
+                className={`pointer-events-auto flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-black/80 border backdrop-blur-md shadow-2xl transition-all cursor-pointer ${
                   selectedRole === 'rogue'
                     ? 'border-emerald-400 ring-1 ring-emerald-400/50 scale-[1.02]'
                     : 'border-emerald-600/30'
@@ -905,7 +909,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                     onMouseEnter={() => setActiveTooltip(skill)}
                     onMouseLeave={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : prev))}
                     onClick={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : skill))}
-                    className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+                    className={`pointer-events-auto w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
                       activeTooltip?.id === skill.id
                         ? 'bg-emerald-500/30 border-2 border-emerald-400 scale-105 shadow-lg shadow-emerald-500/30'
                         : 'bg-stone-900/60 hover:bg-stone-800 border border-stone-700/70 hover:border-emerald-500/60'

@@ -1902,6 +1902,14 @@ export class GameEngine {
 
     const dom = this.renderer.domElement;
     dom.style.touchAction = 'none';
+
+    // Character Selection 360° Drag & Touch Pointer listeners
+    dom.addEventListener('pointerdown', this.handlePointerDown);
+    window.addEventListener('pointermove', this.handlePointerMove);
+    window.addEventListener('pointerup', this.handlePointerUp);
+    window.addEventListener('pointercancel', this.handlePointerUp);
+    window.addEventListener('pointerdown', this.handlePointerDown);
+
     dom.addEventListener('mousedown', this.handleMouseDown);
     window.addEventListener('mousemove', this.handleMouseMove);
     window.addEventListener('mouseup', this.handleMouseUp);
@@ -2212,25 +2220,56 @@ export class GameEngine {
 
   private isDraggingCamera = false;
 
+  private handlePointerDown = (e: PointerEvent) => {
+    if (this.menuMode !== 'character_select') return;
+    const target = e.target as HTMLElement | null;
+    if (target && (target.tagName === 'BUTTON' || target.closest('button'))) return;
+
+    if (e.button === 0 || e.pointerType === 'touch') {
+      this.isDraggingPreview = true;
+      this.prevPreviewMouseX = e.clientX;
+
+      // Detect if clicked directly on one of the character columns in the viewport
+      const normalizedX = e.clientX / window.innerWidth;
+      if (normalizedX < 0.38) {
+        this.setSelectedPreviewRole('warrior');
+        this.callbacks.onPreviewRoleSelected?.('warrior');
+      } else if (normalizedX > 0.62) {
+        this.setSelectedPreviewRole('rogue');
+        this.callbacks.onPreviewRoleSelected?.('rogue');
+      } else {
+        this.setSelectedPreviewRole('mage');
+        this.callbacks.onPreviewRoleSelected?.('mage');
+      }
+    }
+  };
+
+  private handlePointerMove = (e: PointerEvent) => {
+    if (this.menuMode !== 'character_select') return;
+    if (!this.isDraggingPreview) return;
+
+    const deltaX = e.clientX - this.prevPreviewMouseX;
+    this.prevPreviewMouseX = e.clientX;
+
+    const activeMesh =
+      this.selectedPreviewRole === 'warrior'
+        ? this.knightPreview
+        : this.selectedPreviewRole === 'mage'
+        ? this.magePreview
+        : this.assassinPreview;
+    if (activeMesh?.group) {
+      activeMesh.group.rotation.y += deltaX * 0.015;
+    }
+  };
+
+  private handlePointerUp = () => {
+    if (this.menuMode === 'character_select') {
+      this.isDraggingPreview = false;
+    }
+  };
+
   private handleMouseDown = (e: MouseEvent) => {
     if (this.menuMode === 'character_select') {
-      if (e.button === 0) {
-        this.isDraggingPreview = true;
-        this.prevPreviewMouseX = e.clientX;
-
-        // Detect if clicked directly on one of the character columns in the viewport
-        const normalizedX = e.clientX / window.innerWidth;
-        if (normalizedX < 0.38) {
-          this.setSelectedPreviewRole('warrior');
-          this.callbacks.onPreviewRoleSelected?.('warrior');
-        } else if (normalizedX > 0.62) {
-          this.setSelectedPreviewRole('rogue');
-          this.callbacks.onPreviewRoleSelected?.('rogue');
-        } else {
-          this.setSelectedPreviewRole('mage');
-          this.callbacks.onPreviewRoleSelected?.('mage');
-        }
-      }
       return;
     }
 
@@ -7924,7 +7963,7 @@ export class GameEngine {
       } else if (this.previewActionRole === 'mage' && this.magePreview) {
         // Raise glowing staff into the air
         this.magePreview.rightArm.rotation.set(-Math.PI * 0.85, -0.15, -0.20);
-        this.magePreview.body.position.y = 1.35 + Math.sin(progress * Math.PI) * 0.1;
+        this.magePreview.body.position.y = 1.35;
       } else if (this.previewActionRole === 'rogue' && this.assassinPreview) {
         // Scissor blades cross slash
         const crossPhase = Math.sin(progress * Math.PI * 2);
@@ -7932,24 +7971,38 @@ export class GameEngine {
         this.assassinPreview.rightArm.rotation.set(-1.2 - crossPhase * 0.4, -0.5, -0.4);
       }
     } else {
-      // Natural idle breathing & relaxed standby pose
+      // Natural idle breathing & relaxed standby pose - STATIC GROUND LEVEL (no root/position.y bobbing)
+      const targetY = 0.28;
+      if (this.knightPreview?.group) {
+        this.knightPreview.group.position.y = targetY;
+      }
+      if (this.magePreview?.group) {
+        this.magePreview.group.position.y = targetY;
+      }
+      if (this.assassinPreview?.group) {
+        this.assassinPreview.group.position.y = targetY;
+      }
+
       if (this.knightPreview?.body) {
-        this.knightPreview.body.position.y = 1.48 + breathe;
+        this.knightPreview.body.position.y = 1.48; // Constant, no vertical bobbing
         this.knightPreview.body.rotation.set(0, 0, 0);
-        this.knightPreview.rightArm.rotation.set(-0.28 + breathe * 0.1, -0.15, -0.22);
+        this.knightPreview.body.scale.set(1 + breathe * 0.02, 1, 1 + breathe * 0.02);
+        this.knightPreview.rightArm.rotation.set(-0.28 + breathe * 0.06, -0.15, -0.22);
         this.knightPreview.leftArm.rotation.set(-0.30, 0.20, 0.15);
       }
       if (this.magePreview?.body) {
-        this.magePreview.body.position.y = 1.35 + breathe;
+        this.magePreview.body.position.y = 1.35; // Constant, no vertical bobbing
         this.magePreview.body.rotation.set(0, 0, 0);
-        this.magePreview.rightArm.rotation.set(-0.20 + breathe * 0.08, -0.10, -0.15);
+        this.magePreview.body.scale.set(1 + breathe * 0.02, 1, 1 + breathe * 0.02);
+        this.magePreview.rightArm.rotation.set(-0.20 + breathe * 0.05, -0.10, -0.15);
         this.magePreview.leftArm.rotation.set(0.06, 0.10, 0.12);
       }
       if (this.assassinPreview?.body) {
-        this.assassinPreview.body.position.y = 1.35 + breathe;
+        this.assassinPreview.body.position.y = 1.18; // Constant, correct height, no vertical bobbing
         this.assassinPreview.body.rotation.set(0, 0, 0);
-        this.assassinPreview.rightArm.rotation.set(-0.30 + breathe * 0.08, 0, -0.25);
-        this.assassinPreview.leftArm.rotation.set(-0.30 - breathe * 0.08, 0, 0.25);
+        this.assassinPreview.body.scale.set(1 + breathe * 0.02, 1, 1 + breathe * 0.02);
+        this.assassinPreview.rightArm.rotation.set(-0.30 + breathe * 0.05, 0, -0.25);
+        this.assassinPreview.leftArm.rotation.set(-0.30 - breathe * 0.05, 0, 0.25);
       }
     }
   }
@@ -8567,6 +8620,12 @@ export class GameEngine {
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
 
     const dom = this.renderer.domElement;
+    dom.removeEventListener('pointerdown', this.handlePointerDown);
+    window.removeEventListener('pointermove', this.handlePointerMove);
+    window.removeEventListener('pointerup', this.handlePointerUp);
+    window.removeEventListener('pointercancel', this.handlePointerUp);
+    window.removeEventListener('pointerdown', this.handlePointerDown);
+
     dom.removeEventListener('mousedown', this.handleMouseDown);
     window.removeEventListener('mousemove', this.handleMouseMove);
     window.removeEventListener('mouseup', this.handleMouseUp);

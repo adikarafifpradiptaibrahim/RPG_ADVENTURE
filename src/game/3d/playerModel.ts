@@ -159,22 +159,23 @@ export function createHunterModel(): THREE.Group {
   root.add(pelvis, belt, buckle, pouchL, pouchR);
 
   // ==========================================
-  // 3. TORSO & PLAT DADA
+  // 3. TORSO & PLAT DADA (Tepat di atas pinggul pelvis y = 0.80)
   // ==========================================
   const torsoGroup = new THREE.Group();
   torsoGroup.name = 'TorsoGroup';
+  torsoGroup.position.set(0, 1.18, 0);
 
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.60, 0.34), matTunic);
-  torso.position.set(0, 1.18, 0);
+  torso.position.set(0, 0, 0);
   torsoGroup.add(torso);
 
   const chestPlate = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.34, 0.08), matArmorPlate);
-  chestPlate.position.set(0, 1.25, 0.18);
+  chestPlate.position.set(0, 0.07, 0.18);
   torsoGroup.add(chestPlate);
 
   const strap = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.66, 0.36), matLeather);
   strap.rotation.z = -0.55;
-  strap.position.set(0, 1.18, 0.02);
+  strap.position.set(0, 0, 0.02);
   torsoGroup.add(strap);
 
   root.add(torsoGroup);
@@ -568,7 +569,7 @@ export function animateHunterWalk(
 
     const breathe = Math.sin(walkTime * 2.2) * 0.012;
     if (playerMesh.body) {
-      playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, breathe, 0.15);
+      playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.18, 0.15);
     }
 
     if (!isAttacking) {
