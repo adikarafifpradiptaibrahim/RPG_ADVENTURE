@@ -883,8 +883,9 @@ export class GameEngine {
     } else if (slot === 3) {
       if (charClass === 'warrior') {
         soundManager.playWarriorShieldSlam();
-        this.spawnShockwaveRing(atkPos, 0xfacc15, 4.5, 0.6);
-        this.spawnHitStarburst(atkPos.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xfde047, 2.8);
+        this.spawnShockwaveRing(atkPos, 0xfacc15, 13.5, 0.65);
+        this.spawnHitStarburst(atkPos.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xfde047, 3.5);
+        this.spawnCataclysmicRockSpikesVfx(atkPos);
       } else if (charClass === 'mage') {
         soundManager.playMageCelestialHeal();
         this.spawnHitStarburst(atkPos.clone().add(new THREE.Vector3(0, 1.5, 0)), 0x67e8f9, 3.4);
@@ -3180,7 +3181,7 @@ export class GameEngine {
 
   // 4f. Warrior Cataclysmic Leap Slam - 3D Rock Spikes VFX (Cone / Dodecahedron)
   private spawnCataclysmicRockSpikesVfx(impactPos: THREE.Vector3) {
-    const rockCount = 8;
+    const rockCount = 12; // Formasi lingkaran 12 patahan batu/earth spikes
     const group = new THREE.Group();
     group.position.copy(impactPos);
 
@@ -3196,10 +3197,11 @@ export class GameEngine {
     const rocks: RockInstance[] = [];
 
     for (let i = 0; i < rockCount; i++) {
-      const angle = (i / rockCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
-      const dist = 2.5 + Math.random() * 1.3;
-      const height = 0.8 + Math.random() * 0.6;
-      const width = 0.35 + Math.random() * 0.15;
+      const angle = (i / rockCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
+      // Perluas radius lingkaran formasi batu melingkari pusat benturan (4.5 - 7.5 unit)
+      const dist = 4.5 + Math.random() * 2.8;
+      const height = 1.2 + Math.random() * 0.8;
+      const width = 0.45 + Math.random() * 0.22;
 
       const geom = new THREE.ConeGeometry(width, height, 5);
       const mat = new THREE.MeshStandardMaterial({
@@ -3207,7 +3209,7 @@ export class GameEngine {
         roughness: 0.85,
         metalness: 0.25,
         emissive: 0xffaa00,
-        emissiveIntensity: 0.2,
+        emissiveIntensity: 0.35,
         flatShading: true,
       });
       const rockMesh = new THREE.Mesh(geom, mat);
@@ -3218,7 +3220,7 @@ export class GameEngine {
       const groundY = this.world.getTerrainHeight(impactPos.x + lx, impactPos.z + lz) - impactPos.y;
 
       const basePos = new THREE.Vector3(lx, groundY, lz);
-      const initY = groundY - 0.5;
+      const initY = groundY - 0.6;
       const targetY = groundY + height * 0.5;
 
       rockMesh.position.set(lx, initY, lz);
@@ -3236,31 +3238,31 @@ export class GameEngine {
       update: (delta) => {
         elapsed += delta;
 
-        if (elapsed <= 0.18) {
-          // Fase 1: Erupsi Cepat (0.0s - 0.18s)
-          const p = elapsed / 0.18;
+        if (elapsed <= 0.20) {
+          // Fase 1: Erupsi Cepat Menghujam Keluar Tanah (0.0s - 0.20s)
+          const p = elapsed / 0.20;
           const easeOut = Math.sin((p * Math.PI) / 2);
           rocks.forEach((r) => {
             r.mesh.position.y = THREE.MathUtils.lerp(r.initY, r.targetY, easeOut);
           });
-        } else if (elapsed <= 0.6) {
-          // Fase 2: Diam & Bergetar (0.18s - 0.6s)
-          const shakeFactor = Math.sin(elapsed * 45) * 0.03;
+        } else if (elapsed <= 0.70) {
+          // Fase 2: Diam, Bergetar & Pendaran Magma Tanah (0.20s - 0.70s)
+          const shakeFactor = Math.sin(elapsed * 45) * 0.04;
           rocks.forEach((r) => {
             r.mesh.position.y = r.targetY;
             r.mesh.position.x = r.basePos.x + shakeFactor;
           });
-        } else if (elapsed <= 1.0) {
-          // Fase 3: Tenggelam & Hancur (0.6s - 1.0s)
-          const p = (elapsed - 0.6) / 0.4;
+        } else if (elapsed <= 1.20) {
+          // Fase 3: Tenggelam Kembali & Hancur (0.70s - 1.20s)
+          const p = (elapsed - 0.70) / 0.50;
           const s = Math.max(0, 1.0 - p);
           rocks.forEach((r) => {
-            r.mesh.position.y = THREE.MathUtils.lerp(r.targetY, r.initY - 0.3, p);
+            r.mesh.position.y = THREE.MathUtils.lerp(r.targetY, r.initY - 0.4, p);
             r.mesh.scale.set(s, s, s);
           });
         }
 
-        return elapsed < 1.0;
+        return elapsed < 1.20;
       },
       cleanup: () => {
         rocks.forEach((r) => {
@@ -4487,15 +4489,16 @@ export class GameEngine {
 
     // Pose tebasan vertikal ke bawah saat pedang menghantam tanah
     this.attackType = 'cataclysmic_slam';
-    this.attackDuration = 0.45;
-    this.attackTimer = 0.45;
+    this.attackDuration = 0.5;
+    this.attackTimer = 0.5;
     this.isAttacking = true;
 
     const impactPos = this.playerPos.clone();
     soundManager.playWarriorShieldSlam();
-    this.triggerCameraShake(0.38, 0.35);
+    this.triggerCameraShake(0.55, 0.45);
 
-    const aoeRadius = 7.5;
+    // Area of Effect (AoE) diperluas 1.8x lipat dari 7.5m menjadi 13.5m
+    const aoeRadius = 13.5;
     this.callbacks.onUpdateStats((stats) => {
       const baseDmg = stats.baseAttack + stats.strength * 2.8;
       const finalDmg = Math.round(baseDmg * 2.2);
@@ -4503,43 +4506,45 @@ export class GameEngine {
       this.enemies.forEach((enemy) => {
         if (enemy.data.isDead) return;
         if (impactPos.distanceTo(enemy.mesh.position) <= aoeRadius) {
-          this.damageEnemy(enemy, finalDmg, true, 1.8);
-          this.spawnSparks(enemy.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xffaa00, 12, 4);
+          this.damageEnemy(enemy, finalDmg, true, 2.0);
+          this.spawnSparks(enemy.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xffaa00, 14, 4.5);
         }
       });
       return stats;
     });
 
-    this.spawnShockwaveRing(impactPos, 0xfbbf24, aoeRadius, 0.5);
-    this.spawnSparks(impactPos, 0xffd700, 28, 5.5);
+    // Lingkaran cincin kuning guncangan & retakan tanah (shockwave ring) skala proporsional dengan lingkaran benturan
+    this.spawnShockwaveRing(impactPos, 0xfbbf24, aoeRadius, 0.65);
+    this.spawnShockwaveRing(impactPos, 0xffffff, aoeRadius * 0.6, 0.42);
+    this.spawnSparks(impactPos, 0xffd700, 36, 6.5);
     this.spawnCataclysmicRockSpikesVfx(impactPos);
     this.callbacks.onAddFloatingText('Cataclysmic Leap Slam! 💥⛰️', '#ffd700', 'crit');
   }
 
   private castWarriorCataclysmicLeap() {
-    this.alignPlayerOrientationToInputOrTarget(16);
+    this.alignPlayerOrientationToInputOrTarget(20);
     const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
 
     soundManager.playSkillLompat();
     this.isAttacking = true;
     this.attackType = 'cataclysmic_leap';
-    this.attackDuration = 1.5;
-    this.attackTimer = 1.5;
+    this.attackDuration = 1.6;
+    this.attackTimer = 1.6;
     this.isGrounded = false;
     this.cataclysmicLeaping = true;
     this.cataclysmicLanded = false;
 
-    // Parabolic leap: 6.5m forward, vy = 10.8 (durasi terbang ~0.95s, forward vel = 7.0 m/s)
-    this.playerVel.y = 10.8;
-    this.playerVel.x = forward.x * 7.0;
-    this.playerVel.z = forward.z * 7.0;
+    // Parabolic leap diperjauh (~14.0m forward, vy = 13.2, durasi terbang ~1.2s, forward vel = 11.8 m/s)
+    this.playerVel.y = 13.2;
+    this.playerVel.x = forward.x * 11.8;
+    this.playerVel.z = forward.z * 11.8;
 
-    // Fallback safety timeout jika karakter mendarat di dataran rendah
+    // Fallback safety timeout jika karakter melompat ke dataran rendah / lembah
     setTimeout(() => {
       if (this.cataclysmicLeaping && !this.cataclysmicLanded) {
         this.triggerCataclysmicLandingImpact();
       }
-    }, 1100);
+    }, 1400);
   }
 
   private castWarriorAegisRetribution() {
@@ -5803,7 +5808,9 @@ export class GameEngine {
       }
     }
 
-    if (isMoving) {
+    if (this.cataclysmicLeaping) {
+      // Pertahankan momentum dorongan horizontal lompatan parabola Cataclysmic Leap tanpa ditimpa input WASD / rapid stop
+    } else if (isMoving) {
       // Normalize movement direction
       moveDirX /= inputMagnitude;
       moveDirZ /= inputMagnitude;

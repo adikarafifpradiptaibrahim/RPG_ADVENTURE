@@ -1215,6 +1215,8 @@ export function animateKnightCombatPose(
       // Skill 3 di Udara: Tangan kanan mengangkat pedang tinggi (-2.95, 0, -0.15)
       // Tangan KIRI (Perisai) TETAP DI SAMPING PINGGANG SIAGA (-0.25, 0.20, 0.18), TIDAK BOLEH IKUT TERANGKAT!
       playerMesh.rightArm.rotation.set(-2.95, 0, -0.15);
+      playerMesh.weapon.position.set(0, -0.04, 0.04);
+      playerMesh.weapon.rotation.set(1.57, 0, 0);
       playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
       playerMesh.body.rotation.set(0, 0, 0);
@@ -1228,6 +1230,8 @@ export function animateKnightCombatPose(
         0,
         -0.1
       );
+      playerMesh.weapon.position.set(0, -0.04, 0.04);
+      playerMesh.weapon.rotation.set(1.57, 0, 0);
       playerMesh.leftArm.rotation.set(-0.25, 0.20, 0.18);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
       playerMesh.body.rotation.set(0, 0, 0);
