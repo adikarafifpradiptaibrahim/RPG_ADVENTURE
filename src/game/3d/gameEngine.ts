@@ -3316,9 +3316,9 @@ export class GameEngine {
 
     // Build razor-sharp aerodynamic crescent blade geometry:
     // Convex outer cutting edge faces forward (+Z), sharp tips curve backward (-Z)
-    const radius = waveIndex === 3 ? 1.75 : 1.35;
+    const radius = waveIndex === 3 ? 1.95 : 1.35;
     const maxHalfAngle = Math.PI * 0.40; // ~72 degrees
-    const maxChord = waveIndex === 3 ? 0.52 : 0.40;
+    const maxChord = waveIndex === 3 ? 0.58 : 0.40;
     const segments = 32;
 
     const positions: number[] = [];
@@ -3397,7 +3397,7 @@ export class GameEngine {
     crescentMesh.add(coreMesh);
 
     // Roll angle around flight axis (Z)
-    // Projectile 1: -45° (tilt left), Projectile 2: +45° (tilt right, X-slash), Projectile 3: 90° (vertical finisher)
+    // Projectile 1: -45° (tilt left), Projectile 2: +45° (tilt right, X-slash), Projectile 3: 0° (horizontal sweeping finisher)
     crescentMesh.rotation.z = tiltAngle;
     crescentGroup.add(crescentMesh);
     this.scene.add(crescentGroup);
@@ -4790,14 +4790,14 @@ export class GameEngine {
       this.spawnCrescentProjectile(curFwd, Math.PI / 4, 1.45, 2);
     }, 140);
 
-    // Swing 3 (280ms): Vertical Finisher (90° upright roll slicing straight forward)
+    // Swing 3 (280ms): Horizontal Sweeping Finisher (0° mendatar rata sejajar tanah)
     setTimeout(() => {
       if (!this.isRunning) return;
       this.attackType = 'warrior_crescent_3';
       soundManager.playWarriorCleave(3);
       soundManager.playSkillTebas360();
       const curFwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
-      this.spawnCrescentProjectile(curFwd, Math.PI / 2, 2.4, 3);
+      this.spawnCrescentProjectile(curFwd, 0.0, 2.4, 3);
       this.callbacks.onAddFloatingText('Triple Crescent Gale Finisher! 🌙⚡', '#ffd700', 'crit');
     }, 280);
   }
