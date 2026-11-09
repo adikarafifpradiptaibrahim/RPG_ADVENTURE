@@ -2497,47 +2497,101 @@ export class GameEngine {
     group.position.copy(position);
     group.rotation.y = Math.atan2(direction.x, direction.z);
     group.rotation.z = tiltZ;
-    group.rotation.x = 0.18;
 
-    // Outer colored energy ribbon
-    const outerGeom = new THREE.RingGeometry(radius * 0.62, radius, 32, 1, -arcAngle / 2, arcAngle);
+    const segments = 32;
+    const outerPos: number[] = [];
+    const outerIndices: number[] = [];
+    const innerPos: number[] = [];
+    const innerIndices: number[] = [];
+
+    const maxW = radius * 0.28;
+    const maxZ = radius * 0.18;
+    const maxY = radius * 0.22;
+
+    for (let i = 0; i <= segments; i++) {
+      const u = (i / segments) * 2 - 1; // -1 to 1
+      const x = u * radius;
+      const taper = Math.max(0, 1 - u * u);
+      const y = taper * maxY;
+      const z = taper * maxZ;
+      const w = maxW * Math.sqrt(taper);
+
+      // Tangent derivative: dx = radius, dy = -2 * u * maxY
+      const dx = radius;
+      const dy = -2 * u * maxY;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+
+      // Outer ribbon vertices
+      outerPos.push(x + nx * (w * 0.5), y + ny * (w * 0.5), z);
+      outerPos.push(x - nx * (w * 0.5), y - ny * (w * 0.5), z);
+
+      // Inner incandescent core vertices (slimmer center strip)
+      const coreW = w * 0.35;
+      innerPos.push(x + nx * (coreW * 0.5), y + ny * (coreW * 0.5), z + 0.005);
+      innerPos.push(x - nx * (coreW * 0.5), y - ny * (coreW * 0.5), z + 0.005);
+
+      if (i < segments) {
+        const v0 = i * 2;
+        const v1 = i * 2 + 1;
+        const v2 = (i + 1) * 2;
+        const v3 = (i + 1) * 2 + 1;
+        outerIndices.push(v0, v1, v2, v2, v1, v3);
+        innerIndices.push(v0, v1, v2, v2, v1, v3);
+      }
+    }
+
+    const outerGeom = new THREE.BufferGeometry();
+    outerGeom.setAttribute('position', new THREE.Float32BufferAttribute(outerPos, 3));
+    outerGeom.setIndex(outerIndices);
+    outerGeom.computeVertexNormals();
+
     const outerMat = new THREE.MeshBasicMaterial({
       color,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.88,
+      opacity: 0.92,
       depthWrite: false,
+      blending: THREE.AdditiveBlending,
     });
     const outerMesh = new THREE.Mesh(outerGeom, outerMat);
     group.add(outerMesh);
 
-    // Inner blazing white incandescent cutting razor edge
-    const innerGeom = new THREE.RingGeometry(radius * 0.84, radius * 1.02, 32, 1, -arcAngle / 2, arcAngle);
+    const innerGeom = new THREE.BufferGeometry();
+    innerGeom.setAttribute('position', new THREE.Float32BufferAttribute(innerPos, 3));
+    innerGeom.setIndex(innerIndices);
+    innerGeom.computeVertexNormals();
+
     const innerMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.95,
+      opacity: 0.98,
       depthWrite: false,
+      blending: THREE.AdditiveBlending,
     });
     const innerMesh = new THREE.Mesh(innerGeom, innerMat);
-    innerMesh.position.z = 0.02;
     group.add(innerMesh);
 
-    let life = 0.24;
-    const maxLife = 0.24;
+    let life = 0.22;
+    const maxLife = 0.22;
     this.addVfx(group, (delta) => {
       life -= delta;
       if (life <= 0) {
         this.scene.remove(group);
+        outerGeom.dispose();
+        outerMat.dispose();
+        innerGeom.dispose();
+        innerMat.dispose();
         return false;
       }
       const progress = 1 - life / maxLife;
-      const scale = 0.72 + progress * 0.72;
+      const scale = 0.75 + progress * 0.65;
       group.scale.set(scale, scale, scale);
-      outerMat.opacity = (life / maxLife) * 0.88;
-      innerMat.opacity = (life / maxLife) * 0.95;
-      group.position.addScaledVector(direction, delta * 3.2);
+      outerMat.opacity = (life / maxLife) * 0.92;
+      innerMat.opacity = (life / maxLife) * 0.98;
+      group.position.addScaledVector(direction, delta * 2.8);
       return true;
     });
   }
@@ -2679,22 +2733,22 @@ export class GameEngine {
   // 1. Warrior Basic Slash VFX (Dynamic angles, layered glowing arcs, and ground dust)
   private spawnWarriorSlashVfx(comboIndex = 0) {
     const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
-    const spawnPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(1.25)).add(new THREE.Vector3(0, 1.25, 0));
+    const spawnPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(0.7)).add(new THREE.Vector3(0, 1.2, 0));
 
     if (comboIndex === 0) {
-      // Combo 1: Downward sweeping right-to-left cleave
-      this.spawnCrescentSlash(spawnPos, fwd, -0.45, 0xfbbf24, 1.5, Math.PI * 0.88);
+      // Hit 1: Tebasan diagonal miring turun (Kanan-Atas ke Kiri-Bawah, -35° / -0.61 rad)
+      this.spawnCrescentSlash(spawnPos, fwd, -0.61, 0xfbbf24, 1.5, Math.PI * 0.88);
       this.spawnSparks(spawnPos, 0xf59e0b, 8, 3.8);
       this.spawnSparks(spawnPos, 0xffffff, 4, 3.0);
     } else {
-      // Combo 2: Rising uppercut left-to-right cleave
-      this.spawnCrescentSlash(spawnPos, fwd, 0.5, 0xf59e0b, 1.6, Math.PI * 0.9);
+      // Hit 2: Tebasan balik diagonal naik (Kiri-Bawah ke Kanan-Atas, +35° / +0.61 rad, membentuk pola silang X)
+      this.spawnCrescentSlash(spawnPos, fwd, 0.61, 0xf59e0b, 1.5, Math.PI * 0.88);
       this.spawnSparks(spawnPos, 0xfbbf24, 10, 4.2);
       this.spawnSparks(spawnPos, 0xffedd5, 4, 3.5);
     }
 
     // Ground shock dust
-    this.spawnShockwaveRing(this.playerPos.clone().add(fwd.clone().multiplyScalar(0.8)), 0xfbbf24, 1.8, 0.25);
+    this.spawnShockwaveRing(this.playerPos.clone().add(fwd.clone().multiplyScalar(0.7)), 0xfbbf24, 1.6, 0.25);
   }
 
   // 2. Warrior Whirlwind VFX (Triple-tiered fiery vortex with swirling energy columns & dust)

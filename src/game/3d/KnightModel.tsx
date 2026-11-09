@@ -1092,29 +1092,29 @@ export function animateKnightCombatPose(
 
   switch (ctx.attackType) {
     case 'warrior_combo_1': {
-      // Hit 1: Tebasan Diagonal Kanan ke Kiri Depan
+      // Hit 1: Tebasan 1 - Ayunan Turun (Kanan-Atas ke Kiri-Bawah)
       playerMesh.rightArm.rotation.set(
-        THREE.MathUtils.lerp(-1.2, 0.4, t),
-        THREE.MathUtils.lerp(0.8, -0.7, t),
-        THREE.MathUtils.lerp(-0.4, 0.2, t)
+        THREE.MathUtils.lerp(-1.4, 0.3, t),   // Turun dari atas ke bawah
+        THREE.MathUtils.lerp(0.8, -0.7, t),   // Menyapu dari kanan ke kiri
+        THREE.MathUtils.lerp(-0.5, 0.2, t)
       );
       playerMesh.weapon.position.set(0, -0.04, 0.04);
       playerMesh.weapon.rotation.set(1.57, 0, 0.1); // Bilah melintang horizontal saat menebas
-      playerMesh.body.rotation.y = THREE.MathUtils.lerp(-0.3, 0.3, t);
+      playerMesh.body.rotation.y = THREE.MathUtils.lerp(-0.35, 0.35, t);
       playerMesh.leftArm.rotation.set(-0.30, 0.20, 0.15);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
       break;
     }
     case 'warrior_combo_2': {
-      // Hit 2: Tebasan Balasan Kiri ke Kanan
+      // Hit 2: Tebasan 2 - Ayunan Balik Naik (Kiri-Bawah ke Kanan-Atas)
       playerMesh.rightArm.rotation.set(
-        THREE.MathUtils.lerp(0.2, -1.1, t),
-        THREE.MathUtils.lerp(-0.7, 0.8, t),
-        THREE.MathUtils.lerp(0.2, -0.3, t)
+        THREE.MathUtils.lerp(0.3, -1.2, t),   // Naik dari bawah ke atas
+        THREE.MathUtils.lerp(-0.7, 0.8, t),   // Menyapu balik dari kiri ke kanan
+        THREE.MathUtils.lerp(0.2, -0.4, t)
       );
       playerMesh.weapon.position.set(0, -0.04, 0.04);
       playerMesh.weapon.rotation.set(1.57, 0, 0.1);
-      playerMesh.body.rotation.y = THREE.MathUtils.lerp(0.3, -0.3, t);
+      playerMesh.body.rotation.y = THREE.MathUtils.lerp(0.35, -0.35, t);
       playerMesh.leftArm.rotation.set(-0.30, 0.20, 0.15);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
       break;
