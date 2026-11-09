@@ -402,8 +402,8 @@ export class GameEngine {
   private knightPreview: PlayerMeshObjects | null = null;
   private magePreview: PlayerMeshObjects | null = null;
   private assassinPreview: PlayerMeshObjects | null = null;
-  private selectArrowMesh: THREE.Mesh | null = null;
-  private selectRingMesh: THREE.Group | null = null;
+  private selectionPedestal: THREE.Mesh | null = null;
+  private selectionPedestalMat: THREE.MeshBasicMaterial | null = null;
   private previewActionTimer = 0;
   private previewActionRole: 'warrior' | 'mage' | 'rogue' | null = null;
   private isDraggingPreview = false;
@@ -448,88 +448,136 @@ export class GameEngine {
     this.knightPreview = createPlayerMesh('warrior', 1);
     this.knightPreview.group.position.set(-2.2, targetY, targetZ);
     this.knightPreview.group.rotation.set(0, 0, 0);
+    this.preparePreviewMaterials(this.knightPreview.group);
     this.scene.add(this.knightPreview.group);
 
     // 2. Mage Preview (Center: X: 0, Z: targetZ) - Facing camera (rotation.y = 0)
     this.magePreview = createPlayerMesh('mage', 1);
     this.magePreview.group.position.set(0, targetY, targetZ);
     this.magePreview.group.rotation.set(0, 0, 0);
+    this.preparePreviewMaterials(this.magePreview.group);
     this.scene.add(this.magePreview.group);
 
     // 3. Assassin / Rogue Preview (Right: X: 2.2, Z: targetZ) - Facing camera (rotation.y = 0)
     this.assassinPreview = createPlayerMesh('rogue', 1);
     this.assassinPreview.group.position.set(2.2, targetY, targetZ);
     this.assassinPreview.group.rotation.set(0, 0, 0);
+    this.preparePreviewMaterials(this.assassinPreview.group);
     this.scene.add(this.assassinPreview.group);
 
     const initialX = this.selectedPreviewRole === 'warrior' ? -2.2 : this.selectedPreviewRole === 'mage' ? 0 : 2.2;
 
-    // 4. Golden Arrow Indicator Mesh (Inverted cone pointing down at selected character's head)
-    const arrowGeo = new THREE.ConeGeometry(0.20, 0.45, 4);
-    arrowGeo.rotateX(Math.PI);
-    const arrowMat = new THREE.MeshStandardMaterial({
-      color: 0xffd700,
-      emissive: 0xf59e0b,
-      emissiveIntensity: 0.85,
-      roughness: 0.15,
-      metalness: 0.85,
-    });
-    this.selectArrowMesh = new THREE.Mesh(arrowGeo, arrowMat);
-    this.selectArrowMesh.position.set(initialX, 2.75, targetZ);
-    this.scene.add(this.selectArrowMesh);
-
-    // 5. Selection Pedestal Ring (Magic glow circle under feet)
-    this.selectRingMesh = new THREE.Group();
-    const ringGeo = new THREE.RingGeometry(0.68, 0.92, 32);
+    // Magic Rune Pedestal Ring (di bawah kaki karakter pada permukaan paving ground level)
+    const ringGeo = new THREE.RingGeometry(0.85, 1.05, 32);
     ringGeo.rotateX(-Math.PI / 2);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xfbbf24,
+    this.selectionPedestalMat = new THREE.MeshBasicMaterial({
+      color:
+        this.selectedPreviewRole === 'warrior'
+          ? 0x3b82f6 // Knight: Biru Terang
+          : this.selectedPreviewRole === 'mage'
+          ? 0xa855f7 // Mage: Ungu Arcane
+          : 0x06b6d4, // Assassin: Cyan Neon
       side: THREE.DoubleSide,
       transparent: true,
       opacity: 0.85,
     });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    this.selectRingMesh.add(ring);
-
-    const discGeo = new THREE.CircleGeometry(0.68, 32);
-    discGeo.rotateX(-Math.PI / 2);
-    const discMat = new THREE.MeshBasicMaterial({
-      color: 0xd97706,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.30,
-    });
-    const disc = new THREE.Mesh(discGeo, discMat);
-    this.selectRingMesh.add(disc);
-
-    this.selectRingMesh.position.set(initialX, targetY + 0.02, targetZ);
-    this.scene.add(this.selectRingMesh);
+    this.selectionPedestal = new THREE.Mesh(ringGeo, this.selectionPedestalMat);
+    this.selectionPedestal.position.set(initialX, targetY + 0.025, targetZ);
+    this.scene.add(this.selectionPedestal);
   }
 
   public clearCharacterSelectScene() {
     if (this.knightPreview?.group) {
-      this.scene.remove(this.knightPreview.group);
+      this.disposePreviewGroup(this.knightPreview.group);
       this.knightPreview = null;
     }
     if (this.magePreview?.group) {
-      this.scene.remove(this.magePreview.group);
+      this.disposePreviewGroup(this.magePreview.group);
       this.magePreview = null;
     }
     if (this.assassinPreview?.group) {
-      this.scene.remove(this.assassinPreview.group);
+      this.disposePreviewGroup(this.assassinPreview.group);
       this.assassinPreview = null;
     }
-    if (this.selectArrowMesh) {
-      this.scene.remove(this.selectArrowMesh);
-      this.selectArrowMesh = null;
-    }
-    if (this.selectRingMesh) {
-      this.scene.remove(this.selectRingMesh);
-      this.selectRingMesh = null;
+    if (this.selectionPedestal) {
+      this.scene.remove(this.selectionPedestal);
+      this.selectionPedestal.geometry.dispose();
+      if (this.selectionPedestalMat) {
+        this.selectionPedestalMat.dispose();
+        this.selectionPedestalMat = null;
+      }
+      this.selectionPedestal = null;
     }
     this.previewActionRole = null;
     this.previewActionTimer = 0;
     this.isDraggingPreview = false;
+  }
+
+  private preparePreviewMaterials(group: THREE.Group) {
+    group.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        if (Array.isArray(mesh.material)) {
+          mesh.material = mesh.material.map((m) => {
+            const clone = m.clone();
+            (clone as any).__origColor = (clone as any).color ? (clone as any).color.clone() : new THREE.Color(0xffffff);
+            (clone as any).__origEmissive = (clone as any).emissive ? (clone as any).emissive.clone() : null;
+            clone.transparent = true;
+            return clone;
+          });
+        } else if (mesh.material) {
+          const clone = mesh.material.clone();
+          (clone as any).__origColor = (clone as any).color ? (clone as any).color.clone() : new THREE.Color(0xffffff);
+          (clone as any).__origEmissive = (clone as any).emissive ? (clone as any).emissive.clone() : null;
+          clone.transparent = true;
+          mesh.material = clone;
+        }
+      }
+    });
+  }
+
+  private updatePreviewDimming(group: THREE.Group | null, isSelected: boolean, delta: number) {
+    if (!group) return;
+    const targetOpacity = isSelected ? 1.0 : 0.58;
+    const targetBrightness = isSelected ? 1.0 : 0.55;
+
+    group.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const mat of mats) {
+          if (!mat) continue;
+          mat.transparent = true;
+          mat.opacity = THREE.MathUtils.lerp(mat.opacity, targetOpacity, delta * 10.0);
+
+          if ((mat as any).__origColor && (mat as any).color) {
+            const origColor: THREE.Color = (mat as any).__origColor;
+            const targetColor = origColor.clone().multiplyScalar(targetBrightness);
+            (mat as any).color.lerp(targetColor, delta * 10.0);
+          }
+          if ((mat as any).__origEmissive && (mat as any).emissive) {
+            const origEmissive: THREE.Color = (mat as any).__origEmissive;
+            const targetEmissive = origEmissive.clone().multiplyScalar(targetBrightness);
+            (mat as any).emissive.lerp(targetEmissive, delta * 10.0);
+          }
+        }
+      }
+    });
+  }
+
+  private disposePreviewGroup(group: THREE.Group | null) {
+    if (!group) return;
+    group.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        if (Array.isArray(mesh.material)) {
+          mesh.material.forEach((m) => m.dispose());
+        } else if (mesh.material) {
+          mesh.material.dispose();
+        }
+      }
+    });
+    this.scene.remove(group);
   }
 
   public playRoleSelectAction(role: 'warrior' | 'mage' | 'rogue') {
@@ -7938,18 +7986,46 @@ export class GameEngine {
   private updateCharacterSelectPreviews(delta: number) {
     const t = this.clock.getElapsedTime();
     const breathe = Math.sin(t * 3.0) * 0.025;
+    const targetZ = 186.2;
+    const targetY = 0.28;
 
-    // Update Floating Golden Arrow Indicator & Glow Pedestal Ring
-    const targetX = this.selectedPreviewRole === 'warrior' ? -2.2 : this.selectedPreviewRole === 'mage' ? 0 : 2.2;
-    if (this.selectArrowMesh) {
-      this.selectArrowMesh.position.x = THREE.MathUtils.lerp(this.selectArrowMesh.position.x, targetX, delta * 12.0);
-      this.selectArrowMesh.position.y = 2.75 + Math.sin(t * 3.5) * 0.09;
-      this.selectArrowMesh.rotation.y += delta * 2.2;
+    const activePreview =
+      this.selectedPreviewRole === 'warrior'
+        ? this.knightPreview
+        : this.selectedPreviewRole === 'mage'
+        ? this.magePreview
+        : this.assassinPreview;
+
+    // 1. Update Magic Rune Pedestal Ring (di bawah kaki karakter yang aktif dipilih)
+    if (this.selectionPedestal && activePreview?.group) {
+      // Posisikan ring tepat di bawah koordinat X dan Z karakter yang sedang aktif dipilih
+      this.selectionPedestal.position.x = THREE.MathUtils.lerp(
+        this.selectionPedestal.position.x,
+        activePreview.group.position.x,
+        0.2
+      );
+      this.selectionPedestal.position.z = activePreview.group.position.z;
+      // Berikan rotasi perlahan pada sumbu Y
+      this.selectionPedestal.rotation.y += 0.02;
+
+      // Berikan efek denyut cahaya halus & sesuaikan warna ring dengan tema role
+      if (this.selectionPedestalMat) {
+        this.selectionPedestalMat.opacity = 0.65 + Math.sin(t * 3.5) * 0.25;
+
+        const targetColorHex =
+          this.selectedPreviewRole === 'warrior'
+            ? 0x3b82f6 // Knight: 0x3b82f6 (Biru Terang / Emas)
+            : this.selectedPreviewRole === 'mage'
+            ? 0xa855f7 // Mage: 0xa855f7 (Ungu Arcane)
+            : 0x06b6d4; // Assassin: 0x06b6d4 (Cyan Neon)
+        this.selectionPedestalMat.color.lerp(new THREE.Color(targetColorHex), 0.15);
+      }
     }
-    if (this.selectRingMesh) {
-      this.selectRingMesh.position.x = THREE.MathUtils.lerp(this.selectRingMesh.position.x, targetX, delta * 12.0);
-      this.selectRingMesh.rotation.y -= delta * 1.5;
-    }
+
+    // 2. Efek Dimming & Highlight: Karakter terpilih 100% cerah, karakter lain redup (~0.55 - 0.6)
+    this.updatePreviewDimming(this.knightPreview?.group ?? null, this.selectedPreviewRole === 'warrior', delta);
+    this.updatePreviewDimming(this.magePreview?.group ?? null, this.selectedPreviewRole === 'mage', delta);
+    this.updatePreviewDimming(this.assassinPreview?.group ?? null, this.selectedPreviewRole === 'rogue', delta);
 
     if (this.previewActionTimer > 0) {
       this.previewActionTimer -= delta;
@@ -7971,16 +8047,18 @@ export class GameEngine {
         this.assassinPreview.rightArm.rotation.set(-1.2 - crossPhase * 0.4, -0.5, -0.4);
       }
     } else {
-      // Natural idle breathing & relaxed standby pose - STATIC GROUND LEVEL (no root/position.y bobbing)
-      const targetY = 0.28;
+      // Natural idle breathing & relaxed standby pose - STATIC GROUND LEVEL & LOCKED Z (NO Z-STEP)
       if (this.knightPreview?.group) {
         this.knightPreview.group.position.y = targetY;
+        this.knightPreview.group.position.z = targetZ;
       }
       if (this.magePreview?.group) {
         this.magePreview.group.position.y = targetY;
+        this.magePreview.group.position.z = targetZ;
       }
       if (this.assassinPreview?.group) {
         this.assassinPreview.group.position.y = targetY;
+        this.assassinPreview.group.position.z = targetZ;
       }
 
       if (this.knightPreview?.body) {
