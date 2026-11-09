@@ -1092,29 +1092,29 @@ export function animateKnightCombatPose(
 
   switch (ctx.attackType) {
     case 'warrior_combo_1': {
-      // Hit 1: Tebasan 1 - Ayunan Turun (Kanan-Atas ke Kiri-Bawah)
+      // Hit 1: Tebasan Diagonal Menukik (Kanan Atas -> Kiri Depan)
       playerMesh.rightArm.rotation.set(
-        THREE.MathUtils.lerp(-1.4, 0.3, t),   // Turun dari atas ke bawah
-        THREE.MathUtils.lerp(0.8, -0.7, t),   // Menyapu dari kanan ke kiri
-        THREE.MathUtils.lerp(-0.5, 0.2, t)
+        THREE.MathUtils.lerp(-1.6, 0.4, t),   // X: Turun dari atas ke bawah
+        THREE.MathUtils.lerp(1.1, -0.8, t),    // Y: Menyapu melintang dari kanan luar ke kiri depan
+        THREE.MathUtils.lerp(-0.6, 0.3, t)     // Z: Kemiringan lengan luar ke dalam
       );
       playerMesh.weapon.position.set(0, -0.04, 0.04);
-      playerMesh.weapon.rotation.set(1.57, 0, 0.1); // Bilah melintang horizontal saat menebas
-      playerMesh.body.rotation.y = THREE.MathUtils.lerp(-0.35, 0.35, t);
+      playerMesh.weapon.rotation.set(1.9, -0.3, 0.4); // Kemiringan pedang mengikuti garis tebasan menukik ke bawah
+      playerMesh.body.rotation.y = THREE.MathUtils.lerp(-0.35, 0.3, t);
       playerMesh.leftArm.rotation.set(-0.30, 0.20, 0.15);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
       break;
     }
     case 'warrior_combo_2': {
-      // Hit 2: Tebasan 2 - Ayunan Balik Naik (Kiri-Bawah ke Kanan-Atas)
+      // Hit 2: Tebasan Horizontal / Balasan Mengangkat (Kiri Bawah -> Kanan Depan)
       playerMesh.rightArm.rotation.set(
-        THREE.MathUtils.lerp(0.3, -1.2, t),   // Naik dari bawah ke atas
-        THREE.MathUtils.lerp(-0.7, 0.8, t),   // Menyapu balik dari kiri ke kanan
-        THREE.MathUtils.lerp(0.2, -0.4, t)
+        THREE.MathUtils.lerp(0.5, -1.2, t),   // X: Menyapu naik dari bawah ke atas
+        THREE.MathUtils.lerp(-0.9, 1.0, t),   // Y: Menyapu balik dari kiri badan ke kanan depan
+        THREE.MathUtils.lerp(0.4, -0.5, t)    // Z: Kemiringan lengan mengikuti ayunan naik
       );
       playerMesh.weapon.position.set(0, -0.04, 0.04);
-      playerMesh.weapon.rotation.set(1.57, 0, 0.1);
-      playerMesh.body.rotation.y = THREE.MathUtils.lerp(0.35, -0.35, t);
+      playerMesh.weapon.rotation.set(1.4, 0.4, -0.4); // Kemiringan bilah pedang terbalik mengikuti ayunan balik naik
+      playerMesh.body.rotation.y = THREE.MathUtils.lerp(0.3, -0.35, t);
       playerMesh.leftArm.rotation.set(-0.30, 0.20, 0.15);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
       break;
