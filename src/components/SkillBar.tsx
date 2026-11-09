@@ -44,7 +44,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         return {
           basic: { label: 'Tebas / Charge', icon: '⚔️', hint: 'Klik / Tahan / J' },
           skill1: { name: 'Triple Crescent', icon: '🌙', cost: '20 Aura', key: 'Q', color: 'border-amber-500/70 text-amber-300 bg-amber-950/40' },
-          skill2: { name: 'Cataclysmic Leap', icon: '💥', cost: '30 Aura', key: 'E', color: 'border-yellow-500/70 text-yellow-300 bg-yellow-950/40' },
+          skill2: { name: 'Cataclysmic Leap', icon: '💥', cost: '30 Aura', key: 'F', color: 'border-yellow-500/70 text-yellow-300 bg-yellow-950/40' },
           skill3: { name: 'Aegis Retribution', icon: '🛡️', cost: '25 Au/15 St', key: 'R', color: 'border-orange-500/70 text-orange-300 bg-orange-950/40' },
         };
       case 'mage':
@@ -209,7 +209,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         </span>
       </button>
 
-      {/* Dash Button (C) */}
+      {/* Dash Button (E) */}
       <button
         type="button"
         onTouchStart={(e) => {
@@ -222,7 +222,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         }}
         style={{ touchAction: 'none', userSelect: 'none' }}
         className="skill-btn skill-btn-dash touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-800 to-stone-900 hover:from-stone-700 text-amber-200 border border-amber-600/70 shadow-lg cursor-pointer active:scale-90 transition-all select-none"
-        title="Dash [C]"
+        title="Dash [E]"
       >
         <span className="text-sm sm:text-base md:text-base">
           {stats.characterClass === 'warrior' ? '🛡️' : '💨'}
@@ -231,7 +231,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
           Dash
         </span>
         <span className="absolute -top-1 -right-1 bg-amber-700 text-white text-[6px] md:text-[7px] font-mono px-0.5 rounded border border-amber-500">
-          C
+          E
         </span>
       </button>
 

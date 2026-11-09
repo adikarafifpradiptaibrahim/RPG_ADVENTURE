@@ -73,30 +73,37 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
             </div>
 
             <div className="flex items-center justify-between p-2.5 rounded-xl bg-stone-900/60 border border-stone-800">
-              <span className="text-stone-400">Skill Pusaran Pedang:</span>
-              <span className="font-mono font-bold text-cyan-400 bg-stone-800 px-2 py-0.5 rounded">
-                Q (15 MP)
+              <span className="text-stone-400">Status Karakter:</span>
+              <span className="font-mono font-bold text-amber-400 bg-stone-800 px-2 py-0.5 rounded">
+                C
               </span>
             </div>
 
             <div className="flex items-center justify-between p-2.5 rounded-xl bg-stone-900/60 border border-stone-800">
-              <span className="text-stone-400">Skill Kilat Dash:</span>
+              <span className="text-stone-400">Skill 1 (Triple Crescent / Pusaran):</span>
+              <span className="font-mono font-bold text-cyan-400 bg-stone-800 px-2 py-0.5 rounded">
+                Q
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-stone-900/60 border border-stone-800">
+              <span className="text-stone-400">Dash / Blink / Terjang:</span>
               <span className="font-mono font-bold text-emerald-400 bg-stone-800 px-2 py-0.5 rounded">
                 E (15 Stamina)
               </span>
             </div>
 
             <div className="flex items-center justify-between p-2.5 rounded-xl bg-stone-900/60 border border-stone-800">
-              <span className="text-stone-400">Penyembuhan Suci:</span>
+              <span className="text-stone-400">Skill Leap Slam / Interaksi:</span>
               <span className="font-mono font-bold text-yellow-400 bg-stone-800 px-2 py-0.5 rounded">
-                R (25 MP)
+                F
               </span>
             </div>
 
             <div className="flex items-center justify-between p-2.5 rounded-xl bg-stone-900/60 border border-stone-800">
-              <span className="text-stone-400">Bicara / Buka Peti:</span>
-              <span className="font-mono font-bold text-amber-400 bg-stone-800 px-2 py-0.5 rounded">
-                F
+              <span className="text-stone-400">Skill Ultimate (Aegis / Cahaya):</span>
+              <span className="font-mono font-bold text-orange-400 bg-stone-800 px-2 py-0.5 rounded">
+                R
               </span>
             </div>
 

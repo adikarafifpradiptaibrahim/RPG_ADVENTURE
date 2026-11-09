@@ -864,8 +864,9 @@ export class GameEngine {
     } else if (slot === 2) {
       if (charClass === 'warrior') {
         soundManager.playWarriorShieldSlam();
-        this.spawnShockwaveRing(atkPos, 0xf59e0b, 3.8, 0.4);
-        this.spawnSparks(atkPos.clone().add(new THREE.Vector3(0, 1, 0)), 0xfbbf24, 14, 4);
+        this.spawnShockwaveRing(atkPos, 0xfacc15, 13.5, 0.65);
+        this.spawnHitStarburst(atkPos.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xfde047, 3.5);
+        this.spawnCataclysmicRockSpikesVfx(atkPos);
       } else if (charClass === 'mage') {
         soundManager.playMageBlink();
         this.spawnHitStarburst(atkPos.clone().add(new THREE.Vector3(0, 1.2, 0)), 0x38bdf8, 2.8);
@@ -1980,7 +1981,10 @@ export class GameEngine {
     }
 
     if (key === 'f' || code === 'keyf') {
-      this.checkInteract();
+      const didInteract = this.checkInteract();
+      if (!didInteract && this.charClass === 'warrior') {
+        this.castSkill(2); // Skill 3 (Cataclysmic Leap Slam)
+      }
     } else if (key === 'j' || code === 'keyj') {
       if (!this.isChargingAttack) {
         this.startBasicAttack();
@@ -1988,11 +1992,12 @@ export class GameEngine {
     } else if (key === ' ' || code === 'space') {
       this.jump();
     } else if (key === 'c' || code === 'keyc') {
-      this.performDash();
+      // Tombol [C] khusus Character Status modal (Dash dihilangkan dari C)
     } else if (key === 'q' || code === 'keyq') {
       this.castSkill(1);
     } else if (key === 'e' || code === 'keye') {
-      this.castSkill(2);
+      // Tombol [E] untuk Dash semua class (Shield Dash untuk Warrior, Blink untuk Mage, Dash untuk Rogue)
+      this.performDash();
     } else if (key === 'r' || code === 'keyr') {
       this.castSkill(3);
     } else if (key === 'x' || code === 'keyx' || key === 't' || code === 'keyt') {
@@ -2958,7 +2963,7 @@ export class GameEngine {
     });
   }
 
-  // 4c. Warrior Glowing Fissure VFX (Charge Attack Floor Cracks with branching veins)
+  // 4c. Warrior Glowing Lightning Fissure VFX (Charge Attack Floor Cracks with 75° Fan Sector Jagged Lightning Arcs & Debris)
   private spawnWarriorFissureVfx(origin: THREE.Vector3, fwd: THREE.Vector3, length: number, tier: 1 | 2 | 3) {
     const group = new THREE.Group();
     const groundY = this.world.getTerrainHeight(origin.x, origin.z);
@@ -2967,104 +2972,287 @@ export class GameEngine {
     const fwdAngle = Math.atan2(fwd.x, fwd.z);
     group.rotation.y = fwdAngle;
 
-    // Main central glowing fissure plane (width: 0.6 + tier * 0.2)
-    const width = 0.5 + tier * 0.2;
-    const geom = new THREE.PlaneGeometry(width, length, 1, 8);
-    geom.rotateX(-Math.PI / 2);
-    geom.translate(0, 0, length / 2);
+    // Fan angle parameters:
+    // Tier 1: ~36° cone (spread ±18° / ±0.31 rad)
+    // Tier 2: ~54° cone (spread ±27° / ±0.47 rad)
+    // Tier 3: 75° full cone (spread ±37.5° / ±0.654 rad)
+    const maxSpreadRad = tier === 3 ? (37.5 * Math.PI) / 180 : tier === 2 ? (27.0 * Math.PI) / 180 : (18.0 * Math.PI) / 180;
 
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0xffaa00,
+    // Waypoints for each jagged vein
+    interface VeinDef {
+      points: THREE.Vector3[];
+      width: number;
+    }
+    const veins: VeinDef[] = [];
+
+    // 1. Central Trunk: starts narrow at (0, 0, 0), shoots forward to Z = length with sharp jagged zigzags
+    const trunkSegs = 18;
+    const trunkPoints: THREE.Vector3[] = [];
+    for (let i = 0; i <= trunkSegs; i++) {
+      const t = i / trunkSegs;
+      const z = t * length;
+      // Sharp jagged displacements on X, zero at the start and end
+      const jaggedX = (i === 0 || i === trunkSegs) ? 0 : (Math.sin(i * 3.7) * 0.45 + Math.sin(i * 7.9) * 0.25) * Math.sin(t * Math.PI);
+      trunkPoints.push(new THREE.Vector3(jaggedX, 0, z));
+    }
+    veins.push({ points: trunkPoints, width: 0.36 + tier * 0.08 });
+
+    // 2. Branching Jagged Lightning Arcs filling the fan sector
+    // Tier 1: 2 branches, Tier 2: 4 branches, Tier 3: 8 branches
+    const branchConfigs: { startFrac: number; angle: number; endFrac: number; width: number }[] = [];
+    if (tier === 1) {
+      branchConfigs.push(
+        { startFrac: 0.22, angle: -maxSpreadRad * 0.9, endFrac: 0.85, width: 0.22 },
+        { startFrac: 0.28, angle: maxSpreadRad * 0.9, endFrac: 0.90, width: 0.22 }
+      );
+    } else if (tier === 2) {
+      branchConfigs.push(
+        { startFrac: 0.18, angle: -maxSpreadRad * 0.95, endFrac: 0.88, width: 0.24 },
+        { startFrac: 0.22, angle: maxSpreadRad * 0.95, endFrac: 0.88, width: 0.24 },
+        { startFrac: 0.42, angle: -maxSpreadRad * 0.50, endFrac: 0.96, width: 0.20 },
+        { startFrac: 0.45, angle: maxSpreadRad * 0.50, endFrac: 0.96, width: 0.20 }
+      );
+    } else {
+      // Tier 3: 8 branching lightning veins covering ±37.5°
+      branchConfigs.push(
+        { startFrac: 0.12, angle: -maxSpreadRad * 0.95, endFrac: 0.82, width: 0.28 },
+        { startFrac: 0.15, angle: maxSpreadRad * 0.95, endFrac: 0.82, width: 0.28 },
+        { startFrac: 0.28, angle: -maxSpreadRad * 0.65, endFrac: 0.92, width: 0.25 },
+        { startFrac: 0.32, angle: maxSpreadRad * 0.65, endFrac: 0.92, width: 0.25 },
+        { startFrac: 0.45, angle: -maxSpreadRad * 1.00, endFrac: 1.00, width: 0.22 },
+        { startFrac: 0.48, angle: maxSpreadRad * 1.00, endFrac: 1.00, width: 0.22 },
+        { startFrac: 0.62, angle: -maxSpreadRad * 0.38, endFrac: 1.00, width: 0.20 },
+        { startFrac: 0.65, angle: maxSpreadRad * 0.38, endFrac: 1.00, width: 0.20 }
+      );
+    }
+
+    branchConfigs.forEach((cfg, bIdx) => {
+      const startIdx = Math.floor(cfg.startFrac * trunkSegs);
+      const rootPos = trunkPoints[startIdx] || trunkPoints[0];
+      const branchSegs = 10;
+      const bPoints: THREE.Vector3[] = [];
+      const endDist = cfg.endFrac * length;
+      const targetX = Math.sin(cfg.angle) * endDist;
+      const targetZ = Math.cos(cfg.angle) * endDist;
+
+      for (let s = 0; s <= branchSegs; s++) {
+        const bt = s / branchSegs;
+        const lx = THREE.MathUtils.lerp(rootPos.x, targetX, bt);
+        const lz = THREE.MathUtils.lerp(rootPos.z, targetZ, bt);
+        // Add sharp lightning zigzags perpendicular to ray
+        const jag = (s === 0 || s === branchSegs) ? 0 : (Math.sin((bIdx + 1) * 4.3 + s * 2.8) * 0.42) * Math.sin(bt * Math.PI);
+        const perpX = -Math.cos(cfg.angle) * jag;
+        const perpZ = Math.sin(cfg.angle) * jag;
+        bPoints.push(new THREE.Vector3(lx + perpX, 0, lz + perpZ));
+      }
+      veins.push({ points: bPoints, width: cfg.width });
+    });
+
+    // Build consolidated ribbon geometry for all lightning veins:
+    // Outer intense fiery gold glow & Inner hot-white electric core
+    const outerPos: number[] = [];
+    const outerIdx: number[] = [];
+    const innerPos: number[] = [];
+    const innerIdx: number[] = [];
+
+    let outerVCount = 0;
+    let innerVCount = 0;
+
+    veins.forEach((vein) => {
+      const pts = vein.points;
+      const w0 = vein.width;
+
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        let dirX = 0;
+        let dirZ = 1;
+        if (i < pts.length - 1) {
+          dirX = pts[i + 1].x - p.x;
+          dirZ = pts[i + 1].z - p.z;
+        } else if (i > 0) {
+          dirX = p.x - pts[i - 1].x;
+          dirZ = p.z - pts[i - 1].z;
+        }
+        const len = Math.hypot(dirX, dirZ) || 1;
+        const normX = -dirZ / len;
+        const normZ = dirX / len;
+
+        const taper = 1.0 - 0.5 * (i / (pts.length - 1));
+        const curW = w0 * taper;
+
+        // Outer vertices
+        outerPos.push(p.x + normX * curW, 0.002, p.z + normZ * curW);
+        outerPos.push(p.x - normX * curW, 0.002, p.z - normZ * curW);
+
+        // Inner core vertices
+        const coreW = curW * 0.35;
+        innerPos.push(p.x + normX * coreW, 0.006, p.z + normZ * coreW);
+        innerPos.push(p.x - normX * coreW, 0.006, p.z - normZ * coreW);
+
+        if (i < pts.length - 1) {
+          const o0 = outerVCount + i * 2;
+          const o1 = o0 + 1;
+          const o2 = o0 + 2;
+          const o3 = o0 + 3;
+          outerIdx.push(o0, o1, o2, o2, o1, o3);
+
+          const in0 = innerVCount + i * 2;
+          const in1 = in0 + 1;
+          const in2 = in0 + 2;
+          const in3 = in0 + 3;
+          innerIdx.push(in0, in1, in2, in2, in1, in3);
+        }
+      }
+      outerVCount += pts.length * 2;
+      innerVCount += pts.length * 2;
+    });
+
+    const outerGeom = new THREE.BufferGeometry();
+    outerGeom.setAttribute('position', new THREE.Float32BufferAttribute(outerPos, 3));
+    outerGeom.setIndex(outerIdx);
+    outerGeom.computeVertexNormals();
+
+    const outerMat = new THREE.MeshBasicMaterial({
+      color: 0xff9900,
       transparent: true,
       opacity: 0.95,
       blending: THREE.AdditiveBlending,
-      depthWrite: false,
       side: THREE.DoubleSide,
+      depthWrite: false,
     });
-    const mainFissure = new THREE.Mesh(geom, mat);
-    group.add(mainFissure);
+    const outerMesh = new THREE.Mesh(outerGeom, outerMat);
+    group.add(outerMesh);
 
-    // Inner bright hot-white crack vein
-    const innerGeom = new THREE.PlaneGeometry(width * 0.35, length, 1, 8);
-    innerGeom.rotateX(-Math.PI / 2);
-    innerGeom.translate(0, 0.005, length / 2);
+    const innerGeom = new THREE.BufferGeometry();
+    innerGeom.setAttribute('position', new THREE.Float32BufferAttribute(innerPos, 3));
+    innerGeom.setIndex(innerIdx);
+    innerGeom.computeVertexNormals();
+
     const innerMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.98,
       blending: THREE.AdditiveBlending,
-      depthWrite: false,
       side: THREE.DoubleSide,
+      depthWrite: false,
     });
-    const innerFissure = new THREE.Mesh(innerGeom, innerMat);
-    group.add(innerFissure);
+    const innerMesh = new THREE.Mesh(innerGeom, innerMat);
+    group.add(innerMesh);
 
-    // Tier 3: Lateral branching fissures
-    const branchMeshes: THREE.Mesh[] = [];
-    if (tier === 3) {
-      const branchAngles = [-0.65, 0.65, -0.75, 0.75];
-      const branchDists = [2.8, 3.2, 6.0, 6.4];
-      const branchLengths = [2.8, 3.0, 2.4, 2.6];
+    // Semburan partikel batu, bara api, dan debu mengikuti jalur zigzag petir
+    interface JaggedParticle {
+      mesh: THREE.Mesh;
+      vel: THREE.Vector3;
+      rotSpeed: THREE.Vector3;
+      basePos: THREE.Vector3;
+      geom: THREE.BufferGeometry;
+      mat: THREE.Material;
+    }
+    const debrisList: JaggedParticle[] = [];
 
-      for (let b = 0; b < branchAngles.length; b++) {
-        const bLen = branchLengths[b];
-        const bGeom = new THREE.PlaneGeometry(0.35, bLen);
-        bGeom.rotateX(-Math.PI / 2);
-        bGeom.translate(0, 0, bLen / 2);
-
-        const bMat = new THREE.MeshBasicMaterial({
-          color: 0xffaa00,
-          transparent: true,
-          opacity: 0.85,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-          side: THREE.DoubleSide,
-        });
-        const bMesh = new THREE.Mesh(bGeom, bMat);
-        bMesh.position.set(0, 0.003, branchDists[b]);
-        bMesh.rotation.y = branchAngles[b];
-        group.add(bMesh);
-        branchMeshes.push(bMesh);
+    // Choose 16-24 nodes along the veins to spawn popping rock fragments and glowing fire embers
+    const sampleNodes: THREE.Vector3[] = [];
+    veins.forEach((v) => {
+      for (let s = 1; s < v.points.length; s += 2) {
+        sampleNodes.push(v.points[s]);
       }
+    });
+
+    const debrisCount = Math.min(sampleNodes.length, tier === 3 ? 24 : tier === 2 ? 16 : 10);
+    for (let d = 0; d < debrisCount; d++) {
+      const node = sampleNodes[Math.floor(Math.random() * sampleNodes.length)] || new THREE.Vector3(0, 0, length * 0.5);
+      const isEmber = Math.random() < 0.45;
+
+      const pGeom = isEmber
+        ? new THREE.SphereGeometry(0.06 + Math.random() * 0.06, 4, 4)
+        : new THREE.BoxGeometry(0.12 + Math.random() * 0.14, 0.10 + Math.random() * 0.12, 0.12 + Math.random() * 0.14);
+
+      const pMat = isEmber
+        ? new THREE.MeshBasicMaterial({
+            color: 0xffd700,
+            transparent: true,
+            opacity: 0.95,
+            blending: THREE.AdditiveBlending,
+          })
+        : new THREE.MeshStandardMaterial({
+            color: 0x4a4540,
+            roughness: 0.85,
+            metalness: 0.2,
+            flatShading: true,
+          });
+
+      const pMesh = new THREE.Mesh(pGeom, pMat);
+      pMesh.position.set(
+        node.x + (Math.random() - 0.5) * 0.25,
+        0.05,
+        node.z + (Math.random() - 0.5) * 0.25
+      );
+      group.add(pMesh);
+
+      debrisList.push({
+        mesh: pMesh,
+        vel: new THREE.Vector3(
+          (Math.random() - 0.5) * 1.5,
+          2.0 + Math.random() * 3.5,
+          (Math.random() - 0.5) * 1.5
+        ),
+        rotSpeed: new THREE.Vector3(
+          (Math.random() - 0.5) * 8,
+          (Math.random() - 0.5) * 8,
+          (Math.random() - 0.5) * 8
+        ),
+        basePos: pMesh.position.clone(),
+        geom: pGeom,
+        mat: pMat,
+      });
     }
 
     this.scene.add(group);
 
     let elapsed = 0;
-    const totalDuration = 1.35; // 0.15s expansion + 1.2s fade out
+    const totalDuration = 1.45; // 0.15s expansion + 1.3s vibrating magma pulse & fade out
 
     this.activeVfx.push({
       object: group,
       update: (delta: number) => {
         elapsed += delta;
         if (elapsed < 0.15) {
-          // Rapid expansion in 0.15s
+          // Rapid forward surge / lightning propagation in 0.15s
           const p = elapsed / 0.15;
-          group.scale.set(1 + p * 0.2, 1, p);
-          mat.opacity = 0.95;
-          innerMat.opacity = 0.95;
+          group.scale.set(1 + p * 0.15, 1, Math.max(0.01, p));
+          outerMat.opacity = 0.95;
+          innerMat.opacity = 0.98;
         } else {
-          // Pulsing and smooth fade out over 1.2s
-          group.scale.set(1.2, 1, 1);
-          const fadeProgress = (elapsed - 0.15) / 1.2;
-          const pulse = 1.0 + Math.sin(elapsed * 18) * 0.12;
+          group.scale.set(1.15, 1, 1);
+          const fadeProgress = (elapsed - 0.15) / 1.30;
+          const pulse = 1.0 + Math.sin(elapsed * 26) * 0.12;
           const baseOpacity = Math.max(0, (1 - fadeProgress) * 0.95);
-          mat.opacity = Math.min(1.0, baseOpacity * pulse);
-          innerMat.opacity = Math.min(1.0, baseOpacity * 0.8 * pulse);
-          branchMeshes.forEach((bm) => {
-            (bm.material as THREE.MeshBasicMaterial).opacity = mat.opacity * 0.8;
-          });
+          outerMat.opacity = Math.min(1.0, baseOpacity * pulse);
+          innerMat.opacity = Math.min(1.0, baseOpacity * 0.85 * pulse);
         }
+
+        // Animate popping rock fragments and glowing embers
+        debrisList.forEach((deb) => {
+          deb.vel.y -= delta * 9.8; // gravity
+          deb.mesh.position.addScaledVector(deb.vel, delta);
+          deb.mesh.rotation.x += deb.rotSpeed.x * delta;
+          deb.mesh.rotation.y += deb.rotSpeed.y * delta;
+          if (deb.mesh.position.y < 0.02) {
+            deb.mesh.position.y = 0.02;
+            deb.vel.set(0, 0, 0);
+          }
+        });
+
         return elapsed < totalDuration;
       },
       cleanup: () => {
-        geom.dispose();
-        mat.dispose();
+        outerGeom.dispose();
+        outerMat.dispose();
         innerGeom.dispose();
         innerMat.dispose();
-        branchMeshes.forEach((bm) => {
-          bm.geometry.dispose();
-          (bm.material as THREE.Material).dispose();
+        debrisList.forEach((d) => {
+          d.geom.dispose();
+          d.mat.dispose();
         });
       },
     });
@@ -3119,29 +3307,103 @@ export class GameEngine {
     }
   }
 
-  // 4e. Warrior Triple Crescent Gale Projectile (12m range wind blade)
+  // 4e. Warrior Triple Crescent Gale Projectile (14m range razor-sharp wind blade)
   private spawnCrescentProjectile(forward: THREE.Vector3, tiltAngle: number, dmgMult: number, waveIndex: number) {
     const origin = this.playerPos.clone().add(new THREE.Vector3(0, 1.25, 0)).add(forward.clone().multiplyScalar(1.0));
     const crescentGroup = new THREE.Group();
     crescentGroup.position.copy(origin);
     crescentGroup.rotation.y = Math.atan2(forward.x, forward.z);
-    crescentGroup.rotation.z = tiltAngle;
 
-    const radius = waveIndex === 3 ? 1.6 : 1.2;
-    const geom = new THREE.TorusGeometry(radius, 0.12, 6, 18, Math.PI * 0.85);
-    geom.rotateZ(-Math.PI * 0.425);
+    // Build razor-sharp aerodynamic crescent blade geometry:
+    // Convex outer cutting edge faces forward (+Z), sharp tips curve backward (-Z)
+    const radius = waveIndex === 3 ? 1.75 : 1.35;
+    const maxHalfAngle = Math.PI * 0.40; // ~72 degrees
+    const maxChord = waveIndex === 3 ? 0.52 : 0.40;
+    const segments = 32;
+
+    const positions: number[] = [];
+    const indices: number[] = [];
+    const innerPositions: number[] = [];
+    const innerIndices: number[] = [];
+
+    // Outer convex cutting edge leads forward (+Z)
+    for (let i = 0; i <= segments; i++) {
+      const t = (i / segments) * 2 - 1; // -1 to 1
+      const theta = t * maxHalfAngle;
+      const taper = 1 - t * t; // 0 at tips, 1 at center
+      const chord = maxChord * taper;
+
+      // Outer curve: leading apex at Z = 0, tips trail back at Z < 0
+      const xOut = radius * Math.sin(theta);
+      const zOut = radius * (Math.cos(theta) - 1);
+
+      // Inner trailing curve: even further back in -Z, tapering to 0 width at tips
+      const xIn = (radius - chord * 0.25) * Math.sin(theta);
+      const zIn = zOut - chord;
+
+      // Outer mesh vertices (left and right edges of the blade)
+      positions.push(xOut, 0, zOut); // outer leading edge
+      positions.push(xIn, 0, zIn);   // inner trailing edge
+
+      // Core razor line vertices (slimmer strip along the leading edge)
+      const coreChord = chord * 0.35;
+      const xCore = (radius - coreChord * 0.2) * Math.sin(theta);
+      const zCore = zOut - coreChord;
+      innerPositions.push(xOut, 0.005, zOut);
+      innerPositions.push(xCore, 0.005, zCore);
+
+      if (i < segments) {
+        const v0 = i * 2;
+        const v1 = i * 2 + 1;
+        const v2 = (i + 1) * 2;
+        const v3 = (i + 1) * 2 + 1;
+        // Two triangles for quad
+        indices.push(v0, v1, v2);
+        indices.push(v2, v1, v3);
+        innerIndices.push(v0, v1, v2);
+        innerIndices.push(v2, v1, v3);
+      }
+    }
+
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geom.setIndex(indices);
+    geom.computeVertexNormals();
+
     const mat = new THREE.MeshBasicMaterial({
-      color: waveIndex === 3 ? 0xffea00 : 0xfff8e1,
+      color: waveIndex === 3 ? 0xffea00 : 0xfff8e1, // Wave 3: radiant sun gold, Waves 1&2: brilliant wind aura
       transparent: true,
       opacity: 0.95,
       blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
     });
     const crescentMesh = new THREE.Mesh(geom, mat);
+
+    // Inner bright white cutting edge core
+    const coreGeom = new THREE.BufferGeometry();
+    coreGeom.setAttribute('position', new THREE.Float32BufferAttribute(innerPositions, 3));
+    coreGeom.setIndex(innerIndices);
+    coreGeom.computeVertexNormals();
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.98,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const coreMesh = new THREE.Mesh(coreGeom, coreMat);
+    crescentMesh.add(coreMesh);
+
+    // Roll angle around flight axis (Z)
+    // Projectile 1: -45° (tilt left), Projectile 2: +45° (tilt right, X-slash), Projectile 3: 90° (vertical finisher)
+    crescentMesh.rotation.z = tiltAngle;
     crescentGroup.add(crescentMesh);
     this.scene.add(crescentGroup);
 
-    const speed = 22.0;
-    const maxDist = 12.0;
+    const speed = 24.0;
+    const maxDist = 14.0;
     let traveled = 0;
     const hitEnemies = new Set<string>();
 
@@ -3159,15 +3421,17 @@ export class GameEngine {
             this.callbacks.onUpdateStats((stats) => {
               const baseDmg = stats.baseAttack + stats.strength * 1.8;
               const finalDmg = Math.round(baseDmg * dmgMult);
-              this.damageEnemy(enemy, finalDmg, waveIndex === 3, waveIndex === 3 ? 1.6 : 0.6);
+              this.damageEnemy(enemy, finalDmg, waveIndex === 3, waveIndex === 3 ? 1.8 : 0.6);
               return stats;
             });
-            this.spawnHitStarburst(enemy.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xfff59d, 2.0);
+            this.spawnHitStarburst(enemy.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xfff59d, 2.2);
           }
         });
 
         if (traveled > maxDist * 0.8) {
-          mat.opacity = Math.max(0, 1.0 - (traveled - maxDist * 0.8) / (maxDist * 0.2));
+          const fade = Math.max(0, 1.0 - (traveled - maxDist * 0.8) / (maxDist * 0.2));
+          mat.opacity = fade * 0.95;
+          coreMat.opacity = fade * 0.98;
         }
 
         return traveled < maxDist;
@@ -3175,13 +3439,14 @@ export class GameEngine {
       cleanup: () => {
         geom.dispose();
         mat.dispose();
+        coreGeom.dispose();
+        coreMat.dispose();
       },
     });
   }
 
-  // 4f. Warrior Cataclysmic Leap Slam - 3D Rock Spikes VFX (Cone / Dodecahedron)
+  // 4f. Warrior Cataclysmic Leap Slam - 3D Rock Spikes & Center Crater VFX
   private spawnCataclysmicRockSpikesVfx(impactPos: THREE.Vector3) {
-    const rockCount = 12; // Formasi lingkaran 12 patahan batu/earth spikes
     const group = new THREE.Group();
     group.position.copy(impactPos);
 
@@ -3196,12 +3461,51 @@ export class GameEngine {
 
     const rocks: RockInstance[] = [];
 
-    for (let i = 0; i < rockCount; i++) {
-      const angle = (i / rockCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
-      // Perluas radius lingkaran formasi batu melingkari pusat benturan (4.5 - 7.5 unit)
+    // 1. Center Rock Spikes (8 sharp rocks directly in the center crater radius: 0.4 - 2.5m, eliminating empty center)
+    const centerCount = 8;
+    for (let i = 0; i < centerCount; i++) {
+      const angle = (i / centerCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+      const dist = 0.5 + Math.random() * 2.0;
+      const height = 1.4 + Math.random() * 0.9;
+      const width = 0.38 + Math.random() * 0.22;
+
+      const geom = new THREE.ConeGeometry(width, height, 5);
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x3d3a37,
+        roughness: 0.85,
+        metalness: 0.3,
+        emissive: 0xff6600,
+        emissiveIntensity: 0.55,
+        flatShading: true,
+      });
+      const rockMesh = new THREE.Mesh(geom, mat);
+      rockMesh.castShadow = true;
+
+      const lx = Math.cos(angle) * dist;
+      const lz = Math.sin(angle) * dist;
+      const groundY = this.world.getTerrainHeight(impactPos.x + lx, impactPos.z + lz) - impactPos.y;
+
+      const basePos = new THREE.Vector3(lx, groundY, lz);
+      const initY = groundY - 0.7;
+      const targetY = groundY + height * 0.45;
+
+      rockMesh.position.set(lx, initY, lz);
+      // Tilt outwards from the center impact point
+      const tiltX = (lx / dist) * 0.32 + (Math.random() - 0.5) * 0.15;
+      const tiltZ = (lz / dist) * 0.32 + (Math.random() - 0.5) * 0.15;
+      rockMesh.rotation.set(tiltX, Math.random() * Math.PI * 2, tiltZ);
+      group.add(rockMesh);
+
+      rocks.push({ mesh: rockMesh, targetY, initY, basePos, geom, mat });
+    }
+
+    // 2. Outer Ring Formations (12 taller rock monoliths around radius: 4.5 - 7.8m)
+    const outerCount = 12;
+    for (let i = 0; i < outerCount; i++) {
+      const angle = (i / outerCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
       const dist = 4.5 + Math.random() * 2.8;
-      const height = 1.2 + Math.random() * 0.8;
-      const width = 0.45 + Math.random() * 0.22;
+      const height = 1.6 + Math.random() * 1.1;
+      const width = 0.50 + Math.random() * 0.25;
 
       const geom = new THREE.ConeGeometry(width, height, 5);
       const mat = new THREE.MeshStandardMaterial({
@@ -3220,15 +3524,30 @@ export class GameEngine {
       const groundY = this.world.getTerrainHeight(impactPos.x + lx, impactPos.z + lz) - impactPos.y;
 
       const basePos = new THREE.Vector3(lx, groundY, lz);
-      const initY = groundY - 0.6;
+      const initY = groundY - 0.8;
       const targetY = groundY + height * 0.5;
 
       rockMesh.position.set(lx, initY, lz);
-      rockMesh.rotation.set((Math.random() - 0.5) * 0.4, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.4);
+      rockMesh.rotation.set((Math.random() - 0.5) * 0.35, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.35);
       group.add(rockMesh);
 
       rocks.push({ mesh: rockMesh, targetY, initY, basePos, geom, mat });
     }
+
+    // 3. Center Crater Ground Fracture Decal (radial molten crack veins)
+    const craterGeom = new THREE.RingGeometry(0.1, 3.8, 16);
+    craterGeom.rotateX(-Math.PI / 2);
+    const craterMat = new THREE.MeshBasicMaterial({
+      color: 0xff7700,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const craterMesh = new THREE.Mesh(craterGeom, craterMat);
+    craterMesh.position.set(0, 0.02, 0);
+    group.add(craterMesh);
 
     this.scene.add(group);
 
@@ -3238,37 +3557,42 @@ export class GameEngine {
       update: (delta) => {
         elapsed += delta;
 
-        if (elapsed <= 0.20) {
-          // Fase 1: Erupsi Cepat Menghujam Keluar Tanah (0.0s - 0.20s)
-          const p = elapsed / 0.20;
+        if (elapsed <= 0.18) {
+          // Fase 1: Erupsi Cepat Menghujam Keluar Tanah (0.0s - 0.18s)
+          const p = elapsed / 0.18;
           const easeOut = Math.sin((p * Math.PI) / 2);
           rocks.forEach((r) => {
             r.mesh.position.y = THREE.MathUtils.lerp(r.initY, r.targetY, easeOut);
           });
-        } else if (elapsed <= 0.70) {
-          // Fase 2: Diam, Bergetar & Pendaran Magma Tanah (0.20s - 0.70s)
-          const shakeFactor = Math.sin(elapsed * 45) * 0.04;
+          craterMesh.scale.set(p, 1, p);
+        } else if (elapsed <= 0.72) {
+          // Fase 2: Diam, Bergetar Hebat & Pendaran Magma Pusat Kawah (0.18s - 0.72s)
+          const shakeFactor = Math.sin(elapsed * 48) * 0.04;
           rocks.forEach((r) => {
             r.mesh.position.y = r.targetY;
             r.mesh.position.x = r.basePos.x + shakeFactor;
           });
-        } else if (elapsed <= 1.20) {
-          // Fase 3: Tenggelam Kembali & Hancur (0.70s - 1.20s)
-          const p = (elapsed - 0.70) / 0.50;
+          craterMat.opacity = 0.85 + Math.sin(elapsed * 24) * 0.12;
+        } else if (elapsed <= 1.25) {
+          // Fase 3: Tenggelam Kembali & Hancur (0.72s - 1.25s)
+          const p = (elapsed - 0.72) / 0.53;
           const s = Math.max(0, 1.0 - p);
           rocks.forEach((r) => {
             r.mesh.position.y = THREE.MathUtils.lerp(r.targetY, r.initY - 0.4, p);
             r.mesh.scale.set(s, s, s);
           });
+          craterMat.opacity = Math.max(0, (1 - p) * 0.85);
         }
 
-        return elapsed < 1.20;
+        return elapsed < 1.25;
       },
       cleanup: () => {
         rocks.forEach((r) => {
           r.geom.dispose();
           r.mat.dispose();
         });
+        craterGeom.dispose();
+        craterMat.dispose();
       },
     });
   }
@@ -4347,59 +4671,59 @@ export class GameEngine {
       });
       this.callbacks.onAddFloatingText('Tebas Cepat!', '#fbbf24', 'info');
     } else if (holdTime < 2.5) {
-      // Tier 1: Tebasan vertikal, damage 1.8x, Retakan 3.5m
+      // Tier 1: Tebasan vertikal, damage 1.8x, Retakan Petir 8.75m (2.5x lipat), Kipas ~36°
       this.attackType = 'warrior_charge_release_tier1';
       this.attackDuration = 0.42;
       this.attackTimer = 0.42;
       soundManager.playWarriorCleave(2);
-      this.spawnWarriorFissureVfx(this.playerPos.clone(), fwd, 3.5, 1);
+      this.spawnWarriorFissureVfx(this.playerPos.clone(), fwd, 8.75, 1);
       this.executeMeleeAttack({
-        range: 3.5,
-        coneAngle: 0.2,
+        range: 8.75,
+        coneAngle: 0.88,
         dmgMultiplier: 1.8,
         critBonus: 0.15,
-        knockback: 0.5,
+        knockback: 0.6,
       });
-      this.triggerCameraShake(0.12, 0.12);
-      this.callbacks.onAddFloatingText('Tebasan Retakan Tier 1 (3.5m)! 🔥', '#f59e0b', 'crit');
+      this.triggerCameraShake(0.14, 0.14);
+      this.callbacks.onAddFloatingText('Tebasan Retakan Petir Tier 1 (8.75m)! 🔥', '#f59e0b', 'crit');
     } else if (holdTime < 5.0) {
-      // Tier 2: Tebasan bertenaga, damage 2.8x, knockback ringan, Retakan 6.0m + percikan partikel
+      // Tier 2: Tebasan bertenaga, damage 2.8x, knockback sedang, Retakan Kipas Petir 15.0m (2.5x lipat), Kipas ~54°
       this.attackType = 'warrior_charge_release_tier2';
       this.attackDuration = 0.48;
       this.attackTimer = 0.48;
       soundManager.playWarriorCleave(3);
       soundManager.playWarriorShieldSlam();
-      this.spawnWarriorFissureVfx(this.playerPos.clone(), fwd, 6.0, 2);
-      this.spawnSparks(this.playerPos.clone().add(fwd.clone().multiplyScalar(3.0)), 0xffaa00, 20, 4.5);
+      this.spawnWarriorFissureVfx(this.playerPos.clone(), fwd, 15.0, 2);
+      this.spawnSparks(this.playerPos.clone().add(fwd.clone().multiplyScalar(6.0)), 0xffaa00, 24, 5.0);
       this.executeMeleeAttack({
-        range: 6.0,
-        coneAngle: 0.1,
+        range: 15.0,
+        coneAngle: 0.82,
         dmgMultiplier: 2.8,
         critBonus: 0.25,
-        knockback: 0.9,
+        knockback: 1.1,
       });
-      this.triggerCameraShake(0.22, 0.2);
-      this.callbacks.onAddFloatingText('Tebasan Retakan Tier 2 (6.0m)! 💥', '#ff9800', 'crit');
+      this.triggerCameraShake(0.24, 0.22);
+      this.callbacks.onAddFloatingText('Tebasan Retakan Kipas Petir Tier 2 (15.0m)! 💥', '#ff9800', 'crit');
     } else {
-      // Tier 3 Maksimal (>= 5.0s): Tebasan membelah tanah masif, damage 4.2x, efek knock-up, camera shake kuat, Retakan 9.5m dengan cabang ke samping
+      // Tier 3 Maksimal (>= 5.0s): Tebasan membelah tanah masif, damage 4.2x, efek knock-up, camera shake kuat, Retakan Kipas Petir 23.75m (2.5x lipat), Kipas 75° full cone
       this.attackType = 'warrior_charge_release_tier3';
       this.attackDuration = 0.55;
       this.attackTimer = 0.55;
       soundManager.playWarriorCleave(3);
       soundManager.playWarriorShieldSlam();
-      this.spawnWarriorFissureVfx(this.playerPos.clone(), fwd, 9.5, 3);
-      this.spawnSparks(this.playerPos.clone().add(fwd.clone().multiplyScalar(4.5)), 0xffaa00, 32, 6.0);
-      this.spawnShockwaveRing(this.playerPos.clone().add(fwd.clone().multiplyScalar(2.0)), 0xffaa00, 6.0, 0.4);
+      this.spawnWarriorFissureVfx(this.playerPos.clone(), fwd, 23.75, 3);
+      this.spawnSparks(this.playerPos.clone().add(fwd.clone().multiplyScalar(10.0)), 0xffaa00, 40, 7.0);
+      this.spawnShockwaveRing(this.playerPos.clone().add(fwd.clone().multiplyScalar(4.0)), 0xffaa00, 8.0, 0.45);
       this.executeMeleeAttack({
-        range: 9.5,
-        coneAngle: -0.1,
+        range: 23.75,
+        coneAngle: 0.79,
         dmgMultiplier: 4.2,
         critBonus: 0.45,
-        knockback: 2.0,
+        knockback: 2.5,
         isKnockUp: true,
       });
-      this.triggerCameraShake(0.40, 0.4);
-      this.callbacks.onAddFloatingText('RETISAN MEMBELAH TANAH TIER 3 (9.5m)! ⚡⚔️', '#ffd700', 'crit');
+      this.triggerCameraShake(0.45, 0.45);
+      this.callbacks.onAddFloatingText('RETISAN KIPAS PETIR MEMBELAH TANAH TIER 3 (23.75m)! ⚡⚔️', '#ffd700', 'crit');
     }
   }
 
@@ -4452,29 +4776,29 @@ export class GameEngine {
     this.attackDuration = 0.65;
     this.attackTimer = 0.65;
 
-    // Swing 1 (0ms): Cross Left
+    // Swing 1 (0ms): Cross Left (-45° roll)
     this.attackType = 'warrior_crescent_1';
     soundManager.playWarriorCleave(1);
-    this.spawnCrescentProjectile(forward, -0.4, 1.25, 1);
+    this.spawnCrescentProjectile(forward, -Math.PI / 4, 1.25, 1);
 
-    // Swing 2 (140ms): Cross Right
+    // Swing 2 (140ms): Cross Right (+45° roll, forming X-Cross Slash with swing 1)
     setTimeout(() => {
       if (!this.isRunning) return;
       this.attackType = 'warrior_crescent_2';
       soundManager.playWarriorCleave(2);
       const curFwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
-      this.spawnCrescentProjectile(curFwd, 0.4, 1.45, 2);
+      this.spawnCrescentProjectile(curFwd, Math.PI / 4, 1.45, 2);
     }, 140);
 
-    // Swing 3 (280ms): Vertical Down (Greatest damage & knockback)
+    // Swing 3 (280ms): Vertical Finisher (90° upright roll slicing straight forward)
     setTimeout(() => {
       if (!this.isRunning) return;
       this.attackType = 'warrior_crescent_3';
       soundManager.playWarriorCleave(3);
       soundManager.playSkillTebas360();
       const curFwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
-      this.spawnCrescentProjectile(curFwd, 0.0, 2.4, 3);
-      this.callbacks.onAddFloatingText('Triple Crescent Gale! 🌙⚡', '#ffd700', 'crit');
+      this.spawnCrescentProjectile(curFwd, Math.PI / 2, 2.4, 3);
+      this.callbacks.onAddFloatingText('Triple Crescent Gale Finisher! 🌙⚡', '#ffd700', 'crit');
     }, 280);
   }
 
@@ -4495,7 +4819,7 @@ export class GameEngine {
 
     const impactPos = this.playerPos.clone();
     soundManager.playWarriorShieldSlam();
-    this.triggerCameraShake(0.55, 0.45);
+    this.triggerCameraShake(0.65, 0.50);
 
     // Area of Effect (AoE) diperluas 1.8x lipat dari 7.5m menjadi 13.5m
     const aoeRadius = 13.5;
@@ -4506,17 +4830,19 @@ export class GameEngine {
       this.enemies.forEach((enemy) => {
         if (enemy.data.isDead) return;
         if (impactPos.distanceTo(enemy.mesh.position) <= aoeRadius) {
-          this.damageEnemy(enemy, finalDmg, true, 2.0);
-          this.spawnSparks(enemy.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xffaa00, 14, 4.5);
+          this.damageEnemy(enemy, finalDmg, true, 2.2);
+          this.spawnSparks(enemy.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xffaa00, 16, 4.8);
         }
       });
       return stats;
     });
 
-    // Lingkaran cincin kuning guncangan & retakan tanah (shockwave ring) skala proporsional dengan lingkaran benturan
+    // Lingkaran cincin guncangan & retakan tanah berlapis dari titik pusat kawah
     this.spawnShockwaveRing(impactPos, 0xfbbf24, aoeRadius, 0.65);
-    this.spawnShockwaveRing(impactPos, 0xffffff, aoeRadius * 0.6, 0.42);
-    this.spawnSparks(impactPos, 0xffd700, 36, 6.5);
+    this.spawnShockwaveRing(impactPos, 0xff7700, aoeRadius * 0.65, 0.50);
+    this.spawnShockwaveRing(impactPos, 0xffffff, 4.5, 0.35);
+    this.spawnSparks(impactPos, 0xffd700, 48, 7.5);
+    this.spawnSparks(impactPos, 0xffffff, 20, 5.0);
     this.spawnCataclysmicRockSpikesVfx(impactPos);
     this.callbacks.onAddFloatingText('Cataclysmic Leap Slam! 💥⛰️', '#ffd700', 'crit');
   }
@@ -4534,10 +4860,10 @@ export class GameEngine {
     this.cataclysmicLeaping = true;
     this.cataclysmicLanded = false;
 
-    // Parabolic leap diperjauh (~14.0m forward, vy = 13.2, durasi terbang ~1.2s, forward vel = 11.8 m/s)
-    this.playerVel.y = 13.2;
-    this.playerVel.x = forward.x * 11.8;
-    this.playerVel.z = forward.z * 11.8;
+    // Parabolic leap diperjauh 1.65x (~23-25m forward, vy = 14.5, durasi terbang ~1.25s, forward vel = 19.5 m/s)
+    this.playerVel.y = 14.5;
+    this.playerVel.x = forward.x * 19.5;
+    this.playerVel.z = forward.z * 19.5;
 
     // Fallback safety timeout jika karakter melompat ke dataran rendah / lembah
     setTimeout(() => {
@@ -5381,11 +5707,11 @@ export class GameEngine {
     }
   }
 
-  private checkInteract() {
+  private checkInteract(): boolean {
     // Execute nearby active prompt action (doors, portals, altars, NPCs, chests) immediately upon [F] key press
     if (this.currentPromptAction) {
       this.currentPromptAction();
-      return;
+      return true;
     }
 
     // Check all NPCs in the village and world
@@ -5394,7 +5720,7 @@ export class GameEngine {
         const dist = this.playerPos.distanceTo(new THREE.Vector3(...npc.position));
         if (dist < 4.0) {
           this.callbacks.onInteractNPC(npc.dialogueId || npc.id);
-          return;
+          return true;
         }
       }
     } else if (this.world.npc) {
@@ -5403,7 +5729,7 @@ export class GameEngine {
       );
       if (distToNpc < 4.0) {
         this.callbacks.onInteractNPC(this.world.npc.id);
-        return;
+        return true;
       }
     }
 
@@ -5415,10 +5741,12 @@ export class GameEngine {
         );
         if (dist < 3.0) {
           this.openChest(chest);
-          return;
+          return true;
         }
       }
     }
+
+    return false;
   }
 
   /**
