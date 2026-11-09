@@ -40,6 +40,7 @@ export default function App() {
   const [hasStarted, setHasStarted] = useState(false);
   const [gameMode, setGameMode] = useState<'singleplayer' | 'multiplayer'>('singleplayer');
   const [characterClass, setCharacterClass] = useState<CharacterClass>('warrior');
+  const [previewRole, setPreviewRole] = useState<'warrior' | 'mage' | 'rogue'>('warrior');
   const [multiplayerConfig, setMultiplayerConfig] = useState<MultiplayerStartOptions | null>(null);
   const [multiplayerPlayers, setMultiplayerPlayers] = useState<Record<string, RemotePlayerData>>({});
   const [multiplayerMessages, setMultiplayerMessages] = useState<ChatMessage[]>([]);
@@ -533,6 +534,9 @@ export default function App() {
       onCastingUpdate: (casting) => {
         setCastingState(casting);
       },
+      onPreviewRoleSelected: (role) => {
+        setPreviewRole(role);
+      },
       onCheckpointUnlocked: (id, nameId) => {
         setUnlockedCheckpoints((prev) => {
           if (prev.includes(id)) return prev;
@@ -1013,6 +1017,11 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onMenuModeChange={(mode) => engineRef.current?.setMenuMode(mode)}
         onPlayRoleAction={(role) => engineRef.current?.playRoleSelectAction(role)}
+        onSelectPreviewRole={(role) => {
+          setPreviewRole(role);
+          engineRef.current?.setSelectedPreviewRole(role);
+        }}
+        selectedPreviewRole={previewRole}
       />
 
       {/* Primary In-Game HUD Overlay */}

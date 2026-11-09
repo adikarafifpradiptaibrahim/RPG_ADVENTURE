@@ -225,6 +225,8 @@ interface MainMenuProps {
   onOpenSettings: () => void;
   onMenuModeChange?: (mode: 'main_menu' | 'character_select' | 'gameplay') => void;
   onPlayRoleAction?: (role: 'warrior' | 'mage' | 'rogue') => void;
+  onSelectPreviewRole?: (role: 'warrior' | 'mage' | 'rogue') => void;
+  selectedPreviewRole?: 'warrior' | 'mage' | 'rogue';
 }
 
 const STORAGE_KEY_SLOTS = 'ancients_quest_save_slots_v1';
@@ -274,12 +276,21 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onOpenSettings,
   onMenuModeChange,
   onPlayRoleAction,
+  onSelectPreviewRole,
+  selectedPreviewRole = 'warrior',
 }) => {
   const [view, setView] = useState<'main' | 'singleplayer_slots' | 'character_select' | 'multiplayer'>('main');
   const [saveSlots, setSaveSlots] = useState<SaveSlotData[]>(() => loadSaveSlots());
   const [selectedSlotId, setSelectedSlotId] = useState<number>(1);
+  const [selectedRole, setSelectedRole] = useState<'warrior' | 'mage' | 'rogue'>(selectedPreviewRole);
   const [activeTooltip, setActiveTooltip] = useState<SkillInfo | null>(null);
   const [isFadingOut, setIsFadingOut] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (selectedPreviewRole) {
+      setSelectedRole(selectedPreviewRole);
+    }
+  }, [selectedPreviewRole]);
 
   // Multiplayer inputs
   const [playerName, setPlayerName] = useState(() => `Hero_${Math.floor(1000 + Math.random() * 9000)}`);
@@ -693,48 +704,12 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             <div className="w-24 hidden sm:block" />
           </div>
 
-          {/* Action Buttons Underneath The 3D Character Models */}
-          <div className="w-full max-w-5xl mx-auto grid grid-cols-3 gap-4 sm:gap-8 px-2 pointer-events-auto mb-2">
-            {/* 1. Knight Button (Left) */}
-            <div className="flex flex-col items-center">
-              <button
-                type="button"
-                onClick={() => handleConfirmRole('warrior')}
-                className="w-full max-w-[220px] py-2.5 sm:py-3 px-3 rounded-xl bg-stone-950/85 hover:bg-amber-950/85 border-2 border-stone-300 hover:border-amber-400 text-white hover:text-amber-200 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl backdrop-blur-md active:scale-95 transition cursor-pointer text-center"
-              >
-                PILIH KNIGHT
-              </button>
-            </div>
-
-            {/* 2. Mage Button (Center) */}
-            <div className="flex flex-col items-center">
-              <button
-                type="button"
-                onClick={() => handleConfirmRole('mage')}
-                className="w-full max-w-[220px] py-2.5 sm:py-3 px-3 rounded-xl bg-stone-950/85 hover:bg-purple-950/85 border-2 border-stone-300 hover:border-purple-400 text-white hover:text-purple-200 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl backdrop-blur-md active:scale-95 transition cursor-pointer text-center"
-              >
-                PILIH MAGE
-              </button>
-            </div>
-
-            {/* 3. Assassin Button (Right) */}
-            <div className="flex flex-col items-center">
-              <button
-                type="button"
-                onClick={() => handleConfirmRole('rogue')}
-                className="w-full max-w-[220px] py-2.5 sm:py-3 px-3 rounded-xl bg-stone-950/85 hover:bg-emerald-950/85 border-2 border-stone-300 hover:border-emerald-400 text-white hover:text-emerald-200 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl backdrop-blur-md active:scale-95 transition cursor-pointer text-center"
-              >
-                PILIH ASSASSIN
-              </button>
-            </div>
-          </div>
-
           {/* Interactive Floating Tooltip (Above Clicked or Hovered Skill) */}
           {activeTooltip && (
             <div
               className="absolute z-50 pointer-events-none transition-all duration-150 animate-fade-in"
               style={{
-                bottom: '120px',
+                bottom: '160px',
                 left: '50%',
                 transform: 'translateX(-50%)',
                 maxWidth: '380px',
@@ -764,75 +739,185 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             </div>
           )}
 
-          {/* Bottom Skill Icon Bars (Grouped in 3 Rounded Dark Glassy Capsules) */}
-          <div className="w-full flex items-center justify-center gap-2 sm:gap-4 md:gap-6 flex-wrap pointer-events-auto pb-4">
-            {/* Knight Skills Bar */}
-            <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-black/80 border border-amber-600/40 backdrop-blur-md shadow-2xl">
-              {KNIGHT_SKILLS.map((skill) => (
-                <button
-                  key={skill.id}
-                  type="button"
-                  onMouseEnter={() => setActiveTooltip(skill)}
-                  onMouseLeave={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : prev))}
-                  onClick={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : skill))}
-                  className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
-                    activeTooltip?.id === skill.id
-                      ? 'bg-amber-500/30 border-2 border-amber-400 scale-105 shadow-lg shadow-amber-500/30'
-                      : 'bg-stone-900/60 hover:bg-stone-800 border border-stone-700/70 hover:border-amber-500/60'
-                  }`}
-                >
-                  <span className="text-base sm:text-lg">{skill.icon}</span>
-                  <span className="text-[7.5px] sm:text-[8px] font-bold text-stone-300 line-clamp-1 max-w-[42px] text-center">
-                    {skill.shortName}
-                  </span>
-                </button>
-              ))}
+          {/* Bottom Section: 360° Drag Hint, Action Buttons, and Skill Bars (Positioned cleanly below the 3D character bodies) */}
+          <div className="w-full flex flex-col items-center gap-2.5 pointer-events-auto pb-2 z-20">
+            {/* 360° Rotation & Interaction Hint Pill */}
+            <div className="text-[11px] font-semibold text-amber-200/90 bg-stone-950/75 border border-amber-500/30 px-3 py-1 rounded-full shadow-lg backdrop-blur-sm select-none">
+              💡 Geser mouse / drag untuk memutar karakter 360° • Klik role untuk memilih
             </div>
 
-            {/* Mage Skills Bar */}
-            <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-black/80 border border-blue-600/40 backdrop-blur-md shadow-2xl">
-              {MAGE_SKILLS.map((skill) => (
+            {/* Action Buttons: PILIH KNIGHT / MAGE / ASSASSIN (Shifted down so they do not obstruct characters' bodies) */}
+            <div className="w-full max-w-4xl mx-auto grid grid-cols-3 gap-3 sm:gap-6 px-4">
+              {/* 1. Knight Button (Left) */}
+              <div className="flex justify-center">
                 <button
-                  key={skill.id}
                   type="button"
-                  onMouseEnter={() => setActiveTooltip(skill)}
-                  onMouseLeave={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : prev))}
-                  onClick={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : skill))}
-                  className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
-                    activeTooltip?.id === skill.id
-                      ? 'bg-blue-500/30 border-2 border-blue-400 scale-105 shadow-lg shadow-blue-500/30'
-                      : 'bg-stone-900/60 hover:bg-stone-800 border border-stone-700/70 hover:border-blue-500/60'
+                  onClick={() => {
+                    setSelectedRole('warrior');
+                    onSelectPreviewRole?.('warrior');
+                    handleConfirmRole('warrior');
+                  }}
+                  onMouseEnter={() => {
+                    setSelectedRole('warrior');
+                    onSelectPreviewRole?.('warrior');
+                  }}
+                  className={`w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl backdrop-blur-md active:scale-95 transition cursor-pointer text-center ${
+                    selectedRole === 'warrior'
+                      ? 'bg-amber-500/90 border-amber-200 text-stone-950 shadow-amber-500/40 ring-2 ring-amber-400/60 scale-105'
+                      : 'bg-stone-950/85 hover:bg-stone-900 border-stone-400/60 text-white'
                   }`}
                 >
-                  <span className="text-base sm:text-lg">{skill.icon}</span>
-                  <span className="text-[7.5px] sm:text-[8px] font-bold text-stone-300 line-clamp-1 max-w-[42px] text-center">
-                    {skill.shortName}
-                  </span>
+                  PILIH KNIGHT
                 </button>
-              ))}
+              </div>
+
+              {/* 2. Mage Button (Center) */}
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedRole('mage');
+                    onSelectPreviewRole?.('mage');
+                    handleConfirmRole('mage');
+                  }}
+                  onMouseEnter={() => {
+                    setSelectedRole('mage');
+                    onSelectPreviewRole?.('mage');
+                  }}
+                  className={`w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl backdrop-blur-md active:scale-95 transition cursor-pointer text-center ${
+                    selectedRole === 'mage'
+                      ? 'bg-purple-500/90 border-purple-200 text-stone-950 shadow-purple-500/40 ring-2 ring-purple-400/60 scale-105'
+                      : 'bg-stone-950/85 hover:bg-stone-900 border-stone-400/60 text-white'
+                  }`}
+                >
+                  PILIH MAGE
+                </button>
+              </div>
+
+              {/* 3. Assassin Button (Right) */}
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedRole('rogue');
+                    onSelectPreviewRole?.('rogue');
+                    handleConfirmRole('rogue');
+                  }}
+                  onMouseEnter={() => {
+                    setSelectedRole('rogue');
+                    onSelectPreviewRole?.('rogue');
+                  }}
+                  className={`w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl backdrop-blur-md active:scale-95 transition cursor-pointer text-center ${
+                    selectedRole === 'rogue'
+                      ? 'bg-emerald-500/90 border-emerald-200 text-stone-950 shadow-emerald-500/40 ring-2 ring-emerald-400/60 scale-105'
+                      : 'bg-stone-950/85 hover:bg-stone-900 border-stone-400/60 text-white'
+                  }`}
+                >
+                  PILIH ASSASSIN
+                </button>
+              </div>
             </div>
 
-            {/* Assassin Skills Bar */}
-            <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-black/80 border border-emerald-600/40 backdrop-blur-md shadow-2xl">
-              {ASSASSIN_SKILLS.map((skill) => (
-                <button
-                  key={skill.id}
-                  type="button"
-                  onMouseEnter={() => setActiveTooltip(skill)}
-                  onMouseLeave={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : prev))}
-                  onClick={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : skill))}
-                  className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
-                    activeTooltip?.id === skill.id
-                      ? 'bg-emerald-500/30 border-2 border-emerald-400 scale-105 shadow-lg shadow-emerald-500/30'
-                      : 'bg-stone-900/60 hover:bg-stone-800 border border-stone-700/70 hover:border-emerald-500/60'
-                  }`}
-                >
-                  <span className="text-base sm:text-lg">{skill.icon}</span>
-                  <span className="text-[7.5px] sm:text-[8px] font-bold text-stone-300 line-clamp-1 max-w-[42px] text-center">
-                    {skill.shortName}
-                  </span>
-                </button>
-              ))}
+            {/* Bottom Skill Icon Bars (Grouped in 3 Rounded Dark Glassy Capsules) */}
+            <div className="w-full flex items-center justify-center gap-2 sm:gap-4 md:gap-6 flex-wrap">
+              {/* Knight Skills Bar */}
+              <div
+                className={`flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-black/80 border backdrop-blur-md shadow-2xl transition-all ${
+                  selectedRole === 'warrior'
+                    ? 'border-amber-400 ring-1 ring-amber-400/50 scale-[1.02]'
+                    : 'border-amber-600/30'
+                }`}
+                onClick={() => {
+                  setSelectedRole('warrior');
+                  onSelectPreviewRole?.('warrior');
+                }}
+              >
+                {KNIGHT_SKILLS.map((skill) => (
+                  <button
+                    key={skill.id}
+                    type="button"
+                    onMouseEnter={() => setActiveTooltip(skill)}
+                    onMouseLeave={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : prev))}
+                    onClick={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : skill))}
+                    className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+                      activeTooltip?.id === skill.id
+                        ? 'bg-amber-500/30 border-2 border-amber-400 scale-105 shadow-lg shadow-amber-500/30'
+                        : 'bg-stone-900/60 hover:bg-stone-800 border border-stone-700/70 hover:border-amber-500/60'
+                    }`}
+                  >
+                    <span className="text-base sm:text-lg">{skill.icon}</span>
+                    <span className="text-[7.5px] sm:text-[8px] font-bold text-stone-300 line-clamp-1 max-w-[42px] text-center">
+                      {skill.shortName}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Mage Skills Bar */}
+              <div
+                className={`flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-black/80 border backdrop-blur-md shadow-2xl transition-all ${
+                  selectedRole === 'mage'
+                    ? 'border-blue-400 ring-1 ring-blue-400/50 scale-[1.02]'
+                    : 'border-blue-600/30'
+                }`}
+                onClick={() => {
+                  setSelectedRole('mage');
+                  onSelectPreviewRole?.('mage');
+                }}
+              >
+                {MAGE_SKILLS.map((skill) => (
+                  <button
+                    key={skill.id}
+                    type="button"
+                    onMouseEnter={() => setActiveTooltip(skill)}
+                    onMouseLeave={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : prev))}
+                    onClick={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : skill))}
+                    className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+                      activeTooltip?.id === skill.id
+                        ? 'bg-blue-500/30 border-2 border-blue-400 scale-105 shadow-lg shadow-blue-500/30'
+                        : 'bg-stone-900/60 hover:bg-stone-800 border border-stone-700/70 hover:border-blue-500/60'
+                    }`}
+                  >
+                    <span className="text-base sm:text-lg">{skill.icon}</span>
+                    <span className="text-[7.5px] sm:text-[8px] font-bold text-stone-300 line-clamp-1 max-w-[42px] text-center">
+                      {skill.shortName}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Assassin Skills Bar */}
+              <div
+                className={`flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-black/80 border backdrop-blur-md shadow-2xl transition-all ${
+                  selectedRole === 'rogue'
+                    ? 'border-emerald-400 ring-1 ring-emerald-400/50 scale-[1.02]'
+                    : 'border-emerald-600/30'
+                }`}
+                onClick={() => {
+                  setSelectedRole('rogue');
+                  onSelectPreviewRole?.('rogue');
+                }}
+              >
+                {ASSASSIN_SKILLS.map((skill) => (
+                  <button
+                    key={skill.id}
+                    type="button"
+                    onMouseEnter={() => setActiveTooltip(skill)}
+                    onMouseLeave={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : prev))}
+                    onClick={() => setActiveTooltip((prev) => (prev?.id === skill.id ? null : skill))}
+                    className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+                      activeTooltip?.id === skill.id
+                        ? 'bg-emerald-500/30 border-2 border-emerald-400 scale-105 shadow-lg shadow-emerald-500/30'
+                        : 'bg-stone-900/60 hover:bg-stone-800 border border-stone-700/70 hover:border-emerald-500/60'
+                    }`}
+                  >
+                    <span className="text-base sm:text-lg">{skill.icon}</span>
+                    <span className="text-[7.5px] sm:text-[8px] font-bold text-stone-300 line-clamp-1 max-w-[42px] text-center">
+                      {skill.shortName}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

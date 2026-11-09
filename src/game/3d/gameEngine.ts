@@ -116,6 +116,7 @@ export interface GameEngineCallbacks {
   onHunterWeaponSwitch?: (mode: 'dagger' | 'bow') => void;
   onCastingUpdate?: (casting: { isCasting: boolean; progress: number; text: string } | null) => void;
   onCheckpointUnlocked?: (id: string, nameId: string, pos: [number, number]) => void;
+  onPreviewRoleSelected?: (role: 'warrior' | 'mage' | 'rogue') => void;
   onPlayerPositionUpdate?: (data: {
     x: number;
     z: number;
@@ -397,11 +398,20 @@ export class GameEngine {
 
   // Main Menu & 3D Character Selection Scene State
   public menuMode: 'main_menu' | 'character_select' | 'gameplay' = 'main_menu';
+  public selectedPreviewRole: 'warrior' | 'mage' | 'rogue' = 'warrior';
   private knightPreview: PlayerMeshObjects | null = null;
   private magePreview: PlayerMeshObjects | null = null;
   private assassinPreview: PlayerMeshObjects | null = null;
+  private selectArrowMesh: THREE.Mesh | null = null;
+  private selectRingMesh: THREE.Group | null = null;
   private previewActionTimer = 0;
   private previewActionRole: 'warrior' | 'mage' | 'rogue' | null = null;
+  private isDraggingPreview = false;
+  private prevPreviewMouseX = 0;
+
+  public setSelectedPreviewRole(role: 'warrior' | 'mage' | 'rogue') {
+    this.selectedPreviewRole = role;
+  }
 
   public setMenuMode(mode: 'main_menu' | 'character_select' | 'gameplay') {
     this.menuMode = mode;
@@ -430,23 +440,70 @@ export class GameEngine {
   public setupCharacterSelectScene() {
     this.clearCharacterSelectScene();
 
-    // 1. Knight Preview (Left: X: -2.2, Z: 182)
+    // Dry paving level in front of fountain
+    const targetZ = 186.2;
+    const targetY = 0.28;
+
+    // 1. Knight Preview (Left: X: -2.2, Z: targetZ) - Facing camera (rotation.y = 0)
     this.knightPreview = createPlayerMesh('warrior', 1);
-    this.knightPreview.group.position.set(-2.2, 0.25, 182);
-    this.knightPreview.group.rotation.y = Math.PI;
+    this.knightPreview.group.position.set(-2.2, targetY, targetZ);
+    this.knightPreview.group.rotation.set(0, 0, 0);
     this.scene.add(this.knightPreview.group);
 
-    // 2. Mage Preview (Center: X: 0, Z: 182)
+    // 2. Mage Preview (Center: X: 0, Z: targetZ) - Facing camera (rotation.y = 0)
     this.magePreview = createPlayerMesh('mage', 1);
-    this.magePreview.group.position.set(0, 0.25, 182);
-    this.magePreview.group.rotation.y = Math.PI;
+    this.magePreview.group.position.set(0, targetY, targetZ);
+    this.magePreview.group.rotation.set(0, 0, 0);
     this.scene.add(this.magePreview.group);
 
-    // 3. Assassin / Rogue Preview (Right: X: 2.2, Z: 182)
+    // 3. Assassin / Rogue Preview (Right: X: 2.2, Z: targetZ) - Facing camera (rotation.y = 0)
     this.assassinPreview = createPlayerMesh('rogue', 1);
-    this.assassinPreview.group.position.set(2.2, 0.25, 182);
-    this.assassinPreview.group.rotation.y = Math.PI;
+    this.assassinPreview.group.position.set(2.2, targetY, targetZ);
+    this.assassinPreview.group.rotation.set(0, 0, 0);
     this.scene.add(this.assassinPreview.group);
+
+    const initialX = this.selectedPreviewRole === 'warrior' ? -2.2 : this.selectedPreviewRole === 'mage' ? 0 : 2.2;
+
+    // 4. Golden Arrow Indicator Mesh (Inverted cone pointing down at selected character's head)
+    const arrowGeo = new THREE.ConeGeometry(0.20, 0.45, 4);
+    arrowGeo.rotateX(Math.PI);
+    const arrowMat = new THREE.MeshStandardMaterial({
+      color: 0xffd700,
+      emissive: 0xf59e0b,
+      emissiveIntensity: 0.85,
+      roughness: 0.15,
+      metalness: 0.85,
+    });
+    this.selectArrowMesh = new THREE.Mesh(arrowGeo, arrowMat);
+    this.selectArrowMesh.position.set(initialX, 2.75, targetZ);
+    this.scene.add(this.selectArrowMesh);
+
+    // 5. Selection Pedestal Ring (Magic glow circle under feet)
+    this.selectRingMesh = new THREE.Group();
+    const ringGeo = new THREE.RingGeometry(0.68, 0.92, 32);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xfbbf24,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    this.selectRingMesh.add(ring);
+
+    const discGeo = new THREE.CircleGeometry(0.68, 32);
+    discGeo.rotateX(-Math.PI / 2);
+    const discMat = new THREE.MeshBasicMaterial({
+      color: 0xd97706,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.30,
+    });
+    const disc = new THREE.Mesh(discGeo, discMat);
+    this.selectRingMesh.add(disc);
+
+    this.selectRingMesh.position.set(initialX, targetY + 0.02, targetZ);
+    this.scene.add(this.selectRingMesh);
   }
 
   public clearCharacterSelectScene() {
@@ -462,11 +519,21 @@ export class GameEngine {
       this.scene.remove(this.assassinPreview.group);
       this.assassinPreview = null;
     }
+    if (this.selectArrowMesh) {
+      this.scene.remove(this.selectArrowMesh);
+      this.selectArrowMesh = null;
+    }
+    if (this.selectRingMesh) {
+      this.scene.remove(this.selectRingMesh);
+      this.selectRingMesh = null;
+    }
     this.previewActionRole = null;
     this.previewActionTimer = 0;
+    this.isDraggingPreview = false;
   }
 
   public playRoleSelectAction(role: 'warrior' | 'mage' | 'rogue') {
+    this.selectedPreviewRole = role;
     this.previewActionRole = role;
     this.previewActionTimer = 1.0;
 
@@ -2146,6 +2213,27 @@ export class GameEngine {
   private isDraggingCamera = false;
 
   private handleMouseDown = (e: MouseEvent) => {
+    if (this.menuMode === 'character_select') {
+      if (e.button === 0) {
+        this.isDraggingPreview = true;
+        this.prevPreviewMouseX = e.clientX;
+
+        // Detect if clicked directly on one of the character columns in the viewport
+        const normalizedX = e.clientX / window.innerWidth;
+        if (normalizedX < 0.38) {
+          this.setSelectedPreviewRole('warrior');
+          this.callbacks.onPreviewRoleSelected?.('warrior');
+        } else if (normalizedX > 0.62) {
+          this.setSelectedPreviewRole('rogue');
+          this.callbacks.onPreviewRoleSelected?.('rogue');
+        } else {
+          this.setSelectedPreviewRole('mage');
+          this.callbacks.onPreviewRoleSelected?.('mage');
+        }
+      }
+      return;
+    }
+
     if (this.isControlsLocked || this.menuMode !== 'gameplay') return;
     this.isMouseDown = true;
     this.isDraggingCamera = false;
@@ -2158,6 +2246,22 @@ export class GameEngine {
   };
 
   private handleMouseMove = (e: MouseEvent) => {
+    if (this.menuMode === 'character_select') {
+      if (this.isDraggingPreview) {
+        const deltaX = e.clientX - this.prevPreviewMouseX;
+        this.prevPreviewMouseX = e.clientX;
+        const activeMesh = this.selectedPreviewRole === 'warrior'
+          ? this.knightPreview
+          : this.selectedPreviewRole === 'mage'
+          ? this.magePreview
+          : this.assassinPreview;
+        if (activeMesh?.group) {
+          activeMesh.group.rotation.y += deltaX * 0.015;
+        }
+      }
+      return;
+    }
+
     if (!this.isMouseDown || this.menuMode !== 'gameplay') return;
     const deltaX = e.clientX - this.prevMouseX;
     const deltaY = e.clientY - this.prevMouseY;
@@ -2194,6 +2298,11 @@ export class GameEngine {
   };
 
   private handleMouseUp = (e: MouseEvent) => {
+    if (this.menuMode === 'character_select') {
+      this.isDraggingPreview = false;
+      return;
+    }
+
     if (this.isSpectatorMode) {
       this.isMouseDown = false;
       this.isDraggingCamera = false;
@@ -2378,6 +2487,25 @@ export class GameEngine {
   }
 
   private handleTouchStart = (e: TouchEvent) => {
+    if (this.menuMode === 'character_select') {
+      if (e.touches.length > 0) {
+        this.isDraggingPreview = true;
+        this.prevPreviewMouseX = e.touches[0].clientX;
+        const normalizedX = e.touches[0].clientX / window.innerWidth;
+        if (normalizedX < 0.38) {
+          this.setSelectedPreviewRole('warrior');
+          this.callbacks.onPreviewRoleSelected?.('warrior');
+        } else if (normalizedX > 0.62) {
+          this.setSelectedPreviewRole('rogue');
+          this.callbacks.onPreviewRoleSelected?.('rogue');
+        } else {
+          this.setSelectedPreviewRole('mage');
+          this.callbacks.onPreviewRoleSelected?.('mage');
+        }
+      }
+      return;
+    }
+
     const camTouches = this.getCanvasCameraTouches(e.touches);
     if (camTouches.length > 0 && e.cancelable) {
       e.preventDefault();
@@ -2410,6 +2538,22 @@ export class GameEngine {
   };
 
   private handleTouchMove = (e: TouchEvent) => {
+    if (this.menuMode === 'character_select') {
+      if (this.isDraggingPreview && e.touches.length > 0) {
+        const deltaX = e.touches[0].clientX - this.prevPreviewMouseX;
+        this.prevPreviewMouseX = e.touches[0].clientX;
+        const activeMesh = this.selectedPreviewRole === 'warrior'
+          ? this.knightPreview
+          : this.selectedPreviewRole === 'mage'
+          ? this.magePreview
+          : this.assassinPreview;
+        if (activeMesh?.group) {
+          activeMesh.group.rotation.y += deltaX * 0.015;
+        }
+      }
+      return;
+    }
+
     const camTouches = this.getCanvasCameraTouches(e.touches);
     if ((this.isTouchingCamera || camTouches.length === 2) && e.cancelable) {
       e.preventDefault();
@@ -2447,6 +2591,11 @@ export class GameEngine {
   };
 
   private handleTouchEnd = (e: TouchEvent) => {
+    if (this.menuMode === 'character_select') {
+      this.isDraggingPreview = false;
+      return;
+    }
+
     if (this.cameraTouchId !== null) {
       for (let i = 0; i < e.changedTouches.length; i++) {
         if (e.changedTouches[i].identifier === this.cameraTouchId) {
@@ -2465,6 +2614,17 @@ export class GameEngine {
    * Public camera rotation method used by mobile transparent touch drag area
    */
   public rotateCameraByDelta(deltaX: number, deltaY: number) {
+    if (this.menuMode === 'character_select') {
+      const activeMesh = this.selectedPreviewRole === 'warrior'
+        ? this.knightPreview
+        : this.selectedPreviewRole === 'mage'
+        ? this.magePreview
+        : this.assassinPreview;
+      if (activeMesh?.group) {
+        activeMesh.group.rotation.y += deltaX * 0.015;
+      }
+      return;
+    }
     if (this.isSpectatorMode) {
       this.spectatorYaw = normalizeCameraYaw(
         this.spectatorYaw - deltaX * CAMERA_CONFIG.TOUCH_LOOK_SENSITIVITY_H
@@ -7635,8 +7795,9 @@ export class GameEngine {
 
     // 3D Character Selection Framing Camera (image_37.png)
     if (this.menuMode === 'character_select') {
-      this.camera.position.lerp(new THREE.Vector3(0, 1.6, 186.2), 0.1);
-      this.camera.lookAt(0, 1.35, 182);
+      const targetZ = 186.2;
+      this.camera.position.lerp(new THREE.Vector3(0, 1.65, targetZ + 4.2), 0.1);
+      this.camera.lookAt(0, 1.25, targetZ);
       return;
     }
 
@@ -7738,6 +7899,18 @@ export class GameEngine {
   private updateCharacterSelectPreviews(delta: number) {
     const t = this.clock.getElapsedTime();
     const breathe = Math.sin(t * 3.0) * 0.025;
+
+    // Update Floating Golden Arrow Indicator & Glow Pedestal Ring
+    const targetX = this.selectedPreviewRole === 'warrior' ? -2.2 : this.selectedPreviewRole === 'mage' ? 0 : 2.2;
+    if (this.selectArrowMesh) {
+      this.selectArrowMesh.position.x = THREE.MathUtils.lerp(this.selectArrowMesh.position.x, targetX, delta * 12.0);
+      this.selectArrowMesh.position.y = 2.75 + Math.sin(t * 3.5) * 0.09;
+      this.selectArrowMesh.rotation.y += delta * 2.2;
+    }
+    if (this.selectRingMesh) {
+      this.selectRingMesh.position.x = THREE.MathUtils.lerp(this.selectRingMesh.position.x, targetX, delta * 12.0);
+      this.selectRingMesh.rotation.y -= delta * 1.5;
+    }
 
     if (this.previewActionTimer > 0) {
       this.previewActionTimer -= delta;
