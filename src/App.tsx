@@ -9,7 +9,7 @@ import { DialogueModal } from './components/DialogueModal';
 import { HelpModal } from './components/HelpModal';
 import { WorldMapModal } from './components/WorldMapModal';
 import { ShopModal } from './components/ShopModal';
-import { MainMenuModal, MultiplayerStartOptions } from './components/MainMenuModal';
+import { MainMenu, MultiplayerStartOptions, SaveSlotData } from './components/MainMenu';
 import { PauseModal } from './components/PauseModal';
 import { GraphicsSettingsModal } from './components/GraphicsSettingsModal';
 import { MultiplayerChat } from './components/MultiplayerChat';
@@ -369,11 +369,24 @@ export default function App() {
   };
 
   // Start Single Player Mode (100% Client-Side offline, no server/WebSocket connection)
-  const handleStartSinglePlayer = (selectedClass: CharacterClass) => {
+  const handleStartSinglePlayer = (selectedClass: CharacterClass, slotData?: SaveSlotData) => {
     setIsPauseMenuOpen(false);
     setGameMode('singleplayer');
     multiplayerClient.disconnect();
     applyClassStats(selectedClass);
+
+    if (slotData && !slotData.isEmpty && slotData.level) {
+      setStats((prev) => ({
+        ...prev,
+        level: slotData.level || 1,
+        hp: slotData.hp || prev.hp,
+        maxHp: slotData.maxHp || prev.maxHp,
+        mp: slotData.mp || prev.mp,
+        maxMp: slotData.maxMp || prev.maxMp,
+        gold: slotData.gold || prev.gold,
+      }));
+    }
+
     setHasStarted(true);
 
     soundManager.playOverworldBGM();
@@ -384,6 +397,7 @@ export default function App() {
       engineRef.current.setGameMode('singleplayer', 'Pahlawan');
       engineRef.current.setCharacterClass(selectedClass);
       engineRef.current.clearRemotePlayers();
+      engineRef.current.setMenuMode('gameplay');
     }
   };
 
@@ -402,6 +416,7 @@ export default function App() {
       engineRef.current.setPaused(false);
       engineRef.current.setGameMode('multiplayer', options.playerName);
       engineRef.current.setCharacterClass(options.charClass);
+      engineRef.current.setMenuMode('gameplay');
     }
   };
 
@@ -413,6 +428,7 @@ export default function App() {
       engineRef.current.setPaused(false);
       engineRef.current.setGameMode('singleplayer');
       engineRef.current.clearRemotePlayers();
+      engineRef.current.setMenuMode('main_menu');
     }
     setMultiplayerPlayers({});
     setIsChatOpen(false);
@@ -427,6 +443,7 @@ export default function App() {
       engineRef.current.setPaused(false);
       engineRef.current.setGameMode('singleplayer');
       engineRef.current.clearRemotePlayers();
+      engineRef.current.setMenuMode('main_menu');
     }
     setMultiplayerPlayers({});
     setIsChatOpen(false);
@@ -446,7 +463,7 @@ export default function App() {
 
   // Initialize Three.js engine when canvas container mounts
   useEffect(() => {
-    if (!hasStarted || !containerRef.current) return;
+    if (!containerRef.current || engineRef.current) return;
 
     const engine = new GameEngine(containerRef.current, characterClass, {
       onUpdateStats: (updater) => setStats(updater),
@@ -548,10 +565,15 @@ export default function App() {
       },
     });
 
-    if (gameMode === 'multiplayer' && multiplayerConfig) {
-      engine.setGameMode('multiplayer', multiplayerConfig.playerName);
+    if (hasStarted) {
+      if (gameMode === 'multiplayer' && multiplayerConfig) {
+        engine.setGameMode('multiplayer', multiplayerConfig.playerName);
+      } else {
+        engine.setGameMode('singleplayer', 'Pahlawan');
+      }
+      engine.setMenuMode('gameplay');
     } else {
-      engine.setGameMode('singleplayer', 'Pahlawan');
+      engine.setMenuMode('main_menu');
     }
 
     engineRef.current = engine;
@@ -560,7 +582,7 @@ export default function App() {
       engine.destroy();
       engineRef.current = null;
     };
-  }, [hasStarted, addFloatingText]);
+  }, [addFloatingText]);
 
   // Synchronize player character class model if changed dynamically
   useEffect(() => {
@@ -984,10 +1006,13 @@ export default function App() {
       <div ref={containerRef} className="absolute inset-0 w-full h-full cursor-crosshair" />
 
       {/* Main Menu Overlay (Single Player & Multiplayer Mode Selection) */}
-      <MainMenuModal
+      <MainMenu
         isOpen={!hasStarted}
         onStartSinglePlayer={handleStartSinglePlayer}
         onStartMultiplayer={handleStartMultiplayer}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onMenuModeChange={(mode) => engineRef.current?.setMenuMode(mode)}
+        onPlayRoleAction={(role) => engineRef.current?.playRoleSelectAction(role)}
       />
 
       {/* Primary In-Game HUD Overlay */}

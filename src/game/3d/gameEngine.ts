@@ -395,6 +395,90 @@ export class GameEngine {
   public teleportGraceTimer = 0;
   public currentPromptAction: (() => void) | null = null;
 
+  // Main Menu & 3D Character Selection Scene State
+  public menuMode: 'main_menu' | 'character_select' | 'gameplay' = 'main_menu';
+  private knightPreview: PlayerMeshObjects | null = null;
+  private magePreview: PlayerMeshObjects | null = null;
+  private assassinPreview: PlayerMeshObjects | null = null;
+  private previewActionTimer = 0;
+  private previewActionRole: 'warrior' | 'mage' | 'rogue' | null = null;
+
+  public setMenuMode(mode: 'main_menu' | 'character_select' | 'gameplay') {
+    this.menuMode = mode;
+    if (mode === 'main_menu') {
+      this.clearCharacterSelectScene();
+      if (this.playerMesh?.group) {
+        this.playerMesh.group.visible = false;
+      }
+      this.setControlsLocked(true);
+    } else if (mode === 'character_select') {
+      if (this.playerMesh?.group) {
+        this.playerMesh.group.visible = false;
+      }
+      this.setupCharacterSelectScene();
+      this.setControlsLocked(true);
+    } else if (mode === 'gameplay') {
+      this.clearCharacterSelectScene();
+      if (this.playerMesh?.group) {
+        this.playerMesh.group.visible = true;
+      }
+      this.setControlsLocked(false);
+      this.teleportGraceTimer = 0.5;
+    }
+  }
+
+  public setupCharacterSelectScene() {
+    this.clearCharacterSelectScene();
+
+    // 1. Knight Preview (Left: X: -2.2, Z: 182)
+    this.knightPreview = createPlayerMesh('warrior', 1);
+    this.knightPreview.group.position.set(-2.2, 0.25, 182);
+    this.knightPreview.group.rotation.y = Math.PI;
+    this.scene.add(this.knightPreview.group);
+
+    // 2. Mage Preview (Center: X: 0, Z: 182)
+    this.magePreview = createPlayerMesh('mage', 1);
+    this.magePreview.group.position.set(0, 0.25, 182);
+    this.magePreview.group.rotation.y = Math.PI;
+    this.scene.add(this.magePreview.group);
+
+    // 3. Assassin / Rogue Preview (Right: X: 2.2, Z: 182)
+    this.assassinPreview = createPlayerMesh('rogue', 1);
+    this.assassinPreview.group.position.set(2.2, 0.25, 182);
+    this.assassinPreview.group.rotation.y = Math.PI;
+    this.scene.add(this.assassinPreview.group);
+  }
+
+  public clearCharacterSelectScene() {
+    if (this.knightPreview?.group) {
+      this.scene.remove(this.knightPreview.group);
+      this.knightPreview = null;
+    }
+    if (this.magePreview?.group) {
+      this.scene.remove(this.magePreview.group);
+      this.magePreview = null;
+    }
+    if (this.assassinPreview?.group) {
+      this.scene.remove(this.assassinPreview.group);
+      this.assassinPreview = null;
+    }
+    this.previewActionRole = null;
+    this.previewActionTimer = 0;
+  }
+
+  public playRoleSelectAction(role: 'warrior' | 'mage' | 'rogue') {
+    this.previewActionRole = role;
+    this.previewActionTimer = 1.0;
+
+    if (role === 'warrior') {
+      soundManager.playWarriorCleave(1);
+    } else if (role === 'mage') {
+      soundManager.playStarfallImpact(true, 0);
+    } else if (role === 'rogue') {
+      soundManager.playRogueShadowFlurry();
+    }
+  }
+
   private setNearbyPrompt(prompt: string | null, action?: () => void) {
     this.currentPromptAction = prompt && action ? action : null;
     this.callbacks.onNearbyPrompt(prompt, action);
@@ -549,7 +633,9 @@ export class GameEngine {
     const startY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
     this.playerPos.y = startY;
     this.playerMesh.group.position.copy(this.playerPos);
+    this.playerMesh.group.visible = false; // Initially hidden in main menu
     this.scene.add(this.playerMesh.group);
+    this.setControlsLocked(true);
 
     // 5. Spawn Enemies
     this.spawnEnemies();
@@ -2060,6 +2146,7 @@ export class GameEngine {
   private isDraggingCamera = false;
 
   private handleMouseDown = (e: MouseEvent) => {
+    if (this.isControlsLocked || this.menuMode !== 'gameplay') return;
     this.isMouseDown = true;
     this.isDraggingCamera = false;
     this.prevMouseX = e.clientX;
@@ -2071,7 +2158,7 @@ export class GameEngine {
   };
 
   private handleMouseMove = (e: MouseEvent) => {
-    if (!this.isMouseDown) return;
+    if (!this.isMouseDown || this.menuMode !== 'gameplay') return;
     const deltaX = e.clientX - this.prevMouseX;
     const deltaY = e.clientY - this.prevMouseY;
 
@@ -2125,6 +2212,7 @@ export class GameEngine {
 
   private handleWheel = (e: WheelEvent) => {
     e.preventDefault();
+    if (this.menuMode !== 'gameplay') return;
     if (this.isSpectatorMode) {
       const delta = -Math.sign(e.deltaY) * SPECTATOR_CONFIG.SCROLL_STEP;
       this.spectatorSpeed = clampSpectatorSpeed(this.spectatorSpeed + delta);
@@ -7533,6 +7621,25 @@ export class GameEngine {
   private updateCamera(delta = 0.016) {
     if (this.isSpectatorMode) return;
 
+    // Cinematic Menu Camera (image_30.png)
+    if (this.menuMode === 'main_menu') {
+      const time = this.clock.getElapsedTime();
+      this.camera.position.set(
+        Math.sin(time * 0.05) * 8 + 2,
+        3,
+        Math.cos(time * 0.05) * 8 + 180
+      );
+      this.camera.lookAt(0, 1.5, 176);
+      return;
+    }
+
+    // 3D Character Selection Framing Camera (image_37.png)
+    if (this.menuMode === 'character_select') {
+      this.camera.position.lerp(new THREE.Vector3(0, 1.6, 186.2), 0.1);
+      this.camera.lookAt(0, 1.35, 182);
+      return;
+    }
+
     // Dynamic Boss Aerial Camera lerping
     if (this.isDragonAirborne) {
       this.cameraTargetOffsetY = THREE.MathUtils.lerp(this.cameraTargetOffsetY, 4.5, delta * 3.0);
@@ -7628,6 +7735,52 @@ export class GameEngine {
     });
   }
 
+  private updateCharacterSelectPreviews(delta: number) {
+    const t = this.clock.getElapsedTime();
+    const breathe = Math.sin(t * 3.0) * 0.025;
+
+    if (this.previewActionTimer > 0) {
+      this.previewActionTimer -= delta;
+      const progress = 1.0 - Math.max(0, this.previewActionTimer);
+
+      if (this.previewActionRole === 'warrior' && this.knightPreview) {
+        // Vigorous downward slash pose
+        const slashPhase = Math.sin(progress * Math.PI);
+        this.knightPreview.rightArm.rotation.set(-1.6 + slashPhase * 2.0, 0.4 - slashPhase * 1.2, 0.2);
+        this.knightPreview.body.rotation.set(0, -slashPhase * 0.4, 0);
+      } else if (this.previewActionRole === 'mage' && this.magePreview) {
+        // Raise glowing staff into the air
+        this.magePreview.rightArm.rotation.set(-Math.PI * 0.85, -0.15, -0.20);
+        this.magePreview.body.position.y = 1.35 + Math.sin(progress * Math.PI) * 0.1;
+      } else if (this.previewActionRole === 'rogue' && this.assassinPreview) {
+        // Scissor blades cross slash
+        const crossPhase = Math.sin(progress * Math.PI * 2);
+        this.assassinPreview.leftArm.rotation.set(-1.2 + crossPhase * 0.4, 0.5, 0.4);
+        this.assassinPreview.rightArm.rotation.set(-1.2 - crossPhase * 0.4, -0.5, -0.4);
+      }
+    } else {
+      // Natural idle breathing & relaxed standby pose
+      if (this.knightPreview?.body) {
+        this.knightPreview.body.position.y = 1.48 + breathe;
+        this.knightPreview.body.rotation.set(0, 0, 0);
+        this.knightPreview.rightArm.rotation.set(-0.28 + breathe * 0.1, -0.15, -0.22);
+        this.knightPreview.leftArm.rotation.set(-0.30, 0.20, 0.15);
+      }
+      if (this.magePreview?.body) {
+        this.magePreview.body.position.y = 1.35 + breathe;
+        this.magePreview.body.rotation.set(0, 0, 0);
+        this.magePreview.rightArm.rotation.set(-0.20 + breathe * 0.08, -0.10, -0.15);
+        this.magePreview.leftArm.rotation.set(0.06, 0.10, 0.12);
+      }
+      if (this.assassinPreview?.body) {
+        this.assassinPreview.body.position.y = 1.35 + breathe;
+        this.assassinPreview.body.rotation.set(0, 0, 0);
+        this.assassinPreview.rightArm.rotation.set(-0.30 + breathe * 0.08, 0, -0.25);
+        this.assassinPreview.leftArm.rotation.set(-0.30 - breathe * 0.08, 0, 0.25);
+      }
+    }
+  }
+
   private animate = () => {
     if (!this.isRunning) return;
 
@@ -7652,6 +7805,16 @@ export class GameEngine {
     }
 
     const delta = Math.min(this.clock.getDelta(), 0.1);
+
+    // Menu States (Main Menu & 3D Character Selection)
+    if (this.menuMode !== 'gameplay') {
+      if (this.menuMode === 'character_select') {
+        this.updateCharacterSelectPreviews(delta);
+      }
+      this.updateCamera(delta);
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
 
     // Update Player & World Physics
     this.updatePlayer(delta);
