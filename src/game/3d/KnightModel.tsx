@@ -1131,14 +1131,23 @@ export function animateKnightCombatPose(
       break;
     }
     case 'warrior_combo_4_thrust': {
-      // Hit 4: Tusukan Pedang Horizontal ke Depan (Gambar 4)
-      playerMesh.rightArm.rotation.set(-1.57, 0, 0); // Lengan mendatar ke depan
-      playerMesh.rightArm.position.set(-0.46, 1.68, ease * 0.45); // Gerak dorong maju
+      // easeOut thrust: dorongan cepat ke depan lalu sedikit recoil
+      const thrustT = Math.sin(t * Math.PI);
+
+      // 1. Lengan kanan lurus horizontal menusuk ke depan (-Z)
+      playerMesh.rightArm.rotation.set(-Math.PI / 2, 0, 0);
+
+      // 2. Dorong bahu/lengan kanan maju ke depan saat menusuk
+      playerMesh.rightArm.position.set(-0.46, 1.68, thrustT * 0.45);
+
+      // 3. Putar pedang agar bilahnya lurus horizontal menembus ke depan (searah lengan):
+      playerMesh.weapon.rotation.set(Math.PI, 0, 0); // Putar 180 derajat agar bilah mengarah lurus ke depan musuh
       playerMesh.weapon.position.set(0, -0.04, 0.04);
-      playerMesh.weapon.rotation.set(1.57, 0, 0); // Bilah +Y menghadap lurus horizontal ke depan musuh
-      playerMesh.body.rotation.y = 0;
-      playerMesh.leftArm.rotation.set(-0.30, 0.20, 0.15);
+
+      // 4. Perisai kiri tetap siaga di samping pinggang menjaga keseimbangan
+      playerMesh.leftArm.rotation.set(-0.35, 0.25, 0.15);
       playerMesh.leftArm.position.set(0.46, 1.68, 0);
+      playerMesh.body.rotation.y = 0;
       break;
     }
     case 'warrior_charge_release_quick':
