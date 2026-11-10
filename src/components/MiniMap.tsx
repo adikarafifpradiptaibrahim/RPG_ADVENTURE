@@ -3,6 +3,7 @@ import { Map, Navigation } from 'lucide-react';
 import { MapMarker, RegionInfo } from '../types/game';
 import { getContinentBiomeSample } from '../game/mapSampler';
 import { drawRoadsOnMiniMap } from '../game/RoadSystem';
+import { getSharedDayNightSystem } from '../game/3d/dayNightSystem';
 
 interface MiniMapProps {
   playerPos: { x: number; z: number; rotationY: number };
@@ -46,6 +47,15 @@ export const MiniMap: React.FC<MiniMapProps> = ({
   const [zoomLevelIdx, setZoomLevelIdx] = useState<number>(1);
   const zoomRadii = [28, 46, 75];
   const radarRadius = zoomRadii[zoomLevelIdx];
+
+  // In-game 24-hour Celestial Day/Night Clock
+  const [dayNight, setDayNight] = useState(() => getSharedDayNightSystem().getState());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setDayNight(getSharedDayNightSystem().getState());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Update discovered chunks around player
   useEffect(() => {
@@ -477,8 +487,12 @@ export const MiniMap: React.FC<MiniMapProps> = ({
           })}
           </div>
 
-          {/* Coordinate HUD Pill placed neatly below the circular Minimap with natural margin and zero clipping */}
+          {/* Coordinate & In-Game Time HUD Pill placed neatly below the circular Minimap with natural margin and zero clipping */}
           <div className="mt-1.5 px-2.5 py-0.5 bg-black/85 text-amber-300 border border-amber-600/60 rounded text-[11px] font-mono font-bold tracking-tight shadow-md flex items-center justify-center gap-1.5 whitespace-nowrap pointer-events-none z-30">
+            <span title={`${dayNight.phaseNameId} (${dayNight.timeString})`}>
+              {dayNight.icon} {dayNight.timeString}
+            </span>
+            <span className="text-amber-500/70 font-normal">|</span>
             <span>X: {Math.round(playerPos.x)}</span>
             <span className="text-amber-500/70 font-normal">|</span>
             <span>Z: {Math.round(playerPos.z)}</span>

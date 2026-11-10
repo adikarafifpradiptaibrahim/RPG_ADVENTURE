@@ -839,7 +839,7 @@ export const ANCIENT_TITAN_BOSS_CONFIG: BossConfig = {
   detectRange: 42,
   expReward: 800,
   goldReward: 550,
-  pos: [-220, -400],
+  pos: [-224, -435],
   scale: [3.5, 3.5, 3.5],
   skills: [
     {
@@ -903,12 +903,12 @@ export const SPAWN_SANDWORM = {
 };
 
 export const SPAWN_TITAN = {
-  x: -220,
-  y: -1.8,
-  z: -400,
-  homeX: -220,
-  homeZ: -400,
-  leashRadius: 36, // Terkunci di dalam arena kawah batu kuno
+  x: -224,
+  y: -0.2,
+  z: -435,
+  homeX: -224,
+  homeZ: -435,
+  leashRadius: 50, // Terkunci di dalam arena Colosseum kuno
 };
 
 export const SPAWN_DRAGON = {

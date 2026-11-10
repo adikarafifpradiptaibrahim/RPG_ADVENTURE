@@ -80,12 +80,14 @@ import {
   createMageCelestialHealVfx,
   createMageBlinkVfx,
   preloadStarfallPool,
+  preloadMageVfxPool,
   StarfallCastingCircleInstance,
   CelestialHealResourcePool,
   CelestialHealVfxInstance,
   MageBlinkResourcePool,
   MageBlinkVfxInstance,
 } from '../skills';
+import { DayNightSystem, getSharedDayNightSystem } from './dayNightSystem';
 
 export interface LootPickup {
   mesh: THREE.Group;
@@ -263,6 +265,7 @@ export class GameEngine {
   })();
   private scenePointLights: THREE.PointLight[] = [];
   private currentParticleCount = 0;
+  public dayNightSystem: DayNightSystem;
 
   // World and Player
   private world: WorldObjects;
@@ -717,8 +720,14 @@ export class GameEngine {
       this.world.colliders
     );
 
-    // Warm-up & pre-compile Starfall shaders, geometries, and object pool
-    preloadStarfallPool(this.scene, this.renderer, this.camera);
+    // 3c. Initialize 24-hour Celestial Day-Night System & Atmosphere (24-minute real-time cycle)
+    this.dayNightSystem = getSharedDayNightSystem();
+    if (this.world?.hemiLight && this.world?.dirLight) {
+      this.dayNightSystem.applyOutdoorLighting(this.scene, this.world.hemiLight, this.world.dirLight, this.playerPos);
+    }
+
+    // Warm-up & pre-compile all Mage shaders, geometries, and object pools (Arcane Beam, Starfall, Blink, Celestial Heal)
+    preloadMageVfxPool(this.scene, this.renderer, this.camera);
 
     // Initialize Boss Manager
     this.bossManager = new BossManager(
@@ -8531,6 +8540,17 @@ export class GameEngine {
 
     const delta = Math.min(this.clock.getDelta(), 0.1);
 
+    // Update 24-minute real-time Day-Night Cycle & Celestial Atmosphere
+    this.dayNightSystem.update(delta);
+    if (this.world?.hemiLight && this.world?.dirLight) {
+      this.dayNightSystem.applyOutdoorLighting(
+        this.scene,
+        this.world.hemiLight,
+        this.world.dirLight,
+        this.menuMode === 'gameplay' ? (this.isSpectatorMode ? this.spectatorPos : this.playerPos) : undefined
+      );
+    }
+
     // Menu States (Main Menu & 3D Character Selection)
     if (this.menuMode !== 'gameplay') {
       if (this.menuMode === 'character_select') {
@@ -8758,17 +8778,25 @@ export class GameEngine {
       this.world.particles.rotation.y = elapsed * 0.03;
     }
 
-    // Optimization 1: Dynamic PointLights (Keep only 4 closest lights active)
-    if (this.posUpdateThrottle % 8 === 0 && this.scenePointLights.length > 4) {
+    // Optimization 1: Dynamic PointLights (Keep only 4 closest lights active, village lanterns active only at night 18:00 - 05:30)
+    if (this.posUpdateThrottle % 8 === 0 && this.scenePointLights.length > 0) {
       const pX = this.playerPos.x;
       const pZ = this.playerPos.z;
+      const isLanternTime = this.dayNightSystem.isVillageLanternTime();
       this.scenePointLights.sort((a, b) => {
         const da = (a.position.x - pX) ** 2 + (a.position.z - pZ) ** 2;
         const db = (b.position.x - pX) ** 2 + (b.position.z - pZ) ** 2;
         return da - db;
       });
       for (let i = 0; i < this.scenePointLights.length; i++) {
-        this.scenePointLights[i].visible = i < 4;
+        const light = this.scenePointLights[i];
+        const hex = light.color.getHex();
+        const isStreetOrVillageLamp = hex === 0xffecb3 || hex === 0xffd600 || hex === 0xf59e0b;
+        if (isStreetOrVillageLamp) {
+          light.visible = (i < 4) && isLanternTime;
+        } else {
+          light.visible = i < 4;
+        }
       }
     }
 

@@ -207,13 +207,23 @@ export function getMageMagicCircleTexture(): THREE.CanvasTexture {
 
 export interface MageLaserBeamVfxInstance {
   group: THREE.Group;
+  isActive: boolean;
+  activate: (params: {
+    origin: THREE.Vector3;
+    direction: THREE.Vector3;
+    beamLength?: number;
+    duration?: number;
+    getOrigin?: () => { origin: THREE.Vector3; direction?: THREE.Vector3 };
+    onHitTick?: (isTick: boolean) => void;
+    onSpawnSparks?: (pos: THREE.Vector3, color: number, count: number, speed: number) => void;
+  }) => void;
   update: (delta: number) => boolean;
   cleanup: () => void;
 }
 
 /**
  * Singleton Static Geometries and Materials for Arcane Laser Beam
- * Pre-allocates all 3D geometries and materials so cast execution is 100% zero-lag at 60 FPS
+ * Pre-allocates all 3D geometries, materials, and instances so cast execution is 100% zero-lag at 60 FPS
  */
 class ArcaneBeamResourcePool {
   private static instance: ArcaneBeamResourcePool | null = null;
@@ -247,6 +257,7 @@ class ArcaneBeamResourcePool {
   public impactCoreMat!: THREE.MeshBasicMaterial;
   public impactGlowMat!: THREE.MeshBasicMaterial;
 
+  private instances: MageLaserBeamVfxInstance[] = [];
   public isInitialized = false;
 
   public static get(): ArcaneBeamResourcePool {
@@ -362,14 +373,244 @@ class ArcaneBeamResourcePool {
       blending: THREE.AdditiveBlending,
     });
 
+    // Pre-allocate 4 complete beam instances for zero-allocation casting
+    this.instances = [];
+    for (let i = 0; i < 4; i++) {
+      this.instances.push(this.createBeamInstance());
+    }
+
     this.isInitialized = true;
+  }
+
+  private createBeamInstance(): MageLaserBeamVfxInstance {
+    const group = new THREE.Group();
+    group.visible = false;
+    group.position.set(0, -999, 0);
+
+    const magicCircleGroup = new THREE.Group();
+    const circlePlane = new THREE.Mesh(this.circlePlaneGeom, this.circlePlaneMat);
+    const outerTorus = new THREE.Mesh(this.outerTorusGeom, this.outerTorusMat);
+    const innerTorus = new THREE.Mesh(this.innerTorusGeom, this.innerTorusMat);
+    const coreSphere = new THREE.Mesh(this.coreSphereGeom, this.coreSphereMat);
+    const crossH = new THREE.Mesh(this.crossHGeom, this.crossMat);
+    const crossV = new THREE.Mesh(this.crossVGeom, this.crossMat);
+    const beamLight = new THREE.PointLight(0xe879f9, 4.5, 18.0);
+    magicCircleGroup.add(circlePlane, outerTorus, innerTorus, coreSphere, crossH, crossV, beamLight);
+    group.add(magicCircleGroup);
+
+    const laserBeamGroup = new THREE.Group();
+    const coreCyl = new THREE.Mesh(this.coreCylGeom, this.coreCylMat);
+    const plasmaCyl = new THREE.Mesh(this.plasmaCylGeom, this.plasmaCylMat);
+    const shroudCyl = new THREE.Mesh(this.shroudCylGeom, this.shroudCylMat);
+    laserBeamGroup.add(coreCyl, plasmaCyl, shroudCyl);
+
+    const ringMeshes: THREE.Mesh[] = [];
+    for (let r = 0; r < 4; r++) {
+      const ring = new THREE.Mesh(this.ringGeom, this.ringMat);
+      laserBeamGroup.add(ring);
+      ringMeshes.push(ring);
+    }
+    group.add(laserBeamGroup);
+
+    const impactGroup = new THREE.Group();
+    const impactCore = new THREE.Mesh(this.impactCoreGeom, this.impactCoreMat);
+    const impactGlow = new THREE.Mesh(this.impactGlowGeom, this.impactGlowMat);
+    impactGroup.add(impactCore, impactGlow);
+    group.add(impactGroup);
+
+    let isActive = false;
+    let timeLeft = 0;
+    let elapsed = 0;
+    let sparkInterval = 0;
+    let tickInterval = 0;
+    const currentOrigin = new THREE.Vector3();
+    const currentFwd = new THREE.Vector3(0, 0, 1);
+    let currentBeamLength = 32.0;
+    let getOriginCb: (() => { origin: THREE.Vector3; direction?: THREE.Vector3 }) | undefined;
+    let onHitTickCb: ((isTick: boolean) => void) | undefined;
+    let onSpawnSparksCb: ((pos: THREE.Vector3, color: number, count: number, speed: number) => void) | undefined;
+
+    const cleanup = () => {
+      isActive = false;
+      group.visible = false;
+      group.position.set(0, -999, 0);
+      beamLight.intensity = 0;
+      if (group.parent) {
+        group.parent.remove(group);
+      }
+    };
+
+    const activate = (params: {
+      origin: THREE.Vector3;
+      direction: THREE.Vector3;
+      beamLength?: number;
+      duration?: number;
+      getOrigin?: () => { origin: THREE.Vector3; direction?: THREE.Vector3 };
+      onHitTick?: (isTick: boolean) => void;
+      onSpawnSparks?: (pos: THREE.Vector3, color: number, count: number, speed: number) => void;
+    }) => {
+      isActive = true;
+      group.visible = true;
+      timeLeft = params.duration ?? 1.0;
+      elapsed = 0;
+      sparkInterval = 0;
+      tickInterval = 0;
+
+      currentOrigin.copy(params.origin);
+      currentFwd.copy(params.direction).normalize();
+      currentBeamLength = params.beamLength ?? 32.0;
+      getOriginCb = params.getOrigin;
+      onHitTickCb = params.onHitTick;
+      onSpawnSparksCb = params.onSpawnSparks;
+
+      // Reset material opacities
+      this.circlePlaneMat.opacity = 0.95;
+      this.outerTorusMat.opacity = 0.85;
+      this.innerTorusMat.opacity = 0.8;
+      this.coreSphereMat.opacity = 0.98;
+      this.crossMat.opacity = 0.9;
+      this.coreCylMat.opacity = 1.0;
+      this.plasmaCylMat.opacity = 0.85;
+      this.shroudCylMat.opacity = 0.55;
+      this.ringMat.opacity = 0.85;
+      this.impactCoreMat.opacity = 0.95;
+      this.impactGlowMat.opacity = 0.75;
+      beamLight.intensity = 4.5;
+
+      magicCircleGroup.position.copy(currentOrigin);
+      magicCircleGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), currentFwd);
+
+      const beamCenter = currentOrigin.clone().addScaledVector(currentFwd, currentBeamLength / 2);
+      laserBeamGroup.position.copy(beamCenter);
+      laserBeamGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), currentFwd);
+
+      const ringOffsets = [-currentBeamLength * 0.35, -currentBeamLength * 0.12, currentBeamLength * 0.12, currentBeamLength * 0.35];
+      ringMeshes.forEach((rm, i) => {
+        rm.position.set(0, ringOffsets[i], 0);
+        rm.rotation.x = Math.PI / 2;
+      });
+
+      const endPoint = currentOrigin.clone().addScaledVector(currentFwd, currentBeamLength);
+      impactGroup.position.copy(endPoint);
+
+      // Trigger instant first hit
+      onHitTickCb?.(false);
+    };
+
+    const update = (delta: number): boolean => {
+      if (!isActive) return false;
+      timeLeft -= delta;
+      elapsed += delta;
+
+      if (timeLeft <= 0) {
+        cleanup();
+        return false;
+      }
+
+      if (getOriginCb) {
+        const dynamic = getOriginCb();
+        currentOrigin.copy(dynamic.origin);
+        if (dynamic.direction) {
+          currentFwd.copy(dynamic.direction).normalize();
+        }
+        magicCircleGroup.position.copy(currentOrigin);
+        magicCircleGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), currentFwd);
+
+        const beamCenter = currentOrigin.clone().addScaledVector(currentFwd, currentBeamLength / 2);
+        laserBeamGroup.position.copy(beamCenter);
+        laserBeamGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), currentFwd);
+
+        const endPoint = currentOrigin.clone().addScaledVector(currentFwd, currentBeamLength);
+        impactGroup.position.copy(endPoint);
+      }
+
+      circlePlane.rotation.z += delta * 2.8;
+      outerTorus.rotation.z += delta * 2.2;
+      innerTorus.rotation.z -= delta * 1.8;
+      crossH.rotation.z += delta * 1.5;
+      crossV.rotation.z += delta * 1.5;
+
+      const pulse = 1.0 + Math.sin(elapsed * 45) * 0.14;
+      coreCyl.scale.set(pulse, 1, pulse);
+      plasmaCyl.scale.set(pulse, 1, pulse);
+      const shroudPulse = 1.0 + Math.sin(elapsed * 25) * 0.16;
+      shroudCyl.scale.set(shroudPulse, 1, shroudPulse);
+
+      ringMeshes.forEach((rm, i) => {
+        rm.rotation.x += delta * (5 + i * 1.2);
+        rm.rotation.y += delta * (4 - i * 0.8);
+        rm.scale.setScalar(1.0 + Math.sin(elapsed * 20 + i) * 0.18);
+      });
+
+      sparkInterval += delta;
+      if (sparkInterval >= 0.05) {
+        sparkInterval = 0;
+        const randDist = 1.2 + Math.random() * (currentBeamLength - 2.5);
+        const sparkPos = currentOrigin.clone().addScaledVector(currentFwd, randDist);
+        sparkPos.add(new THREE.Vector3((Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8));
+        const color = Math.random() > 0.4 ? 0xe879f9 : 0xffffff;
+        onSpawnSparksCb?.(sparkPos, color, 2, 2.5);
+      }
+
+      tickInterval += delta;
+      if (tickInterval >= 0.25) {
+        tickInterval = 0;
+        onHitTickCb?.(true);
+      }
+
+      if (timeLeft < 0.25) {
+        const alpha = Math.max(0, timeLeft / 0.25);
+        this.circlePlaneMat.opacity = 0.95 * alpha;
+        this.outerTorusMat.opacity = 0.85 * alpha;
+        this.innerTorusMat.opacity = 0.8 * alpha;
+        this.coreSphereMat.opacity = 0.98 * alpha;
+        this.crossMat.opacity = 0.9 * alpha;
+        this.coreCylMat.opacity = alpha;
+        this.plasmaCylMat.opacity = 0.85 * alpha;
+        this.shroudCylMat.opacity = 0.55 * alpha;
+        this.ringMat.opacity = 0.85 * alpha;
+        this.impactCoreMat.opacity = 0.95 * alpha;
+        this.impactGlowMat.opacity = 0.75 * alpha;
+        beamLight.intensity = 4.5 * alpha;
+      }
+
+      return true;
+    };
+
+    return {
+      group,
+      get isActive() {
+        return isActive;
+      },
+      activate,
+      update,
+      cleanup,
+    };
+  }
+
+  public acquire(params: {
+    origin: THREE.Vector3;
+    direction: THREE.Vector3;
+    beamLength?: number;
+    duration?: number;
+    getOrigin?: () => { origin: THREE.Vector3; direction?: THREE.Vector3 };
+    onHitTick?: (isTick: boolean) => void;
+    onSpawnSparks?: (pos: THREE.Vector3, color: number, count: number, speed: number) => void;
+  }): MageLaserBeamVfxInstance {
+    let inst = this.instances.find((b) => !b.isActive);
+    if (!inst) {
+      inst = this.instances[0];
+      inst.cleanup();
+    }
+    inst.activate(params);
+    return inst;
   }
 }
 
 /**
  * Creates the Spectacular 3D Mage Arcane Laser Beam & Magic Circle VFX
  * Active duration: exactly 1.0 second (1000 ms).
- * Zero-Lag Implementation: All geometries and materials are pre-cached in ArcaneBeamResourcePool
+ * Zero-Lag Implementation: Pre-allocated object pool with pre-warmed WebGL shaders
  */
 export function createMageArcaneLaserBeamVfx(params: {
   origin: THREE.Vector3;
@@ -380,214 +621,7 @@ export function createMageArcaneLaserBeamVfx(params: {
   onHitTick?: (isTick: boolean) => void;
   onSpawnSparks?: (pos: THREE.Vector3, color: number, count: number, speed: number) => void;
 }): MageLaserBeamVfxInstance {
-  const {
-    origin,
-    direction: rawDirection,
-    beamLength = 32.0,
-    duration = 1.0,
-    getOrigin,
-    onHitTick,
-    onSpawnSparks,
-  } = params;
-
-  const pool = ArcaneBeamResourcePool.get();
-  const fwd = rawDirection.clone().normalize();
-  const group = new THREE.Group();
-
-  // ----------------------------------------------------
-  // 1. 3D MAGIC CIRCLE (Pre-allocated plane & toruses)
-  // ----------------------------------------------------
-  const magicCircleGroup = new THREE.Group();
-  magicCircleGroup.position.copy(origin);
-  magicCircleGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fwd);
-
-  const circlePlane = new THREE.Mesh(pool.circlePlaneGeom, pool.circlePlaneMat);
-  magicCircleGroup.add(circlePlane);
-
-  const outerTorus = new THREE.Mesh(pool.outerTorusGeom, pool.outerTorusMat);
-  magicCircleGroup.add(outerTorus);
-
-  const innerTorus = new THREE.Mesh(pool.innerTorusGeom, pool.innerTorusMat);
-  magicCircleGroup.add(innerTorus);
-
-  const coreSphere = new THREE.Mesh(pool.coreSphereGeom, pool.coreSphereMat);
-  magicCircleGroup.add(coreSphere);
-
-  const crossH = new THREE.Mesh(pool.crossHGeom, pool.crossMat);
-  const crossV = new THREE.Mesh(pool.crossVGeom, pool.crossMat);
-  magicCircleGroup.add(crossH, crossV);
-
-  const beamLight = new THREE.PointLight(0xe879f9, 4.5, 18.0);
-  magicCircleGroup.add(beamLight);
-
-  group.add(magicCircleGroup);
-
-  // ----------------------------------------------------
-  // 2. STRAIGHT LASER BEAM CYLINDERS (Core White + Neon Violet)
-  // ----------------------------------------------------
-  const laserBeamGroup = new THREE.Group();
-  const beamCenter = origin.clone().addScaledVector(fwd, beamLength / 2);
-  laserBeamGroup.position.copy(beamCenter);
-  laserBeamGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), fwd);
-
-  const coreCyl = new THREE.Mesh(pool.coreCylGeom, pool.coreCylMat);
-  laserBeamGroup.add(coreCyl);
-
-  const plasmaCyl = new THREE.Mesh(pool.plasmaCylGeom, pool.plasmaCylMat);
-  laserBeamGroup.add(plasmaCyl);
-
-  const shroudCyl = new THREE.Mesh(pool.shroudCylGeom, pool.shroudCylMat);
-  laserBeamGroup.add(shroudCyl);
-
-  const ringOffsets = [-beamLength * 0.35, -beamLength * 0.12, beamLength * 0.12, beamLength * 0.35];
-  const ringMeshes: THREE.Mesh[] = [];
-  ringOffsets.forEach((yOff) => {
-    const ring = new THREE.Mesh(pool.ringGeom, pool.ringMat);
-    ring.position.y = yOff;
-    ring.rotation.x = Math.PI / 2;
-    laserBeamGroup.add(ring);
-    ringMeshes.push(ring);
-  });
-
-  const endPoint = origin.clone().addScaledVector(fwd, beamLength);
-  const impactGroup = new THREE.Group();
-  impactGroup.position.copy(endPoint);
-
-  const impactCore = new THREE.Mesh(pool.impactCoreGeom, pool.impactCoreMat);
-  impactGroup.add(impactCore);
-
-  const impactGlow = new THREE.Mesh(pool.impactGlowGeom, pool.impactGlowMat);
-  impactGroup.add(impactGlow);
-
-  group.add(laserBeamGroup);
-  group.add(impactGroup);
-
-  // ----------------------------------------------------
-  // 3. ANIMATION & LIFECYCLE CONTROLLER (1.0 Second Active Duration)
-  // ----------------------------------------------------
-  let timeLeft = duration;
-  let elapsed = 0;
-  let sparkInterval = 0;
-  let tickInterval = 0;
-
-  // Initial instant hit check
-  onHitTick?.(false);
-
-  const cleanup = () => {
-    // Reset material opacities for pooled reuse
-    pool.circlePlaneMat.opacity = 0.95;
-    pool.outerTorusMat.opacity = 0.85;
-    pool.innerTorusMat.opacity = 0.8;
-    pool.coreSphereMat.opacity = 0.98;
-    pool.crossMat.opacity = 0.9;
-    pool.coreCylMat.opacity = 1.0;
-    pool.plasmaCylMat.opacity = 0.85;
-    pool.shroudCylMat.opacity = 0.55;
-    pool.ringMat.opacity = 0.85;
-    pool.impactCoreMat.opacity = 0.95;
-    pool.impactGlowMat.opacity = 0.75;
-    beamLight.intensity = 0;
-
-    if (group.parent) {
-      group.parent.remove(group);
-    }
-  };
-
-  const update = (delta: number): boolean => {
-    timeLeft -= delta;
-    elapsed += delta;
-
-    if (timeLeft <= 0) {
-      cleanup();
-      return false;
-    }
-
-    // Dynamic position tracking: Keep Magic Circle and beam glued to staff crystal
-    if (getOrigin) {
-      const dynamic = getOrigin();
-      origin.copy(dynamic.origin);
-      if (dynamic.direction) {
-        fwd.copy(dynamic.direction).normalize();
-      }
-      magicCircleGroup.position.copy(origin);
-      magicCircleGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fwd);
-
-      const beamCenter = origin.clone().addScaledVector(fwd, beamLength / 2);
-      laserBeamGroup.position.copy(beamCenter);
-      laserBeamGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), fwd);
-
-      const endPoint = origin.clone().addScaledVector(fwd, beamLength);
-      impactGroup.position.copy(endPoint);
-    }
-
-    // 1. Rotate Magic Circle components
-    circlePlane.rotation.z += delta * 2.8;
-    outerTorus.rotation.z += delta * 2.2;
-    innerTorus.rotation.z -= delta * 1.8;
-    crossH.rotation.z += delta * 1.5;
-    crossV.rotation.z += delta * 1.5;
-
-    // 2. High-energy Laser Pulse
-    const pulse = 1.0 + Math.sin(elapsed * 45) * 0.14;
-    coreCyl.scale.set(pulse, 1, pulse);
-    plasmaCyl.scale.set(pulse, 1, pulse);
-    const shroudPulse = 1.0 + Math.sin(elapsed * 25) * 0.16;
-    shroudCyl.scale.set(shroudPulse, 1, shroudPulse);
-
-    // Helical rings spin and glide
-    ringMeshes.forEach((rm, i) => {
-      rm.rotation.x += delta * (5 + i * 1.2);
-      rm.rotation.y += delta * (4 - i * 0.8);
-      rm.scale.setScalar(1.0 + Math.sin(elapsed * 20 + i) * 0.18);
-    });
-
-    // 3. Arcane sparks along the beam trajectory
-    sparkInterval += delta;
-    if (sparkInterval >= 0.05) {
-      sparkInterval = 0;
-      const randDist = 1.2 + Math.random() * (beamLength - 2.5);
-      const sparkPos = origin.clone().addScaledVector(fwd, randDist);
-      sparkPos.add(
-        new THREE.Vector3(
-          (Math.random() - 0.5) * 0.8,
-          (Math.random() - 0.5) * 0.8,
-          (Math.random() - 0.5) * 0.8
-        )
-      );
-      const color = Math.random() > 0.4 ? 0xe879f9 : 0xffffff;
-      onSpawnSparks?.(sparkPos, color, 2, 2.5);
-    }
-
-    // 4. Hitbox damage tick every 0.25 seconds
-    tickInterval += delta;
-    if (tickInterval >= 0.25) {
-      tickInterval = 0;
-      onHitTick?.(true);
-    }
-
-    // 5. Smooth fade out during last 0.25 seconds
-    if (timeLeft < 0.25) {
-      const alpha = Math.max(0, timeLeft / 0.25);
-      pool.circlePlaneMat.opacity = 0.95 * alpha;
-      pool.outerTorusMat.opacity = 0.85 * alpha;
-      pool.innerTorusMat.opacity = 0.8 * alpha;
-      pool.coreSphereMat.opacity = 0.98 * alpha;
-      pool.crossMat.opacity = 0.9 * alpha;
-
-      pool.coreCylMat.opacity = alpha;
-      pool.plasmaCylMat.opacity = 0.85 * alpha;
-      pool.shroudCylMat.opacity = 0.55 * alpha;
-      pool.ringMat.opacity = 0.85 * alpha;
-
-      pool.impactCoreMat.opacity = 0.95 * alpha;
-      pool.impactGlowMat.opacity = 0.75 * alpha;
-      beamLight.intensity = 4.5 * alpha;
-    }
-
-    return true;
-  };
-
-  return { group, update, cleanup };
+  return ArcaneBeamResourcePool.get().acquire(params);
 }
 
 /**
@@ -1730,6 +1764,7 @@ export function preloadMageVfxPool(scene: THREE.Scene, renderer?: THREE.WebGLRen
     dummyGroup.add(new THREE.Mesh(blinkPool.torsoGeom, blinkPool.afterimageMat1));
     dummyGroup.add(new THREE.Mesh(blinkPool.shockwaveGeom1, blinkPool.landingShockwaveMatCyan));
 
+    dummyGroup.position.set(0, -999, 0);
     scene.add(dummyGroup);
     try {
       renderer.compile(scene, camera);

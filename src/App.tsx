@@ -1212,8 +1212,13 @@ export default function App() {
         connectedPlayersCount={Object.keys(multiplayerPlayers).length + 1}
         showTouchControls={showTouchControls}
         onToggleTouchControls={handleToggleTouchControls}
+        graphicsSettings={graphicsSettings}
+        onApplyGraphicsSettings={(newSettings) => {
+          setGraphicsSettings(newSettings);
+          engineRef.current?.applyGraphicsSettings(newSettings);
+          addFloatingText('Pengaturan Diterapkan! ⚙️', '#38bdf8', 'info');
+        }}
         onResume={handleResumeGame}
-        onOpenGraphicsSettings={() => setIsSettingsOpen(true)}
         onReturnToMainMenu={handleReturnToMainMenu}
         onDisconnectAndReturnToMainMenu={handleDisconnectAndReturnToMainMenu}
       />

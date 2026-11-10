@@ -3,19 +3,31 @@ import {
   Monitor,
   Zap,
   Sliders,
-  Sparkles,
-  Eye,
   Check,
   X,
-  Gauge,
-  Layers,
-  Cpu,
+  Volume2,
+  VolumeX,
+  Music,
+  Gamepad2,
+  Disc,
+  Crosshair,
+  Keyboard,
 } from 'lucide-react';
 import {
   GraphicsSettings,
   GRAPHICS_PRESETS,
   saveGraphicsSettings,
 } from '../game/graphicsSettings';
+import { soundManager } from '../game/audio';
+import {
+  TouchControlMode,
+  getSavedControlMode,
+  setSavedControlMode,
+} from './VirtualJoystick';
+import {
+  getMouseSensitivityMultiplier,
+  setMouseSensitivityMultiplier,
+} from '../game/CameraControls';
 
 interface GraphicsSettingsModalProps {
   isOpen: boolean;
@@ -30,10 +42,21 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
   onApply,
   onClose,
 }) => {
+  const [activeTab, setActiveTab] = useState<'grafik' | 'suara' | 'kontrol'>('grafik');
   const [settings, setSettings] = useState<GraphicsSettings>(currentSettings);
+
+  // Audio State
+  const [isMuted, setIsMuted] = useState<boolean>(() => soundManager.getMuted());
+  const [bgmVolume, setBgmVolumeState] = useState<number>(() => soundManager.getBgmVolume());
+  const [sfxVolume, setSfxVolumeState] = useState<number>(() => soundManager.getSfxVolume());
+
+  // Controls State
+  const [controlMode, setControlModeState] = useState<TouchControlMode>(() => getSavedControlMode());
+  const [mouseSensitivity, setMouseSensitivityState] = useState<number>(() => getMouseSensitivityMultiplier());
 
   if (!isOpen) return null;
 
+  // Graphics Handlers
   const handleSelectPreset = (preset: 'low' | 'medium' | 'high') => {
     const next = { ...GRAPHICS_PRESETS[preset] };
     setSettings(next);
@@ -41,26 +64,55 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
     onApply(next);
   };
 
-  const handleSave = () => {
-    saveGraphicsSettings(settings);
-    onApply(settings);
-    onClose();
+  const handleUpdateGraphics = (partial: Partial<GraphicsSettings>) => {
+    const next: GraphicsSettings = { ...settings, ...partial, preset: 'custom' };
+    setSettings(next);
+    saveGraphicsSettings(next);
+    onApply(next);
+  };
+
+  // Audio Handlers
+  const toggleMute = () => {
+    const next = !isMuted;
+    soundManager.setMuted(next);
+    setIsMuted(next);
+  };
+
+  const handleBgmChange = (val: number) => {
+    setBgmVolumeState(val);
+    soundManager.setBgmVolume(val);
+  };
+
+  const handleSfxChange = (val: number) => {
+    setSfxVolumeState(val);
+    soundManager.setSfxVolume(val);
+  };
+
+  // Controls Handlers
+  const handleControlModeSwitch = (mode: TouchControlMode) => {
+    setControlModeState(mode);
+    setSavedControlMode(mode);
+  };
+
+  const handleSensitivityChange = (val: number) => {
+    setMouseSensitivityState(val);
+    setMouseSensitivityMultiplier(val);
   };
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Pengaturan Grafis"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200 font-sans"
+      aria-label="Pengaturan Game"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200 font-sans"
     >
       <div
         style={{
-          maxHeight: '80vh',
+          maxHeight: '85vh',
           overflowY: 'auto',
           WebkitOverflowScrolling: 'touch',
         }}
-        className="game-modal-card relative w-[90vw] max-w-lg max-h-[80vh] flex flex-col overflow-y-auto modal-scroll-area rounded-2xl border-2 border-cyan-500/40 bg-gradient-to-b from-stone-900 via-stone-950 to-black shadow-2xl shadow-cyan-950/40 text-stone-200"
+        className="game-modal-card relative w-[94vw] max-w-lg max-h-[85vh] flex flex-col overflow-y-auto modal-scroll-area rounded-2xl border-2 border-cyan-500/50 bg-gradient-to-b from-stone-900 via-stone-950 to-black shadow-2xl shadow-cyan-950/40 text-stone-200"
       >
         {/* Header */}
         <div className="sticky top-0 z-20 shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-stone-800 bg-stone-950/95">
@@ -70,287 +122,388 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black text-amber-100 font-serif">
-                Pengaturan Grafis
+                Pengaturan Permainan
               </h2>
               <p className="text-[11px] text-stone-400">
-                Optimasi FPS & resolusi untuk HP dan PC
+                Grafik, Audio, dan Kontrol untuk HP & PC
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            style={{
-              position: 'sticky',
-              top: '10px',
-              right: '10px',
-              zIndex: 10000,
-            }}
-            className="modal-close-btn-sticky flex items-center justify-center p-2 rounded-xl bg-stone-900/90 hover:bg-red-950/80 text-stone-300 hover:text-red-300 border border-stone-700 hover:border-red-500/50 text-xs font-bold transition cursor-pointer active:scale-95 shadow-lg"
+            className="flex items-center justify-center p-2 rounded-xl bg-stone-900/90 hover:bg-red-950/80 text-stone-300 hover:text-red-300 border border-stone-700 hover:border-red-500/50 text-xs font-bold transition cursor-pointer active:scale-95 shadow-lg"
             title="Tutup (Esc)"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Scrollable Content Body */}
+        {/* 3 Sub-Tabs Navigation */}
+        <div className="sticky top-[53px] z-15 shrink-0 flex items-center border-b border-stone-800 bg-stone-900/90 backdrop-blur-md px-3 sm:px-6 py-1.5 gap-2">
+          <button
+            onClick={() => setActiveTab('grafik')}
+            className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'grafik'
+                ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/60 shadow'
+                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
+            }`}
+          >
+            <Monitor className="w-3.5 h-3.5" />
+            <span>Grafik</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('suara')}
+            className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'suara'
+                ? 'bg-amber-600/30 text-amber-300 border border-amber-500/60 shadow'
+                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
+            }`}
+          >
+            <Volume2 className="w-3.5 h-3.5" />
+            <span>Suara</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('kontrol')}
+            className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'kontrol'
+                ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/60 shadow'
+                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
+            }`}
+          >
+            <Gamepad2 className="w-3.5 h-3.5" />
+            <span>Kontrol</span>
+          </button>
+        </div>
+
+        {/* Content */}
         <div className="flex-1 overflow-y-auto modal-scroll-area p-4 sm:p-6 space-y-4">
-          {/* Quick Presets */}
-          <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-stone-400 flex items-center gap-1.5 mb-2">
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              Pilihan Profil Cepat (Presets)
-            </label>
-          <div className="grid grid-cols-3 gap-2">
-            {/* Low / Potato */}
-            <button
-              onClick={() => handleSelectPreset('low')}
-              className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
-                settings.preset === 'low'
-                  ? 'border-emerald-500 bg-emerald-950/40 text-emerald-200 shadow-md shadow-emerald-950/50'
-                  : 'border-stone-800 bg-stone-900/60 hover:bg-stone-850 hover:border-stone-700 text-stone-300'
-              }`}
-            >
-              <div className="flex items-center justify-between w-full">
-                <span className="font-bold text-sm">🥔 Rendah</span>
-                {settings.preset === 'low' && <Check className="w-4 h-4 text-emerald-400" />}
-              </div>
-              <p className="text-[10px] text-stone-400 mt-1">
-                Kentang / PC Spek Rendah. FPS maksimal & latency minimal.
-              </p>
-            </button>
-
-            {/* Medium */}
-            <button
-              onClick={() => handleSelectPreset('medium')}
-              className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
-                settings.preset === 'medium'
-                  ? 'border-cyan-500 bg-cyan-950/40 text-cyan-200 shadow-md shadow-cyan-950/50'
-                  : 'border-stone-800 bg-stone-900/60 hover:bg-stone-850 hover:border-stone-700 text-stone-300'
-              }`}
-            >
-              <div className="flex items-center justify-between w-full">
-                <span className="font-bold text-sm">⚖️ Sedang</span>
-                {settings.preset === 'medium' && <Check className="w-4 h-4 text-cyan-400" />}
-              </div>
-              <p className="text-[10px] text-stone-400 mt-1">
-                Seimbang. Visual tajam dengan performa stabil 60 FPS.
-              </p>
-            </button>
-
-            {/* High */}
-            <button
-              onClick={() => handleSelectPreset('high')}
-              className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
-                settings.preset === 'high'
-                  ? 'border-amber-500 bg-amber-950/40 text-amber-200 shadow-md shadow-amber-950/50'
-                  : 'border-stone-800 bg-stone-900/60 hover:bg-stone-850 hover:border-stone-700 text-stone-300'
-              }`}
-            >
-              <div className="flex items-center justify-between w-full">
-                <span className="font-bold text-sm">✨ Tinggi</span>
-                {settings.preset === 'high' && <Check className="w-4 h-4 text-amber-400" />}
-              </div>
-              <p className="text-[10px] text-stone-400 mt-1">
-                Sinematik. Bayangan halus, efek partikel penuh.
-              </p>
-            </button>
-          </div>
-        </div>
-
-        {/* Detailed Options */}
-        <div className="mt-4 space-y-3.5 rounded-xl border border-stone-800/80 bg-stone-900/40 p-4">
-          {/* Render Scale */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-cyan-400" />
+          {/* TAB 1: GRAFIK */}
+          {activeTab === 'grafik' && (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              {/* Presets Cepat */}
               <div>
-                <span className="text-xs font-semibold block">Skala Resolusi Render</span>
-                <span className="text-[10px] text-stone-400">
-                  Semakin rendah, GPU semakin ringan & FPS bertambah drastis
-                </span>
+                <label className="text-xs font-bold uppercase tracking-wider text-stone-400 flex items-center gap-1.5 mb-2">
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  Preset Cepat Kualitas
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => handleSelectPreset('low')}
+                    className={`p-2.5 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                      settings.preset === 'low'
+                        ? 'border-emerald-500 bg-emerald-950/40 text-emerald-200 shadow'
+                        : 'border-stone-800 bg-stone-900/60 hover:bg-stone-800 text-stone-300'
+                    }`}
+                  >
+                    <span className="font-bold text-xs flex items-center justify-between">
+                      🥔 Rendah
+                      {settings.preset === 'low' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                    </span>
+                    <p className="text-[10px] text-stone-400 mt-1">Kentang / HP</p>
+                  </button>
+
+                  <button
+                    onClick={() => handleSelectPreset('medium')}
+                    className={`p-2.5 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                      settings.preset === 'medium'
+                        ? 'border-amber-500 bg-amber-950/40 text-amber-200 shadow'
+                        : 'border-stone-800 bg-stone-900/60 hover:bg-stone-800 text-stone-300'
+                    }`}
+                  >
+                    <span className="font-bold text-xs flex items-center justify-between">
+                      ⚡ Standar
+                      {settings.preset === 'medium' && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                    </span>
+                    <p className="text-[10px] text-stone-400 mt-1">60 FPS Stabil</p>
+                  </button>
+
+                  <button
+                    onClick={() => handleSelectPreset('high')}
+                    className={`p-2.5 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                      settings.preset === 'high'
+                        ? 'border-cyan-500 bg-cyan-950/40 text-cyan-200 shadow'
+                        : 'border-stone-800 bg-stone-900/60 hover:bg-stone-800 text-stone-300'
+                    }`}
+                  >
+                    <span className="font-bold text-xs flex items-center justify-between">
+                      🌟 Ultra
+                      {settings.preset === 'high' && <Check className="w-3.5 h-3.5 text-cyan-400" />}
+                    </span>
+                    <p className="text-[10px] text-stone-400 mt-1">Grafis Penuh</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Kualitas Bayangan */}
+              <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-stone-200">Kualitas Bayangan</span>
+                  <span className="text-xs font-bold text-cyan-300 uppercase">
+                    {!settings.enableShadows ? 'Mati' : settings.shadowQuality}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 text-xs">
+                  <button
+                    onClick={() => handleUpdateGraphics({ enableShadows: false })}
+                    className={`py-1.5 px-2 rounded-lg font-bold transition cursor-pointer ${
+                      !settings.enableShadows
+                        ? 'bg-red-600/30 text-red-300 border border-red-500/60'
+                        : 'bg-stone-800/60 text-stone-400 hover:text-white'
+                    }`}
+                  >
+                    Mati (Off)
+                  </button>
+                  <button
+                    onClick={() => handleUpdateGraphics({ enableShadows: true, shadowQuality: 'low' })}
+                    className={`py-1.5 px-2 rounded-lg font-bold transition cursor-pointer ${
+                      settings.enableShadows && settings.shadowQuality === 'low'
+                        ? 'bg-amber-600/30 text-amber-300 border border-amber-500/60'
+                        : 'bg-stone-800/60 text-stone-400 hover:text-white'
+                    }`}
+                  >
+                    Rendah
+                  </button>
+                  <button
+                    onClick={() => handleUpdateGraphics({ enableShadows: true, shadowQuality: 'high' })}
+                    className={`py-1.5 px-2 rounded-lg font-bold transition cursor-pointer ${
+                      settings.enableShadows && settings.shadowQuality === 'high'
+                        ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/60'
+                        : 'bg-stone-800/60 text-stone-400 hover:text-white'
+                    }`}
+                  >
+                    Tinggi
+                  </button>
+                </div>
+              </div>
+
+              {/* Resolusi Render */}
+              <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-stone-200">Resolusi Render</span>
+                  <span className="text-xs font-mono font-bold text-amber-300">{settings.renderScale}x</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 text-xs">
+                  {[0.75, 1.0, 1.25].map((scale) => (
+                    <button
+                      key={scale}
+                      onClick={() => handleUpdateGraphics({ renderScale: scale })}
+                      className={`py-1.5 px-2 rounded-lg font-bold transition cursor-pointer ${
+                        settings.renderScale === scale
+                          ? 'bg-amber-600/30 text-amber-300 border border-amber-500/60'
+                          : 'bg-stone-800/60 text-stone-400 hover:text-white'
+                      }`}
+                    >
+                      {scale}x {scale === 0.75 ? '(Ringan)' : scale === 1.0 ? '(Native)' : '(Tajam)'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Toggles Rumput, Partikel & Kabut */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div className="flex items-center justify-between rounded-xl border border-stone-800 bg-stone-950/70 p-3">
+                  <span className="text-stone-300">Rumput & Vegetasi</span>
+                  <button
+                    onClick={() => handleUpdateGraphics({ enableGrass: !settings.enableGrass })}
+                    className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${
+                      settings.enableGrass
+                        ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/60'
+                        : 'bg-stone-800 text-stone-500'
+                    }`}
+                  >
+                    {settings.enableGrass ? 'ON' : 'OFF'}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl border border-stone-800 bg-stone-950/70 p-3">
+                  <span className="text-stone-300">Efek Partikel</span>
+                  <button
+                    onClick={() => handleUpdateGraphics({ enableParticles: !settings.enableParticles })}
+                    className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${
+                      settings.enableParticles
+                        ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/60'
+                        : 'bg-stone-800 text-stone-500'
+                    }`}
+                  >
+                    {settings.enableParticles ? 'ON' : 'OFF'}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl border border-stone-800 bg-stone-950/70 p-3 sm:col-span-2">
+                  <span className="text-stone-300">Efek Kabut Atmosfer</span>
+                  <button
+                    onClick={() => handleUpdateGraphics({ enableFog: !settings.enableFog })}
+                    className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${
+                      settings.enableFog
+                        ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/60'
+                        : 'bg-stone-800 text-stone-500'
+                    }`}
+                  >
+                    {settings.enableFog ? 'ON' : 'OFF'}
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 bg-stone-950 p-1 rounded-lg border border-stone-800">
-              {[
-                { label: '65% (Ringan)', val: 0.65 },
-                { label: '85%', val: 0.85 },
-                { label: '100% (Native)', val: 1.0 },
-              ].map((opt) => (
+          )}
+
+          {/* TAB 2: SUARA */}
+          {activeTab === 'suara' && (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between rounded-xl border border-stone-800 bg-stone-950/70 p-3.5 text-xs">
+                <span className="text-stone-300 flex items-center gap-2 font-semibold">
+                  {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+                  Master Audio
+                </span>
                 <button
-                  key={opt.val}
-                  onClick={() =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      renderScale: opt.val,
-                      preset: 'medium', // custom
-                    }))
-                  }
-                  className={`px-2 py-1 rounded text-xs font-semibold transition ${
-                    settings.renderScale === opt.val
-                      ? 'bg-cyan-600 text-white shadow'
-                      : 'text-stone-400 hover:text-stone-200'
+                  onClick={toggleMute}
+                  className={`rounded-lg px-3 py-1.5 font-bold transition text-xs cursor-pointer ${
+                    isMuted
+                      ? 'bg-red-600/30 text-red-300 border border-red-500/60'
+                      : 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/60'
                   }`}
                 >
-                  {opt.label}
+                  {isMuted ? 'Muted (Bisu)' : 'Suara Aktif (ON)'}
                 </button>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          {/* Shadows */}
-          <div className="flex items-center justify-between pt-2 border-t border-stone-800/60">
-            <div className="flex items-center gap-2">
-              <Eye className="w-4 h-4 text-amber-400" />
-              <div>
-                <span className="text-xs font-semibold block">Bayangan Karakter & Monster (Shadows)</span>
-                <span className="text-[10px] text-stone-400">
-                  Mematikan bayangan mengurangi beban render 3D hingga 50%
-                </span>
+              <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3.5 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-stone-300 flex items-center gap-2 font-semibold">
+                    <Music className="w-4 h-4 text-amber-400" />
+                    Volume Musik Latar (BGM)
+                  </span>
+                  <span className="font-mono text-amber-300 font-bold">{Math.round(bgmVolume * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={bgmVolume}
+                  onChange={(e) => handleBgmChange(parseFloat(e.target.value))}
+                  className="w-full accent-amber-500 cursor-pointer"
+                />
+              </div>
+
+              <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3.5 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-stone-300 flex items-center gap-2 font-semibold">
+                    <Sliders className="w-4 h-4 text-cyan-400" />
+                    Volume Efek Suara (SFX)
+                  </span>
+                  <span className="font-mono text-cyan-300 font-bold">{Math.round(sfxVolume * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={sfxVolume}
+                  onChange={(e) => handleSfxChange(parseFloat(e.target.value))}
+                  className="w-full accent-cyan-500 cursor-pointer"
+                />
               </div>
             </div>
+          )}
+
+          {/* TAB 3: KONTROL */}
+          {activeTab === 'kontrol' && (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3.5 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-stone-300 flex items-center gap-2 font-semibold">
+                    <Crosshair className="w-4 h-4 text-emerald-400" />
+                    Sensitivitas Mouse / Kamera
+                  </span>
+                  <span className="font-mono text-emerald-300 font-bold">{mouseSensitivity.toFixed(2)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.4"
+                  max="2.5"
+                  step="0.1"
+                  value={mouseSensitivity}
+                  onChange={(e) => handleSensitivityChange(parseFloat(e.target.value))}
+                  className="w-full accent-emerald-500 cursor-pointer"
+                />
+              </div>
+
+              <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3.5 space-y-2">
+                <span className="text-xs font-semibold text-stone-300 flex items-center gap-2">
+                  <Gamepad2 className="w-4 h-4 text-amber-400" />
+                  Tipe Kontroler Layar HP:
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleControlModeSwitch('joystick')}
+                    className={`flex-1 py-1.5 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      controlMode === 'joystick'
+                        ? 'bg-amber-600/30 text-amber-300 border border-amber-500/60 shadow'
+                        : 'bg-stone-800/60 text-stone-400 hover:text-white'
+                    }`}
+                  >
+                    <Disc className="w-3.5 h-3.5" />
+                    <span>Analog (Joystick)</span>
+                  </button>
+                  <button
+                    onClick={() => handleControlModeSwitch('dpad')}
+                    className={`flex-1 py-1.5 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      controlMode === 'dpad'
+                        ? 'bg-amber-600/30 text-amber-300 border border-amber-500/60 shadow'
+                        : 'bg-stone-800/60 text-stone-400 hover:text-white'
+                    }`}
+                  >
+                    <Crosshair className="w-3.5 h-3.5" />
+                    <span>D-Pad</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3.5 space-y-2">
+                <span className="text-xs font-semibold text-stone-300 flex items-center gap-2">
+                  <Keyboard className="w-4 h-4 text-cyan-400" />
+                  Keybindings PC
+                </span>
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-stone-400 pt-1">
+                  <div className="flex items-center justify-between bg-stone-900/60 px-2 py-1 rounded border border-stone-800">
+                    <span>Gerak</span>
+                    <kbd className="font-mono text-amber-300 bg-stone-800 px-1 rounded">W A S D</kbd>
+                  </div>
+                  <div className="flex items-center justify-between bg-stone-900/60 px-2 py-1 rounded border border-stone-800">
+                    <span>Lompat</span>
+                    <kbd className="font-mono text-amber-300 bg-stone-800 px-1 rounded">Spasi</kbd>
+                  </div>
+                  <div className="flex items-center justify-between bg-stone-900/60 px-2 py-1 rounded border border-stone-800">
+                    <span>Sprint</span>
+                    <kbd className="font-mono text-amber-300 bg-stone-800 px-1 rounded">Shift</kbd>
+                  </div>
+                  <div className="flex items-center justify-between bg-stone-900/60 px-2 py-1 rounded border border-stone-800">
+                    <span>Serangan</span>
+                    <kbd className="font-mono text-amber-300 bg-stone-800 px-1 rounded">Klik Kiri</kbd>
+                  </div>
+                  <div className="flex items-center justify-between bg-stone-900/60 px-2 py-1 rounded border border-stone-800">
+                    <span>Skill 1-3</span>
+                    <kbd className="font-mono text-amber-300 bg-stone-800 px-1 rounded">1, 2, 3</kbd>
+                  </div>
+                  <div className="flex items-center justify-between bg-stone-900/60 px-2 py-1 rounded border border-stone-800">
+                    <span>Peta Dunia</span>
+                    <kbd className="font-mono text-amber-300 bg-stone-800 px-1 rounded">M</kbd>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="pt-2">
             <button
-              onClick={() =>
-                setSettings((prev) => ({
-                  ...prev,
-                  shadows: !prev.shadows,
-                  preset: 'medium',
-                }))
-              }
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition border ${
-                settings.shadows
-                  ? 'border-emerald-500/50 bg-emerald-950/50 text-emerald-300'
-                  : 'border-red-500/50 bg-red-950/50 text-red-300'
-              }`}
+              onClick={onClose}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-500 hover:to-cyan-600 px-4 py-3 font-bold text-white shadow-lg transition active:scale-98 cursor-pointer"
             >
-              {settings.shadows ? 'AKTIF (On)' : 'NONAKTIF (Off)'}
+              <span>Simpan & Tutup Pengaturan</span>
             </button>
           </div>
-
-          {/* Particle Density */}
-          <div className="flex items-center justify-between pt-2 border-t border-stone-800/60">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-purple-400" />
-              <div>
-                <span className="text-xs font-semibold block">Kepadatan Efek Partikel (VFX)</span>
-                <span className="text-[10px] text-stone-400">Efek ledakan sihir, debu, dan percikan skill</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 bg-stone-950 p-1 rounded-lg border border-stone-800">
-              {(['low', 'medium', 'high'] as const).map((density) => (
-                <button
-                  key={density}
-                  onClick={() =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      particleDensity: density,
-                      preset: 'medium',
-                    }))
-                  }
-                  className={`px-2.5 py-1 rounded text-xs font-semibold capitalize transition ${
-                    settings.particleDensity === density
-                      ? 'bg-purple-600 text-white shadow'
-                      : 'text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  {density === 'low' ? 'Hemat' : density === 'medium' ? 'Sedang' : 'Penuh'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Render Distance */}
-          <div className="flex items-center justify-between pt-2 border-t border-stone-800/60">
-            <div className="flex items-center gap-2">
-              <Sliders className="w-4 h-4 text-blue-400" />
-              <div>
-                <span className="text-xs font-semibold block">Jarak Pandang (Render Distance)</span>
-                <span className="text-[10px] text-stone-400">
-                  Jarak render pohon dan bukit kejauhan: {settings.renderDistance}m
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 bg-stone-950 p-1 rounded-lg border border-stone-800">
-              {[
-                { label: '50m (Dekat)', val: 50 },
-                { label: '90m (Normal)', val: 90 },
-                { label: '150m (Jauh)', val: 150 },
-              ].map((dist) => (
-                <button
-                  key={dist.val}
-                  onClick={() =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      renderDistance: dist.val,
-                      preset: 'medium',
-                    }))
-                  }
-                  className={`px-2 py-1 rounded text-xs font-semibold transition ${
-                    settings.renderDistance === dist.val
-                      ? 'bg-blue-600 text-white shadow'
-                      : 'text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  {dist.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Target FPS / Frame Limiter */}
-          <div className="flex items-center justify-between pt-2 border-t border-stone-800/60">
-            <div className="flex items-center gap-2">
-              <Gauge className="w-4 h-4 text-emerald-400" />
-              <div>
-                <span className="text-xs font-semibold block">Batas Frame Rate (FPS Cap)</span>
-                <span className="text-[10px] text-stone-400">
-                  Batasi frame rate untuk menghemat baterai & mencegah overheat laptop
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 bg-stone-950 p-1 rounded-lg border border-stone-800">
-              {[
-                { label: '30 FPS', val: 30 },
-                { label: '60 FPS', val: 60 },
-                { label: 'Max (Uncapped)', val: 0 },
-              ].map((fps) => (
-                <button
-                  key={fps.val}
-                  onClick={() =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      targetFps: fps.val,
-                      preset: 'medium',
-                    }))
-                  }
-                  className={`px-2 py-1 rounded text-xs font-semibold transition ${
-                    settings.targetFps === fps.val
-                      ? 'bg-emerald-600 text-white shadow'
-                      : 'text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  {fps.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        </div>
-
-        {/* Footer Actions (Sticky) */}
-        <div className="sticky bottom-0 z-10 shrink-0 flex items-center justify-end gap-2.5 px-4 sm:px-6 py-3 border-t border-stone-800 bg-stone-950/95">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl border border-stone-700 bg-stone-800 hover:bg-stone-700 text-xs font-semibold text-stone-300 transition cursor-pointer"
-          >
-            Batal
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-xs font-bold text-white shadow-lg shadow-cyan-900/40 transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
-          >
-            <Check className="w-4 h-4" />
-            <span>Terapkan Pengaturan</span>
-          </button>
         </div>
       </div>
     </div>

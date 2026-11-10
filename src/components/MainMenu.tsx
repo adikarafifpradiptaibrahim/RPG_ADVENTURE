@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { CharacterClass, PlayerStats } from '../types/game';
 import { soundManager } from '../game/audio';
+import { getSharedDayNightSystem } from '../game/3d/dayNightSystem';
 
 export interface MultiplayerStartOptions {
   playerName: string;
@@ -286,6 +287,15 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const [activeTooltip, setActiveTooltip] = useState<SkillInfo | null>(null);
   const [isFadingOut, setIsFadingOut] = useState<boolean>(false);
 
+  // Synchronize 24-hour Day-Night world time with Main Menu & Character Select
+  const [dayNight, setDayNight] = useState(() => getSharedDayNightSystem().getState());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setDayNight(getSharedDayNightSystem().getState());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   useEffect(() => {
     if (selectedPreviewRole) {
       setSelectedRole(selectedPreviewRole);
@@ -486,6 +496,14 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <br />
                 QUEST
               </h1>
+
+              {/* World Time & Atmosphere Synchronization Pill */}
+              <div className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-stone-900/80 border border-amber-500/40 text-[11px] font-mono text-amber-300 shadow">
+                <span>{dayNight.icon}</span>
+                <span className="font-bold">{dayNight.timeString}</span>
+                <span className="text-stone-500">•</span>
+                <span className="text-amber-200/90 font-sans text-[10px]">{dayNight.phaseNameId}</span>
+              </div>
             </div>
 
             {/* Stacked Vertical Interactive Buttons */}

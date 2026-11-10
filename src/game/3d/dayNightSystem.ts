@@ -208,9 +208,17 @@ export class DayNightSystem {
   private interpolatedFog = new THREE.Color();
   private interpolatedBg = new THREE.Color();
 
-  constructor(initialTimeOfDay: number = 0.33, cycleDurationSeconds: number = 240) {
+  constructor(initialTimeOfDay: number = 0.35, cycleDurationSeconds: number = 1440) {
     this.timeOfDay = initialTimeOfDay % 1.0;
     this.cycleDuration = Math.max(30, cycleDurationSeconds);
+  }
+
+  /**
+   * Lentera Desa & Obor: Otomatis menyala saat in-game time memasuki pukul 18:00 (0.75)
+   * dan padam pada pukul 05:30 (0.22916)
+   */
+  public isVillageLanternTime(): boolean {
+    return this.timeOfDay >= 0.75 || this.timeOfDay < (5.5 / 24);
   }
 
   /**
@@ -314,7 +322,8 @@ export class DayNightSystem {
   public applyOutdoorLighting(
     scene: THREE.Scene,
     hemiLight: THREE.HemisphereLight,
-    dirLight: THREE.DirectionalLight
+    dirLight: THREE.DirectionalLight,
+    targetPos?: THREE.Vector3
   ) {
     const { k1, k2, factor } = this.getKeyframePair(this.timeOfDay);
 
@@ -355,7 +364,17 @@ export class DayNightSystem {
     const posX = THREE.MathUtils.lerp(k1.dirPosition[0], k2.dirPosition[0], easedFactor);
     const posY = THREE.MathUtils.lerp(k1.dirPosition[1], k2.dirPosition[1], easedFactor);
     const posZ = THREE.MathUtils.lerp(k1.dirPosition[2], k2.dirPosition[2], easedFactor);
-    dirLight.position.set(posX, posY, posZ);
+    if (targetPos) {
+      dirLight.position.set(targetPos.x + posX, posY, targetPos.z + posZ);
+      if (dirLight.target) {
+        dirLight.target.position.set(targetPos.x, targetPos.y, targetPos.z);
+        if (!dirLight.target.parent) {
+          scene.add(dirLight.target);
+        }
+      }
+    } else {
+      dirLight.position.set(posX, posY, posZ);
+    }
 
     // 4. Shift Atmospheric Sky Background & Fog Color
     this.tempColorA.setHex(k1.backgroundColor);
@@ -393,4 +412,12 @@ export class DayNightSystem {
 
     return { fogColor: fog, bgColor: bg, fogDensity: density };
   }
+}
+
+let sharedDayNightSystem: DayNightSystem | null = null;
+export function getSharedDayNightSystem(): DayNightSystem {
+  if (!sharedDayNightSystem) {
+    sharedDayNightSystem = new DayNightSystem(0.35, 1440);
+  }
+  return sharedDayNightSystem;
 }

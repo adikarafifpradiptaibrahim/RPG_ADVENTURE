@@ -162,6 +162,7 @@ export interface WorldObjects {
   decorativeProps?: THREE.Object3D[];
   pointLights?: THREE.PointLight[];
   dirLight?: THREE.DirectionalLight;
+  hemiLight?: THREE.HemisphereLight;
   getTerrainHeight: (x: number, z: number) => number;
 }
 
@@ -2475,103 +2476,195 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 10. ANCIENT TITAN SANCTUARY BASIN ARENA (Plains Lake: [-196, -254])
-  // Cekungan Danau Lembah Purba (Radius 40m / Diameter 80m), Platform Batu Pijakan Tengah (Diameter 16m), & Formasi 12 Megalit Rune Kuno
+  // 10. MATA AIR SUCI & TAMAN BUNGA ELDORIA (Plains Spring: [-144, -270])
+  // Ganti bekas wilayah raksasa lama: kolam air tawar melingkar kecil, tepian batu kali halus berlumut,
+  // tumbuhan teratai air terapung, hamparan rumpun bunga liar (lavender, kamomil), dan 2 pohon willow rindang.
   // ==========================================
-  const titanArenaCenter = { x: -196, z: -254 };
-  const titanPlatformY = getTerrainHeight(titanArenaCenter.x, titanArenaCenter.z) + 0.35;
+  const springCenter = { x: -144, z: -270 };
+  const springGroup = new THREE.Group();
+  springGroup.name = 'SacredSpring_Eldoria';
 
-  // A. Central Shallow Stone Stepping Platform (Platform Granit Pusat Berdiameter 16 unit)
-  const titanPlatformGeo = new THREE.CylinderGeometry(8.0, 8.4, 0.65, 36);
-  const titanPlatformMat = new THREE.MeshStandardMaterial({
-    color: 0x78716c,
+  // A. Kolam Air Tawar Jernih (Radius 5.5 unit)
+  const springWaterGeo = new THREE.CircleGeometry(5.5, 32);
+  springWaterGeo.rotateX(-Math.PI / 2);
+  const springWaterMat = new THREE.MeshStandardMaterial({
+    color: 0x0ea5e9,
+    roughness: 0.08,
+    metalness: 0.1,
+    transparent: true,
+    opacity: 0.85,
+  });
+  const springWater = new THREE.Mesh(springWaterGeo, springWaterMat);
+  springWater.position.set(springCenter.x, -0.32, springCenter.z);
+  springGroup.add(springWater);
+
+  // B. Tepian Kolam Batu Kali Halus Berlumut
+  const mossyStoneMat = new THREE.MeshStandardMaterial({
+    color: 0x576352,
     roughness: 0.85,
-    metalness: 0.15,
     flatShading: true,
   });
-  const titanPlatformMesh = new THREE.Mesh(titanPlatformGeo, titanPlatformMat);
-  titanPlatformMesh.position.set(titanArenaCenter.x, titanPlatformY - 0.15, titanArenaCenter.z);
-  scene.add(titanPlatformMesh);
+  const stoneCount = 28;
+  for (let i = 0; i < stoneCount; i++) {
+    const angle = (i / stoneCount) * Math.PI * 2;
+    const r = 5.4 + (i % 3) * 0.25;
+    const sx = springCenter.x + Math.cos(angle) * r;
+    const sz = springCenter.z + Math.sin(angle) * r;
+    const sy = getTerrainHeight(sx, sz);
 
-  // Gold/Cyan Rune Ring Inlay on Platform Rim
-  const titanRuneRing = new THREE.Mesh(
-    new THREE.TorusGeometry(7.6, 0.22, 8, 36),
-    new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.75,
-      roughness: 0.3,
-    })
-  );
-  titanRuneRing.rotation.x = Math.PI / 2;
-  titanRuneRing.position.set(titanArenaCenter.x, titanPlatformY + 0.2, titanArenaCenter.z);
-  scene.add(titanRuneRing);
-
-  // B. Shallow Valley Lake Basin Water Disk (Air Danau Cekungan Perlindungan - Radius 40m / Diameter 80m)
-  const titanLakeGeo = new THREE.CircleGeometry(40.0, 48);
-  titanLakeGeo.rotateX(-Math.PI / 2);
-  const titanLakeMat = new THREE.MeshStandardMaterial({
-    color: 0x0284c7,
-    roughness: 0.1,
-    metalness: 0.15,
-    transparent: true,
-    opacity: 0.8,
-  });
-  const titanLakeMesh = new THREE.Mesh(titanLakeGeo, titanLakeMat);
-  titanLakeMesh.position.set(titanArenaCenter.x, -0.05, titanArenaCenter.z);
-  scene.add(titanLakeMesh);
-
-  // C. 12 Megalithic Rune-Carved Stone Formations Ringing Basin at Radius 40m
-  const megalithCount = 12;
-  const megalithRadius = 40.0;
-  for (let i = 0; i < megalithCount; i++) {
-    const ang = i * ((Math.PI * 2) / megalithCount);
-    const mx = titanArenaCenter.x + Math.cos(ang) * megalithRadius;
-    const mz = titanArenaCenter.z + Math.sin(ang) * megalithRadius;
-    const my = getTerrainHeight(mx, mz);
-
-    const megalithGroup = new THREE.Group();
-
-    // Weathered ancient stone monolith pillar
-    const monolithGeo = new THREE.BoxGeometry(1.6, 7.5, 1.6);
-    const monolithMat = new THREE.MeshStandardMaterial({
-      color: 0x57534e,
-      roughness: 0.9,
-      flatShading: true,
-    });
-    const monolith = new THREE.Mesh(monolithGeo, monolithMat);
-    monolith.position.y = 3.75;
-    megalithGroup.add(monolith);
-
-    // Glowing cyan rune band
-    const runeBandGeo = new THREE.BoxGeometry(1.7, 0.55, 1.7);
-    const runeBandMat = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      emissive: 0x0ea5e9,
-      emissiveIntensity: 0.95,
-    });
-    const runeBand = new THREE.Mesh(runeBandGeo, runeBandMat);
-    runeBand.position.y = 4.2;
-    megalithGroup.add(runeBand);
-
-    // Tapered top monolith capstone
-    const capGeo = new THREE.ConeGeometry(1.2, 1.8, 4);
-    capGeo.rotateY(Math.PI / 4);
-    const cap = new THREE.Mesh(capGeo, monolithMat);
-    cap.position.y = 8.4;
-    megalithGroup.add(cap);
-
-    megalithGroup.rotation.y = -ang + Math.PI / 2;
-    megalithGroup.position.set(mx, my, mz);
-    scene.add(megalithGroup);
-
-    colliders.push({ type: 'circle', x: mx, z: mz, radius: 1.5, label: `Megalit Rune Lembah Titan ${i + 1}` });
+    const stone = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(0.55 + (i % 4) * 0.15, 0),
+      mossyStoneMat
+    );
+    stone.position.set(sx, Math.max(sy, -0.25) + 0.2, sz);
+    stone.rotation.set(Math.random() * 0.5, Math.random() * Math.PI, Math.random() * 0.5);
+    stone.castShadow = true;
+    springGroup.add(stone);
   }
 
-  // D. Ancient Titan Arena Mystic Beacon
-  const titanLight = new THREE.PointLight(0x38bdf8, 2.8, 48);
-  titanLight.position.set(titanArenaCenter.x, titanPlatformY + 3.8, titanArenaCenter.z);
-  scene.add(titanLight);
+  // C. Teratai Air Mengapung di Atas Kolam (Water Lily Pads & Lotus Blossoms)
+  const lilyPadMat = new THREE.MeshStandardMaterial({
+    color: 0x15803d,
+    roughness: 0.7,
+    side: THREE.DoubleSide,
+  });
+  const lotusPetalMat = new THREE.MeshStandardMaterial({
+    color: 0xf472b6,
+    roughness: 0.5,
+  });
+  const lotusCenterMat = new THREE.MeshStandardMaterial({
+    color: 0xfacc15,
+    roughness: 0.4,
+    emissive: 0xeab308,
+    emissiveIntensity: 0.4,
+  });
+
+  const lilyOffsets = [
+    { dx: -1.8, dz: -1.2, r: 0.65, hasLotus: true },
+    { dx: -0.8, dz: 1.5, r: 0.55, hasLotus: false },
+    { dx: 1.5, dz: -1.8, r: 0.7, hasLotus: true },
+    { dx: 2.2, dz: 0.8, r: 0.6, hasLotus: true },
+    { dx: 0.5, dz: -2.4, r: 0.5, hasLotus: false },
+    { dx: -2.4, dz: 1.0, r: 0.58, hasLotus: true },
+    { dx: -1.2, dz: -2.8, r: 0.48, hasLotus: false },
+    { dx: 1.8, dz: 2.1, r: 0.62, hasLotus: true },
+  ];
+
+  lilyOffsets.forEach((l) => {
+    const pad = new THREE.Mesh(new THREE.CircleGeometry(l.r, 14), lilyPadMat);
+    pad.rotateX(-Math.PI / 2);
+    pad.position.set(springCenter.x + l.dx, -0.28, springCenter.z + l.dz);
+    springGroup.add(pad);
+
+    if (l.hasLotus) {
+      // Bunga teratai mekar (Lotus flower)
+      const flowerGroup = new THREE.Group();
+      flowerGroup.position.set(springCenter.x + l.dx, -0.25, springCenter.z + l.dz);
+
+      // Kelopak teratai
+      for (let p = 0; p < 6; p++) {
+        const pAng = (p / 6) * Math.PI * 2;
+        const petal = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.28, 4), lotusPetalMat);
+        petal.position.set(Math.cos(pAng) * 0.12, 0.12, Math.sin(pAng) * 0.12);
+        petal.rotation.set(0.4 * Math.sin(pAng), pAng, -0.4 * Math.cos(pAng));
+        flowerGroup.add(petal);
+      }
+      // Putik kuning di tengah
+      const core = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.15, 6), lotusCenterMat);
+      core.position.y = 0.12;
+      flowerGroup.add(core);
+
+      springGroup.add(flowerGroup);
+    }
+  });
+
+  // D. Hamparan Rumpun Bunga Liar Warna-Warni (Lavender Ungu & Kamomil Putih)
+  const lavenderMat = new THREE.MeshStandardMaterial({ color: 0x8b5cf6, roughness: 0.6 });
+  const chamomileMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 });
+  const flowerStemMat = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.8 });
+
+  for (let f = 0; f < 36; f++) {
+    const fAng = (f / 36) * Math.PI * 2 + (f % 5) * 0.3;
+    const fDist = 6.8 + (f % 7) * 1.5;
+    const fx = springCenter.x + Math.cos(fAng) * fDist;
+    const fz = springCenter.z + Math.sin(fAng) * fDist;
+    const fy = getTerrainHeight(fx, fz);
+
+    const fCluster = new THREE.Group();
+    fCluster.position.set(fx, fy, fz);
+
+    const isLavender = f % 2 === 0;
+    const blossomMat = isLavender ? lavenderMat : chamomileMat;
+
+    // Batang
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.55, 4), flowerStemMat);
+    stem.position.y = 0.27;
+    fCluster.add(stem);
+
+    // Kuntum bunga
+    if (isLavender) {
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.45, 5), blossomMat);
+      spike.position.y = 0.55;
+      fCluster.add(spike);
+    } else {
+      const daisy = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.05, 7), blossomMat);
+      daisy.position.y = 0.55;
+      fCluster.add(daisy);
+      const daisyCore = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.06, 6), lotusCenterMat);
+      daisyCore.position.y = 0.57;
+      fCluster.add(daisyCore);
+    }
+
+    springGroup.add(fCluster);
+  }
+
+  // E. 2 Pohon Willow Rindang Berdaun Teduh (Weeping Willows)
+  const willowTreePositions: [number, number][] = [
+    [-139, -263],
+    [-150, -276],
+  ];
+  const willowWoodMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.9, flatShading: true });
+  const willowFoliageMat = new THREE.MeshStandardMaterial({ color: 0x65a30d, roughness: 0.8, flatShading: true });
+
+  willowTreePositions.forEach(([wx, wz], widx) => {
+    const wy = getTerrainHeight(wx, wz);
+    const willow = new THREE.Group();
+    willow.position.set(wx, wy, wz);
+
+    // Batang pohon melengkung anggun
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.9, 4.8, 7), willowWoodMat);
+    trunk.position.y = 2.4;
+    trunk.rotation.z = widx === 0 ? 0.12 : -0.15;
+    trunk.castShadow = true;
+    willow.add(trunk);
+
+    // Dahan utama rindang
+    const canopyTop = new THREE.Mesh(new THREE.DodecahedronGeometry(3.2, 1), willowFoliageMat);
+    canopyTop.position.y = 5.6;
+    canopyTop.scale.set(1.4, 0.9, 1.4);
+    canopyTop.castShadow = true;
+    willow.add(canopyTop);
+
+    // Ranting dedaunan melambai menjuntai ke bawah (Cascading Willow Branches)
+    for (let d = 0; d < 8; d++) {
+      const dAng = (d / 8) * Math.PI * 2;
+      const drape = new THREE.Mesh(new THREE.ConeGeometry(0.85, 2.8, 5), willowFoliageMat);
+      drape.position.set(Math.cos(dAng) * 2.6, 3.8, Math.sin(dAng) * 2.6);
+      drape.rotation.x = Math.PI; // Menghadap ke bawah
+      drape.castShadow = true;
+      willow.add(drape);
+    }
+
+    springGroup.add(willow);
+    colliders.push({ type: 'circle', x: wx, z: wz, radius: 1.3, label: `Pohon Willow Mata Air ${widx + 1}` });
+  });
+
+  // F. Cahaya Suci Lembut Mata Air (Soft Cyan Sacred Light)
+  const springLight = new THREE.PointLight(0x38bdf8, 1.8, 30);
+  springLight.position.set(springCenter.x, 2.5, springCenter.z);
+  springGroup.add(springLight);
+
+  scene.add(springGroup);
 
   // 11. REGIONAL CHECKPOINT & WAYPOINT TELEPORTATION MONUMENTS
   const checkpoints: WorldCheckpoint[] = [];
@@ -2595,10 +2688,16 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       pos: [0, 205],
     },
     {
+      id: 'wp_sacred_spring',
+      name: 'Sacred Spring & Eldoria Flower Gardens',
+      nameId: 'Mata Air Suci & Taman Bunga Eldoria',
+      pos: [-144, -270],
+    },
+    {
       id: 'wp_titan',
-      name: 'Ancient Titan Sanctuary Basin',
-      nameId: 'Lembah Danau Cekungan Titan Kuno',
-      pos: [-196, -254],
+      name: 'Ancient Colosseum Arena (Boss Titan)',
+      nameId: 'Reruntuhan Colosseum Kuno (Boss Titan)',
+      pos: [-224, -435],
     },
     {
       id: 'wp_astraea',
@@ -2717,6 +2816,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     decorativeProps,
     pointLights,
     dirLight,
+    hemiLight,
     getTerrainHeight,
   };
 }

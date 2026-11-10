@@ -840,11 +840,50 @@ export class SoundManager {
     source.stop(now + options.duration + 0.02);
   }
 
+  private bgmVolume = 0.8;
+  private sfxVolume = 0.85;
+
+  public getBgmVolume(): number {
+    return this.bgmVolume;
+  }
+
+  public getSfxVolume(): number {
+    return this.sfxVolume;
+  }
+
+  public setBgmVolume(val: number) {
+    this.bgmVolume = Math.max(0, Math.min(1, val));
+    try {
+      localStorage.setItem('eldoria_bgm_vol', this.bgmVolume.toString());
+    } catch {}
+    if (this.musicGain && this.ctx) {
+      this.musicGain.gain.setValueAtTime(this.isMuted ? 0 : this.bgmVolume * 0.25, this.ctx.currentTime);
+    }
+    const currentChill = this.getCurrentChillAudio();
+    if (currentChill && !this.isMuted) {
+      currentChill.volume = this.bgmVolume * 0.7;
+    }
+    const currentBoss = this.getCurrentBossAudio();
+    if (currentBoss && !this.isMuted) {
+      currentBoss.volume = this.bgmVolume * 0.85;
+    }
+  }
+
+  public setSfxVolume(val: number) {
+    this.sfxVolume = Math.max(0, Math.min(1, val));
+    try {
+      localStorage.setItem('eldoria_sfx_vol', this.sfxVolume.toString());
+    } catch {}
+    if (this.sfxGain && this.ctx) {
+      this.sfxGain.gain.setValueAtTime(this.isMuted ? 0 : this.sfxVolume * 0.45, this.ctx.currentTime);
+    }
+  }
+
   public setMuted(muted: boolean) {
     this.isMuted = muted;
     if (this.musicGain && this.sfxGain && this.ctx) {
-      this.musicGain.gain.setValueAtTime(muted ? 0 : 0.2, this.ctx.currentTime);
-      this.sfxGain.gain.setValueAtTime(muted ? 0 : 0.42, this.ctx.currentTime);
+      this.musicGain.gain.setValueAtTime(muted ? 0 : this.bgmVolume * 0.25, this.ctx.currentTime);
+      this.sfxGain.gain.setValueAtTime(muted ? 0 : this.sfxVolume * 0.45, this.ctx.currentTime);
     }
     const currentChill = this.getCurrentChillAudio();
     const currentBoss = this.getCurrentBossAudio();
@@ -860,18 +899,22 @@ export class SoundManager {
       this.cahayaSpellAudioPool.forEach((a) => (a.volume = 0));
       this.blinkMagicAudioPool.forEach((a) => (a.volume = 0));
     } else {
-      this.arcaneBeamAudioPool.forEach((a) => (a.volume = 0.9));
-      this.starfallCastingAudioPool.forEach((a) => (a.volume = 0.9));
-      this.starfallImpactAudioPool.forEach((a) => (a.volume = 0.95));
-      this.cahayaSpellAudioPool.forEach((a) => (a.volume = 0.9));
-      this.blinkMagicAudioPool.forEach((a) => (a.volume = 0.9));
+      if (currentChill) currentChill.volume = this.bgmVolume * 0.7;
+      if (this.titanAudio) this.titanAudio.volume = this.bgmVolume * 0.85;
+      if (this.wormAudio) this.wormAudio.volume = this.bgmVolume * 0.85;
+      if (this.dragonAudio) this.dragonAudio.volume = this.bgmVolume * 0.85;
+      this.arcaneBeamAudioPool.forEach((a) => (a.volume = 0.9 * this.sfxVolume));
+      this.starfallCastingAudioPool.forEach((a) => (a.volume = 0.9 * this.sfxVolume));
+      this.starfallImpactAudioPool.forEach((a) => (a.volume = 0.95 * this.sfxVolume));
+      this.cahayaSpellAudioPool.forEach((a) => (a.volume = 0.9 * this.sfxVolume));
+      this.blinkMagicAudioPool.forEach((a) => (a.volume = 0.9 * this.sfxVolume));
       if (this.isMusicPlaying && !this.isVictoryPlaying) {
         if (this.currentBossMusic && currentBoss) {
-          currentBoss.volume = this.masterMusicVolume;
+          currentBoss.volume = this.bgmVolume * 0.85;
           if (currentBoss.paused) currentBoss.play().catch(() => {});
           if (currentChill) currentChill.volume = 0;
         } else if (currentChill) {
-          currentChill.volume = this.masterMusicVolume;
+          currentChill.volume = this.bgmVolume * 0.7;
           if (currentChill.paused) currentChill.play().catch(() => {});
           if (this.titanAudio) this.titanAudio.volume = 0;
           if (this.wormAudio) this.wormAudio.volume = 0;

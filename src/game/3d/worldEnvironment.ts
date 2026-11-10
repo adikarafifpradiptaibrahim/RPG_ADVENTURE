@@ -1,7 +1,12 @@
 import * as THREE from 'three';
 import { WorldCollider } from './world';
 import { isPointNearRoad } from '../RoadSystem';
-import { isDesertBiome } from '../mapSampler';
+import {
+  isDesertBiome,
+  RIVER_NORTHWEST_BRANCH,
+  RIVER_EAST_BRANCH,
+  RIVER_MAIN_DOWNSTREAM,
+} from '../mapSampler';
 
 export interface WorldEnvironmentResult {
   group: THREE.Group;
@@ -24,6 +29,7 @@ export function buildWorldEnvironment(
 
   const animatedLights: { light: THREE.PointLight; baseIntensity: number; speed: number }[] = [];
   const animatedFlames: { mesh: THREE.Mesh; baseScale: THREE.Vector3; speed: number }[] = [];
+  let windmillBladesGroup: THREE.Group | null = null;
 
   // ============================================================================
   // PALET MATERIAL BERSAMA (LOW-POLY FLAT SHADING & OPTIMIZED PERFORMANCE)
@@ -1318,179 +1324,380 @@ export function buildWorldEnvironment(
   envGroup.add(meadowGroup);
 
   // ============================================================================
-  // 5. ZONA H: ARENA KAWAH BOSS KUNO UTARA / ANCIENT CRATER ARENA (X: -220, Z: -400)
-  // Relokasi World Boss Titan Golem ke lereng kawah utara menjauhi pemukiman.
-  // Kawah tumbukan meteorit purba sedalam -1.8 unit, lantai batu retak arang,
-  // 10 pilar rune bercahaya cyan melingkari bibir kawah, dan bongkahan tebing cadas.
+  // 5. ZONA H: RERUNTUHAN COLOSSEUM KUNO / ANCIENT COLOSSEUM ARENA (X: -224, Z: -435)
+  // Perbesar skala wilayah boss minimal 2.5x lipat dari ukuran sebelumnya (Radius 52 unit).
+  // Arsitektur Colosseum Kuno:
+  // - Dinding melingkar bertingkat Roman Stone Arches dengan beberapa bagian runtuh alami.
+  // - Lantai arena: hamparan pasir berdebu luas, retakan batu kuno, bercak hangus, pecahan pilar marmer.
+  // - Gapura masuk raksasa (Grand South Entrance Arch) di sisi selatan.
+  // - Tata pencahayaan: 6 obor cawan perunggu berkobar di sekeliling arena.
   // ============================================================================
-  const craterGroup = new THREE.Group();
-  craterGroup.name = 'ZoneH_AncientCraterBossArena';
+  const colosseumGroup = new THREE.Group();
+  colosseumGroup.name = 'ZoneH_AncientColosseumBossArena';
 
-  const craterCenterX = -220;
-  const craterCenterZ = -400;
-  const craterFloorY = -1.8;
+  const colosseumCenterX = -224;
+  const colosseumCenterZ = -435;
+  const craterCenterX = colosseumCenterX;
+  const craterCenterZ = colosseumCenterZ;
+  const colosseumFloorY = -0.20;
+  const arenaRadius = 48.0;
+  const wallRadius = 53.0;
 
-  // A. Pelataran Batu Retak Hangus / Dark Cracked Stone Floor (Radius 22 unit)
-  const craterFloorGeo = new THREE.CircleGeometry(22.0, 36);
-  craterFloorGeo.rotateX(-Math.PI / 2);
-  const craterFloor = new THREE.Mesh(craterFloorGeo, matDarkSoil);
-  craterFloor.position.set(craterCenterX, craterFloorY + 0.03, craterCenterZ);
-  craterFloor.receiveShadow = true;
-  craterGroup.add(craterFloor);
-
-  // B. Lingkaran Aura Sihir Kuno Cyan Inlay pada Lantai Kawah
-  const craterRuneRing = new THREE.Mesh(
-    new THREE.RingGeometry(15.5, 17.5, 36),
-    new THREE.MeshStandardMaterial({
-      color: 0x06b6d4,
-      emissive: 0x0891b2,
-      emissiveIntensity: 1.5,
-      roughness: 0.3,
-      side: THREE.DoubleSide,
-    })
+  // A. Lantai Arena Pasir Berdebu Luas (Dusty Sand Floor)
+  const matColosseumSand = new THREE.MeshStandardMaterial({
+    color: 0xc4b59d,
+    roughness: 0.92,
+    flatShading: true,
+  });
+  const arenaFloor = new THREE.Mesh(
+    new THREE.CircleGeometry(arenaRadius, 48).rotateX(-Math.PI / 2),
+    matColosseumSand
   );
-  craterRuneRing.rotation.x = -Math.PI / 2;
-  craterRuneRing.position.set(craterCenterX, craterFloorY + 0.05, craterCenterZ);
-  craterGroup.add(craterRuneRing);
+  arenaFloor.position.set(colosseumCenterX, colosseumFloorY + 0.02, colosseumCenterZ);
+  arenaFloor.receiveShadow = true;
+  colosseumGroup.add(arenaFloor);
 
-  // C. Platform Pijakan Pusat Titan Obsidian (Diameter 12 unit)
-  const centralDias = new THREE.Mesh(
-    new THREE.CylinderGeometry(6.0, 6.5, 0.5, 24),
-    matStoneDarkCrag
-  );
-  centralDias.position.set(craterCenterX, craterFloorY + 0.25, craterCenterZ);
-  centralDias.receiveShadow = true;
-  craterGroup.add(centralDias);
+  // B. Bercak Hangus & Retakan Batu Kuno pada Lantai Arena
+  const scorchCoords = [
+    { dx: -12, dz: -8, r: 4.8 },
+    { dx: 14, dz: 6, r: 5.2 },
+    { dx: -6, dz: 16, r: 3.8 },
+    { dx: 18, dz: -14, r: 4.5 },
+    { dx: 0, dz: 0, r: 6.0 }, // Titik sentral tumbukan
+    { dx: -18, dz: -18, r: 3.5 },
+  ];
+  scorchCoords.forEach((sc) => {
+    const scorch = new THREE.Mesh(
+      new THREE.CircleGeometry(sc.r, 20).rotateX(-Math.PI / 2),
+      matDarkSoil
+    );
+    scorch.position.set(colosseumCenterX + sc.dx, colosseumFloorY + 0.04, colosseumCenterZ + sc.dz);
+    scorch.receiveShadow = true;
+    colosseumGroup.add(scorch);
+  });
 
-  // D. 10 Pilar Rune Megalit Melingkari Bibir Kawah (Radius 24 unit)
-  const pillarCount = 10;
-  const pillarRadius = 24.0;
-  for (let p = 0; p < pillarCount; p++) {
-    const pAng = (p / pillarCount) * Math.PI * 2;
-    const px = craterCenterX + Math.cos(pAng) * pillarRadius;
-    const pz = craterCenterZ + Math.sin(pAng) * pillarRadius;
-    const py = getTerrainHeight(px, pz);
-
-    const pillarGroup = new THREE.Group();
-    pillarGroup.position.set(px, py, pz);
-
-    // Batang pilar batu obsidian runcing
-    const pCol = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 1.45, 5.8, 6), matStoneDarkCrag);
-    pCol.position.y = 2.9;
-    pCol.rotation.y = pAng;
-    pCol.castShadow = true;
-    pillarGroup.add(pCol);
-
-    // Kristal rune bercahaya cyan di puncak pilar
-    const runeCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.7, 0), matCyanRune);
-    runeCrystal.position.y = 6.2;
-    pillarGroup.add(runeCrystal);
-
-    craterGroup.add(pillarGroup);
-    colliders.push({ type: 'circle', x: px, z: pz, radius: 1.6, label: 'Pilar Kawah Purba' });
+  // Pelat Batu Kuno Pecah di Lantai Arena (Cracked Stone Slabs)
+  for (let s = 0; s < 14; s++) {
+    const sAng = (s / 14) * Math.PI * 2;
+    const sDist = 12.0 + (s % 5) * 6.5;
+    const sx = colosseumCenterX + Math.cos(sAng) * sDist;
+    const sz = colosseumCenterZ + Math.sin(sAng) * sDist;
+    const slab = new THREE.Mesh(
+      new THREE.BoxGeometry(2.6 + (s % 3) * 0.8, 0.12, 3.2 + (s % 4) * 0.6),
+      matStoneRuins
+    );
+    slab.position.set(sx, colosseumFloorY + 0.06, sz);
+    slab.rotation.y = sAng + Math.PI / 4;
+    slab.receiveShadow = true;
+    colosseumGroup.add(slab);
   }
 
-  // E. 16 Bongkahan Tebing Patah & Karang Mengitari Lereng Kawah
-  for (let b = 0; b < 16; b++) {
-    const bAng = ((b + 0.5) / 16) * Math.PI * 2;
-    const bDist = 18.0 + (b % 3) * 2.5;
-    const bx = craterCenterX + Math.cos(bAng) * bDist;
-    const bz = craterCenterZ + Math.sin(bAng) * bDist;
+  // Pecahan Pilar Marmer Roboh di Lantai Arena (Fallen Marble Column Drums)
+  const fallenPillarOffsets = [
+    { dx: -22, dz: 8, rotY: 0.6, len: 4.2 },
+    { dx: 16, dz: -18, rotY: -0.8, len: 3.6 },
+    { dx: -8, dz: -24, rotY: 1.2, len: 4.8 },
+    { dx: 24, dz: 14, rotY: 2.1, len: 3.5 },
+    { dx: 8, dz: 22, rotY: -1.4, len: 4.0 },
+  ];
+  fallenPillarOffsets.forEach((fp, idx) => {
+    const px = colosseumCenterX + fp.dx;
+    const pz = colosseumCenterZ + fp.dz;
+    const colMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.75, 0.75, fp.len, 12),
+      matStoneRuins
+    );
+    colMesh.position.set(px, colosseumFloorY + 0.75, pz);
+    colMesh.rotation.set(Math.PI / 2, fp.rotY, 0);
+    colMesh.castShadow = true;
+    colosseumGroup.add(colMesh);
+
+    // Drum potongan pilar patah di dekatnya
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.78, 0.78, 1.2, 12), matStoneRuins);
+    drum.position.set(px + Math.cos(fp.rotY) * 2.8, colosseumFloorY + 0.6, pz + Math.sin(fp.rotY) * 2.8);
+    drum.rotation.set(0.3, Math.random() * Math.PI, 0.4);
+    drum.castShadow = true;
+    colosseumGroup.add(drum);
+
+    colliders.push({ type: 'circle', x: px, z: pz, radius: 1.8, label: `Pilar Roboh Colosseum ${idx + 1}` });
+  });
+
+  // C. Dinding Melingkar Bertingkat (Roman Stone Arches) di Sekeliling Arena
+  // 24 Bay melingkar di sekeliling arena, menyisakan gapura selatan
+  const totalBays = 24;
+  for (let b = 0; b < totalBays; b++) {
+    const angle = (b / totalBays) * Math.PI * 2;
+    // Celah gapura masuk selatan di sisi Z positif (sekitar angle ~ PI/2, yaitu Z: -382)
+    const isSouthEntrance = Math.abs(angle - Math.PI / 2) < 0.28;
+    if (isSouthEntrance) continue; // Biarkan terbuka untuk gerbang masuk pemain
+
+    const bx = colosseumCenterX + Math.cos(angle) * wallRadius;
+    const bz = colosseumCenterZ + Math.sin(angle) * wallRadius;
     const by = getTerrainHeight(bx, bz);
 
-    const bMesh = new THREE.Mesh(new THREE.DodecahedronGeometry(1.4 + (b % 3) * 0.4, 0), matStoneDarkCrag);
-    bMesh.position.set(bx, by + 0.7, bz);
-    bMesh.rotation.set(Math.random() * 0.4, Math.random() * Math.PI, Math.random() * 0.4);
-    bMesh.castShadow = true;
-    craterGroup.add(bMesh);
+    // Beberapa bagian dinding runtuh alami (ruined breaches)
+    const isRuined = b === 7 || b === 8 || b === 18 || b === 19;
 
-    colliders.push({ type: 'circle', x: bx, z: bz, radius: 1.8, label: 'Batu Lereng Kawah' });
+    const bayGroup = new THREE.Group();
+    bayGroup.position.set(bx, by, bz);
+    bayGroup.rotation.y = -angle + Math.PI / 2;
+
+    // Tingkat 1: Pilar Batu dan Lengkungan Bawah (Tier 1 Arcade)
+    const pierL = new THREE.Mesh(new THREE.BoxGeometry(1.6, 7.5, 1.8), matStoneRuins);
+    pierL.position.set(-2.4, 3.75, 0);
+    pierL.castShadow = true;
+    bayGroup.add(pierL);
+
+    const pierR = new THREE.Mesh(new THREE.BoxGeometry(1.6, 7.5, 1.8), matStoneRuins);
+    pierR.position.set(2.4, 3.75, 0);
+    pierR.castShadow = true;
+    bayGroup.add(pierR);
+
+    // Lintel balok lengkung atas tingkat 1
+    const archHeader = new THREE.Mesh(new THREE.BoxGeometry(5.6, 1.2, 2.0), matStoneRuins);
+    archHeader.position.set(0, 7.5 + 0.6, 0);
+    archHeader.castShadow = true;
+    bayGroup.add(archHeader);
+
+    if (!isRuined) {
+      // Tingkat 2: Galeri Dinding Bertingkat Atas (Tier 2 Gallery)
+      const tier2Wall = new THREE.Mesh(new THREE.BoxGeometry(5.4, 5.5, 1.6), matStoneRuins);
+      tier2Wall.position.set(0, 8.7 + 2.75, 0);
+      tier2Wall.castShadow = true;
+      bayGroup.add(tier2Wall);
+
+      // Cornice pembatas atas
+      const cornice = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.8, 2.2), matStoneRuins);
+      cornice.position.set(0, 14.2 + 0.4, 0);
+      cornice.castShadow = true;
+      bayGroup.add(cornice);
+    } else {
+      // Dinding runtuh: puing batu berserakan di dasar
+      for (let r = 0; r < 4; r++) {
+        const rubble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.85 + (r % 3) * 0.35, 0), matStoneRuins);
+        rubble.position.set((r - 1.5) * 1.2, 0.5 + (r % 2) * 0.4, (r % 2 === 0 ? 1.0 : -1.0));
+        rubble.castShadow = true;
+        bayGroup.add(rubble);
+      }
+    }
+
+    colosseumGroup.add(bayGroup);
+    colliders.push({ type: 'circle', x: bx, z: bz, radius: 2.5, label: `Dinding Colosseum Bay ${b + 1}` });
   }
 
-  // F. Suar Mistis Kawah (Mystic Point Light)
-  const craterBeacon = new THREE.PointLight(0x06b6d4, 2.8, 42);
-  craterBeacon.position.set(craterCenterX, craterFloorY + 4.5, craterCenterZ);
-  craterGroup.add(craterBeacon);
+  // D. Gapura Masuk Raksasa Sisi Selatan (Grand South Entrance Archway)
+  // Berada di sisi selatan Z = colosseumCenterZ + wallRadius = -382
+  const entrancePortalX = colosseumCenterX;
+  const entrancePortalZ = colosseumCenterZ + wallRadius;
+  const entranceY = getTerrainHeight(entrancePortalX, entrancePortalZ);
 
-  envGroup.add(craterGroup);
+  const portalGroup = new THREE.Group();
+  portalGroup.position.set(entrancePortalX, entranceY, entrancePortalZ);
+
+  // Menara Tiang Gerbang Kiri & Kanan Megah
+  const gatePillarGeo = new THREE.BoxGeometry(2.8, 11.0, 3.2);
+  const gatePillarL = new THREE.Mesh(gatePillarGeo, matStoneRuins);
+  gatePillarL.position.set(-6.2, 5.5, 0);
+  gatePillarL.castShadow = true;
+  portalGroup.add(gatePillarL);
+
+  const gatePillarR = new THREE.Mesh(gatePillarGeo, matStoneRuins);
+  gatePillarR.position.set(6.2, 5.5, 0);
+  gatePillarR.castShadow = true;
+  portalGroup.add(gatePillarR);
+
+  // Lintel Balok Gapura Lengkung Megah
+  const gateArch = new THREE.Mesh(new THREE.BoxGeometry(14.8, 2.2, 3.6), matStoneRuins);
+  gateArch.position.set(0, 11.0 + 1.1, 0);
+  gateArch.castShadow = true;
+  portalGroup.add(gateArch);
+
+  // Pedimen segitiga mahkota gerbang
+  const pediment = new THREE.Mesh(new THREE.ConeGeometry(5.5, 2.2, 4), matStoneRuins);
+  pediment.position.set(0, 13.2 + 1.1, 0);
+  pediment.rotation.y = Math.PI / 4;
+  pediment.castShadow = true;
+  portalGroup.add(pediment);
+
+  colosseumGroup.add(portalGroup);
+  colliders.push({ type: 'circle', x: entrancePortalX - 6.2, z: entrancePortalZ, radius: 2.2, label: 'Tiang Kiri Gapura Colosseum' });
+  colliders.push({ type: 'circle', x: entrancePortalX + 6.2, z: entrancePortalZ, radius: 2.2, label: 'Tiang Kanan Gapura Colosseum' });
+
+  // E. Tata Pencahayaan: 6 Obor Cawan Perunggu Berkobar (Bronze Braziers)
+  const brazierAngles = [
+    0,
+    Math.PI / 3,
+    (2 * Math.PI) / 3,
+    Math.PI,
+    (4 * Math.PI) / 3,
+    (5 * Math.PI) / 3,
+  ];
+  const brazierRadius = 42.0;
+
+  brazierAngles.forEach((bAng, bIdx) => {
+    const brX = colosseumCenterX + Math.cos(bAng) * brazierRadius;
+    const brZ = colosseumCenterZ + Math.sin(bAng) * brazierRadius;
+    const brY = getTerrainHeight(brX, brZ);
+
+    const brazierGroup = new THREE.Group();
+    brazierGroup.position.set(brX, brY, brZ);
+
+    // Kaki tiang batu berundak
+    const baseStone = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.2, 1.4, 8), matStoneRuins);
+    baseStone.position.y = 0.7;
+    baseStone.castShadow = true;
+    brazierGroup.add(baseStone);
+
+    // Cawan perunggu besar
+    const bronzeBowl = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.3, 0.8, 0.7, 12),
+      matCopperCauldron
+    );
+    bronzeBowl.position.y = 1.4 + 0.35;
+    bronzeBowl.castShadow = true;
+    brazierGroup.add(bronzeBowl);
+
+    // Kobaran lidah api membara
+    const flameMesh = new THREE.Mesh(new THREE.ConeGeometry(0.75, 2.2, 8), matOrangeFire);
+    flameMesh.position.y = 2.1 + 1.1;
+    brazierGroup.add(flameMesh);
+
+    animatedFlames.push({
+      mesh: flameMesh,
+      baseScale: new THREE.Vector3(1, 1, 1),
+      speed: 4.2 + (bIdx % 3) * 0.8,
+    });
+
+    // Lampu dinamis obor arena
+    const brazierLight = new THREE.PointLight(0xf97316, 2.8, 34);
+    brazierLight.position.set(0, 3.2, 0);
+    brazierGroup.add(brazierLight);
+
+    animatedLights.push({
+      light: brazierLight,
+      baseIntensity: 2.8,
+      speed: 5.5 + (bIdx % 4) * 0.9,
+    });
+
+    colosseumGroup.add(brazierGroup);
+    colliders.push({ type: 'circle', x: brX, z: brZ, radius: 1.4, label: `Obor Cawan Colosseum ${bIdx + 1}` });
+  });
+
+  envGroup.add(colosseumGroup);
 
   // ============================================================================
-  // 6. ZONA I: NGARAI CELAH PATAHAN GURUN / CANYON RAVINE BOUNDARY (X: 136 s.d 150, Z: -15 s.d 65)
-  // Jurang patahan tanah sedalam 3.5 unit membelah padang rumput hijau dan gurun Solaria.
-  // Jembatan gantung (X: 145, Z: 47) menyeberang persis di atas celah terjal ini.
-  // Dinding tebing cadas terjal, dasar batu kerikil, tulang fosil purba, & semak kering.
+  // 6. ZONA I: SISTEM ALIRAN SUNGAI BERCABANG & JEMBATAN GANTUNG ALAMI
+  // Hulu Barat Laut, Hulu Timur -> Confluence [107, 22] -> Bawah Jembatan [142, 47] -> Samudra Selatan
+  // Palung di bawah jembatan bersih dari sumbatan batu besar, dialiri air sungai tanpa putus.
   // ============================================================================
   const canyonGroup = new THREE.Group();
-  canyonGroup.name = 'ZoneI_CanyonRavineBoundary';
+  canyonGroup.name = 'ZoneI_RiverNetworkAndRavine';
 
-  // A. Tebing Dinding Cadas Sepanjang Bibir Barat (X ~ 137.5) & Timur (X ~ 146.5)
+  // A. Tebing Dinding Cadas Sepanjang Bibir Barat (X ~ 137.5) & Timur (X ~ 146.5) di Sekitar Jembatan
   const cliffZCoords = [-10, 0, 10, 20, 30, 40, 55, 62];
   cliffZCoords.forEach((cz) => {
-    // Hindari menaruh batu di atas lintasan jembatan gantung (Z: 44 s.d 50)
+    // Hindari menaruh tebing di atas lintasan jembatan gantung (Z: 44 s.d 50)
     if (cz >= 44 && cz <= 50) return;
 
     // Bibir Barat (West Rim)
     const wx = 137.0 + (Math.random() - 0.5) * 1.0;
     const wy = getTerrainHeight(wx, cz);
-    const westCliff = new THREE.Mesh(new THREE.DodecahedronGeometry(2.0, 0), matStoneDarkCrag);
+    const westCliff = new THREE.Mesh(new THREE.DodecahedronGeometry(1.8, 0), matStoneDarkCrag);
     westCliff.position.set(wx, wy + 0.5, cz);
-    westCliff.scale.set(1.1, 2.2, 1.4);
+    westCliff.scale.set(1.1, 2.0, 1.3);
     westCliff.rotation.set(0.2, Math.random() * Math.PI, 0.2);
     westCliff.castShadow = true;
     canyonGroup.add(westCliff);
-    colliders.push({ type: 'circle', x: wx, z: cz, radius: 1.8, label: 'Tebing Cadas Barat' });
+    colliders.push({ type: 'circle', x: wx, z: cz, radius: 1.8, label: 'Tebing Sungai Barat' });
 
     // Bibir Timur (East Rim)
     const ex = 146.8 + (Math.random() - 0.5) * 1.0;
     const ey = getTerrainHeight(ex, cz);
-    const eastCliff = new THREE.Mesh(new THREE.DodecahedronGeometry(1.9, 0), matStoneDarkCrag);
+    const eastCliff = new THREE.Mesh(new THREE.DodecahedronGeometry(1.7, 0), matStoneDarkCrag);
     eastCliff.position.set(ex, ey + 0.5, cz);
-    eastCliff.scale.set(1.0, 2.1, 1.3);
+    eastCliff.scale.set(1.0, 1.9, 1.2);
     eastCliff.rotation.set(-0.2, Math.random() * Math.PI, -0.2);
     eastCliff.castShadow = true;
     canyonGroup.add(eastCliff);
-    colliders.push({ type: 'circle', x: ex, z: cz, radius: 1.7, label: 'Tebing Cadas Timur' });
+    colliders.push({ type: 'circle', x: ex, z: cz, radius: 1.7, label: 'Tebing Sungai Timur' });
   });
 
-  // B. Dasar Jurang: Bebatuan Kerikil Kering & Fosil Purba (Y ~ -3.5 unit)
-  const chasmBottomCoords = [
-    { x: 141.5, z: -8 },
-    { x: 142.2, z: 8 },
-    { x: 141.8, z: 22 },
-    { x: 142.5, z: 36 },
-    { x: 141.6, z: 47 }, // Tepat di bawah jembatan
-    { x: 142.1, z: 58 },
+  // B. Bersihkan Palung di Bawah Jembatan: Hanya kerikil halus di pinggir tebing (bebas sumbatan batu)
+  const bankPebbles = [
+    { x: 139.0, z: 20 },
+    { x: 144.5, z: 32 },
+    { x: 139.2, z: 54 },
   ];
-  chasmBottomCoords.forEach((cb) => {
-    // Batu alam dasar jurang
-    const bGeo = new THREE.DodecahedronGeometry(1.2, 0);
-    const boulder = new THREE.Mesh(bGeo, matBoulder);
-    boulder.position.set(cb.x, -3.5 + 0.6, cb.z);
-    boulder.scale.set(1.4, 0.7, 1.3);
-    boulder.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-    boulder.castShadow = true;
-    canyonGroup.add(boulder);
+  bankPebbles.forEach((bp) => {
+    const pebble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.45, 0), matBoulder);
+    pebble.position.set(bp.x, -2.1, bp.z);
+    canyonGroup.add(pebble);
+  });
 
-    // Kerikil satelit
-    for (let s = 0; s < 2; s++) {
-      const pebble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.45, 0), matBoulder);
-      pebble.position.set(cb.x + (s === 0 ? 1.2 : -1.1), -3.5 + 0.25, cb.z + (s === 0 ? 0.8 : -0.9));
-      canyonGroup.add(pebble);
+  // C. Pita Air Sungai Tiga Jalur Tanpa Putus (Continuous Translucent River Ribbon Mesh)
+  const matRiverWater = new THREE.MeshStandardMaterial({
+    color: 0x0284c7,
+    roughness: 0.08,
+    metalness: 0.15,
+    transparent: true,
+    opacity: 0.82,
+    side: THREE.DoubleSide,
+  });
+
+  function buildRiverRibbon(points: [number, number][], width: number, yLevel: number): THREE.Mesh {
+    const vertices: number[] = [];
+    const uvs: number[] = [];
+    const indices: number[] = [];
+
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      let dx = 0;
+      let dz = 0;
+      if (i < points.length - 1) {
+        dx += points[i + 1][0] - p[0];
+        dz += points[i + 1][1] - p[1];
+      }
+      if (i > 0) {
+        dx += p[0] - points[i - 1][0];
+        dz += p[1] - points[i - 1][1];
+      }
+      const len = Math.hypot(dx, dz) || 1;
+      const nx = -dz / len;
+      const nz = dx / len;
+      const halfW = width * 0.5;
+
+      // Titik Kiri
+      vertices.push(p[0] + nx * halfW, yLevel, p[1] + nz * halfW);
+      uvs.push(0, i / (points.length - 1));
+
+      // Titik Kanan
+      vertices.push(p[0] - nx * halfW, yLevel, p[1] - nz * halfW);
+      uvs.push(1, i / (points.length - 1));
+
+      if (i < points.length - 1) {
+        const base = i * 2;
+        indices.push(base, base + 1, base + 2);
+        indices.push(base + 1, base + 3, base + 2);
+      }
     }
-  });
 
-  // Tulang Fosil Binatang Raksasa di Dasar Jurang
-  const fossilCoords = [
-    { x: 141.8, z: 12 },
-    { x: 142.0, z: 32 },
-  ];
-  fossilCoords.forEach((fc) => {
-    const fossilRib = new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.22, 6, 12, Math.PI * 0.9), matBone);
-    fossilRib.position.set(fc.x, -3.5 + 1.2, fc.z);
-    fossilRib.rotation.set(Math.PI / 2, 0.3, 0);
-    fossilRib.castShadow = true;
-    canyonGroup.add(fossilRib);
-  });
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+
+    const mesh = new THREE.Mesh(geo, matRiverWater);
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  // 1. Cabang Barat Laut
+  canyonGroup.add(buildRiverRibbon(RIVER_NORTHWEST_BRANCH, 5.2, -0.42));
+  // 2. Cabang Timur
+  canyonGroup.add(buildRiverRibbon(RIVER_EAST_BRANCH, 5.0, -0.42));
+  // 3. Alur Utama Hilir (Melewati Jembatan Gantung [142, 47] Menuju Samudra Selatan)
+  canyonGroup.add(buildRiverRibbon(RIVER_MAIN_DOWNSTREAM, 5.6, -0.42));
 
   envGroup.add(canyonGroup);
 
@@ -1502,11 +1709,12 @@ export function buildWorldEnvironment(
   westPOIGroup.name = 'ZoneJ_WesternPOIs';
 
   // ----------------------------------------------------------------------------
-  // POI A: LEMBAH BATU LUMUT KUNO / ANCIENT MOSS GLADE (X: -350, Z: -50)
+  // POI A: LEMBAH BATU LUMUT KUNO / ANCIENT MOSS GLADE (X: -326, Z: -55)
   // Formasi Stonehenge mini: lingkaran 5 batu monolit besar, semak bunga liar, & pilar lintel
+  // Digeser aman > 20 unit menjauhi garis tengah jalan (X: -361, Z: -30) agar jalur setapak 100% bebas rintangan
   // ----------------------------------------------------------------------------
-  const mossGladeX = -350;
-  const mossGladeZ = -50;
+  const mossGladeX = -326;
+  const mossGladeZ = -55;
   const mossGladeY = getTerrainHeight(mossGladeX, mossGladeZ);
 
   const stonehengeCount = 5;
@@ -1515,6 +1723,10 @@ export function buildWorldEnvironment(
     const sAng = (s / stonehengeCount) * Math.PI * 2;
     const sx = mossGladeX + Math.cos(sAng) * stonehengeRadius;
     const sz = mossGladeZ + Math.sin(sAng) * stonehengeRadius;
+
+    // ROAD CLEARANCE: Minimal 4.5 unit dari garis tengah jalan batu
+    if (isPointNearRoad(sx, sz, 4.5)) continue;
+
     const sy = getTerrainHeight(sx, sz);
 
     const monolith = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4.6, 1.1), matMossStone);
@@ -1539,6 +1751,9 @@ export function buildWorldEnvironment(
     const fAng = (f / 6) * Math.PI * 2;
     const fx = mossGladeX + Math.cos(fAng) * 3.2;
     const fz = mossGladeZ + Math.sin(fAng) * 3.2;
+
+    if (isPointNearRoad(fx, fz, 4.5)) continue;
+
     const fy = getTerrainHeight(fx, fz);
 
     const bush = new THREE.Mesh(new THREE.DodecahedronGeometry(0.7, 0), matShrub);
@@ -1632,6 +1847,262 @@ export function buildWorldEnvironment(
   }
 
   envGroup.add(westPOIGroup);
+
+  // ============================================================================
+  // 8. ZONA K: PERBUKITAN KINCIR ANGIN & PONDOK GEMBALA (X: 288, Z: 137)
+  // Patahkan kesan tanah datar polos dengan bukit landai Perlin Noise (tinggi 1.5 - 2.5 unit).
+  // - 1 Kincir angin kayu klasik dengan kincir berputar perlahan
+  // - Pondok kayu kecil dengan tumpukan jerami dan pagar ternak kayu luas
+  // - Kelompok pohon oak rindang di lereng bukit
+  // ============================================================================
+  const windmillHillGroup = new THREE.Group();
+  windmillHillGroup.name = 'ZoneK_WindmillHillAndShepherdCot';
+
+  const wmCenterX = 288;
+  const wmCenterZ = 137;
+  const wmBaseY = getTerrainHeight(wmCenterX, wmCenterZ);
+
+  // A. Kincir Angin Kayu Klasik (Classic Wooden Windmill)
+  const windmillTower = new THREE.Group();
+  windmillTower.position.set(wmCenterX, wmBaseY, wmCenterZ);
+
+  // Pondasi bawah batu cadas
+  const wmStoneBase = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 4.4, 3.2, 12), matStoneRuins);
+  wmStoneBase.position.y = 1.6;
+  wmStoneBase.castShadow = true;
+  windmillTower.add(wmStoneBase);
+
+  // Menara kayu utama mengerucut ke atas
+  const wmWoodTower = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 3.6, 8.8, 12), matWoodRustic);
+  wmWoodTower.position.y = 3.2 + 4.4;
+  wmWoodTower.castShadow = true;
+  windmillTower.add(wmWoodTower);
+
+  // Atap kubah / kerucut kayu sirap
+  const wmCapRoof = new THREE.Mesh(new THREE.ConeGeometry(3.2, 3.4, 12), matWoodDark);
+  wmCapRoof.position.y = 12.0 + 1.7;
+  wmCapRoof.castShadow = true;
+  windmillTower.add(wmCapRoof);
+
+  // Gandar poros kincir (Axle hub) menghadap ke depan (+Z)
+  const wmAxleHub = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 1.4, 8), matWoodDark);
+  wmAxleHub.rotation.x = Math.PI / 2;
+  wmAxleHub.position.set(0, 11.2, 2.7);
+  windmillTower.add(wmAxleHub);
+
+  // Baling-baling kincir (4 Windmill Lattice Sails)
+  const bladesGroup = new THREE.Group();
+  bladesGroup.position.set(0, 11.2, 3.4);
+
+  const canvasMat = new THREE.MeshStandardMaterial({
+    color: 0xf1f5f9,
+    roughness: 0.85,
+    side: THREE.DoubleSide,
+  });
+
+  for (let b = 0; b < 4; b++) {
+    const bRot = (b / 4) * Math.PI * 2;
+    const bladeArm = new THREE.Group();
+    bladeArm.rotation.z = bRot;
+
+    // Tiang kayu kisi-kisi (Wooden spar)
+    const spar = new THREE.Mesh(new THREE.BoxGeometry(0.18, 6.4, 0.18), matWoodRustic);
+    spar.position.y = 3.2;
+    spar.castShadow = true;
+    bladeArm.add(spar);
+
+    // Kain layar kanvas putih klasik
+    const sail = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 5.2), canvasMat);
+    sail.position.set(0.65, 3.4, 0.05);
+    sail.rotation.y = 0.15; // Sudut hembusan angin
+    sail.castShadow = true;
+    bladeArm.add(sail);
+
+    bladesGroup.add(bladeArm);
+  }
+
+  windmillTower.add(bladesGroup);
+  windmillBladesGroup = bladesGroup;
+
+  windmillHillGroup.add(windmillTower);
+  colliders.push({ type: 'circle', x: wmCenterX, z: wmCenterZ, radius: 4.4, label: 'Menara Kincir Angin' });
+
+  // B. Pondok Kayu Kecil Gembala (Shepherd's Cottage)
+  const cotX = 274;
+  const cotZ = 142;
+  const cotY = getTerrainHeight(cotX, cotZ);
+
+  const cottage = new THREE.Group();
+  cottage.position.set(cotX, cotY, cotZ);
+
+  // Bangunan pondok balok kayu
+  const cotWalls = new THREE.Mesh(new THREE.BoxGeometry(6.4, 3.6, 5.2), matWoodRustic);
+  cotWalls.position.y = 1.8;
+  cotWalls.castShadow = true;
+  cottage.add(cotWalls);
+
+  // Atap sirap gabled segitiga
+  const cotRoof = new THREE.Mesh(new THREE.ConeGeometry(4.5, 2.4, 4), matWoodDark);
+  cotRoof.position.y = 3.6 + 1.2;
+  cotRoof.rotation.y = Math.PI / 4;
+  cotRoof.scale.set(1.0, 1.0, 1.35);
+  cotRoof.castShadow = true;
+  cottage.add(cotRoof);
+
+  // Cerobong asap batu
+  const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.9, 5.2, 0.9), matStoneRuins);
+  chimney.position.set(2.2, 2.6, -1.6);
+  chimney.castShadow = true;
+  cottage.add(chimney);
+
+  // Jendela berpendar hangat
+  const windowGlow = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.9, 0.9),
+    new THREE.MeshStandardMaterial({
+      color: 0xfbbf24,
+      emissive: 0xf59e0b,
+      emissiveIntensity: 1.8,
+    })
+  );
+  windowGlow.position.set(-1.2, 1.8, 2.62);
+  cottage.add(windowGlow);
+
+  const windowLight = new THREE.PointLight(0xf59e0b, 1.6, 14);
+  windowLight.position.set(-1.2, 1.8, 3.2);
+  cottage.add(windowLight);
+
+  windmillHillGroup.add(cottage);
+  colliders.push({ type: 'box', minX: cotX - 3.4, maxX: cotX + 3.4, minZ: cotZ - 2.8, maxZ: cotZ + 2.8, label: 'Pondok Gembala' });
+
+  // C. Tumpukan Jerami Emas (Haystacks)
+  const hayCoords = [
+    { x: 281, z: 146 },
+    { x: 283, z: 149 },
+    { x: 281, z: 152 },
+    { x: 271, z: 149 },
+    { x: 269, z: 146 },
+  ];
+  hayCoords.forEach((hc) => {
+    const hy = getTerrainHeight(hc.x, hc.z);
+    const hayGroup = new THREE.Group();
+    hayGroup.position.set(hc.x, hy, hc.z);
+
+    const baseCyl = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.4, 1.3, 10), matHay);
+    baseCyl.position.y = 0.65;
+    baseCyl.castShadow = true;
+    hayGroup.add(baseCyl);
+
+    const topCone = new THREE.Mesh(new THREE.ConeGeometry(1.25, 1.1, 10), matHay);
+    topCone.position.y = 1.3 + 0.55;
+    topCone.castShadow = true;
+    hayGroup.add(topCone);
+
+    windmillHillGroup.add(hayGroup);
+    colliders.push({ type: 'circle', x: hc.x, z: hc.z, radius: 1.3, label: 'Tumpukan Jerami' });
+  });
+
+  // D. Pagar Ternak Kayu Luas (Livestock Corral)
+  // Area persegi panjang (X: 268 s.d 282, Z: 122 s.d 136)
+  const corralPosts: [number, number][] = [
+    [268, 122], [273, 122], [278, 122], [282, 122],
+    [282, 127], [282, 132], [282, 136],
+    [278, 136], [273, 136], [268, 136],
+    [268, 131], [268, 126],
+  ];
+  for (let i = 0; i < corralPosts.length; i++) {
+    const [px, pz] = corralPosts[i];
+    const py = getTerrainHeight(px, pz);
+
+    // Tiang pagar
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 1.5, 6), matWoodRustic);
+    post.position.set(px, py + 0.75, pz);
+    post.castShadow = true;
+    windmillHillGroup.add(post);
+
+    // Rel horizontal antar tiang (kecuali celah gerbang [273, 136] ke [278, 136])
+    const nextIdx = (i + 1) % corralPosts.length;
+    if (i !== 8) {
+      const [nx, nz] = corralPosts[nextIdx];
+      const midX = (px + nx) * 0.5;
+      const midZ = (pz + nz) * 0.5;
+      const midY = (py + getTerrainHeight(nx, nz)) * 0.5;
+      const dist = Math.hypot(nx - px, nz - pz);
+      const angle = Math.atan2(nx - px, nz - pz);
+
+      for (let r = 0; r < 2; r++) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.14, dist), matWoodRustic);
+        rail.position.set(midX, midY + (r === 0 ? 0.55 : 1.1), midZ);
+        rail.rotation.y = angle;
+        rail.castShadow = true;
+        windmillHillGroup.add(rail);
+      }
+    }
+  }
+
+  // 2 Domba Putih di dalam Pagar Ternak
+  const sheepCoords = [
+    { x: 273, z: 128, rot: 0.8 },
+    { x: 277, z: 131, rot: -1.2 },
+  ];
+  sheepCoords.forEach((sc) => {
+    const sy = getTerrainHeight(sc.x, sc.z);
+    const sheep = new THREE.Group();
+    sheep.position.set(sc.x, sy, sc.z);
+    sheep.rotation.y = sc.rot;
+
+    // Badan domba berbulu putih
+    const woolBody = new THREE.Mesh(new THREE.DodecahedronGeometry(0.7, 1), matBone);
+    woolBody.position.y = 0.75;
+    woolBody.scale.set(1.2, 0.9, 0.9);
+    woolBody.castShadow = true;
+    sheep.add(woolBody);
+
+    // Kepala domba
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), matWoodDark);
+    head.position.set(0.85, 0.95, 0);
+    sheep.add(head);
+
+    // 4 Kaki domba
+    [[-0.45, -0.28], [-0.45, 0.28], [0.45, -0.28], [0.45, 0.28]].forEach(([lx, lz]) => {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.6, 5), matWoodDark);
+      leg.position.set(lx, 0.3, lz);
+      sheep.add(leg);
+    });
+
+    windmillHillGroup.add(sheep);
+  });
+
+  // E. Kelompok Pohon Oak Rindang di Lereng Bukit (Shady Oak Grove)
+  const oakHillCoords: [number, number][] = [
+    [298, 126],
+    [306, 138],
+    [296, 152],
+    [276, 155],
+    [265, 132],
+    [282, 118],
+    [310, 128],
+  ];
+  oakHillCoords.forEach(([ox, oz], oIdx) => {
+    const oy = getTerrainHeight(ox, oz);
+    const oak = new THREE.Group();
+    oak.position.set(ox, oy, oz);
+
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.65, 3.6, 7), matWoodRustic);
+    trunk.position.y = 1.8;
+    trunk.castShadow = true;
+    oak.add(trunk);
+
+    const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(2.8 + (oIdx % 3) * 0.4, 1), matOakFoliage);
+    crown.position.y = 4.8;
+    crown.scale.set(1.2, 0.95, 1.2);
+    crown.castShadow = true;
+    oak.add(crown);
+
+    windmillHillGroup.add(oak);
+    colliders.push({ type: 'circle', x: ox, z: oz, radius: 1.4, label: `Pohon Oak Lereng Kincir ${oIdx + 1}` });
+  });
+
+  envGroup.add(windmillHillGroup);
 
   // ============================================================================
   // 8. DISTRIBUSI VEGETASI ALAMI MASIF MENGGUNAKAN THREE.InstancedMesh (60 FPS)
@@ -1951,6 +2422,11 @@ export function buildWorldEnvironment(
       const pulse = 1.0 + Math.sin(time * af.speed) * 0.12;
       af.mesh.scale.set(af.baseScale.x * pulse, af.baseScale.y * (1.0 + Math.cos(time * af.speed * 1.3) * 0.18), af.baseScale.z * pulse);
     });
+
+    // Animasi putaran baling-baling kincir angin perlahan
+    if (windmillBladesGroup) {
+      windmillBladesGroup.rotation.z += delta * 0.55;
+    }
   };
 
   return {

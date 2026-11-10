@@ -276,8 +276,11 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* Top Right: MiniMap / Compass / Audio & System Controls */}
-      <div className="hud-minimap-cluster pointer-events-none absolute top-2 right-2 sm:top-4 sm:right-4 flex flex-col items-end gap-1.5 sm:gap-2.5 max-w-xs z-30">
+      {/* Top Right: MiniMap / Compass / Audio & System Controls - Relocated to top: 15px, right: 15px */}
+      <div
+        style={{ top: '15px', right: '15px' }}
+        className="hud-minimap-cluster pointer-events-none absolute flex flex-col items-end gap-1.5 sm:gap-2.5 max-w-xs z-30"
+      >
         {/* Desktop System Buttons Row (Visible on PC) */}
         <div className="pointer-events-none hidden md:flex items-center gap-1.5 flex-wrap justify-end">
           {/* Game Mode Badge */}
@@ -316,7 +319,7 @@ export const HUD: React.FC<HUDProps> = ({
           {onOpenMenu && (
             <button
               onClick={onOpenMenu}
-              title={gameMode === 'singleplayer' ? 'Pause Permainan (Esc)' : 'Menu Multiplayer (Esc)'}
+              title={gameMode === 'singleplayer' ? 'Pause Permainan & Pengaturan (Esc)' : 'Menu Multiplayer (Esc)'}
               className="pointer-events-auto px-2.5 py-1.5 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-stone-700 text-stone-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow active:scale-95"
             >
               {gameMode === 'singleplayer' ? (
@@ -330,25 +333,6 @@ export const HUD: React.FC<HUDProps> = ({
                   <span className="hidden sm:inline">Menu (Esc)</span>
                 </>
               )}
-            </button>
-          )}
-
-          {!isSpectatorMode && onToggleTouchControls && (
-            <button
-              onClick={onToggleTouchControls}
-              title={
-                showTouchControls
-                  ? 'Sembunyikan Kontroler Layar (Analog/D-Pad)'
-                  : 'Tampilkan Kontroler Layar (Analog/D-Pad untuk HP/Sentuh)'
-              }
-              className={`pointer-events-auto px-2.5 py-1.5 rounded-xl backdrop-blur-md border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow active:scale-95 ${
-                showTouchControls
-                  ? 'bg-amber-600/80 border-amber-400 text-white shadow-amber-900/30'
-                  : 'bg-stone-900/80 border-stone-700 text-stone-400 hover:text-white'
-              }`}
-            >
-              <Gamepad2 className="w-4 h-4 text-amber-300" />
-              <span>{showTouchControls ? 'Kontrol: ON' : 'Kontrol: OFF'}</span>
             </button>
           )}
 
@@ -383,193 +367,20 @@ export const HUD: React.FC<HUDProps> = ({
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
           )}
-
-          {!isSpectatorMode && (
-            <button
-              onClick={onOpenMap}
-              title="Buka Peta Dunia (M)"
-              className="pointer-events-auto px-2.5 py-1.5 rounded-xl bg-amber-600/80 hover:bg-amber-500 border border-amber-400 text-white text-xs font-bold flex items-center gap-1.5 backdrop-blur-md shadow cursor-pointer transition-all"
-            >
-              <Map className="w-4 h-4" />
-              <span>Peta (M)</span>
-            </button>
-          )}
-
-          {onOpenSettings && (
-            <button
-              onClick={onOpenSettings}
-              title="Pengaturan Grafis & Performa (PC Rendah / Kentang)"
-              className="pointer-events-auto p-2 rounded-xl backdrop-blur-md border border-cyan-500/40 bg-stone-900/80 text-cyan-300 hover:text-white hover:border-cyan-400 transition-all cursor-pointer shadow active:scale-95"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-          )}
-          <button
-            onClick={onToggleMusic}
-            title={isMusicPlaying ? 'Musik Latar: ON (Klik untuk Jeda/Pause)' : 'Musik Latar: OFF (Klik untuk Putar/Play)'}
-            className={`pointer-events-auto p-2 rounded-xl backdrop-blur-md border transition-all cursor-pointer shadow ${
-              isMusicPlaying
-                ? 'bg-amber-600/80 border-amber-400 text-white shadow-amber-500/20 ring-2 ring-amber-500/30'
-                : 'bg-stone-900/80 border-stone-700 text-stone-400 hover:text-white'
-            }`}
-          >
-            <Music className="w-4 h-4" />
-          </button>
-          <button
-            onClick={onToggleMute}
-            title="Toggle Sound Effects"
-            className={`pointer-events-auto p-2 rounded-xl backdrop-blur-md border transition-all cursor-pointer shadow ${
-              !isMuted
-                ? 'bg-blue-600/80 border-blue-400 text-white'
-                : 'bg-stone-900/80 border-stone-700 text-stone-400 hover:text-white'
-            }`}
-          >
-            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-          </button>
-
-          {!isSpectatorMode && (
-            <button
-              onClick={onOpenHelp}
-              title="Bantuan Kontrol (H)"
-              className="pointer-events-auto p-2 rounded-xl bg-stone-900/80 backdrop-blur-md border border-stone-700 text-stone-300 hover:text-white transition-all cursor-pointer shadow"
-            >
-              <HelpCircle className="w-4 h-4" />
-            </button>
-          )}
         </div>
 
-        {/* Mobile Single System Menu Button & Dropdown Sheet (Clutter-free top bar on HP) */}
+        {/* Mobile Single System Menu Button */}
         <div className="md:hidden pointer-events-none relative flex items-center justify-end">
-          <button
-            type="button"
-            onClick={() => setIsMobileSystemMenuOpen((prev) => !prev)}
-            className="pointer-events-auto flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-stone-900/95 hover:bg-stone-800 border border-stone-700/80 text-amber-300 shadow-xl cursor-pointer active:scale-95 transition"
-            title="Menu Sistem & Pengaturan"
-          >
-            <Settings className={`w-3.5 h-3.5 transition-transform duration-200 ${isMobileSystemMenuOpen ? 'rotate-90 text-amber-400' : ''}`} />
-            <span className="text-[10px] font-bold tracking-wide">Menu</span>
-          </button>
-
-          {/* Floating Dropdown List on Mobile */}
-          {isMobileSystemMenuOpen && (
-            <div
-              className="pointer-events-auto absolute top-9 right-0 w-44 bg-stone-950/95 backdrop-blur-xl border border-stone-700/90 rounded-2xl p-2 shadow-2xl z-50 flex flex-col gap-1 select-none animate-fade-in"
+          {onOpenMenu && (
+            <button
+              type="button"
+              onClick={onOpenMenu}
+              className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-900/95 hover:bg-stone-800 border border-stone-700/80 text-amber-300 shadow-xl cursor-pointer active:scale-95 transition"
+              title="Menu & Pengaturan"
             >
-              <div className="flex items-center justify-between px-2 py-1 border-b border-stone-800 text-[10px] uppercase font-bold text-amber-400">
-                <span>Menu Sistem</span>
-                <button
-                  onClick={() => setIsMobileSystemMenuOpen(false)}
-                  className="text-stone-400 hover:text-white p-0.5 rounded cursor-pointer"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Pause / Resume */}
-              {onOpenMenu && (
-                <button
-                  onClick={() => {
-                    setIsMobileSystemMenuOpen(false);
-                    onOpenMenu();
-                  }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-stone-800/80 text-stone-200 text-xs text-left cursor-pointer transition active:scale-95"
-                >
-                  <Pause className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Pause Permainan</span>
-                </button>
-              )}
-
-              {/* Peta */}
-              {!isSpectatorMode && (
-                <button
-                  onClick={() => {
-                    setIsMobileSystemMenuOpen(false);
-                    onOpenMap();
-                  }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-stone-800/80 text-amber-300 text-xs text-left cursor-pointer transition active:scale-95"
-                >
-                  <Map className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Peta Dunia (M)</span>
-                </button>
-              )}
-
-              {/* Fullscreen */}
-              {onToggleFullscreen && (
-                <button
-                  onClick={() => {
-                    setIsMobileSystemMenuOpen(false);
-                    onToggleFullscreen();
-                  }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-stone-800/80 text-stone-200 text-xs text-left cursor-pointer transition active:scale-95"
-                >
-                  {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 text-emerald-400" /> : <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />}
-                  <span>{isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh HP'}</span>
-                </button>
-              )}
-
-              {/* Kontrol Layar */}
-              {!isSpectatorMode && onToggleTouchControls && (
-                <button
-                  onClick={() => {
-                    setIsMobileSystemMenuOpen(false);
-                    onToggleTouchControls();
-                  }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-stone-800/80 text-stone-200 text-xs text-left cursor-pointer transition active:scale-95"
-                >
-                  <Gamepad2 className="w-3.5 h-3.5 text-amber-300" />
-                  <span>{showTouchControls ? 'Analog: Sembunyikan' : 'Analog: Tampilkan'}</span>
-                </button>
-              )}
-
-              {/* Pengaturan Grafis */}
-              {onOpenSettings && (
-                <button
-                  onClick={() => {
-                    setIsMobileSystemMenuOpen(false);
-                    onOpenSettings();
-                  }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-stone-800/80 text-cyan-300 text-xs text-left cursor-pointer transition active:scale-95"
-                >
-                  <Settings className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Grafis & FPS</span>
-                </button>
-              )}
-
-              {/* Musik & Suara */}
-              <button
-                onClick={() => {
-                  onToggleMusic();
-                }}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-stone-800/80 text-stone-200 text-xs text-left cursor-pointer transition active:scale-95"
-              >
-                <Music className="w-3.5 h-3.5 text-amber-400" />
-                <span>Musik: {isMusicPlaying ? 'ON' : 'OFF'}</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  onToggleMute();
-                }}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-stone-800/80 text-stone-200 text-xs text-left cursor-pointer transition active:scale-95"
-              >
-                {isMuted ? <VolumeX className="w-3.5 h-3.5 text-red-400" /> : <Volume2 className="w-3.5 h-3.5 text-blue-400" />}
-                <span>Suara: {!isMuted ? 'ON' : 'MUTE'}</span>
-              </button>
-
-              {/* Bantuan */}
-              {!isSpectatorMode && (
-                <button
-                  onClick={() => {
-                    setIsMobileSystemMenuOpen(false);
-                    onOpenHelp();
-                  }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-stone-800/80 text-stone-200 text-xs text-left cursor-pointer transition active:scale-95"
-                >
-                  <HelpCircle className="w-3.5 h-3.5 text-stone-400" />
-                  <span>Bantuan (H)</span>
-                </button>
-              )}
-            </div>
+              <Pause className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-xs font-bold tracking-wide">Menu</span>
+            </button>
           )}
         </div>
 

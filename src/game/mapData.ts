@@ -52,14 +52,14 @@ export const REGIONS: RegionInfo[] = [
   },
   {
     id: 'kawah_obsidian',
-    name: 'Ancient Titan Crater Arena',
-    nameId: 'Kawah Kuno Boss Titan Obsidian',
+    name: 'Ancient Colosseum Arena (Boss Titan)',
+    nameId: 'Reruntuhan Colosseum Kuno (Boss Titan)',
     icon: '🏛️',
-    description: 'A colossal ancient impact crater arena surrounded by runic pillars and cracked scorched stone, home to the Ancient Obsidian Titan.',
-    descriptionId: 'Kawah retak batu kuno raksasa di utara dikelilingi pilar rune dan lantai tanah hangus, arena pertarungan Boss Sang Titan Kuno Obsidian (Lv. 8).',
+    description: 'A grand Roman Colosseum ruin with multi-tiered stone arches and sandy arena floor, battleground of the Ancient Obsidian Titan Golem.',
+    descriptionId: 'Reruntuhan Colosseum kuno bertingkat megah di utara berlantai pasir luas, arena pertarungan Boss Sang Titan Kuno Obsidian (Lv. 8).',
     color: '#0284c7',
-    bounds: { minX: -260, maxX: -180, minZ: -440, maxZ: -360 },
-    center: [-220, -400],
+    bounds: { minX: -285, maxX: -165, minZ: -495, maxZ: -375 },
+    center: [-224, -435],
     recommendedLevel: 8,
   },
   {
@@ -149,12 +149,20 @@ export const WAYPOINTS: {
     desc: 'Pelabuhan pesisir selatan menghadap langsung ke Samudra Azure terbuka',
   },
   {
+    id: 'wp_sacred_spring',
+    nameId: 'Mata Air Suci & Taman Bunga Eldoria',
+    regionId: 'desa_eldoria',
+    icon: '🌸',
+    pos: [-144, -270],
+    desc: 'Kolam air tawar alami berteratai dikelilingi bunga lavender dan pohon willow rindang',
+  },
+  {
     id: 'wp_titan',
-    nameId: 'Kawah Kuno Boss Titan Obsidian',
+    nameId: 'Reruntuhan Colosseum Kuno (Boss Titan)',
     regionId: 'kawah_obsidian',
     icon: '🏛️',
-    pos: [-220, -400],
-    desc: 'Kawah kuno retak misterius diameter 50m di utara, arena kebangkitan Boss Sang Titan Kuno Obsidian (Lv. 8)',
+    pos: [-224, -435],
+    desc: 'Arena Colosseum kuno bertingkat megah di utara, arena persemayaman Boss Sang Titan Kuno Obsidian (Lv. 8)',
   },
   {
     id: 'wp_astraea',
@@ -258,8 +266,8 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
     return REGIONS[3];
   }
 
-  // 4. Ancient Titan Crater Arena & Basin (North & West Plains)
-  if (Math.hypot(x - -220, z - -400) <= 36 || Math.hypot(x - -196, z - -254) <= 40) {
+  // 4. Ancient Colosseum Arena (Boss Titan: around [-224, -435])
+  if (Math.hypot(x - -224, z - -435) <= 56) {
     return REGIONS[4];
   }
 

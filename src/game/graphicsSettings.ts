@@ -1,7 +1,12 @@
 export interface GraphicsSettings {
-  preset: 'low' | 'medium' | 'high';
-  renderScale: number; // 0.65, 0.85, 1.0
+  preset: 'low' | 'medium' | 'high' | 'custom';
+  renderScale: number; // 0.65, 0.75, 0.85, 1.0, 1.25
   shadows: boolean;
+  enableShadows?: boolean;
+  shadowQuality?: 'low' | 'medium' | 'high';
+  enableGrass?: boolean;
+  enableParticles?: boolean;
+  enableFog?: boolean;
   particleDensity: 'low' | 'medium' | 'high';
   renderDistance: number; // 50, 90, 150
   targetFps: number; // 30, 60, 0 (unlimited)
@@ -11,24 +16,39 @@ export interface GraphicsSettings {
 export const GRAPHICS_PRESETS: Record<'low' | 'medium' | 'high', GraphicsSettings> = {
   low: {
     preset: 'low',
-    renderScale: 0.65,
+    renderScale: 0.75,
     shadows: false,
+    enableShadows: false,
+    shadowQuality: 'low',
+    enableGrass: false,
+    enableParticles: false,
+    enableFog: false,
     particleDensity: 'low',
     renderDistance: 50,
     targetFps: 60,
   },
   medium: {
     preset: 'medium',
-    renderScale: 0.85,
+    renderScale: 1.0,
     shadows: true,
+    enableShadows: true,
+    shadowQuality: 'low',
+    enableGrass: true,
+    enableParticles: true,
+    enableFog: true,
     particleDensity: 'medium',
     renderDistance: 90,
     targetFps: 60,
   },
   high: {
     preset: 'high',
-    renderScale: 1.0,
+    renderScale: 1.25,
     shadows: true,
+    enableShadows: true,
+    shadowQuality: 'high',
+    enableGrass: true,
+    enableParticles: true,
+    enableFog: true,
     particleDensity: 'high',
     renderDistance: 150,
     targetFps: 0,
@@ -47,7 +67,12 @@ export function loadGraphicsSettings(): GraphicsSettings {
         return {
           preset: parsed.preset || 'medium',
           renderScale: Math.max(0.5, Math.min(1.5, parsed.renderScale)),
-          shadows: Boolean(parsed.shadows),
+          shadows: Boolean(parsed.shadows ?? parsed.enableShadows ?? true),
+          enableShadows: Boolean(parsed.enableShadows ?? parsed.shadows ?? true),
+          shadowQuality: parsed.shadowQuality || 'medium',
+          enableGrass: parsed.enableGrass !== undefined ? Boolean(parsed.enableGrass) : true,
+          enableParticles: parsed.enableParticles !== undefined ? Boolean(parsed.enableParticles) : true,
+          enableFog: parsed.enableFog !== undefined ? Boolean(parsed.enableFog) : true,
           particleDensity: parsed.particleDensity || 'medium',
           renderDistance: Math.max(30, Math.min(250, parsed.renderDistance || 90)),
           targetFps: parsed.targetFps ?? 60,

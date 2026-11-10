@@ -11,6 +11,18 @@ export interface CameraOrbitState {
   distance: number;
 }
 
+const DEFAULT_MOUSE_H = 0.007;
+const DEFAULT_MOUSE_V = 0.005;
+
+let currentSensitivityMult = (() => {
+  if (typeof window === 'undefined') return 1.0;
+  try {
+    const saved = localStorage.getItem('eldoria_mouse_sensitivity');
+    if (saved) return Math.max(0.2, Math.min(3.0, parseFloat(saved)));
+  } catch {}
+  return 1.0;
+})();
+
 export const CAMERA_CONFIG = {
   MIN_DISTANCE: 3.5,
   MAX_DISTANCE: 14.0,
@@ -18,10 +30,23 @@ export const CAMERA_CONFIG = {
   MAX_PITCH: Math.PI / 2.15,
   TOUCH_LOOK_SENSITIVITY_H: 0.0065,
   TOUCH_LOOK_SENSITIVITY_V: 0.005,
-  MOUSE_LOOK_SENSITIVITY_H: 0.007,
-  MOUSE_LOOK_SENSITIVITY_V: 0.005,
+  MOUSE_LOOK_SENSITIVITY_H: DEFAULT_MOUSE_H * currentSensitivityMult,
+  MOUSE_LOOK_SENSITIVITY_V: DEFAULT_MOUSE_V * currentSensitivityMult,
   PINCH_ZOOM_SENSITIVITY: 0.02,
 };
+
+export function getMouseSensitivityMultiplier(): number {
+  return currentSensitivityMult;
+}
+
+export function setMouseSensitivityMultiplier(mult: number): void {
+  currentSensitivityMult = Math.max(0.2, Math.min(3.0, mult));
+  try {
+    localStorage.setItem('eldoria_mouse_sensitivity', currentSensitivityMult.toString());
+  } catch {}
+  CAMERA_CONFIG.MOUSE_LOOK_SENSITIVITY_H = DEFAULT_MOUSE_H * currentSensitivityMult;
+  CAMERA_CONFIG.MOUSE_LOOK_SENSITIVITY_V = DEFAULT_MOUSE_V * currentSensitivityMult;
+}
 
 export function clampCameraPitch(pitch: number): number {
   return Math.max(CAMERA_CONFIG.MIN_PITCH, Math.min(CAMERA_CONFIG.MAX_PITCH, pitch));

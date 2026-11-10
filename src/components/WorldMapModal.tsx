@@ -20,9 +20,182 @@ import { getContinentBiomeSample, getBiomeAt } from '../game/mapSampler';
 import { drawRoadsOnWorldMap } from '../game/RoadSystem';
 
 // Persistent continent map cached image data to eliminate all lag on open & pan
-const MAP_CACHE_VERSION = 'v5.4_titan_relocation_and_boss_arenas';
+const MAP_CACHE_VERSION = 'v6.0_clean_hud_river_colosseum';
 let cachedMapVersion = '';
 let cachedMapImageData: ImageData | null = null;
+
+export interface MapLandmark {
+  id: string;
+  name: string;
+  nameId: string;
+  icon: string;
+  x: number;
+  z: number;
+  level: number;
+  desc: string;
+  color: string;
+  isBoss?: boolean;
+}
+
+export const LANDMARKS: MapLandmark[] = [
+  {
+    id: 'village',
+    name: 'Sanctuary Village',
+    nameId: 'Alun-Alun Desa Sanctuary',
+    icon: '⛲',
+    x: 0,
+    z: 180,
+    level: 1,
+    desc: 'Pemukiman sentral Eldoria yang aman, pusat perdagangan dan berkumpulnya para petualang.',
+    color: '#f59e0b',
+  },
+  {
+    id: 'harbor',
+    name: 'Sanctuary Harbor',
+    nameId: 'Pelabuhan Sanctuary',
+    icon: '⛵',
+    x: 0,
+    z: 205,
+    level: 1,
+    desc: 'Dermaga kayu pesisir selatan menghadap langsung ke Samudra Azure terbuka.',
+    color: '#06b6d4',
+  },
+  {
+    id: 'valkragor',
+    name: 'Val-Kragor Keep',
+    nameId: 'Benteng Val-Kragor',
+    icon: '🛡️',
+    x: 380,
+    z: 80,
+    level: 4,
+    desc: 'Benteng pertahanan batu andesit di perbatasan padang rumput timur Eldoria.',
+    color: '#3b82f6',
+  },
+  {
+    id: 'astraea',
+    name: 'Imperial Capital Astraea',
+    nameId: 'Ibukota Kerajaan Emas Astraea',
+    icon: '👑',
+    x: -340,
+    z: -220,
+    level: 5,
+    desc: 'Ibukota megah berpilar marmer putih dan tahta Kaisar Aurelius.',
+    color: '#eab308',
+  },
+  {
+    id: 'colosseum_titan',
+    name: 'Ancient Colosseum Arena',
+    nameId: 'Reruntuhan Colosseum Kuno (Boss Titan)',
+    icon: '🏛️',
+    x: -224,
+    z: -435,
+    level: 8,
+    isBoss: true,
+    desc: 'Arena Colosseum kuno megah berlantai pasir luas, persemayaman World Boss Sang Titan Kuno Obsidian (Lv. 8).',
+    color: '#ef4444',
+  },
+  {
+    id: 'sacred_spring',
+    name: 'Sacred Spring & Flower Gardens',
+    nameId: 'Mata Air Suci & Taman Bunga Eldoria',
+    icon: '🌸',
+    x: -144,
+    z: -270,
+    level: 2,
+    desc: 'Kolam air tawar alami berteratai dikelilingi padang lavender ungu dan pohon willow teduh.',
+    color: '#ec4899',
+  },
+  {
+    id: 'thunderpeak',
+    name: 'Thunderpeak Mage Tower',
+    nameId: 'Mage Tower Puncak Halilintar',
+    icon: '⚡',
+    x: 180,
+    z: 60,
+    level: 3,
+    desc: 'Menara riset astrologi dan sihir purba di atas bukit padang rumput timur tengah.',
+    color: '#8b5cf6',
+  },
+  {
+    id: 'windmill_hill',
+    name: 'Windmill Hill & Shepherd Cot',
+    nameId: 'Perbukitan Kincir Angin & Pondok Gembala',
+    icon: '🌾',
+    x: 288,
+    z: 137,
+    level: 2,
+    desc: 'Kincir angin klasik berputar perlahan di puncak bukit hijau bersama pondok gembala dan kawanan domba.',
+    color: '#84cc16',
+  },
+  {
+    id: 'bazaar',
+    name: 'Solaria Desert Bazaar',
+    nameId: 'Bazaar Gurun Solaria',
+    icon: '🎪',
+    x: 280,
+    z: -280,
+    level: 6,
+    desc: 'Pusat niaga kafilah gurun dengan tenda sutra warna-warni dan rempah eksotis.',
+    color: '#f97316',
+  },
+  {
+    id: 'taj_palace',
+    name: 'Sultan Malik Palace',
+    nameId: 'Istana Sultan Malik',
+    icon: '🕌',
+    x: 340,
+    z: -280,
+    level: 7,
+    desc: 'Kompleks istana kubah marmer emas megah penguasa Gurun Pasir Solaria.',
+    color: '#d97706',
+  },
+  {
+    id: 'pyramid',
+    name: 'Solaria Golden Pyramid',
+    nameId: 'Piramida Emas Solaria',
+    icon: '🏜️',
+    x: 20,
+    z: -220,
+    level: 6,
+    desc: 'Monumen piramida batu pasir kuno peninggalan firaun matahari.',
+    color: '#eab308',
+  },
+  {
+    id: 'oasis',
+    name: 'Hidden Solaria Oasis',
+    nameId: 'Oase Solaria',
+    icon: '🌴',
+    x: 150,
+    z: -360,
+    level: 5,
+    desc: 'Sumber air tawar dan pohon kurma di tengah padang pasir tandus Solaria.',
+    color: '#14b8a6',
+  },
+  {
+    id: 'dragon_caldera',
+    name: 'Dragonfang Caldera',
+    nameId: 'Kaldera Sarang Naga Purba',
+    icon: '🐉',
+    x: 80,
+    z: 360,
+    level: 10,
+    isBoss: true,
+    desc: 'Pulau vulkanik magma bergejolak di seberang samudra, sarang World Boss Ignis Sang Naga Purba.',
+    color: '#dc2626',
+  },
+  {
+    id: 'worm_sinkhole',
+    name: 'Ancient Sandworm Sinkhole',
+    nameId: 'Kawah Cacing Purba Jarrus',
+    icon: '🪱',
+    x: 495,
+    z: -362,
+    level: 10,
+    isBoss: true,
+    desc: 'Kawah pasir hisap berputar di gurun timur jauh, arena World Boss Cacing Purba Jarrus.',
+    color: '#ea580c',
+  },
+];
 
 interface WorldMapModalProps {
   isOpen: boolean;
@@ -45,6 +218,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
 }) => {
   const [selectedRegion, setSelectedRegion] = useState<RegionInfo>(currentRegion);
   const [showLegend, setShowLegend] = useState(true);
+  const [inspectedLandmark, setInspectedLandmark] = useState<MapLandmark | null>(null);
+  const [hoveredLandmark, setHoveredLandmark] = useState<MapLandmark | null>(null);
+  const [waypointMarker, setWaypointMarker] = useState<{ x: number; z: number; name: string } | null>(null);
 
   // Navigation state using uncontrolled Direct DOM (useRef) to ensure pure 60/120 FPS performance with zero React re-renders
   const transformRef = useRef<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 1.0 });
@@ -377,7 +553,15 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
         let [r, g, b] = sample.color;
 
         // Apply exact requested 4-biome canvas palette
-        if (!sample.isPath && sample.biomeId !== 'ship_deck' && sample.biomeId !== 'harbor_pier') {
+        if (
+          !sample.isPath &&
+          sample.biomeId !== 'ship_deck' &&
+          sample.biomeId !== 'harbor_pier' &&
+          sample.biomeId !== 'river_water' &&
+          sample.biomeId !== 'river_bank' &&
+          sample.biomeId !== 'sacred_spring' &&
+          sample.biomeId !== 'colosseum_arena'
+        ) {
           switch (zone.id) {
             case 'ocean':
               r = 2; g = 132; b = 199; // #0284c7 (Biru Laut Tropis Terbuka)
@@ -498,6 +682,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 touchAction: 'none',
                 cursor: hudScale > 1.0 ? 'grab' : 'default',
               } as React.CSSProperties}
+              onClick={() => setInspectedLandmark(null)}
               className="relative w-full h-full max-w-[620px] max-h-[580px] rounded-xl overflow-hidden border border-stone-700/60 shadow-inner bg-[#1e232a]"
             >
               {/* GPU Hardware Accelerated Continent Map Plane (translate3d + will-change: transform) */}
@@ -531,248 +716,87 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 } as React.CSSProperties}
               />
 
-              {/* DYNAMIC REGION CLICKABLE ZONES & LABELS */}
-              {/* 1. Desa Utama Sanctuary (Pesisir Selatan Padang Rumput, X: 0, Z: 180) */}
-              {(() => {
-                const sp = worldToScreen(0, 180);
+              {/* PURE PIN / LOCATION ICONS WITHOUT PERMANENT TEXT BOXES */}
+              {LANDMARKS.map((lm) => {
+                const sp = worldToScreen(lm.x, lm.z);
                 if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => setSelectedRegion(REGIONS[0])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1.5 rounded-xl bg-amber-950/80 border border-amber-500/70 shadow-lg hover:border-amber-300 hover:scale-110 transition-transform">
-                      <span className="text-sm">⛲</span>
-                      <span className="text-[9px] font-bold text-amber-200 whitespace-nowrap">
-                        {REGIONS[0].nameId}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
+                const isHovered = hoveredLandmark?.id === lm.id;
+                const isInspected = inspectedLandmark?.id === lm.id;
 
-              {/* 2. Pelabuhan Sanctuary (Pesisir Selatan, X: 0, Z: 205) */}
-              {(() => {
-                const sp = worldToScreen(0, 205);
-                if (!sp.visible) return null;
                 return (
                   <div
-                    onClick={() => setSelectedRegion(REGIONS[0])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-blue-950/80 border border-cyan-400/70 shadow-lg hover:border-cyan-300 hover:scale-110 transition-transform">
-                      <span className="text-xs">⛵</span>
-                      <span className="text-[8px] font-bold text-cyan-200 whitespace-nowrap">
-                        Pelabuhan Sanctuary
-                      </span>
-                      <span className="text-[7px] text-cyan-300/80 font-mono">Dermaga Kayu & Samudra Lepas</span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 3. Benteng Val-Kragor (Padang Rumput Timur, X: 380, Z: 80) */}
-              {(() => {
-                const sp = worldToScreen(380, 80);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => setSelectedRegion(REGIONS[2])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-blue-950/80 border border-blue-400/60 shadow-lg hover:border-blue-300 hover:scale-110 transition-transform">
-                      <span className="text-xs">🛡️</span>
-                      <span className="text-[8px] font-bold text-blue-200 whitespace-nowrap">
-                        {REGIONS[2].nameId}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 4. Ibukota Kerajaan Emas Astraea (Padang Rumput Barat Laut, X: -340, Z: -220) */}
-              {(() => {
-                const sp = worldToScreen(-340, -220);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => setSelectedRegion(REGIONS[3])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1.5 rounded-xl bg-stone-950/75 border border-amber-400/80 shadow-2xl backdrop-blur-xs hover:border-amber-300 hover:scale-110 transition-transform">
-                      <span className="text-sm sm:text-base">👑</span>
-                      <span className="text-[9px] font-bold text-amber-300 tracking-wide whitespace-nowrap">
-                        {REGIONS[3].nameId}
-                      </span>
-                      <span className="text-[7px] text-amber-200/80 font-mono">Ibukota Kerajaan</span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 5. Ancient Titan Crater Arena (Kawah Retak Kuno Utara, X: -220, Z: -400) */}
-              {(() => {
-                const sp = worldToScreen(-220, -400);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => setSelectedRegion(REGIONS[4])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-sky-950/80 border border-sky-500/70 shadow-lg hover:border-sky-400 hover:scale-110 transition-transform">
-                      <span className="text-xs">🏛️</span>
-                      <span className="text-[8px] font-bold text-sky-300 whitespace-nowrap">
-                        {REGIONS[4].nameId}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 6. Mage Tower Puncak Halilintar (Bukit Padang Rumput Timur Tengah, X: 180, Z: 60) */}
-              {(() => {
-                const sp = worldToScreen(180, 60);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => setSelectedRegion(REGIONS[5])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-indigo-950/80 border border-indigo-400/60 shadow-lg hover:border-indigo-300 hover:scale-110 transition-transform">
-                      <span className="text-xs">⚡</span>
-                      <span className="text-[8px] font-bold text-indigo-200 whitespace-nowrap">
-                        {REGIONS[5].nameId}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 7. Desa Bazaar Gurun Solaria (Gurun Utara-Timur, X: 280, Z: -280) */}
-              {(() => {
-                const sp = worldToScreen(280, -280);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => setSelectedRegion(REGIONS[7])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-yellow-950/80 border border-yellow-500/70 shadow-lg hover:border-yellow-400 hover:scale-110 transition-transform">
-                      <span className="text-xs">🎪</span>
-                      <span className="text-[8px] font-bold text-yellow-300 whitespace-nowrap">
-                        Bazaar Gurun Solaria
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 8. Istana Taj Mahal Sultan Malik (X: 340, Z: -280) */}
-              {(() => {
-                const sp = worldToScreen(340, -280);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => setSelectedRegion(REGIONS[7])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-yellow-950/80 border border-amber-400/80 shadow-lg hover:border-amber-300 hover:scale-110 transition-transform">
-                      <span className="text-xs">🕌</span>
-                      <span className="text-[8px] font-bold text-amber-200 whitespace-nowrap">
-                        Istana Sultan Malik
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 9. Piramida Emas Solaria (Gurun Barat, X: 20, Z: -220) */}
-              {(() => {
-                const sp = worldToScreen(20, -220);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => setSelectedRegion(REGIONS[7])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-amber-950/80 border border-yellow-500/70 shadow-lg hover:border-yellow-300 hover:scale-110 transition-transform">
-                      <span className="text-xs">🏜️</span>
-                      <span className="text-[8px] font-bold text-yellow-200 whitespace-nowrap">
-                        Piramida Emas Solaria
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 10. Oase Tersembunyi Solaria (Gurun Utara, X: 150, Z: -360) */}
-              {(() => {
-                const sp = worldToScreen(150, -360);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => setSelectedRegion(REGIONS[7])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-teal-950/80 border border-teal-400/70 shadow-lg hover:border-teal-300 hover:scale-110 transition-transform">
-                      <span className="text-xs">🌴</span>
-                      <span className="text-[8px] font-bold text-teal-200 whitespace-nowrap">
-                        Oase Solaria
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 11. Kaldera Sarang Naga Purba (Pulau Vulkanik Selatan, X: 50, Z: 360) */}
-              {(() => {
-                const sp = worldToScreen(50, 360);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => setSelectedRegion(REGIONS[8])}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                  >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-red-950/80 border border-red-500/70 shadow-lg hover:border-red-400 hover:scale-110 transition-transform">
-                      <span className="text-xs">🐉</span>
-                      <span className="text-[8px] font-bold text-red-300 whitespace-nowrap">
-                        {REGIONS[8].nameId}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* 12. Kawah Pusaran Cacing Purba Jarrus (Gurun Timur Jauh, X: 495, Z: -362) */}
-              {(() => {
-                const sp = worldToScreen(495, -362);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    onClick={() => {
-                      const reg = REGIONS.find((r) => r.id === 'kawah_cacing_purba') || REGIONS[7];
-                      setSelectedRegion(reg);
+                    key={lm.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setInspectedLandmark(lm);
+                      const reg = REGIONS.find((r) => Math.hypot(lm.x - r.center[0], lm.z - r.center[1]) < 80);
+                      if (reg) setSelectedRegion(reg);
                     }}
+                    onMouseEnter={() => setHoveredLandmark(lm)}
+                    onMouseLeave={() => setHoveredLandmark(null)}
                     style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer pointer-events-auto"
                   >
-                    <div className="flex flex-col items-center p-1 rounded-lg bg-orange-950/85 border border-orange-500/70 shadow-lg hover:border-orange-400 hover:scale-110 transition-transform">
-                      <span className="text-xs">🪱</span>
-                      <span className="text-[8px] font-bold text-orange-200 whitespace-nowrap">
-                        Kawah Cacing Purba Jarrus
+                    <div
+                      className={`relative flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full transition-all duration-150 ${
+                        isHovered || isInspected ? 'scale-125 z-30' : 'hover:scale-115'
+                      }`}
+                      style={{
+                        backgroundColor: lm.isBoss ? 'rgba(127, 29, 29, 0.95)' : 'rgba(28, 25, 23, 0.9)',
+                        border: `2px solid ${lm.color}`,
+                        boxShadow: isHovered || isInspected ? `0 0 16px ${lm.color}` : '0 3px 8px rgba(0,0,0,0.6)',
+                      }}
+                    >
+                      {lm.isBoss && (
+                        <div className="absolute inset-0 rounded-full bg-red-500/35 animate-ping pointer-events-none" />
+                      )}
+                      <span className="text-xs sm:text-sm select-none">{lm.icon}</span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Waypoint Marker Beam if active */}
+              {waypointMarker && (() => {
+                const sp = worldToScreen(waypointMarker.x, waypointMarker.z);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-full z-28 pointer-events-none animate-bounce"
+                  >
+                    <div className="flex flex-col items-center">
+                      <span className="text-xl drop-shadow-lg">📍</span>
+                      <span className="px-1.5 py-0.5 rounded bg-black/90 text-[8px] font-bold text-amber-300 border border-amber-400 whitespace-nowrap shadow-lg">
+                        {waypointMarker.name}
                       </span>
-                      <span className="text-[7px] text-orange-300/80 font-mono">World Boss (Lv. 10)</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* DESKTOP HOVER TOOLTIP */}
+              {hoveredLandmark && !inspectedLandmark && (() => {
+                const sp = worldToScreen(hoveredLandmark.x, hoveredLandmark.z);
+                if (!sp.visible) return null;
+                return (
+                  <div
+                    style={{ left: sp.left, top: sp.top }}
+                    className="absolute -translate-x-1/2 -translate-y-full -mt-3 z-40 pointer-events-none transition-opacity duration-150"
+                  >
+                    <div className="px-3 py-1.5 rounded-xl bg-stone-950/95 border border-amber-400/90 shadow-2xl backdrop-blur-md flex flex-col items-center min-w-[140px] max-w-[210px] text-center">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-200">
+                        <span>{hoveredLandmark.icon}</span>
+                        <span>{hoveredLandmark.nameId}</span>
+                      </div>
+                      <span className="text-[9px] font-mono font-bold text-cyan-300 mt-0.5">
+                        {hoveredLandmark.isBoss
+                          ? `World Boss (Lv. ${hoveredLandmark.level})`
+                          : `Rekomendasi Lv. ${hoveredLandmark.level}+`}
+                      </span>
+                      <p className="text-[8px] text-stone-300 mt-1 line-clamp-2 leading-tight">
+                        {hoveredLandmark.desc}
+                      </p>
                     </div>
                   </div>
                 );
@@ -950,6 +974,67 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 </div>
                 <span className="text-[8px] sm:text-[9px] text-stone-500">S</span>
               </div>
+
+              {/* Tap-to-Inspect Landmark Bottom-Sheet Card */}
+              {inspectedLandmark && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute bottom-3 left-3 right-3 sm:left-auto sm:right-3 sm:w-80 z-40 bg-stone-950/95 border border-amber-400/90 rounded-2xl shadow-2xl backdrop-blur-md p-3 animate-in fade-in slide-in-from-bottom duration-200 pointer-events-auto"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-lg shadow">
+                        {inspectedLandmark.icon}
+                      </div>
+                      <div>
+                        <h3 className="text-xs sm:text-sm font-bold text-amber-200 leading-tight">
+                          {inspectedLandmark.nameId}
+                        </h3>
+                        <span className="text-[9px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-800/60 inline-block mt-0.5">
+                          {inspectedLandmark.isBoss
+                            ? `World Boss (Lv. ${inspectedLandmark.level})`
+                            : `Rekomendasi Level ${inspectedLandmark.level}+`}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setInspectedLandmark(null)}
+                      className="w-5 h-5 rounded-full bg-stone-800/80 hover:bg-stone-700 text-stone-400 hover:text-white flex items-center justify-center text-[10px] transition-colors cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-stone-300 mt-2 leading-relaxed">
+                    {inspectedLandmark.desc}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-stone-800">
+                    <button
+                      onClick={() => {
+                        setWaypointMarker({
+                          x: inspectedLandmark.x,
+                          z: inspectedLandmark.z,
+                          name: inspectedLandmark.nameId,
+                        });
+                        setInspectedLandmark(null);
+                      }}
+                      className="flex-1 py-1.5 px-3 rounded-lg bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-stone-950 font-bold text-[11px] shadow-md transition-transform active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <span>📍</span> Tandai Lokasi
+                    </button>
+                    {unlockedCheckpoints.some((wp) => wp.includes(inspectedLandmark.id)) && (
+                      <button
+                        onClick={() => {
+                          onFastTravel(inspectedLandmark.x, inspectedLandmark.z);
+                          onClose();
+                        }}
+                        className="py-1.5 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[11px] shadow-md transition-transform active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <span>✨</span> Teleport
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
