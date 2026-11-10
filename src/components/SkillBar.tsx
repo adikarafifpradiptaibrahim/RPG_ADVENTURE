@@ -59,14 +59,14 @@ export const SkillBar: React.FC<SkillBarProps> = ({
           return {
             basic: { label: 'Panah', icon: '🏹', hint: 'Klik / J' },
             skill1: { name: 'Badai Panah', icon: '🎯', cost: '15 MP', key: 'Q', color: 'border-emerald-500/70 text-emerald-300 bg-emerald-950/40' },
-            skill2: { name: 'Akrobatik', icon: '🦅', cost: '15 Stm', key: 'E', color: 'border-teal-500/70 text-teal-300 bg-teal-950/40' },
+            skill2: { name: 'Akrobatik', icon: '🦅', cost: '15 Stm', key: 'F', color: 'border-teal-500/70 text-teal-300 bg-teal-950/40' },
             skill3: { name: 'Panah Racun', icon: '💣', cost: '25 MP', key: 'R', color: 'border-green-500/70 text-green-300 bg-green-950/40' },
           };
         } else {
           return {
             basic: { label: 'Belati 360°', icon: '🗡️', hint: 'Klik / J' },
             skill1: { name: '1000 Belati', icon: '⚡', cost: '15 MP', key: 'Q', color: 'border-emerald-500/70 text-emerald-300 bg-emerald-950/40' },
-            skill2: { name: 'Siluman', icon: '💨', cost: '15 Stm', key: 'E', color: 'border-teal-500/70 text-teal-300 bg-teal-950/40' },
+            skill2: { name: 'Siluman', icon: '💨', cost: '15 Stm', key: 'F', color: 'border-teal-500/70 text-teal-300 bg-teal-950/40' },
             skill3: { name: 'Bom Asap', icon: '🧪', cost: '25 MP', key: 'R', color: 'border-green-500/70 text-green-300 bg-green-950/40' },
           };
         }
@@ -151,7 +151,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         onClick={() => onCastSkill(1)}
         style={{ touchAction: 'none', userSelect: 'none' }}
         className={`skill-btn skill-btn-1 touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 border shadow-lg cursor-pointer active:scale-90 transition-all select-none ${classSkills.skill1.color}`}
-        title={`${classSkills.skill1.name} (Q)`}
+        title={`${classSkills.skill1.name} (${classSkills.skill1.key})`}
       >
         <span className="text-sm sm:text-base md:text-base">{classSkills.skill1.icon}</span>
         <span className="hidden md:inline text-[8px] font-bold line-clamp-1">{classSkills.skill1.name}</span>
@@ -174,7 +174,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         onClick={() => onCastSkill(2)}
         style={{ touchAction: 'none', userSelect: 'none' }}
         className={`skill-btn skill-btn-2 touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 border shadow-lg cursor-pointer active:scale-90 transition-all select-none ${classSkills.skill2.color}`}
-        title={`${classSkills.skill2.name} (E)`}
+        title={`${classSkills.skill2.name} (${classSkills.skill2.key})`}
       >
         <span className="text-sm sm:text-base md:text-base">{classSkills.skill2.icon}</span>
         <span className="hidden md:inline text-[8px] font-bold line-clamp-1">{classSkills.skill2.name}</span>

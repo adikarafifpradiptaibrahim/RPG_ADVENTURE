@@ -509,54 +509,115 @@ export function animateHunterWalk(
   playerPosY: number,
   isMoving: boolean,
   isAttacking: boolean = false,
-  hunterWeaponMode: 'dagger' | 'bow' = 'dagger'
+  hunterWeaponMode: 'dagger' | 'bow' = 'dagger',
+  isSprinting: boolean = false,
+  leanAngle: number = 0
 ): void {
   if (!playerMesh) return;
 
   const isBow = hunterWeaponMode === 'bow';
 
   if (isMoving) {
-    const legSwing = Math.sin(walkTime * 1.2) * 0.48;
-    if (playerMesh.leftLeg) {
-      playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, legSwing, 0.25);
-    }
-    if (playerMesh.rightLeg) {
-      playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, -legSwing, 0.25);
+    // Lean Banking (Miring saat berbelok ke kiri / kanan: lerp 0.12)
+    if (playerMesh.body) {
+      playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, leanAngle, 0.12);
     }
 
-    if (!isAttacking) {
-      if (isBow) {
-        if (playerMesh.leftArm) {
-          playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -legSwing * 0.15, 0.2);
-          playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0, 0.2);
-          playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0, 0.2);
-        }
-        if (playerMesh.rightArm) {
-          playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, legSwing * 0.35, 0.2);
-          playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, 0.2);
-          playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0, 0.2);
-        }
-      } else {
-        // A-Pose Walk Dynamic Swing (Menggerakkan ShoulderRoot sehingga ArmPivot A-Pose tetap stabil)
-        if (playerMesh.leftArm) {
-          playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -legSwing * 0.35, 0.2);
-          playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0, 0.2);
-        }
-        if (playerMesh.rightArm) {
-          playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, legSwing * 0.35, 0.2);
-          playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, 0.2);
+    if (isSprinting) {
+      // Stealth Sprint Locomotion:
+      // 1. Condongkan tubuh ke depan: body.rotation.x = -0.22
+      if (playerMesh.body) {
+        playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, -0.22, 0.15);
+      }
+
+      // 2. Ayunan kaki lebih cepat dan lincah (Math.sin(time * speed) * 0.65)
+      const legSwing = Math.sin(walkTime * 2.2) * 0.65;
+      if (playerMesh.leftLeg) {
+        playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, legSwing, 0.28);
+      }
+      if (playerMesh.rightLeg) {
+        playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, -legSwing, 0.28);
+      }
+
+      // 3. Kedua belati digenggam terlipat ke belakang di samping pinggang (arms swept back in stealth run), tidak menembus tanah
+      if (!isAttacking) {
+        if (isBow) {
+          if (playerMesh.leftArm) {
+            playerMesh.leftArm.rotation.set(0.35, -0.1, 0.2);
+          }
+          if (playerMesh.rightArm) {
+            playerMesh.rightArm.rotation.set(0.35, 0.1, -0.2);
+          }
+        } else {
+          if (playerMesh.leftArm) {
+            playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0.45, 0.2);
+            playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, -0.15, 0.2);
+            playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.25, 0.2);
+          }
+          if (playerMesh.rightArm) {
+            playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, 0.45, 0.2);
+            playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0.15, 0.2);
+            playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, -0.25, 0.2);
+          }
         }
       }
-    }
 
-    // Melambai jubah belakang
-    if (playerMesh.cape) {
-      playerMesh.cape.rotation.x = 0.12 + Math.abs(Math.sin(walkTime * 1.2)) * 0.14;
-    }
+      // Melambai jubah belakang saat sprint
+      if (playerMesh.cape) {
+        playerMesh.cape.rotation.x = 0.55 + Math.abs(Math.sin(walkTime * 2.2)) * 0.25;
+      }
 
-    const walkBob = Math.abs(Math.sin(walkTime * 2.4)) * 0.04;
-    playerMesh.group.position.y = playerPosY + walkBob;
-    playerMesh.group.rotation.z = Math.sin(walkTime * 1.2) * 0.02;
+      const sprintBob = Math.abs(Math.sin(walkTime * 4.4)) * 0.05;
+      playerMesh.group.position.y = playerPosY + sprintBob;
+      playerMesh.group.rotation.z = Math.sin(walkTime * 2.2) * 0.03;
+    } else {
+      // Normal Walk
+      if (playerMesh.body) {
+        playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, 0.15);
+      }
+
+      const legSwing = Math.sin(walkTime * 1.2) * 0.48;
+      if (playerMesh.leftLeg) {
+        playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, legSwing, 0.25);
+      }
+      if (playerMesh.rightLeg) {
+        playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, -legSwing, 0.25);
+      }
+
+      if (!isAttacking) {
+        if (isBow) {
+          if (playerMesh.leftArm) {
+            playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -legSwing * 0.15, 0.2);
+            playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0, 0.2);
+            playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0, 0.2);
+          }
+          if (playerMesh.rightArm) {
+            playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, legSwing * 0.35, 0.2);
+            playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, 0.2);
+            playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0, 0.2);
+          }
+        } else {
+          // A-Pose Walk Dynamic Swing (Menggerakkan ShoulderRoot sehingga ArmPivot A-Pose tetap stabil)
+          if (playerMesh.leftArm) {
+            playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -legSwing * 0.35, 0.2);
+            playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0, 0.2);
+          }
+          if (playerMesh.rightArm) {
+            playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, legSwing * 0.35, 0.2);
+            playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, 0.2);
+          }
+        }
+      }
+
+      // Melambai jubah belakang
+      if (playerMesh.cape) {
+        playerMesh.cape.rotation.x = 0.12 + Math.abs(Math.sin(walkTime * 1.2)) * 0.14;
+      }
+
+      const walkBob = Math.abs(Math.sin(walkTime * 2.4)) * 0.04;
+      playerMesh.group.position.y = playerPosY + walkBob;
+      playerMesh.group.rotation.z = Math.sin(walkTime * 1.2) * 0.02;
+    }
   } else {
     // Mode Diam (Idle Stance)
     if (playerMesh.leftLeg) {
@@ -569,8 +630,13 @@ export function animateHunterWalk(
 
     const breathe = Math.sin(walkTime * 2.2) * 0.012;
     if (playerMesh.body) {
-      playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.18, 0.15);
+      playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.18 + breathe, 0.15);
+      playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, 0.15);
+      playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, 0.12);
     }
+
+    // Root position grounded without excessive bobbing
+    playerMesh.group.position.y = playerPosY;
 
     if (!isAttacking) {
       if (isBow) {

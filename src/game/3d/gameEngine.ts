@@ -328,6 +328,7 @@ export class GameEngine {
   private chargeDrainAccum = 0;
 
   private hunterWeaponMode: 'dagger' | 'bow' = 'dagger';
+  private rogueLeanAngle = 0;
   private attackComboIndex = 0;
   private mageLandingCrouchTimer = 0;
   private lastAttackTime = 0;
@@ -2191,8 +2192,8 @@ export class GameEngine {
 
     if (key === 'f' || code === 'keyf') {
       const didInteract = this.checkInteract();
-      if (!didInteract && this.charClass === 'warrior') {
-        this.castSkill(2); // Skill 3 (Cataclysmic Leap Slam)
+      if (!didInteract) {
+        this.castSkill(2); // Skill 3 (Cataclysmic Leap Slam untuk Knight / Skill Mobilitas Acrobatic untuk Assassin / Mage)
       }
     } else if (key === 'j' || code === 'keyj') {
       if (!this.isChargingAttack) {
@@ -6482,13 +6483,13 @@ export class GameEngine {
       baseSpeed += 3.2;
     }
 
-    // Sprint detection for Warrior
+    // Sprint detection for Warrior and Rogue (Ninja/Assassin)
     const isShiftPressed = this.isKeyPressed('shift', 'shiftleft', 'shiftright');
     const joyDist = Math.hypot(this.joystickVector.x, this.joystickVector.y);
     const isJoySprint = joyDist > 0.80;
 
     if (
-      this.charClass === 'warrior' &&
+      (this.charClass === 'warrior' || this.charClass === 'rogue') &&
       isMoving &&
       (isShiftPressed || isJoySprint) &&
       !this.isDashing &&
@@ -6543,6 +6544,18 @@ export class GameEngine {
       while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
       this.playerRotationY += angleDiff * 16 * delta;
 
+      if (this.charClass === 'rogue') {
+        if (angleDiff > 0.08) {
+          // Belok kanan -> miring -0.18 rad (lerp 0.12)
+          this.rogueLeanAngle = -0.18;
+        } else if (angleDiff < -0.08) {
+          // Belok kiri -> miring +0.18 rad (lerp 0.12)
+          this.rogueLeanAngle = 0.18;
+        } else {
+          this.rogueLeanAngle = 0;
+        }
+      }
+
       // Spawn movement footsteps
       if (this.isGrounded) {
         this.footstepTimer -= delta;
@@ -6552,6 +6565,7 @@ export class GameEngine {
         }
       }
     } else {
+      this.rogueLeanAngle = 0;
       // Rapid stop: clamp velocity to 0 immediately when no movement input is active
       this.playerVel.x *= 0.4;
       this.playerVel.z *= 0.4;
@@ -6748,9 +6762,19 @@ export class GameEngine {
         const walkTime = this.clock.getElapsedTime();
         animateMageWalk(this.playerMesh, walkTime, this.playerPos.y, true, this.isAttacking);
       } else if (this.charClass === 'rogue') {
-        // Blocky Low-Poly Hunter Walk Cycle with Dynamic Stance
-        const walkTime = this.clock.getElapsedTime();
-        animateHunterWalk(this.playerMesh, walkTime, this.playerPos.y, true, this.isAttacking, this.hunterWeaponMode);
+        // Blocky Low-Poly Hunter Walk Cycle with Dynamic Stance & Stealth Sprint
+        const walkFreq = this.isSprinting ? 2.5 : 1.0;
+        const walkTime = this.clock.getElapsedTime() * walkFreq;
+        animateHunterWalk(
+          this.playerMesh,
+          walkTime,
+          this.playerPos.y,
+          true,
+          this.isAttacking,
+          this.hunterWeaponMode,
+          this.isSprinting,
+          this.rogueLeanAngle
+        );
       } else {
         const legSwing = Math.sin(this.walkTime) * 0.62;
         this.playerMesh.leftLeg.rotation.x = legSwing;
@@ -6810,7 +6834,16 @@ export class GameEngine {
       } else if (this.charClass === 'rogue') {
         // Blocky Low-Poly Hunter Idle State (Subtle Breathing & Ready Dagger/Bow Stance)
         const walkTime = this.clock.getElapsedTime();
-        animateHunterWalk(this.playerMesh, walkTime, this.playerPos.y, false, this.isAttacking, this.hunterWeaponMode);
+        animateHunterWalk(
+          this.playerMesh,
+          walkTime,
+          this.playerPos.y,
+          false,
+          this.isAttacking,
+          this.hunterWeaponMode,
+          false,
+          0
+        );
       } else {
         this.playerMesh.leftLeg.rotation.x *= 0.8;
         this.playerMesh.rightLeg.rotation.x *= 0.8;
