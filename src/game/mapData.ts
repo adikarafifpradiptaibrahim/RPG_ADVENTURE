@@ -1,4 +1,5 @@
 import { RegionInfo, MapMarker } from '../types/game';
+import { isDesertBiome } from './mapSampler';
 
 export const REGIONS: RegionInfo[] = [
   {
@@ -277,15 +278,8 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
     return REGIONS[6];
   }
 
-  // 8. Solaria Golden Desert (Continuous Boundary Curve without eastern cutoff)
-  const desertCurveZ = -20 
-    + Math.sin((x + 100) * 0.008) * 110 
-    + Math.cos(x * 0.02) * 25;
-
-  const desertCurveX = -60 
-    + Math.sin((z + 100) * 0.012) * 50;
-
-  if (x >= desertCurveX && z <= desertCurveZ) {
+  // 8. Solaria Golden Desert (Single Source of Truth: isDesertBiome)
+  if (isDesertBiome(x, z)) {
     return REGIONS[7];
   }
 

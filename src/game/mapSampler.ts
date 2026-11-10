@@ -37,6 +37,35 @@ function clamp(val: number, min: number, max: number): number {
 }
 
 /**
+ * DEFINISI BATAS BIOME PRESISI (SINGLE SOURCE OF TRUTH)
+ * Kurva matematis batas selatan Gurun Solaria vs Padang Rumput Eldoria
+ * Garis batas referensi melewati titik: (-80, -420), (0, -320), (80, -180), (160, -140), (280, -220)
+ * Di sebelah utara garis ini (z < zBoundary) dan x > -120 adalah Gurun Solaria.
+ * Di sebelah selatannya (z >= zBoundary) adalah Padang Rumput Eldoria.
+ * Menjamin Mage Tower (140, 10), Val-Kragor (380, 80), serta (3, -295) murni Padang Rumput Eldoria.
+ */
+export function isDesertBiome(x: number, z: number): boolean {
+  if (x <= -120) return false;
+
+  let zBoundary = -140;
+  if (x < 80) {
+    // Lengkungan naik tajam ke arah barat laut: (-80, -420) -> (0, -320) -> (80, -180)
+    // Di x = 3, zBoundary = -315.5 sehingga koordinat (3, -295) berada di selatan garis (Padang Rumput Eldoria)
+    zBoundary = 0.003125 * x * x + 1.5 * x - 320;
+  } else if (x <= 280) {
+    // Lengkungan ke arah timur laut: (80, -180) -> (160, -140) -> (280, -220)
+    const t = x - 160;
+    zBoundary = (-7 / 1200) * t * t + (1 / 30) * t - 140;
+  } else {
+    // Koridor Timur Gurun Solaria (Bazaar [250, -280], Istana Sultan [340, -280], Kawah Sandworm [495, -362])
+    // Batas selatan gurun stabil di Z: -220 s.d -200, mengunci Desa Benteng Val-Kragor (Z: 80) murni Padang Rumput Eldoria
+    zBoundary = -220 + Math.min(20, (x - 280) * 0.08);
+  }
+
+  return z < zBoundary && x > -120;
+}
+
+/**
  * 1. RESTRUKTURISASI MATRIKS 3 BIOMA & LAUT
  * Evaluasi zona matematis deterministik proporsional dan bersih
  */
@@ -76,16 +105,8 @@ export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
     };
   }
 
-  // C. GURUN PASIR EMAS SOLARIA ('desert' - EKSPANSI UTARA & TIMUR BEBAS TANPA PEMBATAS KANAN)
-  const desertCurveZ = -20 
-    + Math.sin((x + 100) * 0.008) * 110 
-    + Math.cos(x * 0.02) * 25;
-
-  const desertCurveX = -60 
-    + Math.sin((z + 100) * 0.012) * 50;
-
-  // Jika posisi berada di dalam lekukan gurun (timur laut):
-  if (x >= desertCurveX && z <= desertCurveZ) {
+  // C. GURUN PASIR EMAS SOLARIA ('desert' - DI SISI UTARA/TIMUR LAUT SESUAI IS_DESERT_BIOME)
+  if (isDesertBiome(x, z)) {
     return {
       id: 'desert',
       name: 'Solaria Golden Desert',
@@ -170,8 +191,8 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     if (Math.hypot(x - 340, z - -280) <= 32) return 2.00;
     // Paved avenue connecting Bazaar & Palace
     if (x >= 250 && x <= 340 && Math.abs(z - -280) <= 5.5) return 1.90;
-    // 3c. Pharaoh Pyramid [20, -220]
-    if (Math.hypot(x - 20, z - -220) <= 28) return 1.50;
+    // 3c. Pharaoh Pyramid [120, -280]
+    if (Math.hypot(x - 120, z - -280) <= 28) return 1.50;
     // 3d. Hidden Oasis Lake [150, -360]
     const distOasis = Math.hypot(x - 150, z - -360);
     if (distOasis < 16) return -0.4; // Water depression
@@ -328,8 +349,8 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     if (x >= 238 && x <= 330 && Math.abs(z - -280) <= 3.5) {
       return { height: y, color: [217, 190, 139], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
     }
-    // Pyramid
-    if (Math.hypot(x - 20, z - -220) <= 24) {
+    // Pyramid [120, -280]
+    if (Math.hypot(x - 120, z - -280) <= 24) {
       return { height: y, color: [220, 160, 40], biomeId: 'solaria_pyramid', isWater: false, isPath: false, slope };
     }
     // The Great Solaria Sinkhole - Sandworm Arena [495, -362]

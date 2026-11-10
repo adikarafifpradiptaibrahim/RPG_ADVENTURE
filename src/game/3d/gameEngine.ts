@@ -12,7 +12,8 @@ import {
 import { soundManager } from '../audio';
 import { CHEST_LOOT_POOL, MONSTER_MATERIALS } from '../data';
 import { getCurrentRegion } from '../mapData';
-import { isPointOnRoad, getProceduralContinentHeight } from '../mapSampler';
+import { isPointOnRoad, getProceduralContinentHeight, isDesertBiome } from '../mapSampler';
+export { isDesertBiome };
 import {
   createEnemyMesh,
   createPlayerMesh,
@@ -1587,10 +1588,10 @@ export class GameEngine {
 
     // 11. Gurun Pasir Solaria: Kalajengking Emas & Penjaga Makam
     const solariaPositions: [number, number][] = [
-      [-150, 96],
-      [-172, 102],
-      [-158, 122],
-      [-176, 120],
+      [180, -250],
+      [210, -240],
+      [170, -270],
+      [200, -285],
     ];
     solariaPositions.forEach((pos, idx) => {
       const { group, parts } = createEnemyMesh('spider');
@@ -1722,12 +1723,12 @@ export class GameEngine {
       });
     });
 
-    // 14. Kaldera Naga Api: Magma Drakes & Ancient Dragon Titan Guardian
+    // 14. Kaldera Naga Api: Magma Drakes & Ancient Dragon Titan Guardian (Dragonfang Caldera Island [80, 360])
     const dragonPositions: [number, number][] = [
-      [-20, -320],
-      [-40, -325],
-      [-15, -345],
-      [-38, -350],
+      [60, 340],
+      [100, 345],
+      [68, 375],
+      [96, 370],
     ];
     dragonPositions.forEach((pos, idx) => {
       const { group, parts } = createEnemyMesh('magma_slime');
@@ -1767,12 +1768,12 @@ export class GameEngine {
       });
     });
 
-    // 15. Gurun Solaria: Kalajengking Raksasa & Pasukan Pasir Pharaoh (Outer Pyramid Dunes: [-180, 180])
+    // 15. Gurun Solaria: Kalajengking Raksasa & Pasukan Pasir Pharaoh (Eastern Solaria Dunes [420, -320])
     const desertPositions: [number, number][] = [
-      [-165, 165],
-      [-195, 175],
-      [-170, 195],
-      [-200, 205],
+      [390, -310],
+      [420, -325],
+      [440, -345],
+      [465, -330],
     ];
     desertPositions.forEach((pos, idx) => {
       const { group, parts } = createEnemyMesh('spider');
@@ -8961,16 +8962,16 @@ export class GameEngine {
         description: 'Cekungan Danau Lembah Purba & Arena Pertarungan Sang Titan Kuno Obsidian',
       });
 
-      // Piramida Emas Solaria (South-West: [-180, 180])
+      // Piramida Emas Solaria (Solaria Golden Dunes: [120, -280])
       markers.push({
         id: 'landmark_solaria_pyramid',
         title: 'Piramida Emas Solaria',
         type: 'waypoint',
-        x: -180,
-        z: 180,
+        x: 120,
+        z: -280,
         icon: '🏜️',
         color: '#eab308',
-        description: 'Piramida Kuno Megah di Perbatasan Bukit Pasir Emas Solaria',
+        description: 'Piramida Kuno Megah di Bukit Pasir Emas Solaria',
       });
 
       // Kuil Pagoda Giok & Rumpun Bambu (South-East: [170, 160])
@@ -9045,16 +9046,16 @@ export class GameEngine {
         description: 'Menara Pengawas Gletser Terluar',
       });
 
-      // Primal Dragon Caldera Arena (Far North: [-29, -337])
+      // Primal Dragon Caldera Arena (South Ocean Volcano Island: [80, 360])
       markers.push({
         id: 'landmark_dragon_core',
         title: 'Kaldera Sarang Naga Purba',
         type: 'boss',
-        x: -29,
-        z: -337,
-        icon: 'ðŸ”¥',
+        x: 80,
+        z: 360,
+        icon: '🔥',
         color: '#ef4444',
-        description: 'Sarang Lahar Panas Naga Purba',
+        description: 'Sarang Lahar Panas Naga Purba di Pulau Vulkanik Seberang Laut',
       });
 
       // Shadowfen Deep Hollow (West)

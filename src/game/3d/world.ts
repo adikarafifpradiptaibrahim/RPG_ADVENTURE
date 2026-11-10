@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { getProceduralContinentHeight, getContinentBiomeSample } from '../mapSampler';
+import { getProceduralContinentHeight, getContinentBiomeSample, isDesertBiome } from '../mapSampler';
 import {
   createTreeMesh,
   createAncientPillarMesh,
@@ -1328,7 +1328,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     const inSanctuaryHarborOcean = (Math.abs(tx) <= 50 && tz > 200);
     const inBridgeHighwayCorridor = (tx >= 115 && tx <= 360 && (Math.abs(tz - 47) <= 12.0 || Math.abs(tz - 75) <= 12.0));
     const inValKragor = (tx >= 345 && tx <= 420 && tz >= 48 && tz <= 112);
-    const inDesert = (tz < -60 && tx > -115);
+    const inDesert = isDesertBiome(tx, tz);
     const inDragonCaldera = (tz > 280 && Math.abs(tx - 50) < 60);
     const inAstraea = Math.hypot(tx - -340, tz - -220) < 60;
     const inTitan = Math.hypot(tx - -196, tz - -254) < 45;
@@ -1402,27 +1402,27 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // ==========================================
 
   // ------------------------------------------
-  // 5A. ANCIENT SUNKEN PYRAMID RUINS ([20, -220])
+  // 5A. ANCIENT SUNKEN PYRAMID RUINS ([120, -280])
   // ------------------------------------------
   const pyramid = createDesertPyramidMesh();
   const pyY = 1.50;
-  pyramid.position.set(20, pyY, -220);
+  pyramid.position.set(120, pyY, -280);
   scene.add(pyramid);
   colliders.push({
     type: 'box',
-    minX: 11,
-    maxX: 29,
-    minZ: -229,
-    maxZ: -211,
+    minX: 111,
+    maxX: 129,
+    minZ: -289,
+    maxZ: -271,
     label: 'Piramida Emas Solaria',
   });
 
   // Obelisks guarding pyramid approach
   const obeliskPositions = [
-    { x: 5, z: -220 },
-    { x: 35, z: -220 },
-    { x: 20, z: -235 },
-    { x: 20, z: -205 },
+    { x: 105, z: -280 },
+    { x: 135, z: -280 },
+    { x: 120, z: -295 },
+    { x: 120, z: -265 },
   ];
   obeliskPositions.forEach((pos) => {
     const obelisk = createDesertObeliskMesh();
@@ -1433,11 +1433,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // Palms near Pyramid Oasis Spring
   const pyramidPalmPositions = [
-    { x: 38, z: -234 },
-    { x: 32, z: -230 },
-    { x: 42, z: -226 },
-    { x: 2, z: -204 },
-    { x: -2, z: -198 },
+    { x: 138, z: -294 },
+    { x: 132, z: -290 },
+    { x: 142, z: -286 },
+    { x: 102, z: -264 },
+    { x: 98, z: -258 },
   ];
   const pyramidPalmsData = pyramidPalmPositions.map((pos) => {
     colliders.push({ type: 'circle', x: pos.x, z: pos.z, radius: 0.65, label: 'Pohon Palem Solaria' });
@@ -1795,16 +1795,18 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { x: 240, z: -340, s: 1.05 },
     { x: 320, z: -330, s: 1.1 },
   ];
-  const cactiData = desertCacti.map((dc) => {
-    colliders.push({ type: 'circle', x: dc.x, z: dc.z, radius: 0.5, label: 'Kaktus Gurun' });
-    return {
-      x: dc.x,
-      y: getTerrainHeight(dc.x, dc.z),
-      z: dc.z,
-      scale: dc.s,
-      rotationY: Math.random() * Math.PI * 2,
-    };
-  });
+  const cactiData = desertCacti
+    .filter((dc) => isDesertBiome(dc.x, dc.z))
+    .map((dc) => {
+      colliders.push({ type: 'circle', x: dc.x, z: dc.z, radius: 0.5, label: 'Kaktus Gurun' });
+      return {
+        x: dc.x,
+        y: getTerrainHeight(dc.x, dc.z),
+        z: dc.z,
+        scale: dc.s,
+        rotationY: Math.random() * Math.PI * 2,
+      };
+    });
   const cactiMesh = createInstancedDesertCacti(cactiData);
   scene.add(cactiMesh);
 
@@ -2438,7 +2440,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { id: 'chest_valkragor', pos: [402, 2.5, 80] as [number, number, number] }, // Val-Kragor Keep Secret Vault
     { id: 'chest_thunderpeak', pos: [180, 4.5, 60] as [number, number, number] }, // Thunderpeak Mage Tower Relic
     { id: 'chest_solaria_palace', pos: [340, 2.0, -280] as [number, number, number] }, // Solaria Sultan Vault
-    { id: 'chest_solaria', pos: [20, 1.5, -220] as [number, number, number] }, // Solaria Pyramid Gold
+    { id: 'chest_solaria', pos: [120, 1.5, -280] as [number, number, number] }, // Solaria Pyramid Gold
     { id: 'chest_solaria_oasis', pos: [150, 0.5, -360] as [number, number, number] }, // Solaria Hidden Oasis
     { id: 'chest_dragoncaldera', pos: [80, 2.5, 360] as [number, number, number] }, // Dragon Caldera Hoard
     { id: 'chest_astraea', pos: [-320, 2.0, -220] as [number, number, number] }, // Astraea Imperial Vault
@@ -2622,7 +2624,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_solaria',
       name: 'Solaria Golden Desert Pyramid',
       nameId: 'Piramida Emas Gurun Solaria',
-      pos: [20, -220],
+      pos: [120, -280],
     },
     {
       id: 'wp_solaria_oasis',

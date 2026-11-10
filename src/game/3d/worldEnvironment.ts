@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { WorldCollider } from './world';
 import { isPointNearRoad } from '../RoadSystem';
+import { isDesertBiome } from '../mapSampler';
 
 export interface WorldEnvironmentResult {
   group: THREE.Group;
@@ -1653,14 +1654,14 @@ export function buildWorldEnvironment(
 
   let pineAssigned = 0;
   let pineAttempts = 0;
-  while (pineAssigned < PINE_COUNT && pineAttempts < 1200) {
+  while (pineAssigned < PINE_COUNT && pineAttempts < 1500) {
     pineAttempts++;
-    // Cakupan diperluas ke seluruh barat dan utara: X [-460..120], Z [-420..180]
-    const cx = -460 + Math.random() * 580;
+    // Cakupan diperluas ke seluruh barat, utara dan timur Eldoria Padang Rumput
+    const cx = -460 + Math.random() * 880;
     const cz = -420 + Math.random() * 600;
 
-    // Pengecualian Gurun (X > 130 & Z < 50)
-    if (cx > 130 && cz < 50) continue;
+    // Pengecualian Gurun Solaria (Wajib Single Source of Truth)
+    if (isDesertBiome(cx, cz)) continue;
     // Pengecualian Pesisir Pantai Barat khusus Pohon Kelapa
     if (cx < -460 || cz > 190) continue;
     // Pengecualian Pemukiman Desa
@@ -1682,10 +1683,10 @@ export function buildWorldEnvironment(
       const px = cx + Math.cos(angle) * dist;
       const pz = cz + Math.sin(angle) * dist;
 
+      if (isDesertBiome(px, pz)) continue;
       if (isPointNearRoad(px, pz, 3.2)) continue;
       if (isInsideFarmYard(px, pz)) continue;
       if (Math.hypot(px - 10, pz - 110) < 52) continue;
-      if (cx > 130 && cz < 50) continue;
       if (Math.abs(px - 142) < 6.0 && pz > -15 && pz < 65) continue;
       if (Math.hypot(px - craterCenterX, pz - craterCenterZ) < 23) continue;
 
@@ -1723,12 +1724,12 @@ export function buildWorldEnvironment(
 
   let oakAssigned = 0;
   let oakAttempts = 0;
-  while (oakAssigned < OAK_COUNT && oakAttempts < 950) {
+  while (oakAssigned < OAK_COUNT && oakAttempts < 1200) {
     oakAttempts++;
-    const cx = -440 + Math.random() * 540;
-    const cz = -380 + Math.random() * 540;
+    const cx = -440 + Math.random() * 860;
+    const cz = -380 + Math.random() * 560;
 
-    if (cx > 130 && cz < 50) continue;
+    if (isDesertBiome(cx, cz)) continue;
     if (Math.hypot(cx - 10, cz - 110) < 54) continue;
     if (Math.hypot(cx - 0, cz - 180) < 40) continue;
     if (Math.hypot(cx - ruinsCenterX, cz - ruinsCenterZ) < 26) continue;
@@ -1746,10 +1747,10 @@ export function buildWorldEnvironment(
       const ox = cx + Math.cos(angle) * dist;
       const oz = cz + Math.sin(angle) * dist;
 
+      if (isDesertBiome(ox, oz)) continue;
       if (isPointNearRoad(ox, oz, 3.2)) continue;
       if (isInsideFarmYard(ox, oz)) continue;
       if (Math.hypot(ox - 10, oz - 110) < 52) continue;
-      if (ox > 130 && oz < 50) continue;
       if (Math.abs(ox - 142) < 6.0 && oz > -15 && oz < 65) continue;
       if (Math.hypot(ox - craterCenterX, oz - craterCenterZ) < 23) continue;
 
@@ -1778,12 +1779,12 @@ export function buildWorldEnvironment(
 
   let boulderAssigned = 0;
   let boulderAttempts = 0;
-  while (boulderAssigned < BOULDER_COUNT && boulderAttempts < 1100) {
+  while (boulderAssigned < BOULDER_COUNT && boulderAttempts < 1400) {
     boulderAttempts++;
-    const cx = -460 + Math.random() * 570;
-    const cz = -400 + Math.random() * 570;
+    const cx = -460 + Math.random() * 880;
+    const cz = -400 + Math.random() * 580;
 
-    if (cx > 130 && cz < 50) continue;
+    if (isDesertBiome(cx, cz)) continue;
     if (Math.hypot(cx - 10, cz - 110) < 52) continue;
     if (Math.hypot(cx - 0, cz - 180) < 35) continue;
     if (Math.abs(cx - 142) < 6.5 && cz > -15 && cz < 65) continue;
@@ -1810,6 +1811,7 @@ export function buildWorldEnvironment(
       const bx = cx + Math.cos(sAngle) * sDist;
       const bz = cz + Math.sin(sAngle) * sDist;
 
+      if (isDesertBiome(bx, bz)) continue;
       if (isPointNearRoad(bx, bz, 3.0)) continue;
       const by = getTerrainHeight(bx, bz);
       if (by < 0.0) continue;
@@ -1834,12 +1836,12 @@ export function buildWorldEnvironment(
 
   let shrubAssigned = 0;
   let shrubAttempts = 0;
-  while (shrubAssigned < SHRUB_COUNT && shrubAttempts < 1400) {
+  while (shrubAssigned < SHRUB_COUNT && shrubAttempts < 1800) {
     shrubAttempts++;
-    const cx = -460 + Math.random() * 580;
-    const cz = -420 + Math.random() * 590;
+    const cx = -460 + Math.random() * 880;
+    const cz = -420 + Math.random() * 600;
 
-    if (cx > 130 && cz < 50) continue;
+    if (isDesertBiome(cx, cz)) continue;
     if (Math.hypot(cx - 10, cz - 110) < 52) continue;
     if (Math.abs(cx - 142) < 6.5 && cz > -15 && cz < 65) continue;
     if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 24) continue;
@@ -1854,9 +1856,9 @@ export function buildWorldEnvironment(
       const sx = cx + Math.cos(angle) * dist;
       const sz = cz + Math.sin(angle) * dist;
 
+      if (isDesertBiome(sx, sz)) continue;
       if (isPointNearRoad(sx, sz, 3.2)) continue;
       if (isInsideFarmYard(sx, sz)) continue;
-      if (sx > 130 && sz < 50) continue;
 
       const sy = getTerrainHeight(sx, sz);
       if (sy < 0.0) continue;
