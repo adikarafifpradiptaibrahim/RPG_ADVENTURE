@@ -109,6 +109,8 @@ export function createHunterModel(): THREE.Group {
   legGroup.name = 'LegGroup';
   let leftLegGroup: THREE.Group | undefined;
   let rightLegGroup: THREE.Group | undefined;
+  let leftKneeMesh: THREE.Mesh | undefined;
+  let rightKneeMesh: THREE.Mesh | undefined;
 
   [-0.15, 0.15].forEach((xPos, idx) => {
     const isLeft = idx === 0;
@@ -119,17 +121,26 @@ export function createHunterModel(): THREE.Group {
     const leg = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.62, 0.22), matPants);
     leg.position.set(0, -0.32, 0);
 
+    const knee = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.10, 0.12), matLeather);
+    knee.name = isLeft ? 'Knee_Left' : 'Knee_Right';
+    knee.position.set(0, -0.36, 0.08);
+
     const boot = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.26, 0.28), matLeather);
     boot.position.set(0, -0.61, 0.03);
 
     const bootCuff = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.08, 0.30), matLeather);
     bootCuff.position.set(0, -0.50, 0.03);
 
-    legPivot.add(leg, boot, bootCuff);
+    legPivot.add(leg, knee, boot, bootCuff);
     legGroup.add(legPivot);
 
-    if (isLeft) leftLegGroup = legPivot;
-    else rightLegGroup = legPivot;
+    if (isLeft) {
+      leftLegGroup = legPivot;
+      leftKneeMesh = knee;
+    } else {
+      rightLegGroup = legPivot;
+      rightKneeMesh = knee;
+    }
   });
   root.add(legGroup);
 
@@ -364,6 +375,8 @@ export function createHunterModel(): THREE.Group {
   // Simpan referensi internal pada root untuk kebutuhan gameplay & animasi engine
   (root as any).leftLeg = leftLegGroup;
   (root as any).rightLeg = rightLegGroup;
+  (root as any).leftKnee = leftKneeMesh;
+  (root as any).rightKnee = rightKneeMesh;
   (root as any).leftArm = leftArmGroup;
   (root as any).rightArm = rightArmGroup;
   (root as any).body = torsoGroup;
@@ -429,6 +442,8 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
 
   const leftLeg = ((root as any).leftLeg || new THREE.Group()) as THREE.Group;
   const rightLeg = ((root as any).rightLeg || new THREE.Group()) as THREE.Group;
+  const leftKnee = (root as any).leftKnee as THREE.Mesh | undefined;
+  const rightKnee = (root as any).rightKnee as THREE.Mesh | undefined;
   const leftArm = ((root as any).leftArm || root.getObjectByName('LeftArm')) as THREE.Group;
   const rightArm = ((root as any).rightArm || root.getObjectByName('RightArm')) as THREE.Group;
   const body = ((root as any).body || root.getObjectByName('TorsoGroup')) as THREE.Mesh;
@@ -491,6 +506,8 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
     rightArm,
     leftLeg,
     rightLeg,
+    leftKnee,
+    rightKnee,
     weapon,
     leftWeapon,
     cape,
@@ -541,48 +558,70 @@ export function animateHunterWalk(
   }
 
   if (isMoving) {
-    const legFreq = isSprinting ? 2.2 : 1.2;
-    const legAmp = isSprinting ? 0.65 : 0.48;
-    const legSwing = Math.sin(walkTime * legFreq) * legAmp;
+    // Ayunan langkah kaki sinkron berbasis fase walkTime
+    const legSwing = Math.sin(walkTime);
+    const armSwing = Math.cos(walkTime);
 
-    // Pastikan HANYA leftLeg.rotation.x, rightLeg.rotation.x, leftArm.rotation.x, dan rightArm.rotation.x yang bergerak bolak-balik
+    // Amplitudo ayunan langkah kaki (tegas & lincah khas assassin)
     if (playerMesh.leftLeg) {
-      playerMesh.leftLeg.rotation.set(legSwing, 0, 0);
+      playerMesh.leftLeg.rotation.set(legSwing * 0.75, 0, 0);
     }
     if (playerMesh.rightLeg) {
-      playerMesh.rightLeg.rotation.set(-legSwing, 0, 0);
+      playerMesh.rightLeg.rotation.set(-legSwing * 0.75, 0, 0);
     }
 
+    // Sedikit tekukan lutut saat kaki mengayun ke belakang agar langkah natural:
+    if (playerMesh.leftKnee) {
+      playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.4 : 0;
+    }
+    if (playerMesh.rightKnee) {
+      playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.4 : 0;
+    }
+
+    // Ayunan tangan berlawanan dengan kaki (lengan tertekuk siaga memegang belati)
     if (!isAttacking) {
-      const armSwing = legSwing * 0.4;
       if (playerMesh.leftArm) {
-        playerMesh.leftArm.rotation.set(-armSwing, 0, 0);
+        playerMesh.leftArm.rotation.set(-0.4 + armSwing * 0.45, 0, 0);
       }
       if (playerMesh.rightArm) {
-        playerMesh.rightArm.rotation.set(armSwing, 0, 0);
+        playerMesh.rightArm.rotation.set(-0.4 - armSwing * 0.45, 0, 0);
       }
     }
 
     if (playerMesh.cape) {
-      playerMesh.cape.rotation.set(0.15 + Math.abs(Math.sin(walkTime * 1.5)) * 0.15, 0, 0);
+      playerMesh.cape.rotation.set(0.15 + Math.abs(Math.sin(walkTime * 0.5)) * 0.20, 0, 0);
     }
 
     playerMesh.group.position.y = playerPosY;
   } else {
-    // Mode Diam (Idle Stance)
+    // Mode Diam (Idle Stance) - Lerp cepat (kecepatan 0.25) pada rotation.x kaki dan tangan kembali ke sudut 0
     if (playerMesh.leftLeg) {
-      playerMesh.leftLeg.rotation.set(0, 0, 0);
+      playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0, 0.25);
+      playerMesh.leftLeg.rotation.y = 0;
+      playerMesh.leftLeg.rotation.z = 0;
     }
     if (playerMesh.rightLeg) {
-      playerMesh.rightLeg.rotation.set(0, 0, 0);
+      playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0, 0.25);
+      playerMesh.rightLeg.rotation.y = 0;
+      playerMesh.rightLeg.rotation.z = 0;
+    }
+    if (playerMesh.leftKnee) {
+      playerMesh.leftKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.leftKnee.rotation.x, 0, 0.25);
+    }
+    if (playerMesh.rightKnee) {
+      playerMesh.rightKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.rightKnee.rotation.x, 0, 0.25);
     }
 
     if (!isAttacking) {
       if (playerMesh.leftArm) {
-        playerMesh.leftArm.rotation.set(0, 0, 0);
+        playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0, 0.25);
+        playerMesh.leftArm.rotation.y = 0;
+        playerMesh.leftArm.rotation.z = 0;
       }
       if (playerMesh.rightArm) {
-        playerMesh.rightArm.rotation.set(0, 0, 0);
+        playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, 0, 0.25);
+        playerMesh.rightArm.rotation.y = 0;
+        playerMesh.rightArm.rotation.z = 0;
       }
     }
 

@@ -56,6 +56,8 @@ export function createBlockyAssassinMesh(tier: number = 1): PlayerMeshObjects {
  * Animasi Pose & Walk Assassin
  * Rotasi Z selalu dikunci tepat 0 agar badan selalu tegak lurus sempurna saat bergerak dan drag kamera
  */
+let assassinInternalCycle = 0;
+
 export function animateAssassin(
   mesh: PlayerMeshObjects,
   walkTime: number,
@@ -63,7 +65,8 @@ export function animateAssassin(
   isMoving: boolean,
   isAttacking: boolean = false,
   weaponMode: 'dagger' | 'bow' = 'dagger',
-  isSprinting: boolean = false
+  isSprinting: boolean = false,
+  delta: number = 0.016
 ): void {
   if (!mesh) return;
 
@@ -79,7 +82,20 @@ export function animateAssassin(
     mesh.rotation.z = 0;
   }
 
-  animateHunterWalk(mesh, walkTime, playerPosY, isMoving, isAttacking, weaponMode, isSprinting);
+  // Jika walkTime disediakan secara eksplisit sebagai akumulator, gunakan itu; jika tidak gunakan delta internal
+  let effectiveWalkTime = walkTime;
+  if (isMoving) {
+    if (walkTime === 0 || walkTime === undefined) {
+      const moveSpeed = isSprinting ? 1.75 : 1.0;
+      const stepFrequency = isSprinting ? 18.0 : 13.5;
+      assassinInternalCycle += delta * stepFrequency * moveSpeed;
+      effectiveWalkTime = assassinInternalCycle;
+    }
+  } else {
+    assassinInternalCycle = 0;
+  }
+
+  animateHunterWalk(mesh, effectiveWalkTime, playerPosY, isMoving, isAttacking, weaponMode, isSprinting);
 
   // Kunci mutlak rotasi Z body agar selalu tegak lurus sempurna saat berjalan, berlari, berbelok, maupun drag kamera
   if (mesh.body) {

@@ -657,6 +657,7 @@ export class GameEngine {
   // Animation clocks
   private clock = new THREE.Clock();
   private walkTime = 0;
+  private walkCycle = 0;
   private isRunning = false;
 
   constructor(container: HTMLElement, charClass: CharacterClass, callbacks: GameEngineCallbacks) {
@@ -6768,18 +6769,39 @@ export class GameEngine {
         const walkTime = this.clock.getElapsedTime();
         animateMageWalk(this.playerMesh, walkTime, this.playerPos.y, true, this.isAttacking);
       } else if (this.charClass === 'rogue') {
-        // Blocky Low-Poly Hunter Walk Cycle with Dynamic Stance & Stealth Sprint
-        const walkFreq = this.isSprinting ? 2.5 : 1.0;
-        const walkTime = this.clock.getElapsedTime() * walkFreq;
-        animateHunterWalk(
-          this.playerMesh,
-          walkTime,
-          this.playerPos.y,
-          true,
-          this.isAttacking,
-          this.hunterWeaponMode,
-          this.isSprinting
-        );
+        // Gunakan akumulator fase langkah berbasis delta waktu dan kecepatan gerak riil:
+        const moveSpeed = this.isSprinting ? 1.75 : 1.0;
+        // Frekuensi dinaikkan agar tapakan kaki sinkron dengan laju tanah
+        const stepFrequency = this.isSprinting ? 18.0 : 13.5;
+        this.walkCycle = (this.walkCycle || 0) + delta * stepFrequency * moveSpeed;
+
+        // Ayunan kaki kiri & kanan
+        const legSwing = Math.sin(this.walkCycle);
+        const armSwing = Math.cos(this.walkCycle);
+
+        // Amplitudo ayunan langkah kaki (tegas & lincah khas assassin)
+        this.playerMesh.leftLeg.rotation.x = legSwing * 0.75;
+        this.playerMesh.rightLeg.rotation.x = -legSwing * 0.75;
+
+        // Sedikit tekukan lutut saat kaki mengayun ke belakang agar langkah natural:
+        if (this.playerMesh.leftKnee) {
+          this.playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.4 : 0;
+        }
+        if (this.playerMesh.rightKnee) {
+          this.playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.4 : 0;
+        }
+
+        // Ayunan tangan berlawanan dengan kaki (lengan tertekuk siaga memegang belati)
+        if (!this.isAttacking) {
+          this.playerMesh.leftArm.rotation.x = -0.4 + armSwing * 0.45;
+          this.playerMesh.rightArm.rotation.x = -0.4 - armSwing * 0.45;
+        }
+
+        if (this.playerMesh.cape) {
+          this.playerMesh.cape.rotation.x = 0.15 + Math.abs(Math.sin(this.walkCycle * 0.5)) * 0.20;
+        }
+
+        this.playerMesh.group.rotation.x = 0;
         this.playerMesh.group.rotation.z = 0;
       } else {
         const legSwing = Math.sin(this.walkTime) * 0.62;
@@ -6838,17 +6860,46 @@ export class GameEngine {
         const walkTime = this.clock.getElapsedTime();
         animateMageWalk(this.playerMesh, walkTime, this.playerPos.y, false, this.isAttacking);
       } else if (this.charClass === 'rogue') {
-        // Blocky Low-Poly Hunter Idle State (Subtle Breathing & Ready Dagger/Bow Stance)
-        const walkTime = this.clock.getElapsedTime();
-        animateHunterWalk(
-          this.playerMesh,
-          walkTime,
-          this.playerPos.y,
-          false,
-          this.isAttacking,
-          this.hunterWeaponMode,
-          false
-        );
+        // Saat pemain melepas tombol arah (!this.isMoving):
+        // Lakukan lerp cepat (kecepatan 0.25) pada rotation.x kaki dan tangan kembali ke sudut 0 (posisi berdiri netral).
+        // Reset atau jeda walkCycle agar langkah tidak berhenti di pose kaki terbelah canggung.
+        this.walkCycle = 0;
+
+        if (this.playerMesh.leftLeg) {
+          this.playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftLeg.rotation.x, 0, 0.25);
+          this.playerMesh.leftLeg.rotation.y = 0;
+          this.playerMesh.leftLeg.rotation.z = 0;
+        }
+        if (this.playerMesh.rightLeg) {
+          this.playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightLeg.rotation.x, 0, 0.25);
+          this.playerMesh.rightLeg.rotation.y = 0;
+          this.playerMesh.rightLeg.rotation.z = 0;
+        }
+        if (this.playerMesh.leftKnee) {
+          this.playerMesh.leftKnee.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftKnee.rotation.x, 0, 0.25);
+        }
+        if (this.playerMesh.rightKnee) {
+          this.playerMesh.rightKnee.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightKnee.rotation.x, 0, 0.25);
+        }
+
+        if (!this.isAttacking) {
+          if (this.playerMesh.leftArm) {
+            this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, 0, 0.25);
+            this.playerMesh.leftArm.rotation.y = 0;
+            this.playerMesh.leftArm.rotation.z = 0;
+          }
+          if (this.playerMesh.rightArm) {
+            this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0, 0.25);
+            this.playerMesh.rightArm.rotation.y = 0;
+            this.playerMesh.rightArm.rotation.z = 0;
+          }
+        }
+
+        if (this.playerMesh.cape) {
+          this.playerMesh.cape.rotation.x = THREE.MathUtils.lerp(this.playerMesh.cape.rotation.x, 0.12, 0.25);
+        }
+
+        this.playerMesh.group.rotation.x = 0;
         this.playerMesh.group.rotation.z = 0;
       } else {
         this.playerMesh.leftLeg.rotation.x *= 0.8;

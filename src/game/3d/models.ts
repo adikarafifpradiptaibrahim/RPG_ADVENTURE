@@ -101,6 +101,8 @@ export interface PlayerMeshObjects {
   rightHand?: THREE.Group;
   leftLeg: THREE.Group;
   rightLeg: THREE.Group;
+  leftKnee?: THREE.Group | THREE.Mesh;
+  rightKnee?: THREE.Group | THREE.Mesh;
   weapon: THREE.Group;
   leftWeapon?: THREE.Group;
   shield?: THREE.Mesh;
