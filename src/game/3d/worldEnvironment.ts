@@ -77,6 +77,9 @@ export function buildWorldEnvironment(
   const matOakFoliage = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.8, flatShading: true });
   const matBoulder = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9, flatShading: true });
   const matShrub = new THREE.MeshStandardMaterial({ color: 0x3f6212, roughness: 0.85, flatShading: true });
+  const matDarkSoil = new THREE.MeshStandardMaterial({ color: 0x27201c, roughness: 0.95, flatShading: true });
+  const matWildflower = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.7, flatShading: true });
+  const matMossStone = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.85, flatShading: true });
 
   // Helper deteksi batas pekarangan pertanian untuk isolasi vegetasi instanced & bebatuan alami
   function isInsideFarmYard(x: number, z: number): boolean {
@@ -1183,12 +1186,141 @@ export function buildWorldEnvironment(
   envGroup.add(coastGroup);
 
   // ============================================================================
+  // 4. ZONA G: PADANG RUMPUT UTARA & SARANG SERIGALA RIMBA (X: -60 s.d -120, Z: -30 s.d -90)
+  // Menghidupkan wilayah koordinat X: -77, Z: -45 dan bukit landai sekitarnya
+  // Serta menata cekungan sarang monster buas berjarak > 190 unit dari pusat desa
+  // ============================================================================
+  const meadowGroup = new THREE.Group();
+  meadowGroup.name = 'ZoneG_NorthernMeadows';
+
+  // 1. Puncak Pemandangan Bukit Padang Rumput (Scenic Hill Overlook di X: -77, Z: -45)
+  const landmarkX = -77;
+  const landmarkZ = -45;
+  const landmarkY = getTerrainHeight(landmarkX, landmarkZ);
+
+  // Megalit Kuno Puncak Bukit (Weather-worn Waypoint Monolith)
+  const monolith = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 1.15, 3.8, 6), matStoneRuins);
+  monolith.position.set(landmarkX, landmarkY + 1.9, landmarkZ);
+  monolith.rotation.y = 0.45;
+  monolith.castShadow = true;
+  meadowGroup.add(monolith);
+  colliders.push({ type: 'circle', x: landmarkX, z: landmarkZ, radius: 1.4, label: 'Megalit Padang Rumput' });
+
+  // Lingkaran Rune Kuno Lemah di dasar Megalit
+  const runeRing = new THREE.Mesh(
+    new THREE.RingGeometry(1.5, 1.9, 16),
+    new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.65, side: THREE.DoubleSide })
+  );
+  runeRing.rotation.x = -Math.PI / 2;
+  runeRing.position.set(landmarkX, landmarkY + 0.04, landmarkZ);
+  meadowGroup.add(runeRing);
+
+  // Batang Kayu Tumbang Berlumut / Bangku Kayu Rustic Alami
+  const logX = -74.5;
+  const logZ = -42.5;
+  const logY = getTerrainHeight(logX, logZ);
+  const mossyLog = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 3.6, 6), matWoodRustic);
+  mossyLog.position.set(logX, logY + 0.32, logZ);
+  mossyLog.rotation.z = Math.PI / 2;
+  mossyLog.rotation.y = 0.65;
+  mossyLog.castShadow = true;
+  meadowGroup.add(mossyLog);
+  colliders.push({ type: 'circle', x: logX, z: logZ, radius: 1.2, label: 'Batang Kayu Berlumut' });
+
+  // 2. CEKUNGAN MONSTER SERIGALA RIMBA / WILD WOLF HOLLOW (Pusat [ -95, -65 ])
+  // Terletak di cekungan bukit, berjarak > 195 unit dari pusat desa
+  const wolfLairX = -95;
+  const wolfLairZ = -65;
+  const wolfLairY = getTerrainHeight(wolfLairX, wolfLairZ);
+
+  // Penanda Lingkungan: Bercak Tanah Gelap / Dark Scorched Soil Decal
+  const darkSoilPatch = new THREE.Mesh(
+    new THREE.CircleGeometry(16, 24),
+    matDarkSoil
+  );
+  darkSoilPatch.rotation.x = -Math.PI / 2;
+  darkSoilPatch.position.set(wolfLairX, wolfLairY + 0.03, wolfLairZ);
+  darkSoilPatch.receiveShadow = true;
+  meadowGroup.add(darkSoilPatch);
+
+  // Formasi 9 Batu Runcing Mengelilingi Cekungan Tapal Kuda (Sharp Dark Crags)
+  const sharpCragCount = 9;
+  for (let sc = 0; sc < sharpCragCount; sc++) {
+    const scAngle = 0.3 * Math.PI + (sc / sharpCragCount) * 1.5 * Math.PI;
+    const scDist = 13 + (sc % 2) * 3.5;
+    const rcX = wolfLairX + Math.cos(scAngle) * scDist;
+    const rcZ = wolfLairZ + Math.sin(scAngle) * scDist;
+    const rcY = getTerrainHeight(rcX, rcZ);
+
+    const cragH = 3.6 + Math.random() * 2.8;
+    const cragW = 1.6 + Math.random() * 1.2;
+    const cragMesh = new THREE.Mesh(new THREE.ConeGeometry(cragW, cragH, 5), matStoneDarkCrag);
+    cragMesh.position.set(rcX, rcY + cragH * 0.45, rcZ);
+    cragMesh.rotation.y = Math.random() * Math.PI * 2;
+    cragMesh.rotation.z = (Math.random() - 0.5) * 0.28;
+    cragMesh.castShadow = true;
+    meadowGroup.add(cragMesh);
+
+    colliders.push({ type: 'circle', x: rcX, z: rcZ, radius: cragW * 0.85, label: 'Batu Runcing Sarang Serigala' });
+  }
+
+  // 3 Batang Pohon Mati Meranggas (Twisted Dead Trees)
+  const deadTreeCoords = [
+    { x: -88, z: -57 },
+    { x: -103, z: -63 },
+    { x: -94, z: -76 },
+  ];
+  deadTreeCoords.forEach((dt) => {
+    const dty = getTerrainHeight(dt.x, dt.z);
+    const deadTree = new THREE.Group();
+    deadTree.position.set(dt.x, dty, dt.z);
+
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.42, 4.0, 5), matWoodDark);
+    trunk.position.y = 2.0;
+    trunk.rotation.z = (Math.random() - 0.5) * 0.3;
+    trunk.rotation.x = (Math.random() - 0.5) * 0.25;
+    trunk.castShadow = true;
+    deadTree.add(trunk);
+
+    // Cabang ranting kering mencuat
+    for (let b = 0; b < 3; b++) {
+      const bGeo = new THREE.CylinderGeometry(0.08, 0.16, 2.0, 4);
+      const branch = new THREE.Mesh(bGeo, matWoodDark);
+      branch.position.set((b - 1) * 0.45, 2.8 + b * 0.35, 0);
+      branch.rotation.z = (b % 2 === 0 ? 1 : -1) * (0.6 + Math.random() * 0.4);
+      deadTree.add(branch);
+    }
+
+    meadowGroup.add(deadTree);
+    colliders.push({ type: 'circle', x: dt.x, z: dt.z, radius: 1.0, label: 'Pohon Mati Padang' });
+  });
+
+  // Tumpukan Tulang Belulang & Tengkorak Hewan Mangsa
+  const wolfBones = [
+    { x: -92, z: -62 },
+    { x: -97, z: -68 },
+    { x: -89, z: -70 },
+  ];
+  wolfBones.forEach((wb) => {
+    const wby = getTerrainHeight(wb.x, wb.z);
+    const skull = new THREE.Mesh(new THREE.DodecahedronGeometry(0.35, 0), matBone);
+    skull.position.set(wb.x, wby + 0.18, wb.z);
+    skull.rotation.set(0.3, Math.random() * Math.PI, 0.2);
+    skull.castShadow = true;
+    meadowGroup.add(skull);
+  });
+
+  envGroup.add(meadowGroup);
+
+  // ============================================================================
   // 5. DISTRIBUSI VEGETASI ALAMI MENGGUNAKAN THREE.InstancedMesh
+  // Kelompok-kelompok pohon (clustering 3-7 per rumpun), formasi bebatuan alam,
+  // dan semak liar di seluruh dataran hijau yang luas (termasuk X: -77, Z: -45)
   // ============================================================================
   const dummy = new THREE.Object3D();
 
-  // 1. POHON CEMARA SEGITIGA (PINE TREES): 120 Instances
-  const PINE_COUNT = 120;
+  // 1. POHON CEMARA SEGITIGA BERUMPUN (CLUSTERED PINE TREES): 320 Instances
+  const PINE_COUNT = 320;
   const pineTrunkGeo = new THREE.CylinderGeometry(0.22, 0.34, 2.2, 5);
   pineTrunkGeo.translate(0, 1.1, 0);
 
@@ -1206,36 +1338,55 @@ export function buildWorldEnvironment(
   const pineFoliageMesh3 = new THREE.InstancedMesh(pineConeGeo3, matPineFoliage, PINE_COUNT);
 
   let pineAssigned = 0;
-  let attempts = 0;
-  while (pineAssigned < PINE_COUNT && attempts < 1200) {
-    attempts++;
-    // Sebar mengelompok di lereng bukit dan tepi luar padang rumput
-    const px = -240 + Math.random() * 320;
-    const pz = -40 + Math.random() * 210;
+  let pineAttempts = 0;
+  while (pineAssigned < PINE_COUNT && pineAttempts < 800) {
+    pineAttempts++;
+    // Tentukan pusat rumpun pohon cemara (Cluster Center) di dataran hijau luas
+    const cx = -260 + Math.random() * 380; // Cakupan: -260 s.d 120 (termasuk X: -77)
+    const cz = -150 + Math.random() * 320; // Cakupan: -150 s.d 170 (termasuk Z: -45)
 
-    // Larangan menabrak jalur jalan (margin > 3.8m), pekarangan desa, dan zona pantai
-    if (isPointNearRoad(px, pz, 3.8)) continue;
-    if (isInsideFarmYard(px, pz)) continue;
-    if (px < -400 && pz > -250 && pz < -40) continue; // Pesisir pantai khusus pohon kelapa
-    // Jangan spawn di dalam danau, kawah, atau safe zone tengah desa / outpost
-    if (Math.hypot(px - 0, pz - 180) < 38) continue;
-    if (Math.hypot(px - -196, pz - -254) < 45) continue;
-    if (Math.hypot(px - -250, pz - -35) < 32) continue; // Outpost inner
+    // Pengecualian Padang Gurun (X > 150 & Z < -100)
+    if (cx > 150 && cz < -100) continue;
+    // Pengecualian Pesisir Pantai Barat khusus Pohon Kelapa
+    if (cx < -400 && cz > -250 && cz < -40) continue;
+    // Pengecualian Area Desa & Pemukiman (Pertahankan Datar 0, tidak ditumbuhi pohon liar)
+    if (Math.hypot(cx - 10, cz - 110) < 54) continue;
+    if (Math.hypot(cx - 0, cz - 180) < 40) continue;
+    if (Math.hypot(cx - -196, cz - -254) < 45) continue;
+    if (Math.hypot(cx - -250, cz - -35) < 32) continue; // Outpost inner
+    if (isInsideFarmYard(cx, cz)) continue;
 
-    const py = getTerrainHeight(px, pz);
-    if (py < 0.25 || py > 3.8) continue;
+    // Rumpun 3 s.d 7 pohon cemara per cluster
+    const clusterSize = 3 + Math.floor(Math.random() * 5);
+    const clusterRadius = 4.0 + Math.random() * 6.5;
 
-    const s = 0.85 + Math.random() * 0.45;
-    dummy.position.set(px, py, pz);
-    dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-    dummy.scale.set(s, s, s);
-    dummy.updateMatrix();
+    for (let c = 0; c < clusterSize && pineAssigned < PINE_COUNT; c++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = c === 0 ? 0 : 1.5 + Math.random() * (clusterRadius - 1.5);
+      const px = cx + Math.cos(angle) * dist;
+      const pz = cz + Math.sin(angle) * dist;
 
-    pineTrunkMesh.setMatrixAt(pineAssigned, dummy.matrix);
-    pineFoliageMesh1.setMatrixAt(pineAssigned, dummy.matrix);
-    pineFoliageMesh2.setMatrixAt(pineAssigned, dummy.matrix);
-    pineFoliageMesh3.setMatrixAt(pineAssigned, dummy.matrix);
-    pineAssigned++;
+      // Road Clearance minimal 3.2 unit agar tidak menabrak jalur jalan
+      if (isPointNearRoad(px, pz, 3.2)) continue;
+      if (isInsideFarmYard(px, pz)) continue;
+      if (Math.hypot(px - 10, pz - 110) < 50) continue;
+      if (px > 150 && pz < -100) continue;
+
+      const py = getTerrainHeight(px, pz);
+      if (py < 0.0 || py > 4.2) continue; // Tidak boleh di bawah air
+
+      const s = 0.8 + Math.random() * 0.55;
+      dummy.position.set(px, py, pz);
+      dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+      dummy.scale.set(s, s, s);
+      dummy.updateMatrix();
+
+      pineTrunkMesh.setMatrixAt(pineAssigned, dummy.matrix);
+      pineFoliageMesh1.setMatrixAt(pineAssigned, dummy.matrix);
+      pineFoliageMesh2.setMatrixAt(pineAssigned, dummy.matrix);
+      pineFoliageMesh3.setMatrixAt(pineAssigned, dummy.matrix);
+      pineAssigned++;
+    }
   }
   pineTrunkMesh.instanceMatrix.needsUpdate = true;
   pineFoliageMesh1.instanceMatrix.needsUpdate = true;
@@ -1243,8 +1394,8 @@ export function buildWorldEnvironment(
   pineFoliageMesh3.instanceMatrix.needsUpdate = true;
   envGroup.add(pineTrunkMesh, pineFoliageMesh1, pineFoliageMesh2, pineFoliageMesh3);
 
-  // 2. POHON RINDANG BULAT (OAK TREES): 80 Instances
-  const OAK_COUNT = 80;
+  // 2. POHON RINDANG BULAT BERUMPUN (CLUSTERED OAK TREES): 220 Instances
+  const OAK_COUNT = 220;
   const oakTrunkGeo = new THREE.CylinderGeometry(0.32, 0.46, 2.6, 6);
   oakTrunkGeo.translate(0, 1.3, 0);
   const oakCrownGeo = new THREE.DodecahedronGeometry(2.1, 0);
@@ -1254,97 +1405,153 @@ export function buildWorldEnvironment(
   const oakCrownMesh = new THREE.InstancedMesh(oakCrownGeo, matOakFoliage, OAK_COUNT);
 
   let oakAssigned = 0;
-  attempts = 0;
-  while (oakAssigned < OAK_COUNT && attempts < 900) {
-    attempts++;
-    // Tersebar di padang rumput antara desa dan reruntuhan
-    const ox = -140 + Math.random() * 220;
-    const oz = 40 + Math.random() * 130;
+  let oakAttempts = 0;
+  while (oakAssigned < OAK_COUNT && oakAttempts < 650) {
+    oakAttempts++;
+    // Tentukan pusat rumpun pohon oak di padang rumput hijau luas
+    const cx = -240 + Math.random() * 340; // -240 s.d 100
+    const cz = -140 + Math.random() * 300; // -140 s.d 160
 
-    if (isPointNearRoad(ox, oz, 4.0)) continue;
-    if (isInsideFarmYard(ox, oz)) continue;
-    if (Math.hypot(ox - 0, oz - 180) < 42) continue;
-    if (Math.hypot(ox - ruinsCenterX, oz - ruinsCenterZ) < 26) continue;
+    if (cx > 150 && cz < -100) continue; // Pengecualian Gurun
+    if (Math.hypot(cx - 10, cz - 110) < 54) continue;
+    if (Math.hypot(cx - 0, cz - 180) < 40) continue;
+    if (Math.hypot(cx - ruinsCenterX, cz - ruinsCenterZ) < 26) continue;
+    if (Math.hypot(cx - -250, cz - -35) < 32) continue;
+    if (isInsideFarmYard(cx, cz)) continue;
 
-    const oy = getTerrainHeight(ox, oz);
-    if (oy < 0.25 || oy > 3.0) continue;
+    // Rumpun 3 s.d 6 pohon oak per cluster
+    const clusterSize = 3 + Math.floor(Math.random() * 4);
+    const clusterRadius = 4.5 + Math.random() * 7.0;
 
-    const s = 0.8 + Math.random() * 0.5;
-    dummy.position.set(ox, oy, oz);
-    dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-    dummy.scale.set(s, s * 1.05, s);
-    dummy.updateMatrix();
+    for (let c = 0; c < clusterSize && oakAssigned < OAK_COUNT; c++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = c === 0 ? 0 : 2.0 + Math.random() * (clusterRadius - 2.0);
+      const ox = cx + Math.cos(angle) * dist;
+      const oz = cz + Math.sin(angle) * dist;
 
-    oakTrunkMesh.setMatrixAt(oakAssigned, dummy.matrix);
-    oakCrownMesh.setMatrixAt(oakAssigned, dummy.matrix);
-    oakAssigned++;
+      if (isPointNearRoad(ox, oz, 3.2)) continue;
+      if (isInsideFarmYard(ox, oz)) continue;
+      if (Math.hypot(ox - 10, oz - 110) < 50) continue;
+      if (ox > 150 && oz < -100) continue;
+
+      const oy = getTerrainHeight(ox, oz);
+      if (oy < 0.0 || oy > 3.8) continue;
+
+      const s = 0.8 + Math.random() * 0.55;
+      dummy.position.set(ox, oy, oz);
+      dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+      dummy.scale.set(s, s * 1.05, s);
+      dummy.updateMatrix();
+
+      oakTrunkMesh.setMatrixAt(oakAssigned, dummy.matrix);
+      oakCrownMesh.setMatrixAt(oakAssigned, dummy.matrix);
+      oakAssigned++;
+    }
   }
   oakTrunkMesh.instanceMatrix.needsUpdate = true;
   oakCrownMesh.instanceMatrix.needsUpdate = true;
   envGroup.add(oakTrunkMesh, oakCrownMesh);
 
-  // 3. FORMASI BATU ALAM (BOULDERS): 150 Instances
-  const BOULDER_COUNT = 150;
+  // 3. FORMASI BEBATUAN ALAM (GRANITE BOULDER FORMATIONS): 320 Instances
+  // 1 Batu besar sentral dikelilingi 2-3 batu kerikil kecil satelit (Skala 0.7 s.d 1.5)
+  const BOULDER_COUNT = 320;
   const boulderGeo = new THREE.DodecahedronGeometry(1.0, 0);
   const boulderMesh = new THREE.InstancedMesh(boulderGeo, matBoulder, BOULDER_COUNT);
 
   let boulderAssigned = 0;
-  attempts = 0;
-  while (boulderAssigned < BOULDER_COUNT && attempts < 1400) {
-    attempts++;
-    const bx = -280 + Math.random() * 380;
-    const bz = -50 + Math.random() * 240;
+  let boulderAttempts = 0;
+  while (boulderAssigned < BOULDER_COUNT && boulderAttempts < 700) {
+    boulderAttempts++;
+    const cx = -270 + Math.random() * 380; // -270 s.d 110
+    const cz = -150 + Math.random() * 320; // -150 s.d 170
 
-    if (isPointNearRoad(bx, bz, 3.6)) continue;
-    if (isInsideFarmYard(bx, bz)) continue;
-    if (Math.hypot(bx - 0, bz - 180) < 35) continue;
+    if (cx > 150 && cz < -100) continue; // Pengecualian gurun
+    if (Math.hypot(cx - 10, cz - 110) < 52) continue;
+    if (Math.hypot(cx - 0, cz - 180) < 35) continue;
+    if (isInsideFarmYard(cx, cz)) continue;
+    if (isPointNearRoad(cx, cz, 3.2)) continue;
 
-    const by = getTerrainHeight(bx, bz);
-    if (by < 0.2) continue;
+    const cy = getTerrainHeight(cx, cz);
+    if (cy < 0.0) continue;
 
-    const scaleX = 0.6 + Math.random() * 1.5;
-    const scaleY = 0.5 + Math.random() * 1.2;
-    const scaleZ = 0.6 + Math.random() * 1.5;
-
-    dummy.position.set(bx, by + scaleY * 0.45, bz);
+    // 1. Batu Besar Pusat (scale 1.0 s.d 1.55)
+    const bigScale = 0.95 + Math.random() * 0.55;
+    const bigScaleY = bigScale * (0.8 + Math.random() * 0.4);
+    dummy.position.set(cx, cy + bigScaleY * 0.38, cz);
     dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-    dummy.scale.set(scaleX, scaleY, scaleZ);
+    dummy.scale.set(bigScale, bigScaleY, bigScale);
     dummy.updateMatrix();
-
     boulderMesh.setMatrixAt(boulderAssigned, dummy.matrix);
     boulderAssigned++;
+
+    // 2. Satelit 2-3 Batu Kerikil Kecil di sekelilingnya
+    const satCount = 2 + Math.floor(Math.random() * 2);
+    for (let s = 0; s < satCount && boulderAssigned < BOULDER_COUNT; s++) {
+      const sAngle = Math.random() * Math.PI * 2;
+      const sDist = 1.6 + Math.random() * 2.2;
+      const bx = cx + Math.cos(sAngle) * sDist;
+      const bz = cz + Math.sin(sAngle) * sDist;
+
+      if (isPointNearRoad(bx, bz, 3.0)) continue;
+      const by = getTerrainHeight(bx, bz);
+      if (by < 0.0) continue;
+
+      const smallScale = 0.4 + Math.random() * 0.45;
+      const smallScaleY = smallScale * (0.7 + Math.random() * 0.5);
+      dummy.position.set(bx, by + smallScaleY * 0.35, bz);
+      dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      dummy.scale.set(smallScale, smallScaleY, smallScale);
+      dummy.updateMatrix();
+      boulderMesh.setMatrixAt(boulderAssigned, dummy.matrix);
+      boulderAssigned++;
+    }
   }
   boulderMesh.instanceMatrix.needsUpdate = true;
   envGroup.add(boulderMesh);
 
-  // 4. RUMPUN SEMAK & BUNGA LIAR (SHRUBS): 200 Instances
-  const SHRUB_COUNT = 200;
+  // 4. RUMPUN SEMAK LIAR & BUNGA PADANG RUMPUT (SHRUBS): 500 Instances
+  // Sebarkan semak-semak hijau tua, hijau muda, dan bunga padang rumput rendah di sekitar lereng bukit
+  const SHRUB_COUNT = 500;
   const shrubGeo = new THREE.DodecahedronGeometry(0.65, 0);
   const shrubMesh = new THREE.InstancedMesh(shrubGeo, matShrub, SHRUB_COUNT);
 
   let shrubAssigned = 0;
-  attempts = 0;
-  while (shrubAssigned < SHRUB_COUNT && attempts < 1600) {
-    attempts++;
-    // Ditebar menyusuri tepian luar jalur setapak (jarak aman 3.5m - 8.0m)
-    const sx = -220 + Math.random() * 320;
-    const sz = 20 + Math.random() * 170;
+  let shrubAttempts = 0;
+  while (shrubAssigned < SHRUB_COUNT && shrubAttempts < 1000) {
+    shrubAttempts++;
+    const cx = -260 + Math.random() * 370;
+    const cz = -150 + Math.random() * 320;
 
-    // Harus berada di luar badan jalan (road clearance >= 3.5m) dan di luar pekarangan kebun
-    if (isPointNearRoad(sx, sz, 3.5)) continue;
-    if (isInsideFarmYard(sx, sz)) continue;
+    if (cx > 150 && cz < -100) continue; // Pengecualian Gurun
+    if (Math.hypot(cx - 10, cz - 110) < 52) continue;
+    if (isInsideFarmYard(cx, cz)) continue;
 
-    const sy = getTerrainHeight(sx, sz);
-    if (sy < 0.2) continue;
+    // Rumpun 3 s.d 6 semak
+    const shrubClusterSize = 3 + Math.floor(Math.random() * 4);
+    const shrubRadius = 2.5 + Math.random() * 4.5;
 
-    const s = 0.6 + Math.random() * 0.7;
-    dummy.position.set(sx, sy + s * 0.35, sz);
-    dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-    dummy.scale.set(s * (0.8 + Math.random() * 0.4), s * 0.7, s * (0.8 + Math.random() * 0.4));
-    dummy.updateMatrix();
+    for (let sc = 0; sc < shrubClusterSize && shrubAssigned < SHRUB_COUNT; sc++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = sc === 0 ? 0 : 0.8 + Math.random() * (shrubRadius - 0.8);
+      const sx = cx + Math.cos(angle) * dist;
+      const sz = cz + Math.sin(angle) * dist;
 
-    shrubMesh.setMatrixAt(shrubAssigned, dummy.matrix);
-    shrubAssigned++;
+      if (isPointNearRoad(sx, sz, 3.2)) continue;
+      if (isInsideFarmYard(sx, sz)) continue;
+      if (sx > 150 && sz < -100) continue;
+
+      const sy = getTerrainHeight(sx, sz);
+      if (sy < 0.0) continue;
+
+      const s = 0.55 + Math.random() * 0.65;
+      dummy.position.set(sx, sy + s * 0.32, sz);
+      dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+      dummy.scale.set(s * (0.8 + Math.random() * 0.4), s * 0.7, s * (0.8 + Math.random() * 0.4));
+      dummy.updateMatrix();
+
+      shrubMesh.setMatrixAt(shrubAssigned, dummy.matrix);
+      shrubAssigned++;
+    }
   }
   shrubMesh.instanceMatrix.needsUpdate = true;
   envGroup.add(shrubMesh);
@@ -1355,9 +1562,9 @@ export function buildWorldEnvironment(
   const reefStoneMesh = new THREE.InstancedMesh(reefStoneGeo, matWetSeaRock, REEF_STONE_COUNT);
 
   let reefAssigned = 0;
-  attempts = 0;
-  while (reefAssigned < REEF_STONE_COUNT && attempts < 500) {
-    attempts++;
+  let reefAttempts = 0;
+  while (reefAssigned < REEF_STONE_COUNT && reefAttempts < 500) {
+    reefAttempts++;
     const rx = -410 - Math.random() * 38;
     const rz = -50 - Math.random() * 190;
     const ry = getTerrainHeight(rx, rz);
@@ -1383,9 +1590,9 @@ export function buildWorldEnvironment(
   const beachGrassMesh = new THREE.InstancedMesh(beachGrassGeo, matBeachGrass, BEACH_GRASS_COUNT);
 
   let bgAssigned = 0;
-  attempts = 0;
-  while (bgAssigned < BEACH_GRASS_COUNT && attempts < 600) {
-    attempts++;
+  let bgAttempts = 0;
+  while (bgAssigned < BEACH_GRASS_COUNT && bgAttempts < 600) {
+    bgAttempts++;
     const gx = -402 - Math.random() * 26;
     const gz = -55 - Math.random() * 180;
     const gy = getTerrainHeight(gx, gz);

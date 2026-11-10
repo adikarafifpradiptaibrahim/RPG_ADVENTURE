@@ -165,6 +165,31 @@ export interface WorldObjects {
   getTerrainHeight: (x: number, z: number) => number;
 }
 
+/**
+ * Standalone terrain elevation calculator matching procedural continental heights
+ */
+export function getTerrainHeight(x: number, z: number): number {
+  // 1. Pengecualian Area Desa & Pemukiman (Pertahankan Datar 0 agar bangunan tidak amblas/melayang)
+  const distToVillage = Math.hypot(x - 10, z - 110);
+  if (distToVillage < 50) return 0;
+
+  // 2. Pengecualian Padang Gurun (pertahankan logika gurun atau 0)
+  const isDesertArea = (x > 150 && z < -100);
+  if (isDesertArea) return getProceduralContinentHeight(x, z);
+
+  // 3. Blending halus di batas pinggiran desa
+  const villageBlend = Math.min(1, Math.max(0, (distToVillage - 50) / 25));
+
+  // 4. Perlin / Multi-frequency Sinusoidal Noise (Kontur Lembut & Landai, Tidak Terlalu Tinggi)
+  const baseNoise = 
+    Math.sin(x * 0.015 + z * 0.010) * 1.1 +
+    Math.cos(x * 0.008 - z * 0.014) * 0.9 +
+    Math.sin((x + z) * 0.025) * 0.5;
+
+  // Ketinggian bukit landai berkisar antara 0 hingga 2.2 unit
+  return Math.min(2.2, Math.max(0.0, baseNoise * villageBlend * 1.6));
+}
+
 export function buildWorld(scene: THREE.Scene): WorldObjects {
   const decorativeProps: THREE.Object3D[] = [];
   const pointLights: THREE.PointLight[] = [];
@@ -222,6 +247,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     colors.push(sample.color[0] / 255, sample.color[1] / 255, sample.color[2] / 255);
   }
 
+  posAttr.needsUpdate = true;
   terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   terrainGeo.computeVertexNormals();
 

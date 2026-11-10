@@ -51,6 +51,7 @@ import {
   BANDIT_OUTPOST_SPAWNS,
   SAVANNA_HILL_SPAWNS,
   COASTAL_BEACH_SPAWNS,
+  PLAINS_WOLF_SPAWNS,
 } from '../monsters';
 import {
   clampCameraPitch,
@@ -156,6 +157,32 @@ export interface GameEngineCallbacks {
     attackerName: string;
     newHp?: number;
   }) => void;
+}
+
+/**
+ * Kalkulasi elevasi ketinggian tanah perlin noise landai (kontur lembut bukit padang rumput)
+ * Pengecualian desa (datar 0) dan padang gurun
+ */
+export function getTerrainHeight(x: number, z: number): number {
+  // 1. Pengecualian Area Desa & Pemukiman (Pertahankan Datar 0 agar bangunan tidak amblas/melayang)
+  const distToVillage = Math.hypot(x - 10, z - 110);
+  if (distToVillage < 50) return 0;
+
+  // 2. Pengecualian Padang Gurun (misal area X tertentu atau zona bertema gurun)
+  const isDesertArea = (x > 150 && z < -100);
+  if (isDesertArea) return 0;
+
+  // 3. Blending halus di batas pinggiran desa
+  const villageBlend = Math.min(1, Math.max(0, (distToVillage - 50) / 25));
+
+  // 4. Perlin / Multi-frequency Sinusoidal Noise (Kontur Lembut & Landai, Tidak Terlalu Tinggi)
+  const baseNoise = 
+    Math.sin(x * 0.015 + z * 0.010) * 1.1 +
+    Math.cos(x * 0.008 - z * 0.014) * 0.9 +
+    Math.sin((x + z) * 0.025) * 0.5;
+
+  // Ketinggian maksimum bukit landai berkisar antara 1.2 hingga 2.2 unit
+  return baseNoise * villageBlend * 1.6;
 }
 
 interface TownZoneTrigger {
@@ -2044,6 +2071,50 @@ export class GameEngine {
         isDead: false,
         dropItems: [
           { item: CHEST_LOOT_POOL[0], chance: 0.35 },
+          { item: CHEST_LOOT_POOL[2], chance: 0.3 },
+        ],
+      };
+
+      this.enemies.push({
+        data: enemyData,
+        mesh: group,
+        parts,
+        baseY: ey,
+        attackCooldown: 0,
+        walkCycle: Math.random() * 10,
+        spawnPos: new THREE.Vector3(sp.pos[0], ey, sp.pos[1]),
+        leashRadius: 22,
+        isReturning: false,
+        deathTimer: 0,
+      });
+    });
+
+    // 22. Cekungan Monster Liar Padang Rumput Utara (Zone G: X -80..-110, Z -50..-80) - Serigala Belantara Level 3-4 (> 190 unit dari desa)
+    PLAINS_WOLF_SPAWNS.forEach((sp) => {
+      const { group, parts } = createEnemyMesh(sp.type);
+      const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
+      group.position.set(sp.pos[0], ey, sp.pos[1]);
+      this.scene.add(group);
+
+      const enemyData: EnemyData = {
+        id: sp.id,
+        name: sp.name,
+        nameId: sp.nameId,
+        type: sp.type,
+        level: sp.level,
+        hp: sp.hp,
+        maxHp: sp.maxHp,
+        attack: sp.attack,
+        defense: sp.defense,
+        expReward: sp.expReward,
+        goldReward: sp.goldReward,
+        speed: 3.5,
+        attackRange: 2.2,
+        detectRange: sp.aggroRange,
+        position: [sp.pos[0], ey, sp.pos[1]],
+        isDead: false,
+        dropItems: [
+          { item: CHEST_LOOT_POOL[0], chance: 0.4 },
           { item: CHEST_LOOT_POOL[2], chance: 0.3 },
         ],
       };

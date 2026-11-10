@@ -219,10 +219,10 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return Math.max(-1.5, 0.5 - t * 2.2);
   }
 
-  // 4h. Absolute Flat Zone: Area Desa & Pemukiman (X: -50 s.d 80, Z: 60 s.d 160)
+  // 4h. Absolute Flat Zone: Area Desa & Pemukiman (Pertahankan Datar 0 agar bangunan tidak amblas/melayang)
   const distToVillage = Math.hypot(x - 10, z - 110);
-  if (distToVillage < 55) {
-    return 0; // Tetap datar 0 agar bangunan, air mancur, dan jalan tidak melayang/amblas
+  if (distToVillage < 50) {
+    return 0;
   }
 
   // 4i. Flattened road paths di luar desa (jalan setapak batu tetap rata agar tidak ada objek melayang)
@@ -230,16 +230,17 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return 0.35;
   }
 
-  // 2. Transisi blending halus (lerp) dari perbatasan desa ke padang terbuka
-  const blendFactor = Math.min(1, Math.max(0, (distToVillage - 55) / 30));
+  // 3. Blending halus di batas pinggiran desa
+  const villageBlend = Math.min(1, Math.max(0, (distToVillage - 50) / 25));
 
-  // 3. Elevasi Perlin Noise landai (frekuensi rendah, puncak tidak runcing)
-  const rawNoise =
-    Math.sin(x * 0.018 + z * 0.012) * 1.0 +
-    Math.cos(x * 0.008 - z * 0.016) * 0.8 +
-    Math.sin((x + z) * 0.03) * 0.4;
+  // 4. Perlin / Multi-frequency Sinusoidal Noise (Kontur Lembut & Landai, Tidak Terlalu Tinggi)
+  const baseNoise =
+    Math.sin(x * 0.015 + z * 0.010) * 1.1 +
+    Math.cos(x * 0.008 - z * 0.014) * 0.9 +
+    Math.sin((x + z) * 0.025) * 0.5;
 
-  const perlinElevation = clamp(Math.max(0.0, rawNoise * blendFactor * 1.5), 0.0, 2.0);
+  // Ketinggian bukit landai berkisar antara 0 hingga 2.2 unit (puncak bukit 1.2 s.d 2.2)
+  const perlinElevation = clamp(Math.max(0.0, baseNoise * villageBlend * 1.6), 0.0, 2.2);
 
   // Smooth blending at road borders (buffer 2.0 unit)
   if (isPointNearRoad(x, z, 2.0)) {
