@@ -6852,10 +6852,16 @@ export class GameEngine {
       }
     }
 
-    // Pastikan rotasi torso/body Assassin pada sumbu Z selalu dikunci tepat di angka 0 (Anti-Lean / Always Upright):
-    if (this.playerMesh && this.playerMesh.body) {
-      this.playerMesh.body.rotation.reorder('YXZ');
-      this.playerMesh.body.rotation.z = 0;
+    // Kunci mutlak agar badan selalu tegak lurus sempurna di setiap frame (di loop update karakter):
+    if (this.playerMesh) {
+      if (this.playerMesh.body) {
+        this.playerMesh.body.rotation.reorder('YXZ');
+        this.playerMesh.body.rotation.z = 0; // KUNCI MUTLAK: DILARANG MIRING
+      }
+      this.playerMesh.group.rotation.z = 0; // KUNCI MUTLAK ROOT MESH
+      if (this.playerMesh.rotation) {
+        this.playerMesh.rotation.z = 0; // KUNCI MUTLAK ROOT MESH
+      }
       if (!this.isAttacking) {
         this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y || 0, 0, 0.2);
         if (Math.abs(this.playerMesh.body.rotation.y) < 0.001) {

@@ -71,6 +71,9 @@ export function animateAssassin(
   if (mesh.group) {
     mesh.group.rotation.z = 0;
   }
+  if (mesh.rotation) {
+    mesh.rotation.z = 0;
+  }
 }
 
 export const updateAssassinPose = animateAssassin;

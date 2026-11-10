@@ -498,6 +498,7 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
     charClass,
     tier,
     orbitingOrbs,
+    rotation: root.rotation,
     wings,
     halo,
     halo2,

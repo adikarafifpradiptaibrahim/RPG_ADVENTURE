@@ -93,6 +93,7 @@ export const createPaletteMaterials = () => {
 
 export interface PlayerMeshObjects {
   group: THREE.Group;
+  rotation?: THREE.Euler;
   leftArm: THREE.Group;
   rightArm: THREE.Group;
   leftForearm?: THREE.Group;
@@ -130,15 +131,18 @@ export interface PlayerMeshObjects {
 }
 
 export function createPlayerMesh(charClass: CharacterClass = 'warrior', tier: number = 1): PlayerMeshObjects {
+  let mesh: PlayerMeshObjects;
   if ((charClass as string) === 'warrior') {
-    return USE_LEGACY_KNIGHT ? createLegacyKnightMesh(tier) : createHeroicKnightMesh(tier);
+    mesh = USE_LEGACY_KNIGHT ? createLegacyKnightMesh(tier) : createHeroicKnightMesh(tier);
+  } else if ((charClass as string) === 'mage') {
+    mesh = USE_LEGACY_MAGE ? createLegacyMageMesh(tier) : createHeroicMageMesh(tier);
+  } else if ((charClass as string) === 'rogue') {
+    mesh = USE_LEGACY_HUNTER ? createLegacyHunterMesh(tier) : createBlockyHunterMesh(tier);
+  } else {
+    mesh = createHeroicKnightMesh(tier);
   }
-  if ((charClass as string) === 'mage') {
-    return USE_LEGACY_MAGE ? createLegacyMageMesh(tier) : createHeroicMageMesh(tier);
-  }
-  if ((charClass as string) === 'rogue') {
-    return USE_LEGACY_HUNTER ? createLegacyHunterMesh(tier) : createBlockyHunterMesh(tier);
-  }
+  mesh.rotation = mesh.group.rotation;
+  return mesh;
 
   const group = new THREE.Group();
 
