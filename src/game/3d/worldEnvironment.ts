@@ -73,6 +73,10 @@ export function buildWorldEnvironment(
   const matIronBands = new THREE.MeshStandardMaterial({ color: 0x374151, roughness: 0.6, metalness: 0.7 });
   const matWineBarrel = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.85, flatShading: true });
   const matBeachGrass = new THREE.MeshStandardMaterial({ color: 0xa3a658, roughness: 0.9, flatShading: true });
+  const matPineFoliage = new THREE.MeshStandardMaterial({ color: 0x1e3a1e, roughness: 0.85, flatShading: true });
+  const matOakFoliage = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.8, flatShading: true });
+  const matBoulder = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9, flatShading: true });
+  const matShrub = new THREE.MeshStandardMaterial({ color: 0x3f6212, roughness: 0.85, flatShading: true });
 
   // Helper deteksi batas pekarangan pertanian untuk isolasi vegetasi instanced & bebatuan alami
   function isInsideFarmYard(x: number, z: number): boolean {
@@ -1196,7 +1200,6 @@ export function buildWorldEnvironment(
   const pineConeGeo3 = new THREE.ConeGeometry(0.85, 1.6, 5);
   pineConeGeo3.translate(0, 4.6, 0);
 
-  const matPineFoliage = new THREE.MeshStandardMaterial({ color: 0x1e3a1e, roughness: 0.85, flatShading: true });
   const pineTrunkMesh = new THREE.InstancedMesh(pineTrunkGeo, matWoodRustic, PINE_COUNT);
   const pineFoliageMesh1 = new THREE.InstancedMesh(pineConeGeo1, matPineFoliage, PINE_COUNT);
   const pineFoliageMesh2 = new THREE.InstancedMesh(pineConeGeo2, matPineFoliage, PINE_COUNT);
@@ -1247,7 +1250,6 @@ export function buildWorldEnvironment(
   const oakCrownGeo = new THREE.DodecahedronGeometry(2.1, 0);
   oakCrownGeo.translate(0, 3.8, 0);
 
-  const matOakFoliage = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.8, flatShading: true });
   const oakTrunkMesh = new THREE.InstancedMesh(oakTrunkGeo, matWoodRustic, OAK_COUNT);
   const oakCrownMesh = new THREE.InstancedMesh(oakCrownGeo, matOakFoliage, OAK_COUNT);
 
@@ -1284,7 +1286,6 @@ export function buildWorldEnvironment(
   // 3. FORMASI BATU ALAM (BOULDERS): 150 Instances
   const BOULDER_COUNT = 150;
   const boulderGeo = new THREE.DodecahedronGeometry(1.0, 0);
-  const matBoulder = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9, flatShading: true });
   const boulderMesh = new THREE.InstancedMesh(boulderGeo, matBoulder, BOULDER_COUNT);
 
   let boulderAssigned = 0;
@@ -1319,7 +1320,6 @@ export function buildWorldEnvironment(
   // 4. RUMPUN SEMAK & BUNGA LIAR (SHRUBS): 200 Instances
   const SHRUB_COUNT = 200;
   const shrubGeo = new THREE.DodecahedronGeometry(0.65, 0);
-  const matShrub = new THREE.MeshStandardMaterial({ color: 0x3f6212, roughness: 0.85, flatShading: true });
   const shrubMesh = new THREE.InstancedMesh(shrubGeo, matShrub, SHRUB_COUNT);
 
   let shrubAssigned = 0;
