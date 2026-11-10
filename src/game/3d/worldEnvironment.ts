@@ -551,6 +551,7 @@ export function buildWorldEnvironment(
   ];
 
   deadTrees.forEach((dt) => {
+    if (isDesertBiome(dt.x, dt.z)) return;
     const dy = getTerrainHeight(dt.x, dt.z);
     const dTree = new THREE.Group();
     dTree.position.set(dt.x, dy, dt.z);
@@ -947,6 +948,7 @@ export function buildWorldEnvironment(
   ];
 
   hillPines.forEach((hp) => {
+    if (isDesertBiome(hp.x, hp.z)) return;
     const hy = getTerrainHeight(hp.x, hp.z);
     const pGroup = new THREE.Group();
     pGroup.position.set(hp.x, hy, hp.z);
@@ -979,6 +981,7 @@ export function buildWorldEnvironment(
   ];
 
   hillOaks.forEach((ho) => {
+    if (isDesertBiome(ho.x, ho.z)) return;
     const oy = getTerrainHeight(ho.x, ho.z);
     const oGroup = new THREE.Group();
     oGroup.position.set(ho.x, oy, ho.z);
@@ -1272,6 +1275,7 @@ export function buildWorldEnvironment(
     { x: -94, z: -76 },
   ];
   deadTreeCoords.forEach((dt) => {
+    if (isDesertBiome(dt.x, dt.z)) return;
     const dty = getTerrainHeight(dt.x, dt.z);
     const deadTree = new THREE.Group();
     deadTree.position.set(dt.x, dty, dt.z);
@@ -1611,6 +1615,7 @@ export function buildWorldEnvironment(
   for (let pt = 0; pt < 7; pt++) {
     const ptx = pineWoodX + (pt % 3) * 6.5 - 6.5;
     const ptz = pineWoodZ + Math.floor(pt / 3) * 7.0 - 7.0;
+    if (isDesertBiome(ptx, ptz)) continue;
     const pty = getTerrainHeight(ptx, ptz);
 
     const fPineTrunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.45, 3.2, 5), matWoodDark);
@@ -1887,6 +1892,7 @@ export function buildWorldEnvironment(
     reefAttempts++;
     const rx = -410 - Math.random() * 38;
     const rz = -50 - Math.random() * 190;
+    if (isDesertBiome(rx, rz)) continue;
     const ry = getTerrainHeight(rx, rz);
 
     const sX = 0.8 + Math.random() * 1.4;
@@ -1915,6 +1921,7 @@ export function buildWorldEnvironment(
     bgAttempts++;
     const gx = -402 - Math.random() * 26;
     const gz = -55 - Math.random() * 180;
+    if (isDesertBiome(gx, gz)) continue;
     const gy = getTerrainHeight(gx, gz);
     if (gy < 0.25) continue; // Di atas garis air laut
 

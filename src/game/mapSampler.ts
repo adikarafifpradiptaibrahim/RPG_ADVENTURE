@@ -37,6 +37,27 @@ function clamp(val: number, min: number, max: number): number {
 }
 
 /**
+ * Kalkulasi sumbu Z kurva batas selatan Gurun Solaria berdasarkan koordinat X.
+ * Garis batas referensi melewati titik: (-80, -420), (0, -320), (80, -180), (160, -140), (280, -220).
+ * Nilai Z di utara garis ini (Z < zBoundary) adalah Gurun Solaria.
+ */
+export function getDesertBoundaryZ(x: number): number {
+  if (x < 80) {
+    // Lengkungan naik tajam ke arah barat laut: (-80, -420) -> (0, -320) -> (80, -180)
+    // Di x = 3, zBoundary = -315.5 sehingga koordinat (3, -295) berada di selatan garis (Padang Rumput Eldoria)
+    return 0.003125 * x * x + 1.5 * x - 320;
+  } else if (x <= 280) {
+    // Lengkungan ke arah timur laut: (80, -180) -> (160, -140) -> (280, -220)
+    const t = x - 160;
+    return (-7 / 1200) * t * t + (1 / 30) * t - 140;
+  } else {
+    // Koridor Timur Gurun Solaria (Bazaar [250, -280], Istana Sultan [340, -280], Kawah Sandworm [495, -362])
+    // Batas selatan gurun stabil di Z: -220 s.d -200, mengunci Desa Benteng Val-Kragor (Z: 80) murni Padang Rumput Eldoria
+    return -220 + Math.min(20, (x - 280) * 0.08);
+  }
+}
+
+/**
  * DEFINISI BATAS BIOME PRESISI (SINGLE SOURCE OF TRUTH)
  * Kurva matematis batas selatan Gurun Solaria vs Padang Rumput Eldoria
  * Garis batas referensi melewati titik: (-80, -420), (0, -320), (80, -180), (160, -140), (280, -220)
@@ -46,23 +67,21 @@ function clamp(val: number, min: number, max: number): number {
  */
 export function isDesertBiome(x: number, z: number): boolean {
   if (x <= -120) return false;
+  return z < getDesertBoundaryZ(x);
+}
 
-  let zBoundary = -140;
-  if (x < 80) {
-    // Lengkungan naik tajam ke arah barat laut: (-80, -420) -> (0, -320) -> (80, -180)
-    // Di x = 3, zBoundary = -315.5 sehingga koordinat (3, -295) berada di selatan garis (Padang Rumput Eldoria)
-    zBoundary = 0.003125 * x * x + 1.5 * x - 320;
-  } else if (x <= 280) {
-    // Lengkungan ke arah timur laut: (80, -180) -> (160, -140) -> (280, -220)
-    const t = x - 160;
-    zBoundary = (-7 / 1200) * t * t + (1 / 30) * t - 140;
-  } else {
-    // Koridor Timur Gurun Solaria (Bazaar [250, -280], Istana Sultan [340, -280], Kawah Sandworm [495, -362])
-    // Batas selatan gurun stabil di Z: -220 s.d -200, mengunci Desa Benteng Val-Kragor (Z: 80) murni Padang Rumput Eldoria
-    zBoundary = -220 + Math.min(20, (x - 280) * 0.08);
-  }
-
-  return z < zBoundary && x > -120;
+/**
+ * Faktor bobot blend transisi alami sempit selebar 5 unit (4-6 unit) di perbatasan Gurun Solaria vs Padang Rumput Eldoria.
+ * Return 1.0 = 100% Pasir Emas Solaria, 0.0 = 100% Hijau Segar Eldoria, 0.0..1.0 = Transisi halus (smoothstep).
+ */
+export function getDesertWeight(x: number, z: number): number {
+  if (x <= -125) return 0.0;
+  const xBlend = Math.max(0.0, Math.min(1.0, (x - -125) / 5.0));
+  const zBoundary = getDesertBoundaryZ(x);
+  const diffZ = z - zBoundary;
+  const s = Math.max(0.0, Math.min(1.0, 0.5 - diffZ / 5.0));
+  const zFactor = s * s * (3.0 - 2.0 * s);
+  return zFactor * xBlend;
 }
 
 /**
@@ -339,44 +358,33 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: y, color: [40, 36, 34], biomeId: 'dragon_basalt', isWater: false, isPath: false, slope };
   }
 
-  // 4. Desert Zone (Solaria)
-  if (zone.id === 'desert') {
-    // Road Network in Desert (Packed Caravan Sand Trail #d9be8b)
-    if (isPointOnRoad(x, z)) {
-      return { height: y, color: [217, 190, 139], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
-    }
-    // Paved Avenue between Bazaar [238, -280] & Palace [330, -280]
-    if (x >= 238 && x <= 330 && Math.abs(z - -280) <= 3.5) {
-      return { height: y, color: [217, 190, 139], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
-    }
-    // Pyramid [120, -280]
-    if (Math.hypot(x - 120, z - -280) <= 24) {
-      return { height: y, color: [220, 160, 40], biomeId: 'solaria_pyramid', isWater: false, isPath: false, slope };
-    }
-    // The Great Solaria Sinkhole - Sandworm Arena [495, -362]
-    const distSinkhole = Math.hypot(x - 495, z - -362);
-    if (distSinkhole <= 45) {
-      const t = distSinkhole / 45;
-      // Concentric swirling sand tones from amber rim to deep golden shadow pit
-      const swirl = Math.sin(Math.atan2(z - -362, x - 495) * 4 + distSinkhole * 0.5);
-      const r = Math.round(180 + t * 50 + swirl * 10);
-      const g = Math.round(110 + t * 65 + swirl * 8);
-      const b = Math.round(30 + t * 50);
-      return { height: y, color: [r, g, b], biomeId: 'solaria_sinkhole', isWater: false, isPath: false, slope };
-    }
-    // Rolling desert
-    const duneWave = Math.sin(x * 0.035 + z * 0.028);
-    const r = Math.round(234 + duneWave * 12);
-    const g = Math.round(179 + duneWave * 15);
-    const b = Math.round(8 + duneWave * 8);
-    return { height: y, color: [r, g, b], biomeId: 'solaria_desert', isWater: false, isPath: false, slope };
-  }
-
-  // 5. Plains Zone (Padang Rumput Eldoria)
-  // Road Network in Plains (Medieval Cobblestone Dirt Trail #8c7a65)
+  // 4. Special Roads & Paved Trails
   if (isPointOnRoad(x, z)) {
+    if (isDesertBiome(x, z)) {
+      return { height: y, color: [217, 190, 139], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
+    }
     return { height: y, color: [140, 122, 101], biomeId: 'eldoria_road', isWater: false, isPath: true, slope: 0 };
   }
+  // Paved Avenue between Bazaar [238, -280] & Palace [330, -280]
+  if (x >= 238 && x <= 330 && Math.abs(z - -280) <= 3.5) {
+    return { height: y, color: [217, 190, 139], biomeId: 'solaria_road', isWater: false, isPath: true, slope: 0 };
+  }
+  // Pyramid [120, -280]
+  if (Math.hypot(x - 120, z - -280) <= 24) {
+    return { height: y, color: [220, 160, 40], biomeId: 'solaria_pyramid', isWater: false, isPath: false, slope };
+  }
+  // The Great Solaria Sinkhole - Sandworm Arena [495, -362]
+  const distSinkhole = Math.hypot(x - 495, z - -362);
+  if (distSinkhole <= 45) {
+    const t = distSinkhole / 45;
+    const swirl = Math.sin(Math.atan2(z - -362, x - 495) * 4 + distSinkhole * 0.5);
+    const r = Math.round(180 + t * 50 + swirl * 10);
+    const g = Math.round(110 + t * 65 + swirl * 8);
+    const b = Math.round(30 + t * 50);
+    return { height: y, color: [r, g, b], biomeId: 'solaria_sinkhole', isWater: false, isPath: false, slope };
+  }
+
+  // 5. Special Plains Landmarks
   // Sanctuary Village Plaza
   if (Math.hypot(x, z - 180) <= 18) {
     return { height: y, color: [226, 218, 214], biomeId: 'eldoria_plaza', isWater: false, isPath: true, slope: 0 };
@@ -411,8 +419,34 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: y, color: [254, 215, 170], biomeId: 'beach_sand', isWater: false, isPath: false, slope };
   }
 
-  // Default green grass
-  return { height: y, color: [101, 163, 13], biomeId: 'plains_grass', isWater: false, isPath: false, slope };
+  // ==========================================================================
+  // PEWARNAAN PERMUKAAN TANAH (VERTEX COLORING / TEXTURE BLEND)
+  // Kuning Pasir Emas Solaria (#d4af37 / #e2b448) vs Hijau Segar Padang Rumput Eldoria (#7ba038 / #6b8e23)
+  // Transisi tepi sempit selebar 5 unit (4-6 unit) di garis perbatasan
+  // ==========================================================================
+  const desertWeight = getDesertWeight(x, z);
+
+  // Palet Kuning Pasir Emas Solaria:
+  // Base #d4af37 = [212, 175, 55], Highlight #e2b448 = [226, 180, 72]
+  const duneNoise = 0.5 + 0.5 * Math.sin(x * 0.035 + z * 0.028);
+  const desertR = 212 + (226 - 212) * duneNoise;
+  const desertG = 175 + (180 - 175) * duneNoise;
+  const desertB = 55 + (72 - 55) * duneNoise;
+
+  // Palet Hijau Segar Padang Rumput Eldoria:
+  // Base #7ba038 = [123, 160, 56], Deep/Olive #6b8e23 = [107, 142, 35]
+  const grassNoise = 0.5 + 0.5 * Math.sin(x * 0.025 - z * 0.03);
+  const grassR = 123 + (107 - 123) * grassNoise;
+  const grassG = 160 + (142 - 160) * grassNoise;
+  const grassB = 56 + (35 - 56) * grassNoise;
+
+  // Blend tegas dan natural sempit selebar 5 unit di garis perbatasan
+  const r = Math.round(grassR * (1.0 - desertWeight) + desertR * desertWeight);
+  const g = Math.round(grassG * (1.0 - desertWeight) + desertG * desertWeight);
+  const b = Math.round(grassB * (1.0 - desertWeight) + desertB * desertWeight);
+
+  const biomeId = desertWeight > 0.5 ? 'solaria_desert' : 'plains_grass';
+  return { height: y, color: [r, g, b], biomeId, isWater: false, isPath: false, slope };
 }
 
 function sampleIsPath(x: number, z: number): boolean {

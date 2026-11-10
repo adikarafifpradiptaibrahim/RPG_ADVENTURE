@@ -1301,6 +1301,8 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   for (let i = 0; i < 45; i++) {
     const px = -80 + Math.random() * 40;
     const pz = 80 + Math.random() * 60;
+    // DILARANG SPAWN di biome gurun!
+    if (isDesertBiome(px, pz)) continue;
     // Pembersihan rintangan jalan: Jangan spawn pohon di atas jalan
     if (isPointOnRoad(px, pz)) continue;
 
@@ -1323,16 +1325,16 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     const tx = Math.cos(angle) * dist;
     const tz = 180 + Math.sin(angle) * dist;
 
-    // Strict Anti-Overlap Exclusion
+    // Strict Anti-Overlap & Cross-Biome Exclusion: DILARANG SPAWN di biome gurun!
+    if (isDesertBiome(tx, tz)) continue;
     const inSanctuaryMainland = (Math.abs(tx) <= 35 && tz >= 152 && tz <= 200);
     const inSanctuaryHarborOcean = (Math.abs(tx) <= 50 && tz > 200);
     const inBridgeHighwayCorridor = (tx >= 115 && tx <= 360 && (Math.abs(tz - 47) <= 12.0 || Math.abs(tz - 75) <= 12.0));
     const inValKragor = (tx >= 345 && tx <= 420 && tz >= 48 && tz <= 112);
-    const inDesert = isDesertBiome(tx, tz);
     const inDragonCaldera = (tz > 280 && Math.abs(tx - 50) < 60);
     const inAstraea = Math.hypot(tx - -340, tz - -220) < 60;
     const inTitan = Math.hypot(tx - -196, tz - -254) < 45;
-    if (inSanctuaryMainland || inSanctuaryHarborOcean || inBridgeHighwayCorridor || inValKragor || inDesert || inDragonCaldera || inAstraea || inTitan) continue;
+    if (inSanctuaryMainland || inSanctuaryHarborOcean || inBridgeHighwayCorridor || inValKragor || inDragonCaldera || inAstraea || inTitan) continue;
 
     // Pembersihan rintangan jalan: Jangan spawn pohon padang rumput di atas permukaan jalan
     if (isPointOnRoad(tx, tz)) continue;
@@ -1377,7 +1379,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   ];
 
   const villageTreesData = curatedVillageTrees
-    .filter(vt => !isPointOnRoad(vt.x, vt.z))
+    .filter(vt => !isPointOnRoad(vt.x, vt.z) && !isDesertBiome(vt.x, vt.z))
     .map(vt => {
     colliders.push({
       type: 'circle',
@@ -1425,6 +1427,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { x: 120, z: -265 },
   ];
   obeliskPositions.forEach((pos) => {
+    if (!isDesertBiome(pos.x, pos.z)) return; // DILARANG SPAWN di luar gurun!
     const obelisk = createDesertObeliskMesh();
     obelisk.position.set(pos.x, getTerrainHeight(pos.x, pos.z), pos.z);
     scene.add(obelisk);
@@ -1439,7 +1442,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { x: 102, z: -264 },
     { x: 98, z: -258 },
   ];
-  const pyramidPalmsData = pyramidPalmPositions.map((pos) => {
+  const pyramidPalmsData = pyramidPalmPositions
+    .filter((pos) => isDesertBiome(pos.x, pos.z)) // DILARANG SPAWN di luar gurun!
+    .map((pos) => {
     colliders.push({ type: 'circle', x: pos.x, z: pos.z, radius: 0.65, label: 'Pohon Palem Solaria' });
     return {
       x: pos.x,
@@ -1471,6 +1476,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     const angle = (a / 8) * Math.PI * 2;
     const px = 150 + Math.cos(angle) * 17;
     const pz = -360 + Math.sin(angle) * 17;
+    if (!isDesertBiome(px, pz)) continue; // DILARANG SPAWN di luar gurun!
     const py = getTerrainHeight(px, pz);
     oasisPalmsData.push({ x: px, y: py, z: pz, rotationY: angle + 0.5 });
     colliders.push({ type: 'circle', x: px, z: pz, radius: 0.65, label: 'Pohon Palem Oase' });
@@ -1522,6 +1528,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   ];
 
   causewayItems.forEach((item, idx) => {
+    if (!isDesertBiome(item.x, item.z)) return; // DILARANG SPAWN di padang rumput hijau!
     if (item.type === 'palm') {
       const palm = createDesertPalmMesh();
       palm.position.set(item.x, solariaBaseY, item.z);
@@ -1618,6 +1625,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { x: 254, z: -283 },
   ];
   townPalmOffsets.forEach((tpo, idx) => {
+    if (!isDesertBiome(tpo.x, tpo.z)) return; // DILARANG SPAWN di padang rumput hijau!
     const palm = createDesertPalmMesh();
     palm.position.set(tpo.x, solariaBaseY, tpo.z);
     palm.rotation.y = idx * 1.57;
@@ -1830,6 +1838,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     const rad = 43.5;
     const rx = sinkholeCenter.x + Math.cos(angle) * rad;
     const rz = sinkholeCenter.z + Math.sin(angle) * rad;
+    if (!isDesertBiome(rx, rz)) continue; // DILARANG SPAWN di padang rumput hijau!
     const ry = getTerrainHeight(rx, rz);
     const rib = createAncientMonsterRibMesh();
     rib.position.set(rx, ry, rz);
@@ -1846,6 +1855,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     const angle = (o / 6) * Math.PI * 2;
     const ox = sinkholeCenter.x + Math.cos(angle) * 44.0;
     const oz = sinkholeCenter.z + Math.sin(angle) * 44.0;
+    if (!isDesertBiome(ox, oz)) continue; // DILARANG SPAWN di padang rumput hijau!
     const oy = getTerrainHeight(ox, oz) - 0.6; // Setengah tertimbun pasir
     const obelisk = createCrackedSandstoneObeliskMesh();
     obelisk.position.set(ox, oy, oz);
