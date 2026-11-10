@@ -53,11 +53,22 @@ export function buildWorldEnvironment(
   const matHay = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.95, flatShading: true });
   const matFarmSoil = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.95, flatShading: true });
   const matCabbage = new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 0.8, flatShading: true });
+  const matLettuce = new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.8, flatShading: true });
+  const matPumpkin = new THREE.MeshStandardMaterial({ color: 0xe65100, roughness: 0.75, flatShading: true });
+  const matStem = new THREE.MeshStandardMaterial({ color: 0x33691e, roughness: 0.8, flatShading: true });
   const matCarrotTop = new THREE.MeshStandardMaterial({ color: 0x84cc16, roughness: 0.8, flatShading: true });
   const matCarrotTip = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.7, flatShading: true });
   const matWheat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.85, flatShading: true });
   const matTentFabric = new THREE.MeshStandardMaterial({ color: 0x6b705c, roughness: 0.9, flatShading: true });
   const matBone = new THREE.MeshStandardMaterial({ color: 0xf3f4f6, roughness: 0.6, flatShading: true });
+
+  // Helper deteksi batas pekarangan pertanian untuk isolasi vegetasi instanced & bebatuan alami
+  function isInsideFarmYard(x: number, z: number): boolean {
+    if (x >= 19 && x <= 45 && z >= 151 && z <= 166) return true; // Pekarangan 1 (Utara)
+    if (x >= 21 && x <= 47 && z >= 111 && z <= 126) return true; // Pekarangan 2 (Selatan)
+    if (x >= 57 && x <= 81 && z >= 85 && z <= 99) return true;   // Pekarangan 3 (Gandum)
+    return false;
+  }
 
   // ============================================================================
   // 1. ZONA A: DESA & PERTANIAN PINGGIRAN (X: 10 s.d. 80, Z: 100 s.d. 160)
@@ -65,31 +76,71 @@ export function buildWorldEnvironment(
   const farmGroup = new THREE.Group();
   farmGroup.name = 'ZoneA_VillageFarmlands';
 
-  // Helper Pembuat Pagar Kayu Rustic
-  function createRusticFence(startX: number, startZ: number, endX: number, endZ: number) {
+  // Helper Pembuat Pagar Kayu Rustic Antara Dua Titik dengan Celah Pintu Gerbang
+  function createRusticFenceSegment(
+    startX: number,
+    startZ: number,
+    endX: number,
+    endZ: number,
+    gateGap?: { min: number; max: number; axis: 'x' | 'z' }
+  ) {
     const dist = Math.hypot(endX - startX, endZ - startZ);
-    const postCount = Math.max(2, Math.floor(dist / 2.6));
+    if (dist < 0.5) return;
+    const postCount = Math.max(2, Math.round(dist / 2.2));
     const angle = Math.atan2(endZ - startZ, endX - startX);
 
     for (let i = 0; i < postCount; i++) {
       const t = i / (postCount - 1);
       const px = startX + (endX - startX) * t;
       const pz = startZ + (endZ - startZ) * t;
+
+      // Cek apakah posisi berada di dalam celah pintu gerbang
+      if (gateGap) {
+        const val = gateGap.axis === 'x' ? px : pz;
+        if (val > gateGap.min && val < gateGap.max) {
+          continue; // Lewati agar menjadi akses pintu gerbang masuk
+        }
+      }
+
+      // ROAD CLEARANCE: Batas aman minimal 3.5 unit dari garis tengah jalan setapak
+      if (isPointNearRoad(px, pz, 3.5)) continue;
+
       const py = getTerrainHeight(px, pz);
 
       // Tiang kayu vertikal
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 1.15, 6), matWoodRustic);
-      post.position.set(px, py + 0.55, pz);
-      post.rotation.y = angle + (Math.random() - 0.5) * 0.15;
+      const isGatePost = gateGap && (
+        Math.abs((gateGap.axis === 'x' ? px : pz) - gateGap.min) < 0.8 ||
+        Math.abs((gateGap.axis === 'x' ? px : pz) - gateGap.max) < 0.8
+      );
+      const postHeight = isGatePost ? 1.45 : 1.15;
+      const postRadius = isGatePost ? 0.11 : 0.085;
+
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(postRadius * 0.9, postRadius, postHeight, 6),
+        matWoodRustic
+      );
+      post.position.set(px, py + postHeight * 0.5, pz);
+      post.rotation.y = angle + (Math.sin(px * 3.7 + pz * 2.1) * 0.12);
+      post.rotation.z = Math.sin(px * 1.5) * 0.04;
       farmGroup.add(post);
 
       if (i < postCount - 1) {
-        // Palang horizontal (2 bilah)
         const nextT = (i + 1) / (postCount - 1);
         const nextX = startX + (endX - startX) * nextT;
         const nextZ = startZ + (endZ - startZ) * nextT;
+
+        // Skip rail jika melintasi gerbang
+        if (gateGap) {
+          const midVal = gateGap.axis === 'x' ? (px + nextX) * 0.5 : (pz + nextZ) * 0.5;
+          if (midVal >= gateGap.min && midVal <= gateGap.max) {
+            continue;
+          }
+        }
+
         const midX = (px + nextX) * 0.5;
         const midZ = (pz + nextZ) * 0.5;
+        if (isPointNearRoad(midX, midZ, 3.5)) continue;
+
         const midY = (py + getTerrainHeight(nextX, nextZ)) * 0.5;
         const segLen = Math.hypot(nextX - px, nextZ - pz);
 
@@ -103,28 +154,63 @@ export function buildWorldEnvironment(
     }
   }
 
-  // Pagar di sepanjang pinggiran lahan pertanian desa
-  createRusticFence(14, 154, 45, 154);
-  createRusticFence(45, 154, 76, 148);
-  createRusticFence(14, 126, 45, 126);
-  createRusticFence(45, 126, 76, 122);
+  // Helper Pembuat Pekarangan Tertutup Berpagar Persegi Panjang
+  function createEnclosedFarmYard(
+    minX: number,
+    maxX: number,
+    minZ: number,
+    maxZ: number,
+    gateSide: 'north' | 'south',
+    gateMin: number,
+    gateMax: number
+  ) {
+    // 1. Sisi Selatan (minZ)
+    createRusticFenceSegment(
+      minX, minZ, maxX, minZ,
+      gateSide === 'south' ? { min: gateMin, max: gateMax, axis: 'x' } : undefined
+    );
+    // 2. Sisi Utara (maxZ)
+    createRusticFenceSegment(
+      minX, maxZ, maxX, maxZ,
+      gateSide === 'north' ? { min: gateMin, max: gateMax, axis: 'x' } : undefined
+    );
+    // 3. Sisi Barat (minX)
+    createRusticFenceSegment(minX, minZ, minX, maxZ);
+    // 4. Sisi Timur (maxX)
+    createRusticFenceSegment(maxX, minZ, maxX, maxZ);
+  }
 
-  // 3 Petak Kebun Sayur Berpematang Kayu
+  // Pekarangan 1: Sayap Kiri / Utara Jalan (Z: 152 s.d 165, clearing > 7.0m dari jalan)
+  createEnclosedFarmYard(20, 44, 152, 165, 'south', 30, 34);
+
+  // Pekarangan 2: Sayap Kanan / Selatan Jalan (Z: 112 s.d 125, clearing > 7.0m dari jalan)
+  createEnclosedFarmYard(22, 46, 112, 125, 'north', 32, 36);
+
+  // Pekarangan 3: Ladang Gandum & Lumbung Timur (Z: 86 s.d 98, Z < 100, clearing > 5.0m dari jalan)
+  createEnclosedFarmYard(58, 80, 86, 98, 'north', 67, 71);
+
+  // 3 Petak Kebun Sayur Berpematang Kayu di Dalam Pekarangan Rapi
   const gardenPatches = [
-    { x: 30, z: 140, w: 9, d: 6, crop: 'cabbage' },
-    { x: 50, z: 140, w: 10, d: 6, crop: 'carrot' },
-    { x: 68, z: 135, w: 9, d: 7, crop: 'wheat' },
+    // Kebun 1: Di dalam Pekarangan 1 (Utara Jalan), Cabbage & Carrot
+    { x: 32, z: 158.5, w: 14, d: 5.5, cropType: 'cabbage_carrot' },
+    // Kebun 2: Di dalam Pekarangan 2 (Selatan Jalan), Pumpkin & Veggies
+    { x: 34, z: 118.5, w: 14, d: 5.5, cropType: 'pumpkin_veggies' },
+    // Kebun 3: Di dalam Pekarangan 3 (Selatan Jalan Timur, Z < 100), Wheat Field
+    { x: 69, z: 92.0, w: 13, d: 4.8, cropType: 'wheat' },
   ];
 
   gardenPatches.forEach((patch) => {
+    // Road clearance check
+    if (isPointNearRoad(patch.x, patch.z, 3.5)) return;
+
     const y = getTerrainHeight(patch.x, patch.z);
 
-    // Bedengan tanah subur
+    // Bedengan tanah subur gembur
     const soil = new THREE.Mesh(new THREE.BoxGeometry(patch.w, 0.22, patch.d), matFarmSoil);
     soil.position.set(patch.x, y + 0.11, patch.z);
     farmGroup.add(soil);
 
-    // Pematang bingkai balok kayu
+    // Pematang bingkai balok kayu rustic
     const halfW = patch.w * 0.5;
     const halfD = patch.d * 0.5;
     const borderGeos = [
@@ -139,50 +225,85 @@ export function buildWorldEnvironment(
       farmGroup.add(beam);
     });
 
-    // Tanaman sayuran dalam petak
-    const rows = 4;
-    const cols = 6;
+    // Tanaman sayuran dalam petak rapi berbaris
+    const rows = patch.cropType === 'wheat' ? 5 : 4;
+    const cols = patch.cropType === 'wheat' ? 12 : 8;
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const cx = patch.x - halfW + 1.0 + (c / (cols - 1)) * (patch.w - 2.0);
         const cz = patch.z - halfD + 0.8 + (r / (rows - 1)) * (patch.d - 1.6);
         const cy = y + 0.22;
 
-        if (patch.crop === 'cabbage') {
-          const cabbage = new THREE.Mesh(new THREE.DodecahedronGeometry(0.24, 0), matCabbage);
-          cabbage.position.set(cx, cy + 0.12, cz);
-          cabbage.scale.set(1.1, 0.85, 1.0);
-          farmGroup.add(cabbage);
-        } else if (patch.crop === 'carrot') {
-          const carrotTip = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 5), matCarrotTip);
-          carrotTip.position.set(cx, cy + 0.05, cz);
-          carrotTip.rotation.x = Math.PI;
-          const carrotLeaves = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.28, 5), matCarrotTop);
-          carrotLeaves.position.set(cx, cy + 0.20, cz);
-          farmGroup.add(carrotTip, carrotLeaves);
+        if (patch.cropType === 'cabbage_carrot') {
+          if (r < 2) {
+            // Cabbage
+            const cabbage = new THREE.Mesh(new THREE.DodecahedronGeometry(0.24, 0), matCabbage);
+            cabbage.position.set(cx, cy + 0.12, cz);
+            cabbage.scale.set(1.1, 0.85, 1.0);
+            farmGroup.add(cabbage);
+          } else {
+            // Carrot
+            const carrotTip = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 5), matCarrotTip);
+            carrotTip.position.set(cx, cy + 0.05, cz);
+            carrotTip.rotation.x = Math.PI;
+            const carrotLeaves = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.28, 5), matCarrotTop);
+            carrotLeaves.position.set(cx, cy + 0.20, cz);
+            farmGroup.add(carrotTip, carrotLeaves);
+          }
+        } else if (patch.cropType === 'pumpkin_veggies') {
+          if (r === 0 || r === 3) {
+            // Labu Oranye (Pumpkin)
+            const pumpkin = new THREE.Mesh(new THREE.DodecahedronGeometry(0.28, 0), matPumpkin);
+            pumpkin.position.set(cx, cy + 0.14, cz);
+            pumpkin.scale.set(1.15, 0.85, 1.15);
+            const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.14, 5), matStem);
+            stem.position.set(cx, cy + 0.27, cz);
+            stem.rotation.z = 0.2;
+            farmGroup.add(pumpkin, stem);
+          } else if (r === 1) {
+            // Kubis Segar (Lettuce / Cabbage)
+            const lettuce = new THREE.Mesh(new THREE.DodecahedronGeometry(0.22, 0), matLettuce);
+            lettuce.position.set(cx, cy + 0.11, cz);
+            farmGroup.add(lettuce);
+          } else {
+            // Wortel
+            const carrotTip = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 5), matCarrotTip);
+            carrotTip.position.set(cx, cy + 0.05, cz);
+            carrotTip.rotation.x = Math.PI;
+            const carrotLeaves = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.28, 5), matCarrotTop);
+            carrotLeaves.position.set(cx, cy + 0.20, cz);
+            farmGroup.add(carrotTip, carrotLeaves);
+          }
         } else {
-          // Wheat stalks
-          const wheatStalk = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.65, 4), matWheat);
-          wheatStalk.position.set(cx, cy + 0.32, cz);
-          wheatStalk.rotation.z = (Math.random() - 0.5) * 0.18;
+          // Gandum Emas (Golden Wheat Stalks)
+          const wheatStalk = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.68, 4), matWheat);
+          wheatStalk.position.set(cx, cy + 0.34, cz);
+          wheatStalk.rotation.z = Math.sin(cx * 4 + cz * 3) * 0.18;
           farmGroup.add(wheatStalk);
         }
       }
     }
   });
 
-  // 7 Tumpukan Jerami (Haystack Emas Kekuningan)
+  // 9 Tumpukan Jerami (Haystack Emas): Terkumpul Rapi di Sudut-Sudut Pekarangan
   const haystacks = [
-    { x: 22, z: 150, r: 1.3, h: 1.6 },
-    { x: 38, z: 150, r: 1.5, h: 1.8 },
-    { x: 58, z: 148, r: 1.2, h: 1.5 },
-    { x: 74, z: 142, r: 1.6, h: 2.0 },
-    { x: 42, z: 124, r: 1.4, h: 1.7 },
-    { x: 60, z: 120, r: 1.3, h: 1.6 },
-    { x: 25, z: 124, r: 1.1, h: 1.4 },
+    // Sudut Pekarangan 1 (Utara)
+    { x: 23.0, z: 161.0, r: 1.4, h: 1.8 },
+    { x: 25.8, z: 161.5, r: 1.2, h: 1.5 },
+    { x: 24.2, z: 157.5, r: 1.1, h: 1.4 },
+    // Sudut Pekarangan 2 (Selatan)
+    { x: 25.0, z: 115.0, r: 1.5, h: 1.9 },
+    { x: 27.8, z: 114.0, r: 1.3, h: 1.6 },
+    { x: 25.5, z: 118.0, r: 1.1, h: 1.4 },
+    // Sudut Pekarangan 3 (Gandum Timur)
+    { x: 61.5, z: 90.5, r: 1.5, h: 1.9 },
+    { x: 64.0, z: 92.5, r: 1.2, h: 1.5 },
+    { x: 61.8, z: 94.5, r: 1.1, h: 1.4 },
   ];
 
   haystacks.forEach((hs) => {
+    if (isPointNearRoad(hs.x, hs.z, 3.5)) return;
+
     const y = getTerrainHeight(hs.x, hs.z);
     const hayGroup = new THREE.Group();
     hayGroup.position.set(hs.x, y, hs.z);
@@ -197,8 +318,10 @@ export function buildWorldEnvironment(
     colliders.push({ type: 'circle', x: hs.x, z: hs.z, radius: hs.r, label: 'Tumpukan Jerami' });
   });
 
-  // 2 Gerobak Dorong Kayu & Peti Barang Dagangan
+  // 2 Gerobak Dorong Kayu & Peti Barang Dagangan di Sisi Pintu Gerbang Pekarangan
   function createWoodenCart(x: number, z: number, rotY: number) {
+    if (isPointNearRoad(x, z, 3.5)) return;
+
     const y = getTerrainHeight(x, z);
     const cart = new THREE.Group();
     cart.position.set(x, y + 0.42, z);
@@ -235,15 +358,20 @@ export function buildWorldEnvironment(
     colliders.push({ type: 'circle', x, z, radius: 1.4, label: 'Gerobak Kayu' });
   }
 
-  createWoodenCart(16, 150, 0.4);
-  createWoodenCart(28, 116, -0.35);
+  // Gerobak 1 terparkir di dekat pintu gerbang Pekarangan 1 (Utara)
+  createWoodenCart(32, 147.5, 0.2);
+  // Gerobak 2 terparkir di dekat pintu gerbang Pekarangan 2 (Selatan)
+  createWoodenCart(34, 129.5, -0.25);
 
-  // Tumpukan peti barang di pinggir jalan
+  // Tumpukan peti barang di dekat gerobak dan pagar
   const crateClusters = [
-    { x: 14, z: 144 },
-    { x: 24, z: 112 },
+    { x: 28.5, z: 149.0 },
+    { x: 30.5, z: 128.0 },
+    { x: 64.5, z: 96.5 },
   ];
   crateClusters.forEach((cc) => {
+    if (isPointNearRoad(cc.x, cc.z, 3.5)) return;
+
     const cy = getTerrainHeight(cc.x, cc.z);
     [
       { dx: 0, dz: 0, h: 0.65, w: 0.7, dy: 0 },
@@ -675,8 +803,9 @@ export function buildWorldEnvironment(
     const px = -240 + Math.random() * 320;
     const pz = -40 + Math.random() * 210;
 
-    // Larangan menabrak jalur jalan (margin > 3.5m)
+    // Larangan menabrak jalur jalan (margin > 3.8m) dan pekarangan desa
     if (isPointNearRoad(px, pz, 3.8)) continue;
+    if (isInsideFarmYard(px, pz)) continue;
     // Jangan spawn di dalam danau, kawah, atau safe zone tengah desa
     if (Math.hypot(px - 0, pz - 180) < 38) continue;
     if (Math.hypot(px - -196, pz - -254) < 45) continue;
@@ -723,6 +852,7 @@ export function buildWorldEnvironment(
     const oz = 40 + Math.random() * 130;
 
     if (isPointNearRoad(ox, oz, 4.0)) continue;
+    if (isInsideFarmYard(ox, oz)) continue;
     if (Math.hypot(ox - 0, oz - 180) < 42) continue;
     if (Math.hypot(ox - ruinsCenterX, oz - ruinsCenterZ) < 26) continue;
 
@@ -757,6 +887,7 @@ export function buildWorldEnvironment(
     const bz = -50 + Math.random() * 240;
 
     if (isPointNearRoad(bx, bz, 3.6)) continue;
+    if (isInsideFarmYard(bx, bz)) continue;
     if (Math.hypot(bx - 0, bz - 180) < 35) continue;
 
     const by = getTerrainHeight(bx, bz);
@@ -791,8 +922,9 @@ export function buildWorldEnvironment(
     const sx = -220 + Math.random() * 320;
     const sz = 20 + Math.random() * 170;
 
-    // Harus berada di luar badan jalan tetapi dekat tepi
-    if (isPointNearRoad(sx, sz, 3.2)) continue;
+    // Harus berada di luar badan jalan (road clearance >= 3.5m) dan di luar pekarangan kebun
+    if (isPointNearRoad(sx, sz, 3.5)) continue;
+    if (isInsideFarmYard(sx, sz)) continue;
 
     const sy = getTerrainHeight(sx, sz);
     if (sy < 0.2) continue;

@@ -196,8 +196,8 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // 2.5x - 3x Expanded World Terrain specifications (Span: X[-680..820], Z[-550..550])
   const terrainWidth = 1500;
   const terrainDepth = 1100;
-  const segmentsX = 250;
-  const segmentsZ = 200;
+  const segmentsX = 256;
+  const segmentsZ = 256;
   const terrainGeo = new THREE.PlaneGeometry(terrainWidth, terrainDepth, segmentsX, segmentsZ);
   terrainGeo.rotateX(-Math.PI / 2);
   terrainGeo.translate(70, 0, 0); // Centered at x=70 so all vast expanded biomes fit seamlessly

@@ -219,20 +219,33 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return Math.max(-1.5, 0.5 - t * 2.2);
   }
 
-  // 4h. Flattened road paths (jalan setapak batu tetap rata agar tidak ada objek melayang atau tenggelam)
+  // 4h. Absolute Flat Zone: Area Desa & Pemukiman (X: -50 s.d 80, Z: 60 s.d 160)
+  const distToVillage = Math.hypot(x - 10, z - 110);
+  if (distToVillage < 55) {
+    return 0; // Tetap datar 0 agar bangunan, air mancur, dan jalan tidak melayang/amblas
+  }
+
+  // 4i. Flattened road paths di luar desa (jalan setapak batu tetap rata agar tidak ada objek melayang)
   if (isPointOnRoad(x, z)) {
     return 0.35;
   }
 
-  // Rolling lush grasslands with subtle natural hills
-  const rawHill = 0.6 + Math.sin(x * 0.02) * Math.cos(z * 0.02) * 1.5;
-  const hill = clamp(rawHill, 0.15, 2.4);
+  // 2. Transisi blending halus (lerp) dari perbatasan desa ke padang terbuka
+  const blendFactor = Math.min(1, Math.max(0, (distToVillage - 55) / 30));
+
+  // 3. Elevasi Perlin Noise landai (frekuensi rendah, puncak tidak runcing)
+  const rawNoise =
+    Math.sin(x * 0.018 + z * 0.012) * 1.0 +
+    Math.cos(x * 0.008 - z * 0.016) * 0.8 +
+    Math.sin((x + z) * 0.03) * 0.4;
+
+  const perlinElevation = clamp(Math.max(0.0, rawNoise * blendFactor * 1.5), 0.0, 2.0);
 
   // Smooth blending at road borders (buffer 2.0 unit)
   if (isPointNearRoad(x, z, 2.0)) {
-    return 0.35 * 0.65 + hill * 0.35;
+    return 0.35 * 0.65 + perlinElevation * 0.35;
   }
-  return hill;
+  return perlinElevation;
 }
 
 /**
