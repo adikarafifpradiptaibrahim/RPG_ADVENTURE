@@ -302,6 +302,15 @@ export class GameEngine {
   private invulnerableTimer = 0;
   private cameraFovPunch = 0;
   private charClass: CharacterClass = 'warrior';
+  public isMoving = false;
+  public get currentRole(): string {
+    return this.charClass === 'rogue' ? 'assassin' : this.charClass;
+  }
+  public set currentRole(role: string) {
+    if (role === 'assassin') this.charClass = 'rogue';
+    else if (role === 'knight') this.charClass = 'warrior';
+    else if (role === 'warrior' || role === 'mage' || role === 'rogue') this.charClass = role;
+  }
   private playerTier = 1;
   private playerLevel = 1;
   private footstepTimer = 0;
@@ -328,7 +337,6 @@ export class GameEngine {
   private chargeDrainAccum = 0;
 
   private hunterWeaponMode: 'dagger' | 'bow' = 'dagger';
-  private rogueLeanAngle = 0;
   private attackComboIndex = 0;
   private mageLandingCrouchTimer = 0;
   private lastAttackTime = 0;
@@ -6472,6 +6480,7 @@ export class GameEngine {
 
     const inputMagnitude = Math.hypot(moveDirX, moveDirZ);
     const isMoving = inputMagnitude > 0.08;
+    this.isMoving = isMoving;
 
     let baseSpeed = 7.0;
     if (this.charClass === 'warrior') baseSpeed = 6.8;
@@ -6544,21 +6553,6 @@ export class GameEngine {
       while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
       this.playerRotationY += angleDiff * 16 * delta;
 
-      if (this.charClass === 'rogue') {
-        const turnLeft = !!(this.isKeyPressed('a', 'keya', 'arrowleft') || (this.joystickVector.x < -0.25));
-        const turnRight = !!(this.isKeyPressed('d', 'keyd', 'arrowright') || (this.joystickVector.x > 0.25));
-
-        let targetRoll = 0;
-        if (turnRight && !turnLeft) {
-          targetRoll = -0.10; // Miring halus ke kanan (~5.7 derajat)
-        } else if (turnLeft && !turnRight) {
-          targetRoll = 0.10;  // Miring halus ke kiri (~5.7 derajat)
-        } else {
-          targetRoll = 0;     // KUNCI: Wajib 0 jika jalan lurus (W/S saja) atau diam!
-        }
-        this.rogueLeanAngle = targetRoll;
-      }
-
       // Spawn movement footsteps
       if (this.isGrounded) {
         this.footstepTimer -= delta;
@@ -6568,7 +6562,6 @@ export class GameEngine {
         }
       }
     } else {
-      this.rogueLeanAngle = 0;
       // Rapid stop: clamp velocity to 0 immediately when no movement input is active
       this.playerVel.x *= 0.4;
       this.playerVel.z *= 0.4;
@@ -6776,21 +6769,8 @@ export class GameEngine {
           true,
           this.isAttacking,
           this.hunterWeaponMode,
-          this.isSprinting,
-          this.rogueLeanAngle
+          this.isSprinting
         );
-        if (this.playerMesh.body) {
-          // 3. Terapkan Reset Lerp Setiap Frame:
-          this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(
-            this.playerMesh.body.rotation.z,
-            this.rogueLeanAngle,
-            0.15
-          );
-          // 5. Pastikan Rotasi Y Torso Netral (tidak tersangkut nilai offset):
-          if (!this.isAttacking) {
-            this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y, 0, 0.15);
-          }
-        }
         this.playerMesh.group.rotation.z = 0;
       } else {
         const legSwing = Math.sin(this.walkTime) * 0.62;
@@ -6858,16 +6838,8 @@ export class GameEngine {
           false,
           this.isAttacking,
           this.hunterWeaponMode,
-          false,
-          0
+          false
         );
-        // 4. Pada Saat Karakter Diam (Idle / !isMoving): Paksa rotasi Z badan kembali ke 0 secara mutlak
-        if (this.playerMesh.body) {
-          this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(this.playerMesh.body.rotation.z, 0, 0.2);
-          if (!this.isAttacking) {
-            this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y, 0, 0.2);
-          }
-        }
         this.playerMesh.group.rotation.z = 0;
       } else {
         this.playerMesh.leftLeg.rotation.x *= 0.8;
@@ -6877,6 +6849,62 @@ export class GameEngine {
           this.playerMesh.rightArm.rotation.set(0.2, 0, -0.2);
         }
         this.playerMesh.cape.rotation.x = 0.1 + Math.sin(this.clock.getElapsedTime() * 2) * 0.05;
+      }
+    }
+
+    // Di dalam update loop pergerakan karakter (Isolated Anti-Stuck Lean Logic Assassin):
+    if (this.currentRole === 'assassin' && this.playerMesh && this.playerMesh.body) {
+      const isMoving = this.isMoving; // atau kondisi kecepatan > 0.1
+      const keyA = !!(
+        this.keys['KeyA'] ||
+        this.keys['ArrowLeft'] ||
+        this.keys['keya'] ||
+        this.keys['arrowleft'] ||
+        this.keys['a'] ||
+        (this.joystickVector.x < -0.25)
+      );
+      const keyD = !!(
+        this.keys['KeyD'] ||
+        this.keys['ArrowRight'] ||
+        this.keys['keyd'] ||
+        this.keys['arrowright'] ||
+        this.keys['d'] ||
+        (this.joystickVector.x > 0.25)
+      );
+
+      let targetLean = 0;
+
+      // Hanya boleh miring jika karakter SEDANG BERJALAN DAN menekan A/D
+      if (isMoving) {
+        if (keyD && !keyA) {
+          targetLean = -0.12; // Miring ~7 derajat ke kanan saat belok kanan
+        } else if (keyA && !keyD) {
+          targetLean = 0.12;  // Miring ~7 derajat ke kiri saat belok kiri
+        }
+      }
+
+      // Pastikan order Euler adalah 'YXZ' agar rotasi belok tidak memutar sumbu miring:
+      this.playerMesh.body.rotation.reorder('YXZ');
+
+      // JANGAN gunakan mouse delta atau turnSpeed yaw yang rawan stuck!
+      // Terapkan lerp yang tegas menuju targetLean:
+      this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(
+        this.playerMesh.body.rotation.z || 0,
+        targetLean,
+        0.18
+      );
+
+      // Jika diam atau tidak belok, jika mendekati 0 langsung kunci 0 agar tidak melayang nilainya
+      if (!keyA && !keyD && Math.abs(this.playerMesh.body.rotation.z) < 0.001) {
+        this.playerMesh.body.rotation.z = 0;
+      }
+
+      // Pastikan Rotasi Y Torso Netral
+      if (!this.isAttacking) {
+        this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y || 0, 0, 0.2);
+        if (Math.abs(this.playerMesh.body.rotation.y) < 0.001) {
+          this.playerMesh.body.rotation.y = 0;
+        }
       }
     }
 

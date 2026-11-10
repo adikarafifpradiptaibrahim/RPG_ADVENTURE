@@ -3,6 +3,7 @@ import { PlayerMeshObjects } from './models';
 import { CharacterClass } from '../../types/game';
 import { createLegacyHunterMesh } from './HunterModelLegacy';
 
+export type { PlayerMeshObjects };
 export const USE_LEGACY_HUNTER = false;
 export { createLegacyHunterMesh };
 
@@ -163,10 +164,14 @@ export function createHunterModel(): THREE.Group {
   // ==========================================
   const torsoGroup = new THREE.Group();
   torsoGroup.name = 'TorsoGroup';
-  torsoGroup.position.set(0, 1.18, 0);
+  torsoGroup.position.set(0, 1.18, 0); // body.position.x = 0
+  torsoGroup.rotation.set(0, 0, 0);
+  torsoGroup.rotation.reorder('YXZ');
 
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.60, 0.34), matTunic);
   torso.position.set(0, 0, 0);
+  torso.rotation.set(0, 0, 0);
+  torso.rotation.reorder('YXZ');
   torsoGroup.add(torso);
 
   const chestPlate = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.34, 0.08), matArmorPlate);
@@ -426,6 +431,11 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
   const leftArm = ((root as any).leftArm || root.getObjectByName('LeftArm')) as THREE.Group;
   const rightArm = ((root as any).rightArm || root.getObjectByName('RightArm')) as THREE.Group;
   const body = ((root as any).body || root.getObjectByName('TorsoGroup')) as THREE.Mesh;
+  if (body) {
+    body.position.x = 0;
+    body.rotation.set(0, 0, 0);
+    body.rotation.reorder('YXZ');
+  }
   const head = ((root as any).head || root.getObjectByName('HunterHeadGroup')) as THREE.Mesh;
   const cape = ((root as any).cape || root.getObjectByName('HunterCloak')) as THREE.Mesh;
   const weapon = ((root as any).weapon || rightArm) as THREE.Group;
@@ -518,12 +528,10 @@ export function animateHunterWalk(
   const isBow = hunterWeaponMode === 'bow';
 
   if (isMoving) {
-    // Lean Banking (Miring saat berbelok ke kiri / kanan: lerp 0.15)
     if (playerMesh.body) {
-      playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, leanAngle, 0.15);
-      if (!isAttacking) {
-        playerMesh.body.rotation.y = THREE.MathUtils.lerp(playerMesh.body.rotation.y, 0, 0.15);
-      }
+      // Pastikan order Euler adalah 'YXZ' agar rotasi belok tidak memutar sumbu miring
+      playerMesh.body.rotation.reorder('YXZ');
+      // Rotasi Z netral murni dikontrol oleh sistem lean di gameEngine
     }
 
     if (isSprinting) {
