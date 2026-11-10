@@ -6712,9 +6712,12 @@ export class GameEngine {
       this.triggerCataclysmicLandingImpact();
     }
 
-    // Update mesh position and rotation
+    // Update mesh position and rotation (KUNCI MUTLAK: X=0, Z=0)
     this.playerMesh.group.position.copy(this.playerPos);
-    this.playerMesh.group.rotation.y = this.playerRotationY;
+    this.playerMesh.group.rotation.set(0, this.playerRotationY, 0);
+    if (this.playerMesh.rotation) {
+      this.playerMesh.rotation.set(0, this.playerRotationY, 0);
+    }
 
     // Role-specific posture offsets
     if (this.charClass === 'mage') {
@@ -6724,10 +6727,15 @@ export class GameEngine {
         this.playerMesh.group.position.y -= 0.10 * crouchRatio;
       }
       this.playerMesh.group.rotation.x = 0;
-    } else if (this.charClass === 'rogue') {
-      // Forward ninja prowl crouch
-      this.playerMesh.group.rotation.x = isMoving ? 0.16 : 0.08;
       this.playerMesh.group.rotation.z = 0;
+    } else if (this.charClass === 'rogue') {
+      // Kunci mutlak postur tegak Assassin tanpa forward prowl crouch di sumbu X agar tidak miring saat drag mouse
+      this.playerMesh.group.rotation.x = 0;
+      this.playerMesh.group.rotation.z = 0;
+      if (this.playerMesh.body) {
+        this.playerMesh.body.rotation.x = 0;
+        this.playerMesh.body.rotation.z = 0;
+      }
     } else if (this.charClass === 'warrior') {
       // Requirement 5: Stabilitas postur tegak lurus tanpa tilt/roll goyang saat bergerak, lari, maupun berputar
       this.playerMesh.group.rotation.x = 0;
@@ -6736,6 +6744,7 @@ export class GameEngine {
       this.playerMesh.body.rotation.z = 0;
     } else {
       this.playerMesh.group.rotation.x = 0;
+      this.playerMesh.group.rotation.z = 0;
     }
 
     // Limb animations
@@ -6854,18 +6863,36 @@ export class GameEngine {
 
     // Kunci mutlak agar badan selalu tegak lurus sempurna di setiap frame (di loop update karakter):
     if (this.playerMesh) {
+      this.playerMesh.group.rotation.x = 0;
+      this.playerMesh.group.rotation.z = 0;
+      if (this.playerMesh.rotation) {
+        this.playerMesh.rotation.x = 0;
+        this.playerMesh.rotation.z = 0;
+      }
       if (this.playerMesh.body) {
         this.playerMesh.body.rotation.reorder('YXZ');
+        this.playerMesh.body.rotation.x = 0;
         this.playerMesh.body.rotation.z = 0; // KUNCI MUTLAK: DILARANG MIRING
       }
-      this.playerMesh.group.rotation.z = 0; // KUNCI MUTLAK ROOT MESH
-      if (this.playerMesh.rotation) {
-        this.playerMesh.rotation.z = 0; // KUNCI MUTLAK ROOT MESH
-      }
+      this.playerMesh.group.traverse((child) => {
+        if (child instanceof THREE.Mesh || child instanceof THREE.Group) {
+          if (
+            child.name.toLowerCase().includes('body') ||
+            child.name.toLowerCase().includes('torso') ||
+            child.name.toLowerCase().includes('chest') ||
+            child === (this.playerMesh as any).body
+          ) {
+            child.rotation.x = 0;
+            child.rotation.z = 0;
+          }
+        }
+      });
       if (!this.isAttacking) {
-        this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y || 0, 0, 0.2);
-        if (Math.abs(this.playerMesh.body.rotation.y) < 0.001) {
-          this.playerMesh.body.rotation.y = 0;
+        if (this.playerMesh.body) {
+          this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y || 0, 0, 0.2);
+          if (Math.abs(this.playerMesh.body.rotation.y) < 0.001) {
+            this.playerMesh.body.rotation.y = 0;
+          }
         }
       }
     }
@@ -7140,6 +7167,29 @@ export class GameEngine {
           tier: this.playerTier,
         });
       }
+    }
+
+    // Kunci mutlak sanitasi rotasi karakter Assassin & semua class di akhir updatePlayer
+    if (this.playerMesh) {
+      this.playerMesh.group.rotation.x = 0;
+      this.playerMesh.group.rotation.z = 0;
+      if (this.playerMesh.rotation) {
+        this.playerMesh.rotation.x = 0;
+        this.playerMesh.rotation.z = 0;
+      }
+      this.playerMesh.group.traverse((child) => {
+        if (child instanceof THREE.Mesh || child instanceof THREE.Group) {
+          if (
+            child.name.toLowerCase().includes('body') ||
+            child.name.toLowerCase().includes('torso') ||
+            child.name.toLowerCase().includes('chest') ||
+            child === (this.playerMesh as any).body
+          ) {
+            child.rotation.x = 0;
+            child.rotation.z = 0;
+          }
+        }
+      });
     }
 
     // Check nearby prompts (NPC / Chest)
@@ -8156,7 +8206,30 @@ export class GameEngine {
     // Single Player Pause: Hentikan sementara loop animasi Three.js dan logika monster
     if (this.isPaused && !this.isMultiplayer) {
       // Render frame yang sedang diam tanpa kalkulasi fisika, monster AI, atau delta waktu
-      this.renderer.render(this.scene, this.camera);
+      // Traversal Sanitization Lock mutlak tepat sebelum frame dirender ke canvas
+    if (this.playerMesh) {
+      this.playerMesh.group.rotation.x = 0;
+      this.playerMesh.group.rotation.z = 0;
+      if (this.playerMesh.rotation) {
+        this.playerMesh.rotation.x = 0;
+        this.playerMesh.rotation.z = 0;
+      }
+      this.playerMesh.group.traverse((child) => {
+        if (child instanceof THREE.Mesh || child instanceof THREE.Group) {
+          if (
+            child.name.toLowerCase().includes('body') ||
+            child.name.toLowerCase().includes('torso') ||
+            child.name.toLowerCase().includes('chest') ||
+            child === (this.playerMesh as any).body
+          ) {
+            child.rotation.x = 0;
+            child.rotation.z = 0;
+          }
+        }
+      });
+    }
+
+    this.renderer.render(this.scene, this.camera);
       return;
     }
 
@@ -8168,7 +8241,30 @@ export class GameEngine {
         this.updateCharacterSelectPreviews(delta);
       }
       this.updateCamera(delta);
-      this.renderer.render(this.scene, this.camera);
+      // Traversal Sanitization Lock mutlak tepat sebelum frame dirender ke canvas
+    if (this.playerMesh) {
+      this.playerMesh.group.rotation.x = 0;
+      this.playerMesh.group.rotation.z = 0;
+      if (this.playerMesh.rotation) {
+        this.playerMesh.rotation.x = 0;
+        this.playerMesh.rotation.z = 0;
+      }
+      this.playerMesh.group.traverse((child) => {
+        if (child instanceof THREE.Mesh || child instanceof THREE.Group) {
+          if (
+            child.name.toLowerCase().includes('body') ||
+            child.name.toLowerCase().includes('torso') ||
+            child.name.toLowerCase().includes('chest') ||
+            child === (this.playerMesh as any).body
+          ) {
+            child.rotation.x = 0;
+            child.rotation.z = 0;
+          }
+        }
+      });
+    }
+
+    this.renderer.render(this.scene, this.camera);
       return;
     }
 
@@ -8729,6 +8825,29 @@ export class GameEngine {
         rotationY: targetRotY,
         region: currentReg,
         markers,
+      });
+    }
+
+    // Traversal Sanitization Lock mutlak tepat sebelum frame dirender ke canvas
+    if (this.playerMesh) {
+      this.playerMesh.group.rotation.x = 0;
+      this.playerMesh.group.rotation.z = 0;
+      if (this.playerMesh.rotation) {
+        this.playerMesh.rotation.x = 0;
+        this.playerMesh.rotation.z = 0;
+      }
+      this.playerMesh.group.traverse((child) => {
+        if (child instanceof THREE.Mesh || child instanceof THREE.Group) {
+          if (
+            child.name.toLowerCase().includes('body') ||
+            child.name.toLowerCase().includes('torso') ||
+            child.name.toLowerCase().includes('chest') ||
+            child === (this.playerMesh as any).body
+          ) {
+            child.rotation.x = 0;
+            child.rotation.z = 0;
+          }
+        }
       });
     }
 

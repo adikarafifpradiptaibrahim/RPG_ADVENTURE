@@ -153,7 +153,7 @@ export function createHunterModel(): THREE.Group {
   [-0.32, 0.32].forEach((xPos) => {
     const sheath = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.32, 0.12), matLeather);
     sheath.position.set(xPos, 0.70, 0);
-    sheath.rotation.z = xPos < 0 ? 0.14 : -0.14;
+    sheath.rotation.set(0, 0, 0);
     root.add(sheath);
   });
 
@@ -176,10 +176,11 @@ export function createHunterModel(): THREE.Group {
 
   const chestPlate = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.34, 0.08), matArmorPlate);
   chestPlate.position.set(0, 0.07, 0.18);
+  chestPlate.rotation.set(0, 0, 0);
   torsoGroup.add(chestPlate);
 
   const strap = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.66, 0.36), matLeather);
-  strap.rotation.z = -0.55;
+  strap.rotation.set(0, 0, 0);
   strap.position.set(0, 0, 0.02);
   torsoGroup.add(strap);
 
@@ -526,161 +527,74 @@ export function animateHunterWalk(
 ): void {
   if (!playerMesh) return;
 
-  const isBow = hunterWeaponMode === 'bow';
+  // KUNCI MUTLAK: Badan dan root mesh selalu tegak lurus sempurna (X=0, Y=0, Z=0)
+  if (playerMesh.body) {
+    playerMesh.body.rotation.set(0, 0, 0);
+  }
+  if (playerMesh.group) {
+    playerMesh.group.rotation.x = 0;
+    playerMesh.group.rotation.z = 0;
+  }
+  if (playerMesh.rotation) {
+    playerMesh.rotation.x = 0;
+    playerMesh.rotation.z = 0;
+  }
 
   if (isMoving) {
-    if (playerMesh.body) {
-      // Pastikan order Euler adalah 'YXZ' agar rotasi belok tidak memutar sumbu miring
-      playerMesh.body.rotation.reorder('YXZ');
-      playerMesh.body.rotation.z = 0;
-    }
+    const legFreq = isSprinting ? 2.2 : 1.2;
+    const legAmp = isSprinting ? 0.65 : 0.48;
+    const legSwing = Math.sin(walkTime * legFreq) * legAmp;
 
-    if (isSprinting) {
-      // Stealth Sprint Locomotion:
-      // 1. Condongkan tubuh ke depan: body.rotation.x = -0.22
-      if (playerMesh.body) {
-        playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, -0.22, 0.15);
-      }
-
-      // 2. Ayunan kaki lebih cepat dan lincah (Math.sin(time * speed) * 0.65)
-      const legSwing = Math.sin(walkTime * 2.2) * 0.65;
-      if (playerMesh.leftLeg) {
-        playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, legSwing, 0.28);
-      }
-      if (playerMesh.rightLeg) {
-        playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, -legSwing, 0.28);
-      }
-
-      // 3. Kedua belati digenggam terlipat ke belakang di samping pinggang (arms swept back in stealth run), tidak menembus tanah
-      if (!isAttacking) {
-        if (isBow) {
-          if (playerMesh.leftArm) {
-            playerMesh.leftArm.rotation.set(0.35, -0.1, 0.2);
-          }
-          if (playerMesh.rightArm) {
-            playerMesh.rightArm.rotation.set(0.35, 0.1, -0.2);
-          }
-        } else {
-          if (playerMesh.leftArm) {
-            playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0.45, 0.2);
-            playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, -0.15, 0.2);
-            playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.25, 0.2);
-          }
-          if (playerMesh.rightArm) {
-            playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, 0.45, 0.2);
-            playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0.15, 0.2);
-            playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, -0.25, 0.2);
-          }
-        }
-      }
-
-      // Melambai jubah belakang saat sprint
-      if (playerMesh.cape) {
-        playerMesh.cape.rotation.x = 0.55 + Math.abs(Math.sin(walkTime * 2.2)) * 0.25;
-      }
-
-      const sprintBob = Math.abs(Math.sin(walkTime * 4.4)) * 0.05;
-      playerMesh.group.position.y = playerPosY + sprintBob;
-      playerMesh.group.rotation.z = 0;
-    } else {
-      // Normal Walk
-      if (playerMesh.body) {
-        playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, 0.15);
-      }
-
-      const legSwing = Math.sin(walkTime * 1.2) * 0.48;
-      if (playerMesh.leftLeg) {
-        playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, legSwing, 0.25);
-      }
-      if (playerMesh.rightLeg) {
-        playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, -legSwing, 0.25);
-      }
-
-      if (!isAttacking) {
-        if (isBow) {
-          if (playerMesh.leftArm) {
-            playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -legSwing * 0.15, 0.2);
-            playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0, 0.2);
-            playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0, 0.2);
-          }
-          if (playerMesh.rightArm) {
-            playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, legSwing * 0.35, 0.2);
-            playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, 0.2);
-            playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0, 0.2);
-          }
-        } else {
-          // A-Pose Walk Dynamic Swing (Menggerakkan ShoulderRoot sehingga ArmPivot A-Pose tetap stabil)
-          if (playerMesh.leftArm) {
-            playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -legSwing * 0.35, 0.2);
-            playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0, 0.2);
-          }
-          if (playerMesh.rightArm) {
-            playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, legSwing * 0.35, 0.2);
-            playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, 0.2);
-          }
-        }
-      }
-
-      // Melambai jubah belakang
-      if (playerMesh.cape) {
-        playerMesh.cape.rotation.x = 0.12 + Math.abs(Math.sin(walkTime * 1.2)) * 0.14;
-      }
-
-      const walkBob = Math.abs(Math.sin(walkTime * 2.4)) * 0.04;
-      playerMesh.group.position.y = playerPosY + walkBob;
-      playerMesh.group.rotation.z = 0;
-    }
-  } else {
-    // Mode Diam (Idle Stance)
+    // Pastikan HANYA leftLeg.rotation.x, rightLeg.rotation.x, leftArm.rotation.x, dan rightArm.rotation.x yang bergerak bolak-balik
     if (playerMesh.leftLeg) {
-      playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0, 0.2);
+      playerMesh.leftLeg.rotation.set(legSwing, 0, 0);
     }
     if (playerMesh.rightLeg) {
-      playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0, 0.2);
+      playerMesh.rightLeg.rotation.set(-legSwing, 0, 0);
     }
-    playerMesh.group.rotation.z = 0;
-
-    const breathe = Math.sin(walkTime * 2.2) * 0.012;
-    if (playerMesh.body) {
-      playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.18 + breathe, 0.15);
-      playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, 0.15);
-      // Kunci rotasi Z badan selalu tepat 0 saat diam
-      playerMesh.body.rotation.z = 0;
-      if (!isAttacking) {
-        playerMesh.body.rotation.y = THREE.MathUtils.lerp(playerMesh.body.rotation.y, 0, 0.2);
-      }
-    }
-
-    // Root position grounded without excessive bobbing
-    playerMesh.group.position.y = playerPosY;
 
     if (!isAttacking) {
-      if (isBow) {
-        if (playerMesh.leftArm) {
-          playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, breathe * 0.25, 0.15);
-          playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0, 0.15);
-          playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0, 0.15);
-        }
-        if (playerMesh.rightArm) {
-          playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, breathe * 0.25, 0.15);
-          playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, 0.15);
-          playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0, 0.15);
-        }
-      } else {
-        // Idle Tactical A-Pose
-        if (playerMesh.leftArm) {
-          playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, breathe * 0.25, 0.15);
-          playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0, 0.15);
-        }
-        if (playerMesh.rightArm) {
-          playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, breathe * 0.25, 0.15);
-          playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, 0.15);
-        }
+      const armSwing = legSwing * 0.4;
+      if (playerMesh.leftArm) {
+        playerMesh.leftArm.rotation.set(-armSwing, 0, 0);
+      }
+      if (playerMesh.rightArm) {
+        playerMesh.rightArm.rotation.set(armSwing, 0, 0);
       }
     }
 
     if (playerMesh.cape) {
-      playerMesh.cape.rotation.x = 0.12 + Math.sin(walkTime * 2.0) * 0.02;
+      playerMesh.cape.rotation.set(0.15 + Math.abs(Math.sin(walkTime * 1.5)) * 0.15, 0, 0);
     }
+
+    playerMesh.group.position.y = playerPosY;
+  } else {
+    // Mode Diam (Idle Stance)
+    if (playerMesh.leftLeg) {
+      playerMesh.leftLeg.rotation.set(0, 0, 0);
+    }
+    if (playerMesh.rightLeg) {
+      playerMesh.rightLeg.rotation.set(0, 0, 0);
+    }
+
+    if (!isAttacking) {
+      if (playerMesh.leftArm) {
+        playerMesh.leftArm.rotation.set(0, 0, 0);
+      }
+      if (playerMesh.rightArm) {
+        playerMesh.rightArm.rotation.set(0, 0, 0);
+      }
+    }
+
+    if (playerMesh.cape) {
+      playerMesh.cape.rotation.set(0.12 + Math.sin(walkTime * 2.0) * 0.02, 0, 0);
+    }
+
+    playerMesh.group.position.y = playerPosY;
+  }
+
+  // Kunci mutlak di akhir: tidak ada body.rotation.z atau body.rotation.y
+  if (playerMesh.body) {
+    playerMesh.body.rotation.set(0, 0, 0);
   }
 }

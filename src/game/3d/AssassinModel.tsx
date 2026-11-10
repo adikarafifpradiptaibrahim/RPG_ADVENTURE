@@ -16,25 +16,39 @@ import {
  */
 export function createAssassinModel(): THREE.Group {
   const root = createHunterModel();
-  const body = root.getObjectByName('TorsoGroup');
-  if (body) {
-    body.position.x = 0;
-    body.rotation.set(0, 0, 0);
-    body.rotation.reorder('YXZ');
-  }
+  root.rotation.set(0, 0, 0);
+  root.traverse((child) => {
+    if (child instanceof THREE.Mesh || child instanceof THREE.Group) {
+      if (
+        child.name.toLowerCase().includes('body') ||
+        child.name.toLowerCase().includes('torso') ||
+        child.name.toLowerCase().includes('chest')
+      ) {
+        child.rotation.set(0, 0, 0);
+      }
+    }
+  });
   return root;
 }
 
 export function createBlockyAssassinMesh(tier: number = 1): PlayerMeshObjects {
   const meshObj = createBlockyHunterMesh(tier);
-  if (meshObj.body) {
-    meshObj.body.position.x = 0;
-    meshObj.body.rotation.set(0, 0, 0);
-    meshObj.body.rotation.reorder('YXZ');
+  meshObj.group.rotation.set(0, 0, 0);
+  if (meshObj.rotation) {
+    meshObj.rotation.set(0, 0, 0);
   }
-  if (meshObj.group) {
-    meshObj.group.rotation.z = 0;
-  }
+  meshObj.group.traverse((child) => {
+    if (child instanceof THREE.Mesh || child instanceof THREE.Group) {
+      if (
+        child.name.toLowerCase().includes('body') ||
+        child.name.toLowerCase().includes('torso') ||
+        child.name.toLowerCase().includes('chest') ||
+        child === meshObj.body
+      ) {
+        child.rotation.set(0, 0, 0);
+      }
+    }
+  });
   return meshObj;
 }
 
@@ -54,24 +68,29 @@ export function animateAssassin(
   if (!mesh) return;
 
   if (mesh.body) {
-    // Pastikan order Euler adalah 'YXZ' agar rotasi belok tidak memutar sumbu miring
-    mesh.body.rotation.reorder('YXZ');
-    mesh.body.rotation.z = 0;
+    mesh.body.rotation.set(0, 0, 0);
   }
   if (mesh.group) {
+    mesh.group.rotation.x = 0;
     mesh.group.rotation.z = 0;
+  }
+  if (mesh.rotation) {
+    mesh.rotation.x = 0;
+    mesh.rotation.z = 0;
   }
 
   animateHunterWalk(mesh, walkTime, playerPosY, isMoving, isAttacking, weaponMode, isSprinting);
 
   // Kunci mutlak rotasi Z body agar selalu tegak lurus sempurna saat berjalan, berlari, berbelok, maupun drag kamera
   if (mesh.body) {
-    mesh.body.rotation.z = 0;
+    mesh.body.rotation.set(0, 0, 0);
   }
   if (mesh.group) {
+    mesh.group.rotation.x = 0;
     mesh.group.rotation.z = 0;
   }
   if (mesh.rotation) {
+    mesh.rotation.x = 0;
     mesh.rotation.z = 0;
   }
 }
