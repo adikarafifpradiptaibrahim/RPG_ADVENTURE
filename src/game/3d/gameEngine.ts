@@ -6545,15 +6545,18 @@ export class GameEngine {
       this.playerRotationY += angleDiff * 16 * delta;
 
       if (this.charClass === 'rogue') {
-        if (angleDiff > 0.08) {
-          // Belok kanan -> miring -0.18 rad (lerp 0.12)
-          this.rogueLeanAngle = -0.18;
-        } else if (angleDiff < -0.08) {
-          // Belok kiri -> miring +0.18 rad (lerp 0.12)
-          this.rogueLeanAngle = 0.18;
+        const turnLeft = !!(this.isKeyPressed('a', 'keya', 'arrowleft') || (this.joystickVector.x < -0.25));
+        const turnRight = !!(this.isKeyPressed('d', 'keyd', 'arrowright') || (this.joystickVector.x > 0.25));
+
+        let targetRoll = 0;
+        if (turnRight && !turnLeft) {
+          targetRoll = -0.10; // Miring halus ke kanan (~5.7 derajat)
+        } else if (turnLeft && !turnRight) {
+          targetRoll = 0.10;  // Miring halus ke kiri (~5.7 derajat)
         } else {
-          this.rogueLeanAngle = 0;
+          targetRoll = 0;     // KUNCI: Wajib 0 jika jalan lurus (W/S saja) atau diam!
         }
+        this.rogueLeanAngle = targetRoll;
       }
 
       // Spawn movement footsteps
@@ -6731,6 +6734,7 @@ export class GameEngine {
     } else if (this.charClass === 'rogue') {
       // Forward ninja prowl crouch
       this.playerMesh.group.rotation.x = isMoving ? 0.16 : 0.08;
+      this.playerMesh.group.rotation.z = 0;
     } else if (this.charClass === 'warrior') {
       // Requirement 5: Stabilitas postur tegak lurus tanpa tilt/roll goyang saat bergerak, lari, maupun berputar
       this.playerMesh.group.rotation.x = 0;
@@ -6775,6 +6779,19 @@ export class GameEngine {
           this.isSprinting,
           this.rogueLeanAngle
         );
+        if (this.playerMesh.body) {
+          // 3. Terapkan Reset Lerp Setiap Frame:
+          this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(
+            this.playerMesh.body.rotation.z,
+            this.rogueLeanAngle,
+            0.15
+          );
+          // 5. Pastikan Rotasi Y Torso Netral (tidak tersangkut nilai offset):
+          if (!this.isAttacking) {
+            this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y, 0, 0.15);
+          }
+        }
+        this.playerMesh.group.rotation.z = 0;
       } else {
         const legSwing = Math.sin(this.walkTime) * 0.62;
         this.playerMesh.leftLeg.rotation.x = legSwing;
@@ -6844,6 +6861,14 @@ export class GameEngine {
           false,
           0
         );
+        // 4. Pada Saat Karakter Diam (Idle / !isMoving): Paksa rotasi Z badan kembali ke 0 secara mutlak
+        if (this.playerMesh.body) {
+          this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(this.playerMesh.body.rotation.z, 0, 0.2);
+          if (!this.isAttacking) {
+            this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y, 0, 0.2);
+          }
+        }
+        this.playerMesh.group.rotation.z = 0;
       } else {
         this.playerMesh.leftLeg.rotation.x *= 0.8;
         this.playerMesh.rightLeg.rotation.x *= 0.8;
@@ -7000,6 +7025,10 @@ export class GameEngine {
             this.playerMesh.grimoire.position.set(-0.08, 0.08, 0.02);
             this.playerMesh.grimoire.rotation.set(0.20, 0, 0);
           }
+          this.playerMesh.leftArm.rotation.set(0, 0, 0);
+          this.playerMesh.rightArm.rotation.set(0, 0, 0);
+        } else if (this.charClass === 'rogue' && this.playerMesh?.body) {
+          this.playerMesh.body.rotation.set(0, 0, 0);
           this.playerMesh.leftArm.rotation.set(0, 0, 0);
           this.playerMesh.rightArm.rotation.set(0, 0, 0);
         } else if (this.playerMesh) {

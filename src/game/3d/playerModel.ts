@@ -518,9 +518,12 @@ export function animateHunterWalk(
   const isBow = hunterWeaponMode === 'bow';
 
   if (isMoving) {
-    // Lean Banking (Miring saat berbelok ke kiri / kanan: lerp 0.12)
+    // Lean Banking (Miring saat berbelok ke kiri / kanan: lerp 0.15)
     if (playerMesh.body) {
-      playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, leanAngle, 0.12);
+      playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, leanAngle, 0.15);
+      if (!isAttacking) {
+        playerMesh.body.rotation.y = THREE.MathUtils.lerp(playerMesh.body.rotation.y, 0, 0.15);
+      }
     }
 
     if (isSprinting) {
@@ -569,7 +572,7 @@ export function animateHunterWalk(
 
       const sprintBob = Math.abs(Math.sin(walkTime * 4.4)) * 0.05;
       playerMesh.group.position.y = playerPosY + sprintBob;
-      playerMesh.group.rotation.z = Math.sin(walkTime * 2.2) * 0.03;
+      playerMesh.group.rotation.z = 0;
     } else {
       // Normal Walk
       if (playerMesh.body) {
@@ -616,7 +619,7 @@ export function animateHunterWalk(
 
       const walkBob = Math.abs(Math.sin(walkTime * 2.4)) * 0.04;
       playerMesh.group.position.y = playerPosY + walkBob;
-      playerMesh.group.rotation.z = Math.sin(walkTime * 1.2) * 0.02;
+      playerMesh.group.rotation.z = 0;
     }
   } else {
     // Mode Diam (Idle Stance)
@@ -626,13 +629,17 @@ export function animateHunterWalk(
     if (playerMesh.rightLeg) {
       playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0, 0.2);
     }
-    playerMesh.group.rotation.z = THREE.MathUtils.lerp(playerMesh.group.rotation.z, 0, 0.2);
+    playerMesh.group.rotation.z = 0;
 
     const breathe = Math.sin(walkTime * 2.2) * 0.012;
     if (playerMesh.body) {
       playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.18 + breathe, 0.15);
       playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, 0.15);
-      playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, 0.12);
+      // Paksa rotasi Z badan kembali ke 0 secara mutlak saat diam
+      playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, 0.2);
+      if (!isAttacking) {
+        playerMesh.body.rotation.y = THREE.MathUtils.lerp(playerMesh.body.rotation.y, 0, 0.2);
+      }
     }
 
     // Root position grounded without excessive bobbing
