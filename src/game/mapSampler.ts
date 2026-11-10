@@ -17,8 +17,8 @@ export interface BiomeSample {
   slope: number; // 0..1
 }
 
-import { isPointOnRoad } from './RoadSystem';
-export { isPointOnRoad };
+import { isPointOnRoad, isPointNearRoad } from './RoadSystem';
+export { isPointOnRoad, isPointNearRoad };
 
 export type BiomeZoneId = 'ocean' | 'volcano' | 'desert' | 'plains';
 
@@ -219,9 +219,20 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return Math.max(-1.5, 0.5 - t * 2.2);
   }
 
-  // Rolling lush grasslands
-  const hillWave = Math.sin(x * 0.032) * Math.cos(z * 0.032) * 0.65;
-  return clamp(0.6 + hillWave, 0.1, 2.0);
+  // 4h. Flattened road paths (jalan setapak batu tetap rata agar tidak ada objek melayang atau tenggelam)
+  if (isPointOnRoad(x, z)) {
+    return 0.35;
+  }
+
+  // Rolling lush grasslands with subtle natural hills
+  const rawHill = 0.6 + Math.sin(x * 0.02) * Math.cos(z * 0.02) * 1.5;
+  const hill = clamp(rawHill, 0.15, 2.4);
+
+  // Smooth blending at road borders (buffer 2.0 unit)
+  if (isPointNearRoad(x, z, 2.0)) {
+    return 0.35 * 0.65 + hill * 0.35;
+  }
+  return hill;
 }
 
 /**

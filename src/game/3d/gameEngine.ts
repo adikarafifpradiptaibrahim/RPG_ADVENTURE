@@ -31,6 +31,7 @@ import {
 } from './models';
 export { USE_LEGACY_KNIGHT, USE_LEGACY_MAGE, USE_LEGACY_HUNTER };
 import { buildWorld, WorldObjects, WorldCheckpoint } from './world';
+import { buildWorldEnvironment, WorldEnvironmentResult } from './worldEnvironment';
 import { BossManager } from '../BossManager';
 import { BOSS_ARENA_ZONES, BossArenaZone } from '../monsterAI';
 import { RemotePlayerData } from '../multiplayer';
@@ -46,6 +47,8 @@ import {
   FOREST_GOLEM_SPAWNS,
   FOREST_SPIDER_SPAWNS,
   FROST_WOLF_SPAWNS,
+  BEAST_LAIR_SPAWNS,
+  BANDIT_OUTPOST_SPAWNS,
 } from '../monsters';
 import {
   clampCameraPitch,
@@ -250,6 +253,7 @@ export class GameEngine {
 
   // World and Player
   private world: WorldObjects;
+  private worldEnvironment?: WorldEnvironmentResult;
   private playerMesh: PlayerMeshObjects;
   private playerPos = new THREE.Vector3(0, 0, 184);
   private playerVel = new THREE.Vector3();
@@ -692,6 +696,13 @@ export class GameEngine {
 
     // 3. Build 3D World
     this.world = buildWorld(this.scene);
+
+    // 3b. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation
+    this.worldEnvironment = buildWorldEnvironment(
+      this.scene,
+      (x, z) => this.world.getTerrainHeight(x, z),
+      this.world.colliders
+    );
 
     // Warm-up & pre-compile Starfall shaders, geometries, and object pool
     preloadStarfallPool(this.scene, this.renderer, this.camera);
@@ -1870,6 +1881,95 @@ export class GameEngine {
       leashRadius: SPAWN_SANDWORM.leashRadius,
       isReturning: false,
       deathTimer: 0,
+    });
+
+    // 18. Beast Lair (Zone C: X -170..-230, Z 70..130) - Serigala & monster buas level 2-4
+    BEAST_LAIR_SPAWNS.forEach((sp) => {
+      const { group, parts } = createEnemyMesh(sp.type);
+      const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
+      group.position.set(sp.pos[0], ey, sp.pos[1]);
+      this.scene.add(group);
+
+      const enemyData: EnemyData = {
+        id: sp.id,
+        name: sp.name,
+        nameId: sp.nameId,
+        type: sp.type,
+        level: sp.level,
+        hp: sp.hp,
+        maxHp: sp.maxHp,
+        attack: sp.attack,
+        defense: sp.defense,
+        expReward: sp.expReward,
+        goldReward: sp.goldReward,
+        speed: 2.8,
+        attackRange: 2.2,
+        detectRange: sp.aggroRange,
+        position: [sp.pos[0], ey, sp.pos[1]],
+        isDead: false,
+        dropItems: [
+          { item: CHEST_LOOT_POOL[2], chance: 0.35 },
+          { item: CHEST_LOOT_POOL[3], chance: 0.4 },
+        ],
+      };
+
+      this.enemies.push({
+        data: enemyData,
+        mesh: group,
+        parts,
+        baseY: ey,
+        attackCooldown: 0,
+        walkCycle: Math.random() * 10,
+        spawnPos: new THREE.Vector3(sp.pos[0], ey, sp.pos[1]),
+        leashRadius: 22,
+        isReturning: false,
+        deathTimer: 0,
+      });
+    });
+
+    // 19. Enemy Outpost (Zone D: X -260..-340, Z -60..80) - Pasukan bandit bersenjata level 5+
+    BANDIT_OUTPOST_SPAWNS.forEach((sp) => {
+      const { group, parts } = createEnemyMesh(sp.type);
+      const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
+      group.position.set(sp.pos[0], ey, sp.pos[1]);
+      this.scene.add(group);
+
+      const enemyData: EnemyData = {
+        id: sp.id,
+        name: sp.name,
+        nameId: sp.nameId,
+        type: sp.type,
+        level: sp.level,
+        hp: sp.hp,
+        maxHp: sp.maxHp,
+        attack: sp.attack,
+        defense: sp.defense,
+        expReward: sp.expReward,
+        goldReward: sp.goldReward,
+        speed: 3.2,
+        attackRange: 2.4,
+        detectRange: sp.aggroRange,
+        position: [sp.pos[0], ey, sp.pos[1]],
+        isDead: false,
+        dropItems: [
+          { item: CHEST_LOOT_POOL[0], chance: 0.45 },
+          { item: CHEST_LOOT_POOL[1], chance: 0.3 },
+          { item: CHEST_LOOT_POOL[4], chance: 0.4 },
+        ],
+      };
+
+      this.enemies.push({
+        data: enemyData,
+        mesh: group,
+        parts,
+        baseY: ey,
+        attackCooldown: 0,
+        walkCycle: Math.random() * 10,
+        spawnPos: new THREE.Vector3(sp.pos[0], ey, sp.pos[1]),
+        leashRadius: 24,
+        isReturning: false,
+        deathTimer: 0,
+      });
     });
 
     // Initialize territory origin points and leash parameters for all monsters
@@ -8325,6 +8425,7 @@ export class GameEngine {
     this.updateLootPickups(delta);
     this.updateCamera(delta);
     this.updateRemotePlayers(delta);
+    this.worldEnvironment?.update(delta, this.clock.getElapsedTime());
 
     // Update Mage Arcane Shield Timer
     if (this.arcaneShieldTimer > 0) {

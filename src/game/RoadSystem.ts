@@ -295,6 +295,37 @@ export function isPointOnRoad(x: number, z: number): boolean {
 }
 
 /**
+ * Mendeteksi apakah titik berada terlalu dekat dengan jalan (buffer margin).
+ * Digunakan agar penempatan vegetasi instanced mesh tidak menabrak jalur pejalan kaki.
+ */
+export function isPointNearRoad(x: number, z: number, margin = 3.5): boolean {
+  const roads = getSampledRoads();
+
+  for (let r = 0; r < roads.length; r++) {
+    const road = roads[r];
+    if (
+      x < road.bbox.minX - margin ||
+      x > road.bbox.maxX + margin ||
+      z < road.bbox.minZ - margin ||
+      z > road.bbox.maxZ + margin
+    ) {
+      continue;
+    }
+
+    const thresholdSq = Math.pow(road.def.width * 0.5 + margin, 2);
+    const pts = road.coarsePoints2D;
+
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (distToSegmentSq(x, z, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]) <= thresholdSq) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
  * CONTINUOUS RIBBON STRIP DENGAN DENSE SAMPLING & BEBAS Z-FIGHTING
  * Membangun pita geometri tunggal bersambung:
  * - Kerapatan sampling ~1.4 unit mengikuti kurva spline Catmull-Rom.
