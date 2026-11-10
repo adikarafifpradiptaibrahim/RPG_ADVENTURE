@@ -62,6 +62,18 @@ export function buildWorldEnvironment(
   const matTentFabric = new THREE.MeshStandardMaterial({ color: 0x6b705c, roughness: 0.9, flatShading: true });
   const matBone = new THREE.MeshStandardMaterial({ color: 0xf3f4f6, roughness: 0.6, flatShading: true });
 
+  // Material Tambahan untuk Pesisir Barat, Sabana, & Perkemahan Bandit
+  const matWetSeaRock = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.35, metalness: 0.25, flatShading: true });
+  const matPalmTrunk = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.9, flatShading: true });
+  const matPalmRing = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.9, flatShading: true });
+  const matPalmLeaf = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.7, flatShading: true });
+  const matCoconut = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 0.85, flatShading: true });
+  const matShipWood = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.95, flatShading: true });
+  const matShipPlank = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.9, flatShading: true });
+  const matIronBands = new THREE.MeshStandardMaterial({ color: 0x374151, roughness: 0.6, metalness: 0.7 });
+  const matWineBarrel = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.85, flatShading: true });
+  const matBeachGrass = new THREE.MeshStandardMaterial({ color: 0xa3a658, roughness: 0.9, flatShading: true });
+
   // Helper deteksi batas pekarangan pertanian untuk isolasi vegetasi instanced & bebatuan alami
   function isInsideFarmYard(x: number, z: number): boolean {
     if (x >= 19 && x <= 45 && z >= 151 && z <= 166) return true; // Pekarangan 1 (Utara)
@@ -594,20 +606,74 @@ export function buildWorldEnvironment(
   envGroup.add(beastGroup);
 
   // ============================================================================
-  // 4. ZONA D: BENTENG MUSUH / OUTPOST TERPENCIL (X: -260 s.d. -340, Z: -60 s.d. 80)
+  // 4. ZONA D: KOMPLEKS PERKEMAHAN BANDIT / OUTPOST PADAT (X: -220 s.d -280, Z: -10 s.d -60)
   // ============================================================================
   const outpostGroup = new THREE.Group();
   outpostGroup.name = 'ZoneD_EnemyOutpost';
 
-  const outpostCenterX = -300;
-  const outpostCenterZ = 10;
+  const outpostCenterX = -250;
+  const outpostCenterZ = -35;
   const outpostBaseY = getTerrainHeight(outpostCenterX, outpostCenterZ);
 
-  // 3 Tenda Kain Lusuh Bertiang Kayu
+  // Menara Pantau (Watchtower) Menyatu di Dalam Kamp
+  const towerX = -266;
+  const towerZ = -42;
+  const towerY = getTerrainHeight(towerX, towerZ);
+  const tower = new THREE.Group();
+  tower.position.set(towerX, towerY, towerZ);
+
+  const towerH = 6.8;
+  const towerSpan = 2.6;
+  [
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1],
+  ].forEach(([sx, sz]) => {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, towerH, 6), matWoodRustic);
+    post.position.set(sx * towerSpan * 0.5, towerH * 0.5, sz * towerSpan * 0.5);
+    tower.add(post);
+  });
+
+  // Dek pengawas lantai atas
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(towerSpan + 0.8, 0.25, towerSpan + 0.8), matWoodRustic);
+  deck.position.y = towerH - 1.2;
+  tower.add(deck);
+
+  // Pagar pembatas dek
+  const railH = 0.9;
+  [
+    { p: [0, towerH - 1.2 + railH * 0.5, -(towerSpan * 0.5 + 0.3)], sz: [towerSpan + 0.8, 0.1, 0.08] },
+    { p: [0, towerH - 1.2 + railH * 0.5, towerSpan * 0.5 + 0.3], sz: [towerSpan + 0.8, 0.1, 0.08] },
+    { p: [-(towerSpan * 0.5 + 0.3), towerH - 1.2 + railH * 0.5, 0], sz: [0.08, 0.1, towerSpan + 0.8] },
+    { p: [towerSpan * 0.5 + 0.3, towerH - 1.2 + railH * 0.5, 0], sz: [0.08, 0.1, towerSpan + 0.8] },
+  ].forEach((rf) => {
+    const rMesh = new THREE.Mesh(new THREE.BoxGeometry(rf.sz[0], rf.sz[1], rf.sz[2]), matWoodRustic);
+    rMesh.position.set(rf.p[0], rf.p[1], rf.p[2]);
+    tower.add(rMesh);
+  });
+
+  // Anak tangga kayu (ladder rungs) di salah satu tiang
+  for (let l = 0; l < 10; l++) {
+    const rung = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.06, 0.06), matWoodRustic);
+    rung.position.set(-towerSpan * 0.5, 0.8 + l * 0.5, 0);
+    tower.add(rung);
+  }
+
+  // Atap kanopi piramida
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(towerSpan * 0.85, 1.4, 4), matTentFabric);
+  roof.position.y = towerH + 0.9;
+  roof.rotation.y = Math.PI / 4;
+  tower.add(roof);
+
+  outpostGroup.add(tower);
+  colliders.push({ type: 'circle', x: towerX, z: towerZ, radius: 2.2, label: 'Menara Pengawas' });
+
+  // 3 Tenda Kain Lusuh Menghadap Api Unggun Sentral
   const tents = [
-    { x: -316, z: 24, rotY: 0.45, scale: 1.1 },
-    { x: -286, z: 18, rotY: -0.85, scale: 1.0 },
-    { x: -322, z: -16, rotY: 1.35, scale: 1.3 },
+    { x: -262, z: -26, rotY: 2.35, scale: 1.15 }, // Tenda Barat Laut
+    { x: -238, z: -34, rotY: -1.55, scale: 1.05 }, // Tenda Timur
+    { x: -252, z: -48, rotY: 0.15, scale: 1.25 }, // Tenda Selatan
   ];
 
   tents.forEach((td) => {
@@ -617,25 +683,29 @@ export function buildWorldEnvironment(
     tent.rotation.y = td.rotY;
     tent.scale.setScalar(td.scale);
 
-    // Tenda kerucut / piramida kanvas
     const canopy = new THREE.Mesh(new THREE.ConeGeometry(2.6, 2.8, 5), matTentFabric);
     canopy.position.y = 1.4;
 
-    // Tiang utama kayu di pintu tenda
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.0, 5), matWoodRustic);
     pole.position.set(0, 1.5, 0.85);
 
-    tent.add(canopy, pole);
+    const rug = new THREE.Mesh(new THREE.CircleGeometry(1.6, 6), matWoodDark);
+    rug.rotateX(-Math.PI / 2);
+    rug.position.y = 0.03;
+
+    tent.add(canopy, pole, rug);
     outpostGroup.add(tent);
     colliders.push({ type: 'circle', x: td.x, z: td.z, radius: 2.4 * td.scale, label: 'Tenda Bandit' });
   });
 
-  // Pagar Barikade Batang Kayu Runcing (Wooden Spike Barricade)
+  // Barikade Kayu Runcing Mengelilingi Kamp (Perimeter Barricades)
   const barricades = [
-    { x: -272, z: 28, rotY: -0.35, len: 6 },
-    { x: -276, z: -4, rotY: 0.5, len: 6 },
-    { x: -334, z: 32, rotY: 0.8, len: 5 },
-    { x: -338, z: -4, rotY: -0.6, len: 6 },
+    { x: -268, z: -18, rotY: -0.4, len: 7.0 },
+    { x: -248, z: -16, rotY: 0.05, len: 7.0 },
+    { x: -276, z: -35, rotY: 1.57, len: 7.5 },
+    { x: -266, z: -54, rotY: 2.6, len: 7.0 },
+    { x: -246, z: -56, rotY: 3.14, len: 7.0 },
+    { x: -232, z: -48, rotY: -2.4, len: 6.5 },
   ];
 
   barricades.forEach((bc) => {
@@ -644,12 +714,10 @@ export function buildWorldEnvironment(
     bGroup.position.set(bc.x, by, bc.z);
     bGroup.rotation.y = bc.rotY;
 
-    // Palang horizontal
     const crossBeam = new THREE.Mesh(new THREE.BoxGeometry(bc.len, 0.16, 0.16), matWoodRustic);
     crossBeam.position.y = 0.75;
     bGroup.add(crossBeam);
 
-    // Rangkaian tiang pancang runcing bersilang
     const stakeCount = Math.floor(bc.len / 0.75);
     for (let s = 0; s < stakeCount; s++) {
       const sx = -bc.len * 0.5 + 0.4 + s * 0.75;
@@ -711,65 +779,404 @@ export function buildWorldEnvironment(
   campFireGroup.add(cauldron);
 
   // Cahaya api unggun
-  const fireLight = new THREE.PointLight(0xff7700, 2.6, 26);
+  const fireLight = new THREE.PointLight(0xff7700, 2.8, 28);
   fireLight.position.set(outpostCenterX, outpostBaseY + 1.2, outpostCenterZ);
   outpostGroup.add(fireLight);
 
-  animatedLights.push({ light: fireLight, baseIntensity: 2.6, speed: 10 });
+  animatedLights.push({ light: fireLight, baseIntensity: 2.8, speed: 10 });
   animatedFlames.push({ mesh: campFlame, baseScale: new THREE.Vector3(1, 1.3, 1), speed: 11 });
 
   outpostGroup.add(campFireGroup);
   colliders.push({ type: 'circle', x: outpostCenterX, z: outpostCenterZ, radius: 1.6, label: 'Api Unggun' });
 
-  // Menara Pengawas Kayu Sederhana (Watchtower)
-  const towerX = -282;
-  const towerZ = -18;
-  const towerY = getTerrainHeight(towerX, towerZ);
-  const tower = new THREE.Group();
-  tower.position.set(towerX, towerY, towerZ);
+  // Peti Kayu Rampasan (Loot Crates)
+  const lootStacks = [
+    { x: -264, z: -28, crates: [
+      { dx: 0, dz: 0, w: 0.8, h: 0.65, dy: 0 },
+      { dx: 0.7, dz: 0.1, w: 0.65, h: 0.6, dy: 0 },
+      { dx: 0.3, dz: 0.05, w: 0.6, h: 0.55, dy: 0.65 },
+    ]},
+    { x: -248, z: -44, crates: [
+      { dx: 0, dz: 0, w: 0.9, h: 0.75, dy: 0 },
+      { dx: 0.8, dz: -0.15, w: 0.7, h: 0.65, dy: 0 },
+      { dx: 0.35, dz: 0.0, w: 0.65, h: 0.6, dy: 0.75 },
+    ]},
+    { x: -263, z: -46, crates: [
+      { dx: 0, dz: 0, w: 0.75, h: 0.6, dy: 0 },
+      { dx: 0.65, dz: 0.1, w: 0.65, h: 0.55, dy: 0 },
+    ]},
+  ];
 
-  // 4 Tiang utama (tinggi 6.8m)
-  const towerH = 6.8;
-  const towerSpan = 2.4;
-  [
-    [-1, -1],
-    [1, -1],
-    [-1, 1],
-    [1, 1],
-  ].forEach(([sx, sz]) => {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, towerH, 6), matWoodRustic);
-    post.position.set(sx * towerSpan * 0.5, towerH * 0.5, sz * towerSpan * 0.5);
-    tower.add(post);
+  lootStacks.forEach((ls) => {
+    const ly = getTerrainHeight(ls.x, ls.z);
+    ls.crates.forEach((c) => {
+      const box = new THREE.Mesh(new THREE.BoxGeometry(c.w, c.h, c.w), matWoodDark);
+      box.position.set(ls.x + c.dx, ly + c.dy + c.h * 0.5, ls.z + c.dz);
+      box.rotation.y = (Math.random() - 0.5) * 0.4;
+
+      const band = new THREE.Mesh(new THREE.BoxGeometry(c.w * 1.02, 0.08, c.w * 1.02), matIronBands);
+      band.position.set(ls.x + c.dx, ly + c.dy + c.h * 0.5, ls.z + c.dz);
+      outpostGroup.add(box, band);
+    });
+    colliders.push({ type: 'circle', x: ls.x, z: ls.z, radius: 1.3, label: 'Peti Rampasan' });
   });
 
-  // Dek pengawas lantai atas
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(towerSpan + 0.8, 0.25, towerSpan + 0.8), matWoodRustic);
-  deck.position.y = towerH - 1.2;
-  tower.add(deck);
+  // Tong Anggur Kayu Rusak (Broken Wine Barrels)
+  const wineBarrels = [
+    { x: -247, z: -31, rotX: 0, rotY: 0.2, rotZ: 0 }, // Tegak
+    { x: -255, z: -38, rotX: 0.2, rotY: 0.8, rotZ: 1.45 }, // Tergeletak miring
+    { x: -242, z: -39, rotX: -0.15, rotY: 1.2, rotZ: 0.2 }, // Sedikit miring pecah
+  ];
 
-  // Pagar pembatas dek
-  const railH = 0.9;
-  [
-    { p: [0, towerH - 1.2 + railH * 0.5, -(towerSpan * 0.5 + 0.3)], sz: [towerSpan + 0.8, 0.1, 0.08] },
-    { p: [0, towerH - 1.2 + railH * 0.5, towerSpan * 0.5 + 0.3], sz: [towerSpan + 0.8, 0.1, 0.08] },
-    { p: [-(towerSpan * 0.5 + 0.3), towerH - 1.2 + railH * 0.5, 0], sz: [0.08, 0.1, towerSpan + 0.8] },
-    { p: [towerSpan * 0.5 + 0.3, towerH - 1.2 + railH * 0.5, 0], sz: [0.08, 0.1, towerSpan + 0.8] },
-  ].forEach((rf) => {
-    const rMesh = new THREE.Mesh(new THREE.BoxGeometry(rf.sz[0], rf.sz[1], rf.sz[2]), matWoodRustic);
-    rMesh.position.set(rf.p[0], rf.p[1], rf.p[2]);
-    tower.add(rMesh);
+  wineBarrels.forEach((wb) => {
+    const wy = getTerrainHeight(wb.x, wb.z);
+    const bGroup = new THREE.Group();
+    bGroup.position.set(wb.x, wy + 0.45, wb.z);
+    bGroup.rotation.set(wb.rotX, wb.rotY, wb.rotZ);
+
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 0.95, 8), matWineBarrel);
+    const hoop1 = new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.43, 0.08, 8), matIronBands);
+    hoop1.position.y = 0.26;
+    const hoop2 = new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.43, 0.08, 8), matIronBands);
+    hoop2.position.y = -0.26;
+
+    bGroup.add(barrel, hoop1, hoop2);
+    outpostGroup.add(bGroup);
+    colliders.push({ type: 'circle', x: wb.x, z: wb.z, radius: 0.65, label: 'Tong Anggur Rusak' });
   });
 
-  // Atap kanopi piramida
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(towerSpan * 0.85, 1.4, 4), matTentFabric);
-  roof.position.y = towerH + 0.9;
-  roof.rotation.y = Math.PI / 4;
-  tower.add(roof);
+  // Obor Tiang Kayu Berkobar (Standing Wooden Torches)
+  const campTorches = [
+    { x: -234, z: -24 }, // Gerbang kamp sisi utara
+    { x: -234, z: -32 }, // Gerbang kamp sisi selatan
+    { x: -264, z: -38 }, // Dekat menara pengawas
+    { x: -258, z: -22 }, // Dekat tenda 1
+  ];
 
-  outpostGroup.add(tower);
-  colliders.push({ type: 'circle', x: towerX, z: towerZ, radius: 2.2, label: 'Menara Pengawas' });
+  campTorches.forEach((ct, tIdx) => {
+    const ty = getTerrainHeight(ct.x, ct.z);
+    const tGroup = new THREE.Group();
+    tGroup.position.set(ct.x, ty, ct.z);
+
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 2.2, 5), matWoodDark);
+    pole.position.y = 1.1;
+
+    const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.12, 0.35, 6), matIronBands);
+    basket.position.y = 2.15;
+
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.45, 5), matOrangeFire);
+    flame.position.y = 2.45;
+
+    tGroup.add(pole, basket, flame);
+    outpostGroup.add(tGroup);
+
+    const tLight = new THREE.PointLight(0xff8800, 1.6, 14);
+    tLight.position.set(ct.x, ty + 2.5, ct.z);
+    outpostGroup.add(tLight);
+
+    animatedLights.push({ light: tLight, baseIntensity: 1.6, speed: 8 + tIdx });
+    animatedFlames.push({ mesh: flame, baseScale: new THREE.Vector3(1, 1.25, 1), speed: 9 + tIdx });
+  });
 
   envGroup.add(outpostGroup);
+
+  // ============================================================================
+  // 5. ZONA E: SABANA & LERENG BUKIT PADANG RUMPUT (X: -290 s.d -350, Z: 80 s.d 150)
+  // ============================================================================
+  const savannaGroup = new THREE.Group();
+  savannaGroup.name = 'ZoneE_SavannaHills';
+
+  // Gugusan Bebatuan Besar (Rock Clusters) dengan Variasi Skala
+  const rockClusters = [
+    // Gugusan Punggung Bukit Barat
+    { cx: -332, cz: 108, rocks: [
+      { dx: 0, dz: 0, s: [2.6, 2.2, 2.4], rot: 0.4 },
+      { dx: 2.2, dz: 1.2, s: [1.8, 1.6, 1.9], rot: -0.8 },
+      { dx: -1.9, dz: -1.4, s: [2.1, 1.9, 1.8], rot: 1.2 },
+      { dx: 0.8, dz: -2.3, s: [1.5, 1.3, 1.6], rot: -1.5 },
+      { dx: -2.4, dz: 1.8, s: [1.4, 1.2, 1.5], rot: 0.9 },
+    ]},
+    // Gugusan Puncak Lereng Utara
+    { cx: -306, cz: 136, rocks: [
+      { dx: 0, dz: 0, s: [2.8, 2.4, 2.5], rot: 1.1 },
+      { dx: 2.4, dz: -0.8, s: [2.0, 1.7, 1.9], rot: -0.5 },
+      { dx: -2.1, dz: 1.4, s: [1.6, 1.4, 1.7], rot: 0.3 },
+      { dx: 1.2, dz: 2.1, s: [1.4, 1.1, 1.4], rot: -1.2 },
+    ]},
+    // Gugusan Lembah Sabana Selatan
+    { cx: -342, cz: 92, rocks: [
+      { dx: 0, dz: 0, s: [2.5, 2.0, 2.3], rot: -0.7 },
+      { dx: 1.8, dz: 1.5, s: [1.9, 1.6, 1.8], rot: 0.6 },
+      { dx: -1.7, dz: -1.6, s: [1.7, 1.3, 1.6], rot: -1.1 },
+      { dx: 2.6, dz: -1.2, s: [1.4, 1.1, 1.5], rot: 1.4 },
+      { dx: -2.5, dz: 1.1, s: [1.3, 1.0, 1.4], rot: -0.3 },
+    ]},
+  ];
+
+  rockClusters.forEach((rc) => {
+    rc.rocks.forEach((r) => {
+      const rx = rc.cx + r.dx;
+      const rz = rc.cz + r.dz;
+      const ry = getTerrainHeight(rx, rz);
+      const bMesh = new THREE.Mesh(new THREE.DodecahedronGeometry(1.0, 0), matStoneDarkCrag);
+      bMesh.position.set(rx, ry + r.s[1] * 0.45, rz);
+      bMesh.scale.set(r.s[0], r.s[1], r.s[2]);
+      bMesh.rotation.set(r.rot * 0.5, r.rot, r.rot * 0.3);
+      savannaGroup.add(bMesh);
+    });
+    colliders.push({ type: 'circle', x: rc.cx, z: rc.cz, radius: 3.5, label: 'Gugusan Batu Sabana' });
+  });
+
+  // Kelompok Pohon Cemara Lebat di Punggung Bukit Noise
+  const hillPines = [
+    { x: -315, z: 120, s: 1.25 },
+    { x: -319, z: 125, s: 1.1 },
+    { x: -322, z: 118, s: 1.35 },
+    { x: -312, z: 115, s: 1.05 },
+    { x: -326, z: 128, s: 1.2 },
+    { x: -330, z: 134, s: 1.15 },
+    { x: -324, z: 112, s: 1.3 },
+  ];
+
+  hillPines.forEach((hp) => {
+    const hy = getTerrainHeight(hp.x, hp.z);
+    const pGroup = new THREE.Group();
+    pGroup.position.set(hp.x, hy, hp.z);
+    pGroup.scale.setScalar(hp.s);
+
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.36, 2.4, 5), matWoodRustic);
+    trunk.position.y = 1.2;
+    const c1 = new THREE.Mesh(new THREE.ConeGeometry(1.6, 2.3, 5), matPineFoliage);
+    c1.position.y = 2.5;
+    const c2 = new THREE.Mesh(new THREE.ConeGeometry(1.3, 2.0, 5), matPineFoliage);
+    c2.position.y = 3.8;
+    const c3 = new THREE.Mesh(new THREE.ConeGeometry(0.9, 1.7, 5), matPineFoliage);
+    c3.position.y = 4.9;
+
+    pGroup.add(trunk, c1, c2, c3);
+    savannaGroup.add(pGroup);
+    colliders.push({ type: 'circle', x: hp.x, z: hp.z, radius: 1.1 * hp.s, label: 'Pohon Cemara Bukit' });
+  });
+
+  // Kelompok Pohon Rindang Oak Lebat
+  const hillOaks = [
+    { x: -298, z: 95, s: 1.2 },
+    { x: -304, z: 102, s: 1.35 },
+    { x: -308, z: 90, s: 1.15 },
+    { x: -335, z: 142, s: 1.25 },
+    { x: -340, z: 146, s: 1.1 },
+    { x: -344, z: 138, s: 1.3 },
+    { x: -300, z: 115, s: 1.1 },
+    { x: -332, z: 98, s: 1.2 },
+  ];
+
+  hillOaks.forEach((ho) => {
+    const oy = getTerrainHeight(ho.x, ho.z);
+    const oGroup = new THREE.Group();
+    oGroup.position.set(ho.x, oy, ho.z);
+    oGroup.scale.setScalar(ho.s);
+
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.48, 2.8, 6), matWoodRustic);
+    trunk.position.y = 1.4;
+    const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(2.3, 0), matOakFoliage);
+    crown.position.y = 4.0;
+    crown.scale.set(1.1, 0.95, 1.05);
+
+    oGroup.add(trunk, crown);
+    savannaGroup.add(oGroup);
+    colliders.push({ type: 'circle', x: ho.x, z: ho.z, radius: 1.3 * ho.s, label: 'Pohon Oak Sabana' });
+  });
+
+  envGroup.add(savannaGroup);
+
+  // ============================================================================
+  // 6. ZONA F: WILAYAH PESISIR BARAT & TEBING PANTAI (X: -400 s.d -450, Z: -50 s.d -240)
+  // ============================================================================
+  const coastGroup = new THREE.Group();
+  coastGroup.name = 'ZoneF_WesternCoast';
+
+  // Helper Pembuat Pohon Kelapa/Palem Tropis Miring (Leaning Palm Tree)
+  function createPalmTree(x: number, z: number, leanAngle: number, leanDir: number, scale = 1.0) {
+    const y = getTerrainHeight(x, z);
+    const palm = new THREE.Group();
+    palm.position.set(x, y, z);
+    palm.rotation.y = leanDir;
+    palm.scale.setScalar(scale);
+
+    // Batang melengkung bertingkat (curved segmented trunk)
+    const segCount = 6;
+    const segH = 0.95;
+    let curX = 0;
+    let curY = 0;
+    for (let i = 0; i < segCount; i++) {
+      const r = 0.22 - i * 0.015;
+      const seg = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.9, r, segH, 6), matPalmTrunk);
+      seg.position.set(curX, curY + segH * 0.5, 0);
+      seg.rotation.z = -leanAngle * (i / segCount);
+
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.05, r * 1.05, 0.08, 6), matPalmRing);
+      ring.position.set(curX, curY + segH * 0.95, 0);
+      ring.rotation.z = -leanAngle * (i / segCount);
+
+      palm.add(seg, ring);
+      curX += Math.sin(leanAngle * (i / segCount)) * segH;
+      curY += Math.cos(leanAngle * (i / segCount)) * segH;
+    }
+
+    // Tajuk Pelepah Daun Kelapa (Palm Fronds Crown)
+    const frondCount = 7;
+    for (let f = 0; f < frondCount; f++) {
+      const fAngle = (f / frondCount) * Math.PI * 2;
+      const frond = new THREE.Group();
+      frond.position.set(curX, curY, 0);
+      frond.rotation.y = fAngle;
+
+      const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.55, 2.8, 4), matPalmLeaf);
+      leaf.position.set(0, 0.8, 1.2);
+      leaf.rotation.x = 1.15;
+      leaf.scale.set(1.0, 1.0, 0.15);
+      frond.add(leaf);
+
+      palm.add(frond);
+    }
+
+    // Gerombolan Buah Kelapa di Bawah Daun
+    for (let c = 0; c < 4; c++) {
+      const cAngle = (c / 4) * Math.PI * 2 + 0.3;
+      const coconut = new THREE.Mesh(new THREE.SphereGeometry(0.18, 5, 5), matCoconut);
+      coconut.position.set(curX + Math.cos(cAngle) * 0.35, curY - 0.2, Math.sin(cAngle) * 0.35);
+      palm.add(coconut);
+    }
+
+    coastGroup.add(palm);
+    colliders.push({ type: 'circle', x, z, radius: 0.9 * scale, label: 'Pohon Kelapa Pantai' });
+  }
+
+  // Deretan Pohon Kelapa/Palem Miring di Sepanjang Garis Pantai
+  const coastalPalms = [
+    { x: -408, z: -65, lean: 0.32, dir: 1.5, s: 1.15 },
+    { x: -412, z: -85, lean: 0.28, dir: 1.3, s: 1.05 },
+    { x: -416, z: -110, lean: 0.35, dir: 1.6, s: 1.2 },
+    { x: -419, z: -130, lean: 0.30, dir: 1.4, s: 1.1 },
+    { x: -422, z: -150, lean: 0.36, dir: 1.7, s: 1.25 },
+    { x: -425, z: -175, lean: 0.32, dir: 1.5, s: 1.15 },
+    { x: -428, z: -195, lean: 0.34, dir: 1.6, s: 1.2 },
+    { x: -432, z: -215, lean: 0.28, dir: 1.3, s: 1.05 },
+    { x: -436, z: -235, lean: 0.35, dir: 1.6, s: 1.2 },
+    // Palem cadangan di gumuk pasir
+    { x: -404, z: -95, lean: 0.25, dir: 1.2, s: 1.0 },
+    { x: -414, z: -165, lean: 0.30, dir: 1.5, s: 1.1 },
+    { x: -420, z: -205, lean: 0.27, dir: 1.4, s: 1.05 },
+    { x: -410, z: -120, lean: 0.33, dir: 1.6, s: 1.15 },
+  ];
+
+  coastalPalms.forEach((cp) => {
+    createPalmTree(cp.x, cp.z, cp.lean, cp.dir, cp.s);
+  });
+
+  // Reruntuhan Perahu Kayu Karam di Dekat Garis Pantai
+  const wreckX = -428;
+  const wreckZ = -135;
+  const wreckY = getTerrainHeight(wreckX, wreckZ);
+  const wreckGroup = new THREE.Group();
+  wreckGroup.position.set(wreckX, wreckY + 0.3, wreckZ);
+  wreckGroup.rotation.set(0.18, 0.65, 0.32); // Miring terdampar di pasir
+
+  // Lambung kapal kayu besar retak
+  const hullLength = 9.5;
+  const keel = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.5, hullLength), matShipWood);
+  keel.position.y = 0.25;
+  wreckGroup.add(keel);
+
+  // Tulang iga rusuk kapal melengkung keluar dari pasir
+  for (let r = 0; r < 7; r++) {
+    const rz = -hullLength * 0.45 + r * (hullLength * 0.15);
+    const ribW = 2.4 - Math.abs(r - 3) * 0.35;
+    const rib = new THREE.Mesh(new THREE.TorusGeometry(ribW * 0.5, 0.14, 5, 8, Math.PI), matShipWood);
+    rib.rotation.x = Math.PI / 2;
+    rib.rotation.y = (Math.random() - 0.5) * 0.2;
+    rib.position.set(0, 0.4, rz);
+    wreckGroup.add(rib);
+  }
+
+  // Papan dinding geladak yang lapuk & pecah
+  for (let p = 0; p < 6; p++) {
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.35, hullLength * 0.75), matShipPlank);
+    plank.position.set(1.1 + (p % 2) * 0.15, 0.3 + p * 0.35, 0);
+    plank.rotation.z = 0.25;
+    wreckGroup.add(plank);
+  }
+
+  // Tiang layar patah (snapped mast) miring
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 4.2, 6), matShipWood);
+  mast.position.set(-0.2, 1.8, -0.6);
+  mast.rotation.z = -0.55;
+  mast.rotation.x = 0.3;
+  wreckGroup.add(mast);
+
+  // Palang layar patah (yardarm) tergeletak
+  const yardarm = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 3.6, 5), matShipWood);
+  yardarm.position.set(0.8, 0.4, 0.8);
+  yardarm.rotation.y = 0.8;
+  yardarm.rotation.z = 0.15;
+  wreckGroup.add(yardarm);
+
+  // Peti dan tong kargo terdampar di sekitar kapal
+  [
+    { dx: 2.2, dz: 1.5, w: 0.8, h: 0.65 },
+    { dx: -2.0, dz: 2.2, w: 0.7, h: 0.55 },
+    { dx: 2.8, dz: -1.8, w: 0.75, h: 0.6 },
+  ].forEach((wc) => {
+    const cMesh = new THREE.Mesh(new THREE.BoxGeometry(wc.w, wc.h, wc.w), matWoodDark);
+    cMesh.position.set(wc.dx, 0.3, wc.dz);
+    cMesh.rotation.y = Math.random() * Math.PI;
+    wreckGroup.add(cMesh);
+  });
+
+  coastGroup.add(wreckGroup);
+  colliders.push({ type: 'circle', x: wreckX, z: wreckZ, radius: 4.8, label: 'Bangkai Perahu Karam' });
+
+  // Formasi Batu Karang Laut di Bibir Air (Sea Reef Rocks)
+  const coastalReefs = [
+    { x: -435, z: -75, rocks: [
+      { dx: 0, dz: 0, s: [3.2, 2.2, 3.0] },
+      { dx: 2.1, dz: 1.4, s: [2.0, 1.6, 2.2] },
+      { dx: -1.8, dz: -1.2, s: [1.8, 1.4, 1.7] },
+    ]},
+    { x: -440, z: -115, rocks: [
+      { dx: 0, dz: 0, s: [3.5, 2.5, 3.2] },
+      { dx: 1.8, dz: -1.6, s: [2.2, 1.8, 2.0] },
+    ]},
+    { x: -445, z: -155, rocks: [
+      { dx: 0, dz: 0, s: [3.0, 2.4, 2.8] },
+      { dx: -2.2, dz: 1.5, s: [2.1, 1.5, 2.3] },
+      { dx: 1.9, dz: -1.1, s: [1.9, 1.4, 1.8] },
+    ]},
+    { x: -442, z: -190, rocks: [
+      { dx: 0, dz: 0, s: [3.4, 2.2, 3.1] },
+      { dx: 2.4, dz: 1.0, s: [2.0, 1.5, 2.0] },
+    ]},
+    { x: -448, z: -225, rocks: [
+      { dx: 0, dz: 0, s: [3.6, 2.6, 3.5] },
+      { dx: -2.1, dz: -1.5, s: [2.3, 1.7, 2.1] },
+    ]},
+  ];
+
+  coastalReefs.forEach((cr) => {
+    cr.rocks.forEach((r) => {
+      const rx = cr.x + r.dx;
+      const rz = cr.z + r.dz;
+      const ry = getTerrainHeight(rx, rz);
+      const crag = new THREE.Mesh(new THREE.DodecahedronGeometry(1.0, 0), matWetSeaRock);
+      crag.position.set(rx, ry + r.s[1] * 0.4, rz);
+      crag.scale.set(r.s[0], r.s[1], r.s[2]);
+      crag.rotation.set(Math.random() * 0.5, Math.random() * Math.PI, Math.random() * 0.5);
+      coastGroup.add(crag);
+    });
+    colliders.push({ type: 'circle', x: cr.x, z: cr.z, radius: 3.2, label: 'Batu Karang Laut' });
+  });
+
+  envGroup.add(coastGroup);
 
   // ============================================================================
   // 5. DISTRIBUSI VEGETASI ALAMI MENGGUNAKAN THREE.InstancedMesh
@@ -803,13 +1210,14 @@ export function buildWorldEnvironment(
     const px = -240 + Math.random() * 320;
     const pz = -40 + Math.random() * 210;
 
-    // Larangan menabrak jalur jalan (margin > 3.8m) dan pekarangan desa
+    // Larangan menabrak jalur jalan (margin > 3.8m), pekarangan desa, dan zona pantai
     if (isPointNearRoad(px, pz, 3.8)) continue;
     if (isInsideFarmYard(px, pz)) continue;
-    // Jangan spawn di dalam danau, kawah, atau safe zone tengah desa
+    if (px < -400 && pz > -250 && pz < -40) continue; // Pesisir pantai khusus pohon kelapa
+    // Jangan spawn di dalam danau, kawah, atau safe zone tengah desa / outpost
     if (Math.hypot(px - 0, pz - 180) < 38) continue;
     if (Math.hypot(px - -196, pz - -254) < 45) continue;
-    if (Math.hypot(px - -300, pz - 10) < 32) continue; // Outpost inner
+    if (Math.hypot(px - -250, pz - -35) < 32) continue; // Outpost inner
 
     const py = getTerrainHeight(px, pz);
     if (py < 0.25 || py > 3.8) continue;
@@ -940,6 +1348,60 @@ export function buildWorldEnvironment(
   }
   shrubMesh.instanceMatrix.needsUpdate = true;
   envGroup.add(shrubMesh);
+
+  // 5. BATU KARANG LAUT PESISIR INSTANCED (COASTAL REEF STONES): 60 Instances
+  const REEF_STONE_COUNT = 60;
+  const reefStoneGeo = new THREE.DodecahedronGeometry(0.85, 0);
+  const reefStoneMesh = new THREE.InstancedMesh(reefStoneGeo, matWetSeaRock, REEF_STONE_COUNT);
+
+  let reefAssigned = 0;
+  attempts = 0;
+  while (reefAssigned < REEF_STONE_COUNT && attempts < 500) {
+    attempts++;
+    const rx = -410 - Math.random() * 38;
+    const rz = -50 - Math.random() * 190;
+    const ry = getTerrainHeight(rx, rz);
+
+    const sX = 0.8 + Math.random() * 1.4;
+    const sY = 0.6 + Math.random() * 1.2;
+    const sZ = 0.8 + Math.random() * 1.4;
+
+    dummy.position.set(rx, ry + sY * 0.35, rz);
+    dummy.rotation.set(Math.random() * 0.4, Math.random() * Math.PI, Math.random() * 0.4);
+    dummy.scale.set(sX, sY, sZ);
+    dummy.updateMatrix();
+
+    reefStoneMesh.setMatrixAt(reefAssigned, dummy.matrix);
+    reefAssigned++;
+  }
+  reefStoneMesh.instanceMatrix.needsUpdate = true;
+  envGroup.add(reefStoneMesh);
+
+  // 6. RUMPUT GUMUK PANTAI INSTANCED (BEACH DUNE GRASS): 80 Instances
+  const BEACH_GRASS_COUNT = 80;
+  const beachGrassGeo = new THREE.ConeGeometry(0.45, 0.9, 4);
+  const beachGrassMesh = new THREE.InstancedMesh(beachGrassGeo, matBeachGrass, BEACH_GRASS_COUNT);
+
+  let bgAssigned = 0;
+  attempts = 0;
+  while (bgAssigned < BEACH_GRASS_COUNT && attempts < 600) {
+    attempts++;
+    const gx = -402 - Math.random() * 26;
+    const gz = -55 - Math.random() * 180;
+    const gy = getTerrainHeight(gx, gz);
+    if (gy < 0.25) continue; // Di atas garis air laut
+
+    const s = 0.65 + Math.random() * 0.6;
+    dummy.position.set(gx, gy + s * 0.4, gz);
+    dummy.rotation.set(0, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.2);
+    dummy.scale.set(s, s * 1.1, s);
+    dummy.updateMatrix();
+
+    beachGrassMesh.setMatrixAt(bgAssigned, dummy.matrix);
+    bgAssigned++;
+  }
+  beachGrassMesh.instanceMatrix.needsUpdate = true;
+  envGroup.add(beachGrassMesh);
 
   // ============================================================================
   // ANIMASI UPDATE CALLBACK (FLICKERING TORCHES & CAMPFIRE)

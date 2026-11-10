@@ -49,6 +49,8 @@ import {
   FROST_WOLF_SPAWNS,
   BEAST_LAIR_SPAWNS,
   BANDIT_OUTPOST_SPAWNS,
+  SAVANNA_HILL_SPAWNS,
+  COASTAL_BEACH_SPAWNS,
 } from '../monsters';
 import {
   clampCameraPitch,
@@ -1927,7 +1929,7 @@ export class GameEngine {
       });
     });
 
-    // 19. Enemy Outpost (Zone D: X -260..-340, Z -60..80) - Pasukan bandit bersenjata level 5+
+    // 19. Enemy Outpost (Zone A: X -220..-280, Z -10..-60) - Pasukan bandit bersenjata level 3-5
     BANDIT_OUTPOST_SPAWNS.forEach((sp) => {
       const { group, parts } = createEnemyMesh(sp.type);
       const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
@@ -1967,6 +1969,94 @@ export class GameEngine {
         walkCycle: Math.random() * 10,
         spawnPos: new THREE.Vector3(sp.pos[0], ey, sp.pos[1]),
         leashRadius: 24,
+        isReturning: false,
+        deathTimer: 0,
+      });
+    });
+
+    // 20. Sabana & Lereng Bukit Padang Rumput (Zone B: X -290..-350, Z 80..150) - Serigala Liar & Boar Level 2-3
+    SAVANNA_HILL_SPAWNS.forEach((sp) => {
+      const { group, parts } = createEnemyMesh(sp.type);
+      const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
+      group.position.set(sp.pos[0], ey, sp.pos[1]);
+      this.scene.add(group);
+
+      const enemyData: EnemyData = {
+        id: sp.id,
+        name: sp.name,
+        nameId: sp.nameId,
+        type: sp.type,
+        level: sp.level,
+        hp: sp.hp,
+        maxHp: sp.maxHp,
+        attack: sp.attack,
+        defense: sp.defense,
+        expReward: sp.expReward,
+        goldReward: sp.goldReward,
+        speed: 3.4,
+        attackRange: 2.2,
+        detectRange: sp.aggroRange,
+        position: [sp.pos[0], ey, sp.pos[1]],
+        isDead: false,
+        dropItems: [
+          { item: CHEST_LOOT_POOL[0], chance: 0.4 },
+          { item: CHEST_LOOT_POOL[1], chance: 0.25 },
+        ],
+      };
+
+      this.enemies.push({
+        data: enemyData,
+        mesh: group,
+        parts,
+        baseY: ey,
+        attackCooldown: 0,
+        walkCycle: Math.random() * 10,
+        spawnPos: new THREE.Vector3(sp.pos[0], ey, sp.pos[1]),
+        leashRadius: 24,
+        isReturning: false,
+        deathTimer: 0,
+      });
+    });
+
+    // 21. Wilayah Pesisir Barat & Tebing Pantai (Zone C: X -400..-450, Z -50..-240) - Kepiting Pantai & Hewan Pesisir Level 1-3
+    COASTAL_BEACH_SPAWNS.forEach((sp) => {
+      const { group, parts } = createEnemyMesh(sp.type);
+      const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
+      group.position.set(sp.pos[0], ey, sp.pos[1]);
+      this.scene.add(group);
+
+      const enemyData: EnemyData = {
+        id: sp.id,
+        name: sp.name,
+        nameId: sp.nameId,
+        type: sp.type,
+        level: sp.level,
+        hp: sp.hp,
+        maxHp: sp.maxHp,
+        attack: sp.attack,
+        defense: sp.defense,
+        expReward: sp.expReward,
+        goldReward: sp.goldReward,
+        speed: 2.8,
+        attackRange: 2.0,
+        detectRange: sp.aggroRange,
+        position: [sp.pos[0], ey, sp.pos[1]],
+        isDead: false,
+        dropItems: [
+          { item: CHEST_LOOT_POOL[0], chance: 0.35 },
+          { item: CHEST_LOOT_POOL[2], chance: 0.3 },
+        ],
+      };
+
+      this.enemies.push({
+        data: enemyData,
+        mesh: group,
+        parts,
+        baseY: ey,
+        attackCooldown: 0,
+        walkCycle: Math.random() * 10,
+        spawnPos: new THREE.Vector3(sp.pos[0], ey, sp.pos[1]),
+        leashRadius: 22,
         isReturning: false,
         deathTimer: 0,
       });
