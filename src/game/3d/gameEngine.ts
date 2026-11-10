@@ -396,6 +396,8 @@ export class GameEngine {
   private prevMouseX = 0;
   private prevMouseY = 0;
   private cameraShake = 0;
+  public mouseDeltaX = 0;
+  private lastPlayerYaw: number | null = null;
 
   // Input state
   public keys: Record<string, boolean> = {};
@@ -2003,6 +2005,7 @@ export class GameEngine {
     this.keys = {};
     this.joystickVector = { x: 0, y: 0 };
     this.isMouseDown = false;
+    this.mouseDeltaX = 0;
     this.playerVel.x = 0;
     this.playerVel.z = 0;
     if (this.isChargingAttack) {
@@ -2320,6 +2323,7 @@ export class GameEngine {
   };
 
   private handlePointerUp = () => {
+    this.mouseDeltaX = 0;
     if (this.menuMode === 'character_select') {
       this.isDraggingPreview = false;
     }
@@ -2362,6 +2366,8 @@ export class GameEngine {
     const deltaX = e.clientX - this.prevMouseX;
     const deltaY = e.clientY - this.prevMouseY;
 
+    this.mouseDeltaX += deltaX;
+
     if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
       this.isDraggingCamera = true;
       if (this.isChargingAttack) {
@@ -2394,6 +2400,7 @@ export class GameEngine {
   };
 
   private handleMouseUp = (e: MouseEvent) => {
+    this.mouseDeltaX = 0;
     if (this.menuMode === 'character_select') {
       this.isDraggingPreview = false;
       return;
@@ -2674,6 +2681,7 @@ export class GameEngine {
         const deltaY = touch.clientY - this.touchStartY;
         this.touchStartX = touch.clientX;
         this.touchStartY = touch.clientY;
+        this.mouseDeltaX += deltaX;
 
         this.cameraAngleH = normalizeCameraYaw(
           this.cameraAngleH - deltaX * CAMERA_CONFIG.TOUCH_LOOK_SENSITIVITY_H
@@ -2687,6 +2695,7 @@ export class GameEngine {
   };
 
   private handleTouchEnd = (e: TouchEvent) => {
+    this.mouseDeltaX = 0;
     if (this.menuMode === 'character_select') {
       this.isDraggingPreview = false;
       return;
@@ -2710,6 +2719,7 @@ export class GameEngine {
    * Public camera rotation method used by mobile transparent touch drag area
    */
   public rotateCameraByDelta(deltaX: number, deltaY: number) {
+    this.mouseDeltaX += deltaX;
     if (this.menuMode === 'character_select') {
       const activeMesh = this.selectedPreviewRole === 'warrior'
         ? this.knightPreview
@@ -6852,9 +6862,28 @@ export class GameEngine {
       }
     }
 
-    // Di dalam update loop pergerakan karakter (Isolated Anti-Stuck Lean Logic Assassin):
+    // Di dalam update loop pergerakan karakter (Assassin Lean based on Angular Velocity):
     if (this.currentRole === 'assassin' && this.playerMesh && this.playerMesh.body) {
-      const isMoving = this.isMoving; // atau kondisi kecepatan > 0.1
+      this.playerMesh.body.rotation.reorder('YXZ');
+
+      // 1. Hitung perubahan rotasi arah hadap per frame (Angular Velocity)
+      const currentYaw = this.playerMesh.group.rotation.y;
+      let deltaYaw = currentYaw - (this.lastPlayerYaw ?? currentYaw);
+      while (deltaYaw > Math.PI) deltaYaw -= Math.PI * 2;
+      while (deltaYaw < -Math.PI) deltaYaw += Math.PI * 2;
+      this.lastPlayerYaw = currentYaw;
+
+      // 2. Batasi nilai delta agar tidak ekstrem saat mouse digentak
+      const clampedTurnRate = THREE.MathUtils.clamp(deltaYaw, -0.08, 0.08);
+
+      let targetLean = 0;
+      // Hanya boleh miring jika karakter benar-benar sedang bergerak maju/jalan
+      if (this.isMoving) {
+        // Arahkan miring berlawanan dengan arah belok untuk dinamika alami:
+        targetLean = -clampedTurnRate * 1.5;
+      }
+
+      // 3. Pastikan reset ketika tombol mouse dilepas (pointerup/mouseup) atau berhenti berjalan
       const keyA = !!(
         this.keys['KeyA'] ||
         this.keys['ArrowLeft'] ||
@@ -6872,30 +6901,21 @@ export class GameEngine {
         (this.joystickVector.x > 0.25)
       );
 
-      let targetLean = 0;
-
-      // Hanya boleh miring jika karakter SEDANG BERJALAN DAN menekan A/D
-      if (isMoving) {
-        if (keyD && !keyA) {
-          targetLean = -0.12; // Miring ~7 derajat ke kanan saat belok kanan
-        } else if (keyA && !keyD) {
-          targetLean = 0.12;  // Miring ~7 derajat ke kiri saat belok kiri
-        }
+      // Saat tombol mouse tidak ditekan dan tidak ada tombol belok ditekan, atau saat !isMoving: paksa targetLean = 0
+      if (!this.isMoving || (!this.isMouseDown && !keyA && !keyD)) {
+        targetLean = 0;
       }
 
-      // Pastikan order Euler adalah 'YXZ' agar rotasi belok tidak memutar sumbu miring:
-      this.playerMesh.body.rotation.reorder('YXZ');
-
-      // JANGAN gunakan mouse delta atau turnSpeed yaw yang rawan stuck!
-      // Terapkan lerp yang tegas menuju targetLean:
+      // 4. LERP kembali ke 0 secara agresif saat laju belok berhenti (0.25) vs aktif berbelok (0.15)
+      const lerpSpeed = Math.abs(targetLean) > 0.001 ? 0.15 : 0.25;
       this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(
         this.playerMesh.body.rotation.z || 0,
         targetLean,
-        0.18
+        lerpSpeed
       );
 
-      // Jika diam atau tidak belok, jika mendekati 0 langsung kunci 0 agar tidak melayang nilainya
-      if (!keyA && !keyD && Math.abs(this.playerMesh.body.rotation.z) < 0.001) {
+      // 5. Snapping mutlak jika sangat dekat dengan 0
+      if (Math.abs(this.playerMesh.body.rotation.z) < 0.001) {
         this.playerMesh.body.rotation.z = 0;
       }
 
@@ -6906,6 +6926,8 @@ export class GameEngine {
           this.playerMesh.body.rotation.y = 0;
         }
       }
+    } else {
+      this.lastPlayerYaw = null;
     }
 
     // Warrior Dynamic Charge Attack Stance & Resource Loop
@@ -8195,6 +8217,7 @@ export class GameEngine {
     if (this.isPaused && !this.isMultiplayer) {
       // Render frame yang sedang diam tanpa kalkulasi fisika, monster AI, atau delta waktu
       this.renderer.render(this.scene, this.camera);
+      this.mouseDeltaX = 0;
       return;
     }
 
@@ -8207,6 +8230,7 @@ export class GameEngine {
       }
       this.updateCamera(delta);
       this.renderer.render(this.scene, this.camera);
+      this.mouseDeltaX = 0;
       return;
     }
 
@@ -8771,6 +8795,8 @@ export class GameEngine {
     }
 
     this.renderer.render(this.scene, this.camera);
+    // 1. Isolasi & decay mouse delta yaw setiap akhir frame setelah dibaca
+    this.mouseDeltaX = 0;
   };
 
   public destroy() {
