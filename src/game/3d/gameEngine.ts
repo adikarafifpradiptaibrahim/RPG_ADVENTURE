@@ -247,6 +247,9 @@ export class GameEngine {
   private isDragonAirborne = false;
   private cameraTargetOffsetY = 0;
   private cameraAerialZoom = 0;
+  private bossFocusPos: THREE.Vector3 = new THREE.Vector3();
+  private bossFocusWeight: number = 0;
+  private playerStamina: number = 100;
   // Zone-Based Boss Combat & BGM System
   private currentBossZone: BossArenaZone | null = null;
   private activeBossEnemyData: EnemyData | null = null;
@@ -463,6 +466,19 @@ export class GameEngine {
       }
       this.setControlsLocked(false);
       this.teleportGraceTimer = 0.5;
+    }
+  }
+
+  /**
+   * Compiles all shaders and materials in the current scene to eliminate runtime stutter
+   */
+  public compileAllShaders(): void {
+    if (this.renderer && this.scene && this.camera) {
+      try {
+        this.renderer.compile(this.scene, this.camera);
+      } catch (e) {
+        console.warn('[GameEngine] Shader compile warning:', e);
+      }
     }
   }
 
@@ -735,7 +751,13 @@ export class GameEngine {
       (x, z) => this.world.getTerrainHeight(x, z),
       {
         onAddFloatingText: (text, color, type) => this.callbacks.onAddFloatingText(text, color, type),
-        onUpdateStats: (updater) => this.callbacks.onUpdateStats(updater),
+        onUpdateStats: (updater) => {
+          this.callbacks.onUpdateStats((prev) => {
+            const next = updater(prev);
+            this.playerStamina = next.stamina;
+            return next;
+          });
+        },
         onCameraShake: (amount) => { this.cameraShake = Math.max(this.cameraShake, amount); },
         onSpawnShockwave: (pos, color, maxRadius, duration) => {
           this.spawnShockwaveRing(pos, color, maxRadius, duration);
@@ -755,6 +777,10 @@ export class GameEngine {
         onDamageAbsorb: (rawDmg) => this.absorbDamageWithShield(rawDmg).remainingDamage,
         onAirborneChange: (isAirborne: boolean) => {
           this.isDragonAirborne = isAirborne;
+        },
+        onCameraFocusBoss: (bossPos: THREE.Vector3, weight: number) => {
+          this.bossFocusPos.copy(bossPos);
+          this.bossFocusWeight = weight;
         },
       }
     );
@@ -1828,6 +1854,7 @@ export class GameEngine {
     const { group: wyrmGroup, parts: wyrmParts } = createEnemyMesh('dragon');
     const wyrmY = this.world.getTerrainHeight(wyrmPos[0], wyrmPos[1]);
     wyrmGroup.position.set(wyrmPos[0], wyrmY, wyrmPos[1]);
+    wyrmGroup.rotation.y = Math.PI; // Menghadap ke utara menyambut pemain
     this.scene.add(wyrmGroup);
 
     const wyrmData: EnemyData = {
@@ -3327,6 +3354,43 @@ export class GameEngine {
     }
   }
 
+  // Floating Sprint Magic Rune & Star Particle Spawner for Mage Locomotion
+  private spawnMageSprintRuneParticles() {
+    const footPos = this.playerPos.clone();
+    footPos.y += 0.08;
+
+    // Glowing Runic Star Ring beneath gliding feet
+    const geom = new THREE.RingGeometry(0.12, 0.42, 6);
+    const mat = new THREE.MeshBasicMaterial({
+      color: Math.random() > 0.4 ? 0x00f0ff : 0xfbbf24,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const rune = new THREE.Mesh(geom, mat);
+    rune.rotation.x = -Math.PI / 2;
+    rune.rotation.z = Math.random() * Math.PI;
+    rune.position.copy(footPos);
+
+    let life = 0.45;
+    this.addVfx(rune, (delta) => {
+      life -= delta;
+      if (life <= 0) {
+        this.scene.remove(rune);
+        return false;
+      }
+      mat.opacity = (life / 0.45) * 0.85;
+      rune.scale.multiplyScalar(1 + delta * 0.8);
+      return true;
+    });
+
+    if (Math.random() < 0.6) {
+      this.spawnSparks(footPos, 0x00f0ff, 2, 1.8);
+    }
+  }
+
   // --- Role-Specific Attack VFX Spawners ---
 
   // 1. Warrior Basic Slash VFX (Dynamic angles, layered glowing arcs, and ground dust)
@@ -4371,18 +4435,20 @@ export class GameEngine {
       origin = customSpawnPos.clone().add(fwd.clone().multiplyScalar(0.7)).add(new THREE.Vector3(0, 1.45, 0));
     } else if (this.playerMesh && this.playerMesh.orbMesh) {
       this.playerMesh.group.updateMatrixWorld(true);
+      this.playerMesh.orbMesh.updateMatrixWorld(true);
       const crystalWorldPos = new THREE.Vector3();
       this.playerMesh.orbMesh.getWorldPosition(crystalWorldPos);
-      origin = crystalWorldPos.clone().add(fwd.clone().multiplyScalar(0.5));
+      origin = crystalWorldPos.clone();
 
       getOriginCb = () => {
         if (!this.playerMesh?.orbMesh) return { origin, direction: fwd };
         this.playerMesh.group.updateMatrixWorld(true);
+        this.playerMesh.orbMesh.updateMatrixWorld(true);
         const curCrystalPos = new THREE.Vector3();
         this.playerMesh.orbMesh.getWorldPosition(curCrystalPos);
         const curFwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
         return {
-          origin: curCrystalPos.add(curFwd.clone().multiplyScalar(0.5)),
+          origin: curCrystalPos,
           direction: curFwd,
         };
       };
@@ -4401,7 +4467,7 @@ export class GameEngine {
         const tierMult = 1 + (this.playerTier - 1) * 0.25;
         const fullSpellDmg = (stats.baseAttack + stats.intelligence * 2.4) * tierMult;
 
-        // Initial burst does 52% damage with full impact, ticks do 28% continuous damage (Total ~136% spell power over 1s)
+        // Initial burst does 52% damage with full impact, ticks do 28% continuous damage (Total ~136% spell power over 0.8s)
         const rawDmg = isContinuousTick ? fullSpellDmg * 0.28 : fullSpellDmg * 0.52;
         const finalDmg = Math.max(4, Math.round(isCrit ? rawDmg * 1.85 : rawDmg));
 
@@ -4424,12 +4490,12 @@ export class GameEngine {
               this.damageEnemy(enemy, finalDmg, isCrit, isContinuousTick ? 0.05 : 0.35);
 
               const hitPos = enemyPos.clone().add(new THREE.Vector3(0, 1.2, 0));
-              this.spawnSparks(hitPos, 0xe879f9, isContinuousTick ? 6 : 14, 4.0);
+              this.spawnSparks(hitPos, 0x00f0ff, isContinuousTick ? 6 : 14, 4.0);
               this.spawnSparks(hitPos, 0xffffff, isContinuousTick ? 3 : 8, 3.2);
 
               if (!isContinuousTick) {
-                this.spawnHitStarburst(hitPos, 0xe879f9, 1.3);
-                this.spawnShockwaveRing(hitPos, 0xc084fc, 2.4, 0.25);
+                this.spawnHitStarburst(hitPos, 0x00f0ff, 1.3);
+                this.spawnShockwaveRing(hitPos, 0x38bdf8, 2.4, 0.25);
               }
             }
           }
@@ -4443,7 +4509,7 @@ export class GameEngine {
       origin,
       direction: fwd,
       beamLength,
-      duration: 1.0,
+      duration: 0.8,
       getOrigin: getOriginCb,
       onHitTick: (isTick) => {
         checkLaserHit(isTick);
@@ -4453,10 +4519,10 @@ export class GameEngine {
       },
     });
 
-    this.addVfx(vfx.group, vfx.update, vfx.cleanup);
+    this.addVfx(vfx.group, vfx.update, vfx.cleanup, true);
 
     // Initial cast sparks at the magic circle aperture
-    this.spawnSparks(origin, 0xe879f9, 12, 4.2);
+    this.spawnSparks(origin, 0x00f0ff, 12, 4.2);
     this.spawnSparks(origin, 0xffffff, 8, 3.0);
   }
 
@@ -6747,15 +6813,17 @@ export class GameEngine {
       baseSpeed += 3.2;
     }
 
-    // Sprint detection for Warrior and Rogue (Ninja/Assassin)
+    // Sprint detection for Warrior, Rogue (Ninja/Assassin), and Mage (Floating Sprint)
     const isShiftPressed = this.isKeyPressed('shift', 'shiftleft', 'shiftright');
     const joyDist = Math.hypot(this.joystickVector.x, this.joystickVector.y);
     const isJoySprint = joyDist > 0.80;
+    const hasStamina = this.playerStamina > 0;
 
     if (
-      (this.charClass === 'warrior' || this.charClass === 'rogue') &&
+      (this.charClass === 'warrior' || this.charClass === 'rogue' || this.charClass === 'mage') &&
       isMoving &&
       (isShiftPressed || isJoySprint) &&
+      hasStamina &&
       !this.isDashing &&
       !this.isChargingAttack
     ) {
@@ -6768,6 +6836,11 @@ export class GameEngine {
           ...s,
           stamina: Math.max(0, s.stamina - drain),
         }));
+      }
+
+      // Spawning Mage Floating Sprint Star & Magic Rune Particles under feet
+      if (this.charClass === 'mage' && Math.random() < 0.45) {
+        this.spawnMageSprintRuneParticles();
       }
     } else {
       this.isSprinting = false;
@@ -7019,9 +7092,9 @@ export class GameEngine {
         }
         this.playerMesh.cape.rotation.x = (this.isSprinting ? 0.60 : 0.30) + Math.sin(walkTime * 0.5) * 0.15;
       } else if (this.charClass === 'mage') {
-        // Heroic Blocky Low-Poly Mage Walk Cycle
+        // Heroic Blocky Low-Poly Mage Walk Cycle & Floating Sprint Locomotion
         const walkTime = this.clock.getElapsedTime();
-        animateMageWalk(this.playerMesh, walkTime, this.playerPos.y, true, this.isAttacking);
+        animateMageWalk(this.playerMesh, walkTime, this.playerPos.y, true, this.isAttacking, this.isSprinting);
       } else if (this.charClass === 'rogue') {
         // Gunakan akumulator fase langkah berbasis delta waktu dan kecepatan gerak riil:
         const moveSpeed = this.isSprinting ? 1.75 : 1.0;
@@ -8344,7 +8417,11 @@ export class GameEngine {
     }
 
     this.camera.position.lerp(targetPos, 0.15);
-    this.camera.lookAt(this.playerPos.x, this.playerPos.y + 1.4 + this.cameraTargetOffsetY, this.playerPos.z);
+    const lookTarget = new THREE.Vector3(this.playerPos.x, this.playerPos.y + 1.4 + this.cameraTargetOffsetY, this.playerPos.z);
+    if (this.bossFocusWeight > 0.01) {
+      lookTarget.lerp(this.bossFocusPos, this.bossFocusWeight);
+    }
+    this.camera.lookAt(lookTarget);
   }
 
   private updateRemotePlayers(delta: number) {
@@ -8549,6 +8626,26 @@ export class GameEngine {
         this.world.dirLight,
         this.menuMode === 'gameplay' ? (this.isSpectatorMode ? this.spectatorPos : this.playerPos) : undefined
       );
+    }
+
+    // Dragonfang Phase 2 Extreme Volcanic Weather Atmosphere
+    const extremeFactor = this.bossManager.extremeWeatherFactor;
+    if (extremeFactor > 0.001) {
+      // 1. Charcoal sky (0x1a1214)
+      if (this.scene.background instanceof THREE.Color) {
+        this.scene.background.lerp(new THREE.Color(0x1a1214), extremeFactor * 0.85);
+      }
+      // 2. Thick red magma fog (0x5c1508)
+      if (this.scene.fog && this.scene.fog instanceof THREE.Fog) {
+        this.scene.fog.color.lerp(new THREE.Color(0x5c1508), extremeFactor * 0.9);
+        this.scene.fog.near = THREE.MathUtils.lerp(this.scene.fog.near, 12, extremeFactor * 0.7);
+        this.scene.fog.far = THREE.MathUtils.lerp(this.scene.fog.far, 55, extremeFactor * 0.7);
+      }
+      // 3. Lightning flashes in thick magma storm
+      if (Math.random() < 0.018 * extremeFactor && this.world?.dirLight) {
+        this.world.dirLight.intensity = 2.4;
+        this.cameraShake = Math.max(this.cameraShake, 0.35);
+      }
     }
 
     // Menu States (Main Menu & 3D Character Selection)

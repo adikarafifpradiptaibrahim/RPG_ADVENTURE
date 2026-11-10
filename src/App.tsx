@@ -11,6 +11,7 @@ import { WorldMapModal } from './components/WorldMapModal';
 import { ShopModal } from './components/ShopModal';
 import { MainMenu, MultiplayerStartOptions, SaveSlotData } from './components/MainMenu';
 import { PauseModal } from './components/PauseModal';
+import { LoadingScreen } from './components/LoadingScreen';
 import { GraphicsSettingsModal } from './components/GraphicsSettingsModal';
 import { MultiplayerChat } from './components/MultiplayerChat';
 import { VirtualJoystick } from './components/TouchControls';
@@ -125,6 +126,10 @@ export default function App() {
   // Pause Menu State
   const [isPauseMenuOpen, setIsPauseMenuOpen] = useState(false);
 
+  // Loading Screen & Shader Precompilation State
+  const [isLoadingGameplay, setIsLoadingGameplay] = useState(false);
+  const [isLoadingFadeOut, setIsLoadingFadeOut] = useState(false);
+
   // Graphics Settings State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [graphicsSettings, setGraphicsSettings] = useState<GraphicsSettings>(() => loadGraphicsSettings());
@@ -231,6 +236,11 @@ export default function App() {
     const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handleFsChange);
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  // Main Menu BGM initialization
+  useEffect(() => {
+    soundManager.playMenuBGM(1.5);
   }, []);
 
   const handleToggleFullscreen = () => {
@@ -390,16 +400,31 @@ export default function App() {
 
     setHasStarted(true);
 
-    soundManager.playOverworldBGM();
-    setIsMusicPlaying(true);
+    // Gameplay Transition Loading Screen & Shader Precompilation (1.4s hold + 0.5s fade out)
+    setIsLoadingGameplay(true);
+    setIsLoadingFadeOut(false);
 
     if (engineRef.current) {
-      engineRef.current.setPaused(false);
+      engineRef.current.setPaused(true);
       engineRef.current.setGameMode('singleplayer', 'Pahlawan');
       engineRef.current.setCharacterClass(selectedClass);
       engineRef.current.clearRemotePlayers();
       engineRef.current.setMenuMode('gameplay');
+      engineRef.current.compileAllShaders();
     }
+
+    setTimeout(() => {
+      soundManager.playOverworldBGM(1.5);
+      setIsMusicPlaying(true);
+      setIsLoadingFadeOut(true);
+      if (engineRef.current) {
+        engineRef.current.setPaused(false);
+      }
+      setTimeout(() => {
+        setIsLoadingGameplay(false);
+        setIsLoadingFadeOut(false);
+      }, 500);
+    }, 1400);
   };
 
   // Start Multiplayer Mode (Socket.io client-server synchronization)
@@ -410,21 +435,37 @@ export default function App() {
     applyClassStats(options.charClass);
     setHasStarted(true);
 
-    soundManager.playOverworldBGM();
-    setIsMusicPlaying(true);
+    // Gameplay Transition Loading Screen & Shader Precompilation (1.4s hold + 0.5s fade out)
+    setIsLoadingGameplay(true);
+    setIsLoadingFadeOut(false);
 
     if (engineRef.current) {
-      engineRef.current.setPaused(false);
+      engineRef.current.setPaused(true);
       engineRef.current.setGameMode('multiplayer', options.playerName);
       engineRef.current.setCharacterClass(options.charClass);
       engineRef.current.setMenuMode('gameplay');
+      engineRef.current.compileAllShaders();
     }
+
+    setTimeout(() => {
+      soundManager.playOverworldBGM(1.5);
+      setIsMusicPlaying(true);
+      setIsLoadingFadeOut(true);
+      if (engineRef.current) {
+        engineRef.current.setPaused(false);
+      }
+      setTimeout(() => {
+        setIsLoadingGameplay(false);
+        setIsLoadingFadeOut(false);
+      }, 500);
+    }, 1400);
   };
 
   // Return to Main Menu from Single Player
   const handleReturnToMainMenu = () => {
     setIsPauseMenuOpen(false);
     setHasStarted(false);
+    soundManager.playMenuBGM(1.5);
     if (engineRef.current) {
       engineRef.current.setPaused(false);
       engineRef.current.setGameMode('singleplayer');
@@ -440,6 +481,7 @@ export default function App() {
     setIsPauseMenuOpen(false);
     multiplayerClient.disconnect();
     setHasStarted(false);
+    soundManager.playMenuBGM(1.5);
     if (engineRef.current) {
       engineRef.current.setPaused(false);
       engineRef.current.setGameMode('singleplayer');
@@ -1022,6 +1064,13 @@ export default function App() {
           engineRef.current?.setSelectedPreviewRole(role);
         }}
         selectedPreviewRole={previewRole}
+      />
+
+      {/* Gameplay Transition Loading Screen Overlay */}
+      <LoadingScreen
+        isLoading={isLoadingGameplay}
+        isFadingOut={isLoadingFadeOut}
+        message="Memuat Dunia & Mengompilasi Shader..."
       />
 
       {/* Primary In-Game HUD Overlay */}

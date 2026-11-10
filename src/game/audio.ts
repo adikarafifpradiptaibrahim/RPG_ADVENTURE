@@ -38,7 +38,9 @@ export class SoundManager {
   private masterMusicVolume = 1.0; // High-fidelity comfortable volume level
   private userGestureAttached = false;
 
-  // --- Overworld Chill Playlist (Where the River Bends & The Quiet Archive) ---
+  // --- Overworld & Menu BGM Audio Elements ---
+  private menuAudio: HTMLAudioElement | null = null;
+  private overworldAudio: HTMLAudioElement | null = null;
   private chillTracks: HTMLAudioElement[] = [];
   private currentChillIndex = 0;
 
@@ -57,7 +59,7 @@ export class SoundManager {
   } = {};
 
   private isAudioElementsInitialized = false;
-  private currentBgmMode: 'overworld' | 'titan' | 'dragon' | 'worm' | 'none' = 'none';
+  private currentBgmMode: 'menu' | 'overworld' | 'titan' | 'dragon' | 'worm' | 'none' = 'none';
   private crossfadeAnimId: number | null = null;
   private isVictoryPlaying = false;
   private victoryTimeoutId: any = null;
@@ -97,8 +99,8 @@ export class SoundManager {
     this.setupUserGestureAutoplay();
   }
 
-  public get overworldAudio(): HTMLAudioElement | null {
-    return this.getCurrentChillAudio();
+  public get overworldAudioEl(): HTMLAudioElement | null {
+    return this.overworldAudio;
   }
 
   public get titanAudioEl(): HTMLAudioElement | null {
@@ -127,19 +129,19 @@ export class SoundManager {
     try {
       this.isAudioElementsInitialized = true;
 
-      // 1. Overworld Chill Playlist: Where the River Bends & The Quiet Archive
-      const track1 = new Audio(whereTheRiverBendsUrl);
-      track1.preload = 'auto';
-      track1.volume = this.isMuted ? 0 : this.masterMusicVolume;
+      // 1. Menu BGM: Where the River Bends (Main Menu & Character Select, looping, default volume 0.6)
+      this.menuAudio = new Audio(whereTheRiverBendsUrl);
+      this.menuAudio.loop = true;
+      this.menuAudio.preload = 'auto';
+      this.menuAudio.volume = 0;
 
-      const track2 = new Audio(theQuietArchiveUrl);
-      track2.preload = 'auto';
-      track2.volume = 0;
+      // 2. Overworld Gameplay BGM: The Quiet Archive (Eldoria Open World, looping, default volume 0.5)
+      this.overworldAudio = new Audio(theQuietArchiveUrl);
+      this.overworldAudio.loop = true;
+      this.overworldAudio.preload = 'auto';
+      this.overworldAudio.volume = 0;
 
-      track1.onended = () => this.playNextChillTrack();
-      track2.onended = () => this.playNextChillTrack();
-
-      this.chillTracks = [track1, track2];
+      this.chillTracks = [this.overworldAudio, this.menuAudio];
       this.currentChillIndex = 0;
 
       // 2. Boss Audio Tracks (Looping)
@@ -281,18 +283,33 @@ export class SoundManager {
   }
 
   /**
-   * Directly triggers Overworld relax BGM playlist.
-   * Safe to call inside browser user interaction handlers (Role Selection / Start Game).
+   * Plays Where the River Bends exclusively for Main Menu & Character Select (looping, default vol 0.6)
    */
-  public playOverworldBGM() {
+  public playMenuBGM(duration = 1.5) {
     if (this.isVictoryPlaying) return;
     this.isMusicPlaying = true;
     this.initContext();
     this.initAudioElements();
-    this.crossfadeBgm('overworld', 1.5, { continueFromPause: true });
-    const current = this.getCurrentChillAudio();
-    if (current && !this.isMuted) {
-      current.play().catch(() => {});
+    this.currentBossMusic = null;
+    this.crossfadeBgm('menu', duration, { continueFromPause: true });
+    if (this.menuAudio && !this.isMuted) {
+      this.menuAudio.play().catch(() => {});
+    }
+  }
+
+  /**
+   * Directly triggers Overworld relax BGM: The Quiet Archive (looping, default vol 0.5).
+   * Safe to call inside browser user interaction handlers (Role Selection / Start Game).
+   */
+  public playOverworldBGM(duration = 1.5) {
+    if (this.isVictoryPlaying) return;
+    this.isMusicPlaying = true;
+    this.initContext();
+    this.initAudioElements();
+    this.currentBossMusic = null;
+    this.crossfadeBgm('overworld', duration, { continueFromPause: true });
+    if (this.overworldAudio && !this.isMuted) {
+      this.overworldAudio.play().catch(() => {});
     }
   }
 
@@ -594,7 +611,7 @@ export class SoundManager {
   }
 
   public crossfadeBgm(
-    targetMode: 'overworld' | 'titan' | 'dragon' | 'worm' | 'none',
+    targetMode: 'menu' | 'overworld' | 'titan' | 'dragon' | 'worm' | 'none',
     duration = 1.5,
     options?: { continueFromPause?: boolean; onComplete?: () => void }
   ) {
@@ -607,30 +624,37 @@ export class SoundManager {
 
     this.currentBgmMode = targetMode;
 
-    const currentChill = this.getCurrentChillAudio();
     const allBossAudios = [this.titanAudio, this.wormAudio, this.dragonAudio].filter(Boolean) as HTMLAudioElement[];
-    const targetBossAudio = targetMode !== 'overworld' && targetMode !== 'none' ? this.getBossAudio(targetMode) : null;
+    const targetBossAudio = targetMode !== 'menu' && targetMode !== 'overworld' && targetMode !== 'none' ? this.getBossAudio(targetMode) : null;
 
     if (this.isMuted || !this.isMusicPlaying) {
-      if (currentChill) currentChill.volume = 0;
+      if (this.menuAudio) this.menuAudio.volume = 0;
+      if (this.overworldAudio) this.overworldAudio.volume = 0;
       allBossAudios.forEach((b) => (b.volume = 0));
       if (targetMode === 'none') {
-        if (currentChill) currentChill.pause();
+        if (this.menuAudio) this.menuAudio.pause();
+        if (this.overworldAudio) this.overworldAudio.pause();
         allBossAudios.forEach((b) => b.pause());
       }
       options?.onComplete?.();
       return;
     }
 
-    const startChillVol = currentChill ? currentChill.volume : 0;
+    const startMenuVol = this.menuAudio ? this.menuAudio.volume : 0;
+    const startOverworldVol = this.overworldAudio ? this.overworldAudio.volume : 0;
     const startBossVols = new Map<HTMLAudioElement, number>();
     allBossAudios.forEach((b) => startBossVols.set(b, b.volume));
 
-    const targetChillVol = targetMode === 'overworld' ? this.masterMusicVolume : 0;
+    const targetMenuVol = targetMode === 'menu' ? 0.6 * this.masterMusicVolume : 0;
+    const targetOverworldVol = targetMode === 'overworld' ? 0.5 * this.masterMusicVolume : 0;
 
-    if (targetMode === 'overworld' && currentChill) {
-      if (currentChill.paused) {
-        currentChill.play().catch(() => {});
+    if (targetMode === 'menu' && this.menuAudio) {
+      if (this.menuAudio.paused) {
+        this.menuAudio.play().catch(() => {});
+      }
+    } else if (targetMode === 'overworld' && this.overworldAudio) {
+      if (this.overworldAudio.paused) {
+        this.overworldAudio.play().catch(() => {});
       }
     } else if (targetBossAudio) {
       if (targetBossAudio.paused) {
@@ -646,10 +670,17 @@ export class SoundManager {
       const progress = Math.min(1, elapsed / durationMs);
       const ease = progress * progress * (3 - 2 * progress); // smoothstep
 
-      if (currentChill) {
-        currentChill.volume = Math.max(
+      if (this.menuAudio) {
+        this.menuAudio.volume = Math.max(
           0,
-          Math.min(1, startChillVol + (targetChillVol - startChillVol) * ease)
+          Math.min(1, startMenuVol + (targetMenuVol - startMenuVol) * ease)
+        );
+      }
+
+      if (this.overworldAudio) {
+        this.overworldAudio.volume = Math.max(
+          0,
+          Math.min(1, startOverworldVol + (targetOverworldVol - startOverworldVol) * ease)
         );
       }
 
@@ -663,17 +694,24 @@ export class SoundManager {
         this.crossfadeAnimId = requestAnimationFrame(step);
       } else {
         this.crossfadeAnimId = null;
-        if (targetMode === 'overworld') {
+        if (targetMode === 'menu') {
+          if (this.overworldAudio) this.overworldAudio.pause();
           allBossAudios.forEach((b) => b.pause());
-          if (currentChill) currentChill.volume = targetChillVol;
+          if (this.menuAudio) this.menuAudio.volume = targetMenuVol;
+        } else if (targetMode === 'overworld') {
+          if (this.menuAudio) this.menuAudio.pause();
+          allBossAudios.forEach((b) => b.pause());
+          if (this.overworldAudio) this.overworldAudio.volume = targetOverworldVol;
         } else if (targetBossAudio) {
-          if (currentChill) currentChill.pause();
+          if (this.menuAudio) this.menuAudio.pause();
+          if (this.overworldAudio) this.overworldAudio.pause();
           allBossAudios.forEach((b) => {
             if (b !== targetBossAudio) b.pause();
           });
           targetBossAudio.volume = this.masterMusicVolume;
         } else {
-          if (currentChill) currentChill.pause();
+          if (this.menuAudio) this.menuAudio.pause();
+          if (this.overworldAudio) this.overworldAudio.pause();
           allBossAudios.forEach((b) => b.pause());
         }
         options?.onComplete?.();

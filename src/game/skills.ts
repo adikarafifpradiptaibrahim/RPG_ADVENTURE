@@ -296,17 +296,17 @@ class ArcaneBeamResourcePool {
     });
 
     this.outerTorusMat = new THREE.MeshBasicMaterial({
-      color: 0xe879f9,
+      color: 0x00f0ff,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.9,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
 
     this.innerTorusMat = new THREE.MeshBasicMaterial({
-      color: 0xc084fc,
+      color: 0x38bdf8,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.85,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
@@ -319,7 +319,7 @@ class ArcaneBeamResourcePool {
     });
 
     this.crossMat = new THREE.MeshBasicMaterial({
-      color: 0xf472b6,
+      color: 0x00f0ff,
       transparent: true,
       opacity: 0.9,
       depthWrite: false,
@@ -332,28 +332,29 @@ class ArcaneBeamResourcePool {
       transparent: true,
       opacity: 1.0,
       depthWrite: false,
+      blending: THREE.AdditiveBlending,
     });
 
     this.plasmaCylMat = new THREE.MeshBasicMaterial({
-      color: 0xf472b6,
+      color: 0x00f0ff,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.9,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
 
     this.shroudCylMat = new THREE.MeshBasicMaterial({
-      color: 0xa855f7,
+      color: 0x0284c7,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.65,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
 
     this.ringMat = new THREE.MeshBasicMaterial({
-      color: 0xe879f9,
+      color: 0x00f0ff,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.9,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
@@ -366,9 +367,9 @@ class ArcaneBeamResourcePool {
     });
 
     this.impactGlowMat = new THREE.MeshBasicMaterial({
-      color: 0xe879f9,
+      color: 0x00f0ff,
       transparent: true,
-      opacity: 0.75,
+      opacity: 0.85,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
@@ -451,7 +452,8 @@ class ArcaneBeamResourcePool {
     }) => {
       isActive = true;
       group.visible = true;
-      timeLeft = params.duration ?? 1.0;
+      group.position.set(0, 0, 0); // Reset position from pool storage to world origin
+      timeLeft = params.duration ?? 0.8;
       elapsed = 0;
       sparkInterval = 0;
       tickInterval = 0;
@@ -548,7 +550,7 @@ class ArcaneBeamResourcePool {
         const randDist = 1.2 + Math.random() * (currentBeamLength - 2.5);
         const sparkPos = currentOrigin.clone().addScaledVector(currentFwd, randDist);
         sparkPos.add(new THREE.Vector3((Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8));
-        const color = Math.random() > 0.4 ? 0xe879f9 : 0xffffff;
+        const color = Math.random() > 0.4 ? 0x00f0ff : 0xffffff;
         onSpawnSparksCb?.(sparkPos, color, 2, 2.5);
       }
 

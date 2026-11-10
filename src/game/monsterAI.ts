@@ -70,6 +70,7 @@ export class MonsterCombatAI {
     cdMap: Map<string, number>
   ): string | null {
     const slamCd = cdMap.get('seismic_slam') ?? cdMap.get('earthquake_slam') ?? 0;
+    const leapSlamCd = cdMap.get('titan_leap_slam') ?? 0;
     const fissureCd = cdMap.get('earth_fissure') ?? 0;
     const boulderCd = cdMap.get('boulder_hurl') ?? cdMap.get('rock_throw') ?? 0;
     const punchCd = cdMap.get('heavy_punch') ?? 0;
@@ -79,22 +80,27 @@ export class MonsterCombatAI {
       return null;
     }
 
-    // 1. High-Priority AOE: Seismic Ground Slam (Semua jarak, Cooldown 14s)
+    // 1. Long-Distance Heavy Leap Slam: Terpicu jika pemain berada jauh (> 18 unit)
+    if (distToPlayer > 18.0 && distToPlayer <= 42.0 && leapSlamCd <= 0) {
+      return 'titan_leap_slam';
+    }
+
+    // 2. High-Priority AOE: Seismic Ground Slam (Jarak dekat/menengah, Cooldown 14s)
     if (slamCd <= 0 && distToPlayer <= 25) {
       return 'seismic_slam';
     }
 
-    // 2. Long-Range Gap Threat: Boulder Hurl (Jarak > 8 unit, Cooldown 6s)
+    // 3. Long-Range Gap Threat: Boulder Hurl (Jarak > 8 unit, Cooldown 6s)
     if (distToPlayer > 8.0 && distToPlayer <= 42.0 && boulderCd <= 0) {
       return 'boulder_hurl';
     }
 
-    // 3. Mid/Long Ground Wave: Earth Fissure Strike (Jarak > 6 unit, Cooldown 8s)
+    // 4. Mid/Long Ground Wave: Earth Fissure Strike (Jarak > 6 unit, Cooldown 8s)
     if (distToPlayer > 6.0 && distToPlayer <= 42.0 && fissureCd <= 0) {
       return 'earth_fissure';
     }
 
-    // 4. Close Melee Threat: Heavy Melee Fist (Jarak <= 4 unit, Cooldown 2s)
+    // 5. Close Melee Threat: Heavy Melee Fist (Jarak <= 4 unit, Cooldown 2s)
     if (distToPlayer <= 4.2 && punchCd <= 0) {
       return 'heavy_punch';
     }
@@ -160,22 +166,27 @@ export class MonsterCombatAI {
       return 'meteor_dive';
     }
 
-    // 2. GAP CLOSER: Flying Dive / Dash Pursuit (Jarak > 12 unit, jika pemain di kaldera & Cooldown <= 0)
+    // 2. High-Priority Mid-Range Flame Breath Beam (Jarak 8 - 25 unit, Cooldown 10s)
+    if (distToPlayer >= 8.0 && distToPlayer <= 25.0 && breathCd <= 0) {
+      return 'flame_breath';
+    }
+
+    // 3. GAP CLOSER: Flying Dive / Dash Pursuit (Jarak > 12 unit, jika pemain di kaldera & Cooldown <= 0)
     if (inArena && distToPlayer > 12.0 && distToPlayer <= 48.0 && dashCd <= 0) {
       return 'flying_dash';
     }
 
-    // 2. Ranged Bombardment: Fireball Barrage (Jarak > 8 unit, Cooldown 5s)
+    // 4. Ranged Bombardment: Fireball Barrage (Jarak > 8 unit, Cooldown 5s)
     if (distToPlayer > 8.0 && distToPlayer <= 48.0 && fireballCd <= 0) {
       return 'fireball_barrage';
     }
 
-    // 3. Flame Breath / Semburan Kipas (Jarak <= 14 unit, Cooldown 10s)
-    if (distToPlayer <= 14.0 && dotWithPlayer > 0.15 && breathCd <= 0) {
+    // 5. Short Range Flame Breath (Jarak <= 8 unit)
+    if (distToPlayer <= 8.0 && dotWithPlayer > 0.10 && breathCd <= 0) {
       return 'flame_breath';
     }
 
-    // 4. Dragon Claw Strike (Jarak <= 5 unit, Cooldown 2.5s)
+    // 6. Dragon Claw Strike (Jarak <= 5 unit, Cooldown 2.5s)
     if (distToPlayer <= 5.2 && clawCd <= 0) {
       return 'dragon_claw';
     }

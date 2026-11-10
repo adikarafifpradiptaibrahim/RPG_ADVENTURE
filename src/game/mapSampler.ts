@@ -37,33 +37,35 @@ function clamp(val: number, min: number, max: number): number {
 }
 
 /**
- * Kalkulasi sumbu Z kurva batas selatan Gurun Solaria berdasarkan koordinat X.
- * Garis batas referensi melewati titik: (-80, -420), (0, -320), (80, -180), (160, -140), (280, -220).
+ * Kalkulasi sumbu Z kurva batas selatan Gurun Solaria berdasarkan koordinat X (Garis Kuning).
+ * Batas ditarik lebih ke selatan:
+ * - Barat ke tengah: melengkung dari (-120, -380) -> (0, -216) -> (80, -130)
+ * - Koridor tengah: melengkung ke selatan mencapai puncak di (180, -75) lalu ke (280, -150)
+ * - Timur: melandai ke Z: -160 s.d -175 (mengunci Val-Kragor di Z: 80 dan Mage Tower di Z: 10 murni Eldoria).
  * Nilai Z di utara garis ini (Z < zBoundary) adalah Gurun Solaria.
  */
 export function getDesertBoundaryZ(x: number): number {
   if (x < 80) {
-    // Lengkungan naik tajam ke arah barat laut: (-80, -420) -> (0, -320) -> (80, -180)
-    // Di x = 3, zBoundary = -315.5 sehingga koordinat (3, -295) berada di selatan garis (Padang Rumput Eldoria)
-    return 0.003125 * x * x + 1.5 * x - 320;
+    const dx = x - 80;
+    return -130 + 1.25 * dx + 0.0022 * dx * dx;
   } else if (x <= 280) {
-    // Lengkungan ke arah timur laut: (80, -180) -> (160, -140) -> (280, -220)
-    const t = x - 160;
-    return (-7 / 1200) * t * t + (1 / 30) * t - 140;
+    const t = (x - 180) / 100;
+    if (x < 180) {
+      return -75 - 55 * t * t;
+    } else {
+      return -75 - 75 * t * t;
+    }
   } else {
-    // Koridor Timur Gurun Solaria (Bazaar [250, -280], Istana Sultan [340, -280], Kawah Sandworm [495, -362])
-    // Batas selatan gurun stabil di Z: -220 s.d -200, mengunci Desa Benteng Val-Kragor (Z: 80) murni Padang Rumput Eldoria
-    return -220 + Math.min(20, (x - 280) * 0.08);
+    return -150 - Math.min(25, (x - 280) * 0.12);
   }
 }
 
 /**
  * DEFINISI BATAS BIOME PRESISI (SINGLE SOURCE OF TRUTH)
- * Kurva matematis batas selatan Gurun Solaria vs Padang Rumput Eldoria
- * Garis batas referensi melewati titik: (-80, -420), (0, -320), (80, -180), (160, -140), (280, -220)
+ * Kurva matematis batas selatan Gurun Solaria vs Padang Rumput Eldoria (Garis Kuning)
  * Di sebelah utara garis ini (z < zBoundary) dan x > -120 adalah Gurun Solaria.
  * Di sebelah selatannya (z >= zBoundary) adalah Padang Rumput Eldoria.
- * Menjamin Mage Tower (140, 10), Val-Kragor (380, 80), serta (3, -295) murni Padang Rumput Eldoria.
+ * Menjamin Mage Tower (140, 10), Val-Kragor (380, 80) murni Padang Rumput Eldoria.
  */
 export function isDesertBiome(x: number, z: number): boolean {
   if (x <= -120) return false;
@@ -74,8 +76,8 @@ export function isDesertBiome(x: number, z: number): boolean {
  * SISTEM ALIRAN SUNGAI BERCABANG (RIVER NETWORK)
  * 1. Cabang Hulu Barat Laut: Dari pegunungan/danau utara melewati barat Piramida Solaria [-40, -320] -> [107, 22]
  * 2. Cabang Hulu Timur: Mengalir dari padang timur [260, 20] -> [107, 22]
- * 3. Titik Temu (Confluence): Menyatu di [107, 22]
- * 4. Alur Hilir: Mengalir lewat jembatan gantung [142, 47], membelah padang Eldoria, bermuara ke Samudra Lepas dekat Pelabuhan Kayu
+ * 3. Titik Temu (Confluence): Menyatu di [107, 22] dekat Mage Tower
+ * 4. Alur Hilir: Mengalir lurus ke selatan membelah padang Eldoria, bermuara di Samudra Lepas dekat dermaga pelabuhan [0, 230]
  */
 export const RIVER_NORTHWEST_BRANCH: [number, number][] = [
   [-40, -320],
@@ -95,14 +97,12 @@ export const RIVER_EAST_BRANCH: [number, number][] = [
 
 export const RIVER_MAIN_DOWNSTREAM: [number, number][] = [
   [107, 22],
-  [125, 35],
-  [142, 47],
-  [132, 80],
-  [108, 115],
-  [78, 148],
-  [46, 178],
-  [15, 198],
-  [-15, 218],
+  [92, 55],
+  [72, 92],
+  [52, 130],
+  [32, 165],
+  [14, 198],
+  [0, 230],
 ];
 
 function distToSegment(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {

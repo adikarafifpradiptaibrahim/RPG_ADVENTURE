@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Play,
   LogOut,
@@ -19,6 +19,8 @@ import {
   Disc,
   Crosshair,
   Keyboard,
+  Settings,
+  ArrowLeft,
 } from 'lucide-react';
 import { soundManager } from '../game/audio';
 import {
@@ -65,6 +67,14 @@ export const PauseModal: React.FC<PauseModalProps> = ({
   onDisconnectAndReturnToMainMenu,
 }) => {
   const [activeTab, setActiveTab] = useState<'grafik' | 'suara' | 'kontrol'>('grafik');
+  const [pauseView, setPauseView] = useState<'menu' | 'settings'>('menu');
+
+  // Reset to concise menu view every time pause modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setPauseView('menu');
+    }
+  }, [isOpen]);
 
   // Audio State
   const [isMuted, setIsMuted] = useState<boolean>(() => soundManager.getMuted());
@@ -142,24 +152,17 @@ export const PauseModal: React.FC<PauseModalProps> = ({
     onApplyGraphicsSettings?.(next);
   };
 
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Pause Menu & Pengaturan"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200 font-sans"
-    >
+  if (pauseView === 'menu') {
+    return (
       <div
-        style={{
-          maxHeight: '85vh',
-          overflowY: 'auto',
-          WebkitOverflowScrolling: 'touch',
-        }}
-        className="game-modal-card relative w-[94vw] max-w-lg max-h-[85vh] flex flex-col overflow-y-auto modal-scroll-area rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-stone-900 via-stone-950 to-black shadow-2xl shadow-black/95 text-stone-200"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Pause Menu Permainan"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200 font-sans"
       >
-        {/* Sticky Header */}
-        <div className="sticky top-0 z-20 shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-stone-800 bg-stone-950/95">
-          <div className="flex items-center gap-2.5">
+        <div className="game-modal-card relative w-[94vw] max-w-sm flex flex-col rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-stone-900 via-stone-950 to-black p-5 sm:p-6 shadow-2xl shadow-black/95 text-stone-200">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-3.5 border-b border-stone-800">
             <div
               className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-wider uppercase border ${
                 isSingle
@@ -179,8 +182,103 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                 </>
               )}
             </div>
+            <button
+              onClick={onResume}
+              className="p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition cursor-pointer"
+              title="Lanjutkan Permainan (Esc)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Title */}
+          <div className="text-center my-5">
+            <h2 className="text-2xl font-black text-amber-300 tracking-wider font-serif uppercase drop-shadow">
+              PERMAINAN DIJEDA
+            </h2>
+            <p className="text-xs text-stone-400 mt-1">
+              {isSingle
+                ? 'Aksi permainan sedang dihentikan sementara'
+                : 'Multiplayer aktif berjalan secara real-time'}
+            </p>
+          </div>
+
+          {/* 3 Main Action Buttons */}
+          <div className="flex flex-col gap-3 my-2">
+            {/* Tombol 1: LANJUTKAN (RESUME) */}
+            <button
+              onClick={onResume}
+              className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 px-4 py-3.5 font-black text-stone-950 text-sm tracking-wide shadow-lg shadow-amber-900/40 transition active:scale-95 cursor-pointer border border-amber-300"
+            >
+              <Play className="w-4 h-4 fill-current" />
+              <span>LANJUTKAN (RESUME)</span>
+              <span className="ml-auto rounded bg-black/30 px-2 py-0.5 font-mono text-[10px] text-stone-900 font-bold border border-black/20">
+                ESC
+              </span>
+            </button>
+
+            {/* Tombol 2: PENGATURAN (SETTINGS) */}
+            <button
+              onClick={() => setPauseView('settings')}
+              className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-stone-700 bg-stone-900/90 hover:bg-stone-800 hover:border-amber-500/50 px-4 py-3 font-bold text-amber-100 text-sm tracking-wide transition active:scale-95 cursor-pointer shadow-md"
+            >
+              <Settings className="w-4 h-4 text-amber-400" />
+              <span>PENGATURAN (SETTINGS)</span>
+            </button>
+
+            {/* Tombol 3: KELUAR KE MENU UTAMA (EXIT) */}
+            <button
+              onClick={isSingle ? onReturnToMainMenu : onDisconnectAndReturnToMainMenu}
+              className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-red-900/50 bg-stone-950/80 hover:bg-red-950/60 hover:border-red-500/60 px-4 py-2.5 font-bold text-red-300 text-xs tracking-wide transition active:scale-95 cursor-pointer mt-1"
+            >
+              <LogOut className="w-4 h-4 text-red-400" />
+              <span>KELUAR KE MENU UTAMA (EXIT)</span>
+            </button>
+          </div>
+
+          {!isSingle && (
+            <div className="mt-3 rounded-xl border border-red-500/40 bg-red-950/40 p-2.5 text-xs text-red-200">
+              <div className="flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-red-300/90 leading-relaxed">
+                  Permainan multiplayer berjalan real-time. Monster dan pemain lain tetap aktif saat menu terbuka.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Pause Menu & Pengaturan"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200 font-sans"
+    >
+      <div
+        style={{
+          maxHeight: '85vh',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+        }}
+        className="game-modal-card relative w-[94vw] max-w-lg max-h-[85vh] flex flex-col overflow-y-auto modal-scroll-area rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-stone-900 via-stone-950 to-black shadow-2xl shadow-black/95 text-stone-200"
+      >
+        {/* Sticky Header */}
+        <div className="sticky top-0 z-20 shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-stone-800 bg-stone-950/95">
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setPauseView('menu')}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 border border-stone-700 hover:border-amber-500/50 text-xs font-bold transition cursor-pointer active:scale-95 shadow"
+              title="Kembali ke Menu Pause"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali</span>
+            </button>
             <h2 className="text-base sm:text-lg font-black text-amber-100 tracking-wide font-serif">
-              Menu & Pengaturan
+              Pengaturan Sistem
             </h2>
           </div>
 
@@ -599,38 +697,23 @@ export const PauseModal: React.FC<PauseModalProps> = ({
             </div>
           )}
 
-          {/* Bottom Action Buttons */}
-          <div className="pt-2 flex flex-col gap-2.5">
-            {/* Resume Button */}
+          {/* Bottom Action Buttons in Settings View */}
+          <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
             <button
-              onClick={onResume}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 px-4 py-3 font-bold text-white shadow-lg shadow-amber-900/30 transition active:scale-98 cursor-pointer"
+              onClick={() => setPauseView('menu')}
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-stone-700 bg-stone-900 hover:bg-stone-800 px-4 py-2.5 font-bold text-amber-300 text-xs transition active:scale-98 cursor-pointer shadow"
             >
-              <Play className="w-4 h-4 fill-white" />
-              <span>Lanjutkan Permainan (Resume)</span>
-              <span className="ml-auto rounded bg-black/30 px-1.5 py-0.5 font-mono text-[10px] text-amber-200">
-                ESC
-              </span>
+              <ArrowLeft className="w-4 h-4" />
+              <span>Kembali ke Menu Pause</span>
             </button>
 
-            {/* Return to Menu Button */}
-            {isSingle ? (
-              <button
-                onClick={onReturnToMainMenu}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-stone-700 bg-stone-900/80 hover:bg-stone-800 px-4 py-2.5 font-semibold text-stone-300 hover:text-white text-xs transition active:scale-98 cursor-pointer"
-              >
-                <LogOut className="w-4 h-4 text-stone-400" />
-                <span>Kembali ke Main Menu</span>
-              </button>
-            ) : (
-              <button
-                onClick={onDisconnectAndReturnToMainMenu}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/50 bg-gradient-to-r from-red-950 to-red-900 hover:from-red-900 hover:to-red-800 px-4 py-2.5 font-bold text-red-100 hover:text-white text-xs shadow-lg transition active:scale-98 cursor-pointer"
-              >
-                <WifiOff className="w-4 h-4 text-red-400" />
-                <span>Disconnect & Keluar ke Main Menu</span>
-              </button>
-            )}
+            <button
+              onClick={onResume}
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 px-4 py-2.5 font-bold text-white text-xs shadow-lg shadow-amber-900/30 transition active:scale-98 cursor-pointer"
+            >
+              <Play className="w-4 h-4 fill-white" />
+              <span>Lanjutkan Permainan (Esc)</span>
+            </button>
           </div>
         </div>
       </div>

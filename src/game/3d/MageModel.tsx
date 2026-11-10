@@ -738,63 +738,106 @@ export function animateMageWalk(
   walkTime: number,
   playerPosY: number,
   isMoving: boolean,
-  isAttacking: boolean = false
+  isAttacking: boolean = false,
+  isSprinting: boolean = false
 ): void {
   const lerpSpeed = 0.20;
 
   if (isMoving) {
-    // 1. Walk Cycle (Frekuensi 8.5)
-    const legSwing = Math.sin(walkTime * 8.5) * 0.45;
-    playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, legSwing, lerpSpeed);
-    playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, -legSwing, lerpSpeed);
+    if (isSprinting) {
+      // 1b. Floating Sprint (Melayang Cepat): Kaki menyilang santai, jubah berkibar, mengambang 0.4 unit
+      const floatBob = Math.sin(walkTime * 4.0) * 0.05;
+      playerMesh.group.position.y = THREE.MathUtils.lerp(playerMesh.group.position.y, playerPosY + 0.4 + floatBob, lerpSpeed);
+      playerMesh.group.rotation.z = THREE.MathUtils.lerp(playerMesh.group.rotation.z, Math.sin(walkTime * 3.5) * 0.02, lerpSpeed);
 
-    // Pastikan torso tegak kembali (reset bungkuk pasca-Blink atau skill pose)
-    playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, lerpSpeed);
-    playerMesh.body.rotation.y = THREE.MathUtils.lerp(playerMesh.body.rotation.y, 0, lerpSpeed);
-    playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, lerpSpeed);
-    playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.35, lerpSpeed);
+      // Kaki diam menyilang santai di udara
+      playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0.40, lerpSpeed);
+      playerMesh.leftLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.z, -0.22, lerpSpeed);
+      playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0.40, lerpSpeed);
+      playerMesh.rightLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.z, 0.22, lerpSpeed);
 
-    // Kembalikan orientasi tongkat ke pose menyerong diagonal ke depan saat bergerak
-    playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 0.32, lerpSpeed);
-    playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, 0.10, lerpSpeed);
-    playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0.05, lerpSpeed);
+      // Torso sedikit condong ke depan meluncur
+      playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0.12, lerpSpeed);
+      playerMesh.body.rotation.y = THREE.MathUtils.lerp(playerMesh.body.rotation.y, 0, lerpSpeed);
+      playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, lerpSpeed);
+      playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.35, lerpSpeed);
 
-    if (!isAttacking) {
-      // Lengan kiri mengayun dengan rotasi terkontrol (Math.sin(...) * 0.25) dan bawa grimoire secara stabil tanpa menembus jubah belakang (cape)
-      const leftArmSwing = Math.sin(walkTime * 8.5) * 0.25;
-      playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, leftArmSwing, lerpSpeed);
-      playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.06, lerpSpeed);
-      playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.12, lerpSpeed);
+      // Jubah berkibar kencang ke belakang
+      const capeFlap = Math.sin(walkTime * 12.0) * 0.08;
+      playerMesh.cape.rotation.x = THREE.MathUtils.lerp(playerMesh.cape.rotation.x, 0.55 + capeFlap, lerpSpeed);
 
-      if (playerMesh.grimoire) {
-        playerMesh.grimoire.position.x = THREE.MathUtils.lerp(playerMesh.grimoire.position.x, -0.08, lerpSpeed);
-        playerMesh.grimoire.position.y = THREE.MathUtils.lerp(playerMesh.grimoire.position.y, 0.08, lerpSpeed);
-        playerMesh.grimoire.position.z = THREE.MathUtils.lerp(playerMesh.grimoire.position.z, 0.02, lerpSpeed);
-        playerMesh.grimoire.rotation.x = THREE.MathUtils.lerp(playerMesh.grimoire.rotation.x, 0.20, lerpSpeed);
-        playerMesh.grimoire.rotation.y = THREE.MathUtils.lerp(playerMesh.grimoire.rotation.y, 0, lerpSpeed);
-        playerMesh.grimoire.rotation.z = THREE.MathUtils.lerp(playerMesh.grimoire.rotation.z, 0, lerpSpeed);
+      // Tongkat menghadap ke depan terarah
+      playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 0.45, lerpSpeed);
+      playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, 0.05, lerpSpeed);
+      playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0.02, lerpSpeed);
+
+      if (!isAttacking) {
+        playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -0.35, lerpSpeed);
+        playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, lerpSpeed);
+        playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0, lerpSpeed);
+
+        playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0.15, lerpSpeed);
+        playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.10, lerpSpeed);
+        playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.18, lerpSpeed);
+      }
+    } else {
+      // 1. Walk Cycle biasa (Frekuensi 8.5)
+      playerMesh.leftLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.z, 0, lerpSpeed);
+      playerMesh.rightLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.z, 0, lerpSpeed);
+      const legSwing = Math.sin(walkTime * 8.5) * 0.45;
+      playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, legSwing, lerpSpeed);
+      playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, -legSwing, lerpSpeed);
+
+      // Pastikan torso tegak kembali (reset bungkuk pasca-Blink atau skill pose)
+      playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, lerpSpeed);
+      playerMesh.body.rotation.y = THREE.MathUtils.lerp(playerMesh.body.rotation.y, 0, lerpSpeed);
+      playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, lerpSpeed);
+      playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.35, lerpSpeed);
+
+      // Kembalikan orientasi tongkat ke pose menyerong diagonal ke depan saat bergerak
+      playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 0.32, lerpSpeed);
+      playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, 0.10, lerpSpeed);
+      playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0.05, lerpSpeed);
+
+      if (!isAttacking) {
+        // Lengan kiri mengayun dengan rotasi terkontrol (Math.sin(...) * 0.25) dan bawa grimoire secara stabil tanpa menembus jubah belakang (cape)
+        const leftArmSwing = Math.sin(walkTime * 8.5) * 0.25;
+        playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, leftArmSwing, lerpSpeed);
+        playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.06, lerpSpeed);
+        playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.12, lerpSpeed);
+
+        if (playerMesh.grimoire) {
+          playerMesh.grimoire.position.x = THREE.MathUtils.lerp(playerMesh.grimoire.position.x, -0.08, lerpSpeed);
+          playerMesh.grimoire.position.y = THREE.MathUtils.lerp(playerMesh.grimoire.position.y, 0.08, lerpSpeed);
+          playerMesh.grimoire.position.z = THREE.MathUtils.lerp(playerMesh.grimoire.position.z, 0.02, lerpSpeed);
+          playerMesh.grimoire.rotation.x = THREE.MathUtils.lerp(playerMesh.grimoire.rotation.x, 0.20, lerpSpeed);
+          playerMesh.grimoire.rotation.y = THREE.MathUtils.lerp(playerMesh.grimoire.rotation.y, 0, lerpSpeed);
+          playerMesh.grimoire.rotation.z = THREE.MathUtils.lerp(playerMesh.grimoire.rotation.z, 0, lerpSpeed);
+        }
+
+        // Isolasi lengan kanan: TIDAK BOLEH mengayun agresif seperti tangan kosong.
+        // Dibatasi pada rotasi X maksimal ±0.06 rad (hampir statis dengan bobbing mikro ±0.04 rad), menjaga tongkat tetap tegak stabil.
+        const staffBob = Math.sin(walkTime * 4.25) * 0.04;
+        playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -0.18 + staffBob, lerpSpeed);
+        playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, lerpSpeed);
+        playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0, lerpSpeed);
       }
 
-      // Isolasi lengan kanan: TIDAK BOLEH mengayun agresif seperti tangan kosong.
-      // Dibatasi pada rotasi X maksimal ±0.06 rad (hampir statis dengan bobbing mikro ±0.04 rad), menjaga tongkat tetap tegak stabil.
-      const staffBob = Math.sin(walkTime * 4.25) * 0.04;
-      playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -0.18 + staffBob, lerpSpeed);
-      playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, lerpSpeed);
-      playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0, lerpSpeed);
+      // Goyangan pinggul & bobbing badan alami
+      const bodyBob = Math.abs(Math.sin(walkTime * 8.5)) * 0.07;
+      const hipSway = Math.sin(walkTime * 8.5) * 0.025;
+
+      playerMesh.group.position.y = playerPosY + bodyBob;
+      playerMesh.group.rotation.z = hipSway;
+
+      // Jubah belakang terangkat halus ke belakang saat bergerak (cape tilt 0.20 rad)
+      const capeFlap = Math.sin(walkTime * 8.5) * 0.05;
+      playerMesh.cape.rotation.x = THREE.MathUtils.lerp(playerMesh.cape.rotation.x, 0.20 + capeFlap, lerpSpeed);
     }
-
-    // Goyangan pinggul & bobbing badan alami
-    const bodyBob = Math.abs(Math.sin(walkTime * 8.5)) * 0.07;
-    const hipSway = Math.sin(walkTime * 8.5) * 0.025;
-
-    playerMesh.group.position.y = playerPosY + bodyBob;
-    playerMesh.group.rotation.z = hipSway;
-
-    // Jubah belakang terangkat halus ke belakang saat bergerak (cape tilt 0.20 rad)
-    const capeFlap = Math.sin(walkTime * 8.5) * 0.05;
-    playerMesh.cape.rotation.x = THREE.MathUtils.lerp(playerMesh.cape.rotation.x, 0.20 + capeFlap, lerpSpeed);
   } else {
     // 2. Idle State: Pernapasan halus & pose santai
+    playerMesh.leftLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.z, 0, lerpSpeed);
+    playerMesh.rightLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.z, 0, lerpSpeed);
     playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0, lerpSpeed);
     playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0, lerpSpeed);
     playerMesh.group.rotation.z = THREE.MathUtils.lerp(playerMesh.group.rotation.z, 0, lerpSpeed);

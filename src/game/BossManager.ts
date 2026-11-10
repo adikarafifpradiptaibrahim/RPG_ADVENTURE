@@ -26,7 +26,12 @@ export interface ActiveTelegraph {
   duration: number;
   skill: BossSkill;
   bossId: string;
-  enemy?: { mesh: THREE.Group; spawnPos?: THREE.Vector3; leashRadius?: number };
+  enemy?: {
+    mesh: THREE.Group;
+    parts?: Record<string, any>;
+    spawnPos?: THREE.Vector3;
+    leashRadius?: number;
+  };
 }
 
 export interface PlayerStatusDebuffs {
@@ -50,6 +55,7 @@ export interface BossManagerCallbacks {
   onPlayerDeath?: () => void;
   onDamageAbsorb?: (rawDmg: number) => number;
   onAirborneChange?: (isAirborne: boolean) => void;
+  onCameraFocusBoss?: (bossPos: THREE.Vector3, weight: number) => void;
 }
 
 /**
@@ -73,6 +79,12 @@ export class BossManager {
   public isDragonAirborne: boolean = false;
   private meteorDiveTarget: THREE.Vector3 | null = null;
   private meteorDiveIndicatorGroup: THREE.Group | null = null;
+  private dragonOrbitStartAngle: number = 0;
+
+  // Dragon Phase 2 Enrage & Extreme Volcanic Weather
+  public dragonPhase: 1 | 2 = 1;
+  public extremeWeatherFactor: number = 0;
+  private weatherRecoveryDelayTimer: number = 0;
   private activeSeismicShockwaves: Array<{
     center: THREE.Vector3;
     mesh: THREE.Mesh;
@@ -145,18 +157,33 @@ export class BossManager {
       (tel.borderMesh.material as THREE.MeshBasicMaterial).opacity = 0.75 + pulse * 0.25;
       tel.indicatorMesh.scale.set(progress, progress, 1);
 
-      // Inward vortex suction & DoT for Desert Sand Whirlpool
+      // Inward vortex suction & DoT for Desert Sand Whirlpool (5s duration)
       if (tel.skill.id === 'sand_whirlpool') {
+        const radius = tel.radius || 12.5;
         const distToCenter = Math.hypot(playerPos.x - tel.center.x, playerPos.z - tel.center.z);
-        if (distToCenter < (tel.radius || 36.0) && distToCenter > 1.2) {
+
+        // Detik 1-2: Visual pusaran pasir berputar di sekeliling kawah
+        if (Math.random() < 0.7) {
+          const swirlAng = Math.random() * Math.PI * 2;
+          const swirlR = Math.random() * radius;
+          const sPos = new THREE.Vector3(
+            tel.center.x + Math.cos(swirlAng) * swirlR,
+            this.getTerrainHeight(tel.center.x, tel.center.z) + 0.2,
+            tel.center.z + Math.sin(swirlAng) * swirlR
+          );
+          this.callbacks.onSpawnSparks?.(sPos, 0xd4af37, 2, 2.5);
+        }
+
+        // Detik 3-5: Gaya hisap sentripetal kuat menyedot pemain ke arah pusat
+        if (tel.timer >= 2.0 && distToCenter < radius && distToCenter > 0.8) {
           const pullDirX = (tel.center.x - playerPos.x) / distToCenter;
           const pullDirZ = (tel.center.z - playerPos.z) / distToCenter;
-          const pullSpeed = 5.2 * delta; // Sedotan pusaran pasir ke arah tengah kawah
+          const pullSpeed = 7.5 * delta; // Sedotan sentripetal ke arah pusat kawah
           playerPos.x += pullDirX * pullSpeed;
           playerPos.z += pullDirZ * pullSpeed;
-          // Perputaran spiral pusaran pasir
-          playerPos.x += -pullDirZ * (2.4 * delta);
-          playerPos.z += pullDirX * (2.4 * delta);
+          // Perputaran spiral pusaran pasir hisap
+          playerPos.x += -pullDirZ * (3.0 * delta);
+          playerPos.z += pullDirX * (3.0 * delta);
 
           // Efek debu pasir abrasif berkala saat tersedot
           if (Math.random() < 0.08) {
@@ -169,6 +196,41 @@ export class BossManager {
               }
               return { ...stats, hp: nextHp };
             });
+          }
+        }
+      }
+
+      // Semburan lidah api kipas beruntun (Flame Breath) selama 2.5 detik
+      if (tel.skill.id === 'flame_breath' || tel.skill.id === 'fire_breath') {
+        const fwd = tel.direction || new THREE.Vector3(0, 0, 1);
+        if (Math.random() < 0.7) {
+          const flameDist = 2.0 + Math.random() * (tel.radius || 28.0);
+          const spreadAngle = (Math.random() - 0.5) * (tel.coneAngle || (Math.PI / 4));
+          const flameDir = fwd.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), spreadAngle);
+          const pPos = tel.center.clone().addScaledVector(flameDir, flameDist);
+          pPos.y = this.getTerrainHeight(pPos.x, pPos.z) + 0.6 + Math.random() * 1.5;
+          this.callbacks.onSpawnSparks?.(pPos, 0xff4500, 4, 4.0);
+          if (Math.random() < 0.35) {
+            this.callbacks.onSpawnSparks?.(pPos, 0xffd600, 2, 2.5);
+          }
+        }
+        // Burn tick berkala jika pemain terkena semburan lidah api di dalam cone
+        const toP = new THREE.Vector3(playerPos.x - tel.center.x, 0, playerPos.z - tel.center.z);
+        const pDist = toP.length();
+        if (pDist <= (tel.radius || 28.0) && pDist > 1.2) {
+          toP.normalize();
+          const ang = Math.acos(Math.max(-1, Math.min(1, toP.dot(fwd))));
+          if (ang <= (tel.coneAngle || Math.PI / 4) / 2) {
+            if (Math.random() < 0.12 && !isPlayerDashing) {
+              this.applyBurn(4.0);
+              this.callbacks.onUpdateStats((stats) => {
+                const dotDmg = 5;
+                const nextHp = Math.max(0, stats.hp - dotDmg);
+                this.callbacks.onAddFloatingText(`-${dotDmg} HP (Lidah Api)`, '#ff3d00', 'damage');
+                if (nextHp <= 0) this.callbacks.onPlayerDeath?.();
+                return { ...stats, hp: nextHp };
+              });
+            }
           }
         }
       }
@@ -219,6 +281,7 @@ export class BossManager {
       if (this.isDragonAirborne && isIgnis) {
         this.isDragonAirborne = false;
         this.callbacks.onAirborneChange?.(false);
+        this.callbacks.onCameraFocusBoss?.(enemy.mesh.position, 0);
         this.removeMeteorDiveIndicator();
       }
       if (soundManager.getCurrentBossMusic()) {
@@ -226,6 +289,38 @@ export class BossManager {
         soundManager.playBossVictory(config.nameId || config.name);
       }
       return false;
+    }
+
+    // Dragon Phase 2 & Extreme Caldera Weather Updates
+    if (isIgnis) {
+      if (enemy.data.hp <= enemy.data.maxHp * 0.5 && this.dragonPhase === 1) {
+        this.dragonPhase = 2;
+        soundManager.playDragonRoar();
+        this.callbacks.onCameraShake(1.2);
+        this.callbacks.onAddFloatingText('🔥 IGNIS MERAUNG! FASE 2: ENRAGE MODE AKTIF!', '#ff1744', 'crit');
+
+        // Increase eye and scale emissive glow to blazing crimson
+        enemy.mesh.traverse((child) => {
+          if (child instanceof THREE.Mesh && child.material) {
+            const mat = child.material as THREE.MeshStandardMaterial;
+            if (mat.emissive) {
+              mat.emissive.setHex(0xff1100);
+              mat.emissiveIntensity = 2.4;
+            }
+          }
+        });
+      }
+
+      const distToCenter = Math.hypot(playerPos.x - SPAWN_NAGA[0], playerPos.z - SPAWN_NAGA[1]);
+      if (this.dragonPhase === 2 && enemy.data.hp > 0 && distToCenter <= 90) {
+        this.weatherRecoveryDelayTimer = 0;
+        this.extremeWeatherFactor = THREE.MathUtils.lerp(this.extremeWeatherFactor, 1.0, delta * 1.5);
+      } else {
+        this.weatherRecoveryDelayTimer += delta;
+        if (this.weatherRecoveryDelayTimer >= 5.0) {
+          this.extremeWeatherFactor = Math.max(0, this.extremeWeatherFactor - delta / 5.0);
+        }
+      }
     }
 
     const config = isIgnis ? IGNIS_DRAGON_BOSS_CONFIG : (isWorm ? JARRUS_WORM_BOSS_CONFIG : ANCIENT_TITAN_BOSS_CONFIG);
@@ -251,7 +346,32 @@ export class BossManager {
       } else if (isTitan) {
         const activeTel = this.activeTelegraphMap.get(bossId);
         const skillId = activeTel?.skill?.id;
-        if (skillId === 'earthquake_slam') {
+        if (skillId === 'titan_leap_slam') {
+          if (stateTimer < 0.8) {
+            // Ancang-ancang menekuk lutut selama 0.8 detik (knee-bend wind-up)
+            if (enemy.parts?.leftLeg && enemy.parts?.rightLeg) {
+              enemy.parts.leftLeg.rotation.x = 0.55;
+              enemy.parts.rightLeg.rotation.x = 0.55;
+            }
+            if (enemy.parts?.torso) {
+              enemy.parts.torso.position.y = 1.35 - 0.5;
+            }
+          } else {
+            // Melompat ke udara mengarah ke target sebelum mendarat di 1.2s
+            const leapProgress = Math.min(1.0, (stateTimer - 0.8) / 0.4);
+            const arcY = Math.sin(leapProgress * Math.PI) * 8.0;
+            const baseY = this.getTerrainHeight(enemy.mesh.position.x, enemy.mesh.position.z);
+            enemy.mesh.position.y = baseY + arcY;
+            if (activeTel) {
+              enemy.mesh.position.x = THREE.MathUtils.lerp(enemy.mesh.position.x, activeTel.center.x, leapProgress * 0.25);
+              enemy.mesh.position.z = THREE.MathUtils.lerp(enemy.mesh.position.z, activeTel.center.z, leapProgress * 0.25);
+            }
+            if (enemy.parts?.leftArm && enemy.parts?.rightArm) {
+              enemy.parts.leftArm.rotation.x = -Math.PI * 0.85;
+              enemy.parts.rightArm.rotation.x = -Math.PI * 0.85;
+            }
+          }
+        } else if (skillId === 'earthquake_slam') {
           // Raise both colossal stone fists high overhead
           if (enemy.parts?.leftArm && enemy.parts?.rightArm) {
             enemy.parts.leftArm.rotation.x = -Math.PI * 0.85 + Math.sin(stateTimer * 8) * 0.1;
@@ -368,7 +488,7 @@ export class BossManager {
         return true;
       } else if (selected === 'flame_breath') {
         const skill = config.skills.find((s) => s.id === 'flame_breath') || config.skills.find((s) => s.id === 'fire_breath')!;
-        this.startTelegraphCone(bossId, enemy, ePos, fwd, 14, Math.PI / 3, skill);
+        this.startTelegraphCone(bossId, enemy, ePos, fwd, 28, Math.PI / 4, skill);
         soundManager.playDragonFireBreath();
         this.callbacks.onAddFloatingText('🔥 SEMBURAN LIDAH API KIPAS!', '#dc2626', 'damage');
         cdMap.set('flame_breath', skill.cooldown);
@@ -382,7 +502,14 @@ export class BossManager {
       }
     } else if (isTitan) {
       const selected = MonsterCombatAI.selectTitanSkill(distToPlayer, cdMap);
-      if (selected === 'seismic_slam') {
+      if (selected === 'titan_leap_slam') {
+        const skill = config.skills.find((s) => s.id === 'titan_leap_slam')!;
+        this.startTelegraphCircle(bossId, enemy, playerPos.clone(), 7.5, skill);
+        soundManager.playTitanGroundSlam();
+        this.callbacks.onAddFloatingText('☄️ TITAN BERSERUAP LOMPAT (LEAP SLAM)!', '#ef4444', 'crit');
+        cdMap.set('titan_leap_slam', skill.cooldown);
+        return true;
+      } else if (selected === 'seismic_slam') {
         const skill = config.skills.find((s) => s.id === 'seismic_slam') || config.skills.find((s) => s.id === 'earthquake_slam')!;
         this.startTelegraphCircle(bossId, enemy, ePos, 15.0, skill);
         soundManager.playTitanGroundSlam();
@@ -418,9 +545,12 @@ export class BossManager {
         const skill = config.skills.find((s) => s.id === 'sand_whirlpool');
         if (skill) {
           const centerPos = new THREE.Vector3(495, this.getTerrainHeight(495, -362), -362);
-          this.startTelegraphCircle(bossId, enemy, centerPos, 36.0, skill);
+          this.startTelegraphCircle(bossId, enemy, centerPos, 12.5, skill);
           soundManager.playTitanGroundSlam();
           this.callbacks.onAddFloatingText('🌪️ SANG CACING MEMICU PUSARAN PASIR RAKSASA!', '#f59e0b', 'crit');
+          if (enemy.mesh) {
+            enemy.mesh.position.y -= 16.0;
+          }
           cdMap.set('sand_whirlpool', skill.cooldown);
           return true;
         }
@@ -710,24 +840,41 @@ export class BossManager {
     }
 
     const groundY = this.getTerrainHeight(nagaPos.x, nagaPos.z);
-    const targetAirborneY = groundY + 14.0;
+    const targetAirborneY = groundY + 16.0;
 
     // ==========================================
-    // FASE 1: ASCEND & SPIRAL (0 - 1.2 detik)
+    // FASE 1: ASCEND & ORBIT CALDERA PERIMETER (0 - 2.0 detik)
     // ==========================================
-    if (stateTimer < 1.2) {
+    if (stateTimer < 2.0) {
       if (!this.isDragonAirborne) {
         this.isDragonAirborne = true;
         this.callbacks.onAirborneChange?.(true);
       }
 
-      // Melesat naik vertikal ke udara 14 unit di atas tanah
+      // Hitung sudut awal rotasi orbit di sekeliling perimeter kaldera (kecepatan 3.14 rad/s)
+      if (stateTimer <= delta * 1.5 || !this.dragonOrbitStartAngle) {
+        this.dragonOrbitStartAngle = Math.atan2(nagaPos.z - SPAWN_NAGA[1], nagaPos.x - SPAWN_NAGA[0]);
+      }
+      const orbitAngle = this.dragonOrbitStartAngle + stateTimer * 3.14159;
+      const orbitRadius = 24.0; // Perimeter kaldera
+
+      // Naga melayang naik ke Y = 16 dan mengorbit melingkar
+      nagaPos.x = SPAWN_NAGA[0] + Math.cos(orbitAngle) * orbitRadius;
+      nagaPos.z = SPAWN_NAGA[1] + Math.sin(orbitAngle) * orbitRadius;
       nagaPos.y = THREE.MathUtils.lerp(nagaPos.y, targetAirborneY, delta * 6.5);
 
-      // Animasi kepakan sayap cepat saat menanjak
+      // Naga menghadap searah lintasan tangensial orbit melingkar
+      const tangentX = -Math.sin(orbitAngle);
+      const tangentZ = Math.cos(orbitAngle);
+      naga.rotation.y = Math.atan2(tangentX, tangentZ);
+
+      // Kamera mendongak ke atas melacak posisi naga yang mengudara (camera tilt up tracking)
+      this.callbacks.onCameraFocusBoss?.(nagaPos.clone(), 0.5);
+
+      // Animasi kepakan sayap kuat saat mengudara
       if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
-        enemy.parts.leftWing.rotation.z = Math.sin(stateTimer * 24.0) * 0.65;
-        enemy.parts.rightWing.rotation.z = -Math.sin(stateTimer * 24.0) * 0.65;
+        enemy.parts.leftWing.rotation.z = Math.sin(stateTimer * 20.0) * 0.65;
+        enemy.parts.rightWing.rotation.z = -Math.sin(stateTimer * 20.0) * 0.65;
       }
       if (enemy.parts?.neck) {
         enemy.parts.neck.rotation.x = -0.4 + Math.sin(stateTimer * 12.0) * 0.15;
@@ -741,28 +888,22 @@ export class BossManager {
         enemy.parts.rightLeg.rotation.x = 0.45;
       }
 
-      // Spiral hover menghadap ke arah pemain
-      const toPlayer = new THREE.Vector3(playerPos.x - nagaPos.x, 0, playerPos.z - nagaPos.z).normalize();
-      if (toPlayer.lengthSq() > 0.001) {
-        naga.rotation.y = Math.atan2(toPlayer.x, toPlayer.z) + Math.sin(stateTimer * 5.0) * 0.3;
-      }
-
-      // Percikan bara api dari tubuh naga
-      if (Math.random() < 0.35) {
+      // Percikan bara api dari tubuh naga yang mengudara
+      if (Math.random() < 0.45) {
         const sparkPos = nagaPos.clone().add(new THREE.Vector3(
-          (Math.random() - 0.5) * 4.0,
+          (Math.random() - 0.5) * 4.5,
           -1.0,
-          (Math.random() - 0.5) * 4.0
+          (Math.random() - 0.5) * 4.5
         ));
-        this.callbacks.onSpawnSparks?.(sparkPos, 0xff4500, 3, 2.5);
+        this.callbacks.onSpawnSparks?.(sparkPos, 0xff4500, 3, 3.0);
       }
       return true;
     }
 
     // ==========================================
-    // FASE 2: TELEGRAPH WARNING (1.2 - 2.2 detik)
+    // FASE 2: DIVE BOMB TARGET LOCK (2.0 - 2.45 detik)
     // ==========================================
-    if (stateTimer < 2.2) {
+    if (stateTimer < 2.45) {
       // Kunci koordinat target jatuhnya naga pada posisi pemain saat awal Fase 2
       if (!this.meteorDiveTarget) {
         const diveGroundY = this.getTerrainHeight(playerPos.x, playerPos.z);
@@ -772,42 +913,9 @@ export class BossManager {
         this.callbacks.onAddFloatingText('⚠️ TARGET TERKUNCI! HINDARI ZONA MERAH!', '#ff1744', 'crit');
       }
 
-      // Naga melayang diam sejenak di udara 14m
-      nagaPos.y = THREE.MathUtils.lerp(nagaPos.y, targetAirborneY, delta * 3.5);
-
-      // Menghadap lurus ke bawah arah diveTarget
-      naga.lookAt(this.meteorDiveTarget.x, this.meteorDiveTarget.y, this.meteorDiveTarget.z);
-
-      // Kepakan sayap stabil melayang
-      if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
-        enemy.parts.leftWing.rotation.z = Math.sin(stateTimer * 12.0) * 0.45;
-        enemy.parts.rightWing.rotation.z = -Math.sin(stateTimer * 12.0) * 0.45;
-      }
-
-      // Animasi denyutan indikator & bara api jatuh dari langit
-      const phase2Timer = stateTimer - 1.2;
-      this.updateMeteorDiveIndicator(phase2Timer);
-
-      if (Math.random() < 0.4) {
-        const emberPos = this.meteorDiveTarget.clone().add(new THREE.Vector3(
-          (Math.random() - 0.5) * 6.5,
-          4.0 + Math.random() * 3.0,
-          (Math.random() - 0.5) * 6.5
-        ));
-        this.callbacks.onSpawnSparks?.(emberPos, 0xff2200, 2, 2.0);
-      }
-      return true;
-    }
-
-    // ==========================================
-    // FASE 3: IMPACT & SEISMIC SHOCKWAVE (2.2 - 2.55 detik)
-    // ==========================================
-    const diveTarget = this.meteorDiveTarget || new THREE.Vector3(playerPos.x, this.getTerrainHeight(playerPos.x, playerPos.z), playerPos.z);
-
-    if (stateTimer < 2.55) {
       // Menukik curam meluncur lurus ke diveTarget dengan kecepatan sangat tinggi
-      nagaPos.lerp(diveTarget, Math.min(1.0, delta * 24.0));
-      naga.lookAt(diveTarget.x, diveTarget.y, diveTarget.z);
+      nagaPos.lerp(this.meteorDiveTarget, Math.min(1.0, delta * 24.0));
+      naga.lookAt(this.meteorDiveTarget.x, this.meteorDiveTarget.y, this.meteorDiveTarget.z);
 
       // Pose sayap melipat menukik
       if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
@@ -818,15 +926,25 @@ export class BossManager {
         enemy.parts.neck.rotation.x = 0.3;
       }
 
-      // Ekor api menukik
+      // Ekor bara api menukik
       this.callbacks.onSpawnSparks?.(nagaPos.clone(), 0xff3d00, 5, 5.0);
+
+      // Animasi denyutan indikator merah di tanah
+      const phase2Timer = stateTimer - 2.0;
+      this.updateMeteorDiveIndicator(phase2Timer);
       return true;
     }
 
-    // Benturan Tanah (Ground Impact Moment)
+    // ==========================================
+    // FASE 3: GROUND IMPACT & RADIAL SHOCKWAVE (stateTimer >= 2.45)
+    // ==========================================
+    const diveTarget = this.meteorDiveTarget || new THREE.Vector3(playerPos.x, this.getTerrainHeight(playerPos.x, playerPos.z), playerPos.z);
     const impactPos = diveTarget.clone();
     impactPos.y = this.getTerrainHeight(impactPos.x, impactPos.z);
     nagaPos.copy(impactPos);
+
+    // Kembalikan sudut pandang kamera normal (lepas kuncian fokus naga)
+    this.callbacks.onCameraFocusBoss?.(nagaPos, 0);
 
     // Reset postur naga tegak di tanah
     naga.rotation.x = 0;
@@ -864,14 +982,14 @@ export class BossManager {
       this.applyKnockup(impactPos, playerPos, playerVel || new THREE.Vector3());
     }
 
-    // 2. Gelombang Kejut Seismik (Seismic Shockwave Ring): radius 2.0 -> 16.0 at 10 unit/s, 35 damage + knockback (dodge via lompat)
-    this.spawnSeismicShockwave(impactPos.clone(), 2.0, 16.0, 10.0, 35);
+    // 2. Gelombang Kejut Seismik (Seismic Shockwave Ring): radius 2.0 -> 16.0 at 12 unit/s, 35 damage + knockback (dodge via lompat)
+    this.spawnSeismicShockwave(impactPos.clone(), 2.0, 16.0, 12.0, 35);
 
     // 3. Efek Visual & Audio Ledakan Benturan
     soundManager.playMeteorImpact();
-    this.callbacks.onCameraShake(0.5); // 0.5s medium intensity camera shake
-    this.callbacks.onSpawnShockwave?.(impactPos.clone(), 0xff2200, 12.0, 0.7);
-    this.callbacks.onSpawnSparks?.(impactPos.clone().add(new THREE.Vector3(0, 0.6, 0)), 0xff3d00, 35, 9.0);
+    this.callbacks.onCameraShake(1.5); // Visceral camera shake
+    this.callbacks.onSpawnShockwave?.(impactPos.clone(), 0xff2200, 16.0, 0.8);
+    this.callbacks.onSpawnSparks?.(impactPos.clone().add(new THREE.Vector3(0, 0.6, 0)), 0xff3d00, 45, 10.0);
     this.callbacks.onAddFloatingText('💥 METEOR DIVE IMPACT!', '#ff1744', 'crit');
 
     // 4. Bersihkan Indikator Visual Decal & kembalikan status Airborne
@@ -1416,10 +1534,41 @@ export class BossManager {
         spikeMat.dispose();
       }, 2200);
       this.callbacks.onSpawnSparks?.(tel.center, 0xd97706, 8, 4.0);
-    } else if (tel.skill.id === 'sand_whirlpool') {
+    } else if (tel.skill.id === 'titan_leap_slam') {
       soundManager.playTitanGroundSlam();
-      this.callbacks.onCameraShake(1.1);
-      this.callbacks.onSpawnShockwave?.(tel.center, 0xb45309, 36.0, 2.5);
+      this.callbacks.onCameraShake(1.4);
+      this.callbacks.onSpawnShockwave?.(tel.center, 0xef4444, 7.5, 0.8);
+      this.callbacks.onSpawnSparks?.(tel.center, 0xf59e0b, 32, 7.0);
+      this.callbacks.onAddFloatingText('💥 TITAN LEAP SLAM IMPACT!', '#ff1744', 'crit');
+      if (tel.enemy?.mesh) {
+        const destY = this.getTerrainHeight(tel.center.x, tel.center.z);
+        tel.enemy.mesh.position.set(tel.center.x, destY, tel.center.z);
+        if (tel.enemy.parts?.leftLeg && tel.enemy.parts?.rightLeg) {
+          tel.enemy.parts.leftLeg.rotation.x = 0;
+          tel.enemy.parts.rightLeg.rotation.x = 0;
+        }
+        if (tel.enemy.parts?.torso) {
+          tel.enemy.parts.torso.position.y = 1.35;
+        }
+      }
+    } else if (tel.skill.id === 'sand_whirlpool') {
+      soundManager.playWormBurstOut();
+      soundManager.playTitanGroundSlam();
+      this.callbacks.onCameraShake(1.5);
+      this.callbacks.onSpawnShockwave?.(tel.center, 0xd97706, 12.5, 1.2);
+      this.callbacks.onSpawnSparks?.(tel.center, 0xd4af37, 50, 12.0);
+      this.callbacks.onAddFloatingText('💥 LETUSAN PASIR PURBA DAHYSAT!', '#f59e0b', 'crit');
+
+      // Cacing melompat keluar dari pasir ke udara
+      if (tel.enemy?.mesh) {
+        const destY = this.getTerrainHeight(tel.center.x, tel.center.z);
+        tel.enemy.mesh.position.set(tel.center.x, destY + 6.0, tel.center.z);
+        setTimeout(() => {
+          if (tel.enemy?.mesh) {
+            tel.enemy.mesh.position.y = destY;
+          }
+        }, 800);
+      }
     } else if (tel.skill.id === 'tail_slam' || tel.skill.id === 'tail_swipe') {
       soundManager.playHit(true);
       this.callbacks.onCameraShake(0.7);
@@ -1441,7 +1590,14 @@ export class BossManager {
     // Player is hit! Apply damage and status effects
     const skill = tel.skill;
     this.callbacks.onUpdateStats((stats) => {
-      let finalDmg = Math.max(5, skill.damage - Math.round(stats.baseDefense * 0.5));
+      let baseSkillDmg = skill.damage;
+      // Perhitungan damage pusaran pasir hisap: 110 di titik pusat, melandai ke 25 di bibir kawah
+      if (skill.id === 'sand_whirlpool') {
+        const distFromCenter = Math.hypot(pX - tel.center.x, pZ - tel.center.z);
+        const ratio = Math.max(0, Math.min(1, distFromCenter / (tel.radius || 12.5)));
+        baseSkillDmg = Math.round(110 - ratio * 85);
+      }
+      let finalDmg = Math.max(5, baseSkillDmg - Math.round(stats.baseDefense * 0.5));
       if (this.callbacks.onDamageAbsorb) {
         finalDmg = this.callbacks.onDamageAbsorb(finalDmg);
       }

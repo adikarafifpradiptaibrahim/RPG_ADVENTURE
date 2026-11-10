@@ -3,6 +3,7 @@ import { WorldCollider } from './world';
 import { isPointNearRoad } from '../RoadSystem';
 import {
   isDesertBiome,
+  getDistanceToRiver,
   RIVER_NORTHWEST_BRANCH,
   RIVER_EAST_BRANCH,
   RIVER_MAIN_DOWNSTREAM,
@@ -1586,55 +1587,13 @@ export function buildWorldEnvironment(
   envGroup.add(colosseumGroup);
 
   // ============================================================================
-  // 6. ZONA I: SISTEM ALIRAN SUNGAI BERCABANG & JEMBATAN GANTUNG ALAMI
-  // Hulu Barat Laut, Hulu Timur -> Confluence [107, 22] -> Bawah Jembatan [142, 47] -> Samudra Selatan
-  // Palung di bawah jembatan bersih dari sumbatan batu besar, dialiri air sungai tanpa putus.
+  // 6. ZONA I: SISTEM ALIRAN SUNGAI BERCABANG (NORTHWEST, EAST -> CONFLUENCE -> SOUTH OCEAN)
+  // Palung lama diratakan menjadi padang hijau, palung baru dialiri air jernih tanpa sumbatan batu.
   // ============================================================================
   const canyonGroup = new THREE.Group();
   canyonGroup.name = 'ZoneI_RiverNetworkAndRavine';
 
-  // A. Tebing Dinding Cadas Sepanjang Bibir Barat (X ~ 137.5) & Timur (X ~ 146.5) di Sekitar Jembatan
-  const cliffZCoords = [-10, 0, 10, 20, 30, 40, 55, 62];
-  cliffZCoords.forEach((cz) => {
-    // Hindari menaruh tebing di atas lintasan jembatan gantung (Z: 44 s.d 50)
-    if (cz >= 44 && cz <= 50) return;
-
-    // Bibir Barat (West Rim)
-    const wx = 137.0 + (Math.random() - 0.5) * 1.0;
-    const wy = getTerrainHeight(wx, cz);
-    const westCliff = new THREE.Mesh(new THREE.DodecahedronGeometry(1.8, 0), matStoneDarkCrag);
-    westCliff.position.set(wx, wy + 0.5, cz);
-    westCliff.scale.set(1.1, 2.0, 1.3);
-    westCliff.rotation.set(0.2, Math.random() * Math.PI, 0.2);
-    westCliff.castShadow = true;
-    canyonGroup.add(westCliff);
-    colliders.push({ type: 'circle', x: wx, z: cz, radius: 1.8, label: 'Tebing Sungai Barat' });
-
-    // Bibir Timur (East Rim)
-    const ex = 146.8 + (Math.random() - 0.5) * 1.0;
-    const ey = getTerrainHeight(ex, cz);
-    const eastCliff = new THREE.Mesh(new THREE.DodecahedronGeometry(1.7, 0), matStoneDarkCrag);
-    eastCliff.position.set(ex, ey + 0.5, cz);
-    eastCliff.scale.set(1.0, 1.9, 1.2);
-    eastCliff.rotation.set(-0.2, Math.random() * Math.PI, -0.2);
-    eastCliff.castShadow = true;
-    canyonGroup.add(eastCliff);
-    colliders.push({ type: 'circle', x: ex, z: cz, radius: 1.7, label: 'Tebing Sungai Timur' });
-  });
-
-  // B. Bersihkan Palung di Bawah Jembatan: Hanya kerikil halus di pinggir tebing (bebas sumbatan batu)
-  const bankPebbles = [
-    { x: 139.0, z: 20 },
-    { x: 144.5, z: 32 },
-    { x: 139.2, z: 54 },
-  ];
-  bankPebbles.forEach((bp) => {
-    const pebble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.45, 0), matBoulder);
-    pebble.position.set(bp.x, -2.1, bp.z);
-    canyonGroup.add(pebble);
-  });
-
-  // C. Pita Air Sungai Tiga Jalur Tanpa Putus (Continuous Translucent River Ribbon Mesh)
+  // Pita Air Sungai Tiga Jalur Tanpa Putus (Continuous Translucent River Ribbon Mesh)
   const matRiverWater = new THREE.MeshStandardMaterial({
     color: 0x0284c7,
     roughness: 0.08,
@@ -2143,8 +2102,8 @@ export function buildWorldEnvironment(
     // Pengecualian Pemukiman Desa
     if (Math.hypot(cx - 10, cz - 110) < 54) continue;
     if (Math.hypot(cx - 0, cz - 180) < 40) continue;
-    // Pengecualian Celah Jurang Canyon Ravine (X: 135..150, Z: -15..65)
-    if (Math.abs(cx - 142) < 6.5 && cz > -15 && cz < 65) continue;
+    // Pengecualian Palung Aliran Sungai (Northwest, East, Downstream)
+    if (getDistanceToRiver(cx, cz) < 5.0) continue;
     // Pengecualian Kawah Boss Kuno
     if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 24) continue;
     if (Math.hypot(cx - -250, cz - -35) < 32) continue; // Outpost inner
@@ -2163,7 +2122,7 @@ export function buildWorldEnvironment(
       if (isPointNearRoad(px, pz, 3.2)) continue;
       if (isInsideFarmYard(px, pz)) continue;
       if (Math.hypot(px - 10, pz - 110) < 52) continue;
-      if (Math.abs(px - 142) < 6.0 && pz > -15 && pz < 65) continue;
+      if (getDistanceToRiver(px, pz) < 5.0) continue;
       if (Math.hypot(px - craterCenterX, pz - craterCenterZ) < 23) continue;
 
       const py = getTerrainHeight(px, pz);
@@ -2210,7 +2169,7 @@ export function buildWorldEnvironment(
     if (Math.hypot(cx - 0, cz - 180) < 40) continue;
     if (Math.hypot(cx - ruinsCenterX, cz - ruinsCenterZ) < 26) continue;
     if (Math.hypot(cx - -250, cz - -35) < 32) continue;
-    if (Math.abs(cx - 142) < 6.5 && cz > -15 && cz < 65) continue;
+    if (getDistanceToRiver(cx, cz) < 5.0) continue;
     if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 24) continue;
     if (isInsideFarmYard(cx, cz)) continue;
 
@@ -2227,7 +2186,7 @@ export function buildWorldEnvironment(
       if (isPointNearRoad(ox, oz, 3.2)) continue;
       if (isInsideFarmYard(ox, oz)) continue;
       if (Math.hypot(ox - 10, oz - 110) < 52) continue;
-      if (Math.abs(ox - 142) < 6.0 && oz > -15 && oz < 65) continue;
+      if (getDistanceToRiver(ox, oz) < 5.0) continue;
       if (Math.hypot(ox - craterCenterX, oz - craterCenterZ) < 23) continue;
 
       const oy = getTerrainHeight(ox, oz);
@@ -2263,7 +2222,7 @@ export function buildWorldEnvironment(
     if (isDesertBiome(cx, cz)) continue;
     if (Math.hypot(cx - 10, cz - 110) < 52) continue;
     if (Math.hypot(cx - 0, cz - 180) < 35) continue;
-    if (Math.abs(cx - 142) < 6.5 && cz > -15 && cz < 65) continue;
+    if (getDistanceToRiver(cx, cz) < 5.0) continue;
     if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 24) continue;
     if (isInsideFarmYard(cx, cz)) continue;
     if (isPointNearRoad(cx, cz, 3.2)) continue;
@@ -2319,7 +2278,7 @@ export function buildWorldEnvironment(
 
     if (isDesertBiome(cx, cz)) continue;
     if (Math.hypot(cx - 10, cz - 110) < 52) continue;
-    if (Math.abs(cx - 142) < 6.5 && cz > -15 && cz < 65) continue;
+    if (getDistanceToRiver(cx, cz) < 5.0) continue;
     if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 24) continue;
     if (isInsideFarmYard(cx, cz)) continue;
 
@@ -2407,6 +2366,130 @@ export function buildWorldEnvironment(
   }
   beachGrassMesh.instanceMatrix.needsUpdate = true;
   envGroup.add(beachGrassMesh);
+
+  // ============================================================================
+  // ZONA L: VEGETASI & BEBATUAN GURUN SOLARIA (SAGUARO CACTI, SANDSTONE CRAGS & DRY TREES)
+  // Mengisi wilayah gurun luas di utara garis kuning dengan flora & geologi khas gurun
+  // ============================================================================
+  const desertFloraGroup = new THREE.Group();
+  desertFloraGroup.name = 'ZoneL_SolariaDesertFlora';
+
+  const matCactus = new THREE.MeshStandardMaterial({
+    color: 0x2e6f40,
+    roughness: 0.8,
+    metalness: 0.05,
+    flatShading: true,
+  });
+  const matSandstoneCrag = new THREE.MeshStandardMaterial({
+    color: 0xd49b55,
+    roughness: 0.88,
+    metalness: 0.08,
+    flatShading: true,
+  });
+  const matDryDesertWood = new THREE.MeshStandardMaterial({
+    color: 0x4a3728,
+    roughness: 0.9,
+    metalness: 0.02,
+    flatShading: true,
+  });
+
+  // 1. Saguaro Cacti (Cylinder batang utama + cabang L)
+  const cactusCoords: [number, number][] = [
+    [10, -260], [35, -240], [70, -210], [120, -160], [160, -110], [210, -130],
+    [-20, -310], [50, -320], [140, -250], [190, -220], [250, -200], [290, -210],
+    [320, -240], [360, -270], [420, -310], [460, -330], [230, -340], [270, -360],
+    [90, -280], [130, -310], [175, -290], [310, -330], [380, -340], [430, -260],
+  ];
+  cactusCoords.forEach(([cx, cz]) => {
+    if (!isDesertBiome(cx, cz)) return;
+    const cy = getTerrainHeight(cx, cz);
+    if (cy < 0.2) return;
+
+    const cGroup = new THREE.Group();
+    cGroup.position.set(cx, cy, cz);
+    const scale = 0.8 + Math.random() * 0.5;
+    cGroup.scale.set(scale, scale, scale);
+
+    // Batang utama silinder berusuk
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 3.8, 8), matCactus);
+    trunk.position.y = 1.9;
+    trunk.castShadow = true;
+    cGroup.add(trunk);
+
+    // Lengan kiri (L-arm)
+    const armLHoriz = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.9, 6), matCactus);
+    armLHoriz.rotation.z = Math.PI / 2;
+    armLHoriz.position.set(-0.55, 2.2, 0);
+    cGroup.add(armLHoriz);
+    const armLVert = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 1.2, 6), matCactus);
+    armLVert.position.set(-1.0, 2.8, 0);
+    cGroup.add(armLVert);
+
+    // Lengan kanan (L-arm)
+    if (Math.random() > 0.3) {
+      const armRHoriz = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.8, 6), matCactus);
+      armRHoriz.rotation.z = Math.PI / 2;
+      armRHoriz.position.set(0.5, 1.8, 0);
+      cGroup.add(armRHoriz);
+      const armRVert = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 1.0, 6), matCactus);
+      armRVert.position.set(0.9, 2.3, 0);
+      cGroup.add(armRVert);
+    }
+
+    cGroup.rotation.y = Math.random() * Math.PI * 2;
+    desertFloraGroup.add(cGroup);
+    colliders.push({ type: 'circle', x: cx, z: cz, radius: 0.6 * scale, label: 'Kaktus Saguaro' });
+  });
+
+  // 2. Sandstone Crags (Bebatuan Pasir Cadas Runcing)
+  const cragCoords: [number, number][] = [
+    [-10, -290], [25, -270], [80, -250], [150, -200], [200, -170], [260, -180],
+    [110, -220], [170, -150], [230, -160], [300, -250], [350, -230], [400, -290],
+    [450, -310], [480, -320], [330, -350], [280, -320], [60, -340], [130, -370],
+  ];
+  cragCoords.forEach(([rx, rz]) => {
+    if (!isDesertBiome(rx, rz)) return;
+    const ry = getTerrainHeight(rx, rz);
+    if (ry < 0.2) return;
+
+    const crag = new THREE.Mesh(new THREE.ConeGeometry(1.2, 3.6, 5), matSandstoneCrag);
+    const cragScale = 0.8 + Math.random() * 0.7;
+    crag.scale.set(cragScale, cragScale * (1.2 + Math.random() * 0.6), cragScale);
+    crag.position.set(rx, ry + (1.8 * cragScale), rz);
+    crag.rotation.set((Math.random() - 0.5) * 0.25, Math.random() * Math.PI, (Math.random() - 0.5) * 0.25);
+    crag.castShadow = true;
+    desertFloraGroup.add(crag);
+    colliders.push({ type: 'circle', x: rx, z: rz, radius: 1.1 * cragScale, label: 'Cadas Pasir Runcing' });
+  });
+
+  // 3. Dry Desert Trees (Pohon Kering Gurun)
+  const dryTreeCoords: [number, number][] = [
+    [5, -240], [45, -220], [95, -180], [145, -130], [185, -100], [240, -140],
+    [85, -310], [165, -270], [220, -240], [340, -220], [390, -260], [440, -280],
+  ];
+  dryTreeCoords.forEach(([tx, tz]) => {
+    if (!isDesertBiome(tx, tz)) return;
+    const ty = getTerrainHeight(tx, tz);
+    if (ty < 0.2) return;
+
+    const treeGroup = new THREE.Group();
+    treeGroup.position.set(tx, ty, tz);
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.4, 3.2, 5), matDryDesertWood);
+    trunk.position.y = 1.6;
+    trunk.rotation.z = (Math.random() - 0.5) * 0.2;
+    treeGroup.add(trunk);
+
+    // Bare gnarled branches
+    for (let b = 0; b < 4; b++) {
+      const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.14, 1.4, 4), matDryDesertWood);
+      branch.position.set(0, 2.2 + b * 0.3, 0);
+      branch.rotation.set((Math.random() - 0.5) * 0.8, (b * Math.PI) / 2, 0.6 + Math.random() * 0.4);
+      treeGroup.add(branch);
+    }
+    desertFloraGroup.add(treeGroup);
+  });
+
+  envGroup.add(desertFloraGroup);
 
   // ============================================================================
   // ANIMASI UPDATE CALLBACK (FLICKERING TORCHES & CAMPFIRE)

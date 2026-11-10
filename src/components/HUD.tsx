@@ -247,12 +247,16 @@ export const HUD: React.FC<HUDProps> = ({
                 </span>
               </div>
 
-              {/* Stamina Bar */}
-              <div className="relative w-full h-2.5 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
+              {/* Stamina Bar (Kuning-Emas) */}
+              <div className="relative w-full h-3 bg-stone-800 rounded-full overflow-hidden border border-amber-600/50">
                 <div
-                  className="h-full bg-gradient-to-r from-emerald-600 to-teal-400 transition-all duration-150"
+                  className="h-full bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-300 transition-all duration-150"
                   style={{ width: `${staminaPercent}%` }}
                 />
+                <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-stone-950 drop-shadow-[0_1px_1px_rgba(255,255,255,0.6)]">
+                  <Zap className="w-2.5 h-2.5 inline mr-1 text-amber-900 fill-current" />
+                  {Math.round(stats.stamina)} / {stats.maxStamina} Stamina
+                </span>
               </div>
             </div>
           </div>
