@@ -531,7 +531,7 @@ export function animateHunterWalk(
     if (playerMesh.body) {
       // Pastikan order Euler adalah 'YXZ' agar rotasi belok tidak memutar sumbu miring
       playerMesh.body.rotation.reorder('YXZ');
-      // Rotasi Z netral murni dikontrol oleh sistem lean di gameEngine
+      playerMesh.body.rotation.z = 0;
     }
 
     if (isSprinting) {
@@ -643,8 +643,8 @@ export function animateHunterWalk(
     if (playerMesh.body) {
       playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.18 + breathe, 0.15);
       playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, 0.15);
-      // Paksa rotasi Z badan kembali ke 0 secara mutlak saat diam
-      playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, 0.2);
+      // Kunci rotasi Z badan selalu tepat 0 saat diam
+      playerMesh.body.rotation.z = 0;
       if (!isAttacking) {
         playerMesh.body.rotation.y = THREE.MathUtils.lerp(playerMesh.body.rotation.y, 0, 0.2);
       }

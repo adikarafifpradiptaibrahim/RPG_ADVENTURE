@@ -40,7 +40,7 @@ export function createBlockyAssassinMesh(tier: number = 1): PlayerMeshObjects {
 
 /**
  * Animasi Pose & Walk Assassin
- * Seluruh rotasi Z netral dan murni diatur oleh gameEngine
+ * Rotasi Z selalu dikunci tepat 0 agar badan selalu tegak lurus sempurna saat bergerak dan drag kamera
  */
 export function animateAssassin(
   mesh: PlayerMeshObjects,
@@ -56,14 +56,21 @@ export function animateAssassin(
   if (mesh.body) {
     // Pastikan order Euler adalah 'YXZ' agar rotasi belok tidak memutar sumbu miring
     mesh.body.rotation.reorder('YXZ');
-    // Rotasi Z netral: tidak ada nilai hardcode kemiringan Z di file ini
-    // Murni dikontrol oleh sistem lean di gameEngine
+    mesh.body.rotation.z = 0;
   }
   if (mesh.group) {
     mesh.group.rotation.z = 0;
   }
 
   animateHunterWalk(mesh, walkTime, playerPosY, isMoving, isAttacking, weaponMode, isSprinting);
+
+  // Kunci mutlak rotasi Z body agar selalu tegak lurus sempurna saat berjalan, berlari, berbelok, maupun drag kamera
+  if (mesh.body) {
+    mesh.body.rotation.z = 0;
+  }
+  if (mesh.group) {
+    mesh.group.rotation.z = 0;
+  }
 }
 
 export const updateAssassinPose = animateAssassin;

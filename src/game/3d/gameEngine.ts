@@ -393,13 +393,9 @@ export class GameEngine {
   private cameraAngleH = 0;
   private cameraAngleV = 0.35;
   private isMouseDown = false;
-  private isLeftMouseDown: boolean = false;
   private prevMouseX = 0;
   private prevMouseY = 0;
   private cameraShake = 0;
-  public mouseDeltaX = 0;
-  private rawMouseDeltaX: number = 0;
-  private lastPlayerYaw: number | null = null;
 
   // Input state
   public keys: Record<string, boolean> = {};
@@ -1971,7 +1967,6 @@ export class GameEngine {
     window.addEventListener('pointercancel', this.handlePointerUp);
     window.addEventListener('pointerdown', this.handlePointerDown);
 
-    window.addEventListener('mousedown', this.handleWindowMouseDown);
     dom.addEventListener('mousedown', this.handleMouseDown);
     window.addEventListener('mousemove', this.handleMouseMove);
     window.addEventListener('mouseup', this.handleMouseUp);
@@ -1983,12 +1978,6 @@ export class GameEngine {
     window.addEventListener('touchend', this.handleTouchEnd, { passive: true });
     window.addEventListener('touchcancel', this.handleTouchEnd, { passive: true });
   }
-
-  private handleWindowMouseDown = (e: MouseEvent) => {
-    if (e.button === 0) {
-      this.isLeftMouseDown = true;
-    }
-  };
 
   private handleContextMenu = () => {
     // If context menu opens, release all keys immediately so player does not walk by itself
@@ -2014,9 +2003,6 @@ export class GameEngine {
     this.keys = {};
     this.joystickVector = { x: 0, y: 0 };
     this.isMouseDown = false;
-    this.isLeftMouseDown = false;
-    this.mouseDeltaX = 0;
-    this.rawMouseDeltaX = 0;
     this.playerVel.x = 0;
     this.playerVel.z = 0;
     if (this.isChargingAttack) {
@@ -2334,18 +2320,12 @@ export class GameEngine {
   };
 
   private handlePointerUp = () => {
-    this.mouseDeltaX = 0;
-    this.rawMouseDeltaX = 0;
-    this.isLeftMouseDown = false;
     if (this.menuMode === 'character_select') {
       this.isDraggingPreview = false;
     }
   };
 
   private handleMouseDown = (e: MouseEvent) => {
-    if (e.button === 0) {
-      this.isLeftMouseDown = true;
-    }
     if (this.menuMode === 'character_select') {
       return;
     }
@@ -2362,12 +2342,6 @@ export class GameEngine {
   };
 
   private handleMouseMove = (e: MouseEvent) => {
-    if (this.isLeftMouseDown) {
-      this.rawMouseDeltaX = (typeof e.movementX === 'number' && e.movementX !== 0)
-        ? e.movementX
-        : (e.clientX - this.prevMouseX) || 0;
-    }
-
     if (this.menuMode === 'character_select') {
       if (this.isDraggingPreview) {
         const deltaX = e.clientX - this.prevPreviewMouseX;
@@ -2387,8 +2361,6 @@ export class GameEngine {
     if (!this.isMouseDown || this.menuMode !== 'gameplay') return;
     const deltaX = e.clientX - this.prevMouseX;
     const deltaY = e.clientY - this.prevMouseY;
-
-    this.mouseDeltaX += deltaX;
 
     if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
       this.isDraggingCamera = true;
@@ -2422,11 +2394,6 @@ export class GameEngine {
   };
 
   private handleMouseUp = (e: MouseEvent) => {
-    if (e.button === 0) {
-      this.isLeftMouseDown = false;
-      this.rawMouseDeltaX = 0;
-    }
-    this.mouseDeltaX = 0;
     if (this.menuMode === 'character_select') {
       this.isDraggingPreview = false;
       return;
@@ -2707,7 +2674,6 @@ export class GameEngine {
         const deltaY = touch.clientY - this.touchStartY;
         this.touchStartX = touch.clientX;
         this.touchStartY = touch.clientY;
-        this.mouseDeltaX += deltaX;
 
         this.cameraAngleH = normalizeCameraYaw(
           this.cameraAngleH - deltaX * CAMERA_CONFIG.TOUCH_LOOK_SENSITIVITY_H
@@ -2721,9 +2687,6 @@ export class GameEngine {
   };
 
   private handleTouchEnd = (e: TouchEvent) => {
-    this.mouseDeltaX = 0;
-    this.rawMouseDeltaX = 0;
-    this.isLeftMouseDown = false;
     if (this.menuMode === 'character_select') {
       this.isDraggingPreview = false;
       return;
@@ -2747,11 +2710,6 @@ export class GameEngine {
    * Public camera rotation method used by mobile transparent touch drag area
    */
   public rotateCameraByDelta(deltaX: number, deltaY: number) {
-    this.mouseDeltaX += deltaX;
-    if (this.menuMode === 'gameplay') {
-      this.rawMouseDeltaX = deltaX;
-      this.isLeftMouseDown = true;
-    }
     if (this.menuMode === 'character_select') {
       const activeMesh = this.selectedPreviewRole === 'warrior'
         ? this.knightPreview
@@ -6894,50 +6852,16 @@ export class GameEngine {
       }
     }
 
-    // Di dalam update loop pergerakan karakter (Mekanisme Kemiringan Assassin Saat Drag Mouse Berjalan):
-    if (this.currentRole === 'assassin' && this.playerMesh && this.playerMesh.body) {
+    // Pastikan rotasi torso/body Assassin pada sumbu Z selalu dikunci tepat di angka 0 (Anti-Lean / Always Upright):
+    if (this.playerMesh && this.playerMesh.body) {
       this.playerMesh.body.rotation.reorder('YXZ');
-
-      let targetLeanZ = 0;
-
-      // Syarat miring: karakter sedang bergerak DAN klik kiri sedang menahan drag arah
-      if (this.isMoving && this.isLeftMouseDown) {
-        if (this.rawMouseDeltaX < -0.5) {
-          // Geser ke KIRI -> Miring ke KIRI
-          targetLeanZ = 0.16;
-        } else if (this.rawMouseDeltaX > 0.5) {
-          // Geser ke KANAN -> Miring ke KANAN
-          targetLeanZ = -0.16;
-        }
-      }
-
-      // LERP halus ke targetLeanZ:
-      // Gunakan lerp lebih cepat (0.22) saat kembali ke tegak (targetLeanZ === 0)
-      const lerpFactor = targetLeanZ === 0 ? 0.22 : 0.14;
-      this.playerMesh.body.rotation.z = THREE.MathUtils.lerp(
-        this.playerMesh.body.rotation.z || 0,
-        targetLeanZ,
-        lerpFactor
-      );
-
-      // Snapping bersih jika sudah mendekati 0
-      if (Math.abs(this.playerMesh.body.rotation.z) < 0.001) {
-        this.playerMesh.body.rotation.z = 0;
-      }
-
-      // KUNCI: Redam delta mouse setiap frame agar tidak tersangkut saat mouse berhenti digeser
-      this.rawMouseDeltaX *= 0.5;
-      if (Math.abs(this.rawMouseDeltaX) < 0.1) this.rawMouseDeltaX = 0;
-
-      // Pastikan Rotasi Y Torso Netral
+      this.playerMesh.body.rotation.z = 0;
       if (!this.isAttacking) {
         this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y || 0, 0, 0.2);
         if (Math.abs(this.playerMesh.body.rotation.y) < 0.001) {
           this.playerMesh.body.rotation.y = 0;
         }
       }
-    } else {
-      this.lastPlayerYaw = null;
     }
 
     // Warrior Dynamic Charge Attack Stance & Resource Loop
@@ -8227,7 +8151,6 @@ export class GameEngine {
     if (this.isPaused && !this.isMultiplayer) {
       // Render frame yang sedang diam tanpa kalkulasi fisika, monster AI, atau delta waktu
       this.renderer.render(this.scene, this.camera);
-      this.mouseDeltaX = 0;
       return;
     }
 
@@ -8240,7 +8163,6 @@ export class GameEngine {
       }
       this.updateCamera(delta);
       this.renderer.render(this.scene, this.camera);
-      this.mouseDeltaX = 0;
       return;
     }
 
@@ -8805,8 +8727,6 @@ export class GameEngine {
     }
 
     this.renderer.render(this.scene, this.camera);
-    // 1. Isolasi & decay mouse delta yaw setiap akhir frame setelah dibaca
-    this.mouseDeltaX = 0;
   };
 
   public destroy() {
@@ -8830,7 +8750,6 @@ export class GameEngine {
     window.removeEventListener('pointercancel', this.handlePointerUp);
     window.removeEventListener('pointerdown', this.handlePointerDown);
 
-    window.removeEventListener('mousedown', this.handleWindowMouseDown);
     dom.removeEventListener('mousedown', this.handleMouseDown);
     window.removeEventListener('mousemove', this.handleMouseMove);
     window.removeEventListener('mouseup', this.handleMouseUp);
