@@ -614,9 +614,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* 5. Ancient Titan Sanctuary Basin (Danau Cekungan Granit, X: -196, Z: -254) */}
+              {/* 5. Ancient Titan Crater Arena (Kawah Retak Kuno Utara, X: -220, Z: -400) */}
               {(() => {
-                const sp = worldToScreen(-196, -254);
+                const sp = worldToScreen(-220, -400);
                 if (!sp.visible) return null;
                 return (
                   <div

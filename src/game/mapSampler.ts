@@ -213,34 +213,42 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     const t = (distMage - 18) / 14;
     return 4.50 - t * 3.5;
   }
-  // 4g. Suspension Bridge Gorge [135..155, 47]
-  if (x >= 135 && x <= 155 && Math.abs(z - 47) <= 12) {
-    const t = 1 - Math.abs(x - 145) / 10;
-    return Math.max(-1.5, 0.5 - t * 2.2);
+
+  // 4g. Kawah Boss Kuno Utara / Ancient Titan Crater Arena (X: -220, Z: -400, Radius 25)
+  // Cekungan kawah tumbukan meteorit/sihir purba sedalam -1.8 unit di pusatnya
+  const distBoss = Math.hypot(x - -220, z - -400);
+  if (distBoss < 25) {
+    return -1.8 * (1 - distBoss / 25);
   }
 
-  // 4h. Absolute Flat Zone: Area Desa & Pemukiman (Pertahankan Datar 0 agar bangunan tidak amblas/melayang)
+  // 4h. Ngarai Celah Patahan Jurang Jembatan / Canyon Ravine Boundary (X: 135 s.d 150, Z: -15 s.d 65)
+  // Palung celah tanah terbelah sedalam 3.5 unit sebagai batas geologis rumput hijau & gurun Solaria
+  if (Math.abs(x - 142) < 5.0 && z > -15 && z < 65) {
+    const edgeDist = 5.0 - Math.abs(x - 142);
+    const drop = Math.min(1.0, edgeDist / 1.5);
+    return -3.5 * drop;
+  }
+
+  // 4i. Zona Pemukiman Desa (Wajib Datar 0 agar bangunan tidak amblas/melayang)
   const distToVillage = Math.hypot(x - 10, z - 110);
-  if (distToVillage < 50) {
+  if (distToVillage < 52) {
     return 0;
   }
 
-  // 4i. Flattened road paths di luar desa (jalan setapak batu tetap rata agar tidak ada objek melayang)
+  // 4j. Flattened road paths di luar desa (jalan setapak batu tetap rata)
   if (isPointOnRoad(x, z)) {
     return 0.35;
   }
 
-  // 3. Blending halus di batas pinggiran desa
-  const villageBlend = Math.min(1, Math.max(0, (distToVillage - 50) / 25));
+  // 4k. Perlin Noise Lembut untuk Seluruh Hamparan Hijau (X: -500 s.d 130, Z: -500 s.d 300)
+  const blend = Math.min(1, Math.max(0, (distToVillage - 52) / 30));
+  const gentleNoise =
+    Math.sin(x * 0.012 + z * 0.009) * 1.3 +
+    Math.cos(x * 0.007 - z * 0.014) * 0.9 +
+    Math.sin((x + z) * 0.022) * 0.4;
 
-  // 4. Perlin / Multi-frequency Sinusoidal Noise (Kontur Lembut & Landai, Tidak Terlalu Tinggi)
-  const baseNoise =
-    Math.sin(x * 0.015 + z * 0.010) * 1.1 +
-    Math.cos(x * 0.008 - z * 0.014) * 0.9 +
-    Math.sin((x + z) * 0.025) * 0.5;
-
-  // Ketinggian bukit landai berkisar antara 0 hingga 2.2 unit (puncak bukit 1.2 s.d 2.2)
-  const perlinElevation = clamp(Math.max(0.0, baseNoise * villageBlend * 1.6), 0.0, 2.2);
+  // Ketinggian bukit landai berkisar antara 0 hingga 2.2 unit (puncak bukit 1.0 s.d 2.0)
+  const perlinElevation = clamp(Math.max(0.0, gentleNoise * blend * 1.5), 0.0, 2.2);
 
   // Smooth blending at road borders (buffer 2.0 unit)
   if (isPointNearRoad(x, z, 2.0)) {
@@ -264,6 +272,16 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   // 1. Pelabuhan Sanctuary & Boardwalk Pier (Z: 200..235, X: ~0)
   if (Math.abs(x) <= 3.2 && z >= 195 && z <= 235) {
     return { height: 1.85, color: [141, 110, 99], biomeId: 'harbor_pier', isWater: false, isPath: true, slope: 0 };
+  }
+
+  // 1b. Cekungan Celah Jurang Canyon Ravine: Tanah cadas batu kering & kerikil (Bukan Laut)
+  if (Math.abs(x - 142) < 5.5 && z > -15 && z < 65) {
+    return { height: y, color: [142, 118, 92], biomeId: 'canyon_ravine', isWater: false, isPath: false, slope };
+  }
+
+  // 1c. Kawah Boss Kuno Obsidian: Batu arang abu-abu gelap hangus (Bukan Laut)
+  if (Math.hypot(x - -220, z - -400) < 26) {
+    return { height: y, color: [36, 33, 30], biomeId: 'boss_crater', isWater: false, isPath: false, slope };
   }
 
   // 2. Air Samudra / Laut Lepas

@@ -1313,18 +1313,332 @@ export function buildWorldEnvironment(
   envGroup.add(meadowGroup);
 
   // ============================================================================
-  // 5. DISTRIBUSI VEGETASI ALAMI MENGGUNAKAN THREE.InstancedMesh
-  // Kelompok-kelompok pohon (clustering 3-7 per rumpun), formasi bebatuan alam,
-  // dan semak liar di seluruh dataran hijau yang luas (termasuk X: -77, Z: -45)
+  // 5. ZONA H: ARENA KAWAH BOSS KUNO UTARA / ANCIENT CRATER ARENA (X: -220, Z: -400)
+  // Relokasi World Boss Titan Golem ke lereng kawah utara menjauhi pemukiman.
+  // Kawah tumbukan meteorit purba sedalam -1.8 unit, lantai batu retak arang,
+  // 10 pilar rune bercahaya cyan melingkari bibir kawah, dan bongkahan tebing cadas.
+  // ============================================================================
+  const craterGroup = new THREE.Group();
+  craterGroup.name = 'ZoneH_AncientCraterBossArena';
+
+  const craterCenterX = -220;
+  const craterCenterZ = -400;
+  const craterFloorY = -1.8;
+
+  // A. Pelataran Batu Retak Hangus / Dark Cracked Stone Floor (Radius 22 unit)
+  const craterFloorGeo = new THREE.CircleGeometry(22.0, 36);
+  craterFloorGeo.rotateX(-Math.PI / 2);
+  const craterFloor = new THREE.Mesh(craterFloorGeo, matDarkSoil);
+  craterFloor.position.set(craterCenterX, craterFloorY + 0.03, craterCenterZ);
+  craterFloor.receiveShadow = true;
+  craterGroup.add(craterFloor);
+
+  // B. Lingkaran Aura Sihir Kuno Cyan Inlay pada Lantai Kawah
+  const craterRuneRing = new THREE.Mesh(
+    new THREE.RingGeometry(15.5, 17.5, 36),
+    new THREE.MeshStandardMaterial({
+      color: 0x06b6d4,
+      emissive: 0x0891b2,
+      emissiveIntensity: 1.5,
+      roughness: 0.3,
+      side: THREE.DoubleSide,
+    })
+  );
+  craterRuneRing.rotation.x = -Math.PI / 2;
+  craterRuneRing.position.set(craterCenterX, craterFloorY + 0.05, craterCenterZ);
+  craterGroup.add(craterRuneRing);
+
+  // C. Platform Pijakan Pusat Titan Obsidian (Diameter 12 unit)
+  const centralDias = new THREE.Mesh(
+    new THREE.CylinderGeometry(6.0, 6.5, 0.5, 24),
+    matStoneDarkCrag
+  );
+  centralDias.position.set(craterCenterX, craterFloorY + 0.25, craterCenterZ);
+  centralDias.receiveShadow = true;
+  craterGroup.add(centralDias);
+
+  // D. 10 Pilar Rune Megalit Melingkari Bibir Kawah (Radius 24 unit)
+  const pillarCount = 10;
+  const pillarRadius = 24.0;
+  for (let p = 0; p < pillarCount; p++) {
+    const pAng = (p / pillarCount) * Math.PI * 2;
+    const px = craterCenterX + Math.cos(pAng) * pillarRadius;
+    const pz = craterCenterZ + Math.sin(pAng) * pillarRadius;
+    const py = getTerrainHeight(px, pz);
+
+    const pillarGroup = new THREE.Group();
+    pillarGroup.position.set(px, py, pz);
+
+    // Batang pilar batu obsidian runcing
+    const pCol = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 1.45, 5.8, 6), matStoneDarkCrag);
+    pCol.position.y = 2.9;
+    pCol.rotation.y = pAng;
+    pCol.castShadow = true;
+    pillarGroup.add(pCol);
+
+    // Kristal rune bercahaya cyan di puncak pilar
+    const runeCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.7, 0), matCyanRune);
+    runeCrystal.position.y = 6.2;
+    pillarGroup.add(runeCrystal);
+
+    craterGroup.add(pillarGroup);
+    colliders.push({ type: 'circle', x: px, z: pz, radius: 1.6, label: 'Pilar Kawah Purba' });
+  }
+
+  // E. 16 Bongkahan Tebing Patah & Karang Mengitari Lereng Kawah
+  for (let b = 0; b < 16; b++) {
+    const bAng = ((b + 0.5) / 16) * Math.PI * 2;
+    const bDist = 18.0 + (b % 3) * 2.5;
+    const bx = craterCenterX + Math.cos(bAng) * bDist;
+    const bz = craterCenterZ + Math.sin(bAng) * bDist;
+    const by = getTerrainHeight(bx, bz);
+
+    const bMesh = new THREE.Mesh(new THREE.DodecahedronGeometry(1.4 + (b % 3) * 0.4, 0), matStoneDarkCrag);
+    bMesh.position.set(bx, by + 0.7, bz);
+    bMesh.rotation.set(Math.random() * 0.4, Math.random() * Math.PI, Math.random() * 0.4);
+    bMesh.castShadow = true;
+    craterGroup.add(bMesh);
+
+    colliders.push({ type: 'circle', x: bx, z: bz, radius: 1.8, label: 'Batu Lereng Kawah' });
+  }
+
+  // F. Suar Mistis Kawah (Mystic Point Light)
+  const craterBeacon = new THREE.PointLight(0x06b6d4, 2.8, 42);
+  craterBeacon.position.set(craterCenterX, craterFloorY + 4.5, craterCenterZ);
+  craterGroup.add(craterBeacon);
+
+  envGroup.add(craterGroup);
+
+  // ============================================================================
+  // 6. ZONA I: NGARAI CELAH PATAHAN GURUN / CANYON RAVINE BOUNDARY (X: 136 s.d 150, Z: -15 s.d 65)
+  // Jurang patahan tanah sedalam 3.5 unit membelah padang rumput hijau dan gurun Solaria.
+  // Jembatan gantung (X: 145, Z: 47) menyeberang persis di atas celah terjal ini.
+  // Dinding tebing cadas terjal, dasar batu kerikil, tulang fosil purba, & semak kering.
+  // ============================================================================
+  const canyonGroup = new THREE.Group();
+  canyonGroup.name = 'ZoneI_CanyonRavineBoundary';
+
+  // A. Tebing Dinding Cadas Sepanjang Bibir Barat (X ~ 137.5) & Timur (X ~ 146.5)
+  const cliffZCoords = [-10, 0, 10, 20, 30, 40, 55, 62];
+  cliffZCoords.forEach((cz) => {
+    // Hindari menaruh batu di atas lintasan jembatan gantung (Z: 44 s.d 50)
+    if (cz >= 44 && cz <= 50) return;
+
+    // Bibir Barat (West Rim)
+    const wx = 137.0 + (Math.random() - 0.5) * 1.0;
+    const wy = getTerrainHeight(wx, cz);
+    const westCliff = new THREE.Mesh(new THREE.DodecahedronGeometry(2.0, 0), matStoneDarkCrag);
+    westCliff.position.set(wx, wy + 0.5, cz);
+    westCliff.scale.set(1.1, 2.2, 1.4);
+    westCliff.rotation.set(0.2, Math.random() * Math.PI, 0.2);
+    westCliff.castShadow = true;
+    canyonGroup.add(westCliff);
+    colliders.push({ type: 'circle', x: wx, z: cz, radius: 1.8, label: 'Tebing Cadas Barat' });
+
+    // Bibir Timur (East Rim)
+    const ex = 146.8 + (Math.random() - 0.5) * 1.0;
+    const ey = getTerrainHeight(ex, cz);
+    const eastCliff = new THREE.Mesh(new THREE.DodecahedronGeometry(1.9, 0), matStoneDarkCrag);
+    eastCliff.position.set(ex, ey + 0.5, cz);
+    eastCliff.scale.set(1.0, 2.1, 1.3);
+    eastCliff.rotation.set(-0.2, Math.random() * Math.PI, -0.2);
+    eastCliff.castShadow = true;
+    canyonGroup.add(eastCliff);
+    colliders.push({ type: 'circle', x: ex, z: cz, radius: 1.7, label: 'Tebing Cadas Timur' });
+  });
+
+  // B. Dasar Jurang: Bebatuan Kerikil Kering & Fosil Purba (Y ~ -3.5 unit)
+  const chasmBottomCoords = [
+    { x: 141.5, z: -8 },
+    { x: 142.2, z: 8 },
+    { x: 141.8, z: 22 },
+    { x: 142.5, z: 36 },
+    { x: 141.6, z: 47 }, // Tepat di bawah jembatan
+    { x: 142.1, z: 58 },
+  ];
+  chasmBottomCoords.forEach((cb) => {
+    // Batu alam dasar jurang
+    const bGeo = new THREE.DodecahedronGeometry(1.2, 0);
+    const boulder = new THREE.Mesh(bGeo, matBoulder);
+    boulder.position.set(cb.x, -3.5 + 0.6, cb.z);
+    boulder.scale.set(1.4, 0.7, 1.3);
+    boulder.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+    boulder.castShadow = true;
+    canyonGroup.add(boulder);
+
+    // Kerikil satelit
+    for (let s = 0; s < 2; s++) {
+      const pebble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.45, 0), matBoulder);
+      pebble.position.set(cb.x + (s === 0 ? 1.2 : -1.1), -3.5 + 0.25, cb.z + (s === 0 ? 0.8 : -0.9));
+      canyonGroup.add(pebble);
+    }
+  });
+
+  // Tulang Fosil Binatang Raksasa di Dasar Jurang
+  const fossilCoords = [
+    { x: 141.8, z: 12 },
+    { x: 142.0, z: 32 },
+  ];
+  fossilCoords.forEach((fc) => {
+    const fossilRib = new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.22, 6, 12, Math.PI * 0.9), matBone);
+    fossilRib.position.set(fc.x, -3.5 + 1.2, fc.z);
+    fossilRib.rotation.set(Math.PI / 2, 0.3, 0);
+    fossilRib.castShadow = true;
+    canyonGroup.add(fossilRib);
+  });
+
+  envGroup.add(canyonGroup);
+
+  // ============================================================================
+  // 7. ZONA J: TITIK MINAT BARU DATARAN BARAT (WESTERN POINTS OF INTEREST)
+  // Menghidupkan wilayah luas X: -270 s.d -496, Z: -326 s.d 177 yang sebelumnya sepi
+  // ============================================================================
+  const westPOIGroup = new THREE.Group();
+  westPOIGroup.name = 'ZoneJ_WesternPOIs';
+
+  // ----------------------------------------------------------------------------
+  // POI A: LEMBAH BATU LUMUT KUNO / ANCIENT MOSS GLADE (X: -350, Z: -50)
+  // Formasi Stonehenge mini: lingkaran 5 batu monolit besar, semak bunga liar, & pilar lintel
+  // ----------------------------------------------------------------------------
+  const mossGladeX = -350;
+  const mossGladeZ = -50;
+  const mossGladeY = getTerrainHeight(mossGladeX, mossGladeZ);
+
+  const stonehengeCount = 5;
+  const stonehengeRadius = 7.5;
+  for (let s = 0; s < stonehengeCount; s++) {
+    const sAng = (s / stonehengeCount) * Math.PI * 2;
+    const sx = mossGladeX + Math.cos(sAng) * stonehengeRadius;
+    const sz = mossGladeZ + Math.sin(sAng) * stonehengeRadius;
+    const sy = getTerrainHeight(sx, sz);
+
+    const monolith = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4.6, 1.1), matMossStone);
+    monolith.position.set(sx, sy + 2.3, sz);
+    monolith.rotation.y = sAng + 0.2;
+    monolith.castShadow = true;
+    westPOIGroup.add(monolith);
+    colliders.push({ type: 'circle', x: sx, z: sz, radius: 1.2, label: 'Monolit Batu Lumut' });
+
+    // Batu lintel horizontal melintang di atas dua pilar pertama
+    if (s === 0) {
+      const lintel = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.8, 1.2), matMossStone);
+      lintel.position.set(sx + 1.6, sy + 4.9, sz);
+      lintel.rotation.y = sAng;
+      lintel.castShadow = true;
+      westPOIGroup.add(lintel);
+    }
+  }
+
+  // Rumpun bunga liar dan semak subur di tengah Stonehenge
+  for (let f = 0; f < 6; f++) {
+    const fAng = (f / 6) * Math.PI * 2;
+    const fx = mossGladeX + Math.cos(fAng) * 3.2;
+    const fz = mossGladeZ + Math.sin(fAng) * 3.2;
+    const fy = getTerrainHeight(fx, fz);
+
+    const bush = new THREE.Mesh(new THREE.DodecahedronGeometry(0.7, 0), matShrub);
+    bush.position.set(fx, fy + 0.35, fz);
+    bush.scale.set(1.2, 0.8, 1.2);
+    westPOIGroup.add(bush);
+
+    const flower = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3, 0), matWildflower);
+    flower.position.set(fx, fy + 0.65, fz);
+    westPOIGroup.add(flower);
+  }
+
+  // ----------------------------------------------------------------------------
+  // POI B: POS PENJAGA RUSAK / RUINED WATCHPOST (X: -420, Z: 50)
+  // Reruntuhan pondasi batu bata lumut, sisa tiang kayu menara, & gerobak rusak
+  // ----------------------------------------------------------------------------
+  const watchpostX = -420;
+  const watchpostZ = 50;
+  const watchposY = getTerrainHeight(watchpostX, watchpostZ);
+
+  // Pondasi Dinding Batu Reruntuhan L-Shape
+  const wallGeo1 = new THREE.BoxGeometry(6.5, 1.8, 1.2);
+  const wall1 = new THREE.Mesh(wallGeo1, matStoneRuins);
+  wall1.position.set(watchpostX, watchposY + 0.9, watchpostZ);
+  wall1.castShadow = true;
+  westPOIGroup.add(wall1);
+  colliders.push({ type: 'box', minX: watchpostX - 3.4, maxX: watchpostX + 3.4, minZ: watchpostZ - 0.7, maxZ: watchpostZ + 0.7, label: 'Dinding Pos Rusak' });
+
+  const wallGeo2 = new THREE.BoxGeometry(1.2, 1.4, 5.0);
+  const wall2 = new THREE.Mesh(wallGeo2, matStoneRuins);
+  wall2.position.set(watchpostX - 2.8, watchposY + 0.7, watchpostZ + 2.5);
+  wall2.castShadow = true;
+  westPOIGroup.add(wall2);
+
+  // Sisa Tiang Menara Pengawas Kayu Miring
+  const ruinedPost = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.35, 4.2, 6), matWoodDark);
+  ruinedPost.position.set(watchpostX + 2.2, watchposY + 1.9, watchpostZ + 1.8);
+  ruinedPost.rotation.z = 0.22;
+  ruinedPost.castShadow = true;
+  westPOIGroup.add(ruinedPost);
+
+  // Reruntuhan Gerobak Kayu Patah Roda Miring
+  const cartX = watchpostX + 2.0;
+  const cartZ = watchpostZ - 3.2;
+  const cartY = getTerrainHeight(cartX, cartZ);
+
+  const cartBody = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.45, 2.6), matWoodRustic);
+  cartBody.position.set(cartX, cartY + 0.4, cartZ);
+  cartBody.rotation.set(0.12, 0.45, -0.15);
+  cartBody.castShadow = true;
+  westPOIGroup.add(cartBody);
+
+  const wheelBroken = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.18, 12), matWoodRustic);
+  wheelBroken.position.set(cartX - 1.1, cartY + 0.3, cartZ);
+  wheelBroken.rotation.z = Math.PI / 2.3;
+  westPOIGroup.add(wheelBroken);
+
+  // Peti Kayu & Tong Terbengkalai
+  const crateBroken = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), matWoodRustic);
+  crateBroken.position.set(watchpostX - 1.0, watchposY + 0.4, watchpostZ - 2.0);
+  crateBroken.rotation.y = 0.5;
+  westPOIGroup.add(crateBroken);
+
+  const barrelOld = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, 1.0, 10), matWineBarrel);
+  barrelOld.position.set(watchpostX + 0.5, watchposY + 0.5, watchpostZ - 2.4);
+  westPOIGroup.add(barrelOld);
+
+  // ----------------------------------------------------------------------------
+  // POI C: KEBUN PINUS KABUT / FOGGY PINE WOODS (X: -430, Z: -90)
+  // Rumpun pinus tinggi lebat menutupi punggung bukit barat
+  // ----------------------------------------------------------------------------
+  const pineWoodX = -430;
+  const pineWoodZ = -90;
+  for (let pt = 0; pt < 7; pt++) {
+    const ptx = pineWoodX + (pt % 3) * 6.5 - 6.5;
+    const ptz = pineWoodZ + Math.floor(pt / 3) * 7.0 - 7.0;
+    const pty = getTerrainHeight(ptx, ptz);
+
+    const fPineTrunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.45, 3.2, 5), matWoodDark);
+    fPineTrunk.position.set(ptx, pty + 1.6, ptz);
+    fPineTrunk.castShadow = true;
+    westPOIGroup.add(fPineTrunk);
+
+    const fPineFoliage = new THREE.Mesh(new THREE.ConeGeometry(2.2, 5.0, 5), matPineFoliage);
+    fPineFoliage.position.set(ptx, pty + 5.2, ptz);
+    fPineFoliage.castShadow = true;
+    westPOIGroup.add(fPineFoliage);
+
+    colliders.push({ type: 'circle', x: ptx, z: ptz, radius: 1.2, label: 'Pohon Pinus Kabut' });
+  }
+
+  envGroup.add(westPOIGroup);
+
+  // ============================================================================
+  // 8. DISTRIBUSI VEGETASI ALAMI MASIF MENGGUNAKAN THREE.InstancedMesh (60 FPS)
+  // Menutupi seluruh dataran hijau yang luas (X: -460 s.d 120, Z: -420 s.d 180)
+  // Terdiri dari: 450 Cemara, 300 Oak, 500 Batu Granit, & 750 Semak Liar
   // ============================================================================
   const dummy = new THREE.Object3D();
 
-  // 1. POHON CEMARA SEGITIGA BERUMPUN (CLUSTERED PINE TREES): 320 Instances
-  const PINE_COUNT = 320;
+  // 1. POHON CEMARA SEGITIGA BERUMPUN (CLUSTERED PINE TREES): 450 Instances
+  const PINE_COUNT = 450;
   const pineTrunkGeo = new THREE.CylinderGeometry(0.22, 0.34, 2.2, 5);
   pineTrunkGeo.translate(0, 1.1, 0);
 
-  // Gabungkan 3 tumpuk kerucut dedaunan cemara
   const pineConeGeo1 = new THREE.ConeGeometry(1.5, 2.2, 5);
   pineConeGeo1.translate(0, 2.4, 0);
   const pineConeGeo2 = new THREE.ConeGeometry(1.2, 1.9, 5);
@@ -1339,24 +1653,26 @@ export function buildWorldEnvironment(
 
   let pineAssigned = 0;
   let pineAttempts = 0;
-  while (pineAssigned < PINE_COUNT && pineAttempts < 800) {
+  while (pineAssigned < PINE_COUNT && pineAttempts < 1200) {
     pineAttempts++;
-    // Tentukan pusat rumpun pohon cemara (Cluster Center) di dataran hijau luas
-    const cx = -260 + Math.random() * 380; // Cakupan: -260 s.d 120 (termasuk X: -77)
-    const cz = -150 + Math.random() * 320; // Cakupan: -150 s.d 170 (termasuk Z: -45)
+    // Cakupan diperluas ke seluruh barat dan utara: X [-460..120], Z [-420..180]
+    const cx = -460 + Math.random() * 580;
+    const cz = -420 + Math.random() * 600;
 
-    // Pengecualian Padang Gurun (X > 150 & Z < -100)
-    if (cx > 150 && cz < -100) continue;
+    // Pengecualian Gurun (X > 130 & Z < 50)
+    if (cx > 130 && cz < 50) continue;
     // Pengecualian Pesisir Pantai Barat khusus Pohon Kelapa
-    if (cx < -400 && cz > -250 && cz < -40) continue;
-    // Pengecualian Area Desa & Pemukiman (Pertahankan Datar 0, tidak ditumbuhi pohon liar)
+    if (cx < -460 || cz > 190) continue;
+    // Pengecualian Pemukiman Desa
     if (Math.hypot(cx - 10, cz - 110) < 54) continue;
     if (Math.hypot(cx - 0, cz - 180) < 40) continue;
-    if (Math.hypot(cx - -196, cz - -254) < 45) continue;
+    // Pengecualian Celah Jurang Canyon Ravine (X: 135..150, Z: -15..65)
+    if (Math.abs(cx - 142) < 6.5 && cz > -15 && cz < 65) continue;
+    // Pengecualian Kawah Boss Kuno
+    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 24) continue;
     if (Math.hypot(cx - -250, cz - -35) < 32) continue; // Outpost inner
     if (isInsideFarmYard(cx, cz)) continue;
 
-    // Rumpun 3 s.d 7 pohon cemara per cluster
     const clusterSize = 3 + Math.floor(Math.random() * 5);
     const clusterRadius = 4.0 + Math.random() * 6.5;
 
@@ -1366,14 +1682,15 @@ export function buildWorldEnvironment(
       const px = cx + Math.cos(angle) * dist;
       const pz = cz + Math.sin(angle) * dist;
 
-      // Road Clearance minimal 3.2 unit agar tidak menabrak jalur jalan
       if (isPointNearRoad(px, pz, 3.2)) continue;
       if (isInsideFarmYard(px, pz)) continue;
-      if (Math.hypot(px - 10, pz - 110) < 50) continue;
-      if (px > 150 && pz < -100) continue;
+      if (Math.hypot(px - 10, pz - 110) < 52) continue;
+      if (cx > 130 && cz < 50) continue;
+      if (Math.abs(px - 142) < 6.0 && pz > -15 && pz < 65) continue;
+      if (Math.hypot(px - craterCenterX, pz - craterCenterZ) < 23) continue;
 
       const py = getTerrainHeight(px, pz);
-      if (py < 0.0 || py > 4.2) continue; // Tidak boleh di bawah air
+      if (py < 0.0 || py > 4.5) continue; // Tidak boleh di bawah air
 
       const s = 0.8 + Math.random() * 0.55;
       dummy.position.set(px, py, pz);
@@ -1394,8 +1711,8 @@ export function buildWorldEnvironment(
   pineFoliageMesh3.instanceMatrix.needsUpdate = true;
   envGroup.add(pineTrunkMesh, pineFoliageMesh1, pineFoliageMesh2, pineFoliageMesh3);
 
-  // 2. POHON RINDANG BULAT BERUMPUN (CLUSTERED OAK TREES): 220 Instances
-  const OAK_COUNT = 220;
+  // 2. POHON RINDANG BULAT BERUMPUN (CLUSTERED OAK TREES): 300 Instances
+  const OAK_COUNT = 300;
   const oakTrunkGeo = new THREE.CylinderGeometry(0.32, 0.46, 2.6, 6);
   oakTrunkGeo.translate(0, 1.3, 0);
   const oakCrownGeo = new THREE.DodecahedronGeometry(2.1, 0);
@@ -1406,20 +1723,20 @@ export function buildWorldEnvironment(
 
   let oakAssigned = 0;
   let oakAttempts = 0;
-  while (oakAssigned < OAK_COUNT && oakAttempts < 650) {
+  while (oakAssigned < OAK_COUNT && oakAttempts < 950) {
     oakAttempts++;
-    // Tentukan pusat rumpun pohon oak di padang rumput hijau luas
-    const cx = -240 + Math.random() * 340; // -240 s.d 100
-    const cz = -140 + Math.random() * 300; // -140 s.d 160
+    const cx = -440 + Math.random() * 540;
+    const cz = -380 + Math.random() * 540;
 
-    if (cx > 150 && cz < -100) continue; // Pengecualian Gurun
+    if (cx > 130 && cz < 50) continue;
     if (Math.hypot(cx - 10, cz - 110) < 54) continue;
     if (Math.hypot(cx - 0, cz - 180) < 40) continue;
     if (Math.hypot(cx - ruinsCenterX, cz - ruinsCenterZ) < 26) continue;
     if (Math.hypot(cx - -250, cz - -35) < 32) continue;
+    if (Math.abs(cx - 142) < 6.5 && cz > -15 && cz < 65) continue;
+    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 24) continue;
     if (isInsideFarmYard(cx, cz)) continue;
 
-    // Rumpun 3 s.d 6 pohon oak per cluster
     const clusterSize = 3 + Math.floor(Math.random() * 4);
     const clusterRadius = 4.5 + Math.random() * 7.0;
 
@@ -1431,11 +1748,13 @@ export function buildWorldEnvironment(
 
       if (isPointNearRoad(ox, oz, 3.2)) continue;
       if (isInsideFarmYard(ox, oz)) continue;
-      if (Math.hypot(ox - 10, oz - 110) < 50) continue;
-      if (ox > 150 && oz < -100) continue;
+      if (Math.hypot(ox - 10, oz - 110) < 52) continue;
+      if (ox > 130 && oz < 50) continue;
+      if (Math.abs(ox - 142) < 6.0 && oz > -15 && oz < 65) continue;
+      if (Math.hypot(ox - craterCenterX, oz - craterCenterZ) < 23) continue;
 
       const oy = getTerrainHeight(ox, oz);
-      if (oy < 0.0 || oy > 3.8) continue;
+      if (oy < 0.0 || oy > 4.2) continue;
 
       const s = 0.8 + Math.random() * 0.55;
       dummy.position.set(ox, oy, oz);
@@ -1452,29 +1771,29 @@ export function buildWorldEnvironment(
   oakCrownMesh.instanceMatrix.needsUpdate = true;
   envGroup.add(oakTrunkMesh, oakCrownMesh);
 
-  // 3. FORMASI BEBATUAN ALAM (GRANITE BOULDER FORMATIONS): 320 Instances
-  // 1 Batu besar sentral dikelilingi 2-3 batu kerikil kecil satelit (Skala 0.7 s.d 1.5)
-  const BOULDER_COUNT = 320;
+  // 3. FORMASI BEBATUAN ALAM (GRANITE BOULDER FORMATIONS): 500 Instances
+  const BOULDER_COUNT = 500;
   const boulderGeo = new THREE.DodecahedronGeometry(1.0, 0);
   const boulderMesh = new THREE.InstancedMesh(boulderGeo, matBoulder, BOULDER_COUNT);
 
   let boulderAssigned = 0;
   let boulderAttempts = 0;
-  while (boulderAssigned < BOULDER_COUNT && boulderAttempts < 700) {
+  while (boulderAssigned < BOULDER_COUNT && boulderAttempts < 1100) {
     boulderAttempts++;
-    const cx = -270 + Math.random() * 380; // -270 s.d 110
-    const cz = -150 + Math.random() * 320; // -150 s.d 170
+    const cx = -460 + Math.random() * 570;
+    const cz = -400 + Math.random() * 570;
 
-    if (cx > 150 && cz < -100) continue; // Pengecualian gurun
+    if (cx > 130 && cz < 50) continue;
     if (Math.hypot(cx - 10, cz - 110) < 52) continue;
     if (Math.hypot(cx - 0, cz - 180) < 35) continue;
+    if (Math.abs(cx - 142) < 6.5 && cz > -15 && cz < 65) continue;
+    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 24) continue;
     if (isInsideFarmYard(cx, cz)) continue;
     if (isPointNearRoad(cx, cz, 3.2)) continue;
 
     const cy = getTerrainHeight(cx, cz);
     if (cy < 0.0) continue;
 
-    // 1. Batu Besar Pusat (scale 1.0 s.d 1.55)
     const bigScale = 0.95 + Math.random() * 0.55;
     const bigScaleY = bigScale * (0.8 + Math.random() * 0.4);
     dummy.position.set(cx, cy + bigScaleY * 0.38, cz);
@@ -1484,7 +1803,6 @@ export function buildWorldEnvironment(
     boulderMesh.setMatrixAt(boulderAssigned, dummy.matrix);
     boulderAssigned++;
 
-    // 2. Satelit 2-3 Batu Kerikil Kecil di sekelilingnya
     const satCount = 2 + Math.floor(Math.random() * 2);
     for (let s = 0; s < satCount && boulderAssigned < BOULDER_COUNT; s++) {
       const sAngle = Math.random() * Math.PI * 2;
@@ -1509,24 +1827,24 @@ export function buildWorldEnvironment(
   boulderMesh.instanceMatrix.needsUpdate = true;
   envGroup.add(boulderMesh);
 
-  // 4. RUMPUN SEMAK LIAR & BUNGA PADANG RUMPUT (SHRUBS): 500 Instances
-  // Sebarkan semak-semak hijau tua, hijau muda, dan bunga padang rumput rendah di sekitar lereng bukit
-  const SHRUB_COUNT = 500;
+  // 4. RUMPUN SEMAK LIAR & BUNGA PADANG RUMPUT (SHRUBS): 750 Instances
+  const SHRUB_COUNT = 750;
   const shrubGeo = new THREE.DodecahedronGeometry(0.65, 0);
   const shrubMesh = new THREE.InstancedMesh(shrubGeo, matShrub, SHRUB_COUNT);
 
   let shrubAssigned = 0;
   let shrubAttempts = 0;
-  while (shrubAssigned < SHRUB_COUNT && shrubAttempts < 1000) {
+  while (shrubAssigned < SHRUB_COUNT && shrubAttempts < 1400) {
     shrubAttempts++;
-    const cx = -260 + Math.random() * 370;
-    const cz = -150 + Math.random() * 320;
+    const cx = -460 + Math.random() * 580;
+    const cz = -420 + Math.random() * 590;
 
-    if (cx > 150 && cz < -100) continue; // Pengecualian Gurun
+    if (cx > 130 && cz < 50) continue;
     if (Math.hypot(cx - 10, cz - 110) < 52) continue;
+    if (Math.abs(cx - 142) < 6.5 && cz > -15 && cz < 65) continue;
+    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 24) continue;
     if (isInsideFarmYard(cx, cz)) continue;
 
-    // Rumpun 3 s.d 6 semak
     const shrubClusterSize = 3 + Math.floor(Math.random() * 4);
     const shrubRadius = 2.5 + Math.random() * 4.5;
 
@@ -1538,7 +1856,7 @@ export function buildWorldEnvironment(
 
       if (isPointNearRoad(sx, sz, 3.2)) continue;
       if (isInsideFarmYard(sx, sz)) continue;
-      if (sx > 150 && sz < -100) continue;
+      if (sx > 130 && sz < 50) continue;
 
       const sy = getTerrainHeight(sx, sz);
       if (sy < 0.0) continue;

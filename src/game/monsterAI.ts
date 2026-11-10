@@ -20,9 +20,9 @@ export const BOSS_ARENA_ZONES: Record<string, BossArenaZone> = {
     id: 'boss_titan',
     nameId: 'Sang Titan Kuno Obsidian',
     bossType: 'titan',
-    center: { x: -196, z: -254 },
-    radius: 42,
-    aggroRange: 42,
+    center: { x: -220, z: -400 },
+    radius: 36,
+    aggroRange: 36,
   },
   boss_dragonfang: {
     id: 'boss_dragonfang',

@@ -51,14 +51,14 @@ export const REGIONS: RegionInfo[] = [
   },
   {
     id: 'kawah_obsidian',
-    name: 'Ancient Titan Sanctuary Basin',
-    nameId: 'Lembah Danau Cekungan Titan Kuno',
+    name: 'Ancient Titan Crater Arena',
+    nameId: 'Kawah Kuno Boss Titan Obsidian',
     icon: '🏛️',
-    description: 'A colossal circular ancient valley lake basin surrounded by 12 rune-carved megaliths, home to the Ancient Obsidian Titan.',
-    descriptionId: 'Cekungan danau lembah purba melingkar dikelilingi 12 megalit rune dan arena pertarungan Boss Sang Titan Kuno Obsidian (Lv. 8).',
+    description: 'A colossal ancient impact crater arena surrounded by runic pillars and cracked scorched stone, home to the Ancient Obsidian Titan.',
+    descriptionId: 'Kawah retak batu kuno raksasa di utara dikelilingi pilar rune dan lantai tanah hangus, arena pertarungan Boss Sang Titan Kuno Obsidian (Lv. 8).',
     color: '#0284c7',
-    bounds: { minX: -238, maxX: -154, minZ: -296, maxZ: -212 },
-    center: [-196, -254],
+    bounds: { minX: -260, maxX: -180, minZ: -440, maxZ: -360 },
+    center: [-220, -400],
     recommendedLevel: 8,
   },
   {
@@ -149,11 +149,11 @@ export const WAYPOINTS: {
   },
   {
     id: 'wp_titan',
-    nameId: 'Lembah Danau Cekungan Titan Kuno',
+    nameId: 'Kawah Kuno Boss Titan Obsidian',
     regionId: 'kawah_obsidian',
     icon: '🏛️',
-    pos: [-196, -254],
-    desc: 'Cekungan danau purba raksasa diameter 80m dan arena pertarungan Boss Sang Titan Kuno Obsidian (Lv. 8)',
+    pos: [-220, -400],
+    desc: 'Kawah kuno retak misterius diameter 50m di utara, arena kebangkitan Boss Sang Titan Kuno Obsidian (Lv. 8)',
   },
   {
     id: 'wp_astraea',
@@ -257,8 +257,8 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
     return REGIONS[3];
   }
 
-  // 4. Ancient Titan Basin (West Plains: around [-196, -254], radius 42)
-  if (Math.hypot(x - -196, z - -254) <= 42) {
+  // 4. Ancient Titan Crater Arena & Basin (North & West Plains)
+  if (Math.hypot(x - -220, z - -400) <= 36 || Math.hypot(x - -196, z - -254) <= 40) {
     return REGIONS[4];
   }
 

@@ -12,7 +12,7 @@ import {
 import { soundManager } from '../audio';
 import { CHEST_LOOT_POOL, MONSTER_MATERIALS } from '../data';
 import { getCurrentRegion } from '../mapData';
-import { isPointOnRoad } from '../mapSampler';
+import { isPointOnRoad, getProceduralContinentHeight } from '../mapSampler';
 import {
   createEnemyMesh,
   createPlayerMesh,
@@ -39,6 +39,7 @@ import { GraphicsSettings, loadGraphicsSettings } from '../graphicsSettings';
 import {
   isInsideSafeZone,
   SPAWN_SANDWORM,
+  SPAWN_TITAN,
   MEADOW_SLIME_SPAWNS,
   MAGMA_SLIME_SPAWNS,
   SKELETON_SENTINEL_SPAWNS,
@@ -164,25 +165,7 @@ export interface GameEngineCallbacks {
  * Pengecualian desa (datar 0) dan padang gurun
  */
 export function getTerrainHeight(x: number, z: number): number {
-  // 1. Pengecualian Area Desa & Pemukiman (Pertahankan Datar 0 agar bangunan tidak amblas/melayang)
-  const distToVillage = Math.hypot(x - 10, z - 110);
-  if (distToVillage < 50) return 0;
-
-  // 2. Pengecualian Padang Gurun (misal area X tertentu atau zona bertema gurun)
-  const isDesertArea = (x > 150 && z < -100);
-  if (isDesertArea) return 0;
-
-  // 3. Blending halus di batas pinggiran desa
-  const villageBlend = Math.min(1, Math.max(0, (distToVillage - 50) / 25));
-
-  // 4. Perlin / Multi-frequency Sinusoidal Noise (Kontur Lembut & Landai, Tidak Terlalu Tinggi)
-  const baseNoise = 
-    Math.sin(x * 0.015 + z * 0.010) * 1.1 +
-    Math.cos(x * 0.008 - z * 0.014) * 0.9 +
-    Math.sin((x + z) * 0.025) * 0.5;
-
-  // Ketinggian maksimum bukit landai berkisar antara 1.2 hingga 2.2 unit
-  return baseNoise * villageBlend * 1.6;
+  return getProceduralContinentHeight(x, z);
 }
 
 interface TownZoneTrigger {
@@ -1479,8 +1462,8 @@ export class GameEngine {
       });
     });
 
-    // 8. Ancient Obsidian Titan Golem Boss in Sanctuary Basin Arena (x: -196, z: -254)
-    const bossPos: [number, number] = [-196, -254];
+    // 8. Ancient Obsidian Titan Golem Boss in North Crater Arena (X: -220, Z: -400)
+    const bossPos: [number, number] = [SPAWN_TITAN.x, SPAWN_TITAN.z];
     const { group: bossGroup, parts: bossParts } = createEnemyMesh('boss');
     const by = this.world.getTerrainHeight(bossPos[0], bossPos[1]);
     bossGroup.position.set(bossPos[0], by, bossPos[1]);
