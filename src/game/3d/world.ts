@@ -290,18 +290,28 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return getProceduralHeight(x, z);
     }
 
-    // 1. Suspension bridge walkable deck corridor (Bridge 2 - Center, centered straight at z = 47)
-    if (Math.abs(z - 47) <= 2.2 && x >= 135.5 && x <= 154.5) {
+    // 1. Suspension bridge walkable deck corridor (Bridge 2 - Center, at [38, 22])
+    if (Math.abs(z - 22) <= 2.4 && x >= 27 && x <= 49) {
       return 1.35;
     }
 
-    // 1b. Bridge 1 - Astraea Highway Stone Bridge (X: -368, Z: -198..-172, deck Y = 0.45)
-    if (Math.abs(x - -368) <= 2.4 && z >= -198 && z <= -172) {
+    // 1b. Bridge 1 - Astraea Highway Stone Bridge (X: -195, Z: -210, deck Y = 0.45)
+    if (Math.hypot(x - -195, z - -210) <= 13.0 && Math.abs((x - -195) + (z - -210)) <= 3.5) {
       return 0.45;
     }
 
-    // 1c. Bridge 3 - Val-Kragor Highway Stone Arch Bridge (X: 255, Z: 60, spanning X: 243..267, deck Y = 0.45)
-    if (Math.abs((z - 60) - 0.15 * (x - 255)) <= 2.4 && x >= 243 && x <= 267) {
+    // 1c. Bridge 3 - Val-Kragor Highway Stone Arch Bridge (X: 335, Z: 38, deck Y = 0.45)
+    if (Math.abs(x - 335) <= 2.5 && z >= 26 && z <= 50) {
+      return 0.45;
+    }
+
+    // 1d. Bridge 4 - Puing Kastil Stone Arch Bridge (X: 190, Z: 15, deck Y = 0.45)
+    if (Math.abs(x - 190) <= 2.5 && z >= 3 && z <= 27) {
+      return 0.45;
+    }
+
+    // 1e. Bridge 5 - Lembah Batu Lumut Stone Arch Bridge (X: 430, Z: 25, deck Y = 0.45)
+    if (Math.abs(x - 430) <= 2.5 && z >= 13 && z <= 37) {
       return 0.45;
     }
 
@@ -1215,51 +1225,53 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 2.9 MISTY CHASM & SOLID SUSPENSION BRIDGE (JEMBATAN 2: JALUR TENGAH - X: 145, Z: 47)
-  // Membentang lurus menghubungkan Ngarai Kabut di X: 135..155 pada Z = 47 di atas Cabang C (Selatan).
+  // 2.9 MISTY CHASM & SOLID SUSPENSION BRIDGE (JEMBATAN 2: JALUR TENGAH - X: 38, Z: 22)
+  // Membentang lurus di X: 27..49 pada Z = 22 di atas Cabang Sungai Hilir Selatan.
   // ==========================================
   const bridge = createSuspensionBridgeMesh(22);
-  bridge.position.set(145, 1.35, 47);
+  bridge.position.set(38, 1.35, 22);
   scene.add(bridge);
 
-  // Pilar Penyangga Batu Kokoh (Tinggi 4.4m, duduk di dasar ngarai menopang tepat di bawah dek)
   const chasmStonePier = createStoneBridgePierMesh(4.4);
-  chasmStonePier.position.set(145, -2.2, 47);
+  chasmStonePier.position.set(38, -2.2, 22);
   scene.add(chasmStonePier);
 
-  // Pagar Pengaman Jembatan Gantung (Membentang lurus di Z = 44.8 dan Z = 49.2)
   colliders.push(
-    { type: 'box', minX: 135.5, maxX: 154.5, minZ: 44.8, maxZ: 45.6, label: 'Pagar Jembatan Kiri' },
-    { type: 'box', minX: 135.5, maxX: 154.5, minZ: 48.4, maxZ: 49.2, label: 'Pagar Jembatan Kanan' }
+    { type: 'box', minX: 27, maxX: 49, minZ: 19.8, maxZ: 20.6, label: 'Pagar Jembatan Gantung Utara' },
+    { type: 'box', minX: 27, maxX: 49, minZ: 23.4, maxZ: 24.2, label: 'Pagar Jembatan Gantung Selatan' }
   );
 
   // ==========================================
-  // 2.9c JEMBATAN 1: JALUR BARAT / ASTRAEA HIGHWAY (X: -368, Z: -185)
-  // Jembatan batu kokoh membentang Z: -198 s.d -172 di atas palung sungai barat laut
+  // 2.9c JEMBATAN 1: JALUR BARAT / ASTRAEA HIGHWAY (X: -195, Z: -210)
   // ==========================================
   const bridge1West = createStoneArchBridgeMesh(26, 4.8, 2.7);
-  bridge1West.position.set(-368, 0.45, -185);
-  bridge1West.rotation.y = Math.PI / 2; // Membentang sepanjang sumbu Z mengikuti alur jalan raya
+  bridge1West.position.set(-195, 0.45, -210);
+  bridge1West.rotation.y = -Math.PI / 4;
   scene.add(bridge1West);
 
-  colliders.push(
-    { type: 'box', minX: -370.8, maxX: -370.0, minZ: -198, maxZ: -172, label: 'Pagar Jembatan Barat Astraea' },
-    { type: 'box', minX: -366.0, maxX: -365.2, minZ: -198, maxZ: -172, label: 'Pagar Jembatan Timur Astraea' }
-  );
-
   // ==========================================
-  // 2.9d JEMBATAN 3: JALUR TIMUR / VAL-KRAGOR HIGHWAY (X: 255, Z: 60)
-  // Jembatan lengkung batu kokoh membentang X: 243 s.d 267 di atas alur sungai timur
+  // 2.9d JEMBATAN 3: JALUR TIMUR / VAL-KRAGOR HIGHWAY (X: 335, Z: 38)
   // ==========================================
   const bridge3East = createStoneArchBridgeMesh(24, 4.8, 2.7);
-  bridge3East.position.set(255, 0.45, 60);
-  bridge3East.rotation.y = 0.15; // Mengikuti kemiringan sudut jalan raya Val-Kragor
+  bridge3East.position.set(335, 0.45, 38);
+  bridge3East.rotation.y = Math.PI / 2;
   scene.add(bridge3East);
 
-  colliders.push(
-    { type: 'box', minX: 243, maxX: 267, minZ: 61.8, maxZ: 62.6, label: 'Pagar Jembatan Val-Kragor Utara' },
-    { type: 'box', minX: 243, maxX: 267, minZ: 57.4, maxZ: 58.2, label: 'Pagar Jembatan Val-Kragor Selatan' }
-  );
+  // ==========================================
+  // 2.9e JEMBATAN 4: AKSES PUING KASTIL (X: 190, Z: 15)
+  // ==========================================
+  const bridge4Castle = createStoneArchBridgeMesh(24, 4.8, 2.7);
+  bridge4Castle.position.set(190, 0.45, 15);
+  bridge4Castle.rotation.y = Math.PI / 2;
+  scene.add(bridge4Castle);
+
+  // ==========================================
+  // 2.9f JEMBATAN 5: AKSES LEMBAH BATU LUMUT (X: 430, Z: 25)
+  // ==========================================
+  const bridge5Moss = createStoneArchBridgeMesh(24, 4.8, 2.7);
+  bridge5Moss.position.set(430, 0.45, 25);
+  bridge5Moss.rotation.y = Math.PI / 2;
+  scene.add(bridge5Moss);
 
   // 2.9b Jaringan Jalan Raya & Jalan Setapak Terstruktur Benua Eldoria (Road Network & Path System)
   // Menghubungkan Pelabuhan, Alun-Alun Sanctuary, Ibukota Astraea, Puncak Mage Tower,
@@ -1863,7 +1875,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // ==========================================
   // 5D. THE GREAT SOLARIA SINKHOLE - SARANG CACING PURBA JARRUS ([495, -362])
   // ==========================================
-  const sinkholeCenter = { x: 495, z: -362 };
+  const sinkholeCenter = { x: 210, z: -360 };
   const sinkholeBaseY = getTerrainHeight(sinkholeCenter.x, sinkholeCenter.z);
 
   // 1. Partikel & Gelombang Pusaran Pasir Berputar di Dasar Kawah
@@ -2790,7 +2802,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_sandworm',
       name: 'The Great Solaria Sinkhole',
       nameId: 'Kawah Pusaran Sang Cacing Purba Jarrus',
-      pos: [495, -362],
+      pos: [210, -360],
     },
   ];
 

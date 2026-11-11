@@ -873,11 +873,11 @@ export class GameEngine {
       this.playerTier = newTier;
       this.rebuildPlayerMesh();
       const tierTitles: Record<number, string> = {
-        2: 'âœ¦ EVOLUSI TINGKAT 2 (Level 5)! Zirah & Efek Serangan Diperkuat!',
-        3: 'âœ¦ EVOLUSI TINGKAT 3 (Level 10)! Mahkota Emas & Gelombang Serangan Ganda!',
-        4: 'âœ¦ EVOLUSI TINGKAT 4 (Level 25)! Quad-Wings Astral & Skill Meledak Dahsyat!',
-        5: 'âœ¦ EVOLUSI TINGKAT 5 (Level 50)! Hexa-Wings Kosmik & Mandala Serangan Pamungkas!',
-        6: 'âœ¦ EVOLUSI DEWATA AGUNG (Level 100)! Octa-Wings Ilahi & Aura Keabadian Tanpa Batas!',
+        2: '✦ EVOLUSI TINGKAT 2 (Level 5)! Zirah & Efek Serangan Diperkuat!',
+        3: '✦ EVOLUSI TINGKAT 3 (Level 10)! Mahkota Emas & Gelombang Serangan Ganda!',
+        4: '✦ EVOLUSI TINGKAT 4 (Level 25)! Quad-Wings Astral & Skill Meledak Dahsyat!',
+        5: '✦ EVOLUSI TINGKAT 5 (Level 50)! Hexa-Wings Kosmik & Mandala Serangan Pamungkas!',
+        6: '✦ EVOLUSI DEWATA AGUNG (Level 100)! Octa-Wings Ilahi & Aura Keabadian Tanpa Batas!',
       };
       if (tierTitles[newTier]) {
         this.callbacks.onAddFloatingText(tierTitles[newTier], '#facc15', 'crit');
@@ -977,7 +977,7 @@ export class GameEngine {
       ctx.font = 'bold 18px sans-serif';
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
-      const classLabel = charClass === 'warrior' ? 'âš”ï¸ Ksatria' : charClass === 'mage' ? 'ðŸ”® Penyihir' : 'ðŸ¹ Pemburu';
+      const classLabel = charClass === 'warrior' ? '⚔️ Ksatria' : charClass === 'mage' ? '🔮 Penyihir' : '🏹 Pemburu';
       ctx.fillText(`Lv.${level} ${name}`, 128, 28);
 
       ctx.font = '12px sans-serif';
@@ -2194,7 +2194,7 @@ export class GameEngine {
       );
     } catch {}
     soundManager.playCheckpointUnlock();
-    this.callbacks.onAddFloatingText(`ðŸŒŸ Wilayah Terbuka: ${cp.nameId}!`, '#00e5ff', 'crit');
+    this.callbacks.onAddFloatingText(`🌟 Wilayah Terbuka: ${cp.nameId}!`, '#00e5ff', 'crit');
     if (this.callbacks.onCheckpointUnlocked) {
       this.callbacks.onCheckpointUnlocked(cp.id, cp.nameId, [cp.position[0], cp.position[2]]);
     }
@@ -2500,10 +2500,10 @@ export class GameEngine {
     }
     if (this.hunterWeaponMode === 'bow') {
       soundManager.playBowDraw();
-      this.callbacks.onAddFloatingText('Mode Senjata: Busur & Panah Pemburu ðŸ¹', '#34d399', 'info');
+      this.callbacks.onAddFloatingText('Mode Senjata: Busur & Panah Pemburu 🏹', '#34d399', 'info');
     } else {
       soundManager.playRogueDoubleSlash();
-      this.callbacks.onAddFloatingText('Mode Senjata: Belati Bayangan ðŸ—¡ï¸', '#10b981', 'info');
+      this.callbacks.onAddFloatingText('Mode Senjata: Belati Bayangan 🗡️', '#10b981', 'info');
     }
     if (this.callbacks.onHunterWeaponSwitch) {
       this.callbacks.onHunterWeaponSwitch(this.hunterWeaponMode);
@@ -2821,10 +2821,10 @@ export class GameEngine {
 
     soundManager.playCheckpointUnlock();
     const floorName = targetFloor === 3
-      ? 'Lantai 3: Anjungan Puncak Observatorium ðŸŒŒ'
+      ? 'Lantai 3: Anjungan Puncak Observatorium 🌌'
       : targetFloor === 2
-      ? 'Lantai 2: Laboratorium Alkimia & Kristal Petir ðŸ§ª'
-      : 'Lantai 1: Perpustakaan Kitab Kuno & Altar ðŸ“š';
+      ? 'Lantai 2: Laboratorium Alkimia & Kristal Petir 🧪'
+      : 'Lantai 1: Perpustakaan Kitab Kuno & Altar 📜';
     this.callbacks.onAddFloatingText(floorName, '#38bdf8', 'info');
   }
 
@@ -4631,7 +4631,7 @@ export class GameEngine {
         }
 
         if (isLast && !isRemote) {
-          this.callbacks.onAddFloatingText('â˜„ï¸ Starfall Celestial Rain!', '#f59e0b', 'crit');
+          this.callbacks.onAddFloatingText('☄️ Starfall Celestial Rain!', '#f59e0b', 'crit');
         }
       },
       onSpawnSparks: (pos, color, count, speed) => {
@@ -5761,7 +5761,7 @@ export class GameEngine {
                 this.spawnHunterArrow(arrowDir, true, 1.45);
               }, idx * 40);
             });
-            this.callbacks.onAddFloatingText('Hujan Panah Badai! ðŸ¹', '#34d399', 'crit');
+            this.callbacks.onAddFloatingText('Hujan Panah Badai! 🏹', '#34d399', 'crit');
           } else {
             // Hunter Daggers Skill 1: Tarian 1000 Belati (Shadow Flurry 360Â°)
             soundManager.playRogueShadowFlurry();
@@ -5902,7 +5902,7 @@ export class GameEngine {
               this.spawnHunterArrow(forward, true, 2.0);
             }, 80);
 
-            this.callbacks.onAddFloatingText('Loncat Akrobatik & Tembakan Jitu! ðŸ¦…', '#34d399', 'info');
+            this.callbacks.onAddFloatingText('Loncat Akrobatik & Tembakan Jitu! 🦅', '#34d399', 'info');
           } else {
             // Hunter Daggers Skill 2: Langkah Siluman Bayangan
             soundManager.playDash();
@@ -5996,7 +5996,7 @@ export class GameEngine {
             const newHp = Math.min(stats.maxHp, stats.hp + healAmt);
             this.speedBuffTimer = 8.0;
 
-            this.callbacks.onAddFloatingText(`+${healAmt} HP & Panah Bom Racun! ðŸ’£`, '#34d399', 'heal');
+            this.callbacks.onAddFloatingText(`+${healAmt} HP & Panah Bom Racun! 💣`, '#34d399', 'heal');
             return { ...stats, mp: stats.mp - 25, hp: newHp };
           } else {
             // Hunter Daggers Skill 3: Kabut Asap & Eliksir Siluman
@@ -6298,7 +6298,7 @@ export class GameEngine {
         this.callbacks.onAddItem(pickup.item);
         soundManager.playChestOpen();
         this.spawnSparks(pickup.mesh.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0xfacc15, 8, 3.2);
-        this.callbacks.onAddFloatingText(`ðŸ“¦ +1 ${pickup.item.nameId}`, '#facc15', 'info');
+        this.callbacks.onAddFloatingText(`📦 +1 ${pickup.item.nameId}`, '#facc15', 'info');
         this.scene.remove(pickup.mesh);
         this.activeLootPickups.splice(i, 1);
       } else if (now - pickup.creationTime > 90000) {
@@ -6409,7 +6409,7 @@ export class GameEngine {
     this.spawnHitStarburst(new THREE.Vector3(spawn.x, spawnY + 1.2, spawn.z), isBoss ? 0xff4500 : 0x4ade80, 2.2);
 
     if (isBoss) {
-      this.callbacks.onAddFloatingText(`ðŸ”¥ [BOSS RESPAWN] ${enemy.data.nameId} telah bangkit kembali!`, '#ef4444', 'crit');
+      this.callbacks.onAddFloatingText(`🔥 [BOSS RESPAWN] ${enemy.data.nameId} telah bangkit kembali!`, '#ef4444', 'crit');
     }
   }
 
@@ -6967,7 +6967,7 @@ export class GameEngine {
       this.callbacks.onUpdateQuests((quests) => {
         return quests.map((q) => {
           if (q.id === 'quest_discover_astraea' && !q.completed) {
-            this.callbacks.onAddFloatingText('ðŸ‘‘ Wilayah Ditemukan: Ibukota Kerajaan Emas Astraea!', '#facc15', 'crit');
+            this.callbacks.onAddFloatingText('👑 Wilayah Ditemukan: Ibukota Kerajaan Emas Astraea!', '#facc15', 'crit');
             soundManager.playLevelUp();
             return { ...q, currentCount: 1, completed: true };
           }
@@ -7565,7 +7565,7 @@ export class GameEngine {
     // 0a. Check Taj Mahal Palace Entrance (Overworld -> Throne Room)
     const distToPalaceGate = Math.hypot(this.playerPos.x - -396, this.playerPos.z - 350);
     if (distToPalaceGate < 4.5 && this.playerPos.y > -10) {
-      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Istana Sultan Solaria ðŸ•Œ', () => {
+      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Istana Sultan Solaria 🕌', () => {
         this.playerPos.set(-400, -25, 350);
         this.playerVel.set(0, 0, 0);
         this.isGrounded = true;
@@ -7581,7 +7581,7 @@ export class GameEngine {
     // 0b. Check Throne Room Exit Door (Throne Room -> Overworld)
     const distToThroneExit = Math.hypot(this.playerPos.x - -400, this.playerPos.z - 350);
     if (distToThroneExit < 4.0 && this.playerPos.y < -15) {
-      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Pelataran Istana ðŸšª', () => {
+      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Pelataran Istana 🚪', () => {
         const outY = Math.max(0.5, this.world.getTerrainHeight(-395, 350) + 0.5);
         this.playerPos.set(-395, outY, 350);
         this.playerVel.set(0, 0, 0);
@@ -7650,47 +7650,47 @@ export class GameEngine {
         if (dist < 3.8) {
           let prompt = `Tekan [F] / Sentuh untuk Bicara dengan ${npc.nameId} (${npc.role})`;
           if (npc.id === 'blacksmith_torvald') {
-            prompt = `Tekan [F] / Sentuh: Toko Senjata & Tempa Master Torvald ðŸ”¨`;
+            prompt = `Tekan [F] / Sentuh: Toko Senjata & Tempa Master Torvald 🔨`;
           } else if (npc.id === 'alchemist_anya') {
-            prompt = `Tekan [F] / Sentuh: Toko Ramuan Alkimia Anya ðŸ§ª`;
+            prompt = `Tekan [F] / Sentuh: Toko Ramuan Alkimia Anya 🧪`;
           } else if (npc.id === 'villager_maya') {
-            prompt = `Tekan [F] / Sentuh: Toko Zirah & Perlengkapan Maya ðŸ›¡ï¸`;
+            prompt = `Tekan [F] / Sentuh: Toko Zirah & Perlengkapan Maya 🛡️`;
           } else if (npc.id === 'fisherman_joko') {
-            prompt = `Tekan [F] / Sentuh: Kios Hasil Laut & Bekal Pak Joko ðŸŸ`;
+            prompt = `Tekan [F] / Sentuh: Kios Hasil Laut & Bekal Pak Joko 🐟`;
           } else if (npc.id === 'villager_kael') {
-            prompt = `Tekan [F] / Sentuh: Pasar Gelap Artefak Kael ðŸ—ï¸`;
+            prompt = `Tekan [F] / Sentuh: Pasar Gelap Artefak Kael 🗣️`;
           } else if (npc.id === 'commander_brann') {
-            prompt = `Tekan [F] / Sentuh: Komandan Brann (Panglima Benteng Val-Kragor) ðŸº`;
+            prompt = `Tekan [F] / Sentuh: Komandan Brann (Panglima Benteng Val-Kragor) 🏰`;
           } else if (npc.id === 'seer_elora') {
-            prompt = `Tekan [F] / Sentuh: Peramal Elora (Pemulihan & Berkat Bintang) ðŸ”®`;
+            prompt = `Tekan [F] / Sentuh: Peramal Elora (Pemulihan & Berkat Bintang) 🔮`;
           } else if (npc.id === 'frostsmith_goran') {
-            prompt = `Tekan [F] / Sentuh: Bengkel Senjata Dataran Tinggi Goran ðŸ”¨`;
+            prompt = `Tekan [F] / Sentuh: Bengkel Senjata Dataran Tinggi Goran 🔨`;
           } else if (npc.id === 'guard_valkragor') {
-            prompt = `Tekan [F] / Sentuh: Prajurit Penjaga Gerbang Val-Kragor ðŸ›¡ï¸`;
+            prompt = `Tekan [F] / Sentuh: Prajurit Penjaga Gerbang Val-Kragor 🛡️`;
           } else if (npc.id === 'emperor_aurelius') {
-            prompt = `Tekan [F] / Sentuh: Paduka Kaisar Aurelius Astraea ðŸ‘‘`;
+            prompt = `Tekan [F] / Sentuh: Paduka Kaisar Aurelius Astraea 👑`;
           } else if (npc.id === 'marshal_vane') {
-            prompt = `Tekan [F] / Sentuh: Panglima Perang Vane (Legiun Kekaisaran) âš”ï¸`;
+            prompt = `Tekan [F] / Sentuh: Panglima Perang Vane (Legiun Kekaisaran) ⚔️`;
           } else if (npc.id === 'merchant_lyra') {
-            prompt = `Tekan [F] / Sentuh: Saudagar Lyra (Toko Pusaka & Elixir Astraea) ðŸ’Ž`;
+            prompt = `Tekan [F] / Sentuh: Saudagar Lyra (Toko Pusaka & Elixir Astraea) 💎`;
           } else if (npc.id === 'guard_astraea') {
-            prompt = `Tekan [F] / Sentuh: Penjaga Gerbang Emas Astraea ðŸ›¡ï¸`;
+            prompt = `Tekan [F] / Sentuh: Penjaga Gerbang Emas Astraea 🛡️`;
           } else if (npc.id === 'sultan_malik') {
-            prompt = `Tekan [F] / Sentuh: Paduka Sultan Malik al-Solaria (Istana Kubah Emas) ðŸ‘‘`;
+            prompt = `Tekan [F] / Sentuh: Paduka Sultan Malik al-Solaria (Istana Kubah Emas) 👑`;
           } else if (npc.id === 'merchant_tariq') {
-            prompt = `Tekan [F] / Sentuh: Toko Rempah & Sutra Saudagar Tariq ðŸ‘³â€â™‚ï¸`;
+            prompt = `Tekan [F] / Sentuh: Toko Rempah & Sutra Saudagar Tariq 👳‍♂️`;
           } else if (npc.id === 'oasis_amina') {
-            prompt = `Tekan [F] / Sentuh: Amina Gadis Pembawa Air Oase ðŸ§•`;
+            prompt = `Tekan [F] / Sentuh: Amina Gadis Pembawa Air Oase 🧕`;
           } else if (npc.id === 'weaver_zahra') {
-            prompt = `Tekan [F] / Sentuh: Kios Karpet & Sutra Pengrajin Zahra ðŸ§•`;
+            prompt = `Tekan [F] / Sentuh: Kios Karpet & Sutra Pengrajin Zahra 🧕`;
           } else if (npc.id === 'guard_solaria' || npc.id === 'guard_throne_1' || npc.id === 'guard_throne_2') {
-            prompt = `Tekan [F] / Sentuh: Prajurit Pengawal Gurun Solaria ðŸ›¡ï¸`;
+            prompt = `Tekan [F] / Sentuh: Prajurit Pengawal Gurun Solaria 🛡️`;
           } else if (npc.id === 'grand_mage_eldrin') {
-            prompt = `Tekan [F] / Sentuh: Grand Mage Eldrin (Penjaga Kitab Halilintar) ðŸ§™â€â™‚ï¸`;
+            prompt = `Tekan [F] / Sentuh: Grand Mage Eldrin (Penjaga Kitab Halilintar) 🧙‍♂️`;
           } else if (npc.id === 'archmage_pyro') {
-            prompt = `Tekan [F] / Sentuh: Archmage Pyro (Ahli Alkimia Api) ðŸ”¥`;
+            prompt = `Tekan [F] / Sentuh: Archmage Pyro (Ahli Alkimia Api) 🔥`;
           } else if (npc.id === 'sorceress_maya') {
-            prompt = `Tekan [F] / Sentuh: Sorceress Maya (Pengkaji Kitab Kuno) âœ¨`;
+            prompt = `Tekan [F] / Sentuh: Sorceress Maya (Pengkaji Kitab Kuno) ✨`;
           }
 
           this.setNearbyPrompt(prompt, () => {
@@ -8155,7 +8155,7 @@ export class GameEngine {
           try {
             localStorage.setItem('eldoria_last_visited_town', JSON.stringify(this.lastVisitedTownPos));
           } catch {}
-          this.callbacks.onAddFloatingText(`ðŸ“ Titik Respawn Disimpan: ${town.name}`, '#38bdf8', 'info');
+          this.callbacks.onAddFloatingText(`📍 Titik Respawn Disimpan: ${town.name}`, '#38bdf8', 'info');
         }
 
         // Auto-unlock waypoint for fast travel on map
@@ -8168,7 +8168,7 @@ export class GameEngine {
             );
           } catch {}
           soundManager.playCheckpointUnlock();
-          this.callbacks.onAddFloatingText(`ðŸŒŸ Wilayah Terbuka: ${town.name}!`, '#00e5ff', 'crit');
+          this.callbacks.onAddFloatingText(`🌟 Wilayah Terbuka: ${town.name}!`, '#00e5ff', 'crit');
           if (this.callbacks.onCheckpointUnlocked) {
             this.callbacks.onCheckpointUnlocked(town.waypointId, town.name, [town.respawnX, town.respawnZ]);
           }
@@ -8879,31 +8879,36 @@ export class GameEngine {
       // Village NPCs
       if (this.world.npcs && this.world.npcs.length > 0) {
         const roleIcons: Record<string, string> = {
-          elder: 'ðŸ§™â€â™‚ï¸',
-          guard: 'ðŸ›¡ï¸',
-          alchemist: 'ðŸ§ª',
-          blacksmith: 'ðŸ”¨',
-          bard: 'ðŸŽµ',
-          fisherman: 'ðŸŸ',
-          villager: 'ðŸ›’',
+          elder: '🧙‍♂️',
+          guard: '🛡️',
+          alchemist: '🧪',
+          blacksmith: '🔨',
+          bard: '🎵',
+          fisherman: '🐟',
+          villager: '🛒',
+          commander: '⚔️',
+          seer: '🔮',
+          frostsmith: '🔨',
+          emperor: '👑',
+          marshal: '⚔️',
         };
         this.world.npcs.forEach((npc) => {
-          let customIcon = roleIcons[npc.roleType] || 'ðŸ‘¤';
+          let customIcon = roleIcons[npc.roleType] || '👤';
           let customColor = '#fbbf24';
           if (npc.id === 'blacksmith_torvald') {
-            customIcon = 'ðŸ”¨';
+            customIcon = '🔨';
             customColor = '#f97316';
           } else if (npc.id === 'alchemist_anya') {
-            customIcon = 'ðŸ§ª';
+            customIcon = '🧪';
             customColor = '#10b981';
           } else if (npc.id === 'villager_maya') {
-            customIcon = 'ðŸ›¡ï¸';
+            customIcon = '🛡️';
             customColor = '#3b82f6';
           } else if (npc.id === 'fisherman_joko') {
-            customIcon = 'ðŸŸ';
+            customIcon = '🐟';
             customColor = '#06b6d4';
           } else if (npc.id === 'villager_kael') {
-            customIcon = 'ðŸ—ï¸';
+            customIcon = '🗣️';
             customColor = '#a855f7';
           }
 
@@ -8925,7 +8930,7 @@ export class GameEngine {
           type: 'npc',
           x: this.world.npc.position[0],
           z: this.world.npc.position[2],
-          icon: 'ðŸ§™â€â™‚ï¸',
+          icon: '🧙‍♂️',
           color: '#ffb300',
           description: 'Pemberi Misi & Cerita Utama',
         });
@@ -8938,7 +8943,7 @@ export class GameEngine {
         type: 'fountain',
         x: 0,
         z: -4,
-        icon: 'â›²',
+        icon: '⛲',
         color: '#29b6f6',
         description: 'Memulihkan HP & MP Seketika',
       });
@@ -8950,227 +8955,11 @@ export class GameEngine {
         type: 'pier',
         x: 6,
         z: 25,
-        icon: 'âš“',
+        icon: '⛵',
         color: '#00b4d8',
         description: 'Perahu & Pemandangan Laut',
       });
 
-      // Ibukota Kerajaan Emas Astraea & Istana Kaisar (Ujung Utara Frostpeak)
-      markers.push({
-        id: 'landmark_astraea_palace',
-        title: 'Istana Kaisar Aurelius',
-        type: 'boss',
-        x: 195,
-        z: -260,
-        icon: 'ðŸ‘‘',
-        color: '#fbbf24',
-        description: 'Ibukota Kerajaan Emas Astraea (Utara Frostpeak)',
-      });
-
-      // Jurang Es Purba (North of Astraea)
-      markers.push({
-        id: 'landmark_frozen_chasm',
-        title: 'Jurang Es Purba',
-        type: 'waypoint',
-        x: 180,
-        z: -320,
-        icon: 'â„ï¸',
-        color: '#38bdf8',
-        description: 'Jurang Gletser Es Alami Frostpeak',
-      });
-
-      // Pelabuhan Kapal Sanctuary
-      markers.push({
-        id: 'landmark_sanctuary_harbor',
-        title: 'Pelabuhan Kapal Sanctuary',
-        type: 'pier',
-        x: 0,
-        z: 21,
-        icon: 'â›µ',
-        color: '#00b4d8',
-        description: 'Dermaga Kayu Utama & Titian Pantai Sanctuary',
-      });
-
-      markers.push({
-        id: 'landmark_sanctuary_pier_head',
-        title: 'Anjungan Dermaga Laut Lepas',
-        type: 'pier',
-        x: 0,
-        z: 52,
-        icon: 'âš“',
-        color: '#0284c7',
-        description: 'Ujung Dermaga Kayu Megah dengan Kapal Perang & Kapal Dagang Berlabuh',
-      });
-
-      // Reruntuhan Kuno Vael (Upstream Outskirts)
-      markers.push({
-        id: 'landmark_vael_ruins',
-        title: 'Reruntuhan Kuno Vael',
-        type: 'waypoint',
-        x: -118,
-        z: 36,
-        icon: 'ðŸ›ï¸',
-        color: '#94a3b8',
-        description: 'Pilar Spasial Peradaban Kuno Vael',
-      });
-
-      // Benteng Pertahanan Val-Kragor (Highland)
-      markers.push({
-        id: 'landmark_valkragor_fortress',
-        title: 'Benteng Val-Kragor',
-        type: 'boss',
-        x: 188,
-        z: -16,
-        icon: 'ðŸ°',
-        color: '#3b82f6',
-        description: 'Benteng Dataran Tinggi Val-Kragor',
-      });
-
-      // Desa Bazaar Gurun Solaria (South-West: Berjarak 87 unit dari Istana)
-      markers.push({
-        id: 'landmark_solaria_village',
-        title: 'Desa Bazaar Gurun Solaria',
-        type: 'waypoint',
-        x: -305,
-        z: 350,
-        icon: 'ðŸŽª',
-        color: '#f59e0b',
-        description: 'Bazaar Ramai, Peristirahatan Unta, Rumah Bertingkat & Sumur Oase Solaria',
-      });
-
-      // Ancient Titan Sanctuary Basin Arena (North-West: [-196, -254])
-      markers.push({
-        id: 'landmark_titan_basin',
-        title: 'Lembah Danau Cekungan Titan Kuno',
-        type: 'boss',
-        x: -196,
-        z: -254,
-        icon: '🏛️',
-        color: '#0284c7',
-        description: 'Cekungan Danau Lembah Purba & Arena Pertarungan Sang Titan Kuno Obsidian',
-      });
-
-      // Piramida Emas Solaria (Solaria Golden Dunes: [120, -280])
-      markers.push({
-        id: 'landmark_solaria_pyramid',
-        title: 'Piramida Emas Solaria',
-        type: 'waypoint',
-        x: 120,
-        z: -280,
-        icon: '🏜️',
-        color: '#eab308',
-        description: 'Piramida Kuno Megah di Bukit Pasir Emas Solaria',
-      });
-
-      // Kuil Pagoda Giok & Rumpun Bambu (South-East: [170, 160])
-      markers.push({
-        id: 'landmark_jadepagoda',
-        title: 'Kuil Pagoda Giok & Gerbang Torii',
-        type: 'waypoint',
-        x: 170,
-        z: 160,
-        icon: '⛩️',
-        color: '#10b981',
-        description: 'Pagoda Megah Tiga Tingkat di Tengah Rumpun Bambu Zamrud',
-      });
-
-      // Mage Tower Puncak Halilintar (North-East Highlands: [160, -150])
-      markers.push({
-        id: 'landmark_thunderpeak_magetower',
-        title: 'Mage Tower Puncak Halilintar',
-        type: 'waypoint',
-        x: 160,
-        z: -150,
-        icon: 'ðŸ§™â€â™‚ï¸',
-        color: '#38bdf8',
-        description: 'Menara Penyihir Bertingkat, Pustaka Kuno, Laboratorium Alkimia & Observatorium',
-      });
-
-      // Istana Taj Mahal Sultan Solaria (West of Village)
-      markers.push({
-        id: 'landmark_solaria_palace',
-        title: 'Istana Taj Mahal Sultan Solaria',
-        type: 'waypoint',
-        x: -415,
-        z: 350,
-        icon: 'ðŸ•Œ',
-        color: '#fbbf24',
-        description: 'Kemegahan Marmer Putih, Menara Minaret, Kolam Pantul & Ruang Takhta',
-      });
-
-      // Jarrus, Sang Cacing Purba (The Great Solaria Sinkhole)
-      markers.push({
-        id: 'landmark_boss_jarrus',
-        title: 'Kawah Pusaran Sang Cacing Purba Jarrus',
-        type: 'boss',
-        x: 495,
-        z: -362,
-        icon: '🪱',
-        color: '#ea580c',
-        description: 'Arena Kawah Pusaran Pasir Raksasa Sang Cacing Purba Solaria (Lv. 10)',
-      });
-
-      // Secret Palm Oasis of Solaria (South-West)
-      markers.push({
-        id: 'landmark_solaria_oasis',
-        title: 'Oase Tersembunyi Solaria',
-        type: 'waypoint',
-        x: -340,
-        z: 260,
-        icon: 'ðŸŒ´',
-        color: '#06b6d4',
-        description: 'Oase Kolam Pirus & Palem Gurun',
-      });
-
-      // Outer Frostpeak Glacier Expanse (North-East)
-      markers.push({
-        id: 'landmark_frostpeak_glacier',
-        title: 'Gletser Beku Frostpeak',
-        type: 'waypoint',
-        x: 240,
-        z: -220,
-        icon: 'ðŸ”ï¸',
-        color: '#38bdf8',
-        description: 'Menara Pengawas Gletser Terluar',
-      });
-
-      // Primal Dragon Caldera Arena (South Ocean Volcano Island: [80, 360])
-      markers.push({
-        id: 'landmark_dragon_core',
-        title: 'Kaldera Sarang Naga Purba',
-        type: 'boss',
-        x: 80,
-        z: 360,
-        icon: '🔥',
-        color: '#ef4444',
-        description: 'Sarang Lahar Panas Naga Purba di Pulau Vulkanik Seberang Laut',
-      });
-
-      // Shadowfen Deep Hollow (West)
-      markers.push({
-        id: 'landmark_shadowfen_deep',
-        title: 'Lembah Jamur Abadi Shadowfen',
-        type: 'waypoint',
-        x: -300,
-        z: 25,
-        icon: 'âœ¨',
-        color: '#a855f7',
-        description: 'Grotto Rawa Terdalam',
-      });
-
-      // Celestial Bamboo Pavilion (South-East)
-      markers.push({
-        id: 'landmark_jade_sanctuary',
-        title: 'Paviliun Bambu Surgawi',
-        type: 'waypoint',
-        x: 310,
-        z: 210,
-        icon: 'ðŸª·',
-        color: '#10b981',
-        description: 'Kuil Pagoda Terluar Tenggara',
-      });
-
-      // Enemies
       this.enemies.forEach((enemy) => {
         if (!enemy.data.isDead) {
           markers.push({
@@ -9179,7 +8968,7 @@ export class GameEngine {
             type: enemy.data.type === 'boss' ? 'boss' : 'enemy',
             x: enemy.mesh.position.x,
             z: enemy.mesh.position.z,
-            icon: enemy.data.type === 'boss' ? 'ðŸ’€' : enemy.data.type === 'skeleton' ? 'â˜ ï¸' : 'ðŸ‘¾',
+            icon: enemy.data.type === 'boss' ? '💀' : enemy.data.type === 'skeleton' ? '☠️' : '👾',
             color: enemy.data.type === 'boss' ? '#ff1744' : '#f44336',
           });
         }
@@ -9194,7 +8983,7 @@ export class GameEngine {
             type: 'chest',
             x: chest.position[0],
             z: chest.position[2],
-            icon: 'ðŸ“¦',
+            icon: '📦',
             color: '#ffd700',
           });
         }

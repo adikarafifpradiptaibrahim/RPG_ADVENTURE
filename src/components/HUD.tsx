@@ -34,6 +34,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { MiniMap } from './MiniMap';
+import { getSharedDayNightSystem } from '../game/3d/dayNightSystem';
 import { SkillBar } from './SkillBar';
 import { QuestTracker } from './QuestTracker';
 
@@ -142,7 +143,31 @@ export const HUD: React.FC<HUDProps> = ({
   castingState,
   isUIVisible = true,
 }) => {
-  if (!isUIVisible) return null;
+  const [dayNight, setDayNight] = useState(() => getSharedDayNightSystem().getState());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setDayNight(getSharedDayNightSystem().getState());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  if (!isUIVisible) {
+    if (isSpectatorMode) {
+      return (
+        <div className="pointer-events-none fixed top-4 right-4 z-50 select-none animate-fade-in flex flex-col items-end gap-2">
+          <div className="px-3 py-1 bg-black/85 text-amber-300 border border-amber-500/70 rounded-lg text-xs font-mono font-bold tracking-tight shadow-2xl flex items-center gap-2 whitespace-nowrap pointer-events-auto backdrop-blur-md">
+            <span title={`${dayNight.phaseNameId} (${dayNight.timeString})`}>
+              {dayNight.icon} {dayNight.timeString}
+            </span>
+            <span className="text-amber-500/70">|</span>
+            <span className="text-cyan-300 font-extrabold">X: {Math.round(playerPos.x)}</span>
+            <span className="text-amber-500/70">|</span>
+            <span className="text-emerald-300 font-extrabold">Z: {Math.round(playerPos.z)}</span>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
   const [dismissMobileTip, setDismissMobileTip] = useState(false);
   const [isMobileSystemMenuOpen, setIsMobileSystemMenuOpen] = useState(false);
 
@@ -156,13 +181,13 @@ export const HUD: React.FC<HUDProps> = ({
   const getClassBadge = () => {
     switch (stats.characterClass) {
       case 'warrior':
-        return { label: 'Ksatria (Warrior)', icon: 'âš”ï¸', color: 'bg-blue-600' };
+        return { label: 'Ksatria (Warrior)', icon: '⚔️', color: 'bg-blue-600' };
       case 'mage':
-        return { label: 'Penyihir (Mage)', icon: 'ðŸ”®', color: 'bg-purple-600' };
+        return { label: 'Penyihir (Mage)', icon: '🔮', color: 'bg-purple-600' };
       case 'rogue':
         return {
           label: hunterWeaponMode === 'bow' ? 'Pemburu (Busur)' : 'Pemburu (Belati)',
-          icon: hunterWeaponMode === 'bow' ? 'ðŸ¹' : 'ðŸ—¡ï¸',
+          icon: hunterWeaponMode === 'bow' ? '🏹' : '🗡️',
           color: 'bg-emerald-600',
         };
     }
@@ -416,7 +441,7 @@ export const HUD: React.FC<HUDProps> = ({
             className="p-1 text-stone-400 hover:text-white rounded-lg hover:bg-stone-800/60 cursor-pointer flex-shrink-0"
             title="Tutup Saran"
           >
-            âœ•
+            ✕
           </button>
         </div>
       )}
@@ -573,7 +598,7 @@ export const HUD: React.FC<HUDProps> = ({
       </div>
       )}
 
-      {/* 1.0s Starfall Casting Indicator Bar (image_68.png) */}
+                <span className="text-amber-300 text-sm animate-pulse">☄️</span>
       {!isSpectatorMode && castingState && castingState.isCasting && (
         <div className="fixed bottom-20 md:bottom-23 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex flex-col items-center select-none animate-in fade-in duration-150">
           <div className="relative w-56 sm:w-64 h-6 sm:h-7 bg-stone-950/90 rounded-full border border-amber-500/70 shadow-[0_0_15px_rgba(245,158,11,0.5)] overflow-hidden flex items-center px-2.5">
@@ -586,7 +611,7 @@ export const HUD: React.FC<HUDProps> = ({
             <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/10 to-transparent pointer-events-none" />
             {/* Content */}
             <div className="relative z-10 w-full flex items-center justify-between text-xs font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-              <span className="text-amber-300 text-sm animate-pulse">â˜„ï¸</span>
+                <span className="text-amber-300 text-sm animate-pulse">☄️</span>
               <span className="font-mono tracking-wider">{castingState.text}</span>
               <span className="text-[10px] text-amber-200/90 font-mono">
                 {Math.round(castingState.progress * 100)}%

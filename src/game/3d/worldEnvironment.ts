@@ -5,6 +5,7 @@ import {
   isDesertBiome,
   getDistanceToRiver,
   RIVER_NORTHWEST_BRANCH,
+  RIVER_DESERT_BRANCH,
   RIVER_EAST_BRANCH,
   RIVER_MAIN_DOWNSTREAM,
 } from '../mapSampler';
@@ -1707,9 +1708,11 @@ export function buildWorldEnvironment(
 
   // 1. Cabang A (Barat Laut / Northwest): lebar 6.2, permukaan air Y: -0.35
   canyonGroup.add(buildRiverRibbon(RIVER_NORTHWEST_BRANCH, 6.2, -0.35));
-  // 2. Cabang B (Timur / East): lebar 6.0, permukaan air Y: -0.35
+  // 2. Cabang B (Gurun / Desert Branch): lebar 5.8, permukaan air Y: -0.35
+  canyonGroup.add(buildRiverRibbon(RIVER_DESERT_BRANCH, 5.8, -0.35));
+  // 3. Cabang C (Timur / East): lebar 6.0, permukaan air Y: -0.35
   canyonGroup.add(buildRiverRibbon(RIVER_EAST_BRANCH, 6.0, -0.35));
-  // 3. Cabang C (Selatan / Hilir Utama): lebar 6.2, permukaan air Y: -0.35
+  // 4. Cabang D (Selatan / Hilir Utama): lebar 6.2, permukaan air Y: -0.35
   canyonGroup.add(buildRiverRibbon(RIVER_MAIN_DOWNSTREAM, 6.2, -0.35));
 
   envGroup.add(canyonGroup);
@@ -2142,9 +2145,11 @@ export function buildWorldEnvironment(
   const pineFoliageMesh3 = new THREE.InstancedMesh(pineConeGeo3, matPineFoliage, PINE_COUNT);
 
   function isNearBridge(x: number, z: number, dist = 16.0): boolean {
-    if (Math.hypot(x - -368, z - -185) < dist + 4.0) return true; // Bridge 1 (West, Astraea Highway)
-    if (Math.hypot(x - 145, z - 47) < dist) return true;          // Bridge 2 (Center, Suspension Bridge)
-    if (Math.hypot(x - 255, z - 60) < dist) return true;          // Bridge 3 (East, Val-Kragor Highway)
+    if (Math.hypot(x - -195, z - -210) < dist + 4.0) return true; // Bridge 1 (NW Astraea Highway)
+    if (Math.hypot(x - 38, z - 22) < dist + 4.0) return true;     // Bridge 2 (Central Suspension Bridge)
+    if (Math.hypot(x - 190, z - 15) < dist + 4.0) return true;    // Bridge 4 (Puing Kastil Access)
+    if (Math.hypot(x - 335, z - 38) < dist + 4.0) return true;    // Bridge 3 (Val-Kragor Access)
+    if (Math.hypot(x - 430, z - 25) < dist + 4.0) return true;    // Bridge 5 (Moss Valley Access)
     return false;
   }
 
@@ -2592,14 +2597,14 @@ export function buildWorldEnvironment(
   const lakeGeo = new THREE.CircleGeometry(42, 32);
   lakeGeo.rotateX(-Math.PI / 2);
   const lakeMesh = new THREE.Mesh(lakeGeo, matLakeWater);
-  lakeMesh.position.set(-220, -0.35, -500);
+  lakeMesh.position.set(-260, -0.35, -450);
   titanLakeGroup.add(lakeMesh);
 
   // 2. Monolit Pilar Kuno Sang Titan Mengelilingi Danau
   const monolithAngles = [0, 0.7, 1.4, 2.1, 2.8, 3.5, 4.2, 4.9, 5.6];
   monolithAngles.forEach((ang) => {
-    const mx = -220 + Math.cos(ang) * 44;
-    const mz = -500 + Math.sin(ang) * 44;
+    const mx = -260 + Math.cos(ang) * 44;
+    const mz = -450 + Math.sin(ang) * 44;
     const my = getTerrainHeight(mx, mz);
     const mHeight = 5.0 + Math.random() * 3.5;
     const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.6, mHeight, 1.6), matTitanStone);
@@ -2672,9 +2677,9 @@ export function buildWorldEnvironment(
   });
 
   const canyonMesaCoords: [number, number, number, number][] = [
-    [20, -560, 14, 18], [50, -570, 18, 22], [80, -550, 15, 20],
-    [35, -530, 10, 14], [70, -525, 12, 16], [5, -545, 12, 16],
-    [95, -565, 16, 18],
+    [20, -530, 14, 18], [50, -540, 18, 22], [80, -520, 15, 20],
+    [35, -500, 10, 14], [70, -495, 12, 16], [5, -515, 12, 16],
+    [95, -535, 16, 18],
   ];
   canyonMesaCoords.forEach(([cx, cz, radius, height]) => {
     const cy = getTerrainHeight(cx, cz);
@@ -2715,8 +2720,8 @@ export function buildWorldEnvironment(
   });
 
   // 1. Kumpulan Pohon Pinus Gelap Rapat
-  for (let px = 370; px <= 430; px += 14) {
-    for (let pz = -30; pz <= 30; pz += 14) {
+  for (let px = 350; px <= 410; px += 14) {
+    for (let pz = -170; pz <= -110; pz += 14) {
       const offsetX = px + (Math.sin(px * 1.5 + pz) * 5.0);
       const offsetZ = pz + (Math.cos(pz * 1.8 + px) * 5.0);
       if (isDesertBiome(offsetX, offsetZ)) continue;
@@ -2744,7 +2749,7 @@ export function buildWorldEnvironment(
 
   // 2. Lembaran Kabut Tipis Melayang (Mist Planes)
   const mistCenters = [
-    [385, -15], [415, -10], [400, 15], [380, 20], [425, 5],
+    [365, -155], [395, -150], [380, -125], [360, -120], [405, -135],
   ];
   mistCenters.forEach(([mx, mz], idx) => {
     const my = getTerrainHeight(mx, mz);
@@ -2767,11 +2772,11 @@ export function buildWorldEnvironment(
 
   // 1. Dinding Reruntuhan Batu Slate Berlubang
   const wallCoords = [
-    { x: 338, z: -25, w: 14, h: 4.5, rot: 0 },
-    { x: 362, z: -25, w: 12, h: 3.5, rot: 0 },
-    { x: 335, z: -10, w: 16, h: 4.0, rot: Math.PI / 2 },
-    { x: 365, z: -5, w: 12, h: 3.0, rot: Math.PI / 2 },
-    { x: 345, z: -5, w: 8, h: 2.2, rot: 0.4 },
+    { x: 218, z: -70, w: 14, h: 4.5, rot: 0 },
+    { x: 242, z: -70, w: 12, h: 3.5, rot: 0 },
+    { x: 215, z: -55, w: 16, h: 4.0, rot: Math.PI / 2 },
+    { x: 245, z: -50, w: 12, h: 3.0, rot: Math.PI / 2 },
+    { x: 225, z: -50, w: 8, h: 2.2, rot: 0.4 },
   ];
   wallCoords.forEach((wc) => {
     const wy = getTerrainHeight(wc.x, wc.z);
@@ -2784,7 +2789,7 @@ export function buildWorldEnvironment(
   });
 
   // 2. Menara Bundar Rusak & Pilar Patah
-  const ruinedTowers = [[332, -28], [368, -28], [368, -2]];
+  const ruinedTowers = [[212, -73], [248, -73], [248, -47]];
   ruinedTowers.forEach(([tx, tz]) => {
     const ty = getTerrainHeight(tx, tz);
     const tower = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.8, 6.0, 8), matStoneDarkCrag);
@@ -2796,8 +2801,8 @@ export function buildWorldEnvironment(
 
   // 3. Batuan Puing Berserakan di Lantai Kastil
   for (let i = 0; i < 12; i++) {
-    const rx = 340 + Math.random() * 22;
-    const rz = -25 + Math.random() * 20;
+    const rx = 220 + Math.random() * 22;
+    const rz = -70 + Math.random() * 20;
     const ry = getTerrainHeight(rx, rz);
     const debris = new THREE.Mesh(new THREE.DodecahedronGeometry(0.6 + Math.random() * 0.6, 0), matStoneRuins);
     debris.position.set(rx, ry + 0.4, rz);
@@ -2817,8 +2822,8 @@ export function buildWorldEnvironment(
 
   // 1. Gerbang Benteng Kayu Runcing & Barikade
   const valkragorBarricades = [
-    [375, 85], [375, 95], [375, 105], [375, 115],
-    [405, 85], [405, 95], [405, 105], [405, 115],
+    [315, 75], [315, 85], [315, 95], [315, 105],
+    [345, 75], [345, 85], [345, 95], [345, 105],
   ];
   valkragorBarricades.forEach(([bx, bz]) => {
     const by = getTerrainHeight(bx, bz);
@@ -2829,7 +2834,7 @@ export function buildWorldEnvironment(
   });
 
   // 2. Pos Jaga Kayu Benteng (Watchtower Mini)
-  const watchtowers = [[372, 80], [408, 80], [372, 120], [408, 120]];
+  const watchtowers = [[312, 70], [348, 70], [312, 110], [348, 110]];
   watchtowers.forEach(([wx, wz]) => {
     const wy = getTerrainHeight(wx, wz);
     const wtGroup = new THREE.Group();
@@ -2879,9 +2884,9 @@ export function buildWorldEnvironment(
 
   // 1. Gugusan Batu Megalit Berlumut Besar
   const mossRocks = [
-    [525, -12, 2.8], [540, -18, 3.6], [555, -8, 2.5],
-    [530, 8, 3.2], [548, 14, 3.8], [560, 5, 2.6],
-    [538, -2, 4.2], [520, 2, 2.2], [550, -5, 3.0],
+    [465, 8, 2.8], [480, 2, 3.6], [495, 12, 2.5],
+    [470, 28, 3.2], [488, 34, 3.8], [500, 25, 2.6],
+    [478, 18, 4.2], [460, 22, 2.2], [490, 15, 3.0],
   ];
   mossRocks.forEach(([mx, mz, s]) => {
     const my = getTerrainHeight(mx, mz);
@@ -2896,8 +2901,8 @@ export function buildWorldEnvironment(
 
   // 2. Partikel Spora Bercahaya Melayang di Lembah
   for (let sp = 0; sp < 16; sp++) {
-    const sx = 525 + Math.random() * 32;
-    const sz = -15 + Math.random() * 30;
+    const sx = 465 + Math.random() * 32;
+    const sz = 5 + Math.random() * 30;
     const sy = getTerrainHeight(sx, sz) + 0.8 + Math.random() * 2.2;
     const spore = new THREE.Mesh(new THREE.SphereGeometry(0.16, 4, 4), matGladeSpore);
     spore.position.set(sx, sy, sz);

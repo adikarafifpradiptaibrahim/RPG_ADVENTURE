@@ -47,7 +47,7 @@ export const CameraControls: React.FC<CameraControlsProps> = ({
   // When UI is hidden for cinematic freecam, show only a sleek floating pill in the corner
   if (!isUIVisible) {
     return (
-      <div className="pointer-events-none fixed top-4 right-4 z-50 select-none animate-fade-in">
+      <div className="pointer-events-none fixed top-14 right-4 z-50 select-none animate-fade-in">
         <button
           type="button"
           onClick={onToggleUIVisibility}

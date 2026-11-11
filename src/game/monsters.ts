@@ -906,12 +906,12 @@ export const ANCIENT_TITAN_BOSS_CONFIG: BossConfig = {
 };
 
 export const SPAWN_SANDWORM = {
-  x: 495,
+  x: 210,
   y: 0,
-  z: -362,
-  homeX: 495,
-  homeZ: -362,
-  leashRadius: 48, // Terkunci di dalam arena kawah pasir
+  z: -360,
+  homeX: 210,
+  homeZ: -360,
+  leashRadius: 45, // Terkunci di dalam arena kawah pasir
 };
 
 export const SPAWN_TITAN = {
