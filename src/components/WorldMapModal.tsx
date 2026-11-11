@@ -20,7 +20,7 @@ import { getContinentBiomeSample, getBiomeAt } from '../game/mapSampler';
 import { drawRoadsOnWorldMap } from '../game/RoadSystem';
 
 // Persistent continent map cached image data to eliminate all lag on open & pan
-const MAP_CACHE_VERSION = 'v6.0_clean_hud_river_colosseum';
+const MAP_CACHE_VERSION = 'v8.0_expanded_north_east';
 let cachedMapVersion = '';
 let cachedMapImageData: ImageData | null = null;
 
@@ -62,13 +62,13 @@ export const LANDMARKS: MapLandmark[] = [
   },
   {
     id: 'valkragor',
-    name: 'Val-Kragor Keep',
-    nameId: 'Benteng Val-Kragor',
+    name: 'Val-Kragor Fortress Village',
+    nameId: 'Desa Benteng Val-Kragor',
     icon: '🛡️',
-    x: 380,
-    z: 80,
+    x: 390,
+    z: 100,
     level: 4,
-    desc: 'Benteng pertahanan batu andesit di perbatasan padang rumput timur Eldoria.',
+    desc: 'Desa benteng pertahanan batu dan kayu di perbatasan padang rumput timur Eldoria.',
     color: '#3b82f6',
   },
   {
@@ -195,6 +195,61 @@ export const LANDMARKS: MapLandmark[] = [
     desc: 'Kawah pasir hisap berputar di gurun timur jauh, arena World Boss Cacing Purba Jarrus.',
     color: '#ea580c',
   },
+  {
+    id: 'danau_titan',
+    name: 'Ancient Titan Lake Valley',
+    nameId: 'Lembah Danau Titan Kuno',
+    icon: '🏔️',
+    x: -220,
+    z: -500,
+    level: 8,
+    desc: 'Danau purba berair biru jernih di kaki pegunungan salju utara, sumber hulu sungai Eldoria.',
+    color: '#38bdf8',
+  },
+  {
+    id: 'ancient_canyon',
+    name: 'Ancient Canyon',
+    nameId: 'Kanyon Kuno',
+    icon: '🏜️',
+    x: 50,
+    z: -550,
+    level: 9,
+    desc: 'Jurang bebatuan cadas merah terjal di perbatasan gurun paling utara benua.',
+    color: '#ea580c',
+  },
+  {
+    id: 'mist_forest',
+    name: 'Eldoria Mist Forest',
+    nameId: 'Hutan Kabut Eldoria',
+    icon: '🌲',
+    x: 400,
+    z: 0,
+    level: 4,
+    desc: 'Hutan pinus lebat yang senantiasa diselimuti kabut tebal misterius di perbukitan timur.',
+    color: '#15803d',
+  },
+  {
+    id: 'abandoned_castle',
+    name: 'Abandoned Castle Ruins',
+    nameId: 'Puing Kastil Terbengkalai',
+    icon: '🏰',
+    x: 350,
+    z: -15,
+    level: 5,
+    desc: 'Reruntuhan kastil megah masa lalu dengan benteng runtuh dan pilar batu kuno berlumut.',
+    color: '#64748b',
+  },
+  {
+    id: 'moss_valley',
+    name: 'Moss Rock Valley',
+    nameId: 'Lembah Batu Lumut',
+    icon: '🪨',
+    x: 540,
+    z: 0,
+    level: 5,
+    desc: 'Lembah tersembunyi penuh gugusan batu purba berlumut dan pendar spora mistis.',
+    color: '#65a30d',
+  },
 ];
 
 interface WorldMapModalProps {
@@ -260,10 +315,10 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
   }, [markers]);
 
   // Map world coordinate boundaries for projection
-  // 2.5x Expanded World bounds: X from -580 to +680 (width 1260), Z from -460 to +460 (height 920)
+  // Expanded World bounds: X from -580 to +680 (width 1260), Z from -580 to +460 (height 1040)
   const minX = -580;
   const maxX = 680;
-  const minZ = -460;
+  const minZ = -580;
   const maxZ = 460;
 
   // Clamped Pan Handler (prevents panning past the map boundaries at any zoom level)
@@ -560,7 +615,15 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
           sample.biomeId !== 'river_water' &&
           sample.biomeId !== 'river_bank' &&
           sample.biomeId !== 'sacred_spring' &&
-          sample.biomeId !== 'colosseum_arena'
+          sample.biomeId !== 'colosseum_arena' &&
+          sample.biomeId !== 'titan_lake' &&
+          sample.biomeId !== 'titan_shore' &&
+          sample.biomeId !== 'snowy_peak' &&
+          sample.biomeId !== 'mountain_rock' &&
+          sample.biomeId !== 'ancient_canyon' &&
+          sample.biomeId !== 'mist_forest' &&
+          sample.biomeId !== 'abandoned_castle' &&
+          sample.biomeId !== 'moss_valley'
         ) {
           switch (zone.id) {
             case 'ocean':

@@ -85,6 +85,7 @@ export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
       [-320, 20],
       [-360, -60],
       [-370, -140],
+      [-368, -185], // Jembatan 1 - Astraea Highway Stone Bridge
       [-370, -200],
       [-365, -220], // Berhenti tepat di depan ambang pintu West Gatehouse Astraea
     ],
@@ -110,6 +111,7 @@ export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
       [170, 47], // Keluar jembatan menyambung langsung
       [185, 50], // Melengkung di luar pilar kristal halaman Mage Tower
       [225, 55],
+      [255, 60], // Jembatan 3 - Val-Kragor Highway Stone Arch Bridge
       [290, 65],
       [330, 75],
       [350, 80], // Berhenti tepat di depan ambang pintu gerbang benteng Val-Kragor

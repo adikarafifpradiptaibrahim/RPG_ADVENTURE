@@ -5128,6 +5128,126 @@ export function createStoneBridgePierMesh(height: number = 7.5): THREE.Group {
   return pier;
 }
 
+// Sturdy Classical Stone Arch Bridge (Jembatan Lengkung Batu Kokoh Antar Wilayah)
+export function createStoneArchBridgeMesh(
+  length: number = 24,
+  width: number = 4.8,
+  pierDepth: number = 2.7
+): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'StoneArchBridge';
+
+  const matStoneDeck = new THREE.MeshLambertMaterial({ color: 0x64748b, flatShading: true }); // Slate stone pavers
+  const matStoneDark = new THREE.MeshLambertMaterial({ color: 0x475569, flatShading: true }); // Weathered arch & piers
+  const matStoneTrim = new THREE.MeshLambertMaterial({ color: 0x334155, flatShading: true }); // Parapet caps
+  const matWoodBeam = new THREE.MeshLambertMaterial({ color: 0x3e2723, flatShading: true });
+  const matLantern = new THREE.MeshStandardMaterial({
+    color: 0xffedd5,
+    emissive: 0xf59e0b,
+    emissiveIntensity: 0.9,
+    roughness: 0.2,
+  });
+
+  // 1. Dek Jalan Utama (Permukaan jalan berada tepat di Y = 0)
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(length, 0.4, width), matStoneDeck);
+  deck.position.set(0, -0.2, 0);
+  deck.receiveShadow = true;
+  group.add(deck);
+
+  // Jalur batu pelapis jalan (Paving stone segments)
+  const plankCount = Math.floor(length / 1.2);
+  for (let i = 0; i <= plankCount; i++) {
+    const px = -length / 2 + (i / plankCount) * length;
+    const rib = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.42, width), matStoneTrim);
+    rib.position.set(px, -0.19, 0);
+    rib.receiveShadow = true;
+    group.add(rib);
+  }
+
+  // 2. Pondasi Batu Tepi Kokoh (Abutments di kedua ujung tebing sungai)
+  for (const endX of [-length / 2, length / 2]) {
+    const isWest = endX < 0;
+    const abutment = new THREE.Mesh(new THREE.BoxGeometry(3.6, pierDepth + 1.2, width + 0.6), matStoneDark);
+    abutment.position.set(endX + (isWest ? -1.0 : 1.0), -(pierDepth + 1.2) / 2 + 0.1, 0);
+    abutment.receiveShadow = true;
+    abutment.castShadow = true;
+    group.add(abutment);
+  }
+
+  // 3. Pilar Batu Penopang Bawah (Piers menancap ke dasar palung -pierDepth)
+  const pierSpacing = length * 0.26;
+  for (const px of [-pierSpacing, pierSpacing]) {
+    const pier = new THREE.Mesh(new THREE.BoxGeometry(2.4, pierDepth, width * 0.88), matStoneDark);
+    pier.position.set(px, -pierDepth / 2, 0);
+    pier.castShadow = true;
+    pier.receiveShadow = true;
+    group.add(pier);
+
+    // Corbel bevel penopang lengkungan
+    const corbelL = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.8, width * 0.92), matStoneTrim);
+    corbelL.position.set(px - 1.2, -0.6, 0);
+    corbelL.rotation.z = 0.35;
+    const corbelR = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.8, width * 0.92), matStoneTrim);
+    corbelR.position.set(px + 1.2, -0.6, 0);
+    corbelR.rotation.z = -0.35;
+    group.add(corbelL, corbelR);
+  }
+
+  // Lengkungan batu bawah dek (Stone arch span)
+  const archGeo = new THREE.CylinderGeometry(width * 0.44, width * 0.44, length * 0.52, 12, 1, false, 0, Math.PI);
+  const archMesh = new THREE.Mesh(archGeo, matStoneDark);
+  archMesh.rotation.z = Math.PI / 2;
+  archMesh.position.set(0, -1.15, 0);
+  archMesh.scale.set(0.65, 1.0, 1.0);
+  group.add(archMesh);
+
+  // 4. Balustrade / Pagar Batu Kiri & Kanan (Z = -width/2 & +width/2)
+  for (const sideZ of [-width / 2, width / 2]) {
+    const railing = new THREE.Mesh(new THREE.BoxGeometry(length, 0.85, 0.35), matStoneDark);
+    railing.position.set(0, 0.42, sideZ);
+    railing.castShadow = true;
+    railing.receiveShadow = true;
+    group.add(railing);
+
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(length + 0.4, 0.18, 0.5), matStoneTrim);
+    cap.position.set(0, 0.85, sideZ);
+    cap.castShadow = true;
+    group.add(cap);
+
+    // Tiang baluster berkala
+    const postCount = Math.floor(length / 2.5);
+    for (let p = 0; p <= postCount; p++) {
+      const px = -length / 2 + (p / postCount) * length;
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.95, 0.45), matStoneTrim);
+      post.position.set(px, 0.47, sideZ);
+      post.castShadow = true;
+      group.add(post);
+    }
+  }
+
+  // 5. Lentera Batu pada 4 Sudut Pangkal Jembatan
+  for (const lx of [-length / 2 + 0.5, length / 2 - 0.5]) {
+    for (const lz of [-width / 2, width / 2]) {
+      const ped = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.4, 0.7), matStoneTrim);
+      ped.position.set(lx, 0.7, lz);
+      ped.castShadow = true;
+
+      const lanternBox = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.5, 0.35), matLantern);
+      lanternBox.position.set(0, 0.95, 0);
+      ped.add(lanternBox);
+
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.3, 4), matWoodBeam);
+      roof.position.set(0, 1.3, 0);
+      roof.rotation.y = Math.PI / 4;
+      ped.add(roof);
+
+      group.add(ped);
+    }
+  }
+
+  return group;
+}
+
 // Wooden Dock Beach Ramp & Short Stairs connecting sand beach to pier deck
 export function createDockStairRampMesh(width: number = 4.6, length: number = 4.0, height: number = 1.8): THREE.Group {
   const group = new THREE.Group();

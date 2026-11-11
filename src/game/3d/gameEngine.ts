@@ -247,9 +247,7 @@ export class GameEngine {
   private isDragonAirborne = false;
   private cameraTargetOffsetY = 0;
   private cameraAerialZoom = 0;
-  private bossFocusPos: THREE.Vector3 = new THREE.Vector3();
-  private bossFocusWeight: number = 0;
-  private playerStamina: number = 100;
+  private playerStamina = 100;
   // Zone-Based Boss Combat & BGM System
   private currentBossZone: BossArenaZone | null = null;
   private activeBossEnemyData: EnemyData | null = null;
@@ -751,13 +749,7 @@ export class GameEngine {
       (x, z) => this.world.getTerrainHeight(x, z),
       {
         onAddFloatingText: (text, color, type) => this.callbacks.onAddFloatingText(text, color, type),
-        onUpdateStats: (updater) => {
-          this.callbacks.onUpdateStats((prev) => {
-            const next = updater(prev);
-            this.playerStamina = next.stamina;
-            return next;
-          });
-        },
+        onUpdateStats: (updater) => this.callbacks.onUpdateStats(updater),
         onCameraShake: (amount) => { this.cameraShake = Math.max(this.cameraShake, amount); },
         onSpawnShockwave: (pos, color, maxRadius, duration) => {
           this.spawnShockwaveRing(pos, color, maxRadius, duration);
@@ -777,10 +769,6 @@ export class GameEngine {
         onDamageAbsorb: (rawDmg) => this.absorbDamageWithShield(rawDmg).remainingDamage,
         onAirborneChange: (isAirborne: boolean) => {
           this.isDragonAirborne = isAirborne;
-        },
-        onCameraFocusBoss: (bossPos: THREE.Vector3, weight: number) => {
-          this.bossFocusPos.copy(bossPos);
-          this.bossFocusWeight = weight;
         },
       }
     );
@@ -1854,7 +1842,6 @@ export class GameEngine {
     const { group: wyrmGroup, parts: wyrmParts } = createEnemyMesh('dragon');
     const wyrmY = this.world.getTerrainHeight(wyrmPos[0], wyrmPos[1]);
     wyrmGroup.position.set(wyrmPos[0], wyrmY, wyrmPos[1]);
-    wyrmGroup.rotation.y = Math.PI; // Menghadap ke utara menyambut pemain
     this.scene.add(wyrmGroup);
 
     const wyrmData: EnemyData = {
@@ -5850,11 +5837,11 @@ export class GameEngine {
             }
           }
 
-          // Clamp to expanded world boundaries (-580..680, -460..460)
+          // Clamp to expanded world boundaries (-580..680, -580..460)
           let targetX = startPos.x + blinkDir.x * maxDist;
           let targetZ = startPos.z + blinkDir.z * maxDist;
           targetX = Math.max(-580, Math.min(680, targetX));
-          targetZ = Math.max(-460, Math.min(460, targetZ));
+          targetZ = Math.max(-580, Math.min(460, targetZ));
 
           // Resolve collisions so player never blinks inside walls or buildings
           const resolved = this.resolveCollisions(targetX, targetZ);
@@ -6949,10 +6936,10 @@ export class GameEngine {
       this.playerVel.z *= 0.96;
     }
 
-    // Expanded World boundary constraints (Spans all biomes from X[-580..680] and Z[-460..460])
+    // Expanded World boundary constraints (Spans all biomes from X[-580..680] and Z[-580..460])
     if (nextX < -580) nextX = -580;
     if (nextX > 680) nextX = 680;
-    if (nextZ < -460) nextZ = -460;
+    if (nextZ < -580) nextZ = -580;
     if (nextZ > 460) nextZ = 460;
 
     this.playerPos.x = nextX;
@@ -8417,11 +8404,7 @@ export class GameEngine {
     }
 
     this.camera.position.lerp(targetPos, 0.15);
-    const lookTarget = new THREE.Vector3(this.playerPos.x, this.playerPos.y + 1.4 + this.cameraTargetOffsetY, this.playerPos.z);
-    if (this.bossFocusWeight > 0.01) {
-      lookTarget.lerp(this.bossFocusPos, this.bossFocusWeight);
-    }
-    this.camera.lookAt(lookTarget);
+    this.camera.lookAt(this.playerPos.x, this.playerPos.y + 1.4 + this.cameraTargetOffsetY, this.playerPos.z);
   }
 
   private updateRemotePlayers(delta: number) {
@@ -8626,26 +8609,6 @@ export class GameEngine {
         this.world.dirLight,
         this.menuMode === 'gameplay' ? (this.isSpectatorMode ? this.spectatorPos : this.playerPos) : undefined
       );
-    }
-
-    // Dragonfang Phase 2 Extreme Volcanic Weather Atmosphere
-    const extremeFactor = this.bossManager.extremeWeatherFactor;
-    if (extremeFactor > 0.001) {
-      // 1. Charcoal sky (0x1a1214)
-      if (this.scene.background instanceof THREE.Color) {
-        this.scene.background.lerp(new THREE.Color(0x1a1214), extremeFactor * 0.85);
-      }
-      // 2. Thick red magma fog (0x5c1508)
-      if (this.scene.fog && this.scene.fog instanceof THREE.Fog) {
-        this.scene.fog.color.lerp(new THREE.Color(0x5c1508), extremeFactor * 0.9);
-        this.scene.fog.near = THREE.MathUtils.lerp(this.scene.fog.near, 12, extremeFactor * 0.7);
-        this.scene.fog.far = THREE.MathUtils.lerp(this.scene.fog.far, 55, extremeFactor * 0.7);
-      }
-      // 3. Lightning flashes in thick magma storm
-      if (Math.random() < 0.018 * extremeFactor && this.world?.dirLight) {
-        this.world.dirLight.intensity = 2.4;
-        this.cameraShake = Math.max(this.cameraShake, 0.35);
-      }
     }
 
     // Menu States (Main Menu & 3D Character Selection)

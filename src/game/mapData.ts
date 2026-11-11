@@ -122,6 +122,66 @@ export const REGIONS: RegionInfo[] = [
     center: [495, -362],
     recommendedLevel: 10,
   },
+  {
+    id: 'danau_titan',
+    name: 'Ancient Titan Lake Valley',
+    nameId: 'Lembah Danau Titan Kuno',
+    icon: '🏔️',
+    description: 'A crystalline glacial mountain lake surrounded by snow-capped peaks in the far northwest, headwaters of the Eldorian rivers.',
+    descriptionId: 'Danau purba berair biru jernih di kaki pegunungan salju barat laut, hulu utama aliran sungai Eldoria.',
+    color: '#38bdf8',
+    bounds: { minX: -280, maxX: -160, minZ: -560, maxZ: -440 },
+    center: [-220, -500],
+    recommendedLevel: 8,
+  },
+  {
+    id: 'ancient_canyon',
+    name: 'Ancient Canyon',
+    nameId: 'Kanyon Kuno',
+    icon: '🏜️',
+    description: 'Sheer towering terracotta canyon cliffs and sandstone mesas in the far northern reaches.',
+    descriptionId: 'Jurang bebatuan cadas merah terjal dan tebing sandstone di perbatasan gurun paling utara benua.',
+    color: '#ea580c',
+    bounds: { minX: 0, maxX: 120, minZ: -580, maxZ: -500 },
+    center: [50, -550],
+    recommendedLevel: 9,
+  },
+  {
+    id: 'mist_forest',
+    name: 'Eldoria Mist Forest',
+    nameId: 'Hutan Kabut Eldoria',
+    icon: '🌲',
+    description: 'Dense dark spruce wilderness draped in perpetual mysterious fog in the eastern hills.',
+    descriptionId: 'Hutan pinus lebat yang senantiasa diselimuti kabut tebal misterius di perbukitan timur.',
+    color: '#15803d',
+    bounds: { minX: 360, maxX: 450, minZ: -40, maxZ: 40 },
+    center: [400, 0],
+    recommendedLevel: 4,
+  },
+  {
+    id: 'abandoned_castle',
+    name: 'Abandoned Castle Ruins',
+    nameId: 'Puing Kastil Terbengkalai',
+    icon: '🏰',
+    description: 'Ancient dilapidated castle walls, broken watchtowers, and weathered slate courtyards.',
+    descriptionId: 'Reruntuhan kastil megah masa lalu dengan benteng runtuh dan pilar batu kuno berlumut.',
+    color: '#64748b',
+    bounds: { minX: 320, maxX: 380, minZ: -35, maxZ: 5 },
+    center: [350, -15],
+    recommendedLevel: 5,
+  },
+  {
+    id: 'moss_valley',
+    name: 'Moss Rock Valley',
+    nameId: 'Lembah Batu Lumut',
+    icon: '🪨',
+    description: 'A secluded sanctuary of giant mossy megaliths, blooming glade flora, and glowing spores.',
+    descriptionId: 'Lembah tersembunyi penuh gugusan batu purba berlumut dan pendar spora mistis.',
+    color: '#65a30d',
+    bounds: { minX: 500, maxX: 580, minZ: -30, maxZ: 30 },
+    center: [540, 0],
+    recommendedLevel: 5,
+  },
 ];
 
 export const WAYPOINTS: {
@@ -271,8 +331,33 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
     return REGIONS[4];
   }
 
-  // 5. Benteng Val-Kragor (East Plains: around [380, 80])
-  if (Math.hypot(x - 380, z - 80) <= 45) {
+  // 4b. Lembah Danau Titan Kuno (Northwest: around [-220, -500])
+  if (Math.hypot(x - -220, z - -500) <= 60) {
+    return REGIONS.find((r) => r.id === 'danau_titan') || REGIONS[0];
+  }
+
+  // 4c. Kanyon Kuno (Far North: around [50, -550])
+  if (Math.hypot(x - 50, z - -550) <= 70) {
+    return REGIONS.find((r) => r.id === 'ancient_canyon') || REGIONS[7];
+  }
+
+  // 4d. Hutan Kabut Eldoria (East: around [400, 0])
+  if (Math.hypot(x - 400, z - 0) <= 55) {
+    return REGIONS.find((r) => r.id === 'mist_forest') || REGIONS[0];
+  }
+
+  // 4e. Puing Kastil Terbengkalai (East: around [350, -15])
+  if (Math.hypot(x - 350, z - -15) <= 35) {
+    return REGIONS.find((r) => r.id === 'abandoned_castle') || REGIONS[0];
+  }
+
+  // 4f. Lembah Batu Lumut (Far East: around [540, 0])
+  if (Math.hypot(x - 540, z - 0) <= 45) {
+    return REGIONS.find((r) => r.id === 'moss_valley') || REGIONS[0];
+  }
+
+  // 5. Benteng Val-Kragor (East Plains: around [390, 100])
+  if (Math.hypot(x - 390, z - 100) <= 45 || Math.hypot(x - 380, z - 80) <= 45) {
     return REGIONS[2];
   }
 

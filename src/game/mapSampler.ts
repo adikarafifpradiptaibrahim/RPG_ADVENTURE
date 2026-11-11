@@ -1,6 +1,6 @@
 /**
  * Unified Continent Map Sampler - Simplified 3-Biome + South Ocean Architecture
- * Scale: X: -580..680, Z: -460..460
+ * Scale: X: -580..680, Z: -580..460
  *
  * 1. South Ocean / Samudra Azure ('ocean'): Z > 220 (except volcano island), and outer bounds.
  * 2. South Volcanic Island / Sarang Naga ('volcano'): Z >= 300 && X >= -150 && X <= 250.
@@ -74,35 +74,57 @@ export function isDesertBiome(x: number, z: number): boolean {
 
 /**
  * SISTEM ALIRAN SUNGAI BERCABANG (RIVER NETWORK)
- * 1. Cabang Hulu Barat Laut: Dari pegunungan/danau utara melewati barat Piramida Solaria [-40, -320] -> [107, 22]
- * 2. Cabang Hulu Timur: Mengalir dari padang timur [260, 20] -> [107, 22]
- * 3. Titik Temu (Confluence): Menyatu di [107, 22] dekat Mage Tower
- * 4. Alur Hilir: Mengalir lurus ke selatan membelah padang Eldoria, bermuara di Samudra Lepas dekat dermaga pelabuhan [0, 230]
+ * Sesuai denah garis biru pada peta (Blueprint Map V7.0):
+ * 1. Cabang A (Barat Laut / Northwest): Mengalir dari laut barat laut [-460, -310]
+ *    melewati utara Astraea, memotong jalan raya barat (Jembatan 1 di [-368, -185]),
+ *    melengkung ke tenggara melewati selatan Mata Air Suci, lalu ke Titik Temu [110, 35].
+ * 2. Cabang B (Timur / East): Mengalir dari Titik Temu [110, 35], memotong jalan raya Val-Kragor
+ *    (Jembatan 3 di [255, 60]), melewati utara benteng Val-Kragor [380, 46], hingga batas timur [670, 72].
+ * 3. Cabang C (Selatan / Hilir Utama): Mengalir dari Titik Temu [110, 35], melewati tepat di bawah
+ *    Jembatan Gantung (Jembatan 2 di [145, 47]), mengalir lurus ke selatan di timur gerbang Torii
+ *    (X: 160 s.d 188), jauh di timur desa (> 130 unit dari kebun), bermuara di Samudra Selatan [188, 300].
  */
 export const RIVER_NORTHWEST_BRANCH: [number, number][] = [
-  [-40, -320],
-  [-10, -240],
-  [25, -160],
-  [60, -80],
-  [88, -25],
-  [107, 22],
+  [-220, -460], // Hulu Danau Titan Kuno (Northwest Mountain Lake)
+  [-245, -390],
+  [-290, -320],
+  [-335, -250],
+  [-368, -185], // Jembatan 1 - Astraea Highway
+  [-320, -155],
+  [-260, -130],
+  [-190, -95],
+  [-120, -65],
+  [-50, -30],
+  [10, -5],
+  [65, 15],
+  [110, 35],    // Titik Temu (Confluence)
 ];
 
 export const RIVER_EAST_BRANCH: [number, number][] = [
-  [260, 20],
-  [210, 24],
-  [160, 22],
-  [107, 22],
+  [110, 35],    // Titik Temu (Confluence)
+  [150, 30],
+  [185, 24],
+  [220, 38],
+  [255, 60],    // Jembatan 3 - Val-Kragor Highway
+  [310, 52],
+  [380, 46],    // Melewati utara Benteng Val-Kragor
+  [460, 48],
+  [530, 55],
+  [600, 62],
+  [670, 72],    // Batas timur peta
 ];
 
 export const RIVER_MAIN_DOWNSTREAM: [number, number][] = [
-  [107, 22],
-  [92, 55],
-  [72, 92],
-  [52, 130],
-  [32, 165],
-  [14, 198],
-  [0, 230],
+  [110, 35],    // Titik Temu (Confluence)
+  [128, 41],
+  [145, 47],    // Jembatan 2 - Mage Tower Suspension Bridge
+  [158, 70],
+  [168, 105],
+  [176, 145],
+  [182, 185],
+  [184, 225],
+  [186, 265],
+  [188, 300],   // Muara Samudra Selatan
 ];
 
 function distToSegment(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
@@ -313,6 +335,13 @@ export function getProceduralContinentHeight(x: number, z: number): number {
       return 1.80 + bowl + swirlRipple;
     }
 
+    // 3f. Kanyon Kuno [50, -550] (Northern Canyon Mesas & Cliffs)
+    const distCanyon = Math.hypot(x - 50, z - -550);
+    if (distCanyon <= 75) {
+      const canyonNoise = Math.sin(x * 0.035) * Math.cos(z * 0.03) * 5.0 + Math.sin(x * 0.08) * 2.0;
+      return clamp(12.0 + canyonNoise, 8.0, 20.0);
+    }
+
     // Rolling golden dunes
     const duneWave = Math.sin(x * 0.035 + z * 0.028) * 1.1 + Math.cos(x * 0.02 - z * 0.03) * 0.5;
     return clamp(1.4 + duneWave, 0.5, 3.5);
@@ -323,11 +352,12 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   if (Math.hypot(x - 0, z - 180) <= 36) return 0.25;
   // 4b. Sanctuary Coastal Harbor [0, 205..220]
   if (Math.abs(x) <= 12 && z >= 195 && z <= 220) return 0.35;
-  // 4c. Fortress Val-Kragor [380, 80]
-  if (Math.hypot(x - 380, z - 80) <= 38) return 2.50;
+  // 4c. Fortress Val-Kragor [390, 100] (Diposisikan sesuai denah V8)
+  if (Math.hypot(x - 390, z - 100) <= 38) return 2.00;
+  if (Math.hypot(x - 380, z - 80) <= 38) return 2.00;
   // 4d. Imperial Capital Astraea [-340, -220]
   if (Math.hypot(x - -340, z - -220) <= 46) return 2.00;
-  // 4e. Mata Air Suci & Taman Bunga Eldoria [-144, -270] (Ganti Bekas Wilayah Raksasa Lama)
+  // 4e. Mata Air Suci & Taman Bunga Eldoria [-144, -270]
   const distSpring = Math.hypot(x - -144, z - -270);
   if (distSpring <= 5.5) return -0.45; // Kolam air tawar melingkar
   if (distSpring <= 7.5) return 0.25; // Tepian batu kali halus berlumut
@@ -341,7 +371,6 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   }
 
   // 4g. Reruntuhan Colosseum Kuno (Ancient Colosseum Arena) (X: -224, Z: -435, Radius 54)
-  // Perbesar skala wilayah boss minimal 2.5x lipat dari ukuran sekarang
   const distColosseum = Math.hypot(x - -224, z - -435);
   if (distColosseum <= 48) return -0.20; // Hamparan lantai pasir arena
   if (distColosseum <= 56) return 0.60; // Pondasi dinding melingkar colosseum
@@ -353,35 +382,71 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return 2.2 * Math.cos(t * (Math.PI / 2));
   }
 
-  // 4i. Alur Palung Sungai Bercabang (Northwest, East -> Confluence [107, 22] -> Bridge [142, 47] -> South Ocean)
+  // 4i. Lembah Danau Titan Kuno [-220, -500] (Depresi Danau Y = -2.8, bibir danau naik ke pegunungan)
+  const distTitanLake = Math.hypot(x - -220, z - -500);
+  if (distTitanLake <= 42) {
+    return -2.80; // Kolam danau
+  }
+  if (distTitanLake <= 54) {
+    const t = (distTitanLake - 42) / 12;
+    return -2.80 + t * 4.0; // Lereng tepian danau naik
+  }
+
+  // 4j. Puing Kastil Terbengkalai [350, -15] (Fondasi dataran batu)
+  if (Math.hypot(x - 350, z - -15) <= 32) return 1.20;
+
+  // 4k. Lembah Batu Lumut [540, 0] (Lembah datar terlindung di timur)
+  if (Math.hypot(x - 540, z - 0) <= 38) return 0.50;
+
+  // 4l. Hutan Kabut Eldoria [400, 0] (Bukit bergelombang kabut di timur)
+  const distMistForest = Math.hypot(x - 400, z - 0);
+  if (distMistForest <= 55) {
+    const hillWave = Math.sin(x * 0.04 + z * 0.035) * 1.8 + 2.5;
+    return hillWave;
+  }
+
+  // 4m. Alur Palung Sungai Bercabang Tiga Jalur (Northwest, East -> Confluence [110, 35] -> South Ocean)
   const distRiver = getDistanceToRiver(x, z);
-  if (distRiver < 5.2) {
-    const edge = distRiver / 5.2;
-    // Palung sungai sedalam -2.4 unit di tengahnya
-    const riverBedDrop = -2.4 * Math.cos(edge * (Math.PI / 2));
+  if (distRiver < 6.0) {
+    const edge = distRiver / 6.0;
+    const riverBedDrop = -2.2 * Math.cos(edge * (Math.PI / 2));
     return riverBedDrop;
   }
 
-  // 4j. Zona Pemukiman Desa (Wajib Datar 0 agar bangunan tidak amblas/melayang)
+  // 4n. Zona Pemukiman Desa (Wajib Datar 0 agar bangunan tidak amblas/melayang)
   const distToVillage = Math.hypot(x - 10, z - 110);
-  if (distToVillage < 52) {
+  if (distToVillage < 55) {
     return 0;
   }
 
-  // 4k. Flattened road paths di luar desa (jalan setapak batu tetap rata)
+  // 4o. Flattened road paths di luar desa (jalan setapak batu tetap rata)
   if (isPointOnRoad(x, z)) {
     return 0.35;
   }
 
-  // 4l. Perlin Noise Lembut untuk Seluruh Hamparan Hijau (X: -500 s.d 130, Z: -500 s.d 300)
-  const blend = Math.min(1, Math.max(0, (distToVillage - 52) / 30));
+  // 4p. Zonal Mountains & Natural Rolling Hills (Sesuai Syarat Prompt 10)
+  // 1. Pegunungan Utara & Northwest (Lembah Danau Titan Kuno & Lereng Salju, Z < -350)
+  if (z < -350) {
+    const hillNoise = Math.sin(x * 0.012) * Math.cos(z * 0.009) * 8.0 + Math.sin((x + z) * 0.02) * 3.0;
+    const peakHeight = Math.max(2.0, Math.min(22.0, 7.0 + hillNoise));
+    return peakHeight;
+  }
+
+  // 2. Pegunungan & Perbukitan Timur (Hutan Kabut Eldoria & Punggungan Lembah Batu Lumut, X > 250)
+  if (x > 250) {
+    const eastHills = Math.sin(x * 0.015) * Math.cos(z * 0.012) * 5.5 + Math.sin(z * 0.025) * 2.0;
+    const eastHeight = Math.max(1.0, Math.min(18.0, 4.0 + eastHills));
+    return eastHeight;
+  }
+
+  // 3. Bukit Padang Rumput Eldoria Umum (Z < 200, X <= 250)
+  const blend = Math.min(1, Math.max(0, (distToVillage - 55) / 25));
   const gentleNoise =
-    Math.sin(x * 0.012 + z * 0.009) * 1.3 +
-    Math.cos(x * 0.007 - z * 0.014) * 0.9 +
+    Math.sin(x * 0.015 + z * 0.011) * 2.0 +
+    Math.cos(x * 0.007 - z * 0.012) * 1.5 +
     Math.sin((x + z) * 0.022) * 0.4;
 
-  // Ketinggian bukit landai berkisar antara 0 hingga 2.2 unit (puncak bukit 1.0 s.d 2.0)
-  const perlinElevation = clamp(Math.max(0.0, gentleNoise * blend * 1.5), 0.0, 2.2);
+  const perlinElevation = clamp(Math.max(0.0, gentleNoise * blend * 1.4), 0.0, 2.2);
 
   // Smooth blending at road borders (buffer 2.0 unit)
   if (isPointNearRoad(x, z, 2.0)) {
@@ -407,13 +472,50 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: 1.85, color: [141, 110, 99], biomeId: 'harbor_pier', isWater: false, isPath: true, slope: 0 };
   }
 
+  // 1a. Lembah Danau Titan Kuno [-220, -500] (Danau Biru Jernih Pegunungan & Tepian)
+  const distTitanLake = Math.hypot(x - -220, z - -500);
+  if (distTitanLake <= 42) {
+    return { height: y, color: [45, 165, 205], biomeId: 'titan_lake', isWater: true, isPath: false, slope: 0 };
+  }
+  if (distTitanLake <= 52) {
+    return { height: y, color: [160, 175, 185], biomeId: 'titan_shore', isWater: false, isPath: false, slope };
+  }
+
   // 1b. Alur Palung Sungai Bercabang (Northwest, East -> Confluence -> Bridge -> South Ocean)
   const distRiverSample = getDistanceToRiver(x, z);
-  if (distRiverSample < 3.8 && y <= 0.0) {
+  if (distRiverSample < 4.2 && y <= 0.0) {
     return { height: y, color: [45, 165, 205], biomeId: 'river_water', isWater: true, isPath: false, slope };
   }
-  if (distRiverSample < 5.2) {
+  if (distRiverSample < 6.0) {
     return { height: y, color: [136, 122, 102], biomeId: 'river_bank', isWater: false, isPath: false, slope };
+  }
+
+  // 1c. Puncak Pegunungan Bersalju & Batuan Granit (Utara Z < -360, X < -100)
+  if (z < -360 && x < -100 && y >= 11.5) {
+    return { height: y, color: [245, 248, 252], biomeId: 'snowy_peak', isWater: false, isPath: false, slope };
+  }
+  if (z < -360 && x < -100 && y >= 7.5) {
+    return { height: y, color: [120, 130, 140], biomeId: 'mountain_rock', isWater: false, isPath: false, slope };
+  }
+
+  // 1d. Kanyon Kuno [50, -550] (Tebing Cadas Merah & Sandstone)
+  if (z < -460 && x >= -20 && x <= 140) {
+    return { height: y, color: [175, 85, 45], biomeId: 'ancient_canyon', isWater: false, isPath: false, slope };
+  }
+
+  // 1e. Hutan Kabut Eldoria [400, 0] (Hijau Pinus Gelap Kabut)
+  if (Math.hypot(x - 400, z - 0) <= 60) {
+    return { height: y, color: [35, 95, 40], biomeId: 'mist_forest', isWater: false, isPath: false, slope };
+  }
+
+  // 1f. Puing Kastil Terbengkalai [350, -15] (Batu Slate Reruntuhan)
+  if (Math.hypot(x - 350, z - -15) <= 32) {
+    return { height: y, color: [115, 125, 135], biomeId: 'abandoned_castle', isWater: false, isPath: false, slope };
+  }
+
+  // 1g. Lembah Batu Lumut [540, 0] (Lembah Hijau Berlumut)
+  if (Math.hypot(x - 540, z - 0) <= 42) {
+    return { height: y, color: [75, 135, 60], biomeId: 'moss_valley', isWater: false, isPath: false, slope };
   }
 
   // 1c. Reruntuhan Colosseum Kuno (Ancient Colosseum Arena) [-224, -435] (Skala 2.5x Boss Arena)

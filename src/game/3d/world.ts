@@ -74,6 +74,7 @@ import {
   createIceSpikeMountainMesh,
   createWoodBarricadeMesh,
   createStoneBridgePierMesh,
+  createStoneArchBridgeMesh,
   createDockStairRampMesh,
   createDockShorelineBoardwalkMesh,
   createBarracksMesh,
@@ -201,14 +202,14 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   dirLight.shadow.bias = -0.001;
   scene.add(dirLight);
 
-  // 2.5x - 3x Expanded World Terrain specifications (Span: X[-680..820], Z[-550..550])
+  // 2.5x - 3x Expanded World Terrain specifications (Span: X[-680..820], Z[-660..540])
   const terrainWidth = 1500;
-  const terrainDepth = 1100;
-  const segmentsX = 256;
-  const segmentsZ = 256;
+  const terrainDepth = 1200;
+  const segmentsX = 384;
+  const segmentsZ = 384;
   const terrainGeo = new THREE.PlaneGeometry(terrainWidth, terrainDepth, segmentsX, segmentsZ);
   terrainGeo.rotateX(-Math.PI / 2);
-  terrainGeo.translate(70, 0, 0); // Centered at x=70 so all vast expanded biomes fit seamlessly
+  terrainGeo.translate(70, 0, -60); // Centered at x=70, z=-60 so all vast expanded biomes fit seamlessly
 
   // Unified procedural height function from mapSampler
   const getProceduralHeight = (x: number, z: number): number => {
@@ -249,8 +250,8 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // Guarantees that physics, character foot stepping, and object grounding align 100% with the rendered terrain polygon.
   const minTerrainX = -680; // 70 - 750
   const maxTerrainX = 820;  // 70 + 750
-  const minTerrainZ = -550;
-  const maxTerrainZ = 550;
+  const minTerrainZ = -660; // -60 - 600
+  const maxTerrainZ = 540;  // -60 + 600
   const gridCellW = terrainWidth / segmentsX;
   const gridCellD = terrainDepth / segmentsZ;
   const gridX1 = segmentsX + 1;
@@ -289,9 +290,19 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return getProceduralHeight(x, z);
     }
 
-    // 1. Suspension bridge walkable deck corridor (centered straight at z = 47)
+    // 1. Suspension bridge walkable deck corridor (Bridge 2 - Center, centered straight at z = 47)
     if (Math.abs(z - 47) <= 2.2 && x >= 135.5 && x <= 154.5) {
       return 1.35;
+    }
+
+    // 1b. Bridge 1 - Astraea Highway Stone Bridge (X: -368, Z: -198..-172, deck Y = 0.45)
+    if (Math.abs(x - -368) <= 2.4 && z >= -198 && z <= -172) {
+      return 0.45;
+    }
+
+    // 1c. Bridge 3 - Val-Kragor Highway Stone Arch Bridge (X: 255, Z: 60, spanning X: 243..267, deck Y = 0.45)
+    if (Math.abs((z - 60) - 0.15 * (x - 255)) <= 2.4 && x >= 243 && x <= 267) {
+      return 0.45;
     }
 
     // 2. Coastal Wooden Harbor (Seamless Beach Connection, Extended Main Pier, Symmetrical Wings & Pier Head)
@@ -1204,8 +1215,8 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 2.9 MISTY CHASM & SOLID SUSPENSION BRIDGE
-  // Membentang lurus menghubungkan Ngarai Kabut di X: 135..155 pada Z = 47.
+  // 2.9 MISTY CHASM & SOLID SUSPENSION BRIDGE (JEMBATAN 2: JALUR TENGAH - X: 145, Z: 47)
+  // Membentang lurus menghubungkan Ngarai Kabut di X: 135..155 pada Z = 47 di atas Cabang C (Selatan).
   // ==========================================
   const bridge = createSuspensionBridgeMesh(22);
   bridge.position.set(145, 1.35, 47);
@@ -1220,6 +1231,34 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   colliders.push(
     { type: 'box', minX: 135.5, maxX: 154.5, minZ: 44.8, maxZ: 45.6, label: 'Pagar Jembatan Kiri' },
     { type: 'box', minX: 135.5, maxX: 154.5, minZ: 48.4, maxZ: 49.2, label: 'Pagar Jembatan Kanan' }
+  );
+
+  // ==========================================
+  // 2.9c JEMBATAN 1: JALUR BARAT / ASTRAEA HIGHWAY (X: -368, Z: -185)
+  // Jembatan batu kokoh membentang Z: -198 s.d -172 di atas palung sungai barat laut
+  // ==========================================
+  const bridge1West = createStoneArchBridgeMesh(26, 4.8, 2.7);
+  bridge1West.position.set(-368, 0.45, -185);
+  bridge1West.rotation.y = Math.PI / 2; // Membentang sepanjang sumbu Z mengikuti alur jalan raya
+  scene.add(bridge1West);
+
+  colliders.push(
+    { type: 'box', minX: -370.8, maxX: -370.0, minZ: -198, maxZ: -172, label: 'Pagar Jembatan Barat Astraea' },
+    { type: 'box', minX: -366.0, maxX: -365.2, minZ: -198, maxZ: -172, label: 'Pagar Jembatan Timur Astraea' }
+  );
+
+  // ==========================================
+  // 2.9d JEMBATAN 3: JALUR TIMUR / VAL-KRAGOR HIGHWAY (X: 255, Z: 60)
+  // Jembatan lengkung batu kokoh membentang X: 243 s.d 267 di atas alur sungai timur
+  // ==========================================
+  const bridge3East = createStoneArchBridgeMesh(24, 4.8, 2.7);
+  bridge3East.position.set(255, 0.45, 60);
+  bridge3East.rotation.y = 0.15; // Mengikuti kemiringan sudut jalan raya Val-Kragor
+  scene.add(bridge3East);
+
+  colliders.push(
+    { type: 'box', minX: 243, maxX: 267, minZ: 61.8, maxZ: 62.6, label: 'Pagar Jembatan Val-Kragor Utara' },
+    { type: 'box', minX: 243, maxX: 267, minZ: 57.4, maxZ: 58.2, label: 'Pagar Jembatan Val-Kragor Selatan' }
   );
 
   // 2.9b Jaringan Jalan Raya & Jalan Setapak Terstruktur Benua Eldoria (Road Network & Path System)
