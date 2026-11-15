@@ -237,10 +237,10 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // High resolution render buffer (1600 x 1200)
+    // High resolution render buffer matching 1200x950 aspect ratio
     canvas.width = 1600;
-    canvas.height = 1200;
-    renderIllustratedMap(ctx, 1600, 1200);
+    canvas.height = 1267;
+    renderIllustratedMap(ctx, 1600, 1267);
   }, [isOpen]);
 
   // Optimized Event Listeners for smooth drag/zoom
@@ -432,7 +432,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
         <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
           {/* Main Map Viewport Area */}
           <div className="relative flex-1 bg-stone-950/90 overflow-hidden flex items-center justify-center p-2 sm:p-4">
-            {/* Topographical Map Container with Zoom & Pan Viewport (Aspect Ratio 1000/900 ~ 10:9) */}
+            {/* Topographical Map Container with Zoom & Pan Viewport (Aspect Ratio 1200/950) */}
             <div
               ref={mapContainerRef}
               style={{
@@ -442,7 +442,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 cursor: hudScale > 1.0 ? 'grab' : 'default',
               } as React.CSSProperties}
               onClick={() => setInspectedHotspot(null)}
-              className="relative w-full max-w-[840px] aspect-[1000/900] max-h-[82vh] rounded-2xl overflow-hidden border border-stone-700/60 shadow-2xl bg-[#0284c7]"
+              className="relative w-full max-w-[860px] aspect-[1200/950] max-h-[82vh] rounded-2xl overflow-hidden border border-stone-700/60 shadow-2xl bg-[#0284c7]"
             >
               {/* GPU Hardware Accelerated Continent Map Plane (translate3d + will-change: transform) */}
               <div
@@ -494,15 +494,18 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                       className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer pointer-events-auto flex flex-col items-center group"
                       title={spot.nameId}
                     >
-                      {/* Interactive circular pin badge */}
+                      {/* Interactive circular pin badge with biome-colored ring */}
                       <div
                         className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all duration-200 border-2 ${
                           isHovered || isInspected
-                            ? 'bg-amber-400 border-white shadow-[0_0_20px_rgba(251,191,36,0.8)] scale-110 z-30'
-                            : 'bg-stone-900/85 border-amber-400/70 hover:border-amber-300 shadow-md'
+                            ? 'bg-amber-400 border-white shadow-[0_0_20px_rgba(251,191,36,0.9)] scale-110 z-30 ring-2 ring-white/80'
+                            : 'bg-stone-900/90 shadow-md hover:scale-105'
                         }`}
+                        style={{
+                          borderColor: isHovered || isInspected ? '#ffffff' : spot.color,
+                        }}
                       >
-                        <span className="text-base sm:text-lg select-none">{spot.icon}</span>
+                        <span className="text-base sm:text-lg select-none drop-shadow">{spot.icon}</span>
                       </div>
 
                       {/* Desktop Hover Floating Info Card */}

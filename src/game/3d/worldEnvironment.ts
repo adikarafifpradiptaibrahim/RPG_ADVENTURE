@@ -2145,11 +2145,11 @@ export function buildWorldEnvironment(
   const pineFoliageMesh3 = new THREE.InstancedMesh(pineConeGeo3, matPineFoliage, PINE_COUNT);
 
   function isNearBridge(x: number, z: number, dist = 16.0): boolean {
-    if (Math.hypot(x - -195, z - -210) < dist + 4.0) return true; // Bridge 1 (NW Astraea Highway)
-    if (Math.hypot(x - 38, z - 22) < dist + 4.0) return true;     // Bridge 2 (Central Suspension Bridge)
-    if (Math.hypot(x - 190, z - 15) < dist + 4.0) return true;    // Bridge 4 (Puing Kastil Access)
-    if (Math.hypot(x - 335, z - 38) < dist + 4.0) return true;    // Bridge 3 (Val-Kragor Access)
-    if (Math.hypot(x - 430, z - 25) < dist + 4.0) return true;    // Bridge 5 (Moss Valley Access)
+    if (Math.hypot(x - -190, z - -230) < dist + 4.0) return true; // Bridge 1 (Astraea Highway)
+    if (Math.hypot(x - -30, z - 110) < dist + 4.0) return true;   // Bridge 2 (Central Suspension Bridge)
+    if (Math.hypot(x - 290, z - 65) < dist + 4.0) return true;    // Bridge 3 (Val-Kragor Access)
+    if (Math.hypot(x - 465, z - 30) < dist + 4.0) return true;    // Bridge 4 (Moss Valley Access)
+    if (Math.abs(x - -70) < 12.0 && z >= 220 && z <= 305) return true; // Bridge 5 (Caldera Pier Bridge)
     return false;
   }
 

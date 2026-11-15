@@ -2425,6 +2425,11 @@ export class GameEngine {
       this.spectatorPos.z += (moveZ / len) * moveDist;
     }
 
+    // Clamp spectator camera to calibrated world scale (1200 x 950)
+    this.spectatorPos.x = Math.max(-600, Math.min(600, this.spectatorPos.x));
+    this.spectatorPos.z = Math.max(-600, Math.min(350, this.spectatorPos.z));
+    this.spectatorPos.y = Math.max(-5, Math.min(300, this.spectatorPos.y));
+
     this.camera.position.copy(this.spectatorPos);
     const lookTarget = this.spectatorPos.clone().add(new THREE.Vector3(fwdX, fwdY, fwdZ));
     this.camera.lookAt(lookTarget);
@@ -5837,11 +5842,11 @@ export class GameEngine {
             }
           }
 
-          // Clamp to expanded world boundaries (-580..680, -580..460)
+          // Clamp to expanded world boundaries (-595..595, -595..345)
           let targetX = startPos.x + blinkDir.x * maxDist;
           let targetZ = startPos.z + blinkDir.z * maxDist;
-          targetX = Math.max(-580, Math.min(680, targetX));
-          targetZ = Math.max(-580, Math.min(460, targetZ));
+          targetX = Math.max(-595, Math.min(595, targetX));
+          targetZ = Math.max(-595, Math.min(345, targetZ));
 
           // Resolve collisions so player never blinks inside walls or buildings
           const resolved = this.resolveCollisions(targetX, targetZ);
@@ -6936,11 +6941,11 @@ export class GameEngine {
       this.playerVel.z *= 0.96;
     }
 
-    // Expanded World boundary constraints (Spans all biomes from X[-580..680] and Z[-580..460])
-    if (nextX < -580) nextX = -580;
-    if (nextX > 680) nextX = 680;
-    if (nextZ < -580) nextZ = -580;
-    if (nextZ > 460) nextZ = 460;
+    // Expanded World boundary constraints (Spans all biomes from X[-600..600] and Z[-600..350])
+    if (nextX < -595) nextX = -595;
+    if (nextX > 595) nextX = 595;
+    if (nextZ < -595) nextZ = -595;
+    if (nextZ > 345) nextZ = 345;
 
     this.playerPos.x = nextX;
     this.playerPos.z = nextZ;

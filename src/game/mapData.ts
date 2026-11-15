@@ -34,8 +34,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A heavily fortified stronghold with stone ramparts, corner watchtowers, garrison keep, and spiked defense barricades situated in the open eastern plains.',
     descriptionId: 'Desa benteng pertahanan mandiri di padang rumput tenggara yang lapang! Dilengkapi tembok slate kokoh, menara pengawas, barikade runcing, dan markas Komandan Brann.',
     color: '#64748b',
-    bounds: { minX: 280, maxX: 350, minZ: 60, maxZ: 130 },
-    center: [315, 95],
+    bounds: { minX: 290, maxX: 370, minZ: 60, maxZ: 130 },
+    center: [330, 95],
     recommendedLevel: 4,
   },
   {
@@ -46,8 +46,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A colossal imperial metropolis situated across the peaceful north-west plains, featuring the grand Sun Palace, towering marble colonnades, royal bazaar, and the Fountain of Immortality.',
     descriptionId: 'Ibukota kerajaan emas megah di dataran padang rumput barat laut yang damai! Gerbang Barat megah, Istana Kaisar Aurelius, dan alun-alun marmer putih berair mancur abadi.',
     color: '#fbbf24',
-    bounds: { minX: -290, maxX: -200, minZ: -250, maxZ: -170 },
-    center: [-250, -210],
+    bounds: { minX: -300, maxX: -220, minZ: -270, maxZ: -190 },
+    center: [-260, -230],
     recommendedLevel: 5,
   },
   {
@@ -58,8 +58,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A crystalline glacial mountain lake surrounded by snow-capped peaks in the far northwest, headwaters of the Eldorian rivers.',
     descriptionId: 'Danau purba berair biru jernih di kaki pegunungan salju barat laut, hulu utama aliran sungai Eldoria.',
     color: '#38bdf8',
-    bounds: { minX: -320, maxX: -200, minZ: -480, maxZ: -360 },
-    center: [-260, -420],
+    bounds: { minX: -370, maxX: -250, minZ: -540, maxZ: -420 },
+    center: [-310, -480],
     recommendedLevel: 8,
   },
   {
@@ -70,8 +70,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'Sheer towering terracotta canyon cliffs and sandstone mesas in the far northern reaches.',
     descriptionId: 'Jurang bebatuan cadas merah terjal dan tebing sandstone di perbatasan gurun paling utara benua.',
     color: '#ea580c',
-    bounds: { minX: 50, maxX: 170, minZ: -550, maxZ: -430 },
-    center: [110, -490],
+    bounds: { minX: 100, maxX: 220, minZ: -590, maxZ: -490 },
+    center: [160, -540],
     recommendedLevel: 9,
   },
   {
@@ -82,8 +82,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'Dense dark spruce wilderness draped in perpetual mysterious fog in the eastern hills.',
     descriptionId: 'Hutan pinus lebat yang senantiasa diselimuti kabut tebal misterius di perbukitan timur.',
     color: '#15803d',
-    bounds: { minX: 290, maxX: 380, minZ: -190, maxZ: -90 },
-    center: [335, -140],
+    bounds: { minX: 330, maxX: 430, minZ: -210, maxZ: -110 },
+    center: [380, -160],
     recommendedLevel: 4,
   },
   {
@@ -94,8 +94,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'Ancient dilapidated castle walls, broken watchtowers, and weathered slate courtyards.',
     descriptionId: 'Reruntuhan kastil megah masa lalu dengan benteng runtuh dan pilar batu kuno berlumut.',
     color: '#64748b',
-    bounds: { minX: 190, maxX: 260, minZ: -70, maxZ: 0 },
-    center: [225, -35],
+    bounds: { minX: 180, maxX: 260, minZ: -60, maxZ: 0 },
+    center: [220, -30],
     recommendedLevel: 5,
   },
   {
@@ -106,8 +106,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A secluded sanctuary of giant mossy megaliths, blooming glade flora, and glowing spores.',
     descriptionId: 'Lembah tersembunyi penuh gugusan batu purba berlumut dan pendar spora mistis.',
     color: '#65a30d',
-    bounds: { minX: 420, maxX: 490, minZ: 0, maxZ: 70 },
-    center: [455, 35],
+    bounds: { minX: 470, maxX: 560, minZ: -10, maxZ: 60 },
+    center: [510, 20],
     recommendedLevel: 5,
   },
   {
@@ -118,7 +118,7 @@ export const REGIONS: RegionInfo[] = [
     description: 'Endless rolling golden sand dunes, the bustling mud-brick Desert Village of Solaria, the Grand Palace of Sultan Malik, and the ancient pharaoh pyramid.',
     descriptionId: 'Hamparan padang pasir emas di wilayah utara dan timur benua! Menampung Piramida Emas, Oase Solaria, dan Istana Megah Sultan Malik.',
     color: '#eab308',
-    bounds: { minX: -80, maxX: 560, minZ: -540, maxZ: -100 },
+    bounds: { minX: -60, maxX: 560, minZ: -540, maxZ: -100 },
     center: [160, -280],
     recommendedLevel: 6,
   },
@@ -130,8 +130,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A blistering volcanic hellscape across the southern ocean featuring smoking magma pools, scorched basalt arches, and the primal dragon nest.',
     descriptionId: 'Wilayah pulau vulkanik berbahaya di seberang laut selatan! Aliran lahar pijar mendidih, kawah melingkar obsidian, dan arena pertarungan Boss Naga Purba Ignis.',
     color: '#dc2626',
-    bounds: { minX: -150, maxX: -20, minZ: 200, maxZ: 330 },
-    center: [-85, 265],
+    bounds: { minX: -130, maxX: -10, minZ: 240, maxZ: 350 },
+    center: [-70, 300],
     recommendedLevel: 10,
   },
   {
@@ -142,8 +142,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A colossal sinkhole depression in the eastern desert dunes, domain of the legendary Devourer Sandworm Jarrus.',
     descriptionId: 'Kawah pusaran pasir raksasa yang curam di pedalaman timur laut Gurun Solaria, arena World Boss Cacing Purba Jarrus.',
     color: '#ea580c',
-    bounds: { minX: 180, maxX: 270, minZ: -420, maxZ: -340 },
-    center: [225, -380],
+    bounds: { minX: 200, maxX: 300, minZ: -440, maxZ: -340 },
+    center: [255, -390],
     recommendedLevel: 10,
   },
 ];
@@ -158,7 +158,7 @@ export const WAYPOINTS: {
 }[] = [
   {
     id: 'wp_village',
-    nameId: 'Desa Utama Sanctuary Eldoria',
+    nameId: 'Desa Utama & Padang Rumput Eldoria',
     regionId: 'desa_eldoria',
     icon: '🏡',
     pos: [25, 135],
@@ -166,10 +166,10 @@ export const WAYPOINTS: {
   },
   {
     id: 'wp_harbor',
-    nameId: 'Dermaga & Pelabuhan Sanctuary',
+    nameId: 'Pelabuhan Sanctuary',
     regionId: 'desa_eldoria',
     icon: '⛵',
-    pos: [-135, 145],
+    pos: [-145, 175],
     desc: 'Pelabuhan pesisir selatan menghadap langsung ke Samudra Azure terbuka',
   },
   {
@@ -177,15 +177,15 @@ export const WAYPOINTS: {
     nameId: 'Lembah Danau Titan Kuno',
     regionId: 'danau_titan',
     icon: '🏔️',
-    pos: [-260, -420],
-    desc: 'Danau purba berair jernih di kaki pegunungan salju barat laut',
+    pos: [-310, -480],
+    desc: 'Danau purba berair jernih di ketinggian pegunungan salju barat laut',
   },
   {
     id: 'wp_astraea',
-    nameId: 'Ibukota Kerajaan Emas Astraea',
+    nameId: 'Ibukota Kerajaan Emas Astraea & Istana Kaisar',
     regionId: 'kerajaan_astraea',
     icon: '👑',
-    pos: [-250, -210],
+    pos: [-260, -230],
     desc: 'Ibukota megah berdinding marmer emas dan tahta Kaisar Aurelius',
   },
   {
@@ -193,23 +193,23 @@ export const WAYPOINTS: {
     nameId: 'Kanyon Kuno',
     regionId: 'ancient_canyon',
     icon: '🏜️',
-    pos: [110, -490],
-    desc: 'Tebing cadas merah dan jurang sandstone terjal di utara',
+    pos: [160, -540],
+    desc: 'Tebing bebatuan cadas merah terjal bertingkat di perbatasan utara gurun',
   },
   {
     id: 'wp_pyramid',
     nameId: 'Piramida Emas Solaria',
     regionId: 'gurun_solaria',
-    icon: '🏜️',
-    pos: [10, -340],
-    desc: 'Monumen piramida batu pasir kuno di tengah bukit pasir emas Solaria',
+    icon: '🏛️',
+    pos: [30, -350],
+    desc: 'Monumen piramida emas kuno di tengah bukit pasir emas Solaria',
   },
   {
     id: 'wp_oasis',
     nameId: 'Oase Solaria',
     regionId: 'gurun_solaria',
     icon: '🌴',
-    pos: [55, -250],
+    pos: [85, -230],
     desc: 'Sumber mata air tawar pirus segar dinaungi pohon kurma di gurun tengah',
   },
   {
@@ -217,7 +217,7 @@ export const WAYPOINTS: {
     nameId: 'Kawah Cacat World Boss (Lv. 10)',
     regionId: 'kawah_cacing_purba',
     icon: '🪱',
-    pos: [225, -380],
+    pos: [255, -390],
     desc: 'Arena kawah pasir hisap raksasa World Boss Cacing Purba Jarrus',
   },
   {
@@ -225,7 +225,7 @@ export const WAYPOINTS: {
     nameId: 'Istana Sultan Malik',
     regionId: 'gurun_solaria',
     icon: '🕌',
-    pos: [355, -440],
+    pos: [430, -460],
     desc: 'Kompleks istana kubah marmer emas megah di pojok timur laut benua',
   },
   {
@@ -233,7 +233,7 @@ export const WAYPOINTS: {
     nameId: 'Hutan Kabut Eldoria',
     regionId: 'hutan_kabut',
     icon: '🌲',
-    pos: [335, -140],
+    pos: [380, -160],
     desc: 'Hutan pinus lebat berkabut tebal misterius di perbukitan timur',
   },
   {
@@ -241,7 +241,7 @@ export const WAYPOINTS: {
     nameId: 'Puing Kastil Terbengkalai',
     regionId: 'puing_kastil',
     icon: '🏰',
-    pos: [225, -35],
+    pos: [220, -30],
     desc: 'Reruntuhan benteng kastil masa lalu dengan pilar batu slate runtuh',
   },
   {
@@ -249,7 +249,7 @@ export const WAYPOINTS: {
     nameId: 'Desa Benteng Val-Kragor',
     regionId: 'desa_valkragor',
     icon: '🛡️',
-    pos: [315, 95],
+    pos: [330, 95],
     desc: 'Benteng pertahanan tangguh di perbatasan padang rumput tenggara',
   },
   {
@@ -257,7 +257,7 @@ export const WAYPOINTS: {
     nameId: 'Lembah Batu Lumut',
     regionId: 'lembah_batu_lumut',
     icon: '🪨',
-    pos: [455, 35],
+    pos: [510, 20],
     desc: 'Lembah tersembunyi penuh gugusan batu purba berlumut di timur dekat sungai',
   },
   {
@@ -270,62 +270,62 @@ export const WAYPOINTS: {
   },
   {
     id: 'wp_dragoncaldera',
-    nameId: 'Kaldera Sarang Naga Purba',
+    nameId: 'Kaldera Sarang Naga',
     regionId: 'kaldera_naga_api',
     icon: '🐉',
-    pos: [-85, 265],
-    desc: 'Pulau kawah lava vulkanik di seberang laut selatan dan sarang Boss Naga Ignis',
+    pos: [-70, 300],
+    desc: 'Pulau kawah lava vulkanik di seberang laut selatan dan sarang Boss Naga',
   },
 ];
 
 export function getCurrentRegion(x: number, z: number): RegionInfo {
   // 1. Dragonfang Caldera & Volcano Island
-  if (Math.hypot(x - 80, z - 360) <= 85) {
+  if (Math.hypot(x - -70, z - 300) <= 65) {
     return REGIONS.find((r) => r.id === 'kaldera_naga_api') || REGIONS[10];
   }
 
-  // 2. Kawah Cacat World Boss [210, -360]
-  if (Math.hypot(x - 210, z - -360) <= 45) {
+  // 2. Kawah Cacat World Boss [255, -390]
+  if (Math.hypot(x - 255, z - -390) <= 55) {
     return REGIONS.find((r) => r.id === 'kawah_cacing_purba') || REGIONS[11];
   }
 
-  // 3. Danau Titan Kuno [-260, -450]
-  if (Math.hypot(x - -260, z - -450) <= 75) {
+  // 3. Danau Titan Kuno [-310, -480]
+  if (Math.hypot(x - -310, z - -480) <= 85) {
     return REGIONS.find((r) => r.id === 'danau_titan') || REGIONS[4];
   }
 
-  // 4. Astraea [-240, -220]
-  if (Math.hypot(x - -240, z - -220) <= 50) {
+  // 4. Astraea [-260, -230]
+  if (Math.hypot(x - -260, z - -230) <= 65) {
     return REGIONS.find((r) => r.id === 'kerajaan_astraea') || REGIONS[3];
   }
 
-  // 5. Kanyon Kuno [50, -520]
-  if (Math.hypot(x - 50, z - -520) <= 70) {
+  // 5. Kanyon Kuno [160, -540]
+  if (Math.hypot(x - 160, z - -540) <= 80) {
     return REGIONS.find((r) => r.id === 'ancient_canyon') || REGIONS[5];
   }
 
-  // 6. Hutan Kabut Eldoria [380, -140]
-  if (Math.hypot(x - 380, z - -140) <= 55) {
+  // 6. Hutan Kabut Eldoria [380, -160]
+  if (Math.hypot(x - 380, z - -160) <= 65) {
     return REGIONS.find((r) => r.id === 'hutan_kabut') || REGIONS[6];
   }
 
-  // 7. Puing Kastil Terbengkalai [230, -60]
-  if (Math.hypot(x - 230, z - -60) <= 38) {
+  // 7. Puing Kastil Terbengkalai [220, -30]
+  if (Math.hypot(x - 220, z - -30) <= 45) {
     return REGIONS.find((r) => r.id === 'puing_kastil') || REGIONS[7];
   }
 
-  // 8. Benteng Val-Kragor [330, 90]
-  if (Math.hypot(x - 330, z - 90) <= 45) {
+  // 8. Benteng Val-Kragor [330, 95]
+  if (Math.hypot(x - 330, z - 95) <= 50) {
     return REGIONS.find((r) => r.id === 'desa_valkragor') || REGIONS[2];
   }
 
-  // 9. Lembah Batu Lumut [480, 20]
-  if (Math.hypot(x - 480, z - 20) <= 45) {
+  // 9. Lembah Batu Lumut [510, 20]
+  if (Math.hypot(x - 510, z - 20) <= 50) {
     return REGIONS.find((r) => r.id === 'lembah_batu_lumut') || REGIONS[8];
   }
 
   // 10. South & East Ocean
-  if (z > 200 || x < -450 || (x > 495 && z > -50)) {
+  if (z > 215 || x < -520 || (x > 550 && z > -50)) {
     return REGIONS[1];
   }
 

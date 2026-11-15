@@ -202,14 +202,14 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   dirLight.shadow.bias = -0.001;
   scene.add(dirLight);
 
-  // 2.5x - 3x Expanded World Terrain specifications (Span: X[-680..820], Z[-660..540])
+  // 2.5x - 3x Expanded World Terrain specifications (Span: X[-750..750], Z[-725..475])
   const terrainWidth = 1500;
   const terrainDepth = 1200;
   const segmentsX = 384;
   const segmentsZ = 384;
   const terrainGeo = new THREE.PlaneGeometry(terrainWidth, terrainDepth, segmentsX, segmentsZ);
   terrainGeo.rotateX(-Math.PI / 2);
-  terrainGeo.translate(70, 0, -60); // Centered at x=70, z=-60 so all vast expanded biomes fit seamlessly
+  terrainGeo.translate(0, 0, -125); // Centered at x=0, z=-125 matching bounds X:[-600,600], Z:[-600,350]
 
   // Unified procedural height function from mapSampler
   const getProceduralHeight = (x: number, z: number): number => {
@@ -248,10 +248,10 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // Exact 3D rendered surface height calculation via barycentric triangle interpolation:
   // Guarantees that physics, character foot stepping, and object grounding align 100% with the rendered terrain polygon.
-  const minTerrainX = -680; // 70 - 750
-  const maxTerrainX = 820;  // 70 + 750
-  const minTerrainZ = -660; // -60 - 600
-  const maxTerrainZ = 540;  // -60 + 600
+  const minTerrainX = -750; // 0 - 750
+  const maxTerrainX = 750;  // 0 + 750
+  const minTerrainZ = -725; // -125 - 600
+  const maxTerrainZ = 475;  // -125 + 600
   const gridCellW = terrainWidth / segmentsX;
   const gridCellD = terrainDepth / segmentsZ;
   const gridX1 = segmentsX + 1;
@@ -290,18 +290,18 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return getProceduralHeight(x, z);
     }
 
-    // 1. Suspension bridge walkable deck corridor (Bridge 2 - Center, at [-30, 55])
-    if (Math.abs(z - 55) <= 2.4 && x >= -41 && x <= -19) {
+    // 1. Suspension bridge walkable deck corridor (Bridge 2 - Center, at [-30, 110])
+    if (Math.abs(z - 110) <= 2.4 && x >= -41 && x <= -19) {
       return 1.35;
     }
 
-    // 1b. Bridge 1 - Astraea Highway Stone Bridge (X: -160, Z: -210, deck Y = 0.45)
-    if (Math.abs(z - -210) <= 2.5 && x >= -173 && x <= -147) {
+    // 1b. Bridge 1 - Astraea Highway Stone Bridge (X: -190, Z: -230, deck Y = 0.45)
+    if (Math.abs(z - -230) <= 2.5 && x >= -203 && x <= -177) {
       return 0.45;
     }
 
-    // 1c. Bridge 3 - Val-Kragor Highway Stone Arch Bridge (X: 270, Z: 50, deck Y = 0.45)
-    if (Math.abs(x - 270) <= 2.5 && z >= 38 && z <= 62) {
+    // 1c. Bridge 3 - Val-Kragor Highway Stone Arch Bridge (X: 290, Z: 65, deck Y = 0.45)
+    if (Math.abs(x - 290) <= 2.5 && z >= 53 && z <= 77) {
       return 0.45;
     }
 
@@ -310,9 +310,14 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return 0.45;
     }
 
-    // 1e. Bridge 5 - Lembah Batu Lumut Stone Arch Bridge (X: 395, Z: 25, deck Y = 0.45)
-    if (Math.abs(x - 395) <= 2.5 && z >= 13 && z <= 37) {
+    // 1e. Bridge 5 - Lembah Batu Lumut Stone Arch Bridge (X: 465, Z: 30, deck Y = 0.45)
+    if (Math.abs(x - 465) <= 2.5 && z >= 18 && z <= 42) {
       return 0.45;
+    }
+
+    // 1f. Dragonfang Caldera Long Pier Bridge (X: -70, Z: 222..302, deck Y = 1.35)
+    if (Math.abs(x - -70) <= 2.8 && z >= 222 && z <= 302) {
+      return 1.35;
     }
 
     // 2. Coastal Wooden Harbor (Seamless Beach Connection, Extended Main Pier, Symmetrical Wings & Pier Head)
@@ -341,26 +346,26 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return 1.85; // Solid continuous wooden pier deck
     }
 
-    // 3. Relocated Fortress Val-Kragor Solid Courtyard (Center [315, 95], radius 38 at y = 2.00)
-    if (Math.hypot(x - 315, z - 95) <= 38) {
+    // 3. Relocated Fortress Val-Kragor Solid Courtyard (Center [330, 95], radius 38 at y = 2.00)
+    if (Math.hypot(x - 330, z - 95) <= 38) {
       return 2.00;
     }
 
-    // 4. Imperial Capital Astraea Courtyard & Esplanade (Center [-250, -210], radius 46 at y = 2.00)
-    if (Math.hypot(x - -250, z - -210) <= 46) {
+    // 4. Imperial Capital Astraea Courtyard & Esplanade (Center [-260, -230], radius 46 at y = 2.00)
+    if (Math.hypot(x - -260, z - -230) <= 46) {
       return 2.00;
     }
 
     // 5. Solaria Desert Village Bazaar & Grand Palace (Taj Mahal) Courtyard (y = 1.80..2.00)
-    if (Math.hypot(x - 55, z - -250) <= 35) return 0.50;
-    if (Math.hypot(x - 355, z - -440) <= 35) return 2.00;
+    if (Math.hypot(x - 85, z - -230) <= 35) return 0.50;
+    if (Math.hypot(x - 430, z - -460) <= 35) return 2.00;
     if (x >= 250 && x <= 370 && Math.abs(z - -280) <= 25) return 1.90;
 
-    // 6. Ancient Titan Sanctuary Basin Arena (Center [-196, -254], radius 40 at y = 0.20)
-    if (Math.hypot(x - -196, z - -254) <= 40) return 0.20;
+    // 6. Ancient Titan Sanctuary Basin Arena (Center [-310, -480], radius 40 at y = 0.20)
+    if (Math.hypot(x - -310, z - -480) <= 40) return 0.20;
 
-    // 7. Primal Dragonfang Caldera (Center [80, 360], radius 45 at y = 2.50)
-    if (Math.hypot(x - 80, z - 360) <= 45) return 2.50;
+    // 7. Primal Dragonfang Caldera (Center [-70, 300], radius 45 at y = 2.50)
+    if (Math.hypot(x - -70, z - 300) <= 45) return 2.50;
 
     // 8. Mage Tower Puncak Halilintar (Center [180, 60], radius 20 at y = 4.50)
     if (Math.hypot(x - 180, z - 60) <= 20) return 4.50;
@@ -1227,35 +1232,35 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 2.9 MISTY CHASM & SOLID SUSPENSION BRIDGE (JEMBATAN 2: JALUR TENGAH - X: -30, Z: 55)
-  // Membentang lurus di X: -41..-19 pada Z = 55 di atas Cabang Sungai Hilir Selatan.
+  // 2.9 MISTY CHASM & SOLID SUSPENSION BRIDGE (JEMBATAN 2: JALUR TENGAH - X: -30, Z: 110)
+  // Membentang lurus di X: -41..-19 pada Z = 110 di atas Cabang Sungai Hilir Selatan.
   // ==========================================
   const bridge = createSuspensionBridgeMesh(22);
-  bridge.position.set(-30, 1.35, 55);
+  bridge.position.set(-30, 1.35, 110);
   scene.add(bridge);
 
   const chasmStonePier = createStoneBridgePierMesh(4.4);
-  chasmStonePier.position.set(-30, -2.2, 55);
+  chasmStonePier.position.set(-30, -2.2, 110);
   scene.add(chasmStonePier);
 
   colliders.push(
-    { type: 'box', minX: -41, maxX: -19, minZ: 52.8, maxZ: 53.6, label: 'Pagar Jembatan Gantung Utara' },
-    { type: 'box', minX: -41, maxX: -19, minZ: 56.4, maxZ: 57.2, label: 'Pagar Jembatan Gantung Selatan' }
+    { type: 'box', minX: -41, maxX: -19, minZ: 107.8, maxZ: 108.6, label: 'Pagar Jembatan Gantung Utara' },
+    { type: 'box', minX: -41, maxX: -19, minZ: 111.4, maxZ: 112.2, label: 'Pagar Jembatan Gantung Selatan' }
   );
 
   // ==========================================
-  // 2.9c JEMBATAN 1: JALUR BARAT / ASTRAEA HIGHWAY (X: -160, Z: -210)
+  // 2.9c JEMBATAN 1: JALUR BARAT / ASTRAEA HIGHWAY (X: -190, Z: -230)
   // ==========================================
   const bridge1West = createStoneArchBridgeMesh(26, 4.8, 2.7);
-  bridge1West.position.set(-160, 0.45, -210);
+  bridge1West.position.set(-190, 0.45, -230);
   bridge1West.rotation.y = 0;
   scene.add(bridge1West);
 
   // ==========================================
-  // 2.9d JEMBATAN 3: JALUR TIMUR / VAL-KRAGOR HIGHWAY (X: 270, Z: 50)
+  // 2.9d JEMBATAN 3: JALUR TIMUR / VAL-KRAGOR HIGHWAY (X: 290, Z: 65)
   // ==========================================
   const bridge3East = createStoneArchBridgeMesh(24, 4.8, 2.7);
-  bridge3East.position.set(270, 0.45, 50);
+  bridge3East.position.set(290, 0.45, 65);
   bridge3East.rotation.y = Math.PI / 2;
   scene.add(bridge3East);
 
@@ -1268,12 +1273,31 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   scene.add(bridge4Castle);
 
   // ==========================================
-  // 2.9f JEMBATAN 5: AKSES LEMBAH BATU LUMUT (X: 395, Z: 25)
+  // 2.9f JEMBATAN 5: AKSES LEMBAH BATU LUMUT (X: 465, Z: 30)
   // ==========================================
   const bridge5Moss = createStoneArchBridgeMesh(24, 4.8, 2.7);
-  bridge5Moss.position.set(395, 0.45, 25);
+  bridge5Moss.position.set(465, 0.45, 30);
   bridge5Moss.rotation.y = Math.PI / 2;
   scene.add(bridge5Moss);
+
+  // ==========================================
+  // 2.9g JEMBATAN DERMAGA PANJANG KALDERA SARANG NAGA (X: -70, Z: 225..300)
+  // Menghubungkan pesisir Desa Utama/Pelabuhan (-70, 225) langsung ke pulau vulkanik Kaldera Sarang Naga (-70, 300)
+  // ==========================================
+  const calderaPier = createPierDockMesh({
+    length: 75,
+    width: 4.8,
+    pileDepth: 12,
+    hasLantern: true,
+    hasCrossBrace: true,
+  });
+  calderaPier.position.set(-70, -0.75, 225);
+  scene.add(calderaPier);
+
+  colliders.push(
+    { type: 'box', minX: -72.6, maxX: -72.2, minZ: 225, maxZ: 300, label: 'Pagar Dermaga Kaldera Barat' },
+    { type: 'box', minX: -67.8, maxX: -67.4, minZ: 225, maxZ: 300, label: 'Pagar Dermaga Kaldera Timur' }
+  );
 
   // 2.9b Jaringan Jalan Raya & Jalan Setapak Terstruktur Benua Eldoria (Road Network & Path System)
   // Menghubungkan Pelabuhan, Alun-Alun Sanctuary, Ibukota Astraea, Puncak Mage Tower,
@@ -2069,10 +2093,10 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 8. DRAGONFANG CALDERA & INFERNO ARCHIPELAGO (South Across Ocean: [-85, 265])
+  // 8. DRAGONFANG CALDERA & INFERNO ARCHIPELAGO (South Across Ocean: [-70, 300])
   // Arena Kaldera Naga: Kawah Melingkar (Diameter ~45m), 4 Pilar Obsidian Naga, Fosil Naga, & Lahar Pijar
   // ==========================================
-  const dragonArenaCenter = { x: -85, z: 265 };
+  const dragonArenaCenter = { x: -70, z: 300 };
   const dragonArenaBaseY = 2.50;
 
   // A. Monumental Dragon Fossil Skull & Ribcage (Placed at North Rim of Caldera)
@@ -2510,7 +2534,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { id: 'chest_solaria_palace', pos: [340, 2.0, -280] as [number, number, number] }, // Solaria Sultan Vault
     { id: 'chest_solaria', pos: [-20, 1.5, -320] as [number, number, number] }, // Solaria Pyramid Gold
     { id: 'chest_solaria_oasis', pos: [20, 0.5, -240] as [number, number, number] }, // Solaria Hidden Oasis
-    { id: 'chest_dragoncaldera', pos: [80, 2.5, 360] as [number, number, number] }, // Dragon Caldera Hoard
+    { id: 'chest_dragoncaldera', pos: [-70, 2.5, 300] as [number, number, number] }, // Dragon Caldera Hoard
     { id: 'chest_astraea', pos: [-220, 2.0, -220] as [number, number, number] }, // Astraea Imperial Vault
     { id: 'chest_harbor_galleon', pos: [19.5, 0, 221] as [number, number, number] }, // Harbor Galleon Stash
     { id: 'chest_bridge', pos: [135, 1.35, 47] as [number, number, number] }, // Gorge Suspension Bridge Cache
@@ -2933,7 +2957,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_harbor',
       name: 'Sanctuary Coastal Harbor',
       nameId: 'Dermaga & Pelabuhan Sanctuary',
-      pos: [-135, 145],
+      pos: [-145, 175],
     },
     {
       id: 'wp_sacred_spring',
@@ -2945,19 +2969,19 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_titan',
       name: 'Ancient Titan Lake Valley',
       nameId: 'Lembah Danau Titan Kuno',
-      pos: [-260, -420],
+      pos: [-310, -480],
     },
     {
       id: 'wp_astraea',
       name: 'Grand Imperial Capital Astraea',
       nameId: 'Ibukota Kerajaan Emas Astraea',
-      pos: [-250, -210],
+      pos: [-260, -230],
     },
     {
       id: 'wp_valkragor',
       name: 'Val-Kragor Fortress Plaza',
       nameId: 'Alun-Alun Benteng Val-Kragor',
-      pos: [315, 95],
+      pos: [330, 95],
     },
     {
       id: 'wp_thunderpeak',
@@ -2975,55 +2999,55 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_solaria_palace',
       name: 'Solaria Grand Sultan Palace',
       nameId: 'Istana Sultan Malik',
-      pos: [355, -440],
+      pos: [430, -460],
     },
     {
       id: 'wp_solaria',
       name: 'Solaria Golden Desert Pyramid',
       nameId: 'Piramida Emas Solaria',
-      pos: [10, -340],
+      pos: [30, -350],
     },
     {
       id: 'wp_solaria_oasis',
       name: 'Solaria Hidden Oasis',
       nameId: 'Oase Solaria',
-      pos: [55, -250],
+      pos: [85, -230],
     },
     {
       id: 'wp_dragoncaldera',
       name: 'Primal Dragonfang Caldera',
       nameId: 'Kaldera Sarang Naga Purba',
-      pos: [-85, 265],
+      pos: [-70, 300],
     },
     {
       id: 'wp_sandworm',
       name: 'The Great Solaria Sinkhole',
       nameId: 'Kawah Cacat World Boss (Lv. 10)',
-      pos: [225, -380],
+      pos: [255, -390],
     },
     {
       id: 'wp_canyon',
       name: 'Ancient Canyon',
       nameId: 'Kanyon Kuno',
-      pos: [110, -490],
+      pos: [160, -540],
     },
     {
       id: 'wp_mist_forest',
       name: 'Eldoria Mist Forest',
       nameId: 'Hutan Kabut Eldoria',
-      pos: [335, -140],
+      pos: [380, -160],
     },
     {
       id: 'wp_abandoned_castle',
       name: 'Abandoned Castle Ruins',
       nameId: 'Puing Kastil Terbengkalai',
-      pos: [225, -35],
+      pos: [220, -30],
     },
     {
       id: 'wp_moss_valley',
       name: 'Moss Rock Valley',
       nameId: 'Lembah Batu Lumut',
-      pos: [455, 35],
+      pos: [510, 20],
     },
   ];
 
