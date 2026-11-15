@@ -18,9 +18,10 @@ import { MapMarker, RegionInfo } from '../types/game';
 import { REGIONS, WAYPOINTS } from '../game/mapData';
 import { getContinentBiomeSample, getBiomeAt } from '../game/mapSampler';
 import { drawRoadsOnWorldMap } from '../game/RoadSystem';
+import { renderIllustratedMap } from '../game/mapIllustratedRenderer';
 
 // Persistent continent map cached image data to eliminate all lag on open & pan
-const MAP_CACHE_VERSION = 'v10.0_target_continent_alignment';
+const MAP_CACHE_VERSION = 'v12.0_vector_illustrated_continent';
 let cachedMapVersion = '';
 let cachedMapImageData: ImageData | null = null;
 
@@ -529,7 +530,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
 
   const playerScreen = worldToScreen(playerPos.x, playerPos.z);
 
-  // Render Topographical Continent Landscape once (cached for instant reopening and zero-lag dragging)
+  // Render High-Resolution Vector Illustrated Continent Map (Smooth anti-aliased curves & illustrated landmarks)
   useEffect(() => {
     if (!isOpen) return;
     const canvas = canvasRef.current;
@@ -540,115 +541,8 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
     const width = canvas.width;
     const height = canvas.height;
 
-    // Use cached image data if already generated
-    if (cachedMapVersion === MAP_CACHE_VERSION && cachedMapImageData && cachedMapImageData.width === width && cachedMapImageData.height === height) {
-      ctx.putImageData(cachedMapImageData, 0, 0);
-      drawRoadsOnWorldMap(ctx, width, height, minX, maxX, minZ, maxZ);
-      return;
-    }
-
     ctx.clearRect(0, 0, width, height);
-    const imgData = ctx.createImageData(width, height);
-    const pixels = imgData.data;
-
-    // Direct pixel block sampling across the entire continent using getBiomeAt(wx, wz)
-    const step = 2; // Crisp resolution
-
-    for (let py = 0; py < height; py += step) {
-      const v = py / height;
-      const wz = minZ + v * (maxZ - minZ);
-
-      for (let px = 0; px < width; px += step) {
-        const u = px / width;
-        const wx = minX + u * (maxX - minX);
-
-        // Direct mathematical biome evaluation
-        const zone = getBiomeAt(wx, wz);
-        const sample = getContinentBiomeSample(wx, wz);
-
-        let [r, g, b] = sample.color;
-
-        // Apply exact requested 4-biome canvas palette
-        if (
-          !sample.isPath &&
-          sample.biomeId !== 'ship_deck' &&
-          sample.biomeId !== 'harbor_pier' &&
-          sample.biomeId !== 'river_water' &&
-          sample.biomeId !== 'river_bank' &&
-          sample.biomeId !== 'sacred_spring' &&
-          sample.biomeId !== 'colosseum_arena' &&
-          sample.biomeId !== 'titan_lake' &&
-          sample.biomeId !== 'titan_shore' &&
-          sample.biomeId !== 'snowy_peak' &&
-          sample.biomeId !== 'mountain_rock' &&
-          sample.biomeId !== 'ancient_canyon' &&
-          sample.biomeId !== 'mist_forest' &&
-          sample.biomeId !== 'abandoned_castle' &&
-          sample.biomeId !== 'moss_valley' &&
-          sample.biomeId !== 'astraea_castle' &&
-          sample.biomeId !== 'sw_forest'
-        ) {
-          switch (zone.id) {
-            case 'ocean':
-              r = 2; g = 132; b = 199; // #0284c7 (Biru Laut Tropis Terbuka)
-              break;
-            case 'volcano':
-              if (sample.biomeId === 'dragon_magma') {
-                r = 220; g = 38; b = 38; // #dc2626 (Magma)
-              } else {
-                r = 28; g = 25; b = 23; // #1c1917 (Obsidian / Basalt)
-              }
-              break;
-            case 'desert':
-              r = 234; g = 179; b = 8; // #eab308 (Kuning Emas)
-              break;
-            case 'plains':
-            default:
-              r = 101; g = 163; b = 13; // #65a30d (Hijau Rumput Cerah)
-              break;
-          }
-        }
-
-        // Beach sand fringe along natural south and west coastlines
-        const southCoastZ = 190 + Math.sin(wx * 0.012) * 20 + Math.cos(wx * 0.035) * 8;
-        const westCoastX = -460 + Math.sin(wz * 0.015) * 35 + Math.cos(wz * 0.04) * 15;
-        const isNearCoast = (wz >= southCoastZ - 8 && wz <= southCoastZ + 3 && wx >= westCoastX) ||
-                            (wx >= westCoastX - 3 && wx <= westCoastX + 10 && wz <= southCoastZ);
-        if (isNearCoast && sample.height < 0.6 && !sample.isPath) {
-          r = 254; g = 215; b = 170;
-        }
-
-        // Dynamic hillshade sun angle (sun from North-West)
-        const sunDot = 1.0 + (sample.slope * 0.42 * (u - v));
-        const shade = Math.max(0.70, Math.min(1.30, sunDot));
-        r = Math.min(255, Math.max(0, Math.round(r * shade)));
-        g = Math.min(255, Math.max(0, Math.round(g * shade)));
-        b = Math.min(255, Math.max(0, Math.round(b * shade)));
-
-        // Topographical elevation contours
-        if (sample.height > 0.5 && Math.abs(sample.height % 3.0) < 0.28) {
-          r = Math.min(255, r + 35);
-          g = Math.min(255, g + 35);
-          b = Math.min(255, b + 45);
-        }
-
-        for (let dy = 0; dy < step && py + dy < height; dy++) {
-          const rowOff = (py + dy) * width * 4;
-          for (let dx = 0; dx < step && px + dx < width; dx++) {
-            const idx = rowOff + (px + dx) * 4;
-            pixels[idx] = r;
-            pixels[idx + 1] = g;
-            pixels[idx + 2] = b;
-            pixels[idx + 3] = 255;
-          }
-        }
-      }
-    }
-
-    cachedMapVersion = MAP_CACHE_VERSION;
-    cachedMapImageData = imgData;
-    ctx.putImageData(imgData, 0, 0);
-    drawRoadsOnWorldMap(ctx, width, height, minX, maxX, minZ, maxZ);
+    renderIllustratedMap(ctx, width, height, { minX, maxX, minZ, maxZ });
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -729,8 +623,8 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
               {/* Real-time Topographical Biome Canvas */}
               <canvas
                 ref={canvasRef}
-                width={560}
-                height={420}
+                width={1120}
+                height={840}
                 className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                 style={{
                   pointerEvents: 'none',
@@ -742,7 +636,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 } as React.CSSProperties}
               />
 
-              {/* THEMATIC LOCATION PIN ICONS WITH TITLES MATCHING TARGET MAP */}
+              {/* CLEAN THEMATIC LOCATION PIN ICONS WITHOUT CLUTTER (Labels are rendered directly on vector canvas) */}
               {LANDMARKS.map((lm) => {
                 const sp = worldToScreen(lm.x, lm.z);
                 if (!sp.visible) return null;
@@ -762,36 +656,23 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                     onMouseLeave={() => setHoveredLandmark(null)}
                     style={{ left: sp.left, top: sp.top }}
                     className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer pointer-events-auto flex flex-col items-center group"
+                    title={lm.nameId}
                   >
                     <div
                       className={`relative flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full transition-all duration-150 ${
                         isHovered || isInspected ? 'scale-125 z-30 shadow-2xl' : 'hover:scale-115 shadow-md'
                       }`}
                       style={{
-                        backgroundColor: lm.isBoss ? 'rgba(127, 29, 29, 0.95)' : 'rgba(28, 25, 23, 0.92)',
+                        backgroundColor: lm.isBoss ? 'rgba(185, 28, 28, 0.95)' : 'rgba(15, 23, 42, 0.9)',
                         border: `2px solid ${lm.color}`,
                         boxShadow: isHovered || isInspected ? `0 0 16px ${lm.color}` : '0 3px 8px rgba(0,0,0,0.6)',
                       }}
                     >
                       {lm.isBoss && (
-                        <div className="absolute inset-0 rounded-full bg-red-500/35 animate-ping pointer-events-none" />
+                        <div className="absolute inset-0 rounded-full bg-red-500/40 animate-ping pointer-events-none" />
                       )}
                       <span className="text-xs sm:text-sm select-none">{lm.icon}</span>
                     </div>
-
-                    {/* Permanent Location Title Label (Identical to image_140d54.png) */}
-                    <span
-                      className={`mt-1 px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-sans font-bold whitespace-nowrap select-none pointer-events-none transition-all duration-150 ${
-                        isHovered || isInspected
-                          ? 'bg-stone-950/95 text-amber-300 border border-amber-400 shadow-xl scale-105 z-35'
-                          : 'bg-stone-950/75 text-stone-200 border border-stone-800/80 shadow'
-                      }`}
-                      style={{
-                        textShadow: '0 1px 2px rgba(0,0,0,0.95)',
-                      }}
-                    >
-                      {lm.nameId}
-                    </span>
                   </div>
                 );
               })}
