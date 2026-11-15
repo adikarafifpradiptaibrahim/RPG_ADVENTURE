@@ -226,10 +226,10 @@ export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
   const xw = x + wx;
   const zw = z + wz;
 
-  // Cape/Tanjung di selatan Desa Utama [20, 130]
-  const distToVillage = Math.hypot(x - 20, z - 130);
-  const cape = Math.max(0, 1.0 - distToVillage / 85) * 26;
-  const southCoastZ = 185 + Math.sin(xw * 0.015) * 16 + Math.cos(xw * 0.04) * 8 + cape;
+  // Cape/Tanjung di selatan Desa Utama [22, 134] & Pelabuhan Sanctuary [20, 165..195]
+  const distToVillage = Math.hypot(x - 22, z - 134);
+  const cape = Math.max(0, 1.0 - distToVillage / 110) * 35;
+  const southCoastZ = 195 + Math.sin(xw * 0.015) * 14 + Math.cos(xw * 0.04) * 6 + cape;
   const westCoastX = -460 + Math.sin(zw * 0.018) * 30 + Math.cos(zw * 0.045) * 12;
 
   // Smooth natural bay curving east of Val-Kragor (eliminates any rectangular x > 495 cut)
@@ -308,9 +308,9 @@ export function getProceduralContinentHeight(x: number, z: number): number {
 
   // 2. ZONA OCEAN: Samudra & Laut Lepas Azure
   if (zone.id === 'ocean') {
-    const distToVillage = Math.hypot(x - 20, z - 130);
-    const cape = Math.max(0, 1.0 - distToVillage / 85) * 26;
-    const southCoastZ = 185 + Math.sin(xw * 0.015) * 16 + Math.cos(xw * 0.04) * 8 + cape;
+    const distToVillage = Math.hypot(x - 22, z - 134);
+    const cape = Math.max(0, 1.0 - distToVillage / 110) * 35;
+    const southCoastZ = 195 + Math.sin(xw * 0.015) * 14 + Math.cos(xw * 0.04) * 6 + cape;
     if (z >= southCoastZ && z <= southCoastZ + 15) {
       const t = (z - southCoastZ) / 15;
       return 0.2 - t * 2.8;
@@ -353,12 +353,12 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   }
 
   // 4. ZONA PLAINS: Padang Rumput Eldoria (Daratan Utama)
-  // 4a. Desa Utama & Padang Rumput Eldoria [20, 130]
-  const distVillage = Math.hypot(x - 20, z - 130);
-  if (distVillage <= 42) return 0.25;
+  // 4a. Desa Utama & Padang Rumput Eldoria [22, 134] (Daratan luas kering dan aman Z: 80 s.d 165)
+  const distVillage = Math.hypot(x - 22, z - 134);
+  if (distVillage <= 55) return 0.25;
 
-  // 4b. Pelabuhan Sanctuary [20, 175..200]
-  if (Math.abs(x - 20) <= 12 && z >= 165 && z <= 200) return 0.35;
+  // 4b. Pelabuhan Sanctuary [20, 165..200]
+  if (Math.abs(x - 20) <= 16 && z >= 165 && z <= 200) return 0.35;
 
   // 4c. Lembah Danau Titan Kuno [-260, -450] (Danau Biru Luas di Ketinggian)
   const distTitanLake = Math.hypot(x - -260, z - -450);

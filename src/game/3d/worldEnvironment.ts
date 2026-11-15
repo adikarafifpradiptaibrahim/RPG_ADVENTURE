@@ -3038,20 +3038,23 @@ export interface MapCalibrationAnchor {
 }
 
 export const MAP_CALIBRATION_ANCHORS: MapCalibrationAnchor[] = [
-  { name: 'Danau Titan', x: -260, z: -450, px: 24, py: 15 },
-  { name: 'Astraea', x: -240, z: -220, px: 23, py: 37 },
-  { name: 'Kanyon Kuno', x: 50, z: -520, px: 62, py: 8 },
-  { name: 'Piramida', x: -20, z: -320, px: 52, py: 24 },
-  { name: 'Oase', x: 20, z: -240, px: 55, py: 33 },
-  { name: 'Kawah Boss', x: 210, z: -360, px: 72, py: 20 },
-  { name: 'Sultan Malik', x: 360, z: -440, px: 85, py: 12 },
-  { name: 'Hutan Kabut', x: 380, z: -140, px: 84, py: 43 },
-  { name: 'Puing Kastil', x: 230, z: -60, px: 72, py: 53 },
-  { name: 'Val-Kragor', x: 330, z: 90, px: 81, py: 68 },
-  { name: 'Batu Lumut', x: 480, z: 20, px: 93, py: 57 },
-  { name: 'Pelabuhan', x: -180, z: 165, px: 33, py: 75 },
-  { name: 'Desa Utama', x: 20, z: 130, px: 52, py: 75 },
-  { name: 'Kaldera Naga', x: -100, z: 290, px: 41, py: 88 },
+  // 4 Titik Jangkar Utama terkalibrasi presisi:
+  { name: 'Desa Utama Eldoria', x: 22, z: 134, px: 52.5, py: 70.0 },
+  { name: 'Ibukota Kerajaan Emas Astraea', x: -240, z: -220, px: 23.5, py: 37.5 },
+  { name: 'Kawah Cacat World Boss Lv. 10', x: 210, z: -360, px: 73.5, py: 20.0 },
+  { name: 'Desa Benteng Val-Kragor', x: 330, z: 90, px: 82.0, py: 67.5 },
+
+  // Titik Jangkar Wilayah Terkait:
+  { name: 'Lembah Danau Titan Kuno', x: -260, z: -450, px: 24.0, py: 15.0 },
+  { name: 'Kanyon Kuno', x: 50, z: -520, px: 62.0, py: 8.0 },
+  { name: 'Piramida Emas Solaria', x: -20, z: -320, px: 52.0, py: 24.0 },
+  { name: 'Oase Solaria', x: 20, z: -240, px: 55.0, py: 33.0 },
+  { name: 'Istana Sultan Malik', x: 360, z: -440, px: 85.0, py: 12.0 },
+  { name: 'Hutan Kabut Eldoria', x: 380, z: -140, px: 84.0, py: 43.0 },
+  { name: 'Puing Kastil Terbengkalai', x: 230, z: -60, px: 72.0, py: 53.0 },
+  { name: 'Lembah Batu Lumut', x: 480, z: 20, px: 93.0, py: 57.0 },
+  { name: 'Pelabuhan Sanctuary', x: -180, z: 165, px: 33.0, py: 75.0 },
+  { name: 'Kaldera Sarang Naga', x: -100, z: 290, px: 41.0, py: 88.0 },
 ];
 
 /**
@@ -3065,8 +3068,8 @@ export function worldToMapPercent(x: number, z: number): {
   left: string;
   top: string;
 } {
-  const basePX = 0.09406 * x + 50.69;
-  const basePY = 0.1018 * z + 58.38;
+  const basePX = 0.1054 * x - 0.0039 * z + 49.04;
+  const basePY = -0.0032 * x + 0.1014 * z + 58.03;
 
   let wSum = 0;
   let rXSum = 0;
@@ -3079,16 +3082,18 @@ export function worldToMapPercent(x: number, z: number): {
       return {
         xPercent: a.px,
         yPercent: a.py,
-        left: `${a.px}%`,
-        top: `${a.py}%`,
+        left: `${a.px.toFixed(2)}%`,
+        top: `${a.py.toFixed(2)}%`,
       };
     }
-    const aResX = a.px - (0.09406 * a.x + 50.69);
-    const aResY = a.py - (0.1018 * a.z + 58.38);
-    const w = 1 / Math.pow(d + 40, p);
+    const aBasePX = 0.1054 * a.x - 0.0039 * a.z + 49.04;
+    const aBasePY = -0.0032 * a.x + 0.1014 * a.z + 58.03;
+    const resX = a.px - aBasePX;
+    const resY = a.py - aBasePY;
+    const w = 1 / Math.pow(d + 35, p);
     wSum += w;
-    rXSum += w * aResX;
-    rYSum += w * aResY;
+    rXSum += w * resX;
+    rYSum += w * resY;
   }
 
   const xPercent = Math.max(0, Math.min(100, basePX + rXSum / wSum));
@@ -3113,8 +3118,8 @@ export function mapPercentToWorld(pctX: number, pctY: number): { x: number; z: n
     return { x: match.x, z: match.z };
   }
 
-  const x = (pctX - 50.69) / 0.09406;
-  const z = (pctY - 58.38) / 0.1018;
+  const x = (pctX - 49.04) / 0.1054;
+  const z = (pctY - 58.03) / 0.1014;
   return { x, z };
 }
 

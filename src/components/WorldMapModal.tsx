@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   X,
   Compass,
@@ -48,12 +48,72 @@ export interface MapLandmark {
 }
 
 export const WORLD_HOTSPOTS: WorldHotspot[] = [
+  // 4 Jangkar Utama Terkalibrasi Presisi:
+  {
+    id: 'desa_utama',
+    nameId: 'Desa Utama & Padang Rumput Eldoria',
+    nameEn: 'Sanctuary Village & Central Plains',
+    leftPct: 52.5,
+    topPct: 70.0,
+    worldX: 22,
+    worldZ: 134,
+    level: 1,
+    desc: 'Pemukiman sentral awal para petualang di padang rumput pesisir selatan Eldoria.',
+    waypointId: 'wp_village',
+    icon: '🏡',
+    color: '#65a30d',
+  },
+  {
+    id: 'astraea',
+    nameId: 'Ibukota Kerajaan Emas Astraea & Istana Kaisar',
+    nameEn: 'Imperial Capital Astraea & Sun Palace',
+    leftPct: 23.5,
+    topPct: 37.5,
+    worldX: -240,
+    worldZ: -220,
+    level: 5,
+    desc: 'Ibukota megah berpilar emas putih dan tahta Kaisar Aurelius di dataran barat laut.',
+    waypointId: 'wp_astraea',
+    icon: '👑',
+    color: '#fbbf24',
+  },
+  {
+    id: 'kawah_boss',
+    nameId: 'Kawah Cacat World Boss (Lv. 10)',
+    nameEn: 'Ancient Sandworm Sinkhole',
+    leftPct: 73.5,
+    topPct: 20.0,
+    worldX: 210,
+    worldZ: -360,
+    level: 10,
+    isBoss: true,
+    desc: 'Kawah pusaran pasir retak raksasa, arena pertarungan World Boss Cacing Purba Jarrus.',
+    waypointId: 'wp_boss_crater',
+    icon: '🪱',
+    color: '#ea580c',
+  },
+  {
+    id: 'valkragor',
+    nameId: 'Desa Benteng Val-Kragor',
+    nameEn: 'Fortress Village Val-Kragor',
+    leftPct: 82.0,
+    topPct: 67.5,
+    worldX: 330,
+    worldZ: 90,
+    level: 4,
+    desc: 'Desa benteng pertahanan batu dan kayu di padang rumput tenggara Eldoria.',
+    waypointId: 'wp_valkragor',
+    icon: '🛡️',
+    color: '#3b82f6',
+  },
+
+  // Landmark Pelengkap Terkalibrasi:
   {
     id: 'danau_titan',
     nameId: 'Lembah Danau Titan Kuno',
     nameEn: 'Ancient Titan Lake Valley',
-    leftPct: 24,
-    topPct: 15,
+    leftPct: 24.0,
+    topPct: 15.0,
     worldX: -260,
     worldZ: -450,
     level: 8,
@@ -63,25 +123,11 @@ export const WORLD_HOTSPOTS: WorldHotspot[] = [
     color: '#38bdf8',
   },
   {
-    id: 'astraea',
-    nameId: 'Ibukota Kerajaan Emas Astraea & Istana Kaisar',
-    nameEn: 'Imperial Capital Astraea & Sun Palace',
-    leftPct: 23,
-    topPct: 37,
-    worldX: -240,
-    worldZ: -220,
-    level: 5,
-    desc: 'Ibukota megah berpilar emas putih dan tahta Kaisar Aurelius di padang rumput barat laut.',
-    waypointId: 'wp_astraea',
-    icon: '👑',
-    color: '#fbbf24',
-  },
-  {
     id: 'kanyon_kuno',
     nameId: 'Kanyon Kuno',
     nameEn: 'Ancient Canyon',
-    leftPct: 62,
-    topPct: 8,
+    leftPct: 62.0,
+    topPct: 8.0,
     worldX: 50,
     worldZ: -520,
     level: 9,
@@ -94,8 +140,8 @@ export const WORLD_HOTSPOTS: WorldHotspot[] = [
     id: 'piramida_emas',
     nameId: 'Piramida Emas Solaria',
     nameEn: 'Solaria Golden Pyramid',
-    leftPct: 52,
-    topPct: 24,
+    leftPct: 52.0,
+    topPct: 24.0,
     worldX: -20,
     worldZ: -320,
     level: 6,
@@ -108,8 +154,8 @@ export const WORLD_HOTSPOTS: WorldHotspot[] = [
     id: 'oase_solaria',
     nameId: 'Oase Solaria',
     nameEn: 'Hidden Solaria Oasis',
-    leftPct: 55,
-    topPct: 33,
+    leftPct: 55.0,
+    topPct: 33.0,
     worldX: 20,
     worldZ: -240,
     level: 5,
@@ -119,26 +165,11 @@ export const WORLD_HOTSPOTS: WorldHotspot[] = [
     color: '#14b8a6',
   },
   {
-    id: 'kawah_boss',
-    nameId: 'Kawah Cacat World Boss (Lv. 10)',
-    nameEn: 'Ancient Sandworm Sinkhole',
-    leftPct: 72,
-    topPct: 20,
-    worldX: 210,
-    worldZ: -360,
-    level: 10,
-    isBoss: true,
-    desc: 'Kawah pusaran pasir retak raksasa, arena pertarungan World Boss Cacing Purba Jarrus.',
-    waypointId: 'wp_boss_crater',
-    icon: '🪱',
-    color: '#ea580c',
-  },
-  {
     id: 'istana_sultan',
     nameId: 'Istana Sultan Malik',
     nameEn: 'Sultan Malik Palace',
-    leftPct: 85,
-    topPct: 12,
+    leftPct: 85.0,
+    topPct: 12.0,
     worldX: 360,
     worldZ: -440,
     level: 7,
@@ -151,8 +182,8 @@ export const WORLD_HOTSPOTS: WorldHotspot[] = [
     id: 'hutan_kabut',
     nameId: 'Hutan Kabut Eldoria',
     nameEn: 'Eldoria Mist Forest',
-    leftPct: 84,
-    topPct: 43,
+    leftPct: 84.0,
+    topPct: 43.0,
     worldX: 380,
     worldZ: -140,
     level: 4,
@@ -165,8 +196,8 @@ export const WORLD_HOTSPOTS: WorldHotspot[] = [
     id: 'puing_kastil',
     nameId: 'Puing Kastil Terbengkalai',
     nameEn: 'Abandoned Castle Ruins',
-    leftPct: 72,
-    topPct: 53,
+    leftPct: 72.0,
+    topPct: 53.0,
     worldX: 230,
     worldZ: -60,
     level: 5,
@@ -176,25 +207,11 @@ export const WORLD_HOTSPOTS: WorldHotspot[] = [
     color: '#64748b',
   },
   {
-    id: 'valkragor',
-    nameId: 'Desa Benteng Val-Kragor',
-    nameEn: 'Fortress Village Val-Kragor',
-    leftPct: 81,
-    topPct: 68,
-    worldX: 330,
-    worldZ: 90,
-    level: 4,
-    desc: 'Desa benteng pertahanan batu dan kayu di padang rumput tenggara Eldoria.',
-    waypointId: 'wp_valkragor',
-    icon: '🛡️',
-    color: '#3b82f6',
-  },
-  {
     id: 'batu_lumut',
     nameId: 'Lembah Batu Lumut',
     nameEn: 'Moss Rock Valley',
-    leftPct: 93,
-    topPct: 57,
+    leftPct: 93.0,
+    topPct: 57.0,
     worldX: 480,
     worldZ: 20,
     level: 5,
@@ -207,8 +224,8 @@ export const WORLD_HOTSPOTS: WorldHotspot[] = [
     id: 'pelabuhan',
     nameId: 'Pelabuhan Sanctuary',
     nameEn: 'Sanctuary Harbor',
-    leftPct: 33,
-    topPct: 75,
+    leftPct: 33.0,
+    topPct: 75.0,
     worldX: -180,
     worldZ: 165,
     level: 1,
@@ -218,25 +235,11 @@ export const WORLD_HOTSPOTS: WorldHotspot[] = [
     color: '#06b6d4',
   },
   {
-    id: 'desa_utama',
-    nameId: 'Desa Utama & Padang Rumput Eldoria',
-    nameEn: 'Sanctuary Village & Central Plains',
-    leftPct: 52,
-    topPct: 75,
-    worldX: 20,
-    worldZ: 130,
-    level: 1,
-    desc: 'Pemukiman sentral awal para petualang di padang rumput pesisir selatan Eldoria.',
-    waypointId: 'wp_village',
-    icon: '🏡',
-    color: '#65a30d',
-  },
-  {
     id: 'sarang_naga',
     nameId: 'Kaldera Sarang Naga',
     nameEn: 'Dragonfang Caldera',
-    leftPct: 41,
-    topPct: 88,
+    leftPct: 41.0,
+    topPct: 88.0,
     worldX: -100,
     worldZ: 290,
     level: 10,
@@ -280,7 +283,6 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
   onClose,
   playerPos,
   currentRegion,
-  markers,
   unlockedCheckpoints = ['wp_village'],
   onFastTravel,
 }) => {
@@ -308,17 +310,6 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
 
   // HUD scale state
   const [hudScale, setHudScale] = useState<number>(1.0);
-
-  // Dynamic boss spawns not covered in preset hotspots
-  const dynamicBosses = useMemo(() => {
-    return markers.filter((marker) => {
-      if (marker.type === 'boss') {
-        if (WORLD_HOTSPOTS.some((h) => h.id === marker.id || h.nameId === marker.title)) return false;
-        return true;
-      }
-      return false;
-    });
-  }, [markers]);
 
   // Clamped Pan Handler
   const clampPan = useCallback((nx: number, ny: number, curScale: number) => {
@@ -637,7 +628,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                   draggable={false}
                 />
 
-                {/* OVERLAY INTERAKTIF: HOTSPOTS ELEGAN */}
+                {/* HOTSPOT AREA TRANSPARAN (INVISIBLE INTERACTIVE HITBOXES)
+                    Tidak ada pin lingkaran, gembok, atau teks buatan yang menimpa gambar.
+                    Pemain dapat mengarahkan kursor (hover) atau mengetuk (tap) area ilustrasi langsung. */}
                 {WORLD_HOTSPOTS.map((spot) => {
                   const isHovered = hoveredHotspot?.id === spot.id;
                   const isInspected = inspectedHotspot?.id === spot.id;
@@ -663,34 +656,17 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                       onMouseEnter={() => setHoveredHotspot(spot)}
                       onMouseLeave={() => setHoveredHotspot(null)}
                       style={{ left: `${spot.leftPct}%`, top: `${spot.topPct}%` }}
-                      className="absolute -translate-x-1/2 -translate-y-1/2 z-25 cursor-pointer pointer-events-auto flex flex-col items-center group"
+                      className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer pointer-events-auto flex flex-col items-center group"
                       title={spot.nameId}
                     >
-                      {/* Subtle Elegant Hotspot Pin */}
+                      {/* Invisible interactive circular hitbox - soft glow ring on hover/inspect only */}
                       <div
-                        className={`relative flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full transition-all duration-150 ${
+                        className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full transition-all duration-150 ${
                           isHovered || isInspected
-                            ? 'scale-125 z-30 shadow-2xl ring-2 ring-amber-300'
-                            : 'hover:scale-115 shadow-md'
+                            ? 'bg-amber-400/15 ring-2 ring-amber-400/60 shadow-[0_0_16px_rgba(251,191,36,0.35)]'
+                            : 'bg-transparent'
                         }`}
-                        style={{
-                          backgroundColor: spot.isBoss
-                            ? 'rgba(185, 28, 28, 0.85)'
-                            : isUnlocked
-                            ? 'rgba(8, 145, 178, 0.85)'
-                            : 'rgba(15, 23, 42, 0.75)',
-                          border: `2px solid ${isUnlocked ? '#38bdf8' : spot.color}`,
-                          boxShadow: isHovered || isInspected ? `0 0 14px ${spot.color}` : '0 2px 6px rgba(0,0,0,0.6)',
-                          backdropFilter: 'blur(2px)',
-                        }}
-                      >
-                        {spot.isBoss && (
-                          <div className="absolute inset-0 rounded-full bg-red-500/40 animate-ping pointer-events-none" />
-                        )}
-                        <span className="text-[11px] sm:text-xs select-none">
-                          {hasWaypoint && !isUnlocked ? '🔒' : spot.icon}
-                        </span>
-                      </div>
+                      />
 
                       {/* Desktop Hover Floating Info Card */}
                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center z-40 pointer-events-none animate-in fade-in duration-150">
@@ -741,27 +717,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                   );
                 })()}
 
-                {/* DYNAMIC BOSS SPAWN MARKERS (Only bosses not covered in WORLD_HOTSPOTS) */}
-                {dynamicBosses.map((marker) => {
-                  const { left, top } = worldToMapPercent(marker.x, marker.z);
-                  return (
-                    <div
-                      key={marker.id}
-                      style={{ left, top }}
-                      className="absolute -translate-x-1/2 -translate-y-1/2 z-22 pointer-events-none"
-                      title={marker.title}
-                    >
-                      <div className="relative flex items-center justify-center">
-                        <div className="absolute w-5 h-5 rounded-full bg-red-600/40 animate-ping" />
-                        <div className="w-5 h-5 rounded-full bg-red-600 border border-white shadow-xl flex items-center justify-center text-[10px] text-white font-bold drop-shadow">
-                          {marker.icon || '💀'}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* LIVE PLAYER PIN WITH HEADING ARROW */}
+                {/* LIVE PLAYER PIN WITH HEADING ARROW (SATU-SATUNYA PENANDA DINAMIS DI ATAS PETA) */}
                 <div
                   style={{ left: playerScreen.left, top: playerScreen.top }}
                   className="absolute -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none flex flex-col items-center"
