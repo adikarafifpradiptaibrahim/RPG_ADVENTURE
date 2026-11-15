@@ -44,8 +44,8 @@ export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
     width: 3.2,
     controlPoints: [
       [-40, 145],   // Alun-Alun Desa Utama
-      [-90, 155],
-      [-140, 165],  // Pelabuhan Sanctuary
+      [-35, 175],   // Pelabuhan Sanctuary (Langsung menempel di pesisir selatan desa)
+      [-120, 120],
       [-180, 120],
       [-220, 40],
       [-245, -60],
@@ -117,23 +117,6 @@ export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
     canvasStroke: '#d9be8b',
     canvasDash: [],
     canvasWidth: 3.4,
-  },
-
-  // E. JEMBATAN DERMAGA PENGHUBUNG KALDERA NAGA
-  {
-    id: 'caldera_pier_bridge',
-    name: 'Jembatan Dermaga Kayu Kaldera Naga',
-    biome: 'plains',
-    width: 5.0,
-    controlPoints: [
-      [-40, 185],   // Pesisir Pantai Daratan Utama
-      [-40, 235],   // Dek Terbuka di Atas Samudra
-      [-40, 285],   // Gerbang Masuk Kaldera Naga
-    ],
-    colorHex: 0x5d4037,
-    canvasStroke: '#5d4037',
-    canvasDash: [],
-    canvasWidth: 4.0,
   },
 ];
 

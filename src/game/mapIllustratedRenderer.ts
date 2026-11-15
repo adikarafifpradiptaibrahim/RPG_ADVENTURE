@@ -597,64 +597,35 @@ export function renderIllustratedMap(
   ctx.save();
   BRIDGE_CONFIGS.forEach((br) => {
     const [bx, by] = wToC(br.x, br.z);
-    const bLen = br.id === 'bridge_caldera_pier' ? Math.max(48, height * 0.075) : Math.max(16, width * 0.022);
+    const bLen = Math.max(18, width * 0.024);
     ctx.save();
     ctx.translate(bx, by);
     ctx.rotate(br.rotationY);
 
-    if (br.id === 'bridge_caldera_pier') {
-      // Long wooden pier across south ocean to Dragonfang Caldera
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-      ctx.fillRect(-5, -bLen / 2 - 1, 10, bLen + 2);
+    // Standard Bridge spanning perpendicularly across river
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.fillRect(-bLen / 2 - 1, -5, bLen + 2, 10);
 
-      ctx.fillStyle = '#78350f';
-      ctx.fillRect(-4, -bLen / 2, 8, bLen);
+    ctx.fillStyle = br.type === 'stone' ? '#94a3b8' : '#854d0e';
+    ctx.fillRect(-bLen / 2, -4, bLen, 8);
 
-      // Plank lines
-      ctx.strokeStyle = '#451a03';
-      ctx.lineWidth = 1.0;
-      for (let py = -bLen / 2 + 2; py <= bLen / 2 - 2; py += 4) {
-        ctx.beginPath();
-        ctx.moveTo(-4, py);
-        ctx.lineTo(4, py);
-        ctx.stroke();
-      }
-
-      // Railings
-      ctx.strokeStyle = '#92400e';
-      ctx.lineWidth = 1.4;
+    ctx.strokeStyle = br.type === 'stone' ? '#475569' : '#451a03';
+    ctx.lineWidth = 1.0;
+    for (let px = -bLen / 2 + 2; px <= bLen / 2 - 2; px += 3) {
       ctx.beginPath();
-      ctx.moveTo(-4, -bLen / 2);
-      ctx.lineTo(-4, bLen / 2);
-      ctx.moveTo(4, -bLen / 2);
-      ctx.lineTo(4, bLen / 2);
-      ctx.stroke();
-    } else {
-      // Standard Bridge
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-      ctx.fillRect(-bLen / 2 - 1, -5, bLen + 2, 10);
-
-      ctx.fillStyle = br.type === 'stone' ? '#94a3b8' : '#854d0e';
-      ctx.fillRect(-bLen / 2, -4, bLen, 8);
-
-      ctx.strokeStyle = br.type === 'stone' ? '#475569' : '#451a03';
-      ctx.lineWidth = 1.0;
-      for (let px = -bLen / 2 + 2; px <= bLen / 2 - 2; px += 3) {
-        ctx.beginPath();
-        ctx.moveTo(px, -4);
-        ctx.lineTo(px, 4);
-        ctx.stroke();
-      }
-
-      ctx.strokeStyle = br.type === 'stone' ? '#334155' : '#713f12';
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.moveTo(-bLen / 2, -4);
-      ctx.lineTo(bLen / 2, -4);
-      ctx.moveTo(-bLen / 2, 4);
-      ctx.lineTo(bLen / 2, 4);
+      ctx.moveTo(px, -4);
+      ctx.lineTo(px, 4);
       ctx.stroke();
     }
+
+    ctx.strokeStyle = br.type === 'stone' ? '#334155' : '#713f12';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(-bLen / 2, -4);
+    ctx.lineTo(bLen / 2, -4);
+    ctx.moveTo(-bLen / 2, 4);
+    ctx.lineTo(bLen / 2, 4);
+    ctx.stroke();
 
     ctx.restore();
   });
@@ -951,8 +922,8 @@ export function renderIllustratedMap(
   ctx.lineTo(vilX + 29, vilY - 4);
   ctx.stroke();
 
-  // 12J. Pelabuhan Sanctuary [-140, 185]
-  const [harbX, harbY] = wToC(-140, 185);
+  // 12J. Pelabuhan Sanctuary [-35, 185]
+  const [harbX, harbY] = wToC(-35, 185);
   ctx.fillStyle = '#78350f';
   ctx.fillRect(harbX - 18, harbY, 36, 5);
   ctx.fillRect(harbX - 9, harbY + 5, 6, 15);

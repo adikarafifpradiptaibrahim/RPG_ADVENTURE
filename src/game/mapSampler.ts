@@ -243,8 +243,8 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: y, color: [115, 125, 135], biomeId: 'mountain_rock', isWater: false, isPath: false, slope };
   }
 
-  // 1b-2. Ibukota Kerajaan Emas Astraea [-250, -210] (Kastil megah batu abu-abu)
-  if (Math.hypot(x - -250, z - -210) <= 44) {
+  // 1b-2. Ibukota Kerajaan Emas Astraea [-260, -230] (Kastil megah batu abu-abu di dalam tembok)
+  if (Math.hypot(x - -260, z - -230) <= 22) {
     return { height: y, color: [100, 116, 139], biomeId: 'astraea_castle', isWater: false, isPath: false, slope };
   }
 
@@ -341,8 +341,8 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   if (Math.hypot(x - 25, z - 135) <= 18) {
     return { height: y, color: [226, 218, 214], biomeId: 'eldoria_plaza', isWater: false, isPath: true, slope: 0 };
   }
-  // Astraea Marble Capital [-250, -210]
-  if (Math.hypot(x - -250, z - -210) <= 32) {
+  // Astraea Marble Capital [-260, -230]
+  if (Math.hypot(x - -260, z - -230) <= 16) {
     return { height: y, color: [248, 250, 252], biomeId: 'astraea_marble', isWater: false, isPath: true, slope: 0 };
   }
   // Val-Kragor Slate [315, 95]
@@ -367,19 +367,19 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
 
   // ==========================================================================
   // PEWARNAAN PERMUKAAN TANAH (VERTEX COLORING / TEXTURE BLEND)
-  // Kuning Pasir Emas Solaria vs Hijau Segar Padang Rumput Eldoria
+  // Kuning Pasir Emas Solaria (#e2b448) vs Hijau Segar Padang Rumput Eldoria (#6b9e3e / #73a844)
   // ==========================================================================
   const desertWeight = getDesertWeight(x, z);
 
   const duneNoise = 0.5 + 0.5 * Math.sin(xw * 0.035 + zw * 0.028);
-  const desertR = 212 + (226 - 212) * duneNoise;
-  const desertG = 175 + (180 - 175) * duneNoise;
-  const desertB = 55 + (72 - 55) * duneNoise;
+  const desertR = 226 + (236 - 226) * duneNoise;
+  const desertG = 180 + (192 - 180) * duneNoise;
+  const desertB = 72 + (84 - 72) * duneNoise;
 
   const grassNoise = 0.5 + 0.5 * Math.sin(xw * 0.025 - zw * 0.03);
-  const grassR = 123 + (107 - 123) * grassNoise;
-  const grassG = 160 + (142 - 160) * grassNoise;
-  const grassB = 56 + (35 - 56) * grassNoise;
+  const grassR = 107 + (115 - 107) * grassNoise;
+  const grassG = 158 + (168 - 158) * grassNoise;
+  const grassB = 62 + (68 - 62) * grassNoise;
 
   const r = Math.round(grassR * (1.0 - desertWeight) + desertR * desertWeight);
   const g = Math.round(grassG * (1.0 - desertWeight) + desertG * desertWeight);

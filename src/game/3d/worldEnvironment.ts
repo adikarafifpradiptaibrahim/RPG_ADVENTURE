@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { WorldCollider } from './world';
 import { isPointNearRoad } from '../RoadSystem';
+import { getBiomeAt } from './worldData';
 import {
   isDesertBiome,
   getDistanceToRiver,
@@ -132,8 +133,8 @@ export function buildWorldEnvironment(
         }
       }
 
-      // ROAD CLEARANCE: Batas aman minimal 3.5 unit dari garis tengah jalan setapak
-      if (isPointNearRoad(px, pz, 3.5)) continue;
+      // ROAD CLEARANCE: Batas aman minimal 6.5 unit dari garis tengah jalan setapak
+      if (isPointNearRoad(px, pz, 6.5)) continue;
 
       const py = getTerrainHeight(px, pz);
 
@@ -169,7 +170,7 @@ export function buildWorldEnvironment(
 
         const midX = (px + nextX) * 0.5;
         const midZ = (pz + nextZ) * 0.5;
-        if (isPointNearRoad(midX, midZ, 3.5)) continue;
+        if (isPointNearRoad(midX, midZ, 6.5)) continue;
 
         const midY = (py + getTerrainHeight(nextX, nextZ)) * 0.5;
         const segLen = Math.hypot(nextX - px, nextZ - pz);
@@ -230,8 +231,8 @@ export function buildWorldEnvironment(
   ];
 
   gardenPatches.forEach((patch) => {
-    // Road clearance check
-    if (isPointNearRoad(patch.x, patch.z, 3.5)) return;
+    // Road clearance check (minimal 6.5 unit bebas hambatan)
+    if (isPointNearRoad(patch.x, patch.z, 6.5)) return;
 
     const y = getTerrainHeight(patch.x, patch.z);
 
@@ -332,7 +333,7 @@ export function buildWorldEnvironment(
   ];
 
   haystacks.forEach((hs) => {
-    if (isPointNearRoad(hs.x, hs.z, 3.5)) return;
+    if (isPointNearRoad(hs.x, hs.z, 6.5)) return;
 
     const y = getTerrainHeight(hs.x, hs.z);
     const hayGroup = new THREE.Group();
@@ -350,7 +351,7 @@ export function buildWorldEnvironment(
 
   // 2 Gerobak Dorong Kayu & Peti Barang Dagangan di Sisi Pintu Gerbang Pekarangan
   function createWoodenCart(x: number, z: number, rotY: number) {
-    if (isPointNearRoad(x, z, 3.5)) return;
+    if (isPointNearRoad(x, z, 6.5)) return;
 
     const y = getTerrainHeight(x, z);
     const cart = new THREE.Group();
@@ -401,7 +402,7 @@ export function buildWorldEnvironment(
     { x: -44.5, z: 137.5 },
   ];
   crateClusters.forEach((cc) => {
-    if (isPointNearRoad(cc.x, cc.z, 3.5)) return;
+    if (isPointNearRoad(cc.x, cc.z, 6.5)) return;
 
     const cy = getTerrainHeight(cc.x, cc.z);
     [
@@ -697,6 +698,7 @@ export function buildWorldEnvironment(
   ];
 
   tents.forEach((td) => {
+    if (isPointNearRoad(td.x, td.z, 6.5)) return;
     const ty = getTerrainHeight(td.x, td.z);
     const tent = new THREE.Group();
     tent.position.set(td.x, ty, td.z);
@@ -729,6 +731,7 @@ export function buildWorldEnvironment(
   ];
 
   barricades.forEach((bc) => {
+    if (isPointNearRoad(bc.x, bc.z, 6.5)) return;
     const by = getTerrainHeight(bc.x, bc.z);
     const bGroup = new THREE.Group();
     bGroup.position.set(bc.x, by, bc.z);
@@ -811,23 +814,30 @@ export function buildWorldEnvironment(
 
   // Peti Kayu Rampasan (Loot Crates)
   const lootStacks = [
-    { x: -264, z: -28, crates: [
-      { dx: 0, dz: 0, w: 0.8, h: 0.65, dy: 0 },
-      { dx: 0.7, dz: 0.1, w: 0.65, h: 0.6, dy: 0 },
-      { dx: 0.3, dz: 0.05, w: 0.6, h: 0.55, dy: 0.65 },
-    ]},
-    { x: -248, z: -44, crates: [
-      { dx: 0, dz: 0, w: 0.9, h: 0.75, dy: 0 },
-      { dx: 0.8, dz: -0.15, w: 0.7, h: 0.65, dy: 0 },
-      { dx: 0.35, dz: 0.0, w: 0.65, h: 0.6, dy: 0.75 },
-    ]},
-    { x: -263, z: -46, crates: [
-      { dx: 0, dz: 0, w: 0.75, h: 0.6, dy: 0 },
-      { dx: 0.65, dz: 0.1, w: 0.65, h: 0.55, dy: 0 },
-    ]},
+    {
+      x: -264, z: -28, crates: [
+        { dx: 0, dz: 0, w: 0.8, h: 0.65, dy: 0 },
+        { dx: 0.7, dz: 0.1, w: 0.65, h: 0.6, dy: 0 },
+        { dx: 0.3, dz: 0.05, w: 0.6, h: 0.55, dy: 0.65 },
+      ]
+    },
+    {
+      x: -248, z: -44, crates: [
+        { dx: 0, dz: 0, w: 0.9, h: 0.75, dy: 0 },
+        { dx: 0.8, dz: -0.15, w: 0.7, h: 0.65, dy: 0 },
+        { dx: 0.35, dz: 0.0, w: 0.65, h: 0.6, dy: 0.75 },
+      ]
+    },
+    {
+      x: -263, z: -46, crates: [
+        { dx: 0, dz: 0, w: 0.75, h: 0.6, dy: 0 },
+        { dx: 0.65, dz: 0.1, w: 0.65, h: 0.55, dy: 0 },
+      ]
+    },
   ];
 
   lootStacks.forEach((ls) => {
+    if (isPointNearRoad(ls.x, ls.z, 6.5)) return;
     const ly = getTerrainHeight(ls.x, ls.z);
     ls.crates.forEach((c) => {
       const box = new THREE.Mesh(new THREE.BoxGeometry(c.w, c.h, c.w), matWoodDark);
@@ -849,6 +859,7 @@ export function buildWorldEnvironment(
   ];
 
   wineBarrels.forEach((wb) => {
+    if (isPointNearRoad(wb.x, wb.z, 6.5)) return;
     const wy = getTerrainHeight(wb.x, wb.z);
     const bGroup = new THREE.Group();
     bGroup.position.set(wb.x, wy + 0.45, wb.z);
@@ -909,31 +920,38 @@ export function buildWorldEnvironment(
   // Gugusan Bebatuan Besar (Rock Clusters) dengan Variasi Skala
   const rockClusters = [
     // Gugusan Punggung Bukit Barat
-    { cx: -332, cz: 108, rocks: [
-      { dx: 0, dz: 0, s: [2.6, 2.2, 2.4], rot: 0.4 },
-      { dx: 2.2, dz: 1.2, s: [1.8, 1.6, 1.9], rot: -0.8 },
-      { dx: -1.9, dz: -1.4, s: [2.1, 1.9, 1.8], rot: 1.2 },
-      { dx: 0.8, dz: -2.3, s: [1.5, 1.3, 1.6], rot: -1.5 },
-      { dx: -2.4, dz: 1.8, s: [1.4, 1.2, 1.5], rot: 0.9 },
-    ]},
+    {
+      cx: -332, cz: 108, rocks: [
+        { dx: 0, dz: 0, s: [2.6, 2.2, 2.4], rot: 0.4 },
+        { dx: 2.2, dz: 1.2, s: [1.8, 1.6, 1.9], rot: -0.8 },
+        { dx: -1.9, dz: -1.4, s: [2.1, 1.9, 1.8], rot: 1.2 },
+        { dx: 0.8, dz: -2.3, s: [1.5, 1.3, 1.6], rot: -1.5 },
+        { dx: -2.4, dz: 1.8, s: [1.4, 1.2, 1.5], rot: 0.9 },
+      ]
+    },
     // Gugusan Puncak Lereng Utara
-    { cx: -306, cz: 136, rocks: [
-      { dx: 0, dz: 0, s: [2.8, 2.4, 2.5], rot: 1.1 },
-      { dx: 2.4, dz: -0.8, s: [2.0, 1.7, 1.9], rot: -0.5 },
-      { dx: -2.1, dz: 1.4, s: [1.6, 1.4, 1.7], rot: 0.3 },
-      { dx: 1.2, dz: 2.1, s: [1.4, 1.1, 1.4], rot: -1.2 },
-    ]},
+    {
+      cx: -306, cz: 136, rocks: [
+        { dx: 0, dz: 0, s: [2.8, 2.4, 2.5], rot: 1.1 },
+        { dx: 2.4, dz: -0.8, s: [2.0, 1.7, 1.9], rot: -0.5 },
+        { dx: -2.1, dz: 1.4, s: [1.6, 1.4, 1.7], rot: 0.3 },
+        { dx: 1.2, dz: 2.1, s: [1.4, 1.1, 1.4], rot: -1.2 },
+      ]
+    },
     // Gugusan Lembah Sabana Selatan
-    { cx: -342, cz: 92, rocks: [
-      { dx: 0, dz: 0, s: [2.5, 2.0, 2.3], rot: -0.7 },
-      { dx: 1.8, dz: 1.5, s: [1.9, 1.6, 1.8], rot: 0.6 },
-      { dx: -1.7, dz: -1.6, s: [1.7, 1.3, 1.6], rot: -1.1 },
-      { dx: 2.6, dz: -1.2, s: [1.4, 1.1, 1.5], rot: 1.4 },
-      { dx: -2.5, dz: 1.1, s: [1.3, 1.0, 1.4], rot: -0.3 },
-    ]},
+    {
+      cx: -342, cz: 92, rocks: [
+        { dx: 0, dz: 0, s: [2.5, 2.0, 2.3], rot: -0.7 },
+        { dx: 1.8, dz: 1.5, s: [1.9, 1.6, 1.8], rot: 0.6 },
+        { dx: -1.7, dz: -1.6, s: [1.7, 1.3, 1.6], rot: -1.1 },
+        { dx: 2.6, dz: -1.2, s: [1.4, 1.1, 1.5], rot: 1.4 },
+        { dx: -2.5, dz: 1.1, s: [1.3, 1.0, 1.4], rot: -0.3 },
+      ]
+    },
   ];
 
   rockClusters.forEach((rc) => {
+    if (isPointNearRoad(rc.cx, rc.cz, 6.5)) return;
     rc.rocks.forEach((r) => {
       const rx = rc.cx + r.dx;
       const rz = rc.cz + r.dz;
@@ -960,6 +978,8 @@ export function buildWorldEnvironment(
 
   hillPines.forEach((hp) => {
     if (isDesertBiome(hp.x, hp.z)) return;
+    if (getBiomeAt(hp.x, hp.z) === 'ocean') return;
+    if (isPointNearRoad(hp.x, hp.z, 6.5)) return;
     const hy = getTerrainHeight(hp.x, hp.z);
     const pGroup = new THREE.Group();
     pGroup.position.set(hp.x, hy, hp.z);
@@ -1160,28 +1180,38 @@ export function buildWorldEnvironment(
 
   // Formasi Batu Karang Laut di Bibir Air (Sea Reef Rocks)
   const coastalReefs = [
-    { x: -435, z: -75, rocks: [
-      { dx: 0, dz: 0, s: [3.2, 2.2, 3.0] },
-      { dx: 2.1, dz: 1.4, s: [2.0, 1.6, 2.2] },
-      { dx: -1.8, dz: -1.2, s: [1.8, 1.4, 1.7] },
-    ]},
-    { x: -440, z: -115, rocks: [
-      { dx: 0, dz: 0, s: [3.5, 2.5, 3.2] },
-      { dx: 1.8, dz: -1.6, s: [2.2, 1.8, 2.0] },
-    ]},
-    { x: -445, z: -155, rocks: [
-      { dx: 0, dz: 0, s: [3.0, 2.4, 2.8] },
-      { dx: -2.2, dz: 1.5, s: [2.1, 1.5, 2.3] },
-      { dx: 1.9, dz: -1.1, s: [1.9, 1.4, 1.8] },
-    ]},
-    { x: -442, z: -190, rocks: [
-      { dx: 0, dz: 0, s: [3.4, 2.2, 3.1] },
-      { dx: 2.4, dz: 1.0, s: [2.0, 1.5, 2.0] },
-    ]},
-    { x: -448, z: -225, rocks: [
-      { dx: 0, dz: 0, s: [3.6, 2.6, 3.5] },
-      { dx: -2.1, dz: -1.5, s: [2.3, 1.7, 2.1] },
-    ]},
+    {
+      x: -435, z: -75, rocks: [
+        { dx: 0, dz: 0, s: [3.2, 2.2, 3.0] },
+        { dx: 2.1, dz: 1.4, s: [2.0, 1.6, 2.2] },
+        { dx: -1.8, dz: -1.2, s: [1.8, 1.4, 1.7] },
+      ]
+    },
+    {
+      x: -440, z: -115, rocks: [
+        { dx: 0, dz: 0, s: [3.5, 2.5, 3.2] },
+        { dx: 1.8, dz: -1.6, s: [2.2, 1.8, 2.0] },
+      ]
+    },
+    {
+      x: -445, z: -155, rocks: [
+        { dx: 0, dz: 0, s: [3.0, 2.4, 2.8] },
+        { dx: -2.2, dz: 1.5, s: [2.1, 1.5, 2.3] },
+        { dx: 1.9, dz: -1.1, s: [1.9, 1.4, 1.8] },
+      ]
+    },
+    {
+      x: -442, z: -190, rocks: [
+        { dx: 0, dz: 0, s: [3.4, 2.2, 3.1] },
+        { dx: 2.4, dz: 1.0, s: [2.0, 1.5, 2.0] },
+      ]
+    },
+    {
+      x: -448, z: -225, rocks: [
+        { dx: 0, dz: 0, s: [3.6, 2.6, 3.5] },
+        { dx: -2.1, dz: -1.5, s: [2.3, 1.7, 2.1] },
+      ]
+    },
   ];
 
   coastalReefs.forEach((cr) => {
@@ -2202,9 +2232,11 @@ export function buildWorldEnvironment(
       const pz = cz + Math.sin(angle) * dist;
 
       if (isDesertBiome(px, pz)) continue;
-      if (isPointNearRoad(px, pz, 3.2)) continue;
+      if (getBiomeAt(px, pz) === 'ocean') continue;
+      if (isPointNearRoad(px, pz, 6.5)) continue;
       if (isInsideFarmYard(px, pz)) continue;
       if (Math.hypot(px - -40, pz - 145) < 52) continue;
+      if (Math.hypot(px - -35, pz - 185) < 40) continue; // Sanctuary harbor clearance
       if (getDistanceToRiver(px, pz) < 18.0) continue;
       if (isNearBridge(px, pz)) continue;
       if (Math.hypot(px - craterCenterX, pz - craterCenterZ) < 30) continue;
@@ -2249,14 +2281,16 @@ export function buildWorldEnvironment(
     const cz = -380 + Math.random() * 560;
 
     if (isDesertBiome(cx, cz)) continue;
+    if (getBiomeAt(cx, cz) === 'ocean') continue;
     if (Math.hypot(cx - -40, cz - 145) < 54) continue;
-    if (Math.hypot(cx - -140, cz - 185) < 40) continue;
+    if (Math.hypot(cx - -35, cz - 185) < 40) continue; // Pelabuhan clearance
     if (Math.hypot(cx - ruinsCenterX, cz - ruinsCenterZ) < 26) continue;
     if (Math.hypot(cx - -250, cz - -35) < 32) continue;
     if (getDistanceToRiver(cx, cz) < 18.0) continue;
     if (isNearBridge(cx, cz)) continue;
     if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 32) continue;
     if (isInsideFarmYard(cx, cz)) continue;
+    if (isPointNearRoad(cx, cz, 6.5)) continue;
 
     const clusterSize = 3 + Math.floor(Math.random() * 4);
     const clusterRadius = 4.5 + Math.random() * 7.0;
@@ -2268,9 +2302,11 @@ export function buildWorldEnvironment(
       const oz = cz + Math.sin(angle) * dist;
 
       if (isDesertBiome(ox, oz)) continue;
-      if (isPointNearRoad(ox, oz, 3.2)) continue;
+      if (getBiomeAt(ox, oz) === 'ocean') continue;
+      if (isPointNearRoad(ox, oz, 6.5)) continue;
       if (isInsideFarmYard(ox, oz)) continue;
       if (Math.hypot(ox - -40, oz - 145) < 52) continue;
+      if (Math.hypot(ox - -35, oz - 185) < 40) continue;
       if (getDistanceToRiver(ox, oz) < 18.0) continue;
       if (isNearBridge(ox, oz)) continue;
       if (Math.hypot(ox - craterCenterX, oz - craterCenterZ) < 30) continue;
@@ -2306,13 +2342,14 @@ export function buildWorldEnvironment(
     const cz = -400 + Math.random() * 580;
 
     if (isDesertBiome(cx, cz)) continue;
+    if (getBiomeAt(cx, cz) === 'ocean') continue;
     if (Math.hypot(cx - -40, cz - 145) < 52) continue;
-    if (Math.hypot(cx - -140, cz - 185) < 35) continue;
+    if (Math.hypot(cx - -35, cz - 185) < 35) continue;
     if (getDistanceToRiver(cx, cz) < 18.0) continue;
     if (isNearBridge(cx, cz)) continue;
     if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 32) continue;
     if (isInsideFarmYard(cx, cz)) continue;
-    if (isPointNearRoad(cx, cz, 3.2)) continue;
+    if (isPointNearRoad(cx, cz, 6.5)) continue;
 
     const cy = getTerrainHeight(cx, cz);
     if (cy < 0.0) continue;
@@ -2334,7 +2371,8 @@ export function buildWorldEnvironment(
       const bz = cz + Math.sin(sAngle) * sDist;
 
       if (isDesertBiome(bx, bz)) continue;
-      if (isPointNearRoad(bx, bz, 3.0)) continue;
+      if (getBiomeAt(bx, bz) === 'ocean') continue;
+      if (isPointNearRoad(bx, bz, 6.5)) continue;
       if (getDistanceToRiver(bx, bz) < 18.0) continue;
       if (isNearBridge(bx, bz)) continue;
       const by = getTerrainHeight(bx, bz);
@@ -2366,11 +2404,14 @@ export function buildWorldEnvironment(
     const cz = -420 + Math.random() * 600;
 
     if (isDesertBiome(cx, cz)) continue;
+    if (getBiomeAt(cx, cz) === 'ocean') continue;
     if (Math.hypot(cx - -40, cz - 145) < 52) continue;
+    if (Math.hypot(cx - -35, cz - 185) < 35) continue;
     if (getDistanceToRiver(cx, cz) < 18.0) continue;
     if (isNearBridge(cx, cz)) continue;
     if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 32) continue;
     if (isInsideFarmYard(cx, cz)) continue;
+    if (isPointNearRoad(cx, cz, 6.5)) continue;
 
     const shrubClusterSize = 3 + Math.floor(Math.random() * 4);
     const shrubRadius = 2.5 + Math.random() * 4.5;
@@ -2382,7 +2423,8 @@ export function buildWorldEnvironment(
       const sz = cz + Math.sin(angle) * dist;
 
       if (isDesertBiome(sx, sz)) continue;
-      if (isPointNearRoad(sx, sz, 3.2)) continue;
+      if (getBiomeAt(sx, sz) === 'ocean') continue;
+      if (isPointNearRoad(sx, sz, 6.5)) continue;
       if (isInsideFarmYard(sx, sz)) continue;
       if (getDistanceToRiver(sx, sz) < 18.0) continue;
       if (isNearBridge(sx, sz)) continue;
@@ -2965,7 +3007,8 @@ export function buildWorldEnvironment(
     for (let tz = 60; tz <= 140; tz += 22) {
       const jx = tx + (Math.random() - 0.5) * 14;
       const jz = tz + (Math.random() - 0.5) * 14;
-      if (isPointNearRoad(jx, jz, 4.0)) continue;
+      if (getBiomeAt(jx, jz) === 'ocean') continue;
+      if (isPointNearRoad(jx, jz, 6.5)) continue;
       const jy = getTerrainHeight(jx, jz);
       if (jy < 0.2) continue;
 

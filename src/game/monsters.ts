@@ -756,7 +756,7 @@ export const IGNIS_DRAGON_BOSS_CONFIG: BossConfig = {
   detectRange: 48,
   expReward: 1200,
   goldReward: 850,
-  pos: [80, 360],
+  pos: [-40, 340],
   scale: [4.2, 4.2, 4.2],
   skills: [
     {

@@ -169,7 +169,7 @@ export const WAYPOINTS: {
     nameId: 'Pelabuhan Sanctuary',
     regionId: 'desa_eldoria',
     icon: '⛵',
-    pos: [-140, 185],
+    pos: [-35, 185],
     desc: 'Pelabuhan pesisir selatan menghadap langsung ke Samudra Azure terbuka',
   },
   {

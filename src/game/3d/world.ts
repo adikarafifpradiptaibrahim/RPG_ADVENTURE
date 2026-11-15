@@ -338,16 +338,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return 0.45;
     }
 
-    // 1d. Dragonfang Caldera Long Pier Bridge (X: -40, Z: 185..285, deck Y = 1.35)
-    if (Math.abs(x - -40) <= 2.8 && z >= 185 && z <= 285) {
-      return 1.35;
-    }
-
-    // 2. Coastal Wooden Harbor at [-140, 185..215]
+    // 2. Coastal Wooden Harbor at [-35, 185..215] (Menempel di Pantai Selatan Desa Utama)
     if (
-      (Math.abs(x - -140) <= 2.8 && z >= 185 && z <= 215) ||
-      (Math.abs(z - 200.0) <= 2.2 && Math.abs(x - -140) <= 15.0) ||
-      (Math.abs(x - -140) <= 5.2 && z >= 210 && z <= 216)
+      (Math.abs(x - -35) <= 2.8 && z >= 185 && z <= 215) ||
+      (Math.abs(z - 200.0) <= 2.2 && Math.abs(x - -35) <= 15.0) ||
+      (Math.abs(x - -35) <= 5.2 && z >= 210 && z <= 216)
     ) {
       return 1.85; // Solid continuous wooden pier deck
     }
@@ -399,12 +394,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   scene.add(oceanMesh);
 
   // ==========================================
-  // 1b. EXTENDED CONTINUOUS COASTAL HARBOR (Sea Shoreline at Z >= 185, X: -140)
-  // Dermaga Kayu Pelabuhan Sanctuary di Pesisir Barat Daya [-140, 185..215]
-  // Terpisah sejauh 100 unit laut terbuka dari Jembatan Kaldera Sarang Naga di X: -40!
+  // 1b. EXTENDED CONTINUOUS COASTAL HARBOR (Sea Shoreline at Z >= 185, X: -35)
+  // Dermaga Kayu Pelabuhan Sanctuary menempel di pesisir selatan Desa Utama [-35, 185..215]
   // ==========================================
   const dockY = -0.375; // Aligns top of 2.1m deck + 0.125m plank exactly at y = 1.85
-  const harborX = -140;
+  const harborX = -35;
 
   // 0. Shoreline Boardwalk Apron (Z: 185..188)
   const shorelineBoardwalk = createDockShorelineBoardwalkMesh(5.6, 3.5);
@@ -478,11 +472,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   const npcs: WorldNPC[] = [];
   const villageMainlandY = 0.25;
 
-  // 2.0 Moored Ship Hull Solid Boundaries (Dermaga Pelabuhan Sanctuary X: -140)
+  // 2.0 Moored Ship Hull Solid Boundaries (Dermaga Pelabuhan Sanctuary X: -35)
   colliders.push(
     // Ship Hull Colliders (Outer water boundaries)
-    { type: 'box', minX: -122.5, maxX: -117.5, minZ: 193, maxZ: 207, label: 'Lambung Kapal Dagang Emas 1' },
-    { type: 'box', minX: -162.5, maxX: -157.5, minZ: 193, maxZ: 207, label: 'Lambung Kapal Perang Bershield' }
+    { type: 'box', minX: -18.0, maxX: -13.0, minZ: 193, maxZ: 207, label: 'Lambung Kapal Dagang Emas 1' },
+    { type: 'box', minX: -57.0, maxX: -52.0, minZ: 193, maxZ: 207, label: 'Lambung Kapal Perang Bershield' }
   );
 
   // 2.1 Northern Village Gateway Arch (Start of Royal Avenue at X = -40, Z = 125)
@@ -833,7 +827,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 6: Nelayan Pak Joko (Coastal Fisherman on extended harbor pier)
   const jokoGroup = createCustomNPCMesh('fisherman');
-  const jokoPos: [number, number, number] = [-138.2, 1.85, 212.0]; // At seaward harbor pier head looking out to open sea
+  const jokoPos: [number, number, number] = [-33.2, 1.85, 212.0]; // At seaward harbor pier head looking out to open sea
   jokoGroup.position.set(...jokoPos);
   jokoGroup.rotation.y = Math.PI; // Facing South towards open ocean
   scene.add(jokoGroup);
@@ -1240,33 +1234,22 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   bridge1West.position.set(-190, 0.45, -230);
   bridge1West.rotation.y = 0;
   scene.add(bridge1West);
+  colliders.push(
+    { type: 'box', minX: -203, maxX: -177, minZ: -232.5, maxZ: -232.1, label: 'Pagar Jembatan 1 Utara' },
+    { type: 'box', minX: -203, maxX: -177, minZ: -227.9, maxZ: -227.5, label: 'Pagar Jembatan 1 Selatan' }
+  );
 
   // ==========================================
   // 2.9d JEMBATAN 3: AKSES LEMBAH BATU LUMUT (X: 400, Z: 35)
-  // Menyeberang Sungai Timur menghubungkan Val-Kragor ke Lembah Batu Lumut
+  // Menyeberang Sungai Timur tegak lurus menghubungkan Val-Kragor ke Lembah Batu Lumut
   // ==========================================
   const bridge3Moss = createStoneArchBridgeMesh(24, 4.8, 2.7);
   bridge3Moss.position.set(400, 0.45, 35);
-  bridge3Moss.rotation.y = Math.PI / 2;
+  bridge3Moss.rotation.y = 0; // Membentang tegak lurus menyeberangi lebar sungai
   scene.add(bridge3Moss);
-
-  // ==========================================
-  // 2.9e JEMBATAN DERMAGA PANJANG KALDERA SARANG NAGA (X: -40, Z: 185..285)
-  // Menghubungkan pesisir daratan (-40, 185) melintasi samudra 100 unit langsung ke pulau vulkanik Kaldera (-40, 285)
-  // ==========================================
-  const calderaPier = createPierDockMesh({
-    length: 100,
-    width: 4.8,
-    pileDepth: 12,
-    hasLantern: true,
-    hasCrossBrace: true,
-  });
-  calderaPier.position.set(-40, -0.75, 235);
-  scene.add(calderaPier);
-
   colliders.push(
-    { type: 'box', minX: -42.6, maxX: -42.2, minZ: 185, maxZ: 285, label: 'Pagar Dermaga Kaldera Barat' },
-    { type: 'box', minX: -37.8, maxX: -37.4, minZ: 185, maxZ: 285, label: 'Pagar Dermaga Kaldera Timur' }
+    { type: 'box', minX: 388, maxX: 412, minZ: 32.5, maxZ: 32.9, label: 'Pagar Jembatan 3 Utara' },
+    { type: 'box', minX: 388, maxX: 412, minZ: 37.1, maxZ: 37.5, label: 'Pagar Jembatan 3 Selatan' }
   );
 
   // 2.9b Jaringan Jalan Raya & Jalan Setapak Terstruktur Benua Eldoria (Road Network & Path System)
@@ -2174,7 +2157,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     cliff.position.set(bx, by + 3.0, bz);
     cliff.rotation.y = -angle + Math.PI / 2;
     scene.add(cliff);
-    colliders.push({ type: 'circle', x: bx, z: bz, radius: 3.5, label: 'Tebing Basalt Kaldera' });
+    // Tanpa invisible collider melingkar agar pemain bebas menuruni kontur lereng kawah kaldera
   }
 
   // C. Retakan Tanah Berlapis Lava Merah Menyala di Seputar Kaldera
@@ -2510,7 +2493,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     { id: 'chest_solaria_oasis', pos: [20, 0.5, -240] as [number, number, number] }, // Solaria Hidden Oasis
     { id: 'chest_dragoncaldera', pos: [-40, 2.5, 340] as [number, number, number] }, // Dragon Caldera Hoard
     { id: 'chest_astraea', pos: [-220, 2.0, -220] as [number, number, number] }, // Astraea Imperial Vault
-    { id: 'chest_harbor_galleon', pos: [-120.5, 0, 200] as [number, number, number] }, // Harbor Galleon Stash
+    { id: 'chest_harbor_galleon', pos: [-15.5, 0, 200] as [number, number, number] }, // Harbor Galleon Stash
     { id: 'chest_bridge', pos: [15, 1.35, 110] as [number, number, number] }, // South River Suspension Bridge Cache
     { id: 'chest_sandworm_cache', pos: [-30, 0.5, -220] as [number, number, number] }, // Ancient Sandworm Sinkhole Cache
   ];
@@ -2971,7 +2954,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_harbor',
       name: 'Sanctuary Coastal Harbor',
       nameId: 'Dermaga & Pelabuhan Sanctuary',
-      pos: [-140, 185],
+      pos: [-35, 185],
     },
     {
       id: 'wp_sacred_spring',

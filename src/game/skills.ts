@@ -436,9 +436,6 @@ class ArcaneBeamResourcePool {
       group.visible = false;
       group.position.set(0, -999, 0);
       beamLight.intensity = 0;
-      if (group.parent) {
-        group.parent.remove(group);
-      }
     };
 
     const activate = (params: {
@@ -1235,9 +1232,6 @@ export class StarfallResourcePool {
       outerTorusMat.opacity = 0.85;
       innerTorusMat.opacity = 0.75;
       circuitSparks.forEach((sp) => (sp.visible = false));
-      if (group.parent) {
-        group.parent.remove(group);
-      }
     };
 
     const activate = (

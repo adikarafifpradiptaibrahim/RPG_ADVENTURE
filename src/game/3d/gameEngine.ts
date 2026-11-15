@@ -450,10 +450,16 @@ export class GameEngine {
       if (this.playerMesh?.group) {
         this.playerMesh.group.visible = false;
       }
+      if (this.renderer) {
+        this.renderer.shadowMap.enabled = false;
+      }
       this.setControlsLocked(true);
     } else if (mode === 'character_select') {
       if (this.playerMesh?.group) {
         this.playerMesh.group.visible = false;
+      }
+      if (this.renderer) {
+        this.renderer.shadowMap.enabled = false;
       }
       this.setupCharacterSelectScene();
       this.setControlsLocked(true);
@@ -461,6 +467,9 @@ export class GameEngine {
       this.clearCharacterSelectScene();
       if (this.playerMesh?.group) {
         this.playerMesh.group.visible = true;
+      }
+      if (this.renderer) {
+        this.renderer.shadowMap.enabled = this.graphicsSettings.shadows;
       }
       this.setControlsLocked(false);
       this.teleportGraceTimer = 0.5;
@@ -1838,8 +1847,8 @@ export class GameEngine {
       });
     });
 
-    // Dragonfang Super Boss: Ignis, Sang Naga Purba (Colossal Winged Dragon: [80, 360])
-    const wyrmPos: [number, number] = [80, 360];
+    // Dragonfang Super Boss: Ignis, Sang Naga Purba (Colossal Winged Dragon: [-40, 340] - Pusat Kawah Kaldera)
+    const wyrmPos: [number, number] = [-40, 340];
     const { group: wyrmGroup, parts: wyrmParts } = createEnemyMesh('dragon');
     const wyrmY = this.world.getTerrainHeight(wyrmPos[0], wyrmPos[1]);
     wyrmGroup.position.set(wyrmPos[0], wyrmY, wyrmPos[1]);
@@ -8605,7 +8614,7 @@ export class GameEngine {
       return;
     }
 
-    const delta = Math.min(this.clock.getDelta(), 0.1);
+    const delta = Math.min(this.clock.getDelta(), 0.05);
 
     // Update 24-minute real-time Day-Night Cycle & Celestial Atmosphere
     this.dayNightSystem.update(delta);

@@ -11,7 +11,7 @@ export interface BossArenaZone {
   aggroRange: number;
 }
 
-export const SPAWN_NAGA: [number, number] = [80, 360];
+export const SPAWN_NAGA: [number, number] = [-40, 340];
 export const NAGA_CALDERA_RADIUS = 48;
 export const STATE_FLYING_PURSUIT = 'STATE_FLYING_PURSUIT';
 

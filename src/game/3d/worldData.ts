@@ -228,15 +228,15 @@ export interface RoadSplineDef {
 }
 
 export const ROAD_SPLINES: RoadSplineDef[] = [
-  // A. Jalan Barat: Desa Utama (-40, 145) -> Pelabuhan Sanctuary (-140, 165) -> Astraea (-250, -210)
+  // A. Jalan Barat: Desa Utama (-40, 145) -> Pelabuhan Sanctuary (-35, 175) -> Astraea (-250, -210)
   {
     id: 'road_west',
     name: 'Jalan Raya Barat: Desa - Pelabuhan - Astraea',
     width: 3.2,
     points: [
       [-40, 145],
-      [-90, 155],
-      [-140, 165],
+      [-35, 175],   // Menghubungkan langsung Desa Utama ke Pelabuhan Sanctuary
+      [-120, 120],
       [-180, 120],
       [-220, 40],
       [-245, -60],
@@ -273,18 +273,7 @@ export const ROAD_SPLINES: RoadSplineDef[] = [
       [465, 35],   // Glade Alami Lembah Batu Lumut
     ],
   },
-  // D. Jembatan Dermaga Penghubung Kaldera Sarang Naga: (-40, 185) -> (-40, 285)
-  {
-    id: 'road_caldera_bridge',
-    name: 'Jembatan Kayu Dermaga Kaldera Naga',
-    width: 5.0,
-    points: [
-      [-40, 185],   // Bibir Pantai Daratan Utama
-      [-40, 235],   // Dek Terbuka di Atas Laut Lepas
-      [-40, 285],   // Gerbang Masuk Kaldera Naga
-    ],
-  },
-  // E. Jalur Kafilah Gurun Solaria
+  // D. Jalur Kafilah Gurun Solaria
   {
     id: 'road_desert_caravan',
     name: 'Jalur Kafilah Pasir Gurun Solaria',
@@ -362,17 +351,6 @@ export const BRIDGE_CONFIGS: BridgeDef[] = [
     width: 4.8,
     type: 'wood',
   },
-  {
-    id: 'bridge_caldera_pier',
-    name: 'Dragonfang Caldera Long Pier Bridge',
-    nameId: 'Jembatan 4: Jembatan Dermaga Kaldera Naga',
-    x: -40,
-    z: 235,
-    rotationY: Math.PI / 2,
-    length: 100,
-    width: 5.0,
-    type: 'wood',
-  },
 ];
 
 /**
@@ -387,20 +365,20 @@ export interface LandmarkDef {
   z: number;
   level: number;
   type:
-    | 'lake'
-    | 'capital'
-    | 'canyon'
-    | 'pyramid'
-    | 'oasis'
-    | 'boss'
-    | 'palace'
-    | 'forest'
-    | 'ruins'
-    | 'fortress'
-    | 'valley'
-    | 'village'
-    | 'harbor'
-    | 'tower';
+  | 'lake'
+  | 'capital'
+  | 'canyon'
+  | 'pyramid'
+  | 'oasis'
+  | 'boss'
+  | 'palace'
+  | 'forest'
+  | 'ruins'
+  | 'fortress'
+  | 'valley'
+  | 'village'
+  | 'harbor'
+  | 'tower';
   icon: string;
   color: string;
   description: string;
@@ -630,14 +608,14 @@ export const WORLD_LANDMARKS: LandmarkDef[] = [
     id: 'harbor',
     name: 'Sanctuary Harbor',
     nameId: 'Pelabuhan Sanctuary',
-    x: -140,
+    x: -35,
     z: 185,
     level: 1,
     type: 'harbor',
     icon: '⛵',
     color: '#06b6d4',
     description: 'The bustling coastal wooden boardwalk docks where merchant galleons and fishing boats arrive from across the sea.',
-    descriptionId: 'Dermaga kayu pelabuhan menjorok ke Samudra Azure di pesisir barat daya.',
+    descriptionId: 'Dermaga kayu pelabuhan menjorok ke Samudra Azure di pesisir selatan menempel di Desa Utama.',
     waypointId: 'wp_harbor',
     labelPosition: 'below',
   },
@@ -666,12 +644,14 @@ export const WORLD_LANDMARKS: LandmarkDef[] = [
 export function getProceduralContinentHeight(x: number, z: number): number {
   const biome = getBiomeAt(x, z);
 
-  // A. Jembatan Dermaga Kayu Kaldera Naga [-40, 185..285]
-  if (Math.abs(x - -40) <= 2.8 && z >= 185 && z <= 285) {
-    return 1.35; // Dek jembatan kayu rata di atas permukaan laut
+  // A. Palung Sungai (Carve deep riverbed Y = -2.5, anti-banjir & tanpa tanah timbunan)
+  const distRiver = getDistanceToRiver(x, z);
+  if (distRiver < 6.5) {
+    const edge = distRiver / 6.5;
+    return -2.5 * Math.cos(edge * (Math.PI / 2));
   }
 
-  // B. Kaldera Vulkanik Sarang Naga [-40, 340]
+  // B. Kaldera Vulkanik Sarang Naga [-40, 340] (Pulau terisolasi di laut)
   if (biome === 'volcano') {
     const distCenter = Math.hypot(x - -40, z - 340);
     if (distCenter <= 25) return 2.50; // Lantai kawah lahar rata
@@ -750,8 +730,8 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   const distVillage = Math.hypot(x - -40, z - 145);
   if (distVillage <= 40) return 0.25;
 
-  // 2. Pelabuhan Sanctuary [-140, 185]
-  if (Math.hypot(x - -140, z - 185) <= 30) return 0.35;
+  // 2. Pelabuhan Sanctuary [-35, 185]
+  if (Math.hypot(x - -35, z - 185) <= 25) return 0.35;
 
   // 3. Ibukota Kerajaan Emas Astraea [-260, -230]
   if (Math.hypot(x - -260, z - -230) <= 52) return 2.00;
@@ -796,14 +776,7 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     }
   }
 
-  // 10. Palung Sungai (Carve river depth)
-  const distRiver = getDistanceToRiver(x, z);
-  if (distRiver < 6.5) {
-    const edge = distRiver / 6.5;
-    return -2.2 * Math.cos(edge * (Math.PI / 2));
-  }
-
-  // 11. Jalan Raya Utama
+  // 10. Jalan Raya Utama
   if (isPointOnRoad(x, z, 2.5)) {
     return 0.35;
   }
