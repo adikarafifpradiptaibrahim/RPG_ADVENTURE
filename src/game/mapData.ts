@@ -11,7 +11,7 @@ export const REGIONS: RegionInfo[] = [
     descriptionId: 'Pusat desa damai dan padang rumput hijau luas Eldoria dengan rumah panggung kayu, pelabuhan kapal dagang, bengkel tempa, serta perbukitan landai terbuka di pesisir selatan.',
     color: '#65a30d',
     bounds: { minX: -60, maxX: 100, minZ: 70, maxZ: 170 },
-    center: [20, 130],
+    center: [25, 135],
     recommendedLevel: 1,
   },
   {
@@ -34,8 +34,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A heavily fortified stronghold with stone ramparts, corner watchtowers, garrison keep, and spiked defense barricades situated in the open eastern plains.',
     descriptionId: 'Desa benteng pertahanan mandiri di padang rumput tenggara yang lapang! Dilengkapi tembok slate kokoh, menara pengawas, barikade runcing, dan markas Komandan Brann.',
     color: '#64748b',
-    bounds: { minX: 290, maxX: 370, minZ: 50, maxZ: 130 },
-    center: [330, 90],
+    bounds: { minX: 280, maxX: 350, minZ: 60, maxZ: 130 },
+    center: [315, 95],
     recommendedLevel: 4,
   },
   {
@@ -46,8 +46,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A colossal imperial metropolis situated across the peaceful north-west plains, featuring the grand Sun Palace, towering marble colonnades, royal bazaar, and the Fountain of Immortality.',
     descriptionId: 'Ibukota kerajaan emas megah di dataran padang rumput barat laut yang damai! Gerbang Barat megah, Istana Kaisar Aurelius, dan alun-alun marmer putih berair mancur abadi.',
     color: '#fbbf24',
-    bounds: { minX: -290, maxX: -190, minZ: -260, maxZ: -180 },
-    center: [-240, -220],
+    bounds: { minX: -290, maxX: -200, minZ: -250, maxZ: -170 },
+    center: [-250, -210],
     recommendedLevel: 5,
   },
   {
@@ -58,8 +58,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A crystalline glacial mountain lake surrounded by snow-capped peaks in the far northwest, headwaters of the Eldorian rivers.',
     descriptionId: 'Danau purba berair biru jernih di kaki pegunungan salju barat laut, hulu utama aliran sungai Eldoria.',
     color: '#38bdf8',
-    bounds: { minX: -320, maxX: -200, minZ: -520, maxZ: -380 },
-    center: [-260, -450],
+    bounds: { minX: -320, maxX: -200, minZ: -480, maxZ: -360 },
+    center: [-260, -420],
     recommendedLevel: 8,
   },
   {
@@ -70,8 +70,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'Sheer towering terracotta canyon cliffs and sandstone mesas in the far northern reaches.',
     descriptionId: 'Jurang bebatuan cadas merah terjal dan tebing sandstone di perbatasan gurun paling utara benua.',
     color: '#ea580c',
-    bounds: { minX: 0, maxX: 120, minZ: -560, maxZ: -480 },
-    center: [50, -520],
+    bounds: { minX: 50, maxX: 170, minZ: -550, maxZ: -430 },
+    center: [110, -490],
     recommendedLevel: 9,
   },
   {
@@ -82,8 +82,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'Dense dark spruce wilderness draped in perpetual mysterious fog in the eastern hills.',
     descriptionId: 'Hutan pinus lebat yang senantiasa diselimuti kabut tebal misterius di perbukitan timur.',
     color: '#15803d',
-    bounds: { minX: 340, maxX: 430, minZ: -190, maxZ: -90 },
-    center: [380, -140],
+    bounds: { minX: 290, maxX: 380, minZ: -190, maxZ: -90 },
+    center: [335, -140],
     recommendedLevel: 4,
   },
   {
@@ -94,8 +94,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'Ancient dilapidated castle walls, broken watchtowers, and weathered slate courtyards.',
     descriptionId: 'Reruntuhan kastil megah masa lalu dengan benteng runtuh dan pilar batu kuno berlumut.',
     color: '#64748b',
-    bounds: { minX: 190, maxX: 270, minZ: -90, maxZ: -30 },
-    center: [230, -60],
+    bounds: { minX: 190, maxX: 260, minZ: -70, maxZ: 0 },
+    center: [225, -35],
     recommendedLevel: 5,
   },
   {
@@ -106,8 +106,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A secluded sanctuary of giant mossy megaliths, blooming glade flora, and glowing spores.',
     descriptionId: 'Lembah tersembunyi penuh gugusan batu purba berlumut dan pendar spora mistis.',
     color: '#65a30d',
-    bounds: { minX: 440, maxX: 520, minZ: -10, maxZ: 50 },
-    center: [480, 20],
+    bounds: { minX: 420, maxX: 490, minZ: 0, maxZ: 70 },
+    center: [455, 35],
     recommendedLevel: 5,
   },
   {
@@ -130,8 +130,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A blistering volcanic hellscape across the southern ocean featuring smoking magma pools, scorched basalt arches, and the primal dragon nest.',
     descriptionId: 'Wilayah pulau vulkanik berbahaya di seberang laut selatan! Aliran lahar pijar mendidih, kawah melingkar obsidian, dan arena pertarungan Boss Naga Purba Ignis.',
     color: '#dc2626',
-    bounds: { minX: -80, maxX: 240, minZ: 275, maxZ: 445 },
-    center: [80, 360],
+    bounds: { minX: -150, maxX: -20, minZ: 200, maxZ: 330 },
+    center: [-85, 265],
     recommendedLevel: 10,
   },
   {
@@ -142,8 +142,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A colossal sinkhole depression in the eastern desert dunes, domain of the legendary Devourer Sandworm Jarrus.',
     descriptionId: 'Kawah pusaran pasir raksasa yang curam di pedalaman timur laut Gurun Solaria, arena World Boss Cacing Purba Jarrus.',
     color: '#ea580c',
-    bounds: { minX: 170, maxX: 250, minZ: -400, maxZ: -320 },
-    center: [210, -360],
+    bounds: { minX: 180, maxX: 270, minZ: -420, maxZ: -340 },
+    center: [225, -380],
     recommendedLevel: 10,
   },
 ];
@@ -161,7 +161,7 @@ export const WAYPOINTS: {
     nameId: 'Desa Utama Sanctuary Eldoria',
     regionId: 'desa_eldoria',
     icon: '🏡',
-    pos: [20, 130],
+    pos: [25, 135],
     desc: 'Pusat pemukiman awal di pesisir selatan padang rumput Eldoria',
   },
   {
@@ -169,7 +169,7 @@ export const WAYPOINTS: {
     nameId: 'Dermaga & Pelabuhan Sanctuary',
     regionId: 'desa_eldoria',
     icon: '⛵',
-    pos: [20, 180],
+    pos: [-135, 145],
     desc: 'Pelabuhan pesisir selatan menghadap langsung ke Samudra Azure terbuka',
   },
   {
@@ -177,7 +177,7 @@ export const WAYPOINTS: {
     nameId: 'Lembah Danau Titan Kuno',
     regionId: 'danau_titan',
     icon: '🏔️',
-    pos: [-260, -450],
+    pos: [-260, -420],
     desc: 'Danau purba berair jernih di kaki pegunungan salju barat laut',
   },
   {
@@ -185,7 +185,7 @@ export const WAYPOINTS: {
     nameId: 'Ibukota Kerajaan Emas Astraea',
     regionId: 'kerajaan_astraea',
     icon: '👑',
-    pos: [-240, -220],
+    pos: [-250, -210],
     desc: 'Ibukota megah berdinding marmer emas dan tahta Kaisar Aurelius',
   },
   {
@@ -193,7 +193,7 @@ export const WAYPOINTS: {
     nameId: 'Kanyon Kuno',
     regionId: 'ancient_canyon',
     icon: '🏜️',
-    pos: [50, -520],
+    pos: [110, -490],
     desc: 'Tebing cadas merah dan jurang sandstone terjal di utara',
   },
   {
@@ -201,7 +201,7 @@ export const WAYPOINTS: {
     nameId: 'Piramida Emas Solaria',
     regionId: 'gurun_solaria',
     icon: '🏜️',
-    pos: [-20, -320],
+    pos: [10, -340],
     desc: 'Monumen piramida batu pasir kuno di tengah bukit pasir emas Solaria',
   },
   {
@@ -209,7 +209,7 @@ export const WAYPOINTS: {
     nameId: 'Oase Solaria',
     regionId: 'gurun_solaria',
     icon: '🌴',
-    pos: [20, -240],
+    pos: [55, -250],
     desc: 'Sumber mata air tawar pirus segar dinaungi pohon kurma di gurun tengah',
   },
   {
@@ -217,7 +217,7 @@ export const WAYPOINTS: {
     nameId: 'Kawah Cacat World Boss (Lv. 10)',
     regionId: 'kawah_cacing_purba',
     icon: '🪱',
-    pos: [210, -360],
+    pos: [225, -380],
     desc: 'Arena kawah pasir hisap raksasa World Boss Cacing Purba Jarrus',
   },
   {
@@ -225,7 +225,7 @@ export const WAYPOINTS: {
     nameId: 'Istana Sultan Malik',
     regionId: 'gurun_solaria',
     icon: '🕌',
-    pos: [360, -440],
+    pos: [355, -440],
     desc: 'Kompleks istana kubah marmer emas megah di pojok timur laut benua',
   },
   {
@@ -233,7 +233,7 @@ export const WAYPOINTS: {
     nameId: 'Hutan Kabut Eldoria',
     regionId: 'hutan_kabut',
     icon: '🌲',
-    pos: [380, -140],
+    pos: [335, -140],
     desc: 'Hutan pinus lebat berkabut tebal misterius di perbukitan timur',
   },
   {
@@ -241,7 +241,7 @@ export const WAYPOINTS: {
     nameId: 'Puing Kastil Terbengkalai',
     regionId: 'puing_kastil',
     icon: '🏰',
-    pos: [230, -60],
+    pos: [225, -35],
     desc: 'Reruntuhan benteng kastil masa lalu dengan pilar batu slate runtuh',
   },
   {
@@ -249,7 +249,7 @@ export const WAYPOINTS: {
     nameId: 'Desa Benteng Val-Kragor',
     regionId: 'desa_valkragor',
     icon: '🛡️',
-    pos: [330, 90],
+    pos: [315, 95],
     desc: 'Benteng pertahanan tangguh di perbatasan padang rumput tenggara',
   },
   {
@@ -257,7 +257,7 @@ export const WAYPOINTS: {
     nameId: 'Lembah Batu Lumut',
     regionId: 'lembah_batu_lumut',
     icon: '🪨',
-    pos: [480, 20],
+    pos: [455, 35],
     desc: 'Lembah tersembunyi penuh gugusan batu purba berlumut di timur dekat sungai',
   },
   {
@@ -273,7 +273,7 @@ export const WAYPOINTS: {
     nameId: 'Kaldera Sarang Naga Purba',
     regionId: 'kaldera_naga_api',
     icon: '🐉',
-    pos: [80, 360],
+    pos: [-85, 265],
     desc: 'Pulau kawah lava vulkanik di seberang laut selatan dan sarang Boss Naga Ignis',
   },
 ];

@@ -88,64 +88,60 @@ export function isDesertBiome(x: number, z: number): boolean {
 
 /**
  * SISTEM ALIRAN 4 CABANG SUNGAI BERKELOK ALAMI (MEANDERING SPLINES)
- * Sesuai denah referensi target peta:
- * 1. Hulu 1 (Barat Laut / NW): Keluar dari danau Titan [-260, -415], berkelok melewati timur Astraea [-260, -240] (Jembatan 1 di [-195, -210]), menuju titik temu [35, -5].
- * 2. Hulu 2 (Cabang Gurun/Utara): Bercabang dari titik temu [35, -5] ke timur laut melintasi selatan Piramida & Oase, membelok ke utara di barat Kawah Boss [210, -360] ke kaki Kanyon [50, -520].
- * 3. Hulu 3 (Cabang Timur): Dari titik temu [35, -5] berkelok ke timur melewati utara Puing Kastil [230, -60] (Jembatan 4), utara Val-Kragor [330, 90] (Jembatan 3), lalu belok naik ke utara di timur Hutan Kabut [380, -140].
- * 4. Hilir (Selatan): Dari titik temu [35, -5] (Jembatan 2 / Suspension di [38, 22]), berkelok ke selatan melewati barat kuil torii [70, 110], bermuara di timur Pelabuhan [20, 130].
+ * Sesuai denah referensi target peta (100% sinkron dengan worldConfig.ts):
+ * 1. Hulu Barat Laut (NW): Dari selatan Danau Titan [-250, -360] -> timur Astraea [-160, -210] (Jembatan 1) -> Confluence [-35, 35].
+ * 2. Cabang Gurun/Utara: Dari Confluence [-35, 35] -> selatan Oase [80, -130] -> barat Kawah Boss [175, -350] -> Kanyon [110, -490].
+ * 3. Cabang Timur: Dari Confluence [-35, 35] -> antara Puing Kastil & Val-Kragor [250, 45] -> barat Lembah Batu Lumut [395, 25] (Jembatan 5) & timur Hutan Kabut [395, -50] -> lereng timur laut [415, -240].
+ * 4. Hilir (Muara Selatan): Dari Confluence [-35, 35] -> melintasi Jembatan Tengah [-30, 55] -> lurus ke selatan ke laut [-25, 165].
  */
 export const RIVER_NW_BRANCH: [number, number][] = [
-  [-240, -385], // Danau Titan Kuno South Shore Outlet
-  [-225, -330],
-  [-205, -270],
-  [-185, -210], // Jembatan 1 - Astraea Highway
-  [-165, -160],
-  [-135, -115],
-  [-95, -75],
-  [-50, -40],
-  [-5, -18],
-  [35, -5],     // Confluence
+  [-250, -360], // Danau Titan Kuno South Shore Outlet
+  [-220, -310],
+  [-190, -260],
+  [-160, -210], // Jembatan 1 - Astraea Highway River Crossing
+  [-130, -150],
+  [-95, -95],
+  [-65, -45],
+  [-45, -5],
+  [-35, 35],    // Confluence Sentral
 ];
 
 export const RIVER_DESERT_BRANCH: [number, number][] = [
-  [35, -5],     // Confluence
-  [65, -45],
-  [95, -95],
-  [125, -145],  // Jembatan Akses Gurun
-  [145, -205],
-  [155, -265],
-  [155, -325],  // Barat Kawah World Boss [210, -360]
-  [165, -385],
-  [160, -445],
-  [135, -495],
-  [95, -525],   // Kaki Kanyon Kuno
+  [-35, 35],    // Confluence
+  [0, -15],
+  [40, -70],
+  [80, -130],   // Selatan Oase Solaria
+  [125, -200],
+  [155, -275],
+  [175, -350],  // Barat Kawah World Boss [225, -380]
+  [165, -420],
+  [140, -460],
+  [110, -490],  // Kanyon Kuno
 ];
 
 export const RIVER_EAST_BRANCH: [number, number][] = [
-  [35, -5],     // Confluence
-  [85, 10],
-  [140, 18],
-  [190, 15],    // Jembatan 4 - Puing Kastil Access
-  [240, 10],
-  [290, 22],
-  [335, 38],    // Jembatan 3 - Val-Kragor Access
-  [385, 40],
-  [430, 25],    // Jembatan 5 - Lembah Batu Lumut Access
-  [455, -15],   // Melingkari Hutan Kabut [380, -140]
-  [450, -75],
-  [440, -135],
-  [435, -195],
-  [440, -255],  // Pegunungan Timur Laut
+  [-35, 35],    // Confluence
+  [35, 38],
+  [105, 42],
+  [175, 44],
+  [210, 45],    // Jembatan 4 - Puing Kastil
+  [250, 45],    // Antara Puing Kastil [225, -35] & Val-Kragor [315, 95]
+  [270, 50],    // Jembatan 3 - Val-Kragor
+  [335, 42],
+  [395, 25],    // Jembatan 5 - Akses Barat Lembah Batu Lumut
+  [405, -10],
+  [395, -50],   // Timur Hutan Kabut [335, -140]
+  [390, -115],
+  [400, -180],
+  [415, -240],  // Lereng Pegunungan Timur Laut
 ];
 
 export const RIVER_SOUTH_BRANCH: [number, number][] = [
-  [35, -5],     // Confluence
-  [38, 22],     // Jembatan 2 - Central Suspension Bridge
-  [42, 55],
-  [45, 90],     // Barat Kuil Torii
-  [46, 125],
-  [48, 160],
-  [50, 195],    // Muara Samudra Selatan
+  [-35, 35],    // Confluence
+  [-30, 55],    // Jembatan 2 - Central Suspension Bridge
+  [-28, 90],
+  [-26, 125],
+  [-25, 165],   // Muara Samudra Selatan
 ];
 
 // Backward-compatibility aliases
@@ -203,12 +199,12 @@ export function getDesertWeight(x: number, z: number): number {
  * 1. EVALUASI ZONA BIOMA & LAUT SECARA ORGANIK
  */
 export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
-  // A. KALDERA SARANG NAGA & PULAU VULKANIK [80, 360]
-  const cx = 80;
-  const cz = 360;
-  const rx = 160;
-  const rz = 85;
-  const edgeNoise = Math.sin(x * 0.06) * 10 + Math.cos(z * 0.07) * 7;
+  // A. KALDERA SARANG NAGA & PULAU VULKANIK [-85, 265]
+  const cx = -85;
+  const cz = 265;
+  const rx = 110;
+  const rz = 65;
+  const edgeNoise = Math.sin(x * 0.06) * 8 + Math.cos(z * 0.07) * 6;
   const distSq = Math.pow((x - cx) / (rx + edgeNoise), 2) + Math.pow((z - cz) / (rz + edgeNoise), 2);
   if (distSq <= 1.0) {
     return {
@@ -226,13 +222,13 @@ export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
   const xw = x + wx;
   const zw = z + wz;
 
-  // Cape/Tanjung di selatan Desa Utama [22, 134] & Pelabuhan Sanctuary [20, 165..195]
-  const distToVillage = Math.hypot(x - 22, z - 134);
+  // Cape/Tanjung di selatan Desa Utama [25, 135] & Pelabuhan Sanctuary [-135, 145]
+  const distToVillage = Math.hypot(x - 25, z - 135);
   const cape = Math.max(0, 1.0 - distToVillage / 110) * 35;
   const southCoastZ = 195 + Math.sin(xw * 0.015) * 14 + Math.cos(xw * 0.04) * 6 + cape;
   const westCoastX = -460 + Math.sin(zw * 0.018) * 30 + Math.cos(zw * 0.045) * 12;
 
-  // Smooth natural bay curving east of Val-Kragor (eliminates any rectangular x > 495 cut)
+  // Smooth natural bay curving east of Val-Kragor [315, 95]
   let naturalCoastZ = southCoastZ;
   if (xw > 340) {
     const t = Math.min(1.0, (xw - 340) / 120);
@@ -283,21 +279,21 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   const xw = x + wx;
   const zw = z + wz;
 
-  // 1. ZONA VOLCANO: Pulau Kawah Vulkanik Seberang Laut Selatan [80, 360]
+  // 1. ZONA VOLCANO: Pulau Kawah Vulkanik Seberang Laut Selatan [-85, 265]
   if (zone.id === 'volcano') {
-    const cx = 80;
-    const cz = 360;
-    const rx = 160;
-    const rz = 85;
-    const edgeNoise = Math.sin(x * 0.06) * 10 + Math.cos(z * 0.07) * 7;
+    const cx = -85;
+    const cz = 265;
+    const rx = 110;
+    const rz = 65;
+    const edgeNoise = Math.sin(x * 0.06) * 8 + Math.cos(z * 0.07) * 6;
     const distSq = Math.pow((x - cx) / (rx + edgeNoise), 2) + Math.pow((z - cz) / (rz + edgeNoise), 2);
 
-    if (Math.hypot(x - 80, z - 310) < 16) return 2.0;
-    const distCenter = Math.hypot(x - 80, z - 360);
-    if (distCenter <= 45) return 2.50;
-    if (distCenter <= 56) {
-      const t = (distCenter - 45) / 11;
-      return 2.50 + Math.sin(t * Math.PI) * 6.0;
+    if (Math.hypot(x - -85, z - 225) < 16) return 2.0;
+    const distCenter = Math.hypot(x - -85, z - 265);
+    if (distCenter <= 38) return 2.50;
+    if (distCenter <= 50) {
+      const t = (distCenter - 38) / 12;
+      return 2.50 + Math.sin(t * Math.PI) * 5.0;
     }
     if (distSq > 0.70) {
       const t = (distSq - 0.70) / 0.30;
@@ -308,7 +304,7 @@ export function getProceduralContinentHeight(x: number, z: number): number {
 
   // 2. ZONA OCEAN: Samudra & Laut Lepas Azure
   if (zone.id === 'ocean') {
-    const distToVillage = Math.hypot(x - 22, z - 134);
+    const distToVillage = Math.hypot(x - 25, z - 135);
     const cape = Math.max(0, 1.0 - distToVillage / 110) * 35;
     const southCoastZ = 195 + Math.sin(xw * 0.015) * 14 + Math.cos(xw * 0.04) * 6 + cape;
     if (z >= southCoastZ && z <= southCoastZ + 15) {
@@ -320,30 +316,30 @@ export function getProceduralContinentHeight(x: number, z: number): number {
 
   // 3. ZONA DESERT: Gurun Pasir Emas Solaria
   if (zone.id === 'desert') {
-    // 3a. Kanyon Kuno [50, -520] (Northern Red Canyon Mesas & Cliffs)
-    const distCanyon = Math.hypot(x - 50, z - -520);
+    // 3a. Kanyon Kuno [110, -490] (Northern Red Canyon Mesas & Cliffs)
+    const distCanyon = Math.hypot(x - 110, z - -490);
     if (distCanyon <= 75) {
       const canyonNoise = Math.sin(x * 0.035) * Math.cos(z * 0.03) * 5.0 + Math.sin(x * 0.08) * 2.0;
       return clamp(12.0 + canyonNoise, 8.0, 20.0);
     }
 
-    // 3b. Istana Sultan Malik [360, -440]
-    if (Math.hypot(x - 360, z - -440) <= 36) return 2.00;
+    // 3b. Istana Sultan Malik [355, -440]
+    if (Math.hypot(x - 355, z - -440) <= 36) return 2.00;
 
-    // 3c. Kawah Cacat World Boss (Lv. 10) [210, -360]
-    const distSinkhole = Math.hypot(x - 210, z - -360);
+    // 3c. Kawah Cacat World Boss (Lv. 10) [225, -380]
+    const distSinkhole = Math.hypot(x - 225, z - -380);
     if (distSinkhole <= 45) {
       const t = distSinkhole / 45;
       const bowl = Math.pow(t, 1.8) * 2.5 - 2.5; // -2.5 unit di tengah, 0 di bibir
-      const swirlRipple = Math.sin(Math.atan2(z - -360, x - 210) * 3 + distSinkhole * 0.4) * 0.18;
+      const swirlRipple = Math.sin(Math.atan2(z - -380, x - 225) * 3 + distSinkhole * 0.4) * 0.18;
       return 1.80 + bowl + swirlRipple;
     }
 
-    // 3d. Piramida Emas Solaria [-20, -320]
-    if (Math.hypot(x - -20, z - -320) <= 32) return 1.50;
+    // 3d. Piramida Emas Solaria [10, -340]
+    if (Math.hypot(x - 10, z - -340) <= 32) return 1.50;
 
-    // 3e. Oase Solaria [20, -240]
-    const distOasis = Math.hypot(x - 20, z - -240);
+    // 3e. Oase Solaria [55, -250]
+    const distOasis = Math.hypot(x - 55, z - -250);
     if (distOasis < 16) return -0.4;
     if (distOasis < 26) return 0.6;
 
@@ -353,15 +349,15 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   }
 
   // 4. ZONA PLAINS: Padang Rumput Eldoria (Daratan Utama)
-  // 4a. Desa Utama & Padang Rumput Eldoria [22, 134] (Daratan luas kering dan aman Z: 80 s.d 165)
-  const distVillage = Math.hypot(x - 22, z - 134);
+  // 4a. Desa Utama & Padang Rumput Eldoria [25, 135] (Daratan luas kering dan aman)
+  const distVillage = Math.hypot(x - 25, z - 135);
   if (distVillage <= 55) return 0.25;
 
-  // 4b. Pelabuhan Sanctuary [20, 165..200]
-  if (Math.abs(x - 20) <= 16 && z >= 165 && z <= 200) return 0.35;
+  // 4b. Pelabuhan Sanctuary [-135, 145]
+  if (Math.hypot(x - -135, z - 145) <= 24) return 0.35;
 
-  // 4c. Lembah Danau Titan Kuno [-260, -450] (Danau Biru Luas di Ketinggian)
-  const distTitanLake = Math.hypot(x - -260, z - -450);
+  // 4c. Lembah Danau Titan Kuno [-260, -420] (Danau Biru Luas di Ketinggian)
+  const distTitanLake = Math.hypot(x - -260, z - -420);
   if (distTitanLake <= 58) {
     return -2.80; // Dasar danau air biru luas
   }
@@ -372,15 +368,15 @@ export function getProceduralContinentHeight(x: number, z: number): number {
 
   // 4d. Pegunungan Salju Barat Laut (Mengelilingi Danau Titan dari barat hingga perbatasan Kanyon Kuno)
   const isSnowMountainZone =
-    (distTitanLake > 60 && distTitanLake <= 165 && (xw < -50 || zw < -340)) ||
-    (xw >= -180 && xw <= 0 && zw < -460);
+    (distTitanLake > 60 && distTitanLake <= 165 && (xw < -50 || zw < -320)) ||
+    (xw >= -180 && xw <= 50 && zw < -440);
   if (isSnowMountainZone) {
     const rimNoise = Math.sin(xw * 0.02) * Math.cos(zw * 0.02) * 6.5 + Math.sin((xw + zw) * 0.035) * 3.0;
     return clamp(15.0 + rimNoise, 10.0, 26.0);
   }
 
-  // 4e. Ibukota Kerajaan Emas Astraea & Istana Kaisar [-240, -220] (Kastil megah di lereng selatan salju)
-  if (Math.hypot(x - -240, z - -220) <= 48) return 2.20;
+  // 4e. Ibukota Kerajaan Emas Astraea & Istana Kaisar [-250, -210] (Kastil megah di lereng selatan salju)
+  if (Math.hypot(x - -250, z - -210) <= 48) return 2.20;
 
   // 4e-2. Hutan Lindung Barat Daya [X: -320 s.d -180, Z: 50 s.d 150] (Cluster hijau rimbun)
   if (x >= -320 && x <= -180 && z >= 50 && z <= 150) {
@@ -388,21 +384,31 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return forestWave;
   }
 
-  // 4f. Hutan Kabut Eldoria [380, -140]
-  const distMistForest = Math.hypot(x - 380, z - -140);
+  // 4f. Hutan Kabut Eldoria [335, -140]
+  const distMistForest = Math.hypot(x - 335, z - -140);
   if (distMistForest <= 55) {
     const hillWave = Math.sin(x * 0.035 + z * 0.03) * 2.0 + 3.2;
     return hillWave;
   }
 
-  // 4g. Puing Kastil Terbengkalai [230, -60]
-  if (Math.hypot(x - 230, z - -60) <= 32) return 1.20;
+  // 4g. Puing Kastil Terbengkalai [225, -35]
+  if (Math.hypot(x - 225, z - -35) <= 32) return 1.40;
 
-  // 4h. Desa Benteng Val-Kragor [330, 90]
-  if (Math.hypot(x - 330, z - 90) <= 38) return 2.00;
+  // 4h. Desa Benteng Val-Kragor [315, 95]
+  if (Math.hypot(x - 315, z - 95) <= 38) return 2.00;
 
-  // 4i. Lembah Batu Lumut [480, 20]
-  if (Math.hypot(x - 480, z - 20) <= 38) return 0.50;
+  // 4i. Lembah Batu Lumut [455, 35] - Smoothstep Gaussian Bowl to prevent steep prism cliffs
+  const distMossValley = Math.hypot(x - 455, z - 35);
+  if (distMossValley <= 55) {
+    if (distMossValley <= 32) {
+      return 0.50; // Lantai lembah rata rendah (Y: 0.5) di radius 32 unit
+    }
+    // Transisi lereng landai menanjak halus hingga radius 55 unit menyatu ke pegunungan timur (Y: 9 s.d 11)
+    const t = (distMossValley - 32) / (55 - 32);
+    const s = t * t * (3 - 2 * t);
+    const surroundingHills = Math.max(9.0, Math.min(11.5, 9.5 + Math.sin(x * 0.04) * 1.5));
+    return 0.50 + s * (surroundingHills - 0.50);
+  }
 
   // 4j. Mage Tower Hill [70, 20]
   const distMage = Math.hypot(x - 70, z - 20);
@@ -431,8 +437,8 @@ export function getProceduralContinentHeight(x: number, z: number): number {
 
   // 4n. Perbukitan Timur Luas
   if (x > 240) {
-    const eastHills = Math.sin(xw * 0.015) * Math.cos(zw * 0.012) * 5.0 + Math.sin(zw * 0.025) * 2.0;
-    return Math.max(0.8, Math.min(18.0, 3.5 + eastHills));
+    const eastHills = Math.sin(xw * 0.015) * Math.cos(zw * 0.012) * 4.5 + Math.sin(zw * 0.025) * 1.8;
+    return Math.max(0.8, Math.min(14.0, 3.5 + eastHills));
   }
 
   // 4o. Bukit Padang Rumput Eldoria Umum
@@ -465,13 +471,13 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   const yDown = getProceduralContinentHeight(x, z + delta);
   const slope = clamp(Math.hypot(yRight - y, yDown - y) / delta, 0, 1);
 
-  // 1. Pelabuhan Sanctuary & Boardwalk Pier [20, 175..215]
-  if (Math.abs(x - 20) <= 3.2 && z >= 170 && z <= 215) {
+  // 1. Pelabuhan Sanctuary & Boardwalk Pier [-135, 145]
+  if (Math.hypot(x - -135, z - 145) <= 12) {
     return { height: 1.85, color: [141, 110, 99], biomeId: 'harbor_pier', isWater: false, isPath: true, slope: 0 };
   }
 
-  // 1a. Lembah Danau Titan Kuno [-260, -450] (Danau Air Biru Luas di Pegunungan)
-  const distTitanLake = Math.hypot(x - -260, z - -450);
+  // 1a. Lembah Danau Titan Kuno [-260, -420] (Danau Air Biru Luas di Pegunungan)
+  const distTitanLake = Math.hypot(x - -260, z - -420);
   if (distTitanLake <= 58) {
     return { height: y, color: [2, 132, 199], biomeId: 'titan_lake', isWater: true, isPath: false, slope: 0 };
   }
@@ -481,8 +487,8 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
 
   // 1b. Gugusan Pegunungan Bersalju (Snowy Mountain Ridges dari barat hingga Kanyon Kuno)
   const isSnowMountainZone =
-    (distTitanLake > 60 && distTitanLake <= 165 && (xw < -50 || zw < -340)) ||
-    (xw >= -180 && xw <= 0 && zw < -460);
+    (distTitanLake > 60 && distTitanLake <= 165 && (xw < -50 || zw < -320)) ||
+    (xw >= -180 && xw <= 50 && zw < -440);
   if (isSnowMountainZone && y >= 12.0) {
     return { height: y, color: [250, 252, 255], biomeId: 'snowy_peak', isWater: false, isPath: false, slope };
   }
@@ -490,8 +496,8 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: y, color: [115, 125, 135], biomeId: 'mountain_rock', isWater: false, isPath: false, slope };
   }
 
-  // 1b-2. Ibukota Kerajaan Emas Astraea [-240, -220] (Kastil megah batu abu-abu)
-  if (Math.hypot(x - -240, z - -220) <= 44) {
+  // 1b-2. Ibukota Kerajaan Emas Astraea [-250, -210] (Kastil megah batu abu-abu)
+  if (Math.hypot(x - -250, z - -210) <= 44) {
     return { height: y, color: [100, 116, 139], biomeId: 'astraea_castle', isWater: false, isPath: false, slope };
   }
 
@@ -509,29 +515,29 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: y, color: [136, 122, 102], biomeId: 'river_bank', isWater: false, isPath: false, slope };
   }
 
-  // 1d. Kanyon Kuno [50, -520] (Tebing Cadas Merah & Sandstone)
-  if (Math.hypot(x - 50, z - -520) <= 75) {
+  // 1d. Kanyon Kuno [110, -490] (Tebing Cadas Merah & Sandstone)
+  if (Math.hypot(x - 110, z - -490) <= 75) {
     return { height: y, color: [175, 85, 45], biomeId: 'ancient_canyon', isWater: false, isPath: false, slope };
   }
 
-  // 1e. Hutan Kabut Eldoria [380, -140] (Hijau Pinus Gelap Kabut)
-  if (Math.hypot(x - 380, z - -140) <= 60) {
+  // 1e. Hutan Kabut Eldoria [335, -140] (Hijau Pinus Gelap Kabut)
+  if (Math.hypot(x - 335, z - -140) <= 60) {
     return { height: y, color: [35, 95, 40], biomeId: 'mist_forest', isWater: false, isPath: false, slope };
   }
 
-  // 1f. Puing Kastil Terbengkalai [230, -60] (Batu Slate Reruntuhan)
-  if (Math.hypot(x - 230, z - -60) <= 32) {
+  // 1f. Puing Kastil Terbengkalai [225, -35] (Batu Slate Reruntuhan)
+  if (Math.hypot(x - 225, z - -35) <= 32) {
     return { height: y, color: [115, 125, 135], biomeId: 'abandoned_castle', isWater: false, isPath: false, slope };
   }
 
-  // 1g. Lembah Batu Lumut [480, 20] (Lembah Hijau Berlumut)
-  if (Math.hypot(x - 480, z - 20) <= 42) {
+  // 1g. Lembah Batu Lumut [455, 35] (Lembah Hijau Berlumut)
+  if (Math.hypot(x - 455, z - 35) <= 42) {
     return { height: y, color: [75, 135, 60], biomeId: 'moss_valley', isWater: false, isPath: false, slope };
   }
 
   // 2. Air Samudra / Laut Lepas
   if (y < 0.0) {
-    if (zone.id === 'desert' && Math.hypot(x - 20, z - -240) < 18) {
+    if (zone.id === 'desert' && Math.hypot(x - 55, z - -250) < 18) {
       return { height: y, color: [6, 182, 212], biomeId: 'solaria_oasis', isWater: true, isPath: false, slope };
     }
     const depth = clamp(-y / 4.0, 0, 1);
@@ -541,19 +547,19 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: y, color: [r, g, b], biomeId: 'ocean', isWater: true, isPath: false, slope };
   }
 
-  // 3. Volcanic Zone (Dragonfang Caldera & Volcano Island [80, 360])
+  // 3. Volcanic Zone (Dragonfang Caldera & Volcano Island [-85, 265])
   if (zone.id === 'volcano') {
-    const cx = 80;
-    const cz = 360;
-    const rx = 160;
-    const rz = 85;
-    const edgeNoise = Math.sin(x * 0.06) * 10 + Math.cos(z * 0.07) * 7;
+    const cx = -85;
+    const cz = 265;
+    const rx = 110;
+    const rz = 65;
+    const edgeNoise = Math.sin(x * 0.06) * 8 + Math.cos(z * 0.07) * 6;
     const distSq = Math.pow((x - cx) / (rx + edgeNoise), 2) + Math.pow((z - cz) / (rz + edgeNoise), 2);
 
-    if (distSq <= 0.35 || Math.hypot(x - 80, z - 360) <= 16) {
+    if (distSq <= 0.35 || Math.hypot(x - -85, z - 265) <= 16) {
       return { height: y, color: [220, 38, 38], biomeId: 'dragon_magma', isWater: false, isPath: false, slope };
     }
-    if (Math.hypot(x - 80, z - 360) <= 24) {
+    if (Math.hypot(x - -85, z - 265) <= 24) {
       return { height: y, color: [28, 25, 23], biomeId: 'dragon_arena', isWater: false, isPath: false, slope };
     }
     return { height: y, color: [40, 36, 34], biomeId: 'dragon_basalt', isWater: false, isPath: false, slope };
@@ -567,16 +573,16 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: y, color: [140, 122, 101], biomeId: 'eldoria_road', isWater: false, isPath: true, slope: 0 };
   }
 
-  // Piramida Emas Solaria [-20, -320]
-  if (Math.hypot(x - -20, z - -320) <= 24) {
+  // Piramida Emas Solaria [10, -340]
+  if (Math.hypot(x - 10, z - -340) <= 24) {
     return { height: y, color: [220, 160, 40], biomeId: 'solaria_pyramid', isWater: false, isPath: false, slope };
   }
 
-  // Kawah Cacat World Boss [210, -360]
-  const distSinkhole = Math.hypot(x - 210, z - -360);
+  // Kawah Cacat World Boss [225, -380]
+  const distSinkhole = Math.hypot(x - 225, z - -380);
   if (distSinkhole <= 45) {
     const t = distSinkhole / 45;
-    const swirl = Math.sin(Math.atan2(z - -360, x - 210) * 4 + distSinkhole * 0.5);
+    const swirl = Math.sin(Math.atan2(z - -380, x - 225) * 4 + distSinkhole * 0.5);
     const r = Math.round(180 + t * 50 + swirl * 10);
     const g = Math.round(110 + t * 65 + swirl * 8);
     const b = Math.round(30 + t * 50);
@@ -584,16 +590,16 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   }
 
   // 5. Special Plains Landmarks
-  // Desa Utama Plaza [20, 130]
-  if (Math.hypot(x - 20, z - 130) <= 18) {
+  // Desa Utama Plaza [25, 135]
+  if (Math.hypot(x - 25, z - 135) <= 18) {
     return { height: y, color: [226, 218, 214], biomeId: 'eldoria_plaza', isWater: false, isPath: true, slope: 0 };
   }
-  // Astraea Marble Capital [-260, -240]
-  if (Math.hypot(x - -260, z - -240) <= 32) {
+  // Astraea Marble Capital [-250, -210]
+  if (Math.hypot(x - -250, z - -210) <= 32) {
     return { height: y, color: [248, 250, 252], biomeId: 'astraea_marble', isWater: false, isPath: true, slope: 0 };
   }
-  // Val-Kragor Slate [330, 90]
-  if (Math.hypot(x - 330, z - 90) <= 28) {
+  // Val-Kragor Slate [315, 95]
+  if (Math.hypot(x - 315, z - 95) <= 28) {
     return { height: y, color: [100, 116, 139], biomeId: 'valkragor_slate', isWater: false, isPath: true, slope: 0 };
   }
   // Mage Tower Hill [70, 20]
@@ -602,7 +608,7 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   }
 
   // Beach sand fringe along natural south and west coastlines
-  const distToVillage = Math.hypot(x - 20, z - 130);
+  const distToVillage = Math.hypot(x - 25, z - 135);
   const cape = Math.max(0, 1.0 - distToVillage / 85) * 26;
   const southCoastZ = 185 + Math.sin(xw * 0.015) * 16 + Math.cos(xw * 0.04) * 8 + cape;
   const westCoastX = -460 + Math.sin(zw * 0.018) * 30 + Math.cos(zw * 0.045) * 12;
@@ -631,6 +637,22 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   const r = Math.round(grassR * (1.0 - desertWeight) + desertR * desertWeight);
   const g = Math.round(grassG * (1.0 - desertWeight) + desertG * desertWeight);
   const b = Math.round(grassB * (1.0 - desertWeight) + desertB * desertWeight);
+
+  // Graded Rock Slope Material on High Mountain Ridges (Eliminates monolithic green cliff walls)
+  if (y > 3.0 && desertWeight < 0.3) {
+    const slopeFactor = clamp((slope - 0.22) / 0.40, 0, 1);
+    const heightFactor = clamp((y - 3.2) / 5.5, 0, 1);
+    const rockBlend = Math.max(slopeFactor * 0.85, heightFactor * 0.75);
+    if (rockBlend > 0.05) {
+      const rockR = 115;
+      const rockG = 125;
+      const rockB = 135;
+      const finalR = Math.round(r * (1 - rockBlend) + rockR * rockBlend);
+      const finalG = Math.round(g * (1 - rockBlend) + rockG * rockBlend);
+      const finalB = Math.round(b * (1 - rockBlend) + rockB * rockBlend);
+      return { height: y, color: [finalR, finalG, finalB], biomeId: 'mountain_rock_slope', isWater: false, isPath: false, slope };
+    }
+  }
 
   const biomeId = desertWeight > 0.5 ? 'solaria_desert' : 'plains_grass';
   return { height: y, color: [r, g, b], biomeId, isWater: false, isPath: false, slope };

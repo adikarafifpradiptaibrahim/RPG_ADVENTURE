@@ -36,16 +36,17 @@ export interface RoadJunctionDef {
  * - Gurun Solaria: Jalur kafilah lebar 4.5 unit dari Bazaar [238, -280] ke Istana Sultan [330, -280].
  */
 export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
-  // A1. JALUR DERMAGA PELABUHAN KE ALUN-ALUN SANCTUARY
+  // A1. JALUR DERMAGA PELABUHAN KE DESA UTAMA SANCTUARY
   {
     id: 'sanctuary_harbor',
     name: 'Jalan Dermaga Pelabuhan ke Alun-Alun Sanctuary',
     biome: 'plains',
     width: 3.2,
     controlPoints: [
-      [20, 175],
-      [20, 155],
-      [20, 130], // Alun-alun desa sentral
+      [-135, 145], // Pelabuhan Sanctuary
+      [-85, 140],
+      [-25, 138],
+      [25, 135],   // Alun-Alun Desa Utama
     ],
     colorHex: 0x8c7a65,
     canvasStroke: '#8c7a65',
@@ -60,9 +61,9 @@ export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
     biome: 'plains',
     width: 3.2,
     controlPoints: [
-      [20, 130],
-      [20, 110],
-      [20, 95], // Menyatu di persimpangan luar desa
+      [25, 135],
+      [25, 115],
+      [25, 95], // Persimpangan luar desa
     ],
     colorHex: 0x8c7a65,
     canvasStroke: '#8c7a65',
@@ -70,24 +71,22 @@ export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
     canvasWidth: 3.0,
   },
 
-  // B. JALUR BARAT (MENUJU IBUKOTA ASTRAEA & DANAU TITAN)
+  // B. JALUR BARAT (DESA UTAMA -> HUTAN BARAT DAYA -> GERBANG ASTRAEA -> DANAU TITAN)
   {
     id: 'plains_west_astraea',
     name: 'Jalan Raya Kerajaan Barat Sanctuary - Astraea - Danau Titan',
     biome: 'plains',
     width: 3.2,
     controlPoints: [
-      [20, 95],
-      [-30, 80],
-      [-80, 50],
-      [-130, 10],
-      [-170, -60],
-      [-190, -140],
-      [-185, -210], // Jembatan 1 - Astraea Highway Stone Bridge
-      [-215, -220],
-      [-240, -220], // Ibukota Kerajaan Emas Astraea
-      [-240, -310],
-      [-240, -385], // Danau Titan South Outlet
+      [25, 135],    // Desa Utama
+      [-70, 120],
+      [-175, 100],
+      [-280, 70],   // Hutan Lindung Barat Daya
+      [-290, -30],
+      [-275, -120],
+      [-250, -210], // Gerbang Ibukota Kerajaan Emas Astraea
+      [-260, -290],
+      [-260, -360], // Danau Titan
     ],
     colorHex: 0x8c7a65,
     canvasStroke: '#a3917a',
@@ -95,31 +94,68 @@ export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
     canvasWidth: 2.8,
   },
 
-  // C. JALUR TIMUR (MENUJU BENTENG VAL-KRAGOR & LEMBAH BATU LUMUT)
+  // B2. JALUR JEMBATAN 1 ASTRAEA RIVER HIGHWAY
   {
-    id: 'plains_east_valkragor',
-    name: 'Jalan Raya Timur Sanctuary - Jembatan Gantung - Val-Kragor - Lembah Batu Lumut',
+    id: 'astraea_east_highway',
+    name: 'Jalan Raya Lintas Jembatan 1 Astraea - Dataran Tengah',
     biome: 'plains',
     width: 3.2,
     controlPoints: [
-      [20, 95],
-      [30, 60],
-      [38, 22],   // Jembatan 2 - Central Suspension Bridge
-      [70, 20],   // Mage Tower Puncak Halilintar
-      [130, 18],
-      [190, 15],  // Jembatan 4 - Puing Kastil Stone Arch Bridge
-      [230, 15],
-      [280, 25],
-      [335, 38],  // Jembatan 3 - Val-Kragor Highway Stone Arch Bridge
-      [330, 80],  // Gerbang Benteng Val-Kragor
-      [380, 50],
-      [430, 25],  // Jembatan 5 - Lembah Batu Lumut Stone Arch Bridge
-      [475, 20],  // Lembah Batu Lumut
+      [-250, -210], // Gerbang Timur Astraea
+      [-200, -210],
+      [-160, -210], // Jembatan 1 Astraea River Crossing
+      [-110, -180],
+      [-70, -120],
+      [-30, 55],    // Menuju Jembatan Tengah
     ],
     colorHex: 0x8c7a65,
     canvasStroke: '#a3917a',
     canvasDash: [6, 4],
     canvasWidth: 2.8,
+  },
+
+  // C. JALUR TIMUR (DESA UTAMA -> JEMBATAN TENGAH -> VAL-KRAGOR)
+  // (CATATAN: JALAN RAYA UTAMA BERHENTI DI VAL-KRAGOR, TIDAK MASUK KE LEMBAH BATU LUMUT)
+  {
+    id: 'plains_east_valkragor',
+    name: 'Jalan Raya Timur Sanctuary - Jembatan Tengah - Val-Kragor',
+    biome: 'plains',
+    width: 3.2,
+    controlPoints: [
+      [25, 135],   // Desa Utama
+      [5, 95],
+      [-30, 55],   // Jembatan 2 - Central Suspension Bridge
+      [45, 45],
+      [125, 45],
+      [210, 45],   // Jembatan 4 - Puing Kastil Terbengkalai
+      [250, 48],
+      [270, 50],   // Jembatan 3 - Val-Kragor Bridge
+      [315, 95],   // Desa Benteng Val-Kragor (TIDAK masuk ke Lembah Batu Lumut)
+    ],
+    colorHex: 0x8c7a65,
+    canvasStroke: '#a3917a',
+    canvasDash: [6, 4],
+    canvasWidth: 2.8,
+  },
+
+  // C2. JALAN SETAPAK KECIL AKSES LEMBAH BATU LUMUT
+  // (Hanya jalan setapak kecil menyeberangi jembatan kayu di sisi barat X: 395, Z: 25 masuk ke lembah X: 455, Z: 35)
+  {
+    id: 'moss_valley_access',
+    name: 'Jalan Setapak Akses Jembatan Kayu Lembah Batu Lumut',
+    biome: 'plains',
+    width: 2.0,
+    controlPoints: [
+      [315, 95],  // Val-Kragor
+      [355, 55],
+      [395, 25],  // Jembatan 5 - Wooden Footbridge di sisi barat lembah
+      [425, 30],
+      [455, 35],  // Masuk ke Lembah Batu Lumut
+    ],
+    colorHex: 0x78716c,
+    canvasStroke: '#78716c',
+    canvasDash: [3, 3],
+    canvasWidth: 1.8,
   },
 
   // D. JALUR GURUN SOLARIA (OASE - PIRAMIDA - SULTAN PALACE)
@@ -129,12 +165,12 @@ export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
     biome: 'desert',
     width: 4.5,
     controlPoints: [
-      [20, -240],   // Oase Solaria
-      [-20, -320],  // Piramida Emas
-      [80, -320],
-      [170, -340],
-      [270, -380],
-      [360, -440],  // Istana Sultan Malik
+      [55, -250],   // Oase Solaria
+      [10, -340],   // Piramida Emas
+      [115, -360],
+      [225, -380],  // Dekat Kawah Boss
+      [290, -410],
+      [355, -440],  // Istana Sultan Malik
     ],
     colorHex: 0xd9be8b,
     canvasStroke: '#d9be8b',
@@ -150,8 +186,8 @@ export const ROAD_JUNCTIONS: RoadJunctionDef[] = [
   {
     id: 'jct_crossroad_main',
     name: 'Persimpangan Utama Luar Gerbang Sanctuary',
-    pos: [20, 95],
-    signPos: [22.5, 93.5],
+    pos: [25, 95],
+    signPos: [27.5, 93.5],
     signDirections: [
       { label: '<- Ibukota Astraea & Danau Titan', angle: -Math.PI * 0.72 },
       { label: 'Benteng Val-Kragor & Jembatan ->', angle: 0.18 },
@@ -160,42 +196,44 @@ export const ROAD_JUNCTIONS: RoadJunctionDef[] = [
   },
   {
     id: 'jct_bridge_west',
-    name: 'Pangkal Jembatan Gantung',
-    pos: [38, 22],
-    signPos: [36.0, 19.5],
+    name: 'Pangkal Jembatan Tengah',
+    pos: [-30, 55],
+    signPos: [-32.0, 52.5],
     signDirections: [
-      { label: 'Benteng Val-Kragor & Mage Tower ->', angle: 0.0 },
-      { label: '<- Desa Sanctuary', angle: Math.PI },
+      { label: 'Benteng Val-Kragor & Puing Kastil ->', angle: 0.0 },
+      { label: '<- Desa Sanctuary & Pelabuhan', angle: Math.PI },
     ],
   },
   {
     id: 'jct_valkragor_gate',
     name: 'Ambang Luar Gerbang Benteng Val-Kragor',
-    pos: [330, 80],
-    signPos: [327.5, 83.5],
+    pos: [315, 95],
+    signPos: [312.5, 92.5],
     signDirections: [
-      { label: 'Pintu Gerbang Benteng ->', angle: 0.0 },
-      { label: '<- Jembatan Gantung & Sanctuary', angle: Math.PI },
+      { label: 'Pintu Gerbang Benteng Val-Kragor ->', angle: 0.0 },
+      { label: '<- Jembatan Tengah & Sanctuary', angle: Math.PI },
+      { label: '^ Jalan Setapak Lembah Batu Lumut', angle: -Math.PI * 0.5 },
     ],
   },
   {
     id: 'jct_astraea_gate',
     name: 'Gerbang Emas Astraea',
-    pos: [-260, -220],
-    signPos: [-262.5, -223.5],
+    pos: [-250, -210],
+    signPos: [-252.5, -213.5],
     signDirections: [
       { label: 'Gerbang Istana Astraea ->', angle: 0.0 },
       { label: '<- Desa Sanctuary & Padang Rumput', angle: Math.PI * 0.5 },
+      { label: '^ Danau Titan Kuno', angle: -Math.PI * 0.5 },
     ],
   },
   {
     id: 'jct_bazaar_gate',
     name: 'Oase Solaria Crossroads',
-    pos: [20, -240],
-    signPos: [19.0, -236.5],
+    pos: [55, -250],
+    signPos: [53.0, -246.5],
     signDirections: [
       { label: 'Istana Sultan Malik ->', angle: 0.0 },
-      { label: '<- Oase & Piramida', angle: Math.PI },
+      { label: '<- Oase & Piramida Emas', angle: Math.PI },
     ],
   },
 ];

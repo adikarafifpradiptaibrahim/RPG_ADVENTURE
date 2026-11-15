@@ -290,28 +290,28 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return getProceduralHeight(x, z);
     }
 
-    // 1. Suspension bridge walkable deck corridor (Bridge 2 - Center, at [38, 22])
-    if (Math.abs(z - 22) <= 2.4 && x >= 27 && x <= 49) {
+    // 1. Suspension bridge walkable deck corridor (Bridge 2 - Center, at [-30, 55])
+    if (Math.abs(z - 55) <= 2.4 && x >= -41 && x <= -19) {
       return 1.35;
     }
 
-    // 1b. Bridge 1 - Astraea Highway Stone Bridge (X: -195, Z: -210, deck Y = 0.45)
-    if (Math.hypot(x - -195, z - -210) <= 13.0 && Math.abs((x - -195) + (z - -210)) <= 3.5) {
+    // 1b. Bridge 1 - Astraea Highway Stone Bridge (X: -160, Z: -210, deck Y = 0.45)
+    if (Math.abs(z - -210) <= 2.5 && x >= -173 && x <= -147) {
       return 0.45;
     }
 
-    // 1c. Bridge 3 - Val-Kragor Highway Stone Arch Bridge (X: 335, Z: 38, deck Y = 0.45)
-    if (Math.abs(x - 335) <= 2.5 && z >= 26 && z <= 50) {
+    // 1c. Bridge 3 - Val-Kragor Highway Stone Arch Bridge (X: 270, Z: 50, deck Y = 0.45)
+    if (Math.abs(x - 270) <= 2.5 && z >= 38 && z <= 62) {
       return 0.45;
     }
 
-    // 1d. Bridge 4 - Puing Kastil Stone Arch Bridge (X: 190, Z: 15, deck Y = 0.45)
-    if (Math.abs(x - 190) <= 2.5 && z >= 3 && z <= 27) {
+    // 1d. Bridge 4 - Puing Kastil Stone Arch Bridge (X: 210, Z: 45, deck Y = 0.45)
+    if (Math.abs(x - 210) <= 2.5 && z >= 33 && z <= 57) {
       return 0.45;
     }
 
-    // 1e. Bridge 5 - Lembah Batu Lumut Stone Arch Bridge (X: 430, Z: 25, deck Y = 0.45)
-    if (Math.abs(x - 430) <= 2.5 && z >= 13 && z <= 37) {
+    // 1e. Bridge 5 - Lembah Batu Lumut Stone Arch Bridge (X: 395, Z: 25, deck Y = 0.45)
+    if (Math.abs(x - 395) <= 2.5 && z >= 13 && z <= 37) {
       return 0.45;
     }
 
@@ -341,19 +341,19 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return 1.85; // Solid continuous wooden pier deck
     }
 
-    // 3. Relocated Fortress Val-Kragor Solid Courtyard (Center [380, 80], radius 38 at y = 2.50)
-    if (Math.hypot(x - 380, z - 80) <= 38) {
-      return 2.50;
+    // 3. Relocated Fortress Val-Kragor Solid Courtyard (Center [315, 95], radius 38 at y = 2.00)
+    if (Math.hypot(x - 315, z - 95) <= 38) {
+      return 2.00;
     }
 
-    // 4. Imperial Capital Astraea Courtyard & Esplanade (Center [-340, -220], radius 46 at y = 2.00)
-    if (Math.hypot(x - -240, z - -220) <= 46) {
+    // 4. Imperial Capital Astraea Courtyard & Esplanade (Center [-250, -210], radius 46 at y = 2.00)
+    if (Math.hypot(x - -250, z - -210) <= 46) {
       return 2.00;
     }
 
     // 5. Solaria Desert Village Bazaar & Grand Palace (Taj Mahal) Courtyard (y = 1.80..2.00)
-    if (Math.hypot(x - 280, z - -280) <= 45) return 1.80;
-    if (Math.hypot(x - 360, z - -440) <= 35) return 2.00;
+    if (Math.hypot(x - 55, z - -250) <= 35) return 0.50;
+    if (Math.hypot(x - 355, z - -440) <= 35) return 2.00;
     if (x >= 250 && x <= 370 && Math.abs(z - -280) <= 25) return 1.90;
 
     // 6. Ancient Titan Sanctuary Basin Arena (Center [-196, -254], radius 40 at y = 0.20)
@@ -894,44 +894,48 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // ==========================================
   // 2.8 SECOND VILLAGE: RELOCATED & EXPANDED DESA BENTENG VAL-KRAGOR
-  // (Pusat Dataran Padang Rumput Timur: Center [380, 80], Courtyard X: 354..406, Z: 58..102 at y = 2.50)
+  // (Pusat Dataran Padang Rumput Timur: Center [315, 95], Courtyard X: 289..341, Z: 73..117 at y = 2.00)
   // Gerbang Utama diputar lurus menghadap Barat (Rotation Y = Math.PI * 1.5 / 270°).
   // Interior lengkap: Barak Prajurit, Bengkel Persenjataan Goran, Menara Panah, Tempat Latihan Pedang & Panahan, Api Unggun.
   // ==========================================
-  const valKragorBaseY = 2.50;
+  const valKragorBaseY = 2.00;
+  const vkBaseX = 315;
+  const vkBaseZ = 95;
+  const vkDX = vkBaseX - 380; // -65
+  const vkDZ = vkBaseZ - 80;  // +15
 
-  // A. Grand Fortress Gatehouse (West Entrance at X = 354, Z = 80)
+  // A. Grand Fortress Gatehouse (West Entrance at X = 289, Z = 95)
   // Menghadap lurus ke BARAT (Rotation Y = 270° / Math.PI * 1.5) menyambut jalan raya berbatu dari jembatan
   const fortressGate = createFortressGatehouseMesh();
-  fortressGate.position.set(354, valKragorBaseY, 80);
+  fortressGate.position.set(354 + vkDX, valKragorBaseY, 80 + vkDZ);
   fortressGate.rotation.y = Math.PI * 1.5;
   scene.add(fortressGate);
   colliders.push(
-    { type: 'box', minX: 352, maxX: 356, minZ: 73.5, maxZ: 77.5, label: 'Menara Gerbang Val-Kragor Kiri' },
-    { type: 'box', minX: 352, maxX: 356, minZ: 82.5, maxZ: 86.5, label: 'Menara Gerbang Val-Kragor Kanan' }
+    { type: 'box', minX: 352 + vkDX, maxX: 356 + vkDX, minZ: 73.5 + vkDZ, maxZ: 77.5 + vkDZ, label: 'Menara Gerbang Val-Kragor Kiri' },
+    { type: 'box', minX: 352 + vkDX, maxX: 356 + vkDX, minZ: 82.5 + vkDZ, maxZ: 86.5 + vkDZ, label: 'Menara Gerbang Val-Kragor Kanan' }
   );
 
-  // B. Grand Fortress Citadel / Command Keep (East End of Courtyard at X = 402, Z = 80)
+  // B. Grand Fortress Citadel / Command Keep (East End of Courtyard at X = 337, Z = 95)
   // Menghadap ke BARAT ke arah alun-alun dan gerbang utama
   const fortressKeep = createFortressKeepMesh();
-  fortressKeep.position.set(402, valKragorBaseY, 80);
+  fortressKeep.position.set(402 + vkDX, valKragorBaseY, 80 + vkDZ);
   fortressKeep.rotation.y = -Math.PI / 2;
   scene.add(fortressKeep);
   colliders.push({
     type: 'box',
-    minX: 397,
-    maxX: 407,
-    minZ: 74,
-    maxZ: 86,
+    minX: 397 + vkDX,
+    maxX: 407 + vkDX,
+    minZ: 74 + vkDZ,
+    maxZ: 86 + vkDZ,
     label: 'Kastil Komando Val-Kragor',
   });
 
   // C. Four Expanded Corner Watchtowers
   const towerCoords = [
-    { x: 354, z: 58, label: 'Menara Sudut Barat Laut' },
-    { x: 354, z: 102, label: 'Menara Sudut Barat Daya' },
-    { x: 406, z: 58, label: 'Menara Sudut Timur Laut' },
-    { x: 406, z: 102, label: 'Menara Sudut Timur Daya' },
+    { x: 354 + vkDX, z: 58 + vkDZ, label: 'Menara Sudut Barat Laut' },
+    { x: 354 + vkDX, z: 102 + vkDZ, label: 'Menara Sudut Barat Daya' },
+    { x: 406 + vkDX, z: 58 + vkDZ, label: 'Menara Sudut Timur Laut' },
+    { x: 406 + vkDX, z: 102 + vkDZ, label: 'Menara Sudut Timur Daya' },
   ];
   towerCoords.forEach((tc) => {
     const tower = createFortressWatchtowerMesh();
@@ -940,46 +944,46 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     colliders.push({ type: 'circle', x: tc.x, z: tc.z, radius: 2.5, label: tc.label });
   });
 
-  // D. Solid Rampart Walls Enclosing Expanded Courtyard (X: 354..406, Z: 58..102)
-  // North Wall (length 52, centered at X: 380, Z: 58)
+  // D. Solid Rampart Walls Enclosing Expanded Courtyard (X: 289..341, Z: 73..117)
+  // North Wall (length 52, centered at X: 315, Z: 73)
   const vkWallNorth = createFortressWallMesh(52);
-  vkWallNorth.position.set(380, valKragorBaseY, 58);
+  vkWallNorth.position.set(380 + vkDX, valKragorBaseY, 58 + vkDZ);
   scene.add(vkWallNorth);
-  colliders.push({ type: 'box', minX: 354, maxX: 406, minZ: 56.5, maxZ: 59.5, label: 'Benteng Val-Kragor Utara' });
+  colliders.push({ type: 'box', minX: 354 + vkDX, maxX: 406 + vkDX, minZ: 56.5 + vkDZ, maxZ: 59.5 + vkDZ, label: 'Benteng Val-Kragor Utara' });
 
-  // South Wall (length 52, centered at X: 380, Z: 102)
+  // South Wall (length 52, centered at X: 315, Z: 117)
   const vkWallSouth = createFortressWallMesh(52);
-  vkWallSouth.position.set(380, valKragorBaseY, 102);
+  vkWallSouth.position.set(380 + vkDX, valKragorBaseY, 102 + vkDZ);
   scene.add(vkWallSouth);
-  colliders.push({ type: 'box', minX: 354, maxX: 406, minZ: 100.5, maxZ: 103.5, label: 'Benteng Val-Kragor Selatan' });
+  colliders.push({ type: 'box', minX: 354 + vkDX, maxX: 406 + vkDX, minZ: 100.5 + vkDZ, maxZ: 103.5 + vkDZ, label: 'Benteng Val-Kragor Selatan' });
 
-  // East Wall (length 44, centered at X: 406, Z: 80)
+  // East Wall (length 44, centered at X: 341, Z: 95)
   const vkWallEast = createFortressWallMesh(44);
-  vkWallEast.position.set(406, valKragorBaseY, 80);
+  vkWallEast.position.set(406 + vkDX, valKragorBaseY, 80 + vkDZ);
   vkWallEast.rotation.y = Math.PI / 2;
   scene.add(vkWallEast);
-  colliders.push({ type: 'box', minX: 404.5, maxX: 407.5, minZ: 58, maxZ: 102, label: 'Benteng Val-Kragor Timur' });
+  colliders.push({ type: 'box', minX: 404.5 + vkDX, maxX: 407.5 + vkDX, minZ: 58 + vkDZ, maxZ: 102 + vkDZ, label: 'Benteng Val-Kragor Timur' });
 
   // West Wall North Segment (connecting NW Watchtower to Gate North Bastion)
   const vkWallWestN = createFortressWallMesh(17.5);
-  vkWallWestN.position.set(354, valKragorBaseY, 66.75);
+  vkWallWestN.position.set(354 + vkDX, valKragorBaseY, 66.75 + vkDZ);
   vkWallWestN.rotation.y = Math.PI / 2;
   scene.add(vkWallWestN);
-  colliders.push({ type: 'box', minX: 352.5, maxX: 355.5, minZ: 58, maxZ: 75.5, label: 'Benteng Val-Kragor Barat Laut' });
+  colliders.push({ type: 'box', minX: 352.5 + vkDX, maxX: 355.5 + vkDX, minZ: 58 + vkDZ, maxZ: 75.5 + vkDZ, label: 'Benteng Val-Kragor Barat Laut' });
 
   // West Wall South Segment (connecting SW Watchtower to Gate South Bastion)
   const vkWallWestS = createFortressWallMesh(17.5);
-  vkWallWestS.position.set(354, valKragorBaseY, 93.25);
+  vkWallWestS.position.set(354 + vkDX, valKragorBaseY, 93.25 + vkDZ);
   vkWallWestS.rotation.y = Math.PI / 2;
   scene.add(vkWallWestS);
-  colliders.push({ type: 'box', minX: 352.5, maxX: 355.5, minZ: 84.5, maxZ: 102, label: 'Benteng Val-Kragor Barat Daya' });
+  colliders.push({ type: 'box', minX: 352.5 + vkDX, maxX: 355.5 + vkDX, minZ: 84.5 + vkDZ, maxZ: 102 + vkDZ, label: 'Benteng Val-Kragor Barat Daya' });
 
   // E. Outer Perimeter Surveillance Watchtowers
   const outerVkTowers = [
-    { x: 344, z: 50, label: 'Menara Pengawas Luar Barat Laut' },
-    { x: 416, z: 50, label: 'Menara Pengawas Luar Timur Laut' },
-    { x: 344, z: 110, label: 'Menara Pengawas Luar Barat Daya' },
-    { x: 416, z: 110, label: 'Menara Pengawas Luar Timur Daya' },
+    { x: 344 + vkDX, z: 50 + vkDZ, label: 'Menara Pengawas Luar Barat Laut' },
+    { x: 416 + vkDX, z: 50 + vkDZ, label: 'Menara Pengawas Luar Timur Laut' },
+    { x: 344 + vkDX, z: 110 + vkDZ, label: 'Menara Pengawas Luar Barat Daya' },
+    { x: 416 + vkDX, z: 110 + vkDZ, label: 'Menara Pengawas Luar Timur Daya' },
   ];
   outerVkTowers.forEach((ot) => {
     const oTower = createFortressWatchtowerMesh();
@@ -989,118 +993,116 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // F. INTERIOR MILITARY FACILITIES (Lengkap, Rapi, & Tidak Kosong!)
-  // F1. Barak Prajurit (Soldier Barracks in North-West Courtyard: X: 368, Z: 68)
+  // F1. Barak Prajurit (Soldier Barracks in North-West Courtyard)
   const vkBarracks = createBarracksMesh();
-  vkBarracks.position.set(368, valKragorBaseY, 68);
+  vkBarracks.position.set(368 + vkDX, valKragorBaseY, 68 + vkDZ);
   vkBarracks.rotation.y = 0;
   scene.add(vkBarracks);
   colliders.push({
     type: 'box',
-    minX: 363.5,
-    maxX: 372.5,
-    minZ: 64.5,
-    maxZ: 71.5,
+    minX: 363.5 + vkDX,
+    maxX: 372.5 + vkDX,
+    minZ: 64.5 + vkDZ,
+    maxZ: 71.5 + vkDZ,
     label: 'Barak Prajurit Benteng Val-Kragor',
   });
 
-  // F2. Bengkel Tempa & Kedai Persenjataan Goran (North Courtyard: X: 388, Z: 68)
+  // F2. Bengkel Tempa & Kedai Persenjataan Goran
   const goranForge = createBlacksmithMesh();
-  goranForge.position.set(388, valKragorBaseY, 68);
+  goranForge.position.set(388 + vkDX, valKragorBaseY, 68 + vkDZ);
   goranForge.rotation.y = 0;
   scene.add(goranForge);
   colliders.push({
     type: 'box',
-    minX: 385,
-    maxX: 391,
-    minZ: 65,
-    maxZ: 71,
+    minX: 385 + vkDX,
+    maxX: 391 + vkDX,
+    minZ: 65 + vkDZ,
+    maxZ: 71 + vkDZ,
     label: 'Bengkel Tempa Gunung Goran',
   });
 
   // F3. Rak Senjata Militer di Luar Bengkel Tempa
   const rack1 = createWeaponRackMesh();
-  rack1.position.set(382, valKragorBaseY, 71);
+  rack1.position.set(382 + vkDX, valKragorBaseY, 71 + vkDZ);
   scene.add(rack1);
   const rack2 = createWeaponRackMesh();
-  rack2.position.set(394, valKragorBaseY, 71);
+  rack2.position.set(394 + vkDX, valKragorBaseY, 71 + vkDZ);
   scene.add(rack2);
   colliders.push(
-    { type: 'box', minX: 380.8, maxX: 383.2, minZ: 70.5, maxZ: 71.5, label: 'Rak Senjata Benteng 1' },
-    { type: 'box', minX: 392.8, maxX: 395.2, minZ: 70.5, maxZ: 71.5, label: 'Rak Senjata Benteng 2' }
+    { type: 'box', minX: 380.8 + vkDX, maxX: 383.2 + vkDX, minZ: 70.5 + vkDZ, maxZ: 71.5 + vkDZ, label: 'Rak Senjata Benteng 1' },
+    { type: 'box', minX: 392.8 + vkDX, maxX: 395.2 + vkDX, minZ: 70.5 + vkDZ, maxZ: 71.5 + vkDZ, label: 'Rak Senjata Benteng 2' }
   );
 
-  // F4. Frostwolf Tavern / Highland Longhouse (South Courtyard: X: 388, Z: 92)
+  // F4. Frostwolf Tavern / Highland Longhouse
   const frostwolfLodge = createTavernMesh();
-  frostwolfLodge.position.set(388, valKragorBaseY, 92);
+  frostwolfLodge.position.set(388 + vkDX, valKragorBaseY, 92 + vkDZ);
   frostwolfLodge.rotation.y = Math.PI;
   scene.add(frostwolfLodge);
   colliders.push({
     type: 'box',
-    minX: 384,
-    maxX: 392,
-    minZ: 88.5,
-    maxZ: 95.5,
+    minX: 384 + vkDX,
+    maxX: 392 + vkDX,
+    minZ: 88.5 + vkDZ,
+    maxZ: 95.5 + vkDZ,
     label: 'Kedai Serigala Salju',
   });
 
-  // F5. Tempat Latihan Pedang & Sasaran Panah (Combat Training Yard: South-West Courtyard)
-  // Target Dummy Pedang
+  // F5. Tempat Latihan Pedang & Sasaran Panah
   const dummy1 = createTrainingDummyMesh();
-  dummy1.position.set(364, valKragorBaseY, 88);
+  dummy1.position.set(364 + vkDX, valKragorBaseY, 88 + vkDZ);
   dummy1.rotation.y = Math.PI / 4;
   const dummy2 = createTrainingDummyMesh();
-  dummy2.position.set(370, valKragorBaseY, 88);
+  dummy2.position.set(370 + vkDX, valKragorBaseY, 88 + vkDZ);
   dummy2.rotation.y = -Math.PI / 6;
   scene.add(dummy1, dummy2);
   colliders.push(
-    { type: 'circle', x: 364, z: 88, radius: 0.6, label: 'Boneka Latihan Pedang 1' },
-    { type: 'circle', x: 370, z: 88, radius: 0.6, label: 'Boneka Latihan Pedang 2' }
+    { type: 'circle', x: 364 + vkDX, z: 88 + vkDZ, radius: 0.6, label: 'Boneka Latihan Pedang 1' },
+    { type: 'circle', x: 370 + vkDX, z: 88 + vkDZ, radius: 0.6, label: 'Boneka Latihan Pedang 2' }
   );
 
-  // Sasaran Panah
   const archeryTarget1 = createArcheryTargetMesh();
-  archeryTarget1.position.set(364, valKragorBaseY, 93);
+  archeryTarget1.position.set(364 + vkDX, valKragorBaseY, 93 + vkDZ);
   archeryTarget1.rotation.y = 0;
   const archeryTarget2 = createArcheryTargetMesh();
-  archeryTarget2.position.set(370, valKragorBaseY, 93);
+  archeryTarget2.position.set(370 + vkDX, valKragorBaseY, 93 + vkDZ);
   archeryTarget2.rotation.y = 0;
   scene.add(archeryTarget1, archeryTarget2);
   colliders.push(
-    { type: 'box', minX: 363.2, maxX: 364.8, minZ: 92.5, maxZ: 93.5, label: 'Sasaran Panah 1' },
-    { type: 'box', minX: 369.2, maxX: 370.8, minZ: 92.5, maxZ: 93.5, label: 'Sasaran Panah 2' }
+    { type: 'box', minX: 363.2 + vkDX, maxX: 364.8 + vkDX, minZ: 92.5 + vkDZ, maxZ: 93.5 + vkDZ, label: 'Sasaran Panah 1' },
+    { type: 'box', minX: 369.2 + vkDX, maxX: 370.8 + vkDX, minZ: 92.5 + vkDZ, maxZ: 93.5 + vkDZ, label: 'Sasaran Panah 2' }
   );
 
-  // F6. Menara Panah Interior (Inner Arrow Watchtowers)
+  // F6. Menara Panah Interior
   const innerArrowTower1 = createFortressWatchtowerMesh();
-  innerArrowTower1.position.set(362, valKragorBaseY, 64);
+  innerArrowTower1.position.set(362 + vkDX, valKragorBaseY, 64 + vkDZ);
   scene.add(innerArrowTower1);
-  colliders.push({ type: 'circle', x: 362, z: 64, radius: 2.2, label: 'Menara Panah Interior Utara' });
+  colliders.push({ type: 'circle', x: 362 + vkDX, z: 64 + vkDZ, radius: 2.2, label: 'Menara Panah Interior Utara' });
 
   const innerArrowTower2 = createFortressWatchtowerMesh();
-  innerArrowTower2.position.set(362, valKragorBaseY, 96);
+  innerArrowTower2.position.set(362 + vkDX, valKragorBaseY, 96 + vkDZ);
   scene.add(innerArrowTower2);
-  colliders.push({ type: 'circle', x: 362, z: 96, radius: 2.2, label: 'Menara Panah Interior Selatan' });
+  colliders.push({ type: 'circle', x: 362 + vkDX, z: 96 + vkDZ, radius: 2.2, label: 'Menara Panah Interior Selatan' });
 
-  // F7. Api Unggun Prajurit Benteng (Pusat Alun-Alun: X: 378, Z: 80)
+  // F7. Api Unggun Prajurit Benteng
   const fortressFire = createBonfireMesh();
-  fortressFire.position.set(378, valKragorBaseY, 80);
+  fortressFire.position.set(378 + vkDX, valKragorBaseY, 80 + vkDZ);
   scene.add(fortressFire);
-  colliders.push({ type: 'circle', x: 378, z: 80, radius: 1.2, label: 'Perapian Utama Benteng' });
+  colliders.push({ type: 'circle', x: 378 + vkDX, z: 80 + vkDZ, radius: 1.2, label: 'Perapian Utama Benteng' });
 
   // F8. Courtyard Iron Streetlamps
   for (const lx of [360, 372, 386, 396]) {
     for (const lz of [76, 84]) {
       const lamp = createStreetLampMesh();
-      lamp.position.set(lx, valKragorBaseY, lz);
+      lamp.position.set(lx + vkDX, valKragorBaseY, lz + vkDZ);
       scene.add(lamp);
-      colliders.push({ type: 'circle', x: lx, z: lz, radius: 0.35, label: 'Lampu Benteng' });
+      colliders.push({ type: 'circle', x: lx + vkDX, z: lz + vkDZ, radius: 0.35, label: 'Lampu Benteng' });
     }
   }
 
   // --- NPCS OF DESA BENTENG VAL-KRAGOR ---
   // NPC 9: Komandan Brann (Highland Fortress Commander)
   const brannGroup = createCustomNPCMesh('commander');
-  const brannPos: [number, number, number] = [378, valKragorBaseY, 83];
+  const brannPos: [number, number, number] = [378 + vkDX, valKragorBaseY, 83 + vkDZ];
   brannGroup.position.set(...brannPos);
   brannGroup.rotation.y = -Math.PI / 2;
   scene.add(brannGroup);
@@ -1118,7 +1120,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 10: Peramal Elora (Astrologer & Seer)
   const eloraGroup = createCustomNPCMesh('seer');
-  const eloraPos: [number, number, number] = [390, valKragorBaseY, 86];
+  const eloraPos: [number, number, number] = [390 + vkDX, valKragorBaseY, 86 + vkDZ];
   eloraGroup.position.set(...eloraPos);
   eloraGroup.rotation.y = -Math.PI / 3;
   scene.add(eloraGroup);
@@ -1136,7 +1138,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 11: Goran Pandai Besi Dataran Tinggi (Highland Smith)
   const goranGroup = createCustomNPCMesh('frostsmith');
-  const goranPos: [number, number, number] = [388, valKragorBaseY, 72];
+  const goranPos: [number, number, number] = [388 + vkDX, valKragorBaseY, 72 + vkDZ];
   goranGroup.position.set(...goranPos);
   goranGroup.rotation.y = Math.PI;
   scene.add(goranGroup);
@@ -1154,9 +1156,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 12: Prajurit Penjaga Gerbang Barat Kiri (Sentinel Gerbang Kiri)
   const fGuardGroup = createCustomNPCMesh('guard');
-  const fGuardPos: [number, number, number] = [352, valKragorBaseY, 77];
+  const fGuardPos: [number, number, number] = [352 + vkDX, valKragorBaseY, 77 + vkDZ];
   fGuardGroup.position.set(...fGuardPos);
-  fGuardGroup.rotation.y = Math.PI * 1.5; // Menghadap lurus ke Barat keluar gerbang
+  fGuardGroup.rotation.y = Math.PI * 1.5;
   scene.add(fGuardGroup);
   npcs.push({
     id: 'guard_valkragor',
@@ -1172,9 +1174,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 12b: Prajurit Penjaga Gerbang Barat Kanan (Sentinel Gerbang Kanan)
   const fGuardGroup2 = createCustomNPCMesh('guard');
-  const fGuardPos2: [number, number, number] = [352, valKragorBaseY, 83];
+  const fGuardPos2: [number, number, number] = [352 + vkDX, valKragorBaseY, 83 + vkDZ];
   fGuardGroup2.position.set(...fGuardPos2);
-  fGuardGroup2.rotation.y = Math.PI * 1.5; // Menghadap lurus ke Barat keluar gerbang
+  fGuardGroup2.rotation.y = Math.PI * 1.5;
   scene.add(fGuardGroup2);
   npcs.push({
     id: 'guard_valkragor_2',
@@ -1190,9 +1192,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 12c: Prajurit Penjaga Barak (Barracks Sentry)
   const fGuardGroup3 = createCustomNPCMesh('guard');
-  const fGuardPos3: [number, number, number] = [368, valKragorBaseY, 74];
+  const fGuardPos3: [number, number, number] = [368 + vkDX, valKragorBaseY, 74 + vkDZ];
   fGuardGroup3.position.set(...fGuardPos3);
-  fGuardGroup3.rotation.y = 0; // Menghadap Selatan ke jalan
+  fGuardGroup3.rotation.y = 0;
   scene.add(fGuardGroup3);
   npcs.push({
     id: 'guard_valkragor_barracks',
@@ -1208,9 +1210,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 12d: Prajurit Rekrut Latihan Pedang (Sparring Recruit)
   const fRecruitGroup = createCustomNPCMesh('guard');
-  const fRecruitPos: [number, number, number] = [366, valKragorBaseY, 90];
+  const fRecruitPos: [number, number, number] = [366 + vkDX, valKragorBaseY, 90 + vkDZ];
   fRecruitGroup.position.set(...fRecruitPos);
-  fRecruitGroup.rotation.y = Math.PI; // Menghadap Utara ke arah dummy
+  fRecruitGroup.rotation.y = Math.PI;
   scene.add(fRecruitGroup);
   npcs.push({
     id: 'valkragor_recruit',
@@ -1225,51 +1227,51 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 2.9 MISTY CHASM & SOLID SUSPENSION BRIDGE (JEMBATAN 2: JALUR TENGAH - X: 38, Z: 22)
-  // Membentang lurus di X: 27..49 pada Z = 22 di atas Cabang Sungai Hilir Selatan.
+  // 2.9 MISTY CHASM & SOLID SUSPENSION BRIDGE (JEMBATAN 2: JALUR TENGAH - X: -30, Z: 55)
+  // Membentang lurus di X: -41..-19 pada Z = 55 di atas Cabang Sungai Hilir Selatan.
   // ==========================================
   const bridge = createSuspensionBridgeMesh(22);
-  bridge.position.set(38, 1.35, 22);
+  bridge.position.set(-30, 1.35, 55);
   scene.add(bridge);
 
   const chasmStonePier = createStoneBridgePierMesh(4.4);
-  chasmStonePier.position.set(38, -2.2, 22);
+  chasmStonePier.position.set(-30, -2.2, 55);
   scene.add(chasmStonePier);
 
   colliders.push(
-    { type: 'box', minX: 27, maxX: 49, minZ: 19.8, maxZ: 20.6, label: 'Pagar Jembatan Gantung Utara' },
-    { type: 'box', minX: 27, maxX: 49, minZ: 23.4, maxZ: 24.2, label: 'Pagar Jembatan Gantung Selatan' }
+    { type: 'box', minX: -41, maxX: -19, minZ: 52.8, maxZ: 53.6, label: 'Pagar Jembatan Gantung Utara' },
+    { type: 'box', minX: -41, maxX: -19, minZ: 56.4, maxZ: 57.2, label: 'Pagar Jembatan Gantung Selatan' }
   );
 
   // ==========================================
-  // 2.9c JEMBATAN 1: JALUR BARAT / ASTRAEA HIGHWAY (X: -195, Z: -210)
+  // 2.9c JEMBATAN 1: JALUR BARAT / ASTRAEA HIGHWAY (X: -160, Z: -210)
   // ==========================================
   const bridge1West = createStoneArchBridgeMesh(26, 4.8, 2.7);
-  bridge1West.position.set(-195, 0.45, -210);
-  bridge1West.rotation.y = -Math.PI / 4;
+  bridge1West.position.set(-160, 0.45, -210);
+  bridge1West.rotation.y = 0;
   scene.add(bridge1West);
 
   // ==========================================
-  // 2.9d JEMBATAN 3: JALUR TIMUR / VAL-KRAGOR HIGHWAY (X: 335, Z: 38)
+  // 2.9d JEMBATAN 3: JALUR TIMUR / VAL-KRAGOR HIGHWAY (X: 270, Z: 50)
   // ==========================================
   const bridge3East = createStoneArchBridgeMesh(24, 4.8, 2.7);
-  bridge3East.position.set(335, 0.45, 38);
+  bridge3East.position.set(270, 0.45, 50);
   bridge3East.rotation.y = Math.PI / 2;
   scene.add(bridge3East);
 
   // ==========================================
-  // 2.9e JEMBATAN 4: AKSES PUING KASTIL (X: 190, Z: 15)
+  // 2.9e JEMBATAN 4: AKSES PUING KASTIL (X: 210, Z: 45)
   // ==========================================
   const bridge4Castle = createStoneArchBridgeMesh(24, 4.8, 2.7);
-  bridge4Castle.position.set(190, 0.45, 15);
+  bridge4Castle.position.set(210, 0.45, 45);
   bridge4Castle.rotation.y = Math.PI / 2;
   scene.add(bridge4Castle);
 
   // ==========================================
-  // 2.9f JEMBATAN 5: AKSES LEMBAH BATU LUMUT (X: 430, Z: 25)
+  // 2.9f JEMBATAN 5: AKSES LEMBAH BATU LUMUT (X: 395, Z: 25)
   // ==========================================
   const bridge5Moss = createStoneArchBridgeMesh(24, 4.8, 2.7);
-  bridge5Moss.position.set(430, 0.45, 25);
+  bridge5Moss.position.set(395, 0.45, 25);
   bridge5Moss.rotation.y = Math.PI / 2;
   scene.add(bridge5Moss);
 
@@ -2067,31 +2069,31 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 8. DRAGONFANG CALDERA & INFERNO ARCHIPELAGO (South Across Ocean: [80, 360])
+  // 8. DRAGONFANG CALDERA & INFERNO ARCHIPELAGO (South Across Ocean: [-85, 265])
   // Arena Kaldera Naga: Kawah Melingkar (Diameter ~45m), 4 Pilar Obsidian Naga, Fosil Naga, & Lahar Pijar
   // ==========================================
-  const dragonArenaCenter = { x: 80, z: 360 };
+  const dragonArenaCenter = { x: -85, z: 265 };
   const dragonArenaBaseY = 2.50;
 
-  // A. Monumental Dragon Fossil Skull & Ribcage (Placed at North Rim of Caldera: [80, 2.50, 347])
+  // A. Monumental Dragon Fossil Skull & Ribcage (Placed at North Rim of Caldera)
   const dragonFossil = createDragonSkullBonesMesh();
-  dragonFossil.position.set(dragonArenaCenter.x, dragonArenaBaseY, 347);
+  dragonFossil.position.set(dragonArenaCenter.x, dragonArenaBaseY, dragonArenaCenter.z - 13);
   scene.add(dragonFossil);
   colliders.push({
     type: 'box',
-    minX: 75,
-    maxX: 85,
-    minZ: 341,
-    maxZ: 353,
+    minX: dragonArenaCenter.x - 5,
+    maxX: dragonArenaCenter.x + 5,
+    minZ: dragonArenaCenter.z - 19,
+    maxZ: dragonArenaCenter.z - 7,
     label: 'Fosil Tengkorak Naga Purba',
   });
 
   // B. 4 Sharp Black Obsidian Dragon Pillars (Pilar Naga Batas Arena Kawah pada Radius 42 unit)
   const dragonPillars = [
-    { x: 80, z: 318, label: 'Pilar Naga Obsidian Utara' },
-    { x: 80, z: 402, label: 'Pilar Naga Obsidian Selatan' },
-    { x: 122, z: 360, label: 'Pilar Naga Obsidian Timur' },
-    { x: 38, z: 360, label: 'Pilar Naga Obsidian Barat' },
+    { x: dragonArenaCenter.x, z: dragonArenaCenter.z - 42, label: 'Pilar Naga Obsidian Utara' },
+    { x: dragonArenaCenter.x, z: dragonArenaCenter.z + 42, label: 'Pilar Naga Obsidian Selatan' },
+    { x: dragonArenaCenter.x + 42, z: dragonArenaCenter.z, label: 'Pilar Naga Obsidian Timur' },
+    { x: dragonArenaCenter.x - 42, z: dragonArenaCenter.z, label: 'Pilar Naga Obsidian Barat' },
   ];
   dragonPillars.forEach((dp) => {
     const pY = getTerrainHeight(dp.x, dp.z);
@@ -2179,14 +2181,14 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // C. Retakan Tanah Berlapis Lava Merah Menyala di Seputar Kaldera
   const lavaCrackCoords = [
-    { x: 80, z: 346, r: 4.8 },
-    { x: 94, z: 352, r: 4.5 },
-    { x: 66, z: 352, r: 4.5 },
-    { x: 97, z: 374, r: 4.6 },
-    { x: 63, z: 374, r: 4.6 },
-    { x: 80, z: 380, r: 5.0 },
-    { x: 95, z: 365, r: 5.5 },
-    { x: 65, z: 365, r: 4.6 },
+    { x: dragonArenaCenter.x, z: dragonArenaCenter.z - 14, r: 4.8 },
+    { x: dragonArenaCenter.x + 14, z: dragonArenaCenter.z - 8, r: 4.5 },
+    { x: dragonArenaCenter.x - 14, z: dragonArenaCenter.z - 8, r: 4.5 },
+    { x: dragonArenaCenter.x + 17, z: dragonArenaCenter.z + 14, r: 4.6 },
+    { x: dragonArenaCenter.x - 17, z: dragonArenaCenter.z + 14, r: 4.6 },
+    { x: dragonArenaCenter.x, z: dragonArenaCenter.z + 20, r: 5.0 },
+    { x: dragonArenaCenter.x + 15, z: dragonArenaCenter.z + 5, r: 5.5 },
+    { x: dragonArenaCenter.x - 15, z: dragonArenaCenter.z + 5, r: 4.6 },
   ];
   lavaCrackCoords.forEach((lc) => {
     const crack = createLavaCrackMesh(lc.r);
@@ -2197,15 +2199,15 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // D. Bebatuan Vulkanik Hitam Berurat Magma (Jagged Volcanic Basalt Rocks)
   const basaltRockCoords = [
-    { x: 65, z: 350, s: 1.6 },
-    { x: 95, z: 348, s: 1.5 },
-    { x: 61, z: 372, s: 1.7 },
-    { x: 99, z: 375, s: 1.8 },
-    { x: 80, z: 388, s: 1.6 },
-    { x: 80, z: 332, s: 1.5 },
-    { x: 104, z: 365, s: 1.8 },
-    { x: 56, z: 356, s: 1.4 },
-    { x: 100, z: 380, s: 1.9 },
+    { x: dragonArenaCenter.x - 15, z: dragonArenaCenter.z - 10, s: 1.6 },
+    { x: dragonArenaCenter.x + 15, z: dragonArenaCenter.z - 12, s: 1.5 },
+    { x: dragonArenaCenter.x - 19, z: dragonArenaCenter.z + 12, s: 1.7 },
+    { x: dragonArenaCenter.x + 19, z: dragonArenaCenter.z + 15, s: 1.8 },
+    { x: dragonArenaCenter.x, z: dragonArenaCenter.z + 28, s: 1.6 },
+    { x: dragonArenaCenter.x, z: dragonArenaCenter.z - 28, s: 1.5 },
+    { x: dragonArenaCenter.x + 24, z: dragonArenaCenter.z + 5, s: 1.8 },
+    { x: dragonArenaCenter.x - 24, z: dragonArenaCenter.z - 4, s: 1.4 },
+    { x: dragonArenaCenter.x + 20, z: dragonArenaCenter.z + 20, s: 1.9 },
   ];
   basaltRockCoords.forEach((br) => {
     const rock = createVolcanicBasaltRockMesh(br.s);
@@ -2216,7 +2218,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // E. Surrounding Volcanic Horn Arches
-  for (const hPos of [{ x: 70, z: 345 }, { x: 90, z: 345 }, { x: 80, z: 376 }]) {
+  for (const hPos of [
+    { x: dragonArenaCenter.x - 10, z: dragonArenaCenter.z - 15 },
+    { x: dragonArenaCenter.x + 10, z: dragonArenaCenter.z - 15 },
+    { x: dragonArenaCenter.x, z: dragonArenaCenter.z + 16 },
+  ]) {
     const hornGroup = new THREE.Group();
     const horn = new THREE.Mesh(
       new THREE.ConeGeometry(0.8, 6.5, 6),
@@ -2717,6 +2723,197 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   scene.add(springGroup);
 
+  // ==========================================
+  // 10B. REGIONAL LANDMARK: LEMBAH BATU LUMUT (X: 455, Z: 35)
+  // 30+ batu megalit besar berlumut, flora semak & bunga hutan, air terjun timur
+  // ==========================================
+  const mossValleyGroup = new THREE.Group();
+  mossValleyGroup.name = 'Region_MossValley';
+
+  const megalithStoneMat = new THREE.MeshStandardMaterial({
+    color: 0x475545,
+    roughness: 0.9,
+    metalness: 0.05,
+    flatShading: true,
+  });
+  const mossCapMat = new THREE.MeshStandardMaterial({
+    color: 0x65a30d,
+    roughness: 0.85,
+    flatShading: true,
+  });
+
+  for (let m = 0; m < 36; m++) {
+    const angle = (m / 36) * Math.PI * 2 + ((m * 17) % 7) * 0.15;
+    const r = 8.0 + ((m * 19) % 24);
+    const mx = 455 + Math.cos(angle) * r;
+    const mz = 35 + Math.sin(angle) * r;
+    const my = getTerrainHeight(mx, mz);
+    const mHeight = 2.5 + ((m * 7) % 5) * 0.7;
+    const mRadius = 0.7 + ((m * 3) % 4) * 0.25;
+
+    const megalith = new THREE.Group();
+    megalith.position.set(mx, my, mz);
+    megalith.rotation.y = (((m * 37) % 100) / 100) * Math.PI * 2;
+    megalith.rotation.z = ((m % 5) - 2) * 0.05;
+
+    const pillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(mRadius * 0.8, mRadius, mHeight, 6),
+      megalithStoneMat
+    );
+    pillar.position.y = mHeight / 2;
+    pillar.castShadow = true;
+    pillar.receiveShadow = true;
+    megalith.add(pillar);
+
+    const cap = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(mRadius * 0.95, 1),
+      mossCapMat
+    );
+    cap.position.y = mHeight + 0.1;
+    cap.scale.set(1.1, 0.4, 1.1);
+    megalith.add(cap);
+
+    mossValleyGroup.add(megalith);
+    colliders.push({ type: 'circle', x: mx, z: mz, radius: mRadius + 0.4, label: 'Megalit Batu Lumut' });
+  }
+
+  // Air Terjun Kecil dari Dinding Tebing Timur
+  const waterfallCliffY = getTerrainHeight(485, 35);
+  const waterfallBasinY = getTerrainHeight(470, 35);
+  const waterfallHeight = Math.max(4.0, waterfallCliffY - waterfallBasinY + 2.0);
+
+  const waterfallGeo = new THREE.PlaneGeometry(3.5, waterfallHeight, 4, 12);
+  const waterfallMat = new THREE.MeshStandardMaterial({
+    color: 0x38bdf8,
+    emissive: 0x0284c7,
+    emissiveIntensity: 0.4,
+    transparent: true,
+    opacity: 0.78,
+    roughness: 0.1,
+  });
+  const waterfallMesh = new THREE.Mesh(waterfallGeo, waterfallMat);
+  waterfallMesh.position.set(476, (waterfallCliffY + waterfallBasinY) / 2, 35);
+  waterfallMesh.rotation.y = -Math.PI / 2;
+  mossValleyGroup.add(waterfallMesh);
+
+  const basinPoolGeo = new THREE.CircleGeometry(6.5, 24);
+  basinPoolGeo.rotateX(-Math.PI / 2);
+  const basinPool = new THREE.Mesh(basinPoolGeo, waterfallMat);
+  basinPool.position.set(470, waterfallBasinY + 0.1, 35);
+  mossValleyGroup.add(basinPool);
+
+  scene.add(mossValleyGroup);
+
+  // ==========================================
+  // 10C. REGIONAL LANDMARK: HUTAN KABUT ELDORIA (X: 335, Z: -140)
+  // 150+ pohon pinus/oak lebat via InstancedMesh & lapisan kabut rendah
+  // ==========================================
+  const mistForestTreesData: { x: number; y: number; z: number; scale: number; rotationY: number }[] = [];
+  for (let t = 0; t < 160; t++) {
+    const angle = (t / 160) * Math.PI * 2 * 11;
+    const r = Math.sqrt((t + 1) / 160) * 58;
+    const tx = 335 + Math.cos(angle) * r;
+    const tz = -140 + Math.sin(angle) * r;
+    if (isPointOnRoad(tx, tz)) continue;
+    const ty = getTerrainHeight(tx, tz);
+    const scale = 0.85 + ((t * 7) % 6) * 0.12;
+
+    mistForestTreesData.push({
+      x: tx,
+      y: ty,
+      z: tz,
+      scale,
+      rotationY: (((t * 29) % 100) / 100) * Math.PI * 2,
+    });
+    colliders.push({ type: 'circle', x: tx, z: tz, radius: 0.65 * scale, label: 'Pohon Hutan Kabut' });
+  }
+  const mistForestTreesMesh = createInstancedVillageTrees(mistForestTreesData);
+  scene.add(mistForestTreesMesh);
+
+  const mistPlanesGroup = new THREE.Group();
+  for (let mp = 0; mp < 12; mp++) {
+    const mistAngle = (mp / 12) * Math.PI * 2;
+    const mistR = 12 + (mp % 4) * 11;
+    const mx = 335 + Math.cos(mistAngle) * mistR;
+    const mz = -140 + Math.sin(mistAngle) * mistR;
+    const my = getTerrainHeight(mx, mz) + 0.85;
+
+    const mist = createSwampMistPlaneMesh(28, 28);
+    mist.position.set(mx, my, mz);
+    mist.rotation.y = mistAngle;
+    mistPlanesGroup.add(mist);
+  }
+  scene.add(mistPlanesGroup);
+
+  // ==========================================
+  // 10D. REGIONAL LANDMARK: PUING KASTIL TERBENGKALAI (X: 225, Z: -35)
+  // Tembok benteng kastil masa lalu, menara patah berlumut, dan pilar batu roboh
+  // ==========================================
+  const castleRuinsGroup = new THREE.Group();
+  castleRuinsGroup.name = 'Region_CastleRuins';
+  const ruinsBaseY = getTerrainHeight(225, -35);
+
+  const ruinsStoneMat = new THREE.MeshStandardMaterial({
+    color: 0x52525b,
+    roughness: 0.95,
+    metalness: 0.05,
+    flatShading: true,
+  });
+
+  const ruinedWallCoords = [
+    { x: 215, z: -35, length: 14, rotY: 0 },
+    { x: 235, z: -35, length: 12, rotY: 0 },
+    { x: 225, z: -45, length: 18, rotY: Math.PI / 2 },
+    { x: 225, z: -25, length: 12, rotY: Math.PI / 2 },
+  ];
+  ruinedWallCoords.forEach((rw) => {
+    const wall = new THREE.Mesh(
+      new THREE.BoxGeometry(rw.length, 3.2, 1.8),
+      ruinsStoneMat
+    );
+    wall.position.set(rw.x, ruinsBaseY + 1.6, rw.z);
+    wall.rotation.y = rw.rotY;
+    wall.castShadow = true;
+    castleRuinsGroup.add(wall);
+    colliders.push({
+      type: 'box',
+      minX: rw.x - rw.length / 2,
+      maxX: rw.x + rw.length / 2,
+      minZ: rw.z - 1.2,
+      maxZ: rw.z + 1.2,
+      label: 'Tembok Kastil Reruntuhan',
+    });
+  });
+
+  const brokenTower = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.4, 2.8, 5.5, 8),
+    ruinsStoneMat
+  );
+  brokenTower.position.set(214, ruinsBaseY + 2.75, -45);
+  brokenTower.castShadow = true;
+  castleRuinsGroup.add(brokenTower);
+  colliders.push({ type: 'circle', x: 214, z: -45, radius: 2.8, label: 'Menara Patah Kastil' });
+
+  const fallenPillarCoords = [
+    { x: 222, z: -32, rotZ: 1.35, rotY: 0.4 },
+    { x: 228, z: -38, rotZ: 1.45, rotY: -0.6 },
+    { x: 220, z: -40, rotZ: 0.15, rotY: 0.2 },
+    { x: 230, z: -30, rotZ: 0.18, rotY: -0.3 },
+  ];
+  fallenPillarCoords.forEach((fp) => {
+    const pillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.55, 0.65, 4.2, 6),
+      ruinsStoneMat
+    );
+    pillar.position.set(fp.x, ruinsBaseY + 0.8, fp.z);
+    pillar.rotation.set(0, fp.rotY, fp.rotZ);
+    pillar.castShadow = true;
+    castleRuinsGroup.add(pillar);
+    colliders.push({ type: 'circle', x: fp.x, z: fp.z, radius: 1.2, label: 'Pilar Roboh Reruntuhan' });
+  });
+
+  scene.add(castleRuinsGroup);
+
   // 11. REGIONAL CHECKPOINT & WAYPOINT TELEPORTATION MONUMENTS
   const checkpoints: WorldCheckpoint[] = [];
 
@@ -2730,13 +2927,13 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_village',
       name: 'Sanctuary Village Plaza',
       nameId: 'Alun-Alun Desa Sanctuary Eldoria',
-      pos: [0, 180],
+      pos: [25, 135],
     },
     {
       id: 'wp_harbor',
       name: 'Sanctuary Coastal Harbor',
       nameId: 'Dermaga & Pelabuhan Sanctuary',
-      pos: [0, 205],
+      pos: [-135, 145],
     },
     {
       id: 'wp_sacred_spring',
@@ -2746,27 +2943,27 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     },
     {
       id: 'wp_titan',
-      name: 'Ancient Colosseum Arena (Boss Titan)',
-      nameId: 'Reruntuhan Colosseum Kuno (Boss Titan)',
-      pos: [-224, -435],
+      name: 'Ancient Titan Lake Valley',
+      nameId: 'Lembah Danau Titan Kuno',
+      pos: [-260, -420],
     },
     {
       id: 'wp_astraea',
       name: 'Grand Imperial Capital Astraea',
       nameId: 'Ibukota Kerajaan Emas Astraea',
-      pos: [-240, -220],
+      pos: [-250, -210],
     },
     {
       id: 'wp_valkragor',
       name: 'Val-Kragor Fortress Plaza',
       nameId: 'Alun-Alun Benteng Val-Kragor',
-      pos: [380, 80],
+      pos: [315, 95],
     },
     {
       id: 'wp_thunderpeak',
       name: 'Thunderpeak Spire & Mage Tower',
       nameId: 'Mage Tower Puncak Halilintar',
-      pos: [180, 60],
+      pos: [70, 20],
     },
     {
       id: 'wp_solaria_village',
@@ -2777,32 +2974,56 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     {
       id: 'wp_solaria_palace',
       name: 'Solaria Grand Sultan Palace',
-      nameId: 'Istana Taj Mahal Sultan Solaria',
-      pos: [340, -280],
+      nameId: 'Istana Sultan Malik',
+      pos: [355, -440],
     },
     {
       id: 'wp_solaria',
       name: 'Solaria Golden Desert Pyramid',
-      nameId: 'Piramida Emas Gurun Solaria',
-      pos: [-20, -320],
+      nameId: 'Piramida Emas Solaria',
+      pos: [10, -340],
     },
     {
       id: 'wp_solaria_oasis',
       name: 'Solaria Hidden Oasis',
-      nameId: 'Oase Tersembunyi Solaria',
-      pos: [20, -240],
+      nameId: 'Oase Solaria',
+      pos: [55, -250],
     },
     {
       id: 'wp_dragoncaldera',
       name: 'Primal Dragonfang Caldera',
       nameId: 'Kaldera Sarang Naga Purba',
-      pos: [80, 360],
+      pos: [-85, 265],
     },
     {
       id: 'wp_sandworm',
       name: 'The Great Solaria Sinkhole',
-      nameId: 'Kawah Pusaran Sang Cacing Purba Jarrus',
-      pos: [210, -360],
+      nameId: 'Kawah Cacat World Boss (Lv. 10)',
+      pos: [225, -380],
+    },
+    {
+      id: 'wp_canyon',
+      name: 'Ancient Canyon',
+      nameId: 'Kanyon Kuno',
+      pos: [110, -490],
+    },
+    {
+      id: 'wp_mist_forest',
+      name: 'Eldoria Mist Forest',
+      nameId: 'Hutan Kabut Eldoria',
+      pos: [335, -140],
+    },
+    {
+      id: 'wp_abandoned_castle',
+      name: 'Abandoned Castle Ruins',
+      nameId: 'Puing Kastil Terbengkalai',
+      pos: [225, -35],
+    },
+    {
+      id: 'wp_moss_valley',
+      name: 'Moss Rock Valley',
+      nameId: 'Lembah Batu Lumut',
+      pos: [455, 35],
     },
   ];
 

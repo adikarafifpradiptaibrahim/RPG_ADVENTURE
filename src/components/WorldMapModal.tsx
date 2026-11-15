@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { MapMarker, RegionInfo } from '../types/game';
 import { REGIONS, WAYPOINTS } from '../game/mapData';
-import { worldToMapPercent } from '../game/3d/worldEnvironment';
+import { WORLD_LANDMARKS, worldToMapPercent } from '../game/3d/worldConfig';
 import worldMapTexture from '../assets/images/1c0c5afc-239a-45a4-b086-037637bd88af.png';
 
 export interface WorldHotspot {
@@ -47,209 +47,22 @@ export interface MapLandmark {
   topPct?: number;
 }
 
-export const WORLD_HOTSPOTS: WorldHotspot[] = [
-  // 4 Jangkar Utama Terkalibrasi Presisi:
-  {
-    id: 'desa_utama',
-    nameId: 'Desa Utama & Padang Rumput Eldoria',
-    nameEn: 'Sanctuary Village & Central Plains',
-    leftPct: 52.5,
-    topPct: 70.0,
-    worldX: 22,
-    worldZ: 134,
-    level: 1,
-    desc: 'Pemukiman sentral awal para petualang di padang rumput pesisir selatan Eldoria.',
-    waypointId: 'wp_village',
-    icon: '🏡',
-    color: '#65a30d',
-  },
-  {
-    id: 'astraea',
-    nameId: 'Ibukota Kerajaan Emas Astraea & Istana Kaisar',
-    nameEn: 'Imperial Capital Astraea & Sun Palace',
-    leftPct: 23.5,
-    topPct: 37.5,
-    worldX: -240,
-    worldZ: -220,
-    level: 5,
-    desc: 'Ibukota megah berpilar emas putih dan tahta Kaisar Aurelius di dataran barat laut.',
-    waypointId: 'wp_astraea',
-    icon: '👑',
-    color: '#fbbf24',
-  },
-  {
-    id: 'kawah_boss',
-    nameId: 'Kawah Cacat World Boss (Lv. 10)',
-    nameEn: 'Ancient Sandworm Sinkhole',
-    leftPct: 73.5,
-    topPct: 20.0,
-    worldX: 210,
-    worldZ: -360,
-    level: 10,
-    isBoss: true,
-    desc: 'Kawah pusaran pasir retak raksasa, arena pertarungan World Boss Cacing Purba Jarrus.',
-    waypointId: 'wp_boss_crater',
-    icon: '🪱',
-    color: '#ea580c',
-  },
-  {
-    id: 'valkragor',
-    nameId: 'Desa Benteng Val-Kragor',
-    nameEn: 'Fortress Village Val-Kragor',
-    leftPct: 82.0,
-    topPct: 67.5,
-    worldX: 330,
-    worldZ: 90,
-    level: 4,
-    desc: 'Desa benteng pertahanan batu dan kayu di padang rumput tenggara Eldoria.',
-    waypointId: 'wp_valkragor',
-    icon: '🛡️',
-    color: '#3b82f6',
-  },
-
-  // Landmark Pelengkap Terkalibrasi:
-  {
-    id: 'danau_titan',
-    nameId: 'Lembah Danau Titan Kuno',
-    nameEn: 'Ancient Titan Lake Valley',
-    leftPct: 24.0,
-    topPct: 15.0,
-    worldX: -260,
-    worldZ: -450,
-    level: 8,
-    desc: 'Danau purba berair jernih di kaki pegunungan salju barat laut, hulu utama aliran sungai Eldoria.',
-    waypointId: 'wp_titan',
-    icon: '🏔️',
-    color: '#38bdf8',
-  },
-  {
-    id: 'kanyon_kuno',
-    nameId: 'Kanyon Kuno',
-    nameEn: 'Ancient Canyon',
-    leftPct: 62.0,
-    topPct: 8.0,
-    worldX: 50,
-    worldZ: -520,
-    level: 9,
-    desc: 'Jurang bebatuan cadas merah terjal dan tebing sandstone di perbatasan gurun paling utara benua.',
-    waypointId: 'wp_canyon',
-    icon: '🏜️',
-    color: '#ea580c',
-  },
-  {
-    id: 'piramida_emas',
-    nameId: 'Piramida Emas Solaria',
-    nameEn: 'Solaria Golden Pyramid',
-    leftPct: 52.0,
-    topPct: 24.0,
-    worldX: -20,
-    worldZ: -320,
-    level: 6,
-    desc: 'Monumen piramida batu pasir kuno peninggalan firaun matahari di bukit pasir gurun.',
-    waypointId: 'wp_pyramid',
-    icon: '🏜️',
-    color: '#eab308',
-  },
-  {
-    id: 'oase_solaria',
-    nameId: 'Oase Solaria',
-    nameEn: 'Hidden Solaria Oasis',
-    leftPct: 55.0,
-    topPct: 33.0,
-    worldX: 20,
-    worldZ: -240,
-    level: 5,
-    desc: 'Mata air tawar pirus alami dinaungi rumpun palem kurma di tengah padang pasir Solaria.',
-    waypointId: 'wp_oasis',
-    icon: '🌴',
-    color: '#14b8a6',
-  },
-  {
-    id: 'istana_sultan',
-    nameId: 'Istana Sultan Malik',
-    nameEn: 'Sultan Malik Palace',
-    leftPct: 85.0,
-    topPct: 12.0,
-    worldX: 360,
-    worldZ: -440,
-    level: 7,
-    desc: 'Kompleks istana kubah marmer emas megah penguasa Gurun Pasir Solaria di timur laut.',
-    waypointId: 'wp_sultan_palace',
-    icon: '🕌',
-    color: '#d97706',
-  },
-  {
-    id: 'hutan_kabut',
-    nameId: 'Hutan Kabut Eldoria',
-    nameEn: 'Eldoria Mist Forest',
-    leftPct: 84.0,
-    topPct: 43.0,
-    worldX: 380,
-    worldZ: -140,
-    level: 4,
-    desc: 'Hutan pinus purba lebat yang senantiasa diselimuti kabut tebal misterius di perbukitan timur.',
-    waypointId: 'wp_mist_forest',
-    icon: '🌲',
-    color: '#15803d',
-  },
-  {
-    id: 'puing_kastil',
-    nameId: 'Puing Kastil Terbengkalai',
-    nameEn: 'Abandoned Castle Ruins',
-    leftPct: 72.0,
-    topPct: 53.0,
-    worldX: 230,
-    worldZ: -60,
-    level: 5,
-    desc: 'Reruntuhan benteng kastil masa lalu dengan pilar batu slate dan reruntuhan menara berlumut.',
-    waypointId: 'wp_abandoned_castle',
-    icon: '🏰',
-    color: '#64748b',
-  },
-  {
-    id: 'batu_lumut',
-    nameId: 'Lembah Batu Lumut',
-    nameEn: 'Moss Rock Valley',
-    leftPct: 93.0,
-    topPct: 57.0,
-    worldX: 480,
-    worldZ: 20,
-    level: 5,
-    desc: 'Lembah tersembunyi penuh gugusan batu megalit purba berlumut dan pendar spora mistis.',
-    waypointId: 'wp_moss_valley',
-    icon: '🪨',
-    color: '#65a30d',
-  },
-  {
-    id: 'pelabuhan',
-    nameId: 'Pelabuhan Sanctuary',
-    nameEn: 'Sanctuary Harbor',
-    leftPct: 33.0,
-    topPct: 75.0,
-    worldX: -180,
-    worldZ: 165,
-    level: 1,
-    desc: 'Dermaga kayu pesisir selatan menghadap langsung ke Samudra Azure terbuka.',
-    waypointId: 'wp_harbor',
-    icon: '⛵',
-    color: '#06b6d4',
-  },
-  {
-    id: 'sarang_naga',
-    nameId: 'Kaldera Sarang Naga',
-    nameEn: 'Dragonfang Caldera',
-    leftPct: 41.0,
-    topPct: 88.0,
-    worldX: -100,
-    worldZ: 290,
-    level: 10,
-    isBoss: true,
-    desc: 'Pulau vulkanik magma bergejolak di seberang samudra, sarang World Boss Ignis Sang Naga Purba.',
-    waypointId: 'wp_caldera',
-    icon: '🐉',
-    color: '#dc2626',
-  },
-];
+// 100% Single Source of Truth derived from worldConfig.ts
+export const WORLD_HOTSPOTS: WorldHotspot[] = WORLD_LANDMARKS.map((lm) => ({
+  id: lm.id,
+  nameId: lm.nameId,
+  nameEn: lm.name,
+  leftPct: lm.pctX,
+  topPct: lm.pctY,
+  worldX: lm.x,
+  worldZ: lm.z,
+  level: lm.level,
+  isBoss: lm.isBoss,
+  desc: lm.desc,
+  waypointId: lm.waypointId,
+  icon: lm.icon,
+  color: lm.color,
+}));
 
 // Re-export LANDMARKS for full backward compatibility
 export const LANDMARKS: MapLandmark[] = WORLD_HOTSPOTS.map((h) => ({
@@ -626,6 +439,19 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                   alt="Peta Benua Eldoria"
                   className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none"
                   draggable={false}
+                />
+
+                {/* Patch Padang Rumput: Menutupi ikon panah kuning & badge "Kamu Disini" bawaan tekstur peta di depan Astraea */}
+                <div
+                  className="absolute pointer-events-none z-10 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                  style={{
+                    left: '23.8%',
+                    top: '48.0%',
+                    width: '13.5%',
+                    height: '7.8%',
+                    background: 'radial-gradient(ellipse at center, #71a31b 0%, #6fa01c 70%, #689918 100%)',
+                    boxShadow: '0 0 6px 3px #6fa01c',
+                  }}
                 />
 
                 {/* HOTSPOT AREA TRANSPARAN (INVISIBLE INTERACTIVE HITBOXES)

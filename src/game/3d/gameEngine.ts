@@ -187,41 +187,41 @@ const TOWN_ZONES: TownZoneTrigger[] = [
     id: 'town_sanctuary',
     waypointId: 'wp_village',
     name: 'Desa Utama Sanctuary',
-    x: 0,
-    z: 180,
+    x: 25,
+    z: 135,
     radius: 45,
-    respawnX: 0,
-    respawnZ: 184,
+    respawnX: 25,
+    respawnZ: 138,
   },
   {
     id: 'town_valkragor',
     waypointId: 'wp_valkragor',
     name: 'Benteng Val-Kragor',
-    x: 380,
-    z: 80,
+    x: 315,
+    z: 95,
     radius: 45,
-    respawnX: 376,
-    respawnZ: 80,
+    respawnX: 315,
+    respawnZ: 95,
   },
   {
     id: 'town_astraea',
     waypointId: 'wp_astraea',
     name: 'Ibukota Kerajaan Emas Astraea',
-    x: -340,
-    z: -220,
+    x: -250,
+    z: -210,
     radius: 50,
-    respawnX: -340,
-    respawnZ: -215,
+    respawnX: -248,
+    respawnZ: -210,
   },
   {
     id: 'town_solaria',
     waypointId: 'wp_solaria_village',
     name: 'Desa & Istana Gurun Solaria',
-    x: 250,
-    z: -280,
+    x: 355,
+    z: -440,
     radius: 65,
-    respawnX: 250,
-    respawnZ: -275,
+    respawnX: 355,
+    respawnZ: -435,
   },
   {
     id: 'town_thunderpeak',
@@ -6962,8 +6962,8 @@ export class GameEngine {
     // Automatic Invisible Town Zone Trigger (Sanctuary, Val-Kragor, Astraea auto-respawn and map waypoint unlock)
     this.checkInvisibleTownZones();
 
-    // Check quest discovery for Grand Imperial Kingdom of Astraea (North Frostpeak)
-    if (nextX >= 140 && nextX <= 220 && nextZ <= -225 && nextZ >= -295) {
+    // Check quest discovery for Grand Imperial Kingdom of Astraea (Northwest Plains)
+    if (Math.hypot(nextX - -250, nextZ - -210) <= 65) {
       this.callbacks.onUpdateQuests((quests) => {
         return quests.map((q) => {
           if (q.id === 'quest_discover_astraea' && !q.completed) {
