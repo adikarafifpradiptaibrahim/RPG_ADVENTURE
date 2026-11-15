@@ -78,8 +78,8 @@ export const BIOMES: Record<BiomeType, BiomeInfo> = {
     id: 'grassland',
     name: 'Eldoria Central Grasslands',
     nameId: 'Padang Rumput Eldoria',
-    colorHex: '#65a30d',
-    colorRgb: [101, 163, 13],
+    colorHex: '#559e48',
+    colorRgb: [85, 158, 72],
   },
 };
 
@@ -228,52 +228,78 @@ export interface RoadSplineDef {
 }
 
 export const ROAD_SPLINES: RoadSplineDef[] = [
-  // A. Jalan Barat: Desa Utama (-40, 145) -> Pelabuhan Sanctuary (-35, 175) -> Astraea (-250, -210)
+  // A. Jalan Poros Barat: Desa Utama (-35, 135) -> Astraea (-250, -210)
   {
     id: 'road_west',
-    name: 'Jalan Raya Barat: Desa - Pelabuhan - Astraea',
+    name: 'Jalan Poros Barat: Desa - Astraea',
     width: 3.2,
     points: [
-      [-40, 145],
-      [-35, 175],   // Menghubungkan langsung Desa Utama ke Pelabuhan Sanctuary
+      [-35, 135],
+      [-75, 135],   // Gerbang Barat Desa
       [-120, 120],
       [-180, 120],
       [-220, 40],
       [-245, -60],
       [-250, -140],
-      [-250, -210],
+      [-250, -210], // Ujung jalan tepat di Gerbang Selatan Astraea
     ],
   },
-  // B. Jalan Timur: Desa Utama (-40, 145) -> Jembatan (15, 110) -> Mage Tower fork (110, 35) -> Val-Kragor (310, 95)
+  // B. Jalan Poros Selatan / Pelabuhan: Desa Utama (-35, 135) -> Pelabuhan Sanctuary (-20, 185)
+  {
+    id: 'road_harbor',
+    name: 'Jalan Poros Selatan: Desa - Pelabuhan Sanctuary',
+    width: 3.4,
+    points: [
+      [-35, 135],
+      [-25, 155],
+      [-20, 170],
+      [-20, 185],   // Menghubungkan langsung alun-alun desa ke dermaga kayu Pelabuhan
+    ],
+  },
+  // C. Jalan Poros Utara: Desa Utama (-35, 135) -> Persimpangan Titik Temu Tengah (-35, 45)
+  {
+    id: 'road_north',
+    name: 'Jalan Poros Utara: Desa - Persimpangan Sungai',
+    width: 3.0,
+    points: [
+      [-35, 135],
+      [-35, 105],   // Gerbang Utara Desa
+      [-35, 75],
+      [-35, 45],    // Titik Temu Confluence
+    ],
+  },
+  // D. Jalan Poros Timur: Desa Utama (-35, 135) -> Jembatan Gantung (15, 110) -> Val-Kragor (284, 115)
   {
     id: 'road_east',
-    name: 'Jalan Raya Timur: Desa - Jembatan - Val-Kragor',
+    name: 'Jalan Poros Timur: Desa - Jembatan - Benteng Val-Kragor',
     width: 3.2,
     points: [
-      [-40, 145],
-      [-15, 128],
-      [15, 110],   // Menyeberang Jembatan Sungai Selatan
+      [-35, 135],
+      [-10, 130],
+      [0, 120],
+      [15, 110],   // Menyeberang Jembatan Gantung Sungai Selatan
       [60, 70],
       [110, 35],   // Pertigaan Menara Puncak Halilintar
       [180, 50],
       [240, 70],
-      [310, 95],   // Gerbang Benteng Val-Kragor
+      [260, 95],
+      [284, 115],  // Tepat menyambung ke Gerbang Barat Benteng Val-Kragor
     ],
   },
-  // C. Akses Lembah Batu Lumut: Val-Kragor (310, 95) -> Jembatan (400, 35) -> Lembah (465, 35)
+  // E. Akses Lembah Batu Lumut: Val-Kragor (336, 115) -> Jembatan (380, 35) -> Lembah (465, 35)
   {
     id: 'road_moss_valley',
     name: 'Jalan Setapak Akses Lembah Batu Lumut',
     width: 2.6,
     points: [
-      [310, 95],
-      [355, 65],
-      [400, 35],   // Menyeberang Jembatan Sungai Timur
-      [435, 35],
+      [336, 115],  // Keluar dari sisi timur Val-Kragor
+      [360, 75],
+      [380, 35],   // Titik Penyeberangan Jembatan Sungai Timur
+      [420, 35],
       [465, 35],   // Glade Alami Lembah Batu Lumut
     ],
   },
-  // D. Jalur Kafilah Gurun Solaria
+  // F. Jalur Kafilah Gurun Solaria
   {
     id: 'road_desert_caravan',
     name: 'Jalur Kafilah Pasir Gurun Solaria',
@@ -344,7 +370,7 @@ export const BRIDGE_CONFIGS: BridgeDef[] = [
     id: 'bridge_moss_valley',
     name: 'Moss Rock Valley River Bridge',
     nameId: 'Jembatan 3: Jembatan Sungai Lembah Lumut',
-    x: 400,
+    x: 380,
     z: 35,
     rotationY: 0,
     length: 24,
@@ -409,8 +435,8 @@ export const WORLD_LANDMARKS: LandmarkDef[] = [
     id: 'astraea',
     name: 'Imperial Capital Astraea & Sun Palace',
     nameId: 'Ibukota Kerajaan Emas Astraea & Istana Kaisar',
-    x: -260,
-    z: -230,
+    x: -250,
+    z: -240,
     level: 5,
     type: 'capital',
     icon: '👑',
@@ -592,8 +618,8 @@ export const WORLD_LANDMARKS: LandmarkDef[] = [
     id: 'village',
     name: 'Sanctuary Village & Central Plains',
     nameId: 'Desa Utama & Padang Rumput Eldoria',
-    x: -40,
-    z: 145,
+    x: -35,
+    z: 135,
     level: 1,
     type: 'village',
     icon: '🏡',
@@ -608,7 +634,7 @@ export const WORLD_LANDMARKS: LandmarkDef[] = [
     id: 'harbor',
     name: 'Sanctuary Harbor',
     nameId: 'Pelabuhan Sanctuary',
-    x: -35,
+    x: -20,
     z: 185,
     level: 1,
     type: 'harbor',
@@ -637,14 +663,24 @@ export const WORLD_LANDMARKS: LandmarkDef[] = [
   },
 ];
 
+function smoothstepBlend(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function lerpVal(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
 /**
  * 5. FUNGSI ELEVASI MEDAN 3D KONTINU (getProceduralContinentHeight)
- * Menghasilkan tinggi Y fisik terrain 3D untuk Three.js vertex deformation dan pergerakan karakter
+ * Menghasilkan tinggi Y fisik terrain 3D untuk Three.js vertex deformation dan pergerakan karakter.
+ * Menggunakan Smoothstep Distance Blending selebar 45 unit untuk melenyapkan seluruh lonjakan tebing vertikal.
  */
 export function getProceduralContinentHeight(x: number, z: number): number {
   const biome = getBiomeAt(x, z);
 
-  // A. Palung Sungai (Carve deep riverbed Y = -2.5, anti-banjir & tanpa tanah timbunan)
+  // A. Palung Sungai (Carve deep riverbed Y = -2.5 secara kontinu, tanpa urugan tanah!)
   const distRiver = getDistanceToRiver(x, z);
   if (distRiver < 6.5) {
     const edge = distRiver / 6.5;
@@ -684,23 +720,37 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return -2.50 + t * 3.5; // Lereng tepian danau naik ke daratan
   }
 
-  // E. Pegunungan Salju Barat Laut
-  if (biome === 'snow') {
+  // Kontur dasar padang rumput bergelombang lembut
+  const gentleNoise =
+    Math.sin(x * 0.012 + z * 0.01) * 1.4 +
+    Math.cos(x * 0.008 - z * 0.01) * 1.0 +
+    Math.sin((x + z) * 0.018) * 0.35;
+  const basePlainsHeight = Math.max(0.2, Math.min(2.2, 0.55 + gentleNoise));
+
+  // E. Pegunungan Salju Barat Laut (Smoothstep Distance Blending selebar 45 unit!)
+  // Menghilangkan lonjakan tebing vertikal ekstrem di X < -140 & Z < -340
+  if (x < -95 && z < -295) {
     const distLake = Math.hypot(x - (-310), z - (-480));
     const mountainWave = Math.sin(x * 0.02) * Math.cos(z * 0.02) * 7.5 + Math.sin((x + z) * 0.035) * 3.5;
-    if (distLake > 52) {
-      return Math.max(9.0, Math.min(25.0, 15.0 + mountainWave));
-    }
-    return 3.0 + mountainWave * 0.5;
+    const targetMountainH = distLake > 52 ? Math.max(9.0, Math.min(25.0, 15.0 + mountainWave)) : (3.0 + mountainWave * 0.5);
+
+    const snowDistX = Math.max(0, -140 - x);
+    const snowDistZ = Math.max(0, -340 - z);
+    const snowDist = Math.min(snowDistX, snowDistZ);
+    const blendT = smoothstepBlend(0, 45, snowDist);
+    return lerpVal(basePlainsHeight, targetMountainH, blendT);
   }
 
-  // F. Gurun Pasir Emas Solaria
+  // F. Gurun Pasir Emas Solaria & Kanyon Kuno
   if (biome === 'desert') {
-    // Kanyon Kuno [160, -540]
+    // Kanyon Kuno [160, -540] (Smoothstep Distance Blending 45 unit)
     const distCanyon = Math.hypot(x - 160, z - -540);
-    if (distCanyon <= 75) {
+    if (distCanyon <= 95) {
       const canyonNoise = Math.sin(x * 0.04) * Math.cos(z * 0.035) * 4.5;
-      return Math.max(8.5, Math.min(19.0, 13.0 + canyonNoise));
+      const mesaHeight = Math.max(8.5, Math.min(19.0, 13.0 + canyonNoise));
+      if (distCanyon <= 50) return mesaHeight;
+      const blendT = smoothstepBlend(50, 95, distCanyon);
+      return lerpVal(mesaHeight, 1.6, blendT);
     }
 
     // Istana Sultan Malik [430, -460]
@@ -726,18 +776,28 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   }
 
   // G. Padang Rumput Eldoria (Grassland)
-  // 1. Desa Utama Sanctuary [-40, 145] (Dataran rata aman)
-  const distVillage = Math.hypot(x - -40, z - 145);
+  // 1. Desa Utama Sanctuary [-35, 135] (Dataran rata aman)
+  const distVillage = Math.hypot(x - -35, z - 135);
   if (distVillage <= 40) return 0.25;
 
-  // 2. Pelabuhan Sanctuary [-35, 185]
-  if (Math.hypot(x - -35, z - 185) <= 25) return 0.35;
+  // 2. Pelabuhan Sanctuary [-20, 185]
+  if (Math.hypot(x - -20, z - 185) <= 25) return 0.35;
 
-  // 3. Ibukota Kerajaan Emas Astraea [-260, -230]
-  if (Math.hypot(x - -260, z - -230) <= 52) return 2.00;
+  // 3. Ibukota Kerajaan Emas Astraea [-250, -240] (Smoothstep blend ke luar tembok)
+  const distAstraea = Math.hypot(x - -250, z - -240);
+  if (distAstraea <= 50) return 2.00;
+  if (distAstraea <= 85) {
+    const t = smoothstepBlend(50, 85, distAstraea);
+    return lerpVal(2.00, basePlainsHeight, t);
+  }
 
-  // 4. Desa Benteng Val-Kragor [310, 115]
-  if (Math.hypot(x - 310, z - 115) <= 42) return 2.00;
+  // 4. Desa Benteng Val-Kragor [310, 115] (Smoothstep blend ke luar benteng)
+  const distValKragor = Math.hypot(x - 310, z - 115);
+  if (distValKragor <= 45) return 2.00;
+  if (distValKragor <= 80) {
+    const t = smoothstepBlend(45, 80, distValKragor);
+    return lerpVal(2.00, basePlainsHeight, t);
+  }
 
   // 5. Puing Kastil Terbengkalai [220, -30]
   if (Math.hypot(x - 220, z - -30) <= 35) return 1.40;
@@ -752,20 +812,26 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return mistWave;
   }
 
-  // 8. Lembah Batu Lumut [465, 35]
+  // 8. Lembah Batu Lumut [465, 35] (Smoothstep Distance Blending 45 unit - HAPUS TEBING LONJAKAN PATAH!)
   const distMoss = Math.hypot(x - 465, z - 35);
-  if (distMoss <= 45) {
+  if (distMoss <= 95) {
     if (distMoss <= 25) return 0.35; // Lantai lembah rata rendah
-    const t = (distMoss - 25) / (45 - 25);
-    const s = t * t * (3 - 2 * t);
     const surroundingHills = Math.max(9.5, Math.min(13.5, 11.0 + Math.sin(x * 0.04) * 1.8));
-    return 0.35 + s * (surroundingHills - 0.35);
+    if (distMoss <= 55) {
+      const t = smoothstepBlend(25, 55, distMoss);
+      return lerpVal(0.35, surroundingHills, t);
+    }
+    // Lereng melandai turun ke daratan dari radius 55 ke 95 (lebar 40 unit)
+    const tDown = smoothstepBlend(55, 95, distMoss);
+    return lerpVal(surroundingHills, basePlainsHeight, tDown);
   }
 
-  // 8. Pegunungan Hijau Timur (X > 500)
+  // 8b. Pegunungan Hijau Timur (X > 500, Smoothstep blend 45 unit)
   if (x > 500) {
     const eastHills = Math.sin(x * 0.015) * Math.cos(z * 0.012) * 5.5 + Math.sin(z * 0.025) * 2.2;
-    return Math.max(1.0, Math.min(18.0, 5.0 + eastHills));
+    const targetH = Math.max(1.0, Math.min(18.0, 5.0 + eastHills));
+    const t = smoothstepBlend(500, 545, x);
+    return lerpVal(basePlainsHeight, targetH, t);
   }
 
   // 9. Jembatan (Walkable Deck Height)
@@ -781,13 +847,7 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return 0.35;
   }
 
-  // 12. Padang rumput umum bergelombang lembut
-  const gentleNoise =
-    Math.sin(x * 0.012 + z * 0.01) * 1.6 +
-    Math.cos(x * 0.008 - z * 0.01) * 1.2 +
-    Math.sin((x + z) * 0.018) * 0.4;
-
-  return Math.max(0.0, Math.min(2.4, 0.4 + gentleNoise));
+  return basePlainsHeight;
 }
 
 /**

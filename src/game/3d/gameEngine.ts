@@ -453,6 +453,10 @@ export class GameEngine {
       if (this.renderer) {
         this.renderer.shadowMap.enabled = false;
       }
+      if (this.camera) {
+        this.camera.far = 160;
+        this.camera.updateProjectionMatrix();
+      }
       this.setControlsLocked(true);
     } else if (mode === 'character_select') {
       if (this.playerMesh?.group) {
@@ -460,6 +464,10 @@ export class GameEngine {
       }
       if (this.renderer) {
         this.renderer.shadowMap.enabled = false;
+      }
+      if (this.camera) {
+        this.camera.far = 160;
+        this.camera.updateProjectionMatrix();
       }
       this.setupCharacterSelectScene();
       this.setControlsLocked(true);
@@ -470,6 +478,10 @@ export class GameEngine {
       }
       if (this.renderer) {
         this.renderer.shadowMap.enabled = this.graphicsSettings.shadows;
+      }
+      if (this.camera) {
+        this.camera.far = 1200;
+        this.camera.updateProjectionMatrix();
       }
       this.setControlsLocked(false);
       this.teleportGraceTimer = 0.5;
@@ -492,9 +504,9 @@ export class GameEngine {
   public setupCharacterSelectScene() {
     this.clearCharacterSelectScene();
 
-    // Dry paving level in front of village fountain [-40, 145]
-    const targetX = -40;
-    const targetZ = 148.5;
+    // Dry paving level in front of village fountain [-35, 135]
+    const targetX = -35;
+    const targetZ = 144;
     const targetY = 0.28;
 
     // 1. Knight Preview (Left: X: targetX - 2.2, Z: targetZ) - Facing camera (rotation.y = 0)
@@ -7746,6 +7758,9 @@ export class GameEngine {
    * - isMultiplayer == false: AI monster lokal berjalan sepenuhnya di client (mengejar player menggunakan loop requestAnimationFrame).
    */
   public updateMonster(delta: number) {
+    // Optimization: Skip all monster AI, pathfinding and distant updates in main menu and role selection
+    if (this.menuMode !== 'gameplay') return;
+
     if (this.isMultiplayer) {
       // Mode Multiplayer: Matikan AI monster lokal di client, biarkan client hanya merender koordinat (X, Z) dari server.js via Socket.io
       this.updateMonsterMultiplayer(delta);
@@ -8364,10 +8379,10 @@ export class GameEngine {
 
     // 3D Character Selection Framing Camera
     if (this.menuMode === 'character_select') {
-      const targetX = -40;
-      const targetZ = 148.5;
-      this.camera.position.lerp(new THREE.Vector3(targetX, 1.65, targetZ + 4.2), 0.1);
-      this.camera.lookAt(targetX, 1.25, targetZ);
+      const targetX = -35;
+      const targetZ = 144;
+      this.camera.position.lerp(new THREE.Vector3(targetX, 1.5, targetZ + 6.8), 0.1);
+      this.camera.lookAt(targetX, 1.05, targetZ);
       return;
     }
 
@@ -8469,7 +8484,7 @@ export class GameEngine {
   private updateCharacterSelectPreviews(delta: number) {
     const t = this.clock.getElapsedTime();
     const breathe = Math.sin(t * 3.0) * 0.025;
-    const targetZ = 186.2;
+    const targetZ = 144;
     const targetY = 0.28;
 
     const activePreview =

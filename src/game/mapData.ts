@@ -161,7 +161,7 @@ export const WAYPOINTS: {
     nameId: 'Desa Utama & Padang Rumput Eldoria',
     regionId: 'desa_eldoria',
     icon: '🏡',
-    pos: [-40, 145],
+    pos: [-35, 135],
     desc: 'Pusat pemukiman awal di pesisir selatan padang rumput Eldoria',
   },
   {
@@ -169,7 +169,7 @@ export const WAYPOINTS: {
     nameId: 'Pelabuhan Sanctuary',
     regionId: 'desa_eldoria',
     icon: '⛵',
-    pos: [-35, 185],
+    pos: [-20, 185],
     desc: 'Pelabuhan pesisir selatan menghadap langsung ke Samudra Azure terbuka',
   },
   {
@@ -185,7 +185,7 @@ export const WAYPOINTS: {
     nameId: 'Ibukota Kerajaan Emas Astraea & Istana Kaisar',
     regionId: 'kerajaan_astraea',
     icon: '👑',
-    pos: [-260, -230],
+    pos: [-250, -240],
     desc: 'Ibukota megah berdinding marmer emas dan tahta Kaisar Aurelius',
   },
   {

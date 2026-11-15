@@ -218,8 +218,8 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   const yDown = getProceduralContinentHeight(x, z + delta);
   const slope = clamp(Math.hypot(yRight - y, yDown - y) / delta, 0, 1);
 
-  // 1. Pelabuhan Sanctuary & Boardwalk Pier [-135, 145]
-  if (Math.hypot(x - -135, z - 145) <= 12) {
+  // 1. Pelabuhan Sanctuary & Boardwalk Pier [-20, 185]
+  if (Math.abs(x - -20) <= 8 && z >= 180 && z <= 215) {
     return { height: 1.85, color: [141, 110, 99], biomeId: 'harbor_pier', isWater: false, isPath: true, slope: 0 };
   }
 
@@ -243,14 +243,9 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: y, color: [115, 125, 135], biomeId: 'mountain_rock', isWater: false, isPath: false, slope };
   }
 
-  // 1b-2. Ibukota Kerajaan Emas Astraea [-260, -230] (Kastil megah batu abu-abu di dalam tembok)
-  if (Math.hypot(x - -260, z - -230) <= 22) {
+  // 1b-2. Ibukota Kerajaan Emas Astraea [-250, -240] (Kastil megah batu abu-abu strictly di dalam tembok)
+  if (Math.abs(x - -250) <= 24 && Math.abs(z - -240) <= 30) {
     return { height: y, color: [100, 116, 139], biomeId: 'astraea_castle', isWater: false, isPath: false, slope };
-  }
-
-  // 1b-3. Hutan Lindung Barat Daya [X: -320 s.d -180, Z: 50 s.d 150] (Cluster hijau rimbun)
-  if (x >= -320 && x <= -180 && z >= 50 && z <= 150) {
-    return { height: y, color: [30, 105, 40], biomeId: 'sw_forest', isWater: false, isPath: false, slope };
   }
 
   // 1c. Alur Palung 4 Cabang Sungai (NW, Desert, East, South)
@@ -337,16 +332,16 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   }
 
   // 5. Special Plains Landmarks
-  // Desa Utama Plaza [25, 135]
-  if (Math.hypot(x - 25, z - 135) <= 18) {
+  // Desa Utama Plaza [-35, 135]
+  if (Math.hypot(x - -35, z - 135) <= 12) {
     return { height: y, color: [226, 218, 214], biomeId: 'eldoria_plaza', isWater: false, isPath: true, slope: 0 };
   }
-  // Astraea Marble Capital [-260, -230]
-  if (Math.hypot(x - -260, z - -230) <= 16) {
+  // Astraea Marble Capital [-250, -240] (strictly inside walls)
+  if (Math.abs(x - -250) <= 24 && Math.abs(z - -240) <= 30) {
     return { height: y, color: [248, 250, 252], biomeId: 'astraea_marble', isWater: false, isPath: true, slope: 0 };
   }
-  // Val-Kragor Slate [315, 95]
-  if (Math.hypot(x - 315, z - 95) <= 28) {
+  // Val-Kragor Slate [286..334, 95..135] (strictly inside fort walls)
+  if (x >= 286 && x <= 334 && z >= 95 && z <= 135) {
     return { height: y, color: [100, 116, 139], biomeId: 'valkragor_slate', isWater: false, isPath: true, slope: 0 };
   }
   // Mage Tower Hill [70, 20]
@@ -355,7 +350,7 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   }
 
   // Beach sand fringe along natural south and west coastlines
-  const distToVillage = Math.hypot(x - 25, z - 135);
+  const distToVillage = Math.hypot(x - -35, z - 135);
   const cape = Math.max(0, 1.0 - distToVillage / 85) * 26;
   const southCoastZ = 185 + Math.sin(xw * 0.015) * 16 + Math.cos(xw * 0.04) * 8 + cape;
   const westCoastX = -460 + Math.sin(zw * 0.018) * 30 + Math.cos(zw * 0.045) * 12;
@@ -367,7 +362,7 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
 
   // ==========================================================================
   // PEWARNAAN PERMUKAAN TANAH (VERTEX COLORING / TEXTURE BLEND)
-  // Kuning Pasir Emas Solaria (#e2b448) vs Hijau Segar Padang Rumput Eldoria (#6b9e3e / #73a844)
+  // Kuning Pasir Emas Solaria (#e2b448) vs Hijau Segar Padang Rumput Eldoria (#559e48 / #5da84e)
   // ==========================================================================
   const desertWeight = getDesertWeight(x, z);
 
@@ -376,10 +371,11 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   const desertG = 180 + (192 - 180) * duneNoise;
   const desertB = 72 + (84 - 72) * duneNoise;
 
+  // Single fresh vibrant grassland palette (#559e48 -> RGB [85, 158, 72] to #5da84e -> RGB [93, 168, 78])
   const grassNoise = 0.5 + 0.5 * Math.sin(xw * 0.025 - zw * 0.03);
-  const grassR = 107 + (115 - 107) * grassNoise;
+  const grassR = 85 + (93 - 85) * grassNoise;
   const grassG = 158 + (168 - 158) * grassNoise;
-  const grassB = 62 + (68 - 62) * grassNoise;
+  const grassB = 72 + (78 - 72) * grassNoise;
 
   const r = Math.round(grassR * (1.0 - desertWeight) + desertR * desertWeight);
   const g = Math.round(grassG * (1.0 - desertWeight) + desertG * desertWeight);
@@ -406,7 +402,7 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
 }
 
 function sampleIsPath(x: number, z: number): boolean {
-  if (Math.abs(x - 20) <= 3.2 && z >= 170 && z <= 215) return true;
-  if (Math.hypot(x - 20, z - 130) <= 18) return true;
+  if (Math.abs(x - -20) <= 3.5 && z >= 170 && z <= 215) return true;
+  if (Math.hypot(x - -35, z - 135) <= 12) return true;
   return isPointOnRoad(x, z);
 }

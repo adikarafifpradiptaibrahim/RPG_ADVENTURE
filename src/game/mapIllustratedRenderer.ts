@@ -797,8 +797,8 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12E. Astraea Imperial Castle & Sun Palace [-260, -230] -> norm [0.283, 0.389]
-  const [astX, astY] = wToC(-260, -230);
+  // 12E. Astraea Imperial Castle & Sun Palace [-250, -240] -> norm [0.292, 0.379]
+  const [astX, astY] = wToC(-250, -240);
   ctx.fillStyle = '#64748b';
   ctx.fillRect(astX - 28, astY - 15, 56, 30);
   ctx.fillStyle = '#94a3b8';
@@ -897,8 +897,8 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12I. Desa Utama & Sanctuary [-40, 145]
-  const [vilX, vilY] = wToC(-40, 145);
+  // 12I. Desa Utama & Sanctuary [-35, 135]
+  const [vilX, vilY] = wToC(-35, 135);
   [-14, 8].forEach((hx) => {
     ctx.fillStyle = '#e5e7eb';
     ctx.fillRect(vilX + hx - 5, vilY - 2, 10, 8);
@@ -922,8 +922,8 @@ export function renderIllustratedMap(
   ctx.lineTo(vilX + 29, vilY - 4);
   ctx.stroke();
 
-  // 12J. Pelabuhan Sanctuary [-35, 185]
-  const [harbX, harbY] = wToC(-35, 185);
+  // 12J. Pelabuhan Sanctuary [-20, 185]
+  const [harbX, harbY] = wToC(-20, 185);
   ctx.fillStyle = '#78350f';
   ctx.fillRect(harbX - 18, harbY, 36, 5);
   ctx.fillRect(harbX - 9, harbY + 5, 6, 15);

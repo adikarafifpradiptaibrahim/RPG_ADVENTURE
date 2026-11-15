@@ -63,6 +63,7 @@ export class SoundManager {
   private crossfadeAnimId: number | null = null;
   private isVictoryPlaying = false;
   private victoryTimeoutId: any = null;
+  public isGameplayActive = false;
 
   private noiseBuffer: AudioBuffer | null = null;
 
@@ -270,8 +271,10 @@ export class SoundManager {
       if (this.isMusicPlaying && !this.isMuted && !this.isVictoryPlaying) {
         if (this.currentBossMusic) {
           this.playBossMusic(this.currentBossMusic);
-        } else {
+        } else if (this.isGameplayActive) {
           this.playOverworldBGM();
+        } else {
+          this.playMenuBGM();
         }
       }
       const events = ['pointerdown', 'keydown', 'touchstart', 'click'];
@@ -287,10 +290,14 @@ export class SoundManager {
    */
   public playMenuBGM(duration = 1.5) {
     if (this.isVictoryPlaying) return;
+    this.isGameplayActive = false;
     this.isMusicPlaying = true;
     this.initContext();
     this.initAudioElements();
     this.currentBossMusic = null;
+    if (this.overworldAudio) {
+      this.overworldAudio.pause();
+    }
     this.crossfadeBgm('menu', duration, { continueFromPause: true });
     if (this.menuAudio && !this.isMuted) {
       this.menuAudio.play().catch(() => {});
@@ -303,10 +310,15 @@ export class SoundManager {
    */
   public playOverworldBGM(duration = 1.5) {
     if (this.isVictoryPlaying) return;
+    this.isGameplayActive = true;
     this.isMusicPlaying = true;
     this.initContext();
     this.initAudioElements();
     this.currentBossMusic = null;
+    if (this.menuAudio) {
+      this.menuAudio.pause();
+      this.menuAudio.currentTime = 0;
+    }
     this.crossfadeBgm('overworld', duration, { continueFromPause: true });
     if (this.overworldAudio && !this.isMuted) {
       this.overworldAudio.play().catch(() => {});

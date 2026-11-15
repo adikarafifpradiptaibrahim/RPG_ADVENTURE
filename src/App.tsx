@@ -127,6 +127,7 @@ export default function App() {
   const [isPauseMenuOpen, setIsPauseMenuOpen] = useState(false);
 
   // Loading Screen & Shader Precompilation State
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoadingGameplay, setIsLoadingGameplay] = useState(false);
   const [isLoadingFadeOut, setIsLoadingFadeOut] = useState(false);
 
@@ -622,9 +623,15 @@ export default function App() {
       engine.setMenuMode('main_menu');
     }
 
+    engine.compileAllShaders();
+    const initTimer = setTimeout(() => {
+      setIsInitialLoading(false);
+    }, 600);
+
     engineRef.current = engine;
 
     return () => {
+      clearTimeout(initTimer);
       engine.destroy();
       engineRef.current = null;
     };
@@ -1049,7 +1056,7 @@ export default function App() {
   return (
     <div className="relative w-full h-screen overflow-hidden bg-stone-950 select-none">
       {/* 3D WebGL Canvas Viewport */}
-      <div ref={containerRef} className="absolute inset-0 w-full h-full cursor-crosshair" />
+      <div ref={containerRef} className="absolute inset-0 w-full h-full cursor-crosshair z-0 pointer-events-auto" />
 
       {/* Main Menu Overlay (Single Player & Multiplayer Mode Selection) */}
       <MainMenu
@@ -1066,11 +1073,11 @@ export default function App() {
         selectedPreviewRole={previewRole}
       />
 
-      {/* Gameplay Transition Loading Screen Overlay */}
+      {/* Initial Website Pre-Render & Gameplay Transition Loading Screen Overlay */}
       <LoadingScreen
-        isLoading={isLoadingGameplay}
+        isLoading={isInitialLoading || isLoadingGameplay}
         isFadingOut={isLoadingFadeOut}
-        message="Memuat Dunia & Mengompilasi Shader..."
+        message={isInitialLoading ? "Menyiapkan Dunia & Mengompilasi Shader Tiga Dimensi..." : "Memuat Dunia & Mengompilasi Shader..."}
       />
 
       {/* Primary In-Game HUD Overlay */}

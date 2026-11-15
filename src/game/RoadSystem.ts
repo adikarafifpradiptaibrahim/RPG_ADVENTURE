@@ -36,21 +36,21 @@ export interface RoadJunctionDef {
  * - Gurun Solaria: Jalur kafilah lebar 4.5 unit dari Bazaar [238, -280] ke Istana Sultan [330, -280].
  */
 export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
-  // A. JALUR BARAT (DESA UTAMA -> PELABUHAN -> GERBANG ASTRAEA)
+  // A. JALUR BARAT (DESA UTAMA -> ASTRAEA)
   {
     id: 'plains_west_astraea',
-    name: 'Jalan Raya Barat: Sanctuary - Pelabuhan - Astraea',
+    name: 'Jalan Poros Barat: Sanctuary - Astraea',
     biome: 'plains',
     width: 3.2,
     controlPoints: [
-      [-40, 145],   // Alun-Alun Desa Utama
-      [-35, 175],   // Pelabuhan Sanctuary (Langsung menempel di pesisir selatan desa)
+      [-35, 135],   // Alun-Alun Air Mancur Desa Utama
+      [-75, 135],   // Gerbang Barat Desa
       [-120, 120],
       [-180, 120],
       [-220, 40],
       [-245, -60],
       [-250, -140],
-      [-250, -210], // Gerbang Ibukota Kerajaan Emas Astraea
+      [-250, -210], // Tepat di Gerbang Selatan Astraea
     ],
     colorHex: 0x8c7a65,
     canvasStroke: '#a3917a',
@@ -58,21 +58,59 @@ export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
     canvasWidth: 2.8,
   },
 
-  // B. JALUR TIMUR (DESA UTAMA -> JEMBATAN SUNGAI SELATAN -> PERTIGAAN MENARA -> VAL-KRAGOR)
+  // B. JALUR SELATAN (DESA UTAMA -> PELABUHAN SANCTUARY)
+  {
+    id: 'plains_south_harbor',
+    name: 'Jalan Poros Selatan: Sanctuary - Pelabuhan',
+    biome: 'plains',
+    width: 3.4,
+    controlPoints: [
+      [-35, 135],   // Alun-Alun Desa Utama
+      [-25, 155],
+      [-20, 170],
+      [-20, 185],   // Menghubungkan langsung ke Dermaga Kayu Pelabuhan Sanctuary
+    ],
+    colorHex: 0x8c7a65,
+    canvasStroke: '#a3917a',
+    canvasDash: [6, 4],
+    canvasWidth: 2.8,
+  },
+
+  // C. JALUR UTARA (DESA UTAMA -> PERSIMPANGAN SUNGAI)
+  {
+    id: 'plains_north_confluence',
+    name: 'Jalan Poros Utara: Sanctuary - Titik Temu Tengah',
+    biome: 'plains',
+    width: 3.0,
+    controlPoints: [
+      [-35, 135],   // Alun-Alun Desa Utama
+      [-35, 105],   // Gerbang Utara Desa
+      [-35, 75],
+      [-35, 45],    // Titik Temu Sungai
+    ],
+    colorHex: 0x8c7a65,
+    canvasStroke: '#a3917a',
+    canvasDash: [6, 4],
+    canvasWidth: 2.8,
+  },
+
+  // D. JALUR TIMUR (DESA UTAMA -> JEMBATAN GANTUNG -> VAL-KRAGOR)
   {
     id: 'plains_east_valkragor',
-    name: 'Jalan Raya Timur: Sanctuary - Jembatan - Val-Kragor',
+    name: 'Jalan Poros Timur: Sanctuary - Jembatan - Benteng Val-Kragor',
     biome: 'plains',
     width: 3.2,
     controlPoints: [
-      [-40, 145],   // Desa Utama
-      [-15, 128],
-      [15, 110],    // Menyeberang Jembatan Sungai Selatan (Bridge 2)
+      [-35, 135],   // Desa Utama
+      [-10, 130],
+      [0, 120],
+      [15, 110],    // Menyeberang Jembatan Gantung Sungai Selatan (Bridge 2)
       [60, 70],
       [110, 35],    // Pertigaan Menara Puncak Halilintar
       [180, 50],
       [240, 70],
-      [310, 95],    // Gerbang Benteng Val-Kragor
+      [260, 95],
+      [284, 115],   // Tepat di Gerbang Barat Benteng Val-Kragor
     ],
     colorHex: 0x8c7a65,
     canvasStroke: '#a3917a',
@@ -80,17 +118,17 @@ export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
     canvasWidth: 2.8,
   },
 
-  // C. JALAN SETAPAK AKSES LEMBAH BATU LUMUT
+  // E. JALAN SETAPAK AKSES LEMBAH BATU LUMUT
   {
     id: 'moss_valley_access',
     name: 'Jalan Setapak Akses Jembatan Kayu Lembah Batu Lumut',
     biome: 'plains',
-    width: 2.4,
+    width: 2.6,
     controlPoints: [
-      [310, 95],    // Val-Kragor
-      [355, 65],
-      [400, 35],    // Menyeberang Jembatan Sungai Timur (Bridge 3)
-      [435, 35],
+      [336, 115],   // Keluar dari sisi timur Val-Kragor
+      [360, 75],
+      [380, 35],    // Menyeberang Jembatan Sungai Timur (Bridge 3)
+      [420, 35],
       [465, 35],    // Glade Alami Lembah Batu Lumut
     ],
     colorHex: 0x78716c,

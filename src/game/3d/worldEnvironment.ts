@@ -101,6 +101,13 @@ export function buildWorldEnvironment(
     return false;
   }
 
+  function isInsideCastleOrFort(x: number, z: number): boolean {
+    if (Math.abs(x - -250) <= 26 && Math.abs(z - -240) <= 32) return true; // Astraea
+    if (x >= 284 && x <= 336 && z >= 93 && z <= 137) return true; // Val-Kragor
+    if (Math.hypot(x - 225, z - -35) <= 28) return true; // Castle Ruins
+    return false;
+  }
+
   // ============================================================================
   // 1. ZONA A: DESA & PERTANIAN PINGGIRAN (X: 10 s.d. 80, Z: 100 s.d. 160)
   // ============================================================================
@@ -1288,13 +1295,17 @@ export function buildWorldEnvironment(
   darkSoilPatch.receiveShadow = true;
   meadowGroup.add(darkSoilPatch);
 
-  // Formasi 9 Batu Runcing Mengelilingi Cekungan Tapal Kuda (Sharp Dark Crags)
+  // Formasi 9 Batu Runcing Mengelilingi Cekungan Tapal Kuda (Sharp Dark Crags - strictly outside river & road)
   const sharpCragCount = 9;
   for (let sc = 0; sc < sharpCragCount; sc++) {
     const scAngle = 0.3 * Math.PI + (sc / sharpCragCount) * 1.5 * Math.PI;
     const scDist = 13 + (sc % 2) * 3.5;
     const rcX = wolfLairX + Math.cos(scAngle) * scDist;
     const rcZ = wolfLairZ + Math.sin(scAngle) * scDist;
+
+    // Strict river and road exclusion to eliminate crags in river at [-66, -88]
+    if (getDistanceToRiver(rcX, rcZ) < 14.0 || isPointNearRoad(rcX, rcZ, 7.0)) continue;
+
     const rcY = getTerrainHeight(rcX, rcZ);
 
     const cragH = 3.6 + Math.random() * 2.8;
@@ -1656,7 +1667,7 @@ export function buildWorldEnvironment(
 
   // Pita Air Sungai Tiga Jalur Tanpa Putus (Continuous Translucent River Ribbon Mesh)
   const matRiverWater = new THREE.MeshStandardMaterial({
-    color: 0x38bdf8,
+    color: 0x0284c7, // Unified ocean & river blue
     map: riverWaterTexture,
     roughness: 0.08,
     metalness: 0.15,
@@ -2500,6 +2511,47 @@ export function buildWorldEnvironment(
   }
   beachGrassMesh.instanceMatrix.needsUpdate = true;
   envGroup.add(beachGrassMesh);
+
+  // 7. RUMPUN RUMPUT HIJAU PADANG RUMPUT INSTANCED (VIBRANT GREEN PLAINS GRASS): 1500 Instances
+  const PLAINS_GRASS_COUNT = 1500;
+  const plainsGrassGeo = new THREE.ConeGeometry(0.35, 0.75, 4);
+  const matPlainsGrass = new THREE.MeshStandardMaterial({
+    color: 0x5da84e,
+    roughness: 0.85,
+    metalness: 0.05,
+    flatShading: true,
+  });
+  const plainsGrassMesh = new THREE.InstancedMesh(plainsGrassGeo, matPlainsGrass, PLAINS_GRASS_COUNT);
+
+  let pgAssigned = 0;
+  let pgAttempts = 0;
+  while (pgAssigned < PLAINS_GRASS_COUNT && pgAttempts < 4000) {
+    pgAttempts++;
+    const gx = -450 + Math.random() * 880;
+    const gz = -400 + Math.random() * 580;
+
+    if (isDesertBiome(gx, gz)) continue;
+    if (getBiomeAt(gx, gz) === 'ocean') continue;
+    if (isInsideCastleOrFort(gx, gz)) continue;
+    if (getDistanceToRiver(gx, gz) < 14.0) continue;
+    if (isPointNearRoad(gx, gz, 7.0)) continue;
+    if (Math.hypot(gx - -35, gz - 135) < 35) continue; // Village
+    if (Math.hypot(gx - -20, gz - 185) < 30) continue; // Harbor
+
+    const gy = getTerrainHeight(gx, gz);
+    if (gy < 0.25 || gy > 4.5) continue;
+
+    const s = 0.7 + Math.random() * 0.6;
+    dummy.position.set(gx, gy + s * 0.35, gz);
+    dummy.rotation.set(0, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.2);
+    dummy.scale.set(s, s, s);
+    dummy.updateMatrix();
+
+    plainsGrassMesh.setMatrixAt(pgAssigned, dummy.matrix);
+    pgAssigned++;
+  }
+  plainsGrassMesh.instanceMatrix.needsUpdate = true;
+  envGroup.add(plainsGrassMesh);
 
   // ============================================================================
   // ZONA L: VEGETASI & BEBATUAN GURUN SOLARIA (SAGUARO CACTI, SANDSTONE CRAGS & DRY TREES)
