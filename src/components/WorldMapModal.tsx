@@ -36,6 +36,7 @@ export interface MapLandmark {
   desc: string;
   color: string;
   isBoss?: boolean;
+  waypointId?: string;
 }
 
 export const LANDMARKS: MapLandmark[] = [
@@ -49,6 +50,7 @@ export const LANDMARKS: MapLandmark[] = [
     level: 1,
     desc: 'Pemukiman sentral awal para petualang di padang rumput pesisir selatan Eldoria.',
     color: '#65a30d',
+    waypointId: 'wp_village',
   },
   {
     id: 'harbor',
@@ -60,6 +62,7 @@ export const LANDMARKS: MapLandmark[] = [
     level: 1,
     desc: 'Dermaga kayu pesisir selatan menghadap langsung ke Samudra Azure terbuka.',
     color: '#06b6d4',
+    waypointId: 'wp_harbor',
   },
   {
     id: 'danau_titan',
@@ -71,6 +74,7 @@ export const LANDMARKS: MapLandmark[] = [
     level: 8,
     desc: 'Danau purba berair jernih di kaki pegunungan salju barat laut, hulu utama aliran sungai Eldoria.',
     color: '#38bdf8',
+    waypointId: 'wp_titan',
   },
   {
     id: 'astraea',
@@ -82,6 +86,7 @@ export const LANDMARKS: MapLandmark[] = [
     level: 5,
     desc: 'Ibukota megah berpilar emas putih dan tahta Kaisar Aurelius di padang rumput barat.',
     color: '#fbbf24',
+    waypointId: 'wp_astraea',
   },
   {
     id: 'ancient_canyon',
@@ -93,6 +98,7 @@ export const LANDMARKS: MapLandmark[] = [
     level: 9,
     desc: 'Jurang bebatuan cadas merah terjal dan tebing sandstone di perbatasan gurun paling utara benua.',
     color: '#ea580c',
+    waypointId: 'wp_canyon',
   },
   {
     id: 'pyramid',
@@ -104,6 +110,7 @@ export const LANDMARKS: MapLandmark[] = [
     level: 6,
     desc: 'Monumen piramida batu pasir kuno peninggalan firaun matahari di bukit pasir gurun.',
     color: '#eab308',
+    waypointId: 'wp_pyramid',
   },
   {
     id: 'oasis',
@@ -115,6 +122,7 @@ export const LANDMARKS: MapLandmark[] = [
     level: 5,
     desc: 'Mata air tawar pirus alami dinaungi rumpun palem kurma di tengah padang pasir Solaria.',
     color: '#14b8a6',
+    waypointId: 'wp_oasis',
   },
   {
     id: 'worm_sinkhole',
@@ -127,6 +135,7 @@ export const LANDMARKS: MapLandmark[] = [
     isBoss: true,
     desc: 'Kawah pusaran pasir retak raksasa, arena pertarungan World Boss Cacing Purba Jarrus.',
     color: '#ea580c',
+    waypointId: 'wp_boss_crater',
   },
   {
     id: 'taj_palace',
@@ -138,6 +147,7 @@ export const LANDMARKS: MapLandmark[] = [
     level: 7,
     desc: 'Kompleks istana kubah marmer emas megah penguasa Gurun Pasir Solaria di timur laut.',
     color: '#d97706',
+    waypointId: 'wp_sultan_palace',
   },
   {
     id: 'mist_forest',
@@ -149,6 +159,7 @@ export const LANDMARKS: MapLandmark[] = [
     level: 4,
     desc: 'Hutan pinus purba lebat yang senantiasa diselimuti kabut tebal misterius di perbukitan timur.',
     color: '#15803d',
+    waypointId: 'wp_mist_forest',
   },
   {
     id: 'abandoned_castle',
@@ -160,6 +171,7 @@ export const LANDMARKS: MapLandmark[] = [
     level: 5,
     desc: 'Reruntuhan benteng kastil masa lalu dengan pilar batu slate dan reruntuhan menara berlumut.',
     color: '#64748b',
+    waypointId: 'wp_abandoned_castle',
   },
   {
     id: 'valkragor',
@@ -171,6 +183,7 @@ export const LANDMARKS: MapLandmark[] = [
     level: 4,
     desc: 'Desa benteng pertahanan batu dan kayu di padang rumput tenggara Eldoria.',
     color: '#3b82f6',
+    waypointId: 'wp_valkragor',
   },
   {
     id: 'moss_valley',
@@ -182,6 +195,7 @@ export const LANDMARKS: MapLandmark[] = [
     level: 5,
     desc: 'Lembah tersembunyi penuh gugusan batu megalit purba berlumut dan pendar spora mistis.',
     color: '#65a30d',
+    waypointId: 'wp_moss_valley',
   },
   {
     id: 'dragon_caldera',
@@ -194,6 +208,7 @@ export const LANDMARKS: MapLandmark[] = [
     isBoss: true,
     desc: 'Pulau vulkanik magma bergejolak di seberang samudra, sarang World Boss Ignis Sang Naga Purba.',
     color: '#dc2626',
+    waypointId: 'wp_caldera',
   },
   {
     id: 'thunderpeak',
@@ -636,12 +651,14 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 } as React.CSSProperties}
               />
 
-              {/* CLEAN THEMATIC LOCATION PIN ICONS WITHOUT CLUTTER (Labels are rendered directly on vector canvas) */}
+              {/* UNIFIED THEMATIC LOCATION PINS (Single uncluttered layer, labels rendered directly on vector canvas) */}
               {LANDMARKS.map((lm) => {
                 const sp = worldToScreen(lm.x, lm.z);
                 if (!sp.visible) return null;
                 const isHovered = hoveredLandmark?.id === lm.id;
                 const isInspected = inspectedLandmark?.id === lm.id;
+                const hasWaypoint = Boolean(lm.waypointId);
+                const isUnlocked = hasWaypoint && lm.waypointId ? unlockedCheckpoints.includes(lm.waypointId) : false;
 
                 return (
                   <div
@@ -649,29 +666,60 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       setInspectedLandmark(lm);
-                      const reg = REGIONS.find((r) => Math.hypot(lm.x - r.center[0], lm.z - r.center[1]) < 80);
+                      const reg = REGIONS.find((r) => Math.hypot(lm.x - r.center[0], lm.z - r.center[1]) < 90);
                       if (reg) setSelectedRegion(reg);
+                    }}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      if (isUnlocked) {
+                        onFastTravel(lm.x, lm.z);
+                        onClose();
+                      }
                     }}
                     onMouseEnter={() => setHoveredLandmark(lm)}
                     onMouseLeave={() => setHoveredLandmark(null)}
                     style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer pointer-events-auto flex flex-col items-center group"
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-25 cursor-pointer pointer-events-auto flex flex-col items-center group"
                     title={lm.nameId}
                   >
                     <div
-                      className={`relative flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full transition-all duration-150 ${
-                        isHovered || isInspected ? 'scale-125 z-30 shadow-2xl' : 'hover:scale-115 shadow-md'
+                      className={`relative flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full transition-all duration-150 ${
+                        isHovered || isInspected ? 'scale-125 z-30 shadow-2xl ring-2 ring-amber-300' : 'hover:scale-115 shadow-md'
                       }`}
                       style={{
-                        backgroundColor: lm.isBoss ? 'rgba(185, 28, 28, 0.95)' : 'rgba(15, 23, 42, 0.9)',
-                        border: `2px solid ${lm.color}`,
-                        boxShadow: isHovered || isInspected ? `0 0 16px ${lm.color}` : '0 3px 8px rgba(0,0,0,0.6)',
+                        backgroundColor: lm.isBoss
+                          ? 'rgba(185, 28, 28, 0.95)'
+                          : isUnlocked
+                          ? 'rgba(8, 145, 178, 0.95)'
+                          : 'rgba(15, 23, 42, 0.92)',
+                        border: `2px solid ${isUnlocked ? '#38bdf8' : lm.color}`,
+                        boxShadow: isHovered || isInspected ? `0 0 14px ${lm.color}` : '0 2px 6px rgba(0,0,0,0.6)',
                       }}
                     >
                       {lm.isBoss && (
                         <div className="absolute inset-0 rounded-full bg-red-500/40 animate-ping pointer-events-none" />
                       )}
-                      <span className="text-xs sm:text-sm select-none">{lm.icon}</span>
+                      <span className="text-[11px] sm:text-xs select-none">
+                        {hasWaypoint && !isUnlocked ? '🔒' : lm.icon}
+                      </span>
+                    </div>
+
+                    {/* Tooltip on hover */}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center z-35 pointer-events-none">
+                      <div className="px-2.5 py-1.5 bg-stone-950/95 border border-amber-400/80 rounded-lg shadow-2xl text-center whitespace-nowrap backdrop-blur-md">
+                        <div className="flex items-center gap-1 justify-center text-[10px] sm:text-[11px] font-bold text-amber-200">
+                          <span>{lm.icon}</span>
+                          <span>{lm.nameId}</span>
+                        </div>
+                        <span className="text-[8px] sm:text-[9px] font-mono text-cyan-300">
+                          {lm.isBoss ? `World Boss (Lv. ${lm.level})` : `Lv. ${lm.level}+`}
+                        </span>
+                        {hasWaypoint && (
+                          <p className="text-[8px] mt-0.5 text-stone-300">
+                            {isUnlocked ? 'Klik Ganda: Fast Travel' : '🔒 Checkpoint Belum Terbuka'}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -696,95 +744,10 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 );
               })()}
 
-              {/* DESKTOP HOVER TOOLTIP */}
-              {hoveredLandmark && !inspectedLandmark && (() => {
-                const sp = worldToScreen(hoveredLandmark.x, hoveredLandmark.z);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-full -mt-3 z-40 pointer-events-none transition-opacity duration-150"
-                  >
-                    <div className="px-3 py-1.5 rounded-xl bg-stone-950/95 border border-amber-400/90 shadow-2xl backdrop-blur-md flex flex-col items-center min-w-[140px] max-w-[210px] text-center">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-200">
-                        <span>{hoveredLandmark.icon}</span>
-                        <span>{hoveredLandmark.nameId}</span>
-                      </div>
-                      <span className="text-[9px] font-mono font-bold text-cyan-300 mt-0.5">
-                        {hoveredLandmark.isBoss
-                          ? `World Boss (Lv. ${hoveredLandmark.level})`
-                          : `Rekomendasi Lv. ${hoveredLandmark.level}+`}
-                      </span>
-                      <p className="text-[8px] text-stone-300 mt-1 line-clamp-2 leading-tight">
-                        {hoveredLandmark.desc}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Coordinate Grid Overlay */}
-              <div
-                className="absolute inset-0 pointer-events-none grid grid-cols-4 grid-rows-4 border border-stone-700/20 divide-x divide-y divide-stone-700/20"
-                style={{
-                  pointerEvents: 'none',
-                  userSelect: 'none',
-                  WebkitUserSelect: 'none',
-                  touchAction: 'none',
-                }}
-              />
-
-              {/* WAYPOINTS WITH FAST TRAVEL BUTTONS */}
-              {WAYPOINTS.map((wp) => {
-                const sp = worldToScreen(wp.pos[0], wp.pos[1]);
-                if (!sp.visible) return null;
-                const isUnlocked = unlockedCheckpoints.includes(wp.id);
-                return (
-                  <div
-                    key={wp.id}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-25 group"
-                  >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isUnlocked) {
-                          onFastTravel(wp.pos[0], wp.pos[1]);
-                          onClose();
-                        }
-                      }}
-                      disabled={!isUnlocked}
-                      className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full border-2 shadow-lg flex items-center justify-center text-[10px] sm:text-xs transition-transform hover:scale-125 pointer-events-auto ${
-                        isUnlocked
-                          ? 'bg-cyan-600/90 hover:bg-cyan-500 border-white text-white cursor-pointer shadow-cyan-500/50'
-                          : 'bg-stone-800/80 border-stone-600/60 text-stone-400 opacity-60 cursor-not-allowed'
-                      }`}
-                      title={isUnlocked ? `Fast Travel ke: ${wp.nameId}` : `🔒 Checkpoint Terkunci: ${wp.nameId} (Kunjungi lokasi terlebih dahulu)`}
-                    >
-                      {isUnlocked ? wp.icon : '🔒'}
-                    </button>
-                    {/* Tooltip on hover */}
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center z-30 pointer-events-none">
-                      <div className={`px-2 py-1 bg-stone-900/95 border rounded-md shadow-xl text-center whitespace-nowrap ${
-                        isUnlocked ? 'border-cyan-400/80' : 'border-stone-700'
-                      }`}>
-                        <p className={`text-[10px] sm:text-[11px] font-bold ${
-                          isUnlocked ? 'text-cyan-200' : 'text-stone-400'
-                        }`}>{wp.nameId}</p>
-                        <p className="text-[8px] sm:text-[9px] text-stone-300">
-                          {isUnlocked ? 'Klik untuk Teleportasi' : '🔒 Belum Terbuka (Kunjungi lokasi ini)'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* IMPORTANT MAP MARKERS ONLY (Boss Raksasa & Lokasi Utama) */}
+              {/* DYNAMIC BOSS SPAWN MARKERS (Only bosses not covered in LANDMARKS) */}
               {importantMarkers.map((marker) => {
                 const sp = worldToScreen(marker.x, marker.z);
                 if (!sp.visible) return null;
-                const isBoss = marker.type === 'boss';
                 return (
                   <div
                     key={marker.id}
@@ -792,21 +755,12 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                     className="absolute -translate-x-1/2 -translate-y-1/2 z-22 pointer-events-none"
                     title={marker.title}
                   >
-                    {isBoss ? (
-                      <div className="relative flex items-center justify-center">
-                        <div className="absolute w-5 h-5 rounded-full bg-red-600/40 animate-ping" />
-                        <div className="w-5 h-5 rounded-full bg-red-600 border border-white shadow-xl flex items-center justify-center text-[10px] text-white font-bold drop-shadow">
-                          {marker.icon || '💀'}
-                        </div>
+                    <div className="relative flex items-center justify-center">
+                      <div className="absolute w-5 h-5 rounded-full bg-red-600/40 animate-ping" />
+                      <div className="w-5 h-5 rounded-full bg-red-600 border border-white shadow-xl flex items-center justify-center text-[10px] text-white font-bold drop-shadow">
+                        {marker.icon || '💀'}
                       </div>
-                    ) : (
-                      <div
-                        className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] shadow-md border border-stone-900"
-                        style={{ backgroundColor: marker.color || '#fff' }}
-                      >
-                        {marker.icon || '•'}
-                      </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}
