@@ -51,14 +51,26 @@ export function getOrganicWarp(x: number, z: number): { wx: number; wz: number }
  * Curves from northwest down across center, then curves northeast towards sultan palace.
  */
 export function getDesertBoundaryZ(xw: number): number {
-  if (xw < 40) {
-    const dx = xw - 40;
-    return -115 + 1.15 * dx;
-  } else if (xw <= 240) {
-    const t = (xw - 40) / 200;
-    return -115 - 95 * t * t; // Curves from -115 down to -210
+  if (xw < -80) {
+    return -290;
+  } else if (xw < 20) {
+    // Slopes down smoothly from -270 at xw=-80 to southernmost crest at Z = -90 between Pyramid & Oasis
+    const t = (xw - -80) / 100;
+    const s = t * t * (3 - 2 * t);
+    return -270 + s * 180; // reaches -90 at xw = 20
+  } else if (xw <= 140) {
+    // Curves from -90 back to -145 around the river confluence
+    const t = (xw - 20) / 120;
+    return -90 - t * 55;
+  } else if (xw <= 250) {
+    // Below World Boss Crater [210, -360], rolling dunes dip south to -125 touching northern river branch
+    const t = (xw - 140) / 110;
+    const wave = Math.sin(t * Math.PI) * 20;
+    return -145 + wave;
   } else {
-    return -210 - Math.min(65, (xw - 240) * 0.28); // Slopes to -275 in east
+    // Slopes northeast towards Sultan Palace [360, -440]
+    const t = Math.min(1.0, (xw - 250) / 180);
+    return -145 - t * 140; // reaches -285
   }
 }
 
@@ -70,7 +82,7 @@ export function isDesertBiome(x: number, z: number): boolean {
   const { wx, wz } = getOrganicWarp(x, z);
   const xw = x + wx;
   const zw = z + wz;
-  if (xw <= -95) return false;
+  if (xw <= -85) return false;
   return zw < getDesertBoundaryZ(xw);
 }
 
@@ -83,46 +95,43 @@ export function isDesertBiome(x: number, z: number): boolean {
  * 4. Hilir (Selatan): Dari titik temu [35, -5] (Jembatan 2 / Suspension di [38, 22]), berkelok ke selatan melewati barat kuil torii [70, 110], bermuara di timur Pelabuhan [20, 130].
  */
 export const RIVER_NW_BRANCH: [number, number][] = [
-  [-260, -415], // Danau Titan Kuno South Shore
-  [-245, -365],
-  [-225, -315],
-  [-210, -260],
-  [-195, -210], // Jembatan 1 - Astraea Highway
-  [-175, -165],
-  [-145, -125],
-  [-110, -90],
-  [-70, -60],
-  [-25, -35],
-  [10, -18],
+  [-240, -385], // Danau Titan Kuno South Shore Outlet
+  [-225, -330],
+  [-205, -270],
+  [-185, -210], // Jembatan 1 - Astraea Highway
+  [-165, -160],
+  [-135, -115],
+  [-95, -75],
+  [-50, -40],
+  [-5, -18],
   [35, -5],     // Confluence
 ];
 
 export const RIVER_DESERT_BRANCH: [number, number][] = [
   [35, -5],     // Confluence
-  [55, -45],
-  [75, -95],
-  [95, -145],
-  [115, -195],  // South of Pyramid [-20, -320] & Oasis [20, -240]
-  [125, -245],
-  [130, -295],
-  [125, -345],  // West of World Boss Crater [210, -360]
-  [110, -395],
-  [90, -445],
-  [70, -490],
-  [50, -520],   // Kaki Kanyon Kuno
+  [65, -45],
+  [95, -95],
+  [125, -145],  // Jembatan Akses Gurun
+  [145, -205],
+  [155, -265],
+  [155, -325],  // Barat Kawah World Boss [210, -360]
+  [165, -385],
+  [160, -445],
+  [135, -495],
+  [95, -525],   // Kaki Kanyon Kuno
 ];
 
 export const RIVER_EAST_BRANCH: [number, number][] = [
   [35, -5],     // Confluence
   [85, 10],
-  [140, 20],
+  [140, 18],
   [190, 15],    // Jembatan 4 - Puing Kastil Access
-  [240, 5],
-  [290, 18],
+  [240, 10],
+  [290, 22],
   [335, 38],    // Jembatan 3 - Val-Kragor Access
-  [385, 45],
+  [385, 40],
   [430, 25],    // Jembatan 5 - Lembah Batu Lumut Access
-  [455, -15],   // Belok ke utara di sebelah timur Hutan Kabut [380, -140]
+  [455, -15],   // Melingkari Hutan Kabut [380, -140]
   [450, -75],
   [440, -135],
   [435, -195],
@@ -223,10 +232,15 @@ export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
   const southCoastZ = 185 + Math.sin(xw * 0.015) * 16 + Math.cos(xw * 0.04) * 8 + cape;
   const westCoastX = -460 + Math.sin(zw * 0.018) * 30 + Math.cos(zw * 0.045) * 12;
 
-  // Teluk Samudra Timur melengkung naik di tenggara membatasi Val-Kragor & Batu Lumut
-  const isEastOcean = x > 495 && (z > -50 + Math.sin(xw * 0.02) * 16);
+  // Smooth natural bay curving east of Val-Kragor (eliminates any rectangular x > 495 cut)
+  let naturalCoastZ = southCoastZ;
+  if (xw > 340) {
+    const t = Math.min(1.0, (xw - 340) / 120);
+    naturalCoastZ = southCoastZ - t * 45 + Math.sin(xw * 0.025) * 10;
+  }
+  const isFarEastOcean = xw > 580 + Math.sin(zw * 0.015) * 25;
 
-  if (x < westCoastX || z > southCoastZ || isEastOcean) {
+  if (x < westCoastX || z > naturalCoastZ || isFarEastOcean) {
     return {
       id: 'ocean',
       name: 'Azure Coast & South Ocean',
@@ -346,25 +360,33 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   // 4b. Pelabuhan Sanctuary [20, 175..200]
   if (Math.abs(x - 20) <= 12 && z >= 165 && z <= 200) return 0.35;
 
-  // 4c. Lembah Danau Titan Kuno [-260, -450] (Depresi Danau Y = -2.8, permukaan air di Y = -0.35)
+  // 4c. Lembah Danau Titan Kuno [-260, -450] (Danau Biru Luas di Ketinggian)
   const distTitanLake = Math.hypot(x - -260, z - -450);
-  if (distTitanLake <= 40) {
-    return -2.80; // Dasar danau
+  if (distTitanLake <= 58) {
+    return -2.80; // Dasar danau air biru luas
   }
-  if (distTitanLake <= 52) {
-    const t = (distTitanLake - 40) / 12;
-    return -2.80 + t * 4.0; // Lereng tepian danau naik
+  if (distTitanLake <= 72) {
+    const t = (distTitanLake - 58) / 14;
+    return -2.80 + t * 4.2; // Lereng tepian danau naik
   }
 
-  // 4d. Pegunungan Salju Barat Laut (Mengelilingi Danau Titan Secara Organik)
-  const isSnowMountainZone = distTitanLake > 52 && distTitanLake <= 130 && (x + wx) < -110 && (z + wz) < -300;
+  // 4d. Pegunungan Salju Barat Laut (Mengelilingi Danau Titan dari barat hingga perbatasan Kanyon Kuno)
+  const isSnowMountainZone =
+    (distTitanLake > 60 && distTitanLake <= 165 && (xw < -50 || zw < -340)) ||
+    (xw >= -180 && xw <= 0 && zw < -460);
   if (isSnowMountainZone) {
     const rimNoise = Math.sin(xw * 0.02) * Math.cos(zw * 0.02) * 6.5 + Math.sin((xw + zw) * 0.035) * 3.0;
-    return clamp(13.0 + rimNoise, 8.0, 22.0);
+    return clamp(15.0 + rimNoise, 10.0, 26.0);
   }
 
-  // 4e. Ibukota Kerajaan Emas Astraea & Istana Kaisar [-260, -240]
-  if (Math.hypot(x - -260, z - -240) <= 46) return 2.00;
+  // 4e. Ibukota Kerajaan Emas Astraea & Istana Kaisar [-240, -220] (Kastil megah di lereng selatan salju)
+  if (Math.hypot(x - -240, z - -220) <= 48) return 2.20;
+
+  // 4e-2. Hutan Lindung Barat Daya [X: -320 s.d -180, Z: 50 s.d 150] (Cluster hijau rimbun)
+  if (x >= -320 && x <= -180 && z >= 50 && z <= 150) {
+    const forestWave = Math.sin(x * 0.035) * Math.cos(z * 0.035) * 1.5 + 2.0;
+    return forestWave;
+  }
 
   // 4f. Hutan Kabut Eldoria [380, -140]
   const distMistForest = Math.hypot(x - 380, z - -140);
@@ -448,22 +470,34 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
     return { height: 1.85, color: [141, 110, 99], biomeId: 'harbor_pier', isWater: false, isPath: true, slope: 0 };
   }
 
-  // 1a. Lembah Danau Titan Kuno [-260, -450] (Danau Biru Jernih Pegunungan & Tepian)
+  // 1a. Lembah Danau Titan Kuno [-260, -450] (Danau Air Biru Luas di Pegunungan)
   const distTitanLake = Math.hypot(x - -260, z - -450);
-  if (distTitanLake <= 40) {
-    return { height: y, color: [45, 165, 205], biomeId: 'titan_lake', isWater: true, isPath: false, slope: 0 };
+  if (distTitanLake <= 58) {
+    return { height: y, color: [2, 132, 199], biomeId: 'titan_lake', isWater: true, isPath: false, slope: 0 };
   }
-  if (distTitanLake <= 52) {
-    return { height: y, color: [160, 175, 185], biomeId: 'titan_shore', isWater: false, isPath: false, slope };
+  if (distTitanLake <= 72) {
+    return { height: y, color: [175, 190, 200], biomeId: 'titan_shore', isWater: false, isPath: false, slope };
   }
 
-  // 1b. Puncak Pegunungan Bersalju Organik (Mengelilingi Danau Titan)
-  const isSnowMountainZone = distTitanLake > 52 && distTitanLake <= 130 && (x + wx) < -110 && (z + wz) < -300;
-  if (isSnowMountainZone && y >= 11.5) {
-    return { height: y, color: [245, 248, 252], biomeId: 'snowy_peak', isWater: false, isPath: false, slope };
+  // 1b. Gugusan Pegunungan Bersalju (Snowy Mountain Ridges dari barat hingga Kanyon Kuno)
+  const isSnowMountainZone =
+    (distTitanLake > 60 && distTitanLake <= 165 && (xw < -50 || zw < -340)) ||
+    (xw >= -180 && xw <= 0 && zw < -460);
+  if (isSnowMountainZone && y >= 12.0) {
+    return { height: y, color: [250, 252, 255], biomeId: 'snowy_peak', isWater: false, isPath: false, slope };
   }
-  if (isSnowMountainZone && y >= 7.5) {
-    return { height: y, color: [120, 130, 140], biomeId: 'mountain_rock', isWater: false, isPath: false, slope };
+  if (isSnowMountainZone && y >= 8.0) {
+    return { height: y, color: [115, 125, 135], biomeId: 'mountain_rock', isWater: false, isPath: false, slope };
+  }
+
+  // 1b-2. Ibukota Kerajaan Emas Astraea [-240, -220] (Kastil megah batu abu-abu)
+  if (Math.hypot(x - -240, z - -220) <= 44) {
+    return { height: y, color: [100, 116, 139], biomeId: 'astraea_castle', isWater: false, isPath: false, slope };
+  }
+
+  // 1b-3. Hutan Lindung Barat Daya [X: -320 s.d -180, Z: 50 s.d 150] (Cluster hijau rimbun)
+  if (x >= -320 && x <= -180 && z >= 50 && z <= 150) {
+    return { height: y, color: [30, 105, 40], biomeId: 'sw_forest', isWater: false, isPath: false, slope };
   }
 
   // 1c. Alur Palung 4 Cabang Sungai (NW, Desert, East, South)

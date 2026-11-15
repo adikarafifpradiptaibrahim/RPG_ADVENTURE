@@ -46,8 +46,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A colossal imperial metropolis situated across the peaceful north-west plains, featuring the grand Sun Palace, towering marble colonnades, royal bazaar, and the Fountain of Immortality.',
     descriptionId: 'Ibukota kerajaan emas megah di dataran padang rumput barat laut yang damai! Gerbang Barat megah, Istana Kaisar Aurelius, dan alun-alun marmer putih berair mancur abadi.',
     color: '#fbbf24',
-    bounds: { minX: -310, maxX: -210, minZ: -280, maxZ: -200 },
-    center: [-260, -240],
+    bounds: { minX: -290, maxX: -190, minZ: -260, maxZ: -180 },
+    center: [-240, -220],
     recommendedLevel: 5,
   },
   {
@@ -185,7 +185,7 @@ export const WAYPOINTS: {
     nameId: 'Ibukota Kerajaan Emas Astraea',
     regionId: 'kerajaan_astraea',
     icon: '👑',
-    pos: [-260, -240],
+    pos: [-240, -220],
     desc: 'Ibukota megah berdinding marmer emas dan tahta Kaisar Aurelius',
   },
   {
@@ -294,8 +294,8 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
     return REGIONS.find((r) => r.id === 'danau_titan') || REGIONS[4];
   }
 
-  // 4. Astraea [-260, -240]
-  if (Math.hypot(x - -260, z - -240) <= 50) {
+  // 4. Astraea [-240, -220]
+  if (Math.hypot(x - -240, z - -220) <= 50) {
     return REGIONS.find((r) => r.id === 'kerajaan_astraea') || REGIONS[3];
   }
 

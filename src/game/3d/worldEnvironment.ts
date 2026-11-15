@@ -2594,7 +2594,7 @@ export function buildWorldEnvironment(
   });
 
   // 1. Permukaan Air Danau Titan (Radius 42 unit di elevasi Y = -0.35)
-  const lakeGeo = new THREE.CircleGeometry(42, 32);
+  const lakeGeo = new THREE.CircleGeometry(58, 48);
   lakeGeo.rotateX(-Math.PI / 2);
   const lakeMesh = new THREE.Mesh(lakeGeo, matLakeWater);
   lakeMesh.position.set(-260, -0.35, -450);
@@ -2603,8 +2603,8 @@ export function buildWorldEnvironment(
   // 2. Monolit Pilar Kuno Sang Titan Mengelilingi Danau
   const monolithAngles = [0, 0.7, 1.4, 2.1, 2.8, 3.5, 4.2, 4.9, 5.6];
   monolithAngles.forEach((ang) => {
-    const mx = -260 + Math.cos(ang) * 44;
-    const mz = -450 + Math.sin(ang) * 44;
+    const mx = -260 + Math.cos(ang) * 62;
+    const mz = -450 + Math.sin(ang) * 62;
     const my = getTerrainHeight(mx, mz);
     const mHeight = 5.0 + Math.random() * 3.5;
     const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.6, mHeight, 1.6), matTitanStone);
@@ -2916,6 +2916,69 @@ export function buildWorldEnvironment(
   }
 
   envGroup.add(mossValleyGroup);
+
+  // ============================================================================
+  // ZONA S: HUTAN LINDUNG BARAT DAYA (SOUTHWEST LUSH OAK FOREST)
+  // Rentang X: -320 s.d -180, Z: 50 s.d 150 (Cluster Rimbun Hijau Pesisir Barat)
+  // ============================================================================
+  const swForestGroup = new THREE.Group();
+  swForestGroup.name = 'ZoneS_SouthwestLushForest';
+
+  const matSWFTrunk = new THREE.MeshStandardMaterial({
+    color: 0x4a3525,
+    roughness: 0.9,
+    metalness: 0.05,
+    flatShading: true,
+  });
+  const matSWFCanopy1 = new THREE.MeshStandardMaterial({
+    color: 0x1e6928,
+    roughness: 0.85,
+    flatShading: true,
+  });
+  const matSWFCanopy2 = new THREE.MeshStandardMaterial({
+    color: 0x2d8a3e,
+    roughness: 0.85,
+    flatShading: true,
+  });
+
+  const swTreeGeoTrunk = new THREE.CylinderGeometry(0.35, 0.55, 3.6, 6);
+  const swCanopyGeo1 = new THREE.DodecahedronGeometry(2.4, 1);
+  const swCanopyGeo2 = new THREE.DodecahedronGeometry(1.8, 1);
+
+  for (let tx = -310; tx <= -190; tx += 24) {
+    for (let tz = 60; tz <= 140; tz += 22) {
+      const jx = tx + (Math.random() - 0.5) * 14;
+      const jz = tz + (Math.random() - 0.5) * 14;
+      if (isPointNearRoad(jx, jz, 4.0)) continue;
+      const jy = getTerrainHeight(jx, jz);
+      if (jy < 0.2) continue;
+
+      const tGroup = new THREE.Group();
+      tGroup.position.set(jx, jy, jz);
+      const s = 0.9 + Math.random() * 0.5;
+      tGroup.scale.set(s, s, s);
+
+      const trunk = new THREE.Mesh(swTreeGeoTrunk, matSWFTrunk);
+      trunk.position.y = 1.8;
+      trunk.castShadow = true;
+      tGroup.add(trunk);
+
+      const canopyMat = Math.random() > 0.4 ? matSWFCanopy1 : matSWFCanopy2;
+      const c1 = new THREE.Mesh(swCanopyGeo1, canopyMat);
+      c1.position.y = 4.2;
+      c1.castShadow = true;
+      tGroup.add(c1);
+
+      const c2 = new THREE.Mesh(swCanopyGeo2, canopyMat);
+      c2.position.set(0.6, 5.0, 0.3);
+      c2.castShadow = true;
+      tGroup.add(c2);
+
+      swForestGroup.add(tGroup);
+      colliders.push({ type: 'circle', x: jx, z: jz, radius: 1.1 * s, label: 'Pohon Ek Hutan Barat Daya' });
+    }
+  }
+  envGroup.add(swForestGroup);
 
   // ============================================================================
   // ANIMASI UPDATE CALLBACK (FLICKERING TORCHES & CAMPFIRE)

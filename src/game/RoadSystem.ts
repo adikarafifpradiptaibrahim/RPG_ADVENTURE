@@ -83,11 +83,11 @@ export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
       [-130, 10],
       [-170, -60],
       [-190, -140],
-      [-195, -210], // Jembatan 1 - Astraea Highway Stone Bridge
-      [-225, -235],
-      [-260, -240], // Gerbang Kerajaan Emas Astraea
-      [-260, -320],
-      [-260, -415], // Lembah Danau Titan Kuno
+      [-185, -210], // Jembatan 1 - Astraea Highway Stone Bridge
+      [-215, -220],
+      [-240, -220], // Ibukota Kerajaan Emas Astraea
+      [-240, -310],
+      [-240, -385], // Danau Titan South Outlet
     ],
     colorHex: 0x8c7a65,
     canvasStroke: '#a3917a',
@@ -181,8 +181,8 @@ export const ROAD_JUNCTIONS: RoadJunctionDef[] = [
   {
     id: 'jct_astraea_gate',
     name: 'Gerbang Emas Astraea',
-    pos: [-260, -240],
-    signPos: [-262.5, -243.5],
+    pos: [-260, -220],
+    signPos: [-262.5, -223.5],
     signDirections: [
       { label: 'Gerbang Istana Astraea ->', angle: 0.0 },
       { label: '<- Desa Sanctuary & Padang Rumput', angle: Math.PI * 0.5 },
@@ -868,6 +868,52 @@ export function drawRoadsOnWorldMap(
     ctx.strokeStyle = 'rgba(234, 179, 8, 0.4)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
+  });
+
+  // 4. JEMBATAN KAYU / STONE BRIDGES (5 Jembatan Utama Melintasi Palung Sungai)
+  const BRIDGES_2D: { x: number; z: number; angle: number; length: number }[] = [
+    { x: -185, z: -210, angle: -Math.PI / 4, length: 15 },
+    { x: 38, z: 22, angle: 0, length: 17 },
+    { x: 190, z: 15, angle: Math.PI / 2, length: 15 },
+    { x: 335, z: 38, angle: Math.PI / 2, length: 15 },
+    { x: 430, z: 25, angle: Math.PI / 2, length: 15 },
+  ];
+
+  BRIDGES_2D.forEach((b) => {
+    const sx = ((b.x - minX) / (maxX - minX)) * width;
+    const sy = ((b.z - minZ) / (maxZ - minZ)) * height;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(b.angle);
+
+    // Deck kayu cokelat tebal dengan bayangan
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(-b.length / 2 - 1, -4.5, b.length + 2, 9);
+
+    ctx.fillStyle = '#8b5a2b';
+    ctx.fillRect(-b.length / 2, -3.5, b.length, 7);
+
+    // Garis balok papan melintang
+    ctx.strokeStyle = '#5c3a1e';
+    ctx.lineWidth = 1;
+    for (let px = -b.length / 2 + 2; px <= b.length / 2 - 2; px += 2.5) {
+      ctx.beginPath();
+      ctx.moveTo(px, -3.5);
+      ctx.lineTo(px, 3.5);
+      ctx.stroke();
+    }
+
+    // Pagar tepi jembatan
+    ctx.strokeStyle = '#3e2723';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(-b.length / 2, -3.5);
+    ctx.lineTo(b.length / 2, -3.5);
+    ctx.moveTo(-b.length / 2, 3.5);
+    ctx.lineTo(b.length / 2, 3.5);
+    ctx.stroke();
+
+    ctx.restore();
   });
 
   ctx.restore();

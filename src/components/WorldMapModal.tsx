@@ -20,7 +20,7 @@ import { getContinentBiomeSample, getBiomeAt } from '../game/mapSampler';
 import { drawRoadsOnWorldMap } from '../game/RoadSystem';
 
 // Persistent continent map cached image data to eliminate all lag on open & pan
-const MAP_CACHE_VERSION = 'v9.0_organic_meandering_world';
+const MAP_CACHE_VERSION = 'v10.0_target_continent_alignment';
 let cachedMapVersion = '';
 let cachedMapImageData: ImageData | null = null;
 
@@ -76,8 +76,8 @@ export const LANDMARKS: MapLandmark[] = [
     name: 'Imperial Capital Astraea & Sun Palace',
     nameId: 'Ibukota Kerajaan Emas Astraea & Istana Kaisar',
     icon: '👑',
-    x: -260,
-    z: -240,
+    x: -240,
+    z: -220,
     level: 5,
     desc: 'Ibukota megah berpilar emas putih dan tahta Kaisar Aurelius di padang rumput barat.',
     color: '#fbbf24',
@@ -584,7 +584,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
           sample.biomeId !== 'ancient_canyon' &&
           sample.biomeId !== 'mist_forest' &&
           sample.biomeId !== 'abandoned_castle' &&
-          sample.biomeId !== 'moss_valley'
+          sample.biomeId !== 'moss_valley' &&
+          sample.biomeId !== 'astraea_castle' &&
+          sample.biomeId !== 'sw_forest'
         ) {
           switch (zone.id) {
             case 'ocean':
@@ -740,7 +742,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 } as React.CSSProperties}
               />
 
-              {/* PURE PIN / LOCATION ICONS WITHOUT PERMANENT TEXT BOXES */}
+              {/* THEMATIC LOCATION PIN ICONS WITH TITLES MATCHING TARGET MAP */}
               {LANDMARKS.map((lm) => {
                 const sp = worldToScreen(lm.x, lm.z);
                 if (!sp.visible) return null;
@@ -759,14 +761,14 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                     onMouseEnter={() => setHoveredLandmark(lm)}
                     onMouseLeave={() => setHoveredLandmark(null)}
                     style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer pointer-events-auto"
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer pointer-events-auto flex flex-col items-center group"
                   >
                     <div
                       className={`relative flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full transition-all duration-150 ${
-                        isHovered || isInspected ? 'scale-125 z-30' : 'hover:scale-115'
+                        isHovered || isInspected ? 'scale-125 z-30 shadow-2xl' : 'hover:scale-115 shadow-md'
                       }`}
                       style={{
-                        backgroundColor: lm.isBoss ? 'rgba(127, 29, 29, 0.95)' : 'rgba(28, 25, 23, 0.9)',
+                        backgroundColor: lm.isBoss ? 'rgba(127, 29, 29, 0.95)' : 'rgba(28, 25, 23, 0.92)',
                         border: `2px solid ${lm.color}`,
                         boxShadow: isHovered || isInspected ? `0 0 16px ${lm.color}` : '0 3px 8px rgba(0,0,0,0.6)',
                       }}
@@ -776,6 +778,20 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                       )}
                       <span className="text-xs sm:text-sm select-none">{lm.icon}</span>
                     </div>
+
+                    {/* Permanent Location Title Label (Identical to image_140d54.png) */}
+                    <span
+                      className={`mt-1 px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-sans font-bold whitespace-nowrap select-none pointer-events-none transition-all duration-150 ${
+                        isHovered || isInspected
+                          ? 'bg-stone-950/95 text-amber-300 border border-amber-400 shadow-xl scale-105 z-35'
+                          : 'bg-stone-950/75 text-stone-200 border border-stone-800/80 shadow'
+                      }`}
+                      style={{
+                        textShadow: '0 1px 2px rgba(0,0,0,0.95)',
+                      }}
+                    >
+                      {lm.nameId}
+                    </span>
                   </div>
                 );
               })}

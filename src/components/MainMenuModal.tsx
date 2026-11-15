@@ -51,14 +51,14 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
     {
       id: 'mage',
       name: 'Penyihir (Mage)',
-      icon: 'ðŸ”®',
+      icon: '🔮',
       desc: 'Penguasa sihir kristal dan pemulihan suci dengan mana berlimpah.',
       color: 'border-purple-500 bg-purple-950/30 text-purple-300',
     },
     {
       id: 'rogue',
       name: 'Pemburu (Rogue)',
-      icon: 'ðŸ¹',
+      icon: '🏹',
       desc: 'Lincah dengan belati ganda & panah elang. Kecepatan dan serangan kritis.',
       color: 'border-emerald-500 bg-emerald-950/30 text-emerald-300',
     },
@@ -150,7 +150,7 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <div className="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-2xl">
-                      ðŸ›¡ï¸
+                      🛡️
                     </div>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-950/80 border border-blue-500/30 text-blue-300">
                       100% Client-Side
@@ -221,7 +221,7 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
           <div className="space-y-5 animate-fade-in">
             <div className="flex items-center justify-between border-b border-stone-800 pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-xl">ðŸ›¡ï¸</span>
+                <span className="text-xl">🛡️</span>
                 <h2 className="text-base font-bold text-amber-300">Single Player Mode (Client-Side)</h2>
               </div>
               <button
@@ -270,7 +270,7 @@ export const MainMenuModal: React.FC<MainMenuModalProps> = ({
             </div>
 
             <div className="p-3 bg-stone-900/60 border border-stone-800 rounded-xl text-xs text-stone-400">
-              ðŸ’¡ <span className="text-stone-300 font-semibold">Mode Offline:</span> Game akan berjalan 100% di browser tanpa koneksi socket server. Progres tersimpan di penyimpanan browser lokal.
+              💡 <span className="text-stone-300 font-semibold">Mode Offline:</span> Game akan berjalan 100% di browser tanpa koneksi socket server. Progres tersimpan di penyimpanan browser lokal.
             </div>
 
             <div className="flex gap-3 pt-2">
