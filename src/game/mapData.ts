@@ -10,8 +10,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A thriving coastal settlement with wooden cottages, busy harbor docks, merchant galleons, and wide open grassland plains.',
     descriptionId: 'Pusat desa damai dan padang rumput hijau luas Eldoria dengan rumah panggung kayu, pelabuhan kapal dagang, bengkel tempa, serta perbukitan landai terbuka di pesisir selatan.',
     color: '#65a30d',
-    bounds: { minX: -60, maxX: 100, minZ: 70, maxZ: 170 },
-    center: [25, 135],
+    bounds: { minX: -90, maxX: 10, minZ: 100, maxZ: 180 },
+    center: [-40, 145],
     recommendedLevel: 1,
   },
   {
@@ -34,8 +34,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A heavily fortified stronghold with stone ramparts, corner watchtowers, garrison keep, and spiked defense barricades situated in the open eastern plains.',
     descriptionId: 'Desa benteng pertahanan mandiri di padang rumput tenggara yang lapang! Dilengkapi tembok slate kokoh, menara pengawas, barikade runcing, dan markas Komandan Brann.',
     color: '#64748b',
-    bounds: { minX: 290, maxX: 370, minZ: 60, maxZ: 130 },
-    center: [330, 95],
+    bounds: { minX: 270, maxX: 350, minZ: 80, maxZ: 150 },
+    center: [310, 115],
     recommendedLevel: 4,
   },
   {
@@ -106,8 +106,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A secluded sanctuary of giant mossy megaliths, blooming glade flora, and glowing spores.',
     descriptionId: 'Lembah tersembunyi penuh gugusan batu purba berlumut dan pendar spora mistis.',
     color: '#65a30d',
-    bounds: { minX: 470, maxX: 560, minZ: -10, maxZ: 60 },
-    center: [510, 20],
+    bounds: { minX: 420, maxX: 510, minZ: 0, maxZ: 70 },
+    center: [465, 35],
     recommendedLevel: 5,
   },
   {
@@ -130,20 +130,20 @@ export const REGIONS: RegionInfo[] = [
     description: 'A blistering volcanic hellscape across the southern ocean featuring smoking magma pools, scorched basalt arches, and the primal dragon nest.',
     descriptionId: 'Wilayah pulau vulkanik berbahaya di seberang laut selatan! Aliran lahar pijar mendidih, kawah melingkar obsidian, dan arena pertarungan Boss Naga Purba Ignis.',
     color: '#dc2626',
-    bounds: { minX: -130, maxX: -10, minZ: 240, maxZ: 350 },
-    center: [-70, 300],
+    bounds: { minX: -100, maxX: 20, minZ: 280, maxZ: 400 },
+    center: [-40, 340],
     recommendedLevel: 10,
   },
   {
     id: 'kawah_cacing_purba',
-    name: 'Lair of The Ancient Sandworm Jarrus',
+    name: 'Colosseum of Titan Kuno',
     nameId: 'Kawah Cacat World Boss (Lv. 10)',
-    icon: '🪱',
-    description: 'A colossal sinkhole depression in the eastern desert dunes, domain of the legendary Devourer Sandworm Jarrus.',
-    descriptionId: 'Kawah pusaran pasir raksasa yang curam di pedalaman timur laut Gurun Solaria, arena World Boss Cacing Purba Jarrus.',
+    icon: '🗿',
+    description: 'A colossal ancient colosseum arena in the northern desert, domain of the legendary Boss Titan Kuno.',
+    descriptionId: 'Arena reruntuhan colosseum kuno megah di utara Gurun Solaria, arena World Boss Titan Kuno.',
     color: '#ea580c',
-    bounds: { minX: 200, maxX: 300, minZ: -440, maxZ: -340 },
-    center: [255, -390],
+    bounds: { minX: 180, maxX: 290, minZ: -430, maxZ: -330 },
+    center: [235, -380],
     recommendedLevel: 10,
   },
 ];
@@ -161,7 +161,7 @@ export const WAYPOINTS: {
     nameId: 'Desa Utama & Padang Rumput Eldoria',
     regionId: 'desa_eldoria',
     icon: '🏡',
-    pos: [25, 135],
+    pos: [-40, 145],
     desc: 'Pusat pemukiman awal di pesisir selatan padang rumput Eldoria',
   },
   {
@@ -169,7 +169,7 @@ export const WAYPOINTS: {
     nameId: 'Pelabuhan Sanctuary',
     regionId: 'desa_eldoria',
     icon: '⛵',
-    pos: [-145, 175],
+    pos: [-140, 185],
     desc: 'Pelabuhan pesisir selatan menghadap langsung ke Samudra Azure terbuka',
   },
   {
@@ -216,9 +216,17 @@ export const WAYPOINTS: {
     id: 'wp_boss_crater',
     nameId: 'Kawah Cacat World Boss (Lv. 10)',
     regionId: 'kawah_cacing_purba',
+    icon: '🗿',
+    pos: [235, -380],
+    desc: 'Arena reruntuhan colosseum kuno megah kediaman World Boss Titan Kuno',
+  },
+  {
+    id: 'wp_sandworm',
+    nameId: 'Sarang Cacing Purba Gurun',
+    regionId: 'gurun_solaria',
     icon: '🪱',
-    pos: [255, -390],
-    desc: 'Arena kawah pasir hisap raksasa World Boss Cacing Purba Jarrus',
+    pos: [-30, -220],
+    desc: 'Arena terbuka pusaran pasir habitat Cacing Raksasa Gurun di barat daya',
   },
   {
     id: 'wp_sultan_palace',
@@ -249,7 +257,7 @@ export const WAYPOINTS: {
     nameId: 'Desa Benteng Val-Kragor',
     regionId: 'desa_valkragor',
     icon: '🛡️',
-    pos: [330, 95],
+    pos: [310, 115],
     desc: 'Benteng pertahanan tangguh di perbatasan padang rumput tenggara',
   },
   {
@@ -257,7 +265,7 @@ export const WAYPOINTS: {
     nameId: 'Lembah Batu Lumut',
     regionId: 'lembah_batu_lumut',
     icon: '🪨',
-    pos: [510, 20],
+    pos: [465, 35],
     desc: 'Lembah tersembunyi penuh gugusan batu purba berlumut di timur dekat sungai',
   },
   {
@@ -265,27 +273,27 @@ export const WAYPOINTS: {
     nameId: 'Mage Tower Puncak Halilintar',
     regionId: 'desa_eldoria',
     icon: '⚡',
-    pos: [70, 20],
-    desc: 'Menara penyihir megah di bukit padang rumput timur tengah dekat sungai',
+    pos: [110, -10],
+    desc: 'Menara penyihir megah di perbukitan padang rumput dekat persimpangan jalan',
   },
   {
     id: 'wp_dragoncaldera',
     nameId: 'Kaldera Sarang Naga',
     regionId: 'kaldera_naga_api',
     icon: '🐉',
-    pos: [-70, 300],
+    pos: [-40, 340],
     desc: 'Pulau kawah lava vulkanik di seberang laut selatan dan sarang Boss Naga',
   },
 ];
 
 export function getCurrentRegion(x: number, z: number): RegionInfo {
   // 1. Dragonfang Caldera & Volcano Island
-  if (Math.hypot(x - -70, z - 300) <= 65) {
+  if (Math.hypot(x - -40, z - 340) <= 65) {
     return REGIONS.find((r) => r.id === 'kaldera_naga_api') || REGIONS[10];
   }
 
-  // 2. Kawah Cacat World Boss [255, -390]
-  if (Math.hypot(x - 255, z - -390) <= 55) {
+  // 2. Kawah Cacat World Boss Titan Kuno [235, -380]
+  if (Math.hypot(x - 235, z - -380) <= 55) {
     return REGIONS.find((r) => r.id === 'kawah_cacing_purba') || REGIONS[11];
   }
 
@@ -314,13 +322,13 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
     return REGIONS.find((r) => r.id === 'puing_kastil') || REGIONS[7];
   }
 
-  // 8. Benteng Val-Kragor [330, 95]
-  if (Math.hypot(x - 330, z - 95) <= 50) {
+  // 8. Benteng Val-Kragor [310, 115]
+  if (Math.hypot(x - 310, z - 115) <= 50) {
     return REGIONS.find((r) => r.id === 'desa_valkragor') || REGIONS[2];
   }
 
-  // 9. Lembah Batu Lumut [510, 20]
-  if (Math.hypot(x - 510, z - 20) <= 50) {
+  // 9. Lembah Batu Lumut [465, 35]
+  if (Math.hypot(x - 465, z - 35) <= 50) {
     return REGIONS.find((r) => r.id === 'lembah_batu_lumut') || REGIONS[8];
   }
 

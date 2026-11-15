@@ -756,8 +756,8 @@ export function renderIllustratedMap(
     }
   });
 
-  // 12C. World Boss Crater Sinkhole [255, -390] -> norm [0.713, 0.221]
-  const [cratX, cratY] = wToC(255, -390);
+  // 12C. World Boss Colosseum Titan Kuno [235, -380]
+  const [cratX, cratY] = wToC(235, -380);
   ctx.fillStyle = '#9a3412';
   ctx.beginPath();
   ctx.ellipse(cratX, cratY, 34, 23, 0, 0, Math.PI * 2);
@@ -783,6 +783,17 @@ export function renderIllustratedMap(
     ctx.lineTo(cratX + Math.cos(ang) * 36, cratY + Math.sin(ang) * 24);
     ctx.stroke();
   }
+
+  // 12C2. Sandworm Sinkhole Vortex [-30, -220]
+  const [swX, swY] = wToC(-30, -220);
+  ctx.fillStyle = '#b45309';
+  ctx.beginPath();
+  ctx.ellipse(swX, swY, 22, 15, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#78350f';
+  ctx.beginPath();
+  ctx.ellipse(swX, swY, 13, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
 
   // 12D. Sultan Malik Palace [430, -460] -> norm [0.858, 0.147]
   const [sultX, sultY] = wToC(430, -460);
@@ -857,8 +868,20 @@ export function renderIllustratedMap(
   ctx.fillStyle = '#334155';
   ctx.fillRect(ruinX - 14, ruinY - 14, 7, 21);
 
-  // 12G. Desa Benteng Val-Kragor [330, 95] -> norm [0.775, 0.732]
-  const [valX, valY] = wToC(330, 95);
+  // 12F2. Mage Tower Puncak Halilintar [110, -10]
+  const [mtX, mtY] = wToC(110, -10);
+  ctx.fillStyle = '#475569';
+  ctx.fillRect(mtX - 8, mtY - 14, 16, 28);
+  ctx.fillStyle = '#7c3aed';
+  ctx.beginPath();
+  ctx.moveTo(mtX - 9, mtY - 14);
+  ctx.lineTo(mtX + 9, mtY - 14);
+  ctx.lineTo(mtX, mtY - 26);
+  ctx.closePath();
+  ctx.fill();
+
+  // 12G. Desa Benteng Val-Kragor [310, 115]
+  const [valX, valY] = wToC(310, 115);
   ctx.strokeStyle = '#78350f';
   ctx.lineWidth = 3.6;
   ctx.strokeRect(valX - 24, valY - 15, 48, 30);
@@ -881,8 +904,8 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12H. Lembah Batu Lumut [510, 20] -> norm [0.925, 0.653]
-  const [mosX, mosY] = wToC(510, 20);
+  // 12H. Lembah Batu Lumut [465, 35]
+  const [mosX, mosY] = wToC(465, 35);
   ctx.fillStyle = '#65a30d';
   ctx.beginPath();
   ctx.ellipse(mosX, mosY, 22, 15, 0, 0, Math.PI * 2);
@@ -903,8 +926,8 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12I. Desa Utama & Sanctuary [25, 135] -> norm [0.521, 0.774]
-  const [vilX, vilY] = wToC(25, 135);
+  // 12I. Desa Utama & Sanctuary [-40, 145]
+  const [vilX, vilY] = wToC(-40, 145);
   [-14, 8].forEach((hx) => {
     ctx.fillStyle = '#e5e7eb';
     ctx.fillRect(vilX + hx - 5, vilY - 2, 10, 8);
@@ -928,8 +951,8 @@ export function renderIllustratedMap(
   ctx.lineTo(vilX + 29, vilY - 4);
   ctx.stroke();
 
-  // 12J. Pelabuhan Sanctuary [-145, 175] -> norm [0.379, 0.816]
-  const [harbX, harbY] = wToC(-145, 175);
+  // 12J. Pelabuhan Sanctuary [-140, 185]
+  const [harbX, harbY] = wToC(-140, 185);
   ctx.fillStyle = '#78350f';
   ctx.fillRect(harbX - 18, harbY, 36, 5);
   ctx.fillRect(harbX - 9, harbY + 5, 6, 15);
@@ -951,8 +974,8 @@ export function renderIllustratedMap(
     ctx.stroke();
   });
 
-  // 12K. Kaldera Sarang Naga [-70, 300] -> norm [0.442, 0.947]
-  const [volX, volY] = wToC(-70, 300);
+  // 12K. Kaldera Sarang Naga [-40, 340]
+  const [volX, volY] = wToC(-40, 340);
   ctx.fillStyle = '#1c1917';
   ctx.beginPath();
   ctx.ellipse(volX, volY, width * 0.08, height * 0.055, 0, 0, Math.PI * 2);

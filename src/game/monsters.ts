@@ -906,30 +906,30 @@ export const ANCIENT_TITAN_BOSS_CONFIG: BossConfig = {
 };
 
 export const SPAWN_SANDWORM = {
-  x: 210,
+  x: -30,
   y: 0,
-  z: -360,
-  homeX: 210,
-  homeZ: -360,
-  leashRadius: 45, // Terkunci di dalam arena kawah pasir
+  z: -220,
+  homeX: -30,
+  homeZ: -220,
+  leashRadius: 55, // Bebas di padang pasir gurun barat daya
 };
 
 export const SPAWN_TITAN = {
-  x: -224,
-  y: -0.2,
-  z: -435,
-  homeX: -224,
-  homeZ: -435,
+  x: 235,
+  y: 1.8,
+  z: -380,
+  homeX: 235,
+  homeZ: -380,
   leashRadius: 50, // Terkunci di dalam arena Colosseum kuno
 };
 
 export const SPAWN_DRAGON = {
-  x: 80,
-  y: 0,
-  z: 360,
-  homeX: 80,
-  homeZ: 360,
-  leashRadius: 48,
+  x: -40,
+  y: 2.5,
+  z: 340,
+  homeX: -40,
+  homeZ: 340,
+  leashRadius: 55,
 };
 
 export const JARRUS_WORM_BOSS_CONFIG: BossConfig = {

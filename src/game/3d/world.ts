@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { getProceduralContinentHeight, getContinentBiomeSample, isDesertBiome } from '../mapSampler';
+import { getProceduralContinentHeight, getContinentBiomeSample, isDesertBiome, getDistanceToRiver } from '../mapSampler';
 import {
   createTreeMesh,
   createAncientPillarMesh,
@@ -219,12 +219,45 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   const posAttr = terrainGeo.attributes.position;
   const vertexCount = posAttr.count;
 
+  // 1. Initial procedural heights sampling
+  const rawHeights: number[] = new Array(vertexCount);
+  for (let i = 0; i < vertexCount; i++) {
+    const vx = posAttr.getX(i);
+    const vz = posAttr.getZ(i);
+    rawHeights[i] = getProceduralHeight(vx, vz);
+  }
+
+  // 2. 3x3 Gaussian smoothing filter on heightmap vertices for X > 360 (eliminates eastern cliff staircasing)
+  const smoothedHeights: number[] = [...rawHeights];
+  const gridW = segmentsX + 1;
+  const gridH = segmentsZ + 1;
+  for (let gz = 1; gz < gridH - 1; gz++) {
+    for (let gx = 1; gx < gridW - 1; gx++) {
+      const idx = gz * gridW + gx;
+      const vx = posAttr.getX(idx);
+      if (vx > 360) {
+        // 3x3 kernel: center 4, orthogonal 2, diagonal 1 (sum = 16)
+        const val =
+          rawHeights[(gz - 1) * gridW + (gx - 1)] * 1 +
+          rawHeights[(gz - 1) * gridW + gx] * 2 +
+          rawHeights[(gz - 1) * gridW + (gx + 1)] * 1 +
+          rawHeights[gz * gridW + (gx - 1)] * 2 +
+          rawHeights[idx] * 4 +
+          rawHeights[gz * gridW + (gx + 1)] * 2 +
+          rawHeights[(gz + 1) * gridW + (gx - 1)] * 1 +
+          rawHeights[(gz + 1) * gridW + gx] * 2 +
+          rawHeights[(gz + 1) * gridW + (gx + 1)] * 1;
+        smoothedHeights[idx] = val / 16.0;
+      }
+    }
+  }
+
   // Vertex colors generated seamlessly from unified mapSampler
   const colors: number[] = [];
   for (let i = 0; i < vertexCount; i++) {
     const vx = posAttr.getX(i);
     const vz = posAttr.getZ(i);
-    const vy = getProceduralHeight(vx, vz);
+    const vy = smoothedHeights[i];
     posAttr.setY(i, vy);
 
     const sample = getContinentBiomeSample(vx, vz);
@@ -290,8 +323,8 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return getProceduralHeight(x, z);
     }
 
-    // 1. Suspension bridge walkable deck corridor (Bridge 2 - Center, at [-30, 110])
-    if (Math.abs(z - 110) <= 2.4 && x >= -41 && x <= -19) {
+    // 1. Suspension bridge walkable deck corridor (Bridge 2 - South Chasm, at [15, 110])
+    if (Math.abs(z - 110) <= 2.4 && x >= 4 && x <= 26) {
       return 1.35;
     }
 
@@ -300,54 +333,27 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return 0.45;
     }
 
-    // 1c. Bridge 3 - Val-Kragor Highway Stone Arch Bridge (X: 290, Z: 65, deck Y = 0.45)
-    if (Math.abs(x - 290) <= 2.5 && z >= 53 && z <= 77) {
+    // 1c. Bridge 3 - Moss Valley River Bridge (X: 400, Z: 35, deck Y = 0.45)
+    if (Math.abs(z - 35) <= 2.5 && x >= 388 && x <= 412) {
       return 0.45;
     }
 
-    // 1d. Bridge 4 - Puing Kastil Stone Arch Bridge (X: 210, Z: 45, deck Y = 0.45)
-    if (Math.abs(x - 210) <= 2.5 && z >= 33 && z <= 57) {
-      return 0.45;
-    }
-
-    // 1e. Bridge 5 - Lembah Batu Lumut Stone Arch Bridge (X: 465, Z: 30, deck Y = 0.45)
-    if (Math.abs(x - 465) <= 2.5 && z >= 18 && z <= 42) {
-      return 0.45;
-    }
-
-    // 1f. Dragonfang Caldera Long Pier Bridge (X: -70, Z: 222..302, deck Y = 1.35)
-    if (Math.abs(x - -70) <= 2.8 && z >= 222 && z <= 302) {
+    // 1d. Dragonfang Caldera Long Pier Bridge (X: -40, Z: 185..285, deck Y = 1.35)
+    if (Math.abs(x - -40) <= 2.8 && z >= 185 && z <= 285) {
       return 1.35;
     }
 
-    // 2. Coastal Wooden Harbor (Seamless Beach Connection, Extended Main Pier, Symmetrical Wings & Pier Head)
-    // 2a. Beach shoreline boardwalk apron (z: 198.0..202.0)
-    if (Math.abs(x) <= 3.5 && z >= 198.0 && z < 202.0) {
-      const t = (z - 198.0) / 4.0;
-      return 0.25 - t * 0.10; // Smooth 0.25 -> 0.15 transition onto ramp foot
-    }
-    // 2b. Wooden Beach Ramp & Short Stairs (z: 201.5..205.5, rises smoothly 0.15 -> 1.85)
-    if (Math.abs(x) <= 2.6 && z >= 201.5 && z < 205.5) {
-      const t = (z - 201.5) / 4.0;
-      return 0.15 + t * 1.70;
-    }
-    // 2c. Extended Main Straight Pier (z: 205.5..253.5, |x| <= 2.6)
-    // 2d. Seaward Pier Head Platform (z: 253.5..259.5, |x| <= 5.2)
-    // 2e. Inner Symmetrical Berthing Wings (z: 218.8..223.2, |x| <= 15.0)
-    // 2f. Outer Symmetrical Berthing Wings (z: 234.8..239.2, |x| <= 15.0)
-    // 2g. Boarding Gangways to Ships (|x|: 14.4..18.5, z: 219.8..222.2)
+    // 2. Coastal Wooden Harbor at [-140, 185..215]
     if (
-      (Math.abs(x) <= 2.6 && z >= 205.5 && z <= 253.5) ||
-      (Math.abs(x) <= 5.2 && z >= 253.5 && z <= 259.5) ||
-      (Math.abs(z - 221.0) <= 2.2 && Math.abs(x) <= 15.0) ||
-      (Math.abs(z - 237.0) <= 2.2 && Math.abs(x) <= 15.0) ||
-      (Math.abs(z - 221.0) <= 1.2 && Math.abs(x) >= 14.4 && Math.abs(x) <= 18.5)
+      (Math.abs(x - -140) <= 2.8 && z >= 185 && z <= 215) ||
+      (Math.abs(z - 200.0) <= 2.2 && Math.abs(x - -140) <= 15.0) ||
+      (Math.abs(x - -140) <= 5.2 && z >= 210 && z <= 216)
     ) {
       return 1.85; // Solid continuous wooden pier deck
     }
 
-    // 3. Relocated Fortress Val-Kragor Solid Courtyard (Center [330, 95], radius 38 at y = 2.00)
-    if (Math.hypot(x - 330, z - 95) <= 38) {
+    // 3. Relocated Fortress Val-Kragor Solid Courtyard (Center [310, 115], radius 38 at y = 2.00)
+    if (Math.hypot(x - 310, z - 115) <= 38) {
       return 2.00;
     }
 
@@ -356,19 +362,21 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       return 2.00;
     }
 
-    // 5. Solaria Desert Village Bazaar & Grand Palace (Taj Mahal) Courtyard (y = 1.80..2.00)
+    // 5. Solaria Desert Village Bazaar & Grand Palace Courtyard (y = 1.80..2.00)
     if (Math.hypot(x - 85, z - -230) <= 35) return 0.50;
     if (Math.hypot(x - 430, z - -460) <= 35) return 2.00;
-    if (x >= 250 && x <= 370 && Math.abs(z - -280) <= 25) return 1.90;
 
-    // 6. Ancient Titan Sanctuary Basin Arena (Center [-310, -480], radius 40 at y = 0.20)
-    if (Math.hypot(x - -310, z - -480) <= 40) return 0.20;
+    // 6. Colosseum Kawah Boss Titan Kuno (Center [235, -380], radius 48 at y = 1.80)
+    if (Math.hypot(x - 235, z - -380) <= 48) return 1.80;
 
-    // 7. Primal Dragonfang Caldera (Center [-70, 300], radius 45 at y = 2.50)
-    if (Math.hypot(x - -70, z - 300) <= 45) return 2.50;
+    // 7. Primal Dragonfang Caldera (Center [-40, 340], radius 48 at y = 2.50)
+    if (Math.hypot(x - -40, z - 340) <= 48) return 2.50;
 
-    // 8. Mage Tower Puncak Halilintar (Center [180, 60], radius 20 at y = 4.50)
-    if (Math.hypot(x - 180, z - 60) <= 20) return 4.50;
+    // 8. Mage Tower Puncak Halilintar (Center [110, -10], radius 20 at y = 4.50)
+    if (Math.hypot(x - 110, z - -10) <= 20) return 4.50;
+
+    // 9. Sanctuary Village Central Plains (Center [-40, 145], radius 35 at y = 0.25)
+    if (Math.hypot(x - -40, z - 145) <= 35) return 0.25;
 
     // 9. Exact rendered polygon surface
     return getMeshSurfaceHeight(x, z);
@@ -391,99 +399,74 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   scene.add(oceanMesh);
 
   // ==========================================
-  // 1b. EXTENDED CONTINUOUS COASTAL HARBOR (Sea Shoreline at Z >= 201.5)
-  // Dermaga Kayu Utama Diperpanjang Lurus ke Arah Laut Terbuka (Z: 198.0..259.5)
-  // Sambungan padat dari pangkal tangga hingga anjungan laut lepas TANPA CELAH air di tengah jalan!
-  // Dua pasang cabang bersandar kapal yang simetris, presisi, dan kokoh di sisi kiri dan kanan.
+  // 1b. EXTENDED CONTINUOUS COASTAL HARBOR (Sea Shoreline at Z >= 185, X: -140)
+  // Dermaga Kayu Pelabuhan Sanctuary di Pesisir Barat Daya [-140, 185..215]
+  // Terpisah sejauh 100 unit laut terbuka dari Jembatan Kaldera Sarang Naga di X: -40!
   // ==========================================
   const dockY = -0.375; // Aligns top of 2.1m deck + 0.125m plank exactly at y = 1.85
+  const harborX = -140;
 
-  // 0. Shoreline Boardwalk Apron (Z: 198.0..202.0, menghubungkan jalan setapak tanah desa ke pangkal tangga)
-  const shorelineBoardwalk = createDockShorelineBoardwalkMesh(5.6, 4.0);
-  shorelineBoardwalk.position.set(0, 0.22, 198.0);
+  // 0. Shoreline Boardwalk Apron (Z: 185..188)
+  const shorelineBoardwalk = createDockShorelineBoardwalkMesh(5.6, 3.5);
+  shorelineBoardwalk.position.set(harborX, 0.22, 185.0);
   scene.add(shorelineBoardwalk);
 
-  // 1. Wooden Beach Ramp & Short Stairs (Z: 201.5..205.5, menanjak mulus 0.15 -> 1.85)
+  // 1. Wooden Beach Ramp & Short Stairs (Z: 187.5..191.5)
   const beachRamp = createDockStairRampMesh(4.8, 4.0, 1.8);
-  beachRamp.position.set(0, 0.05, 201.5);
+  beachRamp.position.set(harborX, 0.05, 188.0);
   scene.add(beachRamp);
 
-  // 2. Extended Main Straight Pier (Dermaga Utama Lebar 4.8m Membentang Lurus ke Laut Lepas)
-  // Section 1: Pangkal tangga ke cabang bersandar dalam (X: 0, Z: 205.5..221.5, panjang 16m)
-  const pierMain1 = createPierDockMesh({ length: 16.0, width: 4.8, pileDepth: 7.0, hasMooringBollards: true });
-  pierMain1.position.set(0, dockY, 205.5);
+  // 2. Extended Main Straight Pier (Dermaga Utama Menjorok ke Samudra)
+  const pierMain1 = createPierDockMesh({ length: 12.0, width: 4.8, pileDepth: 7.0, hasMooringBollards: true });
+  pierMain1.position.set(harborX, dockY, 192.0);
   scene.add(pierMain1);
 
-  // Section 2: Cabang dalam ke cabang luar (X: 0, Z: 221.5..237.5, panjang 16m)
-  const pierMain2 = createPierDockMesh({ length: 16.0, width: 4.8, pileDepth: 7.5, hasMooringBollards: true });
-  pierMain2.position.set(0, dockY, 221.5);
+  const pierMain2 = createPierDockMesh({ length: 14.0, width: 4.8, pileDepth: 7.5, hasMooringBollards: true });
+  pierMain2.position.set(harborX, dockY, 203.0);
   scene.add(pierMain2);
 
-  // Section 3: Jalur laut lepas ke anjungan (X: 0, Z: 237.5..253.5, panjang 16m)
-  const pierMain3 = createPierDockMesh({ length: 16.0, width: 4.8, pileDepth: 8.0, hasMooringBollards: true });
-  pierMain3.position.set(0, dockY, 237.5);
-  scene.add(pierMain3);
-
-  // Section 4: Anjungan Ujung Dermaga Laut Lepas (Seaward Pier Head Platform: X: -5.0..5.0, Z: 253.5..259.5, lebar 10m)
   const pierHeadPlatform = createPierDockMesh({ length: 6.0, width: 10.0, pileDepth: 8.5, hasLantern: true, lanternSide: 'both', hasMooringBollards: true });
-  pierHeadPlatform.position.set(0, dockY, 253.5);
+  pierHeadPlatform.position.set(harborX, dockY, 212.0);
   scene.add(pierHeadPlatform);
 
-  // 3. Two Symmetrical Pairs of Berthing Wings (Dua Pasang Cabang Tempat Bersandar Kapal Simetris)
-  // Branch 1: Inner Symmetrical Berthing Wings (Z = 221.0, Lebar 4.0m, Panjang 13.0m)
-  // Sayap Barat 1 (Kiri: menempel padat dari X = -2.4 menjulur ke X = -15.4 tanpa celah!)
+  // 3. Symmetrical Berthing Wings (Cabang Tempat Bersandar Kapal di Z = 200)
   const wingWest1 = createPierDockMesh({ length: 13.0, width: 4.0, pileDepth: 7.2, hasLantern: true, lanternSide: 'left', hasMooringBollards: true });
-  wingWest1.position.set(-2.4, dockY, 221.0);
+  wingWest1.position.set(harborX - 2.4, dockY, 200.0);
   wingWest1.rotation.y = Math.PI * 1.5;
   scene.add(wingWest1);
 
-  // Sayap Timur 1 (Kanan: menempel padat dari X = 2.4 menjulur ke X = 15.4 tanpa celah!)
   const wingEast1 = createPierDockMesh({ length: 13.0, width: 4.0, pileDepth: 7.2, hasLantern: true, lanternSide: 'right', hasMooringBollards: true });
-  wingEast1.position.set(2.4, dockY, 221.0);
+  wingEast1.position.set(harborX + 2.4, dockY, 200.0);
   wingEast1.rotation.y = Math.PI / 2;
   scene.add(wingEast1);
 
-  // Branch 2: Outer Symmetrical Berthing Wings (Z = 237.0, Lebar 4.0m, Panjang 13.0m)
-  // Sayap Barat 2 (Kiri luar: menempel padat dari X = -2.4 menjulur ke X = -15.4)
-  const wingWest2 = createPierDockMesh({ length: 13.0, width: 4.0, pileDepth: 7.8, hasLantern: true, lanternSide: 'left', hasMooringBollards: true });
-  wingWest2.position.set(-2.4, dockY, 237.0);
-  wingWest2.rotation.y = Math.PI * 1.5;
-  scene.add(wingWest2);
-
-  // Sayap Timur 2 (Kanan luar: menempel padat dari X = 2.4 menjulur ke X = 15.4)
-  const wingEast2 = createPierDockMesh({ length: 13.0, width: 4.0, pileDepth: 7.8, hasLantern: true, lanternSide: 'right', hasMooringBollards: true });
-  wingEast2.position.set(2.4, dockY, 237.0);
-  wingEast2.rotation.y = Math.PI / 2;
-  scene.add(wingEast2);
-
   // 4. Moored Main Ships & Boarding Gangways
-  // Grand Merchant Galleon 1 (Bertambat rapi di samping Sayap Timur 1, X: 19.5, Z: 221.0)
+  // Grand Merchant Galleon 1 (Bertambat di samping Sayap Timur)
   const galleon1 = createMerchantGalleonMesh();
-  galleon1.position.set(19.5, -0.25, 221.0);
+  galleon1.position.set(harborX + 19.5, -0.25, 200.0);
   galleon1.rotation.y = 0;
   scene.add(galleon1);
 
-  // Viking Shielded Warship 2 (Bertambat rapi di samping Sayap Barat 1, X: -19.5, Z: 221.0)
+  // Viking Shielded Warship 2 (Bertambat di samping Sayap Barat)
   const warship2 = createVikingWarshipMesh();
-  warship2.position.set(-19.5, -0.25, 221.0);
+  warship2.position.set(harborX - 19.5, -0.25, 200.0);
   warship2.rotation.y = 0;
   scene.add(warship2);
 
-  // Perahu Nelayan Pak Joko (Bertambat rapi di ujung anjungan dermaga utama, X: 0, Z: 261.0)
+  // Perahu Nelayan Pak Joko (Bertambat di ujung anjungan)
   const rowboatJoko = createRowboatMesh();
-  rowboatJoko.position.set(0, -0.25, 261.0);
+  rowboatJoko.position.set(harborX, -0.25, 215.0);
   rowboatJoko.rotation.y = Math.PI / 2;
   scene.add(rowboatJoko);
 
-  // Timber boarding gangway bridging East Wing 1 to Galleon 1
+  // Timber boarding gangways
   const gangwayMat = new THREE.MeshLambertMaterial({ color: 0x5d4037, flatShading: true });
   const gangwayEast = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.16, 1.6), gangwayMat);
-  gangwayEast.position.set(16.9, 1.86, 221.0);
+  gangwayEast.position.set(harborX + 16.9, 1.86, 200.0);
   scene.add(gangwayEast);
 
-  // Timber boarding gangway bridging West Wing 1 to Warship 2
   const gangwayWest = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.16, 1.6), gangwayMat);
-  gangwayWest.position.set(-16.9, 1.86, 221.0);
+  gangwayWest.position.set(harborX - 16.9, 1.86, 200.0);
   scene.add(gangwayWest);
 
   // ==========================================
@@ -495,26 +478,28 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   const npcs: WorldNPC[] = [];
   const villageMainlandY = 0.25;
 
-  // 2.0 Moored Ship Hull Solid Boundaries (Karakter bebas menjelajah & berjalan di atas dermaga kayu tanpa terhalang tembok gaib!)
+  // 2.0 Moored Ship Hull Solid Boundaries (Dermaga Pelabuhan Sanctuary X: -140)
   colliders.push(
     // Ship Hull Colliders (Outer water boundaries)
-    { type: 'box', minX: 17.5, maxX: 22.5, minZ: 214, maxZ: 228, label: 'Lambung Kapal Dagang Emas 1' },
-    { type: 'box', minX: -22.5, maxX: -17.5, minZ: 214, maxZ: 228, label: 'Lambung Kapal Perang Bershield' }
+    { type: 'box', minX: -122.5, maxX: -117.5, minZ: 193, maxZ: 207, label: 'Lambung Kapal Dagang Emas 1' },
+    { type: 'box', minX: -162.5, maxX: -157.5, minZ: 193, maxZ: 207, label: 'Lambung Kapal Perang Bershield' }
   );
 
-  // 2.1 Northern Village Gateway Arch (Start of Royal Avenue at Z = 160)
+  // 2.1 Northern Village Gateway Arch (Start of Royal Avenue at X = -40, Z = 125)
   const villageArch = createVillageArchMesh('GERBANG ELDORIA');
-  const archZ = 160;
-  villageArch.position.set(0, villageMainlandY, archZ);
+  const archX = -40;
+  const archZ = 125;
+  villageArch.position.set(archX, villageMainlandY, archZ);
   scene.add(villageArch);
   colliders.push(
-    { type: 'circle', x: -3.5, z: archZ, radius: 0.6, label: 'Gerbang Pilar Kiri' },
-    { type: 'circle', x: 3.5, z: archZ, radius: 0.6, label: 'Gerbang Pilar Kanan' }
+    { type: 'circle', x: archX - 3.5, z: archZ, radius: 0.6, label: 'Gerbang Pilar Kiri' },
+    { type: 'circle', x: archX + 3.5, z: archZ, radius: 0.6, label: 'Gerbang Pilar Kanan' }
   );
 
-  // 2.2 Sanctuary Grand Fountain in Central Town Plaza (X: 0, Z: 180)
-  // Perfectly centered on plaza, leaving spawn point (0, 184) open and unobstructed
-  const fountainZ = 180;
+  // 2.2 Sanctuary Grand Fountain in Central Town Plaza (X: -40, Z: 145)
+  // Perfectly centered on plaza, leaving spawn point (-40, 148) open and unobstructed
+  const fountainX = -40;
+  const fountainZ = 145;
   const waterGeo = new THREE.CylinderGeometry(3.6, 3.6, 0.4, 16);
   const waterMat = new THREE.MeshStandardMaterial({
     color: 0x00b4d8,
@@ -524,7 +509,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     opacity: 0.85,
   });
   const waterMesh = new THREE.Mesh(waterGeo, waterMat);
-  waterMesh.position.set(0, villageMainlandY + 0.15, fountainZ);
+  waterMesh.position.set(fountainX, villageMainlandY + 0.15, fountainZ);
   scene.add(waterMesh);
 
   const fountainRim = new THREE.Mesh(
@@ -532,14 +517,14 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     new THREE.MeshLambertMaterial({ color: 0xb0bec5, flatShading: true })
   );
   fountainRim.rotation.x = Math.PI / 2;
-  fountainRim.position.set(0, villageMainlandY + 0.3, fountainZ);
+  fountainRim.position.set(fountainX, villageMainlandY + 0.3, fountainZ);
   scene.add(fountainRim);
 
   const spoutMat = new THREE.MeshLambertMaterial({ color: 0x90a4ae });
   const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.45, 1.6, 8), spoutMat);
-  spout.position.set(0, villageMainlandY + 0.8, fountainZ);
+  spout.position.set(fountainX, villageMainlandY + 0.8, fountainZ);
   scene.add(spout);
-  colliders.push({ type: 'circle', x: 0, z: fountainZ, radius: 3.9, label: 'Air Mancur Sanctuary' });
+  colliders.push({ type: 'circle', x: fountainX, z: fountainZ, radius: 3.9, label: 'Air Mancur Sanctuary' });
 
   // 2.2b Pelataran Batu Bundar Alun-Alun di Sekitar Air Mancur Sanctuary
   const sanctuaryPlazaRim = new THREE.Mesh(
@@ -555,13 +540,13 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     })
   );
   sanctuaryPlazaRim.rotation.x = -Math.PI / 2;
-  sanctuaryPlazaRim.position.set(0, villageMainlandY + 0.04, fountainZ);
+  sanctuaryPlazaRim.position.set(fountainX, villageMainlandY + 0.04, fountainZ);
   sanctuaryPlazaRim.receiveShadow = true;
   scene.add(sanctuaryPlazaRim);
 
-  // 2.3 Balai Tetua Vaelen & Pusat Komunitas (North-West Plaza: X: -13, Z: 170)
+  // 2.3 Balai Tetua Vaelen & Pusat Komunitas (North-West Plaza: X: -52, Z: 135)
   const house1 = createVillageHouseMesh();
-  const h1Pos = { x: -13, z: 170 };
+  const h1Pos = { x: -52, z: 135 };
   house1.position.set(h1Pos.x, villageMainlandY, h1Pos.z);
   house1.rotation.y = Math.PI / 4;
   scene.add(house1);
@@ -574,9 +559,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     label: 'Kediaman Tetua Vaelen',
   });
 
-  // 2.4 Village Tavern & Resting Inn: "Penginapan Eldoria" (North-East Plaza: X: 13, Z: 170)
+  // 2.4 Village Tavern & Resting Inn: "Penginapan Eldoria" (North-East Plaza: X: -28, Z: 135)
   const tavern = createTavernMesh();
-  const tavernPos = { x: 13, z: 170 };
+  const tavernPos = { x: -28, z: 135 };
   tavern.position.set(tavernPos.x, villageMainlandY, tavernPos.z);
   tavern.rotation.y = -Math.PI / 4;
   scene.add(tavern);
@@ -589,9 +574,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     label: 'Penginapan Eldoria',
   });
 
-  // 2.5 Master Torvald's Blacksmith Forge (West Commercial Avenue: X: -13, Z: 187)
+  // 2.5 Master Torvald's Blacksmith Forge (West Commercial Avenue: X: -52, Z: 153)
   const blacksmith = createBlacksmithMesh();
-  const forgePos = { x: -13, z: 187 };
+  const forgePos = { x: -52, z: 153 };
   blacksmith.position.set(forgePos.x, villageMainlandY, forgePos.z);
   blacksmith.rotation.y = Math.PI / 2; // Facing East towards the main promenade
   scene.add(blacksmith);
@@ -604,9 +589,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     label: 'Bengkel Pandai Besi',
   });
 
-  // 2.6 Anya's Alchemy & Potion Stall (East Commercial Avenue: X: 13, Z: 183)
+  // 2.6 Anya's Alchemy & Potion Stall (East Commercial Avenue: X: -28, Z: 149)
   const anyaStall = createMarketStallMesh(0x15803d);
-  const anyaPos = { x: 13, z: 183 };
+  const anyaPos = { x: -28, z: 149 };
   anyaStall.position.set(anyaPos.x, villageMainlandY, anyaPos.z);
   anyaStall.rotation.y = -Math.PI / 2; // Facing West towards the main promenade
   scene.add(anyaStall);
@@ -619,9 +604,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     label: 'Kios Alkemis Anya',
   });
 
-  // 2.7 Maya's Armor & Weapon Outfitter Stall (East Commercial Avenue: X: 13, Z: 191)
+  // 2.7 Maya's Armor & Weapon Outfitter Stall (East Commercial Avenue: X: -28, Z: 157)
   const marketStall2 = createArmorStallMesh(0x1e3a8a);
-  const m2Pos = { x: 13, z: 191 };
+  const m2Pos = { x: -28, z: 157 };
   marketStall2.position.set(m2Pos.x, villageMainlandY, m2Pos.z);
   marketStall2.rotation.y = -Math.PI / 2; // Facing West towards the main promenade
   scene.add(marketStall2);
@@ -638,9 +623,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // 2.8 SYMMETRICAL RESIDENTIAL WARDS (West and East Streets)
   // Perfectly aligned, spacious grid on dry elevated ground (Zero flooding!)
   // ==========================================
-  // West Residential Street (along X = -24, facing East towards street)
+  // West Residential Street (along X = -58, facing East towards street)
   const house2 = createVillageHouseMesh();
-  const h2Pos = { x: -24, z: 170 };
+  const h2Pos = { x: -58, z: 135 };
   house2.position.set(h2Pos.x, villageMainlandY, h2Pos.z);
   house2.rotation.y = 0;
   scene.add(house2);
@@ -651,7 +636,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   const house6 = createVillageHouseMesh();
-  const h6Pos = { x: -24, z: 182 };
+  const h6Pos = { x: -58, z: 147 };
   house6.position.set(h6Pos.x, villageMainlandY, h6Pos.z);
   house6.rotation.y = 0;
   scene.add(house6);
@@ -662,7 +647,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   const house7 = createVillageHouseMesh();
-  const h7Pos = { x: -24, z: 194 };
+  const h7Pos = { x: -58, z: 159 };
   house7.position.set(h7Pos.x, villageMainlandY, h7Pos.z);
   house7.rotation.y = 0;
   scene.add(house7);
@@ -672,9 +657,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     label: 'Pondok Herbalis Barat',
   });
 
-  // East Residential Street (along X = 24, facing West towards street)
+  // East Residential Street (along X = -20, facing West towards street)
   const house3 = createVillageHouseMesh();
-  const h3Pos = { x: 24, z: 170 };
+  const h3Pos = { x: -20, z: 135 };
   house3.position.set(h3Pos.x, villageMainlandY, h3Pos.z);
   house3.rotation.y = Math.PI;
   scene.add(house3);
@@ -685,7 +670,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   const house4 = createVillageHouseMesh();
-  const h4Pos = { x: 24, z: 182 };
+  const h4Pos = { x: -20, z: 147 };
   house4.position.set(h4Pos.x, villageMainlandY, h4Pos.z);
   house4.rotation.y = Math.PI;
   scene.add(house4);
@@ -696,7 +681,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   const house5 = createVillageHouseMesh();
-  const h5Pos = { x: 24, z: 194 };
+  const h5Pos = { x: -20, z: 159 };
   house5.position.set(h5Pos.x, villageMainlandY, h5Pos.z);
   house5.rotation.y = Math.PI;
   scene.add(house5);
@@ -706,9 +691,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     label: 'Pondok Penjaga Padang Timur',
   });
 
-  // Coastal Lookout Cottage (Situated safely on dry mainland at Z = 197, overlooking the harbor)
+  // Coastal Lookout Cottage (Situated safely on dry mainland at Z = 166, overlooking the harbor)
   const house8 = createVillageHouseMesh();
-  const h8Pos = { x: -13, z: 197 };
+  const h8Pos = { x: -40, z: 166 };
   house8.position.set(h8Pos.x, villageMainlandY, h8Pos.z);
   house8.rotation.y = 0;
   scene.add(house8);
@@ -721,23 +706,23 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // 2.9 Street Lamps along Promenade & Sidewalks (InstancedMesh - High Performance 60 FPS)
   const lampPositions = [
     // North Promenade
-    [-3.8, 164],
-    [3.8, 164],
-    [-3.8, 172],
-    [3.8, 172],
+    [-43.8, 130],
+    [-36.2, 130],
+    [-43.8, 140],
+    [-36.2, 140],
     // Central Plaza Corners
-    [-6.0, 180],
-    [6.0, 180],
-    [-6.0, 188],
-    [6.0, 188],
+    [-46.0, 140],
+    [-34.0, 140],
+    [-46.0, 150],
+    [-34.0, 150],
     // South Promenade leading to Harbor
-    [-3.8, 196],
-    [3.8, 196],
-    [-3.8, 202],
-    [3.8, 202],
-    // Shoreline Quay Boardwalk Entrances
-    [-12.0, 203.5],
-    [12.0, 203.5],
+    [-43.8, 150],
+    [-36.2, 150],
+    [-43.8, 160],
+    [-36.2, 160],
+    // Coastal Lookout Entrances
+    [-43.8, 166],
+    [-36.2, 166],
   ];
   const villageLampTransforms = lampPositions.map(([lx, lz]) => {
     colliders.push({ type: 'circle', x: lx, z: lz, radius: 0.35, label: 'Lampu Jalan' });
@@ -748,9 +733,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // Village barrels placed neatly against walls in alleyways (Cleaned up: zero clutter)
   const barrelPositions = [
-    [-16.5, 187],
-    [16.5, 170],
-    [15.5, 183],
+    [-55.5, 153],
+    [-25.0, 135],
+    [-25.0, 149],
   ];
   barrelPositions.forEach(([bx, bz]) => {
     const barrel = createBarrelMesh();
@@ -764,7 +749,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // ==========================================
   // NPC 1: Tetua Vaelen (Penjaga Kuil & Tetua Desa) - Porch of Elder Lodge
   const elderGroup = createNPCMesh();
-  const elderPos: [number, number, number] = [-10.5, villageMainlandY, 173.5];
+  const elderPos: [number, number, number] = [-49.5, villageMainlandY, 138.5];
   elderGroup.position.set(...elderPos);
   elderGroup.rotation.y = -Math.PI / 4; // Facing South-East towards fountain plaza
   scene.add(elderGroup);
@@ -781,7 +766,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 2: Kapten Ronald (Panglima Penjaga Gerbang Utara)
   const guardGroup = createCustomNPCMesh('guard');
-  const guardPos: [number, number, number] = [0, villageMainlandY, 161.5];
+  const guardPos: [number, number, number] = [-40, villageMainlandY, 126.5];
   guardGroup.position.set(...guardPos);
   scene.add(guardGroup);
   npcs.push({
@@ -797,7 +782,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 3: Anya (Alkemis & Herbalis) - At her potion counter
   const anyaGroup = createCustomNPCMesh('alchemist');
-  const anyaNPCPos: [number, number, number] = [10.5, villageMainlandY, 183];
+  const anyaNPCPos: [number, number, number] = [-30.5, villageMainlandY, 149];
   anyaGroup.position.set(...anyaNPCPos);
   anyaGroup.rotation.y = -Math.PI / 2;
   scene.add(anyaGroup);
@@ -814,7 +799,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 4: Master Torvald (Pandai Besi Kuat) - At his forge
   const torvaldGroup = createCustomNPCMesh('blacksmith');
-  const torvaldPos: [number, number, number] = [-9.5, villageMainlandY, 187];
+  const torvaldPos: [number, number, number] = [-49.5, villageMainlandY, 153];
   torvaldGroup.position.set(...torvaldPos);
   torvaldGroup.rotation.y = Math.PI / 2;
   scene.add(torvaldGroup);
@@ -831,7 +816,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 5: Lyra the Wandering Bard - Outside tavern terrace
   const bardGroup = createCustomNPCMesh('bard');
-  const bardPos: [number, number, number] = [10.5, villageMainlandY, 173.5];
+  const bardPos: [number, number, number] = [-30.5, villageMainlandY, 138.5];
   bardGroup.position.set(...bardPos);
   bardGroup.rotation.y = -Math.PI / 4;
   scene.add(bardGroup);
@@ -846,9 +831,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     dialogueId: 'bard_lyra',
   });
 
-  // NPC 6: Nelayan Pak Joko (Coastal Fisherman on extended seaward pier head platform)
+  // NPC 6: Nelayan Pak Joko (Coastal Fisherman on extended harbor pier)
   const jokoGroup = createCustomNPCMesh('fisherman');
-  const jokoPos: [number, number, number] = [1.8, 1.85, 257.0]; // At seaward pier head looking out to open sea
+  const jokoPos: [number, number, number] = [-138.2, 1.85, 212.0]; // At seaward harbor pier head looking out to open sea
   jokoGroup.position.set(...jokoPos);
   jokoGroup.rotation.y = Math.PI; // Facing South towards open ocean
   scene.add(jokoGroup);
@@ -865,7 +850,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 7: Kael (Warga Desa Muda) - By coastal alleyway
   const kaelGroup = createCustomNPCMesh('villager');
-  const kaelPos: [number, number, number] = [-8, villageMainlandY, 194];
+  const kaelPos: [number, number, number] = [-48, villageMainlandY, 160];
   kaelGroup.position.set(...kaelPos);
   kaelGroup.rotation.y = Math.PI / 4;
   scene.add(kaelGroup);
@@ -882,7 +867,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // NPC 8: Maya (Toko Zirah & Perlengkapan Tempur) - At her armor counter
   const mayaGroup = createCustomNPCMesh('villager');
-  const mayaPos: [number, number, number] = [10.5, villageMainlandY, 191];
+  const mayaPos: [number, number, number] = [-30.5, villageMainlandY, 157];
   mayaGroup.position.set(...mayaPos);
   mayaGroup.rotation.y = -Math.PI / 2;
   scene.add(mayaGroup);
@@ -904,10 +889,10 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // Interior lengkap: Barak Prajurit, Bengkel Persenjataan Goran, Menara Panah, Tempat Latihan Pedang & Panahan, Api Unggun.
   // ==========================================
   const valKragorBaseY = 2.00;
-  const vkBaseX = 315;
-  const vkBaseZ = 95;
-  const vkDX = vkBaseX - 380; // -65
-  const vkDZ = vkBaseZ - 80;  // +15
+  const vkBaseX = 310;
+  const vkBaseZ = 115;
+  const vkDX = vkBaseX - 380; // -70
+  const vkDZ = vkBaseZ - 80;  // +35
 
   // A. Grand Fortress Gatehouse (West Entrance at X = 289, Z = 95)
   // Menghadap lurus ke BARAT (Rotation Y = 270° / Math.PI * 1.5) menyambut jalan raya berbatu dari jembatan
@@ -1232,20 +1217,20 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 2.9 MISTY CHASM & SOLID SUSPENSION BRIDGE (JEMBATAN 2: JALUR TENGAH - X: -30, Z: 110)
-  // Membentang lurus di X: -41..-19 pada Z = 110 di atas Cabang Sungai Hilir Selatan.
+  // 2.9 MISTY CHASM & SOLID SUSPENSION BRIDGE (JEMBATAN 2: JALUR HILIR SELATAN - X: 15, Z: 110)
+  // Membentang lurus di X: 4..26 pada Z = 110 di atas Cabang Sungai Hilir Selatan.
   // ==========================================
   const bridge = createSuspensionBridgeMesh(22);
-  bridge.position.set(-30, 1.35, 110);
+  bridge.position.set(15, 1.35, 110);
   scene.add(bridge);
 
   const chasmStonePier = createStoneBridgePierMesh(4.4);
-  chasmStonePier.position.set(-30, -2.2, 110);
+  chasmStonePier.position.set(15, -2.2, 110);
   scene.add(chasmStonePier);
 
   colliders.push(
-    { type: 'box', minX: -41, maxX: -19, minZ: 107.8, maxZ: 108.6, label: 'Pagar Jembatan Gantung Utara' },
-    { type: 'box', minX: -41, maxX: -19, minZ: 111.4, maxZ: 112.2, label: 'Pagar Jembatan Gantung Selatan' }
+    { type: 'box', minX: 4, maxX: 26, minZ: 107.8, maxZ: 108.6, label: 'Pagar Jembatan Gantung Utara' },
+    { type: 'box', minX: 4, maxX: 26, minZ: 111.4, maxZ: 112.2, label: 'Pagar Jembatan Gantung Selatan' }
   );
 
   // ==========================================
@@ -1257,46 +1242,31 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   scene.add(bridge1West);
 
   // ==========================================
-  // 2.9d JEMBATAN 3: JALUR TIMUR / VAL-KRAGOR HIGHWAY (X: 290, Z: 65)
+  // 2.9d JEMBATAN 3: AKSES LEMBAH BATU LUMUT (X: 400, Z: 35)
+  // Menyeberang Sungai Timur menghubungkan Val-Kragor ke Lembah Batu Lumut
   // ==========================================
-  const bridge3East = createStoneArchBridgeMesh(24, 4.8, 2.7);
-  bridge3East.position.set(290, 0.45, 65);
-  bridge3East.rotation.y = Math.PI / 2;
-  scene.add(bridge3East);
+  const bridge3Moss = createStoneArchBridgeMesh(24, 4.8, 2.7);
+  bridge3Moss.position.set(400, 0.45, 35);
+  bridge3Moss.rotation.y = Math.PI / 2;
+  scene.add(bridge3Moss);
 
   // ==========================================
-  // 2.9e JEMBATAN 4: AKSES PUING KASTIL (X: 210, Z: 45)
-  // ==========================================
-  const bridge4Castle = createStoneArchBridgeMesh(24, 4.8, 2.7);
-  bridge4Castle.position.set(210, 0.45, 45);
-  bridge4Castle.rotation.y = Math.PI / 2;
-  scene.add(bridge4Castle);
-
-  // ==========================================
-  // 2.9f JEMBATAN 5: AKSES LEMBAH BATU LUMUT (X: 465, Z: 30)
-  // ==========================================
-  const bridge5Moss = createStoneArchBridgeMesh(24, 4.8, 2.7);
-  bridge5Moss.position.set(465, 0.45, 30);
-  bridge5Moss.rotation.y = Math.PI / 2;
-  scene.add(bridge5Moss);
-
-  // ==========================================
-  // 2.9g JEMBATAN DERMAGA PANJANG KALDERA SARANG NAGA (X: -70, Z: 225..300)
-  // Menghubungkan pesisir Desa Utama/Pelabuhan (-70, 225) langsung ke pulau vulkanik Kaldera Sarang Naga (-70, 300)
+  // 2.9e JEMBATAN DERMAGA PANJANG KALDERA SARANG NAGA (X: -40, Z: 185..285)
+  // Menghubungkan pesisir daratan (-40, 185) melintasi samudra 100 unit langsung ke pulau vulkanik Kaldera (-40, 285)
   // ==========================================
   const calderaPier = createPierDockMesh({
-    length: 75,
+    length: 100,
     width: 4.8,
     pileDepth: 12,
     hasLantern: true,
     hasCrossBrace: true,
   });
-  calderaPier.position.set(-70, -0.75, 225);
+  calderaPier.position.set(-40, -0.75, 235);
   scene.add(calderaPier);
 
   colliders.push(
-    { type: 'box', minX: -72.6, maxX: -72.2, minZ: 225, maxZ: 300, label: 'Pagar Dermaga Kaldera Barat' },
-    { type: 'box', minX: -67.8, maxX: -67.4, minZ: 225, maxZ: 300, label: 'Pagar Dermaga Kaldera Timur' }
+    { type: 'box', minX: -42.6, maxX: -42.2, minZ: 185, maxZ: 285, label: 'Pagar Dermaga Kaldera Barat' },
+    { type: 'box', minX: -37.8, maxX: -37.4, minZ: 185, maxZ: 285, label: 'Pagar Dermaga Kaldera Timur' }
   );
 
   // 2.9b Jaringan Jalan Raya & Jalan Setapak Terstruktur Benua Eldoria (Road Network & Path System)
@@ -1405,14 +1375,18 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
     // Strict Anti-Overlap & Cross-Biome Exclusion: DILARANG SPAWN di biome gurun!
     if (isDesertBiome(tx, tz)) continue;
-    const inSanctuaryMainland = (Math.abs(tx) <= 35 && tz >= 152 && tz <= 200);
-    const inSanctuaryHarborOcean = (Math.abs(tx) <= 50 && tz > 200);
+    if (getDistanceToRiver(tx, tz) < 18.0) continue;
+    const inSanctuaryMainland = (tx >= -70 && tx <= -10 && tz >= 115 && tz <= 175);
+    const inSanctuaryHarborOcean = (Math.abs(tx - -140) <= 45 && tz >= 180);
     const inBridgeHighwayCorridor = (tx >= 115 && tx <= 360 && (Math.abs(tz - 47) <= 12.0 || Math.abs(tz - 75) <= 12.0));
-    const inValKragor = (tx >= 345 && tx <= 420 && tz >= 48 && tz <= 112);
-    const inDragonCaldera = (tz > 280 && Math.abs(tx - 50) < 60);
-    const inAstraea = Math.hypot(tx - -240, tz - -220) < 60;
-    const inTitan = Math.hypot(tx - -196, tz - -254) < 45;
-    if (inSanctuaryMainland || inSanctuaryHarborOcean || inBridgeHighwayCorridor || inValKragor || inDragonCaldera || inAstraea || inTitan) continue;
+    const inValKragor = (tx >= 270 && tx <= 350 && tz >= 80 && tz <= 145);
+    const inDragonCaldera = Math.hypot(tx - -40, tz - 340) < 65;
+    const inAstraea = Math.hypot(tx - -250, tz - -210) < 60;
+    const inTitan = Math.hypot(tx - 235, tz - -380) < 55;
+    const inSandworm = Math.hypot(tx - -30, tz - -220) < 50;
+    const inMageTower = Math.hypot(tx - 110, tz - -10) < 30;
+    const inMossValley = Math.hypot(tx - 465, tz - 35) < 45;
+    if (inSanctuaryMainland || inSanctuaryHarborOcean || inBridgeHighwayCorridor || inValKragor || inDragonCaldera || inAstraea || inTitan || inSandworm || inMageTower || inMossValley) continue;
 
     // Pembersihan rintangan jalan: Jangan spawn pohon padang rumput di atas permukaan jalan
     if (isPointOnRoad(tx, tz)) continue;
@@ -1438,16 +1412,16 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // Curated Village Landscaping Trees (InstancedMesh - High Performance 60 FPS, Zero Stutter!)
   const curatedVillageTrees: { x: number; z: number; type: 'oak' | 'fantasy' | 'pine'; scale: number }[] = [
     // West Residential Backyards (Apple & Oak orchard)
-    { x: -31, z: 170, type: 'oak', scale: 1.1 },
-    { x: -31, z: 182, type: 'oak', scale: 1.2 },
-    { x: -31, z: 194, type: 'oak', scale: 1.1 },
+    { x: -65, z: 135, type: 'oak', scale: 1.1 },
+    { x: -65, z: 147, type: 'oak', scale: 1.2 },
+    { x: -65, z: 159, type: 'oak', scale: 1.1 },
     // East Residential Backyards (Lush Garden)
-    { x: 31, z: 170, type: 'oak', scale: 1.1 },
-    { x: 31, z: 182, type: 'oak', scale: 1.2 },
-    { x: 31, z: 194, type: 'oak', scale: 1.1 },
+    { x: -14, z: 135, type: 'oak', scale: 1.1 },
+    { x: -14, z: 147, type: 'oak', scale: 1.2 },
+    { x: -14, z: 159, type: 'oak', scale: 1.1 },
     // Flanking North Gate
-    { x: -7, z: 159, type: 'pine', scale: 1.2 },
-    { x: 7, z: 159, type: 'pine', scale: 1.2 },
+    { x: -47, z: 125, type: 'pine', scale: 1.2 },
+    { x: -33, z: 125, type: 'pine', scale: 1.2 },
     // North Garden behind Elder Lodge & Tavern
     { x: -14, z: 163, type: 'oak', scale: 1.0 },
     { x: 14, z: 163, type: 'oak', scale: 1.0 },
@@ -1899,9 +1873,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // Gundukan pasir oval melayang (sandDunes) dihapus total sesuai permintaan user.
 
   // ==========================================
-  // 5D. THE GREAT SOLARIA SINKHOLE - SARANG CACING PURBA JARRUS ([495, -362])
+  // 5D. THE GREAT SOLARIA SINKHOLE - SARANG CACING PURBA JARRUS (SW Desert: [-30, -220])
   // ==========================================
-  const sinkholeCenter = { x: 210, z: -360 };
+  const sinkholeCenter = { x: -30, z: -220 };
   const sinkholeBaseY = getTerrainHeight(sinkholeCenter.x, sinkholeCenter.z);
 
   // 1. Partikel & Gelombang Pusaran Pasir Berputar di Dasar Kawah
@@ -1946,49 +1920,49 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // ==========================================
   // ==========================================
-  // 6. THUNDERPEAK LIGHTNING SPIRE & MAGE TOWER SANCTUARY (East Plains Hill: [180, 60])
+  // 6. THUNDERPEAK LIGHTNING SPIRE & MAGE TOWER SANCTUARY (East Plains Hill: [110, -10])
   // Struktur Megah 3D Mage Tower, Interior Bertingkat, Kristal Petir Bersinar, dan Dewan Penyihir
   // ==========================================
   const mageTowerBaseY = 4.50;
 
-  // A. Struktur Eksterior 3D "Mage Tower" Puncak Halilintar (Center: [180, 60])
+  // A. Struktur Eksterior 3D "Mage Tower" Puncak Halilintar (Center: [110, -10])
   const mageTowerExterior = createMageTowerExteriorMesh();
-  mageTowerExterior.position.set(180, mageTowerBaseY, 60);
+  mageTowerExterior.position.set(110, mageTowerBaseY, -10);
   scene.add(mageTowerExterior);
   colliders.push({
     type: 'circle',
-    x: 180,
-    z: 60,
+    x: 110,
+    z: -10,
     radius: 7.2,
     label: 'Menara Eksterior Mage Tower Puncak Halilintar',
   });
 
-  // B. Interior Bertingkat 3D Mage Tower (Underground Interior Cell: [180, -45, 60])
+  // B. Interior Bertingkat 3D Mage Tower (Underground Interior Cell: [110, -45, -10])
   const mageTowerInterior = createMageTowerInteriorMesh();
-  mageTowerInterior.position.set(180, -45, 60);
+  mageTowerInterior.position.set(110, -45, -10);
   scene.add(mageTowerInterior);
 
   // Interior Wall Box Colliders
   colliders.push(
-    { type: 'box', minX: 169, maxX: 191, minZ: 49, maxZ: 51, maxY: -10, label: 'Dinding Utara Interior Mage Tower' },
-    { type: 'box', minX: 169, maxX: 171, minZ: 49, maxZ: 71, maxY: -10, label: 'Dinding Barat Interior Mage Tower' },
-    { type: 'box', minX: 189, maxX: 191, minZ: 49, maxZ: 71, maxY: -10, label: 'Dinding Timur Interior Mage Tower' },
-    { type: 'box', minX: 169, maxX: 177.5, minZ: 69, maxZ: 71, maxY: -10, label: 'Dinding Selatan Barat Interior Mage Tower' },
-    { type: 'box', minX: 182.5, maxX: 191, minZ: 69, maxZ: 71, maxY: -10, label: 'Dinding Selatan Timur Interior Mage Tower' }
+    { type: 'box', minX: 99, maxX: 121, minZ: -21, maxZ: -19, maxY: -10, label: 'Dinding Utara Interior Mage Tower' },
+    { type: 'box', minX: 99, maxX: 101, minZ: -21, maxZ: 1, maxY: -10, label: 'Dinding Barat Interior Mage Tower' },
+    { type: 'box', minX: 119, maxX: 121, minZ: -21, maxZ: 1, maxY: -10, label: 'Dinding Timur Interior Mage Tower' },
+    { type: 'box', minX: 99, maxX: 107.5, minZ: -1, maxZ: 1, maxY: -10, label: 'Dinding Selatan Barat Interior Mage Tower' },
+    { type: 'box', minX: 112.5, maxX: 121, minZ: -1, maxZ: 1, maxY: -10, label: 'Dinding Selatan Timur Interior Mage Tower' }
   );
   // Colliders Perabotan Lantai 1
   colliders.push(
-    { type: 'box', minX: 176, maxX: 184, minZ: 51, maxZ: 53, maxY: -38, label: 'Lemari Kitab Purba Utara' },
-    { type: 'box', minX: 171, maxX: 173, minZ: 57, maxZ: 63, maxY: -38, label: 'Lemari Kitab Purba Barat' },
-    { type: 'box', minX: 187, maxX: 189, minZ: 57, maxZ: 63, maxY: -38, label: 'Lemari Kitab Purba Timur' }
+    { type: 'box', minX: 106, maxX: 114, minZ: -19, maxZ: -17, maxY: -38, label: 'Lemari Kitab Purba Utara' },
+    { type: 'box', minX: 101, maxX: 103, minZ: -13, maxZ: -7, maxY: -38, label: 'Lemari Kitab Purba Barat' },
+    { type: 'box', minX: 117, maxX: 119, minZ: -13, maxZ: -7, maxY: -38, label: 'Lemari Kitab Purba Timur' }
   );
   // Colliders Perabotan Lantai 2
   colliders.push({
     type: 'box',
-    minX: 177,
-    maxX: 183,
-    minZ: 58,
-    maxZ: 62,
+    minX: 107,
+    maxX: 113,
+    minZ: -12,
+    maxZ: -8,
     minY: -39,
     maxY: -32,
     label: 'Meja Eksperimen Kristal Petir Alkimia',
@@ -1996,8 +1970,8 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // Colliders Perabotan Lantai 3
   colliders.push({
     type: 'circle',
-    x: 180,
-    z: 60,
+    x: 110,
+    z: -10,
     radius: 1.6,
     minY: -31,
     maxY: -15,
@@ -2007,7 +1981,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // C. Dewan Penyihir Mage Tower (Unique Mage NPCs):
   // 1. Grand Mage Eldrin
   const eldrinGroup = createGrandMageEldrinMesh();
-  const eldrinPos: [number, number, number] = [180, -45, 58];
+  const eldrinPos: [number, number, number] = [110, -45, -12];
   eldrinGroup.position.set(...eldrinPos);
   eldrinGroup.rotation.y = 0;
   scene.add(eldrinGroup);
@@ -2025,7 +1999,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // 2. Sorceress Maya
   const sorceressMayaGroup = createSorceressMayaMesh();
-  const sorceressMayaPos: [number, number, number] = [176.5, -45, 62];
+  const sorceressMayaPos: [number, number, number] = [106.5, -45, -8];
   sorceressMayaGroup.position.set(...sorceressMayaPos);
   sorceressMayaGroup.rotation.y = Math.PI / 2;
   scene.add(sorceressMayaGroup);
@@ -2043,7 +2017,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // 3. Archmage Pyro
   const pyroGroup = createArchmagePyroMesh();
-  const pyroPos: [number, number, number] = [180, -37.5, 62];
+  const pyroPos: [number, number, number] = [110, -37.5, -8];
   pyroGroup.position.set(...pyroPos);
   pyroGroup.rotation.y = Math.PI;
   scene.add(pyroGroup);
@@ -2061,14 +2035,14 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // D. Kristal Petir Biru Bersinar Menyala
   const lightningCrystalCoords = [
-    { x: 191, z: 67, scale: 1.4 },
-    { x: 169, z: 67, scale: 1.3 },
-    { x: 191, z: 53, scale: 1.4 },
-    { x: 169, z: 53, scale: 1.35 },
-    { x: 180, z: 73, scale: 1.5 },
-    { x: 180, z: 47, scale: 1.4 },
-    { x: 163, z: 59, scale: 1.3 },
-    { x: 197, z: 59, scale: 1.2 },
+    { x: 121, z: -3, scale: 1.4 },
+    { x: 99, z: -3, scale: 1.3 },
+    { x: 121, z: -17, scale: 1.4 },
+    { x: 99, z: -17, scale: 1.35 },
+    { x: 110, z: 3, scale: 1.5 },
+    { x: 110, z: -23, scale: 1.4 },
+    { x: 93, z: -11, scale: 1.3 },
+    { x: 127, z: -11, scale: 1.2 },
   ];
   lightningCrystalCoords.forEach((lc) => {
     const crystal = createLightningCrystalMesh(lc.scale);
@@ -2080,9 +2054,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   // E. Magnetic Floating Thunder Spires on Outer Cliffs
   const secondarySpires = [
-    { x: 160, z: 43 },
-    { x: 200, z: 77 },
-    { x: 165, z: 79 },
+    { x: 90, z: -27 },
+    { x: 130, z: 7 },
+    { x: 95, z: 9 },
   ];
   secondarySpires.forEach((pos) => {
     const spire = createThunderSpireMesh();
@@ -2093,10 +2067,10 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   // ==========================================
-  // 8. DRAGONFANG CALDERA & INFERNO ARCHIPELAGO (South Across Ocean: [-70, 300])
+  // 8. DRAGONFANG CALDERA & INFERNO ARCHIPELAGO (South Across Ocean: [-40, 340])
   // Arena Kaldera Naga: Kawah Melingkar (Diameter ~45m), 4 Pilar Obsidian Naga, Fosil Naga, & Lahar Pijar
   // ==========================================
-  const dragonArenaCenter = { x: -70, z: 300 };
+  const dragonArenaCenter = { x: -40, z: 340 };
   const dragonArenaBaseY = 2.50;
 
   // A. Monumental Dragon Fossil Skull & Ribcage (Placed at North Rim of Caldera)
@@ -2524,21 +2498,21 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   // 9. TREASURE CHESTS (Across all active continent zones)
   // ==========================================
   const chestData = [
-    { id: 'chest_village', pos: [4, 0, 184] as [number, number, number] },
-    { id: 'chest_beach', pos: [-3.0, 1.85, 257] as [number, number, number] }, // Seaward Pier Head Platform Stash
+    { id: 'chest_village', pos: [-36, 0.25, 146] as [number, number, number] }, // Alun-Alun Desa Sanctuary
+    { id: 'chest_beach', pos: [-138.2, 1.85, 215] as [number, number, number] }, // Pelabuhan Pier Head Platform
     { id: 'chest_ruins', pos: [-120, 0, 32] as [number, number, number] }, // Ancient ruins altar
     { id: 'chest_forest', pos: [-60, 0, 110] as [number, number, number] }, // Whispering Mystic Forest
     { id: 'chest_titan', pos: [-182, 0.2, -244] as [number, number, number] }, // Ancient Titan Basin
-    { id: 'chest_valkragor', pos: [402, 2.5, 80] as [number, number, number] }, // Val-Kragor Keep Secret Vault
-    { id: 'chest_thunderpeak', pos: [180, 4.5, 60] as [number, number, number] }, // Thunderpeak Mage Tower Relic
+    { id: 'chest_valkragor', pos: [332, 2.5, 115] as [number, number, number] }, // Val-Kragor Keep Secret Vault
+    { id: 'chest_thunderpeak', pos: [110, 4.5, -10] as [number, number, number] }, // Thunderpeak Mage Tower Relic
     { id: 'chest_solaria_palace', pos: [340, 2.0, -280] as [number, number, number] }, // Solaria Sultan Vault
     { id: 'chest_solaria', pos: [-20, 1.5, -320] as [number, number, number] }, // Solaria Pyramid Gold
     { id: 'chest_solaria_oasis', pos: [20, 0.5, -240] as [number, number, number] }, // Solaria Hidden Oasis
-    { id: 'chest_dragoncaldera', pos: [-70, 2.5, 300] as [number, number, number] }, // Dragon Caldera Hoard
+    { id: 'chest_dragoncaldera', pos: [-40, 2.5, 340] as [number, number, number] }, // Dragon Caldera Hoard
     { id: 'chest_astraea', pos: [-220, 2.0, -220] as [number, number, number] }, // Astraea Imperial Vault
-    { id: 'chest_harbor_galleon', pos: [19.5, 0, 221] as [number, number, number] }, // Harbor Galleon Stash
-    { id: 'chest_bridge', pos: [135, 1.35, 47] as [number, number, number] }, // Gorge Suspension Bridge Cache
-    { id: 'chest_sandworm_cache', pos: [506, -0.6, -370] as [number, number, number] }, // Ancient Sandworm Sinkhole Cache
+    { id: 'chest_harbor_galleon', pos: [-120.5, 0, 200] as [number, number, number] }, // Harbor Galleon Stash
+    { id: 'chest_bridge', pos: [15, 1.35, 110] as [number, number, number] }, // South River Suspension Bridge Cache
+    { id: 'chest_sandworm_cache', pos: [-30, 0.5, -220] as [number, number, number] }, // Ancient Sandworm Sinkhole Cache
   ];
 
   const chests: WorldObjects['chests'] = [];
@@ -2748,8 +2722,8 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   scene.add(springGroup);
 
   // ==========================================
-  // 10B. REGIONAL LANDMARK: LEMBAH BATU LUMUT (X: 455, Z: 35)
-  // 30+ batu megalit besar berlumut, flora semak & bunga hutan, air terjun timur
+  // 10B. REGIONAL LANDMARK: LEMBAH BATU LUMUT (X: 465, Z: 35)
+  // Formasi bongkahan granit alami berlumut, pohon rindang teduh, semak bunga, air terjun timur
   // ==========================================
   const mossValleyGroup = new THREE.Group();
   mossValleyGroup.name = 'Region_MossValley';
@@ -2766,39 +2740,79 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     flatShading: true,
   });
 
-  for (let m = 0; m < 36; m++) {
-    const angle = (m / 36) * Math.PI * 2 + ((m * 17) % 7) * 0.15;
+  for (let m = 0; m < 32; m++) {
+    const angle = (m / 32) * Math.PI * 2 + ((m * 17) % 7) * 0.15;
     const r = 8.0 + ((m * 19) % 24);
-    const mx = 455 + Math.cos(angle) * r;
+    const mx = 465 + Math.cos(angle) * r;
     const mz = 35 + Math.sin(angle) * r;
     const my = getTerrainHeight(mx, mz);
-    const mHeight = 2.5 + ((m * 7) % 5) * 0.7;
-    const mRadius = 0.7 + ((m * 3) % 4) * 0.25;
+    const mRadius = 1.1 + ((m * 3) % 4) * 0.35;
 
     const megalith = new THREE.Group();
     megalith.position.set(mx, my, mz);
     megalith.rotation.y = (((m * 37) % 100) / 100) * Math.PI * 2;
-    megalith.rotation.z = ((m % 5) - 2) * 0.05;
+    megalith.rotation.z = ((m % 5) - 2) * 0.06;
 
-    const pillar = new THREE.Mesh(
-      new THREE.CylinderGeometry(mRadius * 0.8, mRadius, mHeight, 6),
+    // Natural mossy granite boulder using DodecahedronGeometry
+    const boulder = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(mRadius * 1.4, 1),
       megalithStoneMat
     );
-    pillar.position.y = mHeight / 2;
-    pillar.castShadow = true;
-    pillar.receiveShadow = true;
-    megalith.add(pillar);
+    boulder.scale.set(1.25, 0.85, 1.15);
+    boulder.position.y = (mRadius * 1.4 * 0.85) / 2;
+    boulder.castShadow = true;
+    boulder.receiveShadow = true;
+    megalith.add(boulder);
 
+    // Natural moss cap overlay atop boulder
     const cap = new THREE.Mesh(
-      new THREE.DodecahedronGeometry(mRadius * 0.95, 1),
+      new THREE.DodecahedronGeometry(mRadius * 1.3, 1),
       mossCapMat
     );
-    cap.position.y = mHeight + 0.1;
-    cap.scale.set(1.1, 0.4, 1.1);
+    cap.position.y = (mRadius * 1.4 * 0.85) * 0.72;
+    cap.scale.set(1.2, 0.42, 1.1);
     megalith.add(cap);
 
     mossValleyGroup.add(megalith);
-    colliders.push({ type: 'circle', x: mx, z: mz, radius: mRadius + 0.4, label: 'Megalit Batu Lumut' });
+    colliders.push({ type: 'circle', x: mx, z: mz, radius: mRadius + 0.4, label: 'Bongkahan Batu Lumut Granit' });
+  }
+
+  // Shady trees and peaceful glade in Moss Rock Valley
+  for (let tr = 0; tr < 12; tr++) {
+    const angle = (tr / 12) * Math.PI * 2 + 0.3;
+    const dist = 14 + (tr % 3) * 6;
+    const tx = 465 + Math.cos(angle) * dist;
+    const tz = 35 + Math.sin(angle) * dist;
+    const ty = getTerrainHeight(tx, tz);
+    const tree = createTreeMesh(tr % 2 === 0 ? 'fantasy' : 'oak');
+    tree.position.set(tx, ty, tz);
+    const scale = 0.9 + (tr % 4) * 0.15;
+    tree.scale.set(scale, scale, scale);
+    tree.rotation.y = tr * 1.3;
+    mossValleyGroup.add(tree);
+    colliders.push({ type: 'circle', x: tx, z: tz, radius: 0.7 * scale, label: 'Pohon Lembah Batu Lumut' });
+  }
+
+  // Lush flowering shrubs & flora
+  const shrubGeo = new THREE.DodecahedronGeometry(0.7, 0);
+  const shrubMat = new THREE.MeshStandardMaterial({ color: 0x4d7c0f, roughness: 0.8, flatShading: true });
+  const flowerColors = [0xe879f9, 0x38bdf8, 0xfacc15, 0xf43f5e];
+  for (let s = 0; s < 18; s++) {
+    const sAngle = (s / 18) * Math.PI * 2 + 0.5;
+    const sDist = 6 + (s % 5) * 4.5;
+    const sx = 465 + Math.cos(sAngle) * sDist;
+    const sz = 35 + Math.sin(sAngle) * sDist;
+    const sy = getTerrainHeight(sx, sz);
+    const shrub = new THREE.Mesh(shrubGeo, shrubMat);
+    shrub.position.set(sx, sy + 0.35, sz);
+    const sScale = 0.7 + (s % 3) * 0.3;
+    shrub.scale.set(sScale, sScale * 0.8, sScale);
+    mossValleyGroup.add(shrub);
+
+    const blossomMat = new THREE.MeshBasicMaterial({ color: flowerColors[s % flowerColors.length] });
+    const blossom = new THREE.Mesh(new THREE.DodecahedronGeometry(0.25, 0), blossomMat);
+    blossom.position.set(sx, sy + 0.35 + 0.5 * sScale, sz);
+    mossValleyGroup.add(blossom);
   }
 
   // Air Terjun Kecil dari Dinding Tebing Timur
@@ -2951,13 +2965,13 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_village',
       name: 'Sanctuary Village Plaza',
       nameId: 'Alun-Alun Desa Sanctuary Eldoria',
-      pos: [25, 135],
+      pos: [-40, 145],
     },
     {
       id: 'wp_harbor',
       name: 'Sanctuary Coastal Harbor',
       nameId: 'Dermaga & Pelabuhan Sanctuary',
-      pos: [-145, 175],
+      pos: [-140, 185],
     },
     {
       id: 'wp_sacred_spring',
@@ -2981,13 +2995,13 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_valkragor',
       name: 'Val-Kragor Fortress Plaza',
       nameId: 'Alun-Alun Benteng Val-Kragor',
-      pos: [330, 95],
+      pos: [310, 115],
     },
     {
       id: 'wp_thunderpeak',
       name: 'Thunderpeak Spire & Mage Tower',
       nameId: 'Mage Tower Puncak Halilintar',
-      pos: [70, 20],
+      pos: [110, -10],
     },
     {
       id: 'wp_solaria_village',
@@ -3017,13 +3031,19 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_dragoncaldera',
       name: 'Primal Dragonfang Caldera',
       nameId: 'Kaldera Sarang Naga Purba',
-      pos: [-70, 300],
+      pos: [-40, 340],
+    },
+    {
+      id: 'wp_boss_crater',
+      name: 'Ancient Colosseum Ruins (Titan Kuno)',
+      nameId: 'Kawah Cacat World Boss (Lv. 10)',
+      pos: [235, -380],
     },
     {
       id: 'wp_sandworm',
       name: 'The Great Solaria Sinkhole',
-      nameId: 'Kawah Cacat World Boss (Lv. 10)',
-      pos: [255, -390],
+      nameId: 'Sarang Cacing Purba Gurun',
+      pos: [-30, -220],
     },
     {
       id: 'wp_canyon',
@@ -3047,7 +3067,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
       id: 'wp_moss_valley',
       name: 'Moss Rock Valley',
       nameId: 'Lembah Batu Lumut',
-      pos: [510, 20],
+      pos: [465, 35],
     },
   ];
 

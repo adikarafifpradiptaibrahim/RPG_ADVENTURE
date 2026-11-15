@@ -355,8 +355,8 @@ export class BossManager {
     if (distToPlayer > enemy.data.detectRange) {
       return false; // Out of detection range, do not cast boss skills
     }
-    const homeX = enemy.spawnPos ? enemy.spawnPos.x : (isWorm ? 495 : (isTitan ? -196 : 80));
-    const homeZ = enemy.spawnPos ? enemy.spawnPos.z : (isWorm ? -362 : (isTitan ? -254 : 360));
+    const homeX = enemy.spawnPos ? enemy.spawnPos.x : (isWorm ? -30 : (isTitan ? 235 : -40));
+    const homeZ = enemy.spawnPos ? enemy.spawnPos.z : (isWorm ? -220 : (isTitan ? -380 : 340));
     const distFromHome = Math.hypot(ePos.x - homeX, ePos.z - homeZ);
     const maxLeash = enemy.leashRadius || 48;
     if (distFromHome > maxLeash) {
@@ -466,7 +466,7 @@ export class BossManager {
       if (selected === 'sand_whirlpool') {
         const skill = config.skills.find((s) => s.id === 'sand_whirlpool');
         if (skill) {
-          const centerPos = new THREE.Vector3(495, this.getTerrainHeight(495, -362), -362);
+          const centerPos = new THREE.Vector3(-30, this.getTerrainHeight(-30, -220), -220);
           this.startTelegraphCircle(bossId, enemy, centerPos, 36.0, skill);
           soundManager.playTitanGroundSlam();
           this.callbacks.onAddFloatingText('🌪️ SANG CACING MEMICU PUSARAN PASIR RAKSASA!', '#f59e0b', 'crit');
@@ -477,7 +477,7 @@ export class BossManager {
         const skill = config.skills.find((s) => s.id === 'burrow_burst')!;
         const targetPos = playerPos.clone();
         // Leash territory safeguard: Cacing tidak boleh burrow keluar dari arena kawah pasir
-        const homePos = enemy.spawnPos || new THREE.Vector3(495, 0, -362);
+        const homePos = enemy.spawnPos || new THREE.Vector3(-30, 0, -220);
         const distFromHome = Math.hypot(targetPos.x - homePos.x, targetPos.z - homePos.z);
         const maxRadius = enemy.leashRadius || 48;
         if (distFromHome > maxRadius) {

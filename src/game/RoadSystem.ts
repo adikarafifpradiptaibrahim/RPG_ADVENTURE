@@ -36,57 +36,21 @@ export interface RoadJunctionDef {
  * - Gurun Solaria: Jalur kafilah lebar 4.5 unit dari Bazaar [238, -280] ke Istana Sultan [330, -280].
  */
 export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
-  // A1. JALUR DERMAGA PELABUHAN KE DESA UTAMA SANCTUARY
-  {
-    id: 'sanctuary_harbor',
-    name: 'Jalan Dermaga Pelabuhan ke Alun-Alun Sanctuary',
-    biome: 'plains',
-    width: 3.2,
-    controlPoints: [
-      [-135, 145], // Pelabuhan Sanctuary
-      [-85, 140],
-      [-25, 138],
-      [25, 135],   // Alun-Alun Desa Utama
-    ],
-    colorHex: 0x8c7a65,
-    canvasStroke: '#8c7a65',
-    canvasDash: [],
-    canvasWidth: 3.0,
-  },
-
-  // A2. JALUR KELUAR GAPURA UTARA DESA SANCTUARY KE PERSIMPANGAN UTAMA
-  {
-    id: 'sanctuary_north_artery',
-    name: 'Jalan Keluar Gapura Desa Sanctuary ke Persimpangan Luar',
-    biome: 'plains',
-    width: 3.2,
-    controlPoints: [
-      [25, 135],
-      [25, 115],
-      [25, 95], // Persimpangan luar desa
-    ],
-    colorHex: 0x8c7a65,
-    canvasStroke: '#8c7a65',
-    canvasDash: [],
-    canvasWidth: 3.0,
-  },
-
-  // B. JALUR BARAT (DESA UTAMA -> HUTAN BARAT DAYA -> GERBANG ASTRAEA -> DANAU TITAN)
+  // A. JALUR BARAT (DESA UTAMA -> PELABUHAN -> GERBANG ASTRAEA)
   {
     id: 'plains_west_astraea',
-    name: 'Jalan Raya Kerajaan Barat Sanctuary - Astraea - Danau Titan',
+    name: 'Jalan Raya Barat: Sanctuary - Pelabuhan - Astraea',
     biome: 'plains',
     width: 3.2,
     controlPoints: [
-      [25, 135],    // Desa Utama
-      [-70, 120],
-      [-175, 100],
-      [-280, 70],   // Hutan Lindung Barat Daya
-      [-290, -30],
-      [-275, -120],
+      [-40, 145],   // Alun-Alun Desa Utama
+      [-90, 155],
+      [-140, 165],  // Pelabuhan Sanctuary
+      [-180, 120],
+      [-220, 40],
+      [-245, -60],
+      [-250, -140],
       [-250, -210], // Gerbang Ibukota Kerajaan Emas Astraea
-      [-260, -290],
-      [-260, -360], // Danau Titan
     ],
     colorHex: 0x8c7a65,
     canvasStroke: '#a3917a',
@@ -94,43 +58,21 @@ export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
     canvasWidth: 2.8,
   },
 
-  // B2. JALUR JEMBATAN 1 ASTRAEA RIVER HIGHWAY
-  {
-    id: 'astraea_east_highway',
-    name: 'Jalan Raya Lintas Jembatan 1 Astraea - Dataran Tengah',
-    biome: 'plains',
-    width: 3.2,
-    controlPoints: [
-      [-250, -210], // Gerbang Timur Astraea
-      [-200, -210],
-      [-160, -210], // Jembatan 1 Astraea River Crossing
-      [-110, -180],
-      [-70, -120],
-      [-30, 55],    // Menuju Jembatan Tengah
-    ],
-    colorHex: 0x8c7a65,
-    canvasStroke: '#a3917a',
-    canvasDash: [6, 4],
-    canvasWidth: 2.8,
-  },
-
-  // C. JALUR TIMUR (DESA UTAMA -> JEMBATAN TENGAH -> VAL-KRAGOR)
-  // (CATATAN: JALAN RAYA UTAMA BERHENTI DI VAL-KRAGOR, TIDAK MASUK KE LEMBAH BATU LUMUT)
+  // B. JALUR TIMUR (DESA UTAMA -> JEMBATAN SUNGAI SELATAN -> PERTIGAAN MENARA -> VAL-KRAGOR)
   {
     id: 'plains_east_valkragor',
-    name: 'Jalan Raya Timur Sanctuary - Jembatan Tengah - Val-Kragor',
+    name: 'Jalan Raya Timur: Sanctuary - Jembatan - Val-Kragor',
     biome: 'plains',
     width: 3.2,
     controlPoints: [
-      [25, 135],   // Desa Utama
-      [5, 95],
-      [-30, 55],   // Jembatan 2 - Central Suspension Bridge
-      [45, 45],
-      [125, 45],
-      [210, 45],   // Jembatan 4 - Puing Kastil Terbengkalai
-      [250, 48],
-      [270, 50],   // Jembatan 3 - Val-Kragor Bridge
-      [315, 95],   // Desa Benteng Val-Kragor (TIDAK masuk ke Lembah Batu Lumut)
+      [-40, 145],   // Desa Utama
+      [-15, 128],
+      [15, 110],    // Menyeberang Jembatan Sungai Selatan (Bridge 2)
+      [60, 70],
+      [110, 35],    // Pertigaan Menara Puncak Halilintar
+      [180, 50],
+      [240, 70],
+      [310, 95],    // Gerbang Benteng Val-Kragor
     ],
     colorHex: 0x8c7a65,
     canvasStroke: '#a3917a',
@@ -138,44 +80,60 @@ export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
     canvasWidth: 2.8,
   },
 
-  // C2. JALAN SETAPAK KECIL AKSES LEMBAH BATU LUMUT
-  // (Hanya jalan setapak kecil menyeberangi jembatan kayu di sisi barat X: 395, Z: 25 masuk ke lembah X: 455, Z: 35)
+  // C. JALAN SETAPAK AKSES LEMBAH BATU LUMUT
   {
     id: 'moss_valley_access',
     name: 'Jalan Setapak Akses Jembatan Kayu Lembah Batu Lumut',
     biome: 'plains',
-    width: 2.0,
+    width: 2.4,
     controlPoints: [
-      [315, 95],  // Val-Kragor
-      [355, 55],
-      [395, 25],  // Jembatan 5 - Wooden Footbridge di sisi barat lembah
-      [425, 30],
-      [455, 35],  // Masuk ke Lembah Batu Lumut
+      [310, 95],    // Val-Kragor
+      [355, 65],
+      [400, 35],    // Menyeberang Jembatan Sungai Timur (Bridge 3)
+      [435, 35],
+      [465, 35],    // Glade Alami Lembah Batu Lumut
     ],
     colorHex: 0x78716c,
     canvasStroke: '#78716c',
     canvasDash: [3, 3],
-    canvasWidth: 1.8,
+    canvasWidth: 2.0,
   },
 
-  // D. JALUR GURUN SOLARIA (OASE - PIRAMIDA - SULTAN PALACE)
+  // D. JALUR GURUN SOLARIA (PERTIGAAN -> OASE -> PIRAMIDA -> SULTAN PALACE)
   {
     id: 'desert_bazaar_palace',
     name: 'Jalur Kafilah Pasir Gurun Solaria - Oase - Piramida - Istana Sultan',
     biome: 'desert',
-    width: 4.5,
+    width: 4.0,
     controlPoints: [
-      [55, -250],   // Oase Solaria
-      [10, -340],   // Piramida Emas
-      [115, -360],
-      [225, -380],  // Dekat Kawah Boss
-      [290, -410],
-      [355, -440],  // Istana Sultan Malik
+      [110, 35],    // Cabang dari Pertigaan Menara
+      [85, -230],   // Oase Solaria
+      [30, -350],   // Piramida Emas
+      [140, -370],
+      [340, -425],  // Melewati timur Kawah Boss
+      [430, -460],  // Istana Sultan Malik
     ],
     colorHex: 0xd9be8b,
     canvasStroke: '#d9be8b',
     canvasDash: [],
     canvasWidth: 3.4,
+  },
+
+  // E. JEMBATAN DERMAGA PENGHUBUNG KALDERA NAGA
+  {
+    id: 'caldera_pier_bridge',
+    name: 'Jembatan Dermaga Kayu Kaldera Naga',
+    biome: 'plains',
+    width: 5.0,
+    controlPoints: [
+      [-40, 185],   // Pesisir Pantai Daratan Utama
+      [-40, 235],   // Dek Terbuka di Atas Samudra
+      [-40, 285],   // Gerbang Masuk Kaldera Naga
+    ],
+    colorHex: 0x5d4037,
+    canvasStroke: '#5d4037',
+    canvasDash: [],
+    canvasWidth: 4.0,
   },
 ];
 
@@ -908,13 +866,12 @@ export function drawRoadsOnWorldMap(
     ctx.stroke();
   });
 
-  // 4. JEMBATAN KAYU / STONE BRIDGES (5 Jembatan Utama Melintasi Palung Sungai)
+  // 4. JEMBATAN KAYU / STONE BRIDGES (Sesuai BRIDGE_CONFIGS Single Source of Truth)
   const BRIDGES_2D: { x: number; z: number; angle: number; length: number }[] = [
-    { x: -185, z: -210, angle: -Math.PI / 4, length: 15 },
-    { x: 38, z: 22, angle: 0, length: 17 },
-    { x: 190, z: 15, angle: Math.PI / 2, length: 15 },
-    { x: 335, z: 38, angle: Math.PI / 2, length: 15 },
-    { x: 430, z: 25, angle: Math.PI / 2, length: 15 },
+    { x: -190, z: -230, angle: 0, length: 26 },
+    { x: 15, z: 110, angle: 0, length: 22 },
+    { x: 400, z: 35, angle: 0, length: 24 },
+    { x: -40, z: 235, angle: Math.PI / 2, length: 100 },
   ];
 
   BRIDGES_2D.forEach((b) => {

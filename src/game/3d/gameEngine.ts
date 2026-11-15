@@ -272,7 +272,7 @@ export class GameEngine {
   private world: WorldObjects;
   private worldEnvironment?: WorldEnvironmentResult;
   private playerMesh: PlayerMeshObjects;
-  private playerPos = new THREE.Vector3(0, 0, 184);
+  private playerPos = new THREE.Vector3(-40, 0, 148);
   private playerVel = new THREE.Vector3();
   private playerRotationY = 0;
   private isGrounded = true;
@@ -483,32 +483,33 @@ export class GameEngine {
   public setupCharacterSelectScene() {
     this.clearCharacterSelectScene();
 
-    // Dry paving level in front of fountain
-    const targetZ = 186.2;
+    // Dry paving level in front of village fountain [-40, 145]
+    const targetX = -40;
+    const targetZ = 148.5;
     const targetY = 0.28;
 
-    // 1. Knight Preview (Left: X: -2.2, Z: targetZ) - Facing camera (rotation.y = 0)
+    // 1. Knight Preview (Left: X: targetX - 2.2, Z: targetZ) - Facing camera (rotation.y = 0)
     this.knightPreview = createPlayerMesh('warrior', 1);
-    this.knightPreview.group.position.set(-2.2, targetY, targetZ);
+    this.knightPreview.group.position.set(targetX - 2.2, targetY, targetZ);
     this.knightPreview.group.rotation.set(0, 0, 0);
     this.preparePreviewMaterials(this.knightPreview.group);
     this.scene.add(this.knightPreview.group);
 
-    // 2. Mage Preview (Center: X: 0, Z: targetZ) - Facing camera (rotation.y = 0)
+    // 2. Mage Preview (Center: X: targetX, Z: targetZ) - Facing camera (rotation.y = 0)
     this.magePreview = createPlayerMesh('mage', 1);
-    this.magePreview.group.position.set(0, targetY, targetZ);
+    this.magePreview.group.position.set(targetX, targetY, targetZ);
     this.magePreview.group.rotation.set(0, 0, 0);
     this.preparePreviewMaterials(this.magePreview.group);
     this.scene.add(this.magePreview.group);
 
-    // 3. Assassin / Rogue Preview (Right: X: 2.2, Z: targetZ) - Facing camera (rotation.y = 0)
+    // 3. Assassin / Rogue Preview (Right: X: targetX + 2.2, Z: targetZ) - Facing camera (rotation.y = 0)
     this.assassinPreview = createPlayerMesh('rogue', 1);
-    this.assassinPreview.group.position.set(2.2, targetY, targetZ);
+    this.assassinPreview.group.position.set(targetX + 2.2, targetY, targetZ);
     this.assassinPreview.group.rotation.set(0, 0, 0);
     this.preparePreviewMaterials(this.assassinPreview.group);
     this.scene.add(this.assassinPreview.group);
 
-    const initialX = this.selectedPreviewRole === 'warrior' ? -2.2 : this.selectedPreviewRole === 'mage' ? 0 : 2.2;
+    const initialOffset = this.selectedPreviewRole === 'warrior' ? -2.2 : this.selectedPreviewRole === 'mage' ? 0 : 2.2;
 
     // Magic Rune Pedestal Ring (di bawah kaki karakter pada permukaan paving ground level)
     const ringGeo = new THREE.RingGeometry(0.85, 1.05, 32);
@@ -525,7 +526,7 @@ export class GameEngine {
       opacity: 0.85,
     });
     this.selectionPedestal = new THREE.Mesh(ringGeo, this.selectionPedestalMat);
-    this.selectionPedestal.position.set(initialX, targetY + 0.025, targetZ);
+    this.selectionPedestal.position.set(targetX + initialOffset, targetY + 0.025, targetZ);
     this.scene.add(this.selectionPedestal);
   }
 
@@ -7463,8 +7464,8 @@ export class GameEngine {
       }
     }
 
-    // Fountain Healing area
-    const distFountain = this.playerPos.distanceTo(new THREE.Vector3(0, 0, -4));
+    // Fountain Healing area in village plaza [-40, 145]
+    const distFountain = this.playerPos.distanceTo(new THREE.Vector3(-40, 0, 145));
     if (distFountain < 4.2) {
       this.callbacks.onUpdateStats((stats) => {
         if (stats.hp < stats.maxHp || stats.mp < stats.maxMp) {
@@ -8352,11 +8353,12 @@ export class GameEngine {
       return;
     }
 
-    // 3D Character Selection Framing Camera (image_37.png)
+    // 3D Character Selection Framing Camera
     if (this.menuMode === 'character_select') {
-      const targetZ = 186.2;
-      this.camera.position.lerp(new THREE.Vector3(0, 1.65, targetZ + 4.2), 0.1);
-      this.camera.lookAt(0, 1.25, targetZ);
+      const targetX = -40;
+      const targetZ = 148.5;
+      this.camera.position.lerp(new THREE.Vector3(targetX, 1.65, targetZ + 4.2), 0.1);
+      this.camera.lookAt(targetX, 1.25, targetZ);
       return;
     }
 
@@ -8946,8 +8948,8 @@ export class GameEngine {
         id: 'fountain',
         title: 'Air Mancur Suci',
         type: 'fountain',
-        x: 0,
-        z: -4,
+        x: -40,
+        z: 145,
         icon: '⛲',
         color: '#29b6f6',
         description: 'Memulihkan HP & MP Seketika',
@@ -8956,13 +8958,13 @@ export class GameEngine {
       // Pier
       markers.push({
         id: 'pier_dock',
-        title: 'Dermaga Pantai',
+        title: 'Pelabuhan Sanctuary',
         type: 'pier',
-        x: 6,
-        z: 25,
+        x: -140,
+        z: 185,
         icon: '⛵',
         color: '#00b4d8',
-        description: 'Perahu & Pemandangan Laut',
+        description: 'Dermaga Kayu & Kapal Layar',
       });
 
       this.enemies.forEach((enemy) => {

@@ -78,32 +78,27 @@ export function getDesertBoundaryZ(xw: number): number {
  * Organic Single Source of Truth for Solaria Desert vs Eldoria Plains.
  * Coordinates are warped organically so the boundary forms a natural curving frontier.
  */
-export function isDesertBiome(x: number, z: number): boolean {
-  const { wx, wz } = getOrganicWarp(x, z);
-  const xw = x + wx;
-  const zw = z + wz;
-  if (xw <= -85) return false;
-  return zw < getDesertBoundaryZ(xw);
-}
+import {
+  getBiomeAt as getWorldBiomeAt,
+  getProceduralContinentHeight as getWorldHeight,
+  RIVER_NW_BRANCH,
+  RIVER_DESERT_BRANCH,
+  RIVER_EAST_BRANCH,
+  RIVER_SOUTH_BRANCH,
+  RIVER_SPLINES,
+} from './3d/worldData';
 
-/**
- * SISTEM ALIRAN 4 CABANG SUNGAI BERKELOK ALAMI (MEANDERING SPLINES)
- * 100% Single Source of Truth dari worldData.ts
- */
 export {
   RIVER_NW_BRANCH,
   RIVER_DESERT_BRANCH,
   RIVER_EAST_BRANCH,
   RIVER_SOUTH_BRANCH,
   RIVER_SPLINES,
-} from './3d/worldData';
-import {
-  RIVER_NW_BRANCH,
-  RIVER_DESERT_BRANCH,
-  RIVER_EAST_BRANCH,
-  RIVER_SOUTH_BRANCH,
-  RIVER_SPLINES,
-} from './3d/worldData';
+};
+
+export function isDesertBiome(x: number, z: number): boolean {
+  return getWorldBiomeAt(x, z) === 'desert';
+}
 
 // Backward-compatibility aliases
 export const RIVER_NORTHWEST_BRANCH = RIVER_NW_BRANCH;
@@ -160,14 +155,8 @@ export function getDesertWeight(x: number, z: number): number {
  * 1. EVALUASI ZONA BIOMA & LAUT SECARA ORGANIK
  */
 export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
-  // A. KALDERA SARANG NAGA & PULAU VULKANIK [-85, 265]
-  const cx = -85;
-  const cz = 265;
-  const rx = 110;
-  const rz = 65;
-  const edgeNoise = Math.sin(x * 0.06) * 8 + Math.cos(z * 0.07) * 6;
-  const distSq = Math.pow((x - cx) / (rx + edgeNoise), 2) + Math.pow((z - cz) / (rz + edgeNoise), 2);
-  if (distSq <= 1.0) {
+  const b = getWorldBiomeAt(x, z);
+  if (b === 'volcano') {
     return {
       id: 'volcano',
       name: 'Dragonfang Caldera & Volcano Island',
@@ -177,39 +166,17 @@ export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
       color: [28, 25, 23],
     };
   }
-
-  // B. SAMUDRA & LAUT LEPAS AZURE (ORGANIC COASTLINE & EASTERN BAY)
-  const { wx, wz } = getOrganicWarp(x, z);
-  const xw = x + wx;
-  const zw = z + wz;
-
-  // Cape/Tanjung di selatan Desa Utama [25, 135] & Pelabuhan Sanctuary [-135, 145]
-  const distToVillage = Math.hypot(x - 25, z - 135);
-  const cape = Math.max(0, 1.0 - distToVillage / 110) * 35;
-  const southCoastZ = 195 + Math.sin(xw * 0.015) * 14 + Math.cos(xw * 0.04) * 6 + cape;
-  const westCoastX = -460 + Math.sin(zw * 0.018) * 30 + Math.cos(zw * 0.045) * 12;
-
-  // Smooth natural bay curving east of Val-Kragor [315, 95]
-  let naturalCoastZ = southCoastZ;
-  if (xw > 340) {
-    const t = Math.min(1.0, (xw - 340) / 120);
-    naturalCoastZ = southCoastZ - t * 45 + Math.sin(xw * 0.025) * 10;
-  }
-  const isFarEastOcean = xw > 580 + Math.sin(zw * 0.015) * 25;
-
-  if (x < westCoastX || z > naturalCoastZ || isFarEastOcean) {
+  if (b === 'ocean' || b === 'lake') {
     return {
       id: 'ocean',
-      name: 'Azure Coast & South Ocean',
-      nameId: 'Samudra & Laut Lepas Azure',
+      name: b === 'lake' ? 'Ancient Titan Lake' : 'Azure Coast & South Ocean',
+      nameId: b === 'lake' ? 'Danau Titan Kuno' : 'Samudra & Laut Lepas Azure',
       minY: -10.0,
       maxY: 0.0,
       color: [2, 132, 199],
     };
   }
-
-  // C. GURUN PASIR EMAS SOLARIA
-  if (isDesertBiome(x, z)) {
+  if (b === 'desert') {
     return {
       id: 'desert',
       name: 'Solaria Golden Desert',
@@ -219,8 +186,6 @@ export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
       color: [234, 179, 8],
     };
   }
-
-  // D. PADANG RUMPUT ELDORIA
   return {
     id: 'plains',
     name: 'Eldoria Central Plains',
@@ -232,189 +197,10 @@ export function getBiomeAt(x: number, z: number): BiomeZoneInfo {
 }
 
 /**
- * Procedural height function with organic rolling hills and realistic landmarks
+ * Procedural height function with organic rolling hills and realistic landmarks (Single Source of Truth)
  */
 export function getProceduralContinentHeight(x: number, z: number): number {
-  const zone = getBiomeAt(x, z);
-  const { wx, wz } = getOrganicWarp(x, z);
-  const xw = x + wx;
-  const zw = z + wz;
-
-  // 1. ZONA VOLCANO: Pulau Kawah Vulkanik Seberang Laut Selatan [-85, 265]
-  if (zone.id === 'volcano') {
-    const cx = -85;
-    const cz = 265;
-    const rx = 110;
-    const rz = 65;
-    const edgeNoise = Math.sin(x * 0.06) * 8 + Math.cos(z * 0.07) * 6;
-    const distSq = Math.pow((x - cx) / (rx + edgeNoise), 2) + Math.pow((z - cz) / (rz + edgeNoise), 2);
-
-    if (Math.hypot(x - -85, z - 225) < 16) return 2.0;
-    const distCenter = Math.hypot(x - -85, z - 265);
-    if (distCenter <= 38) return 2.50;
-    if (distCenter <= 50) {
-      const t = (distCenter - 38) / 12;
-      return 2.50 + Math.sin(t * Math.PI) * 5.0;
-    }
-    if (distSq > 0.70) {
-      const t = (distSq - 0.70) / 0.30;
-      return Math.max(0.2, 3.5 * (1 - t));
-    }
-    return 1.8;
-  }
-
-  // 2. ZONA OCEAN: Samudra & Laut Lepas Azure
-  if (zone.id === 'ocean') {
-    const distToVillage = Math.hypot(x - 25, z - 135);
-    const cape = Math.max(0, 1.0 - distToVillage / 110) * 35;
-    const southCoastZ = 195 + Math.sin(xw * 0.015) * 14 + Math.cos(xw * 0.04) * 6 + cape;
-    if (z >= southCoastZ && z <= southCoastZ + 15) {
-      const t = (z - southCoastZ) / 15;
-      return 0.2 - t * 2.8;
-    }
-    return -3.5;
-  }
-
-  // 3. ZONA DESERT: Gurun Pasir Emas Solaria
-  if (zone.id === 'desert') {
-    // 3a. Kanyon Kuno [110, -490] (Northern Red Canyon Mesas & Cliffs)
-    const distCanyon = Math.hypot(x - 110, z - -490);
-    if (distCanyon <= 75) {
-      const canyonNoise = Math.sin(x * 0.035) * Math.cos(z * 0.03) * 5.0 + Math.sin(x * 0.08) * 2.0;
-      return clamp(12.0 + canyonNoise, 8.0, 20.0);
-    }
-
-    // 3b. Istana Sultan Malik [355, -440]
-    if (Math.hypot(x - 355, z - -440) <= 36) return 2.00;
-
-    // 3c. Kawah Cacat World Boss (Lv. 10) [225, -380]
-    const distSinkhole = Math.hypot(x - 225, z - -380);
-    if (distSinkhole <= 45) {
-      const t = distSinkhole / 45;
-      const bowl = Math.pow(t, 1.8) * 2.5 - 2.5; // -2.5 unit di tengah, 0 di bibir
-      const swirlRipple = Math.sin(Math.atan2(z - -380, x - 225) * 3 + distSinkhole * 0.4) * 0.18;
-      return 1.80 + bowl + swirlRipple;
-    }
-
-    // 3d. Piramida Emas Solaria [10, -340]
-    if (Math.hypot(x - 10, z - -340) <= 32) return 1.50;
-
-    // 3e. Oase Solaria [55, -250]
-    const distOasis = Math.hypot(x - 55, z - -250);
-    if (distOasis < 16) return -0.4;
-    if (distOasis < 26) return 0.6;
-
-    // Rolling golden dunes
-    const duneWave = Math.sin(xw * 0.035 + zw * 0.028) * 1.1 + Math.cos(xw * 0.02 - zw * 0.03) * 0.5;
-    return clamp(1.4 + duneWave, 0.5, 3.5);
-  }
-
-  // 4. ZONA PLAINS: Padang Rumput Eldoria (Daratan Utama)
-  // 4a. Desa Utama & Padang Rumput Eldoria [25, 135] (Daratan luas kering dan aman)
-  const distVillage = Math.hypot(x - 25, z - 135);
-  if (distVillage <= 55) return 0.25;
-
-  // 4b. Pelabuhan Sanctuary [-135, 145]
-  if (Math.hypot(x - -135, z - 145) <= 24) return 0.35;
-
-  // 4c. Lembah Danau Titan Kuno [-260, -420] (Danau Biru Luas di Ketinggian)
-  const distTitanLake = Math.hypot(x - -260, z - -420);
-  if (distTitanLake <= 58) {
-    return -2.80; // Dasar danau air biru luas
-  }
-  if (distTitanLake <= 72) {
-    const t = (distTitanLake - 58) / 14;
-    return -2.80 + t * 4.2; // Lereng tepian danau naik
-  }
-
-  // 4d. Pegunungan Salju Barat Laut (Mengelilingi Danau Titan dari barat hingga perbatasan Kanyon Kuno)
-  const isSnowMountainZone =
-    (distTitanLake > 60 && distTitanLake <= 165 && (xw < -50 || zw < -320)) ||
-    (xw >= -180 && xw <= 50 && zw < -440);
-  if (isSnowMountainZone) {
-    const rimNoise = Math.sin(xw * 0.02) * Math.cos(zw * 0.02) * 6.5 + Math.sin((xw + zw) * 0.035) * 3.0;
-    return clamp(15.0 + rimNoise, 10.0, 26.0);
-  }
-
-  // 4e. Ibukota Kerajaan Emas Astraea & Istana Kaisar [-250, -210] (Kastil megah di lereng selatan salju)
-  if (Math.hypot(x - -250, z - -210) <= 48) return 2.20;
-
-  // 4e-2. Hutan Lindung Barat Daya [X: -320 s.d -180, Z: 50 s.d 150] (Cluster hijau rimbun)
-  if (x >= -320 && x <= -180 && z >= 50 && z <= 150) {
-    const forestWave = Math.sin(x * 0.035) * Math.cos(z * 0.035) * 1.5 + 2.0;
-    return forestWave;
-  }
-
-  // 4f. Hutan Kabut Eldoria [335, -140]
-  const distMistForest = Math.hypot(x - 335, z - -140);
-  if (distMistForest <= 55) {
-    const hillWave = Math.sin(x * 0.035 + z * 0.03) * 2.0 + 3.2;
-    return hillWave;
-  }
-
-  // 4g. Puing Kastil Terbengkalai [225, -35]
-  if (Math.hypot(x - 225, z - -35) <= 32) return 1.40;
-
-  // 4h. Desa Benteng Val-Kragor [315, 95]
-  if (Math.hypot(x - 315, z - 95) <= 38) return 2.00;
-
-  // 4i. Lembah Batu Lumut [455, 35] - Smoothstep Gaussian Bowl to prevent steep prism cliffs
-  const distMossValley = Math.hypot(x - 455, z - 35);
-  if (distMossValley <= 55) {
-    if (distMossValley <= 32) {
-      return 0.50; // Lantai lembah rata rendah (Y: 0.5) di radius 32 unit
-    }
-    // Transisi lereng landai menanjak halus hingga radius 55 unit menyatu ke pegunungan timur (Y: 9 s.d 11)
-    const t = (distMossValley - 32) / (55 - 32);
-    const s = t * t * (3 - 2 * t);
-    const surroundingHills = Math.max(9.0, Math.min(11.5, 9.5 + Math.sin(x * 0.04) * 1.5));
-    return 0.50 + s * (surroundingHills - 0.50);
-  }
-
-  // 4j. Mage Tower Hill [70, 20]
-  const distMage = Math.hypot(x - 70, z - 20);
-  if (distMage <= 18) return 4.50;
-  if (distMage <= 32) {
-    const t = (distMage - 18) / 14;
-    return 4.50 - t * 3.5;
-  }
-
-  // 4k. Alur Palung 4 Cabang Sungai (NW, Desert, East, South)
-  const distRiver = getDistanceToRiver(x, z);
-  if (distRiver < 6.0) {
-    const edge = distRiver / 6.0;
-    return -2.2 * Math.cos(edge * (Math.PI / 2));
-  }
-
-  // 4l. Zona Pemukiman Desa Datar Rata
-  if (distVillage < 55) {
-    return 0;
-  }
-
-  // 4m. Flattened road paths di luar desa
-  if (isPointOnRoad(x, z)) {
-    return 0.35;
-  }
-
-  // 4n. Perbukitan Timur Luas
-  if (x > 240) {
-    const eastHills = Math.sin(xw * 0.015) * Math.cos(zw * 0.012) * 4.5 + Math.sin(zw * 0.025) * 1.8;
-    return Math.max(0.8, Math.min(14.0, 3.5 + eastHills));
-  }
-
-  // 4o. Bukit Padang Rumput Eldoria Umum
-  const blend = Math.min(1, Math.max(0, (distVillage - 55) / 25));
-  const gentleNoise =
-    Math.sin(xw * 0.015 + zw * 0.011) * 2.0 +
-    Math.cos(xw * 0.007 - zw * 0.012) * 1.5 +
-    Math.sin((xw + zw) * 0.022) * 0.4;
-
-  const perlinElevation = clamp(Math.max(0.0, gentleNoise * blend * 1.4), 0.0, 2.2);
-
-  if (isPointNearRoad(x, z, 2.0)) {
-    return 0.35 * 0.65 + perlinElevation * 0.35;
-  }
-  return perlinElevation;
+  return getWorldHeight(x, z);
 }
 
 /**

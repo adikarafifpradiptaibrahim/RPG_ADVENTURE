@@ -94,9 +94,9 @@ export function buildWorldEnvironment(
 
   // Helper deteksi batas pekarangan pertanian untuk isolasi vegetasi instanced & bebatuan alami
   function isInsideFarmYard(x: number, z: number): boolean {
-    if (x >= 19 && x <= 45 && z >= 151 && z <= 166) return true; // Pekarangan 1 (Utara)
-    if (x >= 21 && x <= 47 && z >= 111 && z <= 126) return true; // Pekarangan 2 (Selatan)
-    if (x >= 57 && x <= 81 && z >= 85 && z <= 99) return true;   // Pekarangan 3 (Gandum)
+    if (x >= -62 && x <= -38 && z >= 153 && z <= 168) return true; // Pekarangan 1 (Utara)
+    if (x >= -62 && x <= -38 && z >= 120 && z <= 136) return true; // Pekarangan 2 (Selatan)
+    if (x >= -36 && x <= -16 && z >= 120 && z <= 136) return true; // Pekarangan 3 (Gandum)
     return false;
   }
 
@@ -210,23 +210,23 @@ export function buildWorldEnvironment(
     createRusticFenceSegment(maxX, minZ, maxX, maxZ);
   }
 
-  // Pekarangan 1: Sayap Kiri / Utara Jalan (Z: 152 s.d 165, clearing > 7.0m dari jalan)
-  createEnclosedFarmYard(20, 44, 152, 165, 'south', 30, 34);
+  // Pekarangan 1: Sayap Kiri / Utara Alun-Alun Baru (Z: 154 s.d 167)
+  createEnclosedFarmYard(-60, -40, 154, 167, 'south', -52, -48);
 
-  // Pekarangan 2: Sayap Kanan / Selatan Jalan (Z: 112 s.d 125, clearing > 7.0m dari jalan)
-  createEnclosedFarmYard(22, 46, 112, 125, 'north', 32, 36);
+  // Pekarangan 2: Sayap Kanan / Selatan Alun-Alun Baru (Z: 122 s.d 135)
+  createEnclosedFarmYard(-60, -40, 122, 135, 'north', -52, -48);
 
-  // Pekarangan 3: Ladang Gandum & Lumbung Timur (Z: 86 s.d 98, Z < 100, clearing > 5.0m dari jalan)
-  createEnclosedFarmYard(58, 80, 86, 98, 'north', 67, 71);
+  // Pekarangan 3: Ladang Gandum & Lumbung Timur (Z: 122 s.d 135)
+  createEnclosedFarmYard(-36, -18, 122, 135, 'north', -29, -25);
 
   // 3 Petak Kebun Sayur Berpematang Kayu di Dalam Pekarangan Rapi
   const gardenPatches = [
-    // Kebun 1: Di dalam Pekarangan 1 (Utara Jalan), Cabbage & Carrot
-    { x: 32, z: 158.5, w: 14, d: 5.5, cropType: 'cabbage_carrot' },
-    // Kebun 2: Di dalam Pekarangan 2 (Selatan Jalan), Pumpkin & Veggies
-    { x: 34, z: 118.5, w: 14, d: 5.5, cropType: 'pumpkin_veggies' },
-    // Kebun 3: Di dalam Pekarangan 3 (Selatan Jalan Timur, Z < 100), Wheat Field
-    { x: 69, z: 92.0, w: 13, d: 4.8, cropType: 'wheat' },
+    // Kebun 1: Di dalam Pekarangan 1 (Utara), Cabbage & Carrot
+    { x: -50, z: 160.5, w: 14, d: 5.5, cropType: 'cabbage_carrot' },
+    // Kebun 2: Di dalam Pekarangan 2 (Selatan), Pumpkin & Veggies
+    { x: -50, z: 128.5, w: 14, d: 5.5, cropType: 'pumpkin_veggies' },
+    // Kebun 3: Di dalam Pekarangan 3 (Gandum), Wheat Field
+    { x: -27, z: 128.5, w: 13, d: 4.8, cropType: 'wheat' },
   ];
 
   gardenPatches.forEach((patch) => {
@@ -318,17 +318,17 @@ export function buildWorldEnvironment(
   // 9 Tumpukan Jerami (Haystack Emas): Terkumpul Rapi di Sudut-Sudut Pekarangan
   const haystacks = [
     // Sudut Pekarangan 1 (Utara)
-    { x: 23.0, z: 161.0, r: 1.4, h: 1.8 },
-    { x: 25.8, z: 161.5, r: 1.2, h: 1.5 },
-    { x: 24.2, z: 157.5, r: 1.1, h: 1.4 },
+    { x: -57.0, z: 163.0, r: 1.4, h: 1.8 },
+    { x: -54.2, z: 163.5, r: 1.2, h: 1.5 },
+    { x: -55.8, z: 159.5, r: 1.1, h: 1.4 },
     // Sudut Pekarangan 2 (Selatan)
-    { x: 25.0, z: 115.0, r: 1.5, h: 1.9 },
-    { x: 27.8, z: 114.0, r: 1.3, h: 1.6 },
-    { x: 25.5, z: 118.0, r: 1.1, h: 1.4 },
-    // Sudut Pekarangan 3 (Gandum Timur)
-    { x: 61.5, z: 90.5, r: 1.5, h: 1.9 },
-    { x: 64.0, z: 92.5, r: 1.2, h: 1.5 },
-    { x: 61.8, z: 94.5, r: 1.1, h: 1.4 },
+    { x: -57.0, z: 125.0, r: 1.5, h: 1.9 },
+    { x: -54.2, z: 124.0, r: 1.3, h: 1.6 },
+    { x: -56.5, z: 128.0, r: 1.1, h: 1.4 },
+    // Sudut Pekarangan 3 (Gandum)
+    { x: -33.5, z: 125.5, r: 1.5, h: 1.9 },
+    { x: -31.0, z: 127.5, r: 1.2, h: 1.5 },
+    { x: -33.2, z: 129.5, r: 1.1, h: 1.4 },
   ];
 
   haystacks.forEach((hs) => {
@@ -389,15 +389,16 @@ export function buildWorldEnvironment(
   }
 
   // Gerobak 1 terparkir di dekat pintu gerbang Pekarangan 1 (Utara)
-  createWoodenCart(32, 147.5, 0.2);
+  createWoodenCart(-48, 151.5, 0.2);
   // Gerobak 2 terparkir di dekat pintu gerbang Pekarangan 2 (Selatan)
-  createWoodenCart(34, 129.5, -0.25);
+  createWoodenCart(-48, 137.5, -0.25);
 
   // Tumpukan peti barang di dekat gerobak dan pagar
   const crateClusters = [
-    { x: 28.5, z: 149.0 },
-    { x: 30.5, z: 128.0 },
-    { x: 64.5, z: 96.5 },
+    { x: -52.5, z: 152.0 },
+    { x: -44.0, z: 151.5 },
+    { x: -52.0, z: 137.0 },
+    { x: -44.5, z: 137.5 },
   ];
   crateClusters.forEach((cc) => {
     if (isPointNearRoad(cc.x, cc.z, 3.5)) return;
@@ -1339,11 +1340,11 @@ export function buildWorldEnvironment(
   const colosseumGroup = new THREE.Group();
   colosseumGroup.name = 'ZoneH_AncientColosseumBossArena';
 
-  const colosseumCenterX = -224;
-  const colosseumCenterZ = -435;
+  const colosseumCenterX = 235;
+  const colosseumCenterZ = -380;
   const craterCenterX = colosseumCenterX;
   const craterCenterZ = colosseumCenterZ;
-  const colosseumFloorY = -0.20;
+  const colosseumFloorY = 1.80;
   const arenaRadius = 48.0;
   const wallRadius = 53.0;
 
@@ -1678,7 +1679,12 @@ export function buildWorldEnvironment(
       const len = Math.hypot(dx, dz) || 1;
       const nx = -dz / len;
       const nz = dx / len;
-      const halfW = width * 0.5;
+      let curW = width;
+      if (i > points.length - 5) {
+        const t = (points.length - 1 - i) / 4;
+        curW = width * (0.35 + 0.65 * t);
+      }
+      const halfW = curW * 0.5;
 
       // Titik Kiri
       vertices.push(p[0] + nx * halfW, yLevel, p[1] + nz * halfW);
@@ -1714,6 +1720,16 @@ export function buildWorldEnvironment(
   canyonGroup.add(buildRiverRibbon(RIVER_EAST_BRANCH, 6.0, -0.35));
   // 4. Cabang D (Selatan / Hilir Utama): lebar 6.2, permukaan air Y: -0.35
   canyonGroup.add(buildRiverRibbon(RIVER_MAIN_DOWNSTREAM, 6.2, -0.35));
+
+  // Mountain spring basin pools at river headwaters
+  const createSpringPool = (sx: number, sz: number, radius = 8.0) => {
+    const poolGeo = new THREE.CylinderGeometry(radius, radius, 0.4, 20);
+    const poolMesh = new THREE.Mesh(poolGeo, matRiverWater);
+    poolMesh.position.set(sx, -0.32, sz);
+    canyonGroup.add(poolMesh);
+  };
+  createSpringPool(200, -520, 8.5); // Hulu Kanyon Kuno
+  createSpringPool(485, -290, 8.0); // Hulu Pegunungan Timur Laut
 
   envGroup.add(canyonGroup);
 
@@ -2166,13 +2182,13 @@ export function buildWorldEnvironment(
     // Pengecualian Pesisir Pantai Barat khusus Pohon Kelapa
     if (cx < -460 || cz > 190) continue;
     // Pengecualian Pemukiman Desa
-    if (Math.hypot(cx - 10, cz - 110) < 54) continue;
-    if (Math.hypot(cx - 0, cz - 180) < 40) continue;
-    // Pengecualian Palung Aliran Sungai (Northwest, East, Downstream)
-    if (getDistanceToRiver(cx, cz) < 6.5) continue;
+    if (Math.hypot(cx - -40, cz - 145) < 54) continue;
+    if (Math.hypot(cx - -140, cz - 185) < 40) continue;
+    // Pengecualian Palung Aliran Sungai (Northwest, East, Downstream) - STRICT 18 UNIT EXCLUSION ZONE
+    if (getDistanceToRiver(cx, cz) < 18.0) continue;
     if (isNearBridge(cx, cz)) continue;
     // Pengecualian Kawah Boss Kuno
-    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 24) continue;
+    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 32) continue;
     if (Math.hypot(cx - -250, cz - -35) < 32) continue; // Outpost inner
     if (isInsideFarmYard(cx, cz)) continue;
 
@@ -2188,10 +2204,10 @@ export function buildWorldEnvironment(
       if (isDesertBiome(px, pz)) continue;
       if (isPointNearRoad(px, pz, 3.2)) continue;
       if (isInsideFarmYard(px, pz)) continue;
-      if (Math.hypot(px - 10, pz - 110) < 52) continue;
-      if (getDistanceToRiver(px, pz) < 6.5) continue;
+      if (Math.hypot(px - -40, pz - 145) < 52) continue;
+      if (getDistanceToRiver(px, pz) < 18.0) continue;
       if (isNearBridge(px, pz)) continue;
-      if (Math.hypot(px - craterCenterX, pz - craterCenterZ) < 23) continue;
+      if (Math.hypot(px - craterCenterX, pz - craterCenterZ) < 30) continue;
 
       const py = getTerrainHeight(px, pz);
       if (py < 0.0 || py > 4.5) continue; // Tidak boleh di bawah air
@@ -2233,13 +2249,13 @@ export function buildWorldEnvironment(
     const cz = -380 + Math.random() * 560;
 
     if (isDesertBiome(cx, cz)) continue;
-    if (Math.hypot(cx - 10, cz - 110) < 54) continue;
-    if (Math.hypot(cx - 0, cz - 180) < 40) continue;
+    if (Math.hypot(cx - -40, cz - 145) < 54) continue;
+    if (Math.hypot(cx - -140, cz - 185) < 40) continue;
     if (Math.hypot(cx - ruinsCenterX, cz - ruinsCenterZ) < 26) continue;
     if (Math.hypot(cx - -250, cz - -35) < 32) continue;
-    if (getDistanceToRiver(cx, cz) < 6.5) continue;
+    if (getDistanceToRiver(cx, cz) < 18.0) continue;
     if (isNearBridge(cx, cz)) continue;
-    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 24) continue;
+    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 32) continue;
     if (isInsideFarmYard(cx, cz)) continue;
 
     const clusterSize = 3 + Math.floor(Math.random() * 4);
@@ -2254,10 +2270,10 @@ export function buildWorldEnvironment(
       if (isDesertBiome(ox, oz)) continue;
       if (isPointNearRoad(ox, oz, 3.2)) continue;
       if (isInsideFarmYard(ox, oz)) continue;
-      if (Math.hypot(ox - 10, oz - 110) < 52) continue;
-      if (getDistanceToRiver(ox, oz) < 6.5) continue;
+      if (Math.hypot(ox - -40, oz - 145) < 52) continue;
+      if (getDistanceToRiver(ox, oz) < 18.0) continue;
       if (isNearBridge(ox, oz)) continue;
-      if (Math.hypot(ox - craterCenterX, oz - craterCenterZ) < 23) continue;
+      if (Math.hypot(ox - craterCenterX, oz - craterCenterZ) < 30) continue;
 
       const oy = getTerrainHeight(ox, oz);
       if (oy < 0.0 || oy > 4.2) continue;
@@ -2290,11 +2306,11 @@ export function buildWorldEnvironment(
     const cz = -400 + Math.random() * 580;
 
     if (isDesertBiome(cx, cz)) continue;
-    if (Math.hypot(cx - 10, cz - 110) < 52) continue;
-    if (Math.hypot(cx - 0, cz - 180) < 35) continue;
-    if (getDistanceToRiver(cx, cz) < 6.5) continue;
+    if (Math.hypot(cx - -40, cz - 145) < 52) continue;
+    if (Math.hypot(cx - -140, cz - 185) < 35) continue;
+    if (getDistanceToRiver(cx, cz) < 18.0) continue;
     if (isNearBridge(cx, cz)) continue;
-    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 24) continue;
+    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 32) continue;
     if (isInsideFarmYard(cx, cz)) continue;
     if (isPointNearRoad(cx, cz, 3.2)) continue;
 
@@ -2319,7 +2335,7 @@ export function buildWorldEnvironment(
 
       if (isDesertBiome(bx, bz)) continue;
       if (isPointNearRoad(bx, bz, 3.0)) continue;
-      if (getDistanceToRiver(bx, bz) < 6.5) continue;
+      if (getDistanceToRiver(bx, bz) < 18.0) continue;
       if (isNearBridge(bx, bz)) continue;
       const by = getTerrainHeight(bx, bz);
       if (by < 0.0) continue;
@@ -2350,10 +2366,10 @@ export function buildWorldEnvironment(
     const cz = -420 + Math.random() * 600;
 
     if (isDesertBiome(cx, cz)) continue;
-    if (Math.hypot(cx - 10, cz - 110) < 52) continue;
-    if (getDistanceToRiver(cx, cz) < 6.5) continue;
+    if (Math.hypot(cx - -40, cz - 145) < 52) continue;
+    if (getDistanceToRiver(cx, cz) < 18.0) continue;
     if (isNearBridge(cx, cz)) continue;
-    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 24) continue;
+    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 32) continue;
     if (isInsideFarmYard(cx, cz)) continue;
 
     const shrubClusterSize = 3 + Math.floor(Math.random() * 4);
@@ -2368,7 +2384,7 @@ export function buildWorldEnvironment(
       if (isDesertBiome(sx, sz)) continue;
       if (isPointNearRoad(sx, sz, 3.2)) continue;
       if (isInsideFarmYard(sx, sz)) continue;
-      if (getDistanceToRiver(sx, sz) < 6.5) continue;
+      if (getDistanceToRiver(sx, sz) < 18.0) continue;
       if (isNearBridge(sx, sz)) continue;
 
       const sy = getTerrainHeight(sx, sz);
