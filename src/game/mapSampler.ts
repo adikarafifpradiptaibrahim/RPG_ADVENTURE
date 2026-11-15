@@ -88,61 +88,22 @@ export function isDesertBiome(x: number, z: number): boolean {
 
 /**
  * SISTEM ALIRAN 4 CABANG SUNGAI BERKELOK ALAMI (MEANDERING SPLINES)
- * Sesuai denah referensi target peta (100% sinkron dengan worldConfig.ts):
- * 1. Hulu Barat Laut (NW): Dari selatan Danau Titan [-250, -360] -> timur Astraea [-160, -210] (Jembatan 1) -> Confluence [-35, 35].
- * 2. Cabang Gurun/Utara: Dari Confluence [-35, 35] -> selatan Oase [80, -130] -> barat Kawah Boss [175, -350] -> Kanyon [110, -490].
- * 3. Cabang Timur: Dari Confluence [-35, 35] -> antara Puing Kastil & Val-Kragor [250, 45] -> barat Lembah Batu Lumut [395, 25] (Jembatan 5) & timur Hutan Kabut [395, -50] -> lereng timur laut [415, -240].
- * 4. Hilir (Muara Selatan): Dari Confluence [-35, 35] -> melintasi Jembatan Tengah [-30, 55] -> lurus ke selatan ke laut [-25, 165].
+ * 100% Single Source of Truth dari worldData.ts
  */
-export const RIVER_NW_BRANCH: [number, number][] = [
-  [-250, -360], // Danau Titan Kuno South Shore Outlet
-  [-220, -310],
-  [-190, -260],
-  [-160, -210], // Jembatan 1 - Astraea Highway River Crossing
-  [-130, -150],
-  [-95, -95],
-  [-65, -45],
-  [-45, -5],
-  [-35, 35],    // Confluence Sentral
-];
-
-export const RIVER_DESERT_BRANCH: [number, number][] = [
-  [-35, 35],    // Confluence
-  [0, -15],
-  [40, -70],
-  [80, -130],   // Selatan Oase Solaria
-  [125, -200],
-  [155, -275],
-  [175, -350],  // Barat Kawah World Boss [225, -380]
-  [165, -420],
-  [140, -460],
-  [110, -490],  // Kanyon Kuno
-];
-
-export const RIVER_EAST_BRANCH: [number, number][] = [
-  [-35, 35],    // Confluence
-  [35, 38],
-  [105, 42],
-  [175, 44],
-  [210, 45],    // Jembatan 4 - Puing Kastil
-  [250, 45],    // Antara Puing Kastil [225, -35] & Val-Kragor [315, 95]
-  [270, 50],    // Jembatan 3 - Val-Kragor
-  [335, 42],
-  [395, 25],    // Jembatan 5 - Akses Barat Lembah Batu Lumut
-  [405, -10],
-  [395, -50],   // Timur Hutan Kabut [335, -140]
-  [390, -115],
-  [400, -180],
-  [415, -240],  // Lereng Pegunungan Timur Laut
-];
-
-export const RIVER_SOUTH_BRANCH: [number, number][] = [
-  [-35, 35],    // Confluence
-  [-30, 55],    // Jembatan 2 - Central Suspension Bridge
-  [-28, 90],
-  [-26, 125],
-  [-25, 165],   // Muara Samudra Selatan
-];
+export {
+  RIVER_NW_BRANCH,
+  RIVER_DESERT_BRANCH,
+  RIVER_EAST_BRANCH,
+  RIVER_SOUTH_BRANCH,
+  RIVER_SPLINES,
+} from './3d/worldData';
+import {
+  RIVER_NW_BRANCH,
+  RIVER_DESERT_BRANCH,
+  RIVER_EAST_BRANCH,
+  RIVER_SOUTH_BRANCH,
+  RIVER_SPLINES,
+} from './3d/worldData';
 
 // Backward-compatibility aliases
 export const RIVER_NORTHWEST_BRANCH = RIVER_NW_BRANCH;

@@ -1,0 +1,820 @@
+/**
+ * WORLD_DATA - Single Source of Truth for Chronicles of Eldoria
+ * Batas Dunia: X: [-500, 500], Z: [-550, 350]
+ *
+ * Mengontrol secara mutlak:
+ * 1. Definisi Bioma & Garis Pantai (getBiomeAt)
+ * 2. Elevasi Medan 3D (getProceduralContinentHeight)
+ * 3. Alur 4 Cabang Sungai (RIVER_SPLINES)
+ * 4. Jaringan Jalan Raya & Jembatan (ROAD_SPLINES & BRIDGE_CONFIGS)
+ * 5. 14 Landmark & Wilayah Interaktif (WORLD_LANDMARKS)
+ * 6. Proyeksi Peta 2D (worldToMapPercent, mapPercentToWorld)
+ */
+
+export interface WorldBounds {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
+
+export const WORLD_BOUNDS: WorldBounds = {
+  minX: -500,
+  maxX: 500,
+  minZ: -550,
+  maxZ: 350,
+};
+
+export const WORLD_WIDTH = WORLD_BOUNDS.maxX - WORLD_BOUNDS.minX; // 1000
+export const WORLD_HEIGHT = WORLD_BOUNDS.maxZ - WORLD_BOUNDS.minZ; // 900
+
+export type BiomeType = 'ocean' | 'volcano' | 'snow' | 'desert' | 'grassland' | 'lake';
+
+export interface BiomeInfo {
+  id: BiomeType;
+  name: string;
+  nameId: string;
+  colorHex: string;
+  colorRgb: [number, number, number];
+}
+
+export const BIOMES: Record<BiomeType, BiomeInfo> = {
+  ocean: {
+    id: 'ocean',
+    name: 'Azure Ocean',
+    nameId: 'Samudra & Laut Azure',
+    colorHex: '#0284c7',
+    colorRgb: [2, 132, 199],
+  },
+  volcano: {
+    id: 'volcano',
+    name: 'Dragonfang Volcano Island',
+    nameId: 'Pulau Kaldera Sarang Naga',
+    colorHex: '#dc2626',
+    colorRgb: [220, 38, 38],
+  },
+  snow: {
+    id: 'snow',
+    name: 'Ancient Titan Snow Mountains',
+    nameId: 'Pegunungan Salju Danau Titan',
+    colorHex: '#e2e8f0',
+    colorRgb: [226, 232, 240],
+  },
+  lake: {
+    id: 'lake',
+    name: 'Titan Glacial Lake',
+    nameId: 'Danau Air Tawar Titan',
+    colorHex: '#38bdf8',
+    colorRgb: [56, 189, 248],
+  },
+  desert: {
+    id: 'desert',
+    name: 'Solaria Golden Desert',
+    nameId: 'Gurun Pasir Emas Solaria',
+    colorHex: '#eab308',
+    colorRgb: [234, 179, 8],
+  },
+  grassland: {
+    id: 'grassland',
+    name: 'Eldoria Central Grasslands',
+    nameId: 'Padang Rumput Eldoria',
+    colorHex: '#65a30d',
+    colorRgb: [101, 163, 13],
+  },
+};
+
+/**
+ * 1. FUNGSI PENENTU BIOME & GARIS PANTAI (getBiomeAt)
+ * 100% persamaan kurva sinus/poligon terkalibrasi:
+ * - ocean: Barat (x < -380 + sin(z*0.015)*35), Selatan (z > 190 + cos(x*0.012)*25), Teluk Tenggara (x > 360 && z > 110)
+ * - volcano: Kaldera Sarang Naga (hypot(x - (-40), z - 275) < 65)
+ * - lake: Danau Titan (hypot(x - (-250), z - (-430)) < 60)
+ * - snow: Pegunungan barat laut (x < -120 && z < -330)
+ * - desert: Gurun Solaria & Kanyon (z < -130 + sin(x*0.01)*45 && x > -120)
+ * - grassland: Padang Rumput Eldoria (seluruh daratan utama)
+ */
+export function getBiomeAt(x: number, z: number): BiomeType {
+  // A. Pulau Kaldera Sarang Naga di Laut Selatan
+  if (Math.hypot(x - (-40), z - 275) < 65) {
+    return 'volcano';
+  }
+
+  // B. Samudra & Garis Pantai
+  const isWestOcean = x < -380 + Math.sin(z * 0.015) * 35;
+  const isSouthOcean = z > 190 + Math.cos(x * 0.012) * 25;
+  const isSoutheastBay = x > 360 && z > 110;
+
+  if (isWestOcean || isSouthOcean || isSoutheastBay) {
+    return 'ocean';
+  }
+
+  // C. Danau Air Tawar Titan Kuno
+  if (Math.hypot(x - (-250), z - (-430)) < 60) {
+    return 'lake';
+  }
+
+  // D. Pegunungan Salju Barat Laut
+  if (x < -120 && z < -330) {
+    return 'snow';
+  }
+
+  // E. Gurun Pasir Emas Solaria & Kanyon Kuno
+  if (z < -130 + Math.sin(x * 0.01) * 45 && x > -120) {
+    return 'desert';
+  }
+
+  // F. Padang Rumput Eldoria (Daratan Utama)
+  return 'grassland';
+}
+
+/**
+ * 2. SISTEM 4 CABANG SUNGAI (RIVER_SPLINES)
+ * - Sungai Barat Laut: Danau Titan (-240, -370) -> timur Astraea (-150, -210) -> Titik Temu (-20, 40)
+ * - Sungai Utara (Gurun): Titik Temu (-20, 40) -> selatan Oase (95, -130) -> barat Kawah Boss (185, -350)
+ * - Sungai Timur: Titik Temu (-20, 40) -> ke timur (240, 55) -> barat Lembah Lumut (395, -40) -> lereng timur laut (415, -240)
+ * - Sungai Hilir Selatan: Titik Temu (-20, 40) -> lurus ke pantai selatan (-15, 195)
+ */
+export interface RiverSplineDef {
+  id: string;
+  name: string;
+  points: [number, number][];
+}
+
+export const RIVER_NW_BRANCH: [number, number][] = [
+  [-240, -370], // Outlet Danau Titan
+  [-210, -320],
+  [-180, -265],
+  [-150, -210], // Timur Ibukota Astraea (Jembatan 1)
+  [-110, -150],
+  [-70, -85],
+  [-40, -20],
+  [-20, 40],    // Titik Temu (Confluence)
+];
+
+export const RIVER_DESERT_BRANCH: [number, number][] = [
+  [-20, 40],    // Titik Temu
+  [15, -10],
+  [55, -70],
+  [95, -130],   // Selatan Oase Solaria
+  [140, -200],
+  [170, -275],
+  [185, -350],  // Barat Kawah World Boss (235, -380)
+  [165, -425],
+  [130, -465],
+  [90, -490],   // Kanyon Kuno
+];
+
+export const RIVER_EAST_BRANCH: [number, number][] = [
+  [-20, 40],    // Titik Temu
+  [50, 45],
+  [120, 48],
+  [180, 52],
+  [240, 55],    // Jembatan Val-Kragor Access
+  [300, 45],
+  [360, 20],
+  [395, 25],    // Jembatan Akses Barat Lembah Batu Lumut
+  [395, -40],   // Menyusuri barat Lembah Batu Lumut & timur Hutan Kabut
+  [405, -110],
+  [400, -175],
+  [415, -240],  // Pegunungan Timur Laut
+];
+
+export const RIVER_SOUTH_BRANCH: [number, number][] = [
+  [-20, 40],    // Titik Temu
+  [-19, 80],
+  [-18, 90],    // Jembatan Selatan / Tengah
+  [-18, 120],
+  [-16, 160],
+  [-15, 195],   // Muara Samudra Selatan
+];
+
+export const RIVER_SPLINES: RiverSplineDef[] = [
+  { id: 'river_nw', name: 'Sungai Barat Laut', points: RIVER_NW_BRANCH },
+  { id: 'river_desert', name: 'Sungai Gurun Utara', points: RIVER_DESERT_BRANCH },
+  { id: 'river_east', name: 'Sungai Lembah Timur', points: RIVER_EAST_BRANCH },
+  { id: 'river_south', name: 'Sungai Muara Selatan', points: RIVER_SOUTH_BRANCH },
+];
+
+function distToSegment(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const lenSq = dx * dx + dz * dz;
+  if (lenSq === 0) return Math.hypot(px - ax, pz - az);
+  let t = ((px - ax) * dx + (pz - az) * dz) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), pz - (az + t * dz));
+}
+
+export function getDistanceToRiver(px: number, pz: number): number {
+  let minDist = Infinity;
+  for (const branch of RIVER_SPLINES) {
+    const pts = branch.points;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const d = distToSegment(px, pz, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]);
+      if (d < minDist) minDist = d;
+    }
+  }
+  return minDist;
+}
+
+/**
+ * 3. JARINGAN JALAN RAYA & JEMBATAN (ROAD_SPLINES & BRIDGE_CONFIGS)
+ */
+export interface RoadSplineDef {
+  id: string;
+  name: string;
+  width: number;
+  points: [number, number][];
+}
+
+export const ROAD_SPLINES: RoadSplineDef[] = [
+  // A. Jalan Desa Utama (25, 135) ke Pelabuhan (-135, 165)
+  {
+    id: 'road_village_harbor',
+    name: 'Jalan Desa ke Pelabuhan Sanctuary',
+    width: 3.2,
+    points: [
+      [25, 135],
+      [-25, 145],
+      [-85, 155],
+      [-135, 165],
+    ],
+  },
+  // B. Jalan Desa Utama ke Ibukota Astraea (-250, -210) via Jalur Barat Daya
+  {
+    id: 'road_village_astraea_south',
+    name: 'Jalan Barat Daya Sanctuary - Astraea',
+    width: 3.2,
+    points: [
+      [25, 135],
+      [-50, 110],
+      [-120, 70],
+      [-190, -20],
+      [-230, -120],
+      [-250, -210],
+    ],
+  },
+  // C. Jalan Lintas Jembatan 1 Astraea - Dataran Tengah
+  {
+    id: 'road_astraea_central',
+    name: 'Jalan Raya Jembatan 1 Astraea - Dataran Tengah',
+    width: 3.2,
+    points: [
+      [-250, -210],
+      [-200, -210],
+      [-150, -210], // Jembatan 1
+      [-110, -130],
+      [-70, -30],
+      [-20, 40],    // Titik Temu
+    ],
+  },
+  // D. Jalan Desa Utama ke Mage Tower (10, 45) & Jembatan Selatan
+  {
+    id: 'road_village_magetower',
+    name: 'Jalan Menuju Mage Tower & Persimpangan Tengah',
+    width: 3.0,
+    points: [
+      [25, 135],
+      [20, 90],
+      [-18, 90],   // Jembatan Selatan
+      [10, 45],
+    ],
+  },
+  // E. Jalan Desa Utama ke Desa Benteng Val-Kragor (315, 105)
+  {
+    id: 'road_village_valkragor',
+    name: 'Jalan Raya Timur Sanctuary - Val-Kragor',
+    width: 3.2,
+    points: [
+      [25, 135],
+      [90, 100],
+      [160, 85],
+      [240, 55],   // Jembatan Val-Kragor
+      [280, 80],
+      [315, 105],  // Benteng Val-Kragor
+    ],
+  },
+  // F. Jalan Setapak Kecil Val-Kragor ke Lembah Batu Lumut (455, 35)
+  {
+    id: 'road_valkragor_mossvalley',
+    name: 'Jalan Setapak Akses Lembah Batu Lumut',
+    width: 2.0,
+    points: [
+      [315, 105],
+      [355, 75],
+      [395, 25],   // Jembatan Kayu Lembah Lumut
+      [425, 30],
+      [455, 35],   // Pusat Lembah Batu Lumut
+    ],
+  },
+  // G. Jalur Kafilah Gurun Solaria: Oase -> Piramida -> Boss Crater -> Istana Sultan
+  {
+    id: 'road_desert_caravan',
+    name: 'Jalur Kafilah Pasir Gurun Solaria',
+    width: 4.0,
+    points: [
+      [65, -240],   // Oase Solaria
+      [15, -330],   // Piramida Emas
+      [125, -360],
+      [235, -380],  // Kawah World Boss
+      [310, -410],
+      [375, -440],  // Istana Sultan Malik
+    ],
+  },
+];
+
+export function getDistanceToRoad(px: number, pz: number): number {
+  let minDist = Infinity;
+  for (const road of ROAD_SPLINES) {
+    const pts = road.points;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const d = distToSegment(px, pz, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]);
+      if (d < minDist) minDist = d;
+    }
+  }
+  return minDist;
+}
+
+export function isPointOnRoad(px: number, pz: number, margin = 2.0): boolean {
+  return getDistanceToRoad(px, pz) <= margin;
+}
+
+export interface BridgeDef {
+  id: string;
+  name: string;
+  nameId: string;
+  x: number;
+  z: number;
+  rotationY: number;
+  length: number;
+  width: number;
+  type: 'stone' | 'suspension' | 'wood';
+}
+
+export const BRIDGE_CONFIGS: BridgeDef[] = [
+  {
+    id: 'bridge_astraea',
+    name: 'Astraea Highway River Crossing',
+    nameId: 'Jembatan 1: Penyeberangan Astraea',
+    x: -150,
+    z: -210,
+    rotationY: 0,
+    length: 26,
+    width: 4.8,
+    type: 'stone',
+  },
+  {
+    id: 'bridge_south_chasm',
+    name: 'Central South Suspension Bridge',
+    nameId: 'Jembatan 2: Jembatan Gantung Tengah',
+    x: -18,
+    z: 90,
+    rotationY: 0,
+    length: 22,
+    width: 4.8,
+    type: 'suspension',
+  },
+  {
+    id: 'bridge_valkragor',
+    name: 'Val-Kragor Highway Stone Bridge',
+    nameId: 'Jembatan 3: Jembatan Benteng Val-Kragor',
+    x: 240,
+    z: 55,
+    rotationY: Math.PI / 2,
+    length: 24,
+    width: 4.8,
+    type: 'stone',
+  },
+  {
+    id: 'bridge_moss_valley',
+    name: 'Moss Rock Valley Wooden Footbridge',
+    nameId: 'Jembatan 4: Jembatan Kayu Lembah Batu Lumut',
+    x: 395,
+    z: 25,
+    rotationY: Math.PI / 2,
+    length: 22,
+    width: 3.6,
+    type: 'wood',
+  },
+];
+
+/**
+ * 4. DAFTAR 14 WILAYAH & LANDMARK INTERAKTIF (WORLD_LANDMARKS)
+ * Tepat 14 landmark dengan koordinat presisi, level, tipe, dan deskripsi lore
+ */
+export interface LandmarkDef {
+  id: string;
+  name: string;
+  nameId: string;
+  x: number;
+  z: number;
+  level: number;
+  type:
+    | 'lake'
+    | 'capital'
+    | 'canyon'
+    | 'pyramid'
+    | 'oasis'
+    | 'boss'
+    | 'palace'
+    | 'forest'
+    | 'ruins'
+    | 'fortress'
+    | 'valley'
+    | 'village'
+    | 'harbor';
+  icon: string;
+  color: string;
+  description: string;
+  descriptionId: string;
+  isBoss?: boolean;
+  isSafeZone?: boolean;
+  waypointId?: string;
+}
+
+export const WORLD_LANDMARKS: LandmarkDef[] = [
+  {
+    id: 'danau_titan',
+    name: 'Ancient Titan Lake Valley',
+    nameId: 'Lembah Danau Titan Kuno',
+    x: -250,
+    z: -430,
+    level: 6,
+    type: 'lake',
+    icon: '🏔️',
+    color: '#38bdf8',
+    description: 'A crystalline glacial mountain lake surrounded by snow-capped peaks in the far northwest, headwaters of the Eldorian rivers.',
+    descriptionId: 'Danau air tawar purba berair jernih di ketinggian pegunungan es barat laut, hulu utama sungai benua Eldoria.',
+    waypointId: 'wp_titan',
+  },
+  {
+    id: 'astraea',
+    name: 'Imperial Capital Astraea & Sun Palace',
+    nameId: 'Ibukota Kerajaan Emas Astraea & Istana Kaisar',
+    x: -250,
+    z: -210,
+    level: 5,
+    type: 'capital',
+    icon: '👑',
+    color: '#fbbf24',
+    description: 'The monumental golden capital of Emperor Aurelius with grand stone walls, white marble arcades, and imperial guards.',
+    descriptionId: 'Kompleks benteng kastil megah berpilar emas putih dan tahta Kaisar Aurelius di lereng selatan pegunungan salju.',
+    isSafeZone: true,
+    waypointId: 'wp_astraea',
+  },
+  {
+    id: 'canyon',
+    name: 'Ancient Canyon',
+    nameId: 'Kanyon Kuno',
+    x: 90,
+    z: -490,
+    level: 8,
+    type: 'canyon',
+    icon: '🏜️',
+    color: '#ea580c',
+    description: 'Towering terracotta canyon cliffs and sandstone chasms guarding the northernmost border of the continent.',
+    descriptionId: 'Tebing bebatuan cadas merah terjal bertingkat dan ngarai jurang sandstone di perbatasan utara gurun.',
+    waypointId: 'wp_canyon',
+  },
+  {
+    id: 'pyramid',
+    name: 'Solaria Golden Pyramid',
+    nameId: 'Piramida Emas Solaria',
+    x: 15,
+    z: -330,
+    level: 7,
+    type: 'pyramid',
+    icon: '🏛️',
+    color: '#eab308',
+    description: 'Twin ancient golden sandstone pyramids built by the Sun Pharaohs among rolling dunes.',
+    descriptionId: 'Dua monumen piramida emas kuno peninggalan peradaban matahari di tengah hamparan bukit pasir gurun.',
+    waypointId: 'wp_pyramid',
+  },
+  {
+    id: 'oasis',
+    name: 'Hidden Solaria Oasis',
+    nameId: 'Oase Solaria',
+    x: 65,
+    z: -240,
+    level: 5,
+    type: 'oasis',
+    icon: '🌴',
+    color: '#14b8a6',
+    description: 'A natural freshwater turquoise spring shaded by date palms providing sanctuary in the harsh desert heat.',
+    descriptionId: 'Kolam mata air tawar pirus jernih dinaungi rumpun pohon palem kurma rindang di tengah gurun.',
+    waypointId: 'wp_oasis',
+  },
+  {
+    id: 'kawah_boss',
+    name: 'Ancient Sandworm Sinkhole',
+    nameId: 'Kawah Cacat World Boss (Lv. 10)',
+    x: 235,
+    z: -380,
+    level: 10,
+    type: 'boss',
+    icon: '🪱',
+    color: '#ea580c',
+    description: 'A massive whirling quicksand depression, hunting ground of the mythical Ancient Sandworm Jarrus.',
+    descriptionId: 'Cekungan kawah pasir hisap raksasa berpagar tebing batu, arena pertempuran World Boss Cacing Purba Jarrus.',
+    isBoss: true,
+    waypointId: 'wp_boss_crater',
+  },
+  {
+    id: 'sultan_palace',
+    name: 'Sultan Malik Grand Palace',
+    nameId: 'Istana Sultan Malik',
+    x: 375,
+    z: -440,
+    level: 8,
+    type: 'palace',
+    icon: '🕌',
+    color: '#d97706',
+    description: 'The opulent white marble and golden domed desert palace of Sultan Malik al-Solaria in the northeast corner.',
+    descriptionId: 'Kompleks istana megah kubah marmer emas penguasa Gurun Pasir Solaria di pojok timur laut benua.',
+    waypointId: 'wp_sultan_palace',
+  },
+  {
+    id: 'mist_forest',
+    name: 'Eldoria Mist Forest',
+    nameId: 'Hutan Kabut Eldoria',
+    x: 330,
+    z: -140,
+    level: 5,
+    type: 'forest',
+    icon: '🌲',
+    color: '#15803d',
+    description: 'Ancient dark spruce and oak wilderness draped in thick atmospheric low ground mist.',
+    descriptionId: 'Hutan pohon pinus & oak raksasa lebat yang senantiasa diselimuti kabut atmosferik misterius.',
+    waypointId: 'wp_mist_forest',
+  },
+  {
+    id: 'abandoned_castle',
+    name: 'Abandoned Castle Ruins',
+    nameId: 'Puing Kastil Terbengkalai',
+    x: 215,
+    z: -25,
+    level: 4,
+    type: 'ruins',
+    icon: '🏰',
+    color: '#64748b',
+    description: 'Weathered fortress battlements, broken watchtowers, and collapsed slate pillars from an ancient war.',
+    descriptionId: 'Reruntuhan tembok benteng masa lalu, menara patah berlumut, dan pilar batu roboh.',
+    waypointId: 'wp_abandoned_castle',
+  },
+  {
+    id: 'valkragor',
+    name: 'Fortress Village Val-Kragor',
+    nameId: 'Desa Benteng Val-Kragor',
+    x: 315,
+    z: 105,
+    level: 3,
+    type: 'fortress',
+    icon: '🛡️',
+    color: '#3b82f6',
+    description: 'A fortified highland village with wooden palisades, corner watchtowers, blacksmith, and red-roofed cottages.',
+    descriptionId: 'Desa berpagar benteng kayu runcing & tembok batu slate dengan barak, bengkel tempa, dan rumah atap merah.',
+    waypointId: 'wp_valkragor',
+  },
+  {
+    id: 'moss_valley',
+    name: 'Moss Rock Valley',
+    nameId: 'Lembah Batu Lumut',
+    x: 455,
+    z: 35,
+    level: 5,
+    type: 'valley',
+    icon: '🪨',
+    color: '#65a30d',
+    description: 'A serene secluded valley enclosed by smooth green cliffs, home to giant ancient mossy megaliths and waterfalls.',
+    descriptionId: 'Lembah hijau terisolasi di ujung timur, dipagari tebing hijau halus, penuh batu megalit berlumut dan air terjun timur.',
+    waypointId: 'wp_moss_valley',
+  },
+  {
+    id: 'village',
+    name: 'Sanctuary Village & Central Plains',
+    nameId: 'Desa Utama & Padang Rumput Eldoria',
+    x: 25,
+    z: 135,
+    level: 1,
+    type: 'village',
+    icon: '🏡',
+    color: '#65a30d',
+    description: 'The peaceful starting settlement of adventurers on the lush southern coastal plains with wooden houses and windmills.',
+    descriptionId: 'Pemukiman sentral awal para petualang di padang rumput pesisir selatan Eldoria dengan rumah, kebun, & kincir angin.',
+    isSafeZone: true,
+    waypointId: 'wp_village',
+  },
+  {
+    id: 'harbor',
+    name: 'Sanctuary Harbor',
+    nameId: 'Pelabuhan Sanctuary',
+    x: -135,
+    z: 165,
+    level: 1,
+    type: 'harbor',
+    icon: '⛵',
+    color: '#06b6d4',
+    description: 'The bustling coastal wooden boardwalk docks where merchant galleons and fishing boats arrive from across the sea.',
+    descriptionId: 'Dermaga kayu pelabuhan menjorok ke Samudra Azure di pesisir barat daya.',
+    waypointId: 'wp_harbor',
+  },
+  {
+    id: 'caldera',
+    name: 'Dragonfang Caldera',
+    nameId: 'Kaldera Sarang Naga',
+    x: -40,
+    z: 275,
+    level: 12,
+    type: 'boss',
+    icon: '🐉',
+    color: '#dc2626',
+    description: 'A scorching volcanic island across the south sea, rimmed with jagged basalt horns and boiling lava pools, nest of Ancient Dragon Ignis.',
+    descriptionId: 'Pulau vulkanik magma lahar merah di laut selatan, sarang bertarung World Boss Ignis Sang Naga Purba.',
+    isBoss: true,
+    waypointId: 'wp_caldera',
+  },
+];
+
+/**
+ * 5. FUNGSI ELEVASI MEDAN 3D KONTINU (getProceduralContinentHeight)
+ * Menghasilkan tinggi Y fisik terrain 3D untuk Three.js vertex deformation dan pergerakan karakter
+ */
+export function getProceduralContinentHeight(x: number, z: number): number {
+  const biome = getBiomeAt(x, z);
+
+  // A. Kaldera Vulkanik Sarang Naga [-40, 275]
+  if (biome === 'volcano') {
+    const distCenter = Math.hypot(x - (-40), z - 275);
+    if (distCenter <= 25) return 2.50; // Lantai kawah lahar rata
+    if (distCenter <= 45) {
+      const t = (distCenter - 25) / 20;
+      return 2.50 + Math.sin(t * Math.PI) * 4.5; // Dinding basalt kawah
+    }
+    const tEdge = (distCenter - 45) / 20;
+    return Math.max(0.2, 3.5 * (1.0 - tEdge));
+  }
+
+  // B. Samudra & Laut Lepas
+  if (biome === 'ocean') {
+    // Garis pantai melandai ke dalam air
+    const distSouthCoast = z - (190 + Math.cos(x * 0.012) * 25);
+    const distWestCoast = (-380 + Math.sin(z * 0.015) * 35) - x;
+    const isBay = x > 360 && z > 110;
+    const coastDist = Math.max(distSouthCoast, distWestCoast, isBay ? 10 : -10);
+
+    if (coastDist <= 12) {
+      return 0.2 - (coastDist / 12) * 2.8; // Transisi pantai pasir basah
+    }
+    return -3.5; // Kedalaman laut lepas
+  }
+
+  // C. Danau Air Tawar Titan Kuno [-250, -430]
+  if (biome === 'lake') {
+    const distLake = Math.hypot(x - (-250), z - (-430));
+    if (distLake <= 42) return -2.50; // Dasar danau air biru
+    const t = (distLake - 42) / 18;
+    return -2.50 + t * 3.5; // Lereng tepian danau naik ke daratan
+  }
+
+  // D. Pegunungan Salju Barat Laut
+  if (biome === 'snow') {
+    const distLake = Math.hypot(x - (-250), z - (-430));
+    const mountainWave = Math.sin(x * 0.02) * Math.cos(z * 0.02) * 6.0 + Math.sin((x + z) * 0.035) * 3.0;
+    if (distLake > 55) {
+      return Math.max(8.0, Math.min(22.0, 14.0 + mountainWave));
+    }
+    return 3.0 + mountainWave * 0.5;
+  }
+
+  // E. Gurun Pasir Emas Solaria
+  if (biome === 'desert') {
+    // Kanyon Kuno [90, -490]
+    const distCanyon = Math.hypot(x - 90, z - -490);
+    if (distCanyon <= 65) {
+      const canyonNoise = Math.sin(x * 0.04) * Math.cos(z * 0.035) * 4.0;
+      return Math.max(8.0, Math.min(18.0, 12.0 + canyonNoise));
+    }
+
+    // Istana Sultan Malik [375, -440]
+    if (Math.hypot(x - 375, z - -440) <= 36) return 2.00;
+
+    // Piramida Emas Solaria [15, -330]
+    if (Math.hypot(x - 15, z - -330) <= 32) return 1.50;
+
+    // Oase Solaria [65, -240]
+    const distOasis = Math.hypot(x - 65, z - -240);
+    if (distOasis < 16) return -0.4;
+    if (distOasis < 26) return 0.6;
+
+    // Kawah World Boss [235, -380]
+    const distSinkhole = Math.hypot(x - 235, z - -380);
+    if (distSinkhole <= 45) {
+      const t = distSinkhole / 45;
+      const bowl = Math.pow(t, 1.8) * 2.5 - 2.5;
+      return 1.80 + bowl;
+    }
+
+    // Bukit pasir bergulung lembut
+    const duneWave = Math.sin(x * 0.03 + z * 0.025) * 1.1 + Math.cos(x * 0.015 - z * 0.025) * 0.5;
+    return Math.max(0.5, Math.min(3.5, 1.5 + duneWave));
+  }
+
+  // F. Padang Rumput Eldoria (Grassland)
+  // 1. Desa Utama Sanctuary [25, 135] (Dataran rata)
+  const distVillage = Math.hypot(x - 25, z - 135);
+  if (distVillage <= 55) return 0.25;
+
+  // 2. Pelabuhan Sanctuary [-135, 165]
+  if (Math.hypot(x - -135, z - 165) <= 24) return 0.35;
+
+  // 3. Ibukota Kerajaan Emas Astraea [-250, -210]
+  if (Math.hypot(x - -250, z - -210) <= 48) return 2.00;
+
+  // 4. Desa Benteng Val-Kragor [315, 105]
+  if (Math.hypot(x - 315, z - 105) <= 38) return 2.00;
+
+  // 5. Puing Kastil Terbengkalai [215, -25]
+  if (Math.hypot(x - 215, z - -25) <= 32) return 1.40;
+
+  // 6. Hutan Kabut Eldoria [330, -140]
+  const distMist = Math.hypot(x - 330, z - -140);
+  if (distMist <= 55) {
+    const mistWave = Math.sin(x * 0.035 + z * 0.03) * 1.8 + 3.2;
+    return mistWave;
+  }
+
+  // 7. Lembah Batu Lumut [455, 35] - Smoothstep Gaussian Bowl alami (tanpa tebing kotak curam)
+  const distMoss = Math.hypot(x - 455, z - 35);
+  if (distMoss <= 55) {
+    if (distMoss <= 32) return 0.50; // Lantai lembah rata rendah
+    const t = (distMoss - 32) / (55 - 32);
+    const s = t * t * (3 - 2 * t);
+    const surroundingHills = Math.max(9.0, Math.min(11.5, 9.5 + Math.sin(x * 0.04) * 1.5));
+    return 0.50 + s * (surroundingHills - 0.50);
+  }
+
+  // 8. Jembatan (Walkable Deck Height)
+  for (const b of BRIDGE_CONFIGS) {
+    if (Math.hypot(x - b.x, z - b.z) <= b.length / 2 + 1.0) {
+      if (b.type === 'suspension') return 1.35;
+      return 0.45;
+    }
+  }
+
+  // 9. Palung Sungai (Carve river depth)
+  const distRiver = getDistanceToRiver(x, z);
+  if (distRiver < 6.0) {
+    const edge = distRiver / 6.0;
+    return -2.2 * Math.cos(edge * (Math.PI / 2));
+  }
+
+  // 10. Jalan Raya Utama
+  if (isPointOnRoad(x, z, 2.5)) {
+    return 0.35;
+  }
+
+  // 11. Perbukitan Timur Luas
+  if (x > 240) {
+    const eastHills = Math.sin(x * 0.015) * Math.cos(z * 0.012) * 4.5 + Math.sin(z * 0.025) * 1.8;
+    return Math.max(0.8, Math.min(13.0, 3.2 + eastHills));
+  }
+
+  // 12. Padang rumput umum bergelombang santai
+  const gentleNoise =
+    Math.sin(x * 0.015 + z * 0.011) * 1.6 +
+    Math.cos(x * 0.008 - z * 0.012) * 1.2 +
+    Math.sin((x + z) * 0.02) * 0.4;
+
+  return Math.max(0.0, Math.min(2.2, 0.4 + gentleNoise));
+}
+
+/**
+ * 6. PROYEKSI KOORDINAT PERSENTASE PETA (worldToMapPercent & mapPercentToWorld)
+ * Pemetaan linear 100% langsung dari WORLD_BOUNDS
+ * X: -500..500 (1000 unit), Z: -550..350 (900 unit)
+ */
+export function worldToMapPercent(x: number, z: number): {
+  xPercent: number;
+  yPercent: number;
+  left: string;
+  top: string;
+} {
+  const normX = (x - WORLD_BOUNDS.minX) / WORLD_WIDTH;
+  const normZ = (z - WORLD_BOUNDS.minZ) / WORLD_HEIGHT;
+  const pctX = Math.max(0, Math.min(100, normX * 100));
+  const pctY = Math.max(0, Math.min(100, normZ * 100));
+  return {
+    xPercent: pctX,
+    yPercent: pctY,
+    left: `${pctX.toFixed(2)}%`,
+    top: `${pctY.toFixed(2)}%`,
+  };
+}
+
+export function mapPercentToWorld(pctX: number, pctY: number): { x: number; z: number } {
+  const normX = pctX / 100;
+  const normZ = pctY / 100;
+  const x = WORLD_BOUNDS.minX + normX * WORLD_WIDTH;
+  const z = WORLD_BOUNDS.minZ + normZ * WORLD_HEIGHT;
+  return { x, z };
+}

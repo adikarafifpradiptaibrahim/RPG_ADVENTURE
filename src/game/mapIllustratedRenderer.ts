@@ -1,39 +1,50 @@
 /**
  * High-Resolution Vector Illustrated World Map Renderer
- * Renders smooth anti-aliased biomes, natural continental silhouette & coastlines,
- * organic meandering rivers, illustrated landmarks, and clean stroke-outlined typography.
- * Identical to target reference image_b16321.png.
+ * Single Source of Truth: Driven 100% by src/game/3d/worldData.ts
+ *
+ * Renders:
+ * 1. Deep Azure Ocean background (#0284c7) with gentle southern wave ripples
+ * 2. Continental Silhouette & Shoreline with warm sandy beach fringe (#fef08a / #fde047)
+ * 3. Vibrant Eldoria Grasslands (#65a30d / #70a827) with gentle contour lines
+ * 4. Solaria Golden Desert with rolling dunes & sunlight crest highlights
+ * 5. Ancient Canyon with stratified terracotta mesas & drop shadows
+ * 6. Northwest Snowy Mountains & Glacial Titan Lake with center islet
+ * 7. Eldoria Mist Forest with deep dark canopies and atmospheric floating mist clouds
+ * 8. Ancient Sandworm Sinkhole / World Boss Crater with concentric rings & fissures
+ * 9. Sultan Malik's Grand Palace with golden onion dome & minarets
+ * 10. Astraea Imperial Castle & Sun Palace with stone curtain walls & golden cones
+ * 11. Abandoned Castle Ruins with broken battlements
+ * 12. Fortress Village Val-Kragor with timber palisades & red-roofed keep
+ * 13. Moss Rock Valley with moss-capped standing megaliths
+ * 14. Sanctuary Village (thatched cottages & red Torii gate) & Sanctuary Harbor (piers & ships)
+ * 15. Dragonfang Caldera volcanic island with fiery molten lava pit
+ * 16. 4-Branch Meandering River Network (RIVER_SPLINES) with dark banks & light water
+ * 17. Road Network (ROAD_SPLINES) with dashed lines
+ * 18. Wooden Bridges (BRIDGE_CONFIGS) across river intersections
+ * 19. Clean Outlined Landmark Titles (white text + crisp black outline, NO background boxes)
+ *
+ * ZERO baked-in zoom buttons, ZERO compass, ZERO mouse hints, ZERO baked-in "Kamu Disini"!
  */
 
-export interface MapBounds {
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
+import {
+  WORLD_BOUNDS,
+  WORLD_WIDTH,
+  WORLD_HEIGHT,
+  WORLD_LANDMARKS,
+  RIVER_SPLINES,
+  ROAD_SPLINES,
+  BRIDGE_CONFIGS,
+  worldToMapPercent,
+  LandmarkDef,
+} from './3d/worldData';
+
+export function worldToCanvas(wx: number, wz: number, width: number, height: number): [number, number] {
+  const normX = (wx - WORLD_BOUNDS.minX) / WORLD_WIDTH;
+  const normZ = (wz - WORLD_BOUNDS.minZ) / WORLD_HEIGHT;
+  return [normX * width, normZ * height];
 }
 
-export const MAP_BOUNDS: MapBounds = {
-  minX: -580,
-  maxX: 680,
-  minZ: -580,
-  maxZ: 460,
-};
-
-export function normToWorld(nx: number, ny: number, bounds: MapBounds = MAP_BOUNDS): [number, number] {
-  return [
-    bounds.minX + nx * (bounds.maxX - bounds.minX),
-    bounds.minZ + ny * (bounds.maxZ - bounds.minZ),
-  ];
-}
-
-export function worldToNorm(wx: number, wz: number, bounds: MapBounds = MAP_BOUNDS): [number, number] {
-  return [
-    (wx - bounds.minX) / (bounds.maxX - bounds.minX),
-    (wz - bounds.minZ) / (bounds.maxZ - bounds.minZ),
-  ];
-}
-
-function n2c(nx: number, ny: number, width: number, height: number): [number, number] {
+export function normToCanvas(nx: number, ny: number, width: number, height: number): [number, number] {
   return [nx * width, ny * height];
 }
 
@@ -65,7 +76,8 @@ function drawSmoothSpline(ctx: CanvasRenderingContext2D, points: [number, number
 }
 
 /**
- * Renders clean white text with a crisp thick black outline (NO background boxes).
+ * Renders crisp outlined typography: pure white fill with a thick black stroke.
+ * Guarantees high readability on any background with ZERO ugly black boxes.
  */
 export function drawOutlinedText(
   ctx: CanvasRenderingContext2D,
@@ -81,7 +93,7 @@ export function drawOutlinedText(
   ctx.textAlign = align;
   ctx.textBaseline = 'middle';
 
-  // Thick black stroke
+  // Thick crisp black outline
   ctx.strokeStyle = '#000000';
   ctx.lineWidth = Math.max(3.2, fontSize * 0.28);
   ctx.lineJoin = 'round';
@@ -95,19 +107,20 @@ export function drawOutlinedText(
 }
 
 /**
- * Master render function for the illustrated map
+ * MASTER RENDER FUNCTION
+ * Draws the high-res illustrated map onto any 2D canvas context.
  */
 export function renderIllustratedMap(
   ctx: CanvasRenderingContext2D,
   width: number,
-  height: number,
-  _bounds: MapBounds = MAP_BOUNDS
+  height: number
 ) {
   ctx.save();
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  const toC = (nx: number, ny: number): [number, number] => n2c(nx, ny, width, height);
+  const toC = (nx: number, ny: number): [number, number] => normToCanvas(nx, ny, width, height);
+  const wToC = (wx: number, wz: number): [number, number] => worldToCanvas(wx, wz, width, height);
 
   // ==========================================================================
   // 1. AZURE OCEAN BACKGROUND
@@ -119,13 +132,13 @@ export function renderIllustratedMap(
   ctx.fillStyle = oceanGrad;
   ctx.fillRect(0, 0, width, height);
 
-  // Soft subtle ocean ripples in south sea
+  // Subtle wave ripple arcs in the southern ocean waters
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
   ctx.lineWidth = 1.3;
   const rippleZones: { pos: [number, number]; r: number }[] = [
     { pos: toC(0.18, 0.86), r: width * 0.045 },
-    { pos: toC(0.35, 0.88), r: width * 0.055 },
-    { pos: toC(0.68, 0.85), r: width * 0.060 },
+    { pos: toC(0.32, 0.88), r: width * 0.055 },
+    { pos: toC(0.65, 0.86), r: width * 0.060 },
     { pos: toC(0.78, 0.90), r: width * 0.050 },
     { pos: toC(0.12, 0.92), r: width * 0.040 },
     { pos: toC(0.92, 0.72), r: width * 0.045 },
@@ -139,11 +152,10 @@ export function renderIllustratedMap(
   // ==========================================================================
   // 2. CONTINENTAL LANDMASS SILHOUETTE & NATURAL COASTLINE
   // ==========================================================================
-  // Sesuai normalized coordinates:
-  // West Coast: (0.0, 0.0) -> (0.08, 0.35) -> (0.06, 0.55) -> (0.11, 0.72) -> (0.13, 0.76)
-  // South Coast: (0.13, 0.76) -> (0.36, 0.74) -> (0.50, 0.76) -> (0.68, 0.73) -> (0.87, 0.87)
-  // East / SE Coast: (0.87, 0.87) -> (0.85, 0.75) -> (0.89, 0.62) -> (1.0, 0.55)
-  // North / NE border: Solid continental landmass from (1.0, 0.55) -> (1.0, 0.0) -> (0.0, 0.0)
+  // West Coast: starts below snow mountains (0.08, 0.35) -> (0.06, 0.55) -> (0.11, 0.72) -> (0.13, 0.76)
+  // South Coast: (0.13, 0.76) -> Harbor Bay (0.36, 0.74) -> Cape Village (0.50, 0.76) -> (0.68, 0.73) -> (0.78, 0.78) -> (0.87, 0.87)
+  // Southeast Bay: (0.87, 0.87) -> (0.85, 0.75) -> (0.89, 0.62) -> exits right border at (1.0, 0.55)
+  // North / NE border: Solid continental mass from (1.0, 0.55) -> (1.0, 0.0) -> (0.0, 0.0)
   const normCoastline: [number, number][] = [
     [0.08, 0.35],
     [0.07, 0.44],
@@ -154,24 +166,23 @@ export function renderIllustratedMap(
     [0.22, 0.75],
     [0.36, 0.74], // Sanctuary Harbor Bay
     [0.44, 0.75],
-    [0.50, 0.76], // Tanjung Desa Utama
+    [0.50, 0.76], // Cape South of Village
     [0.58, 0.75],
-    [0.68, 0.73], // Rises slightly
-    [0.78, 0.78], // Curves SE towards Val-Kragor peninsula
-    [0.87, 0.87], // Ujung Tanjung Tenggara
-    [0.85, 0.75], // Curves NNE into Eastern Bay
+    [0.68, 0.73],
+    [0.78, 0.78], // Curves towards Val-Kragor peninsula
+    [0.87, 0.87], // Southeast Cape
+    [0.85, 0.75], // Curves NNE into Southeast Bay
     [0.89, 0.62],
     [0.95, 0.58],
     [1.00, 0.55], // Exits right screen border
   ];
 
-  // Full continental polygon (closed through top edge)
   const normContinentPoly: [number, number][] = [
-    [0.00, 0.00], // Top-Left corner (solid landmass)
+    [0.00, 0.00], // Top-Left corner (snow mountains)
     [0.00, 0.35],
     ...normCoastline,
     [1.00, 0.55],
-    [1.00, 0.00], // Top-Right corner (solid landmass)
+    [1.00, 0.00], // Top-Right corner (desert / mountains)
     [0.00, 0.00],
   ];
 
@@ -184,12 +195,12 @@ export function renderIllustratedMap(
   ctx.lineJoin = 'round';
 
   ctx.strokeStyle = '#fef08a';
-  ctx.lineWidth = 15;
+  ctx.lineWidth = Math.max(8, width * 0.018);
   drawSmoothSpline(ctx, coastCanvas);
   ctx.stroke();
 
   ctx.strokeStyle = '#fde047';
-  ctx.lineWidth = 7;
+  ctx.lineWidth = Math.max(4, width * 0.009);
   drawSmoothSpline(ctx, coastCanvas);
   ctx.stroke();
   ctx.restore();
@@ -200,7 +211,7 @@ export function renderIllustratedMap(
   const grassGrad = ctx.createLinearGradient(0, height * 0.25, 0, height);
   grassGrad.addColorStop(0, '#7cb342');
   grassGrad.addColorStop(0.5, '#70a827');
-  grassGrad.addColorStop(1, '#689f38');
+  grassGrad.addColorStop(1, '#65a30d');
   ctx.fillStyle = grassGrad;
   ctx.fill();
   ctx.restore();
@@ -224,23 +235,21 @@ export function renderIllustratedMap(
   // ==========================================================================
   // 3. SOLARIA DESERT (GOLDEN SAND BIOME & ROLLING DUNES)
   // ==========================================================================
-  // Sesuai normalized coordinates:
-  // Starts at snowy mountain foot (0.35, 0.0) -> (0.37, 0.25) -> (0.41, 0.42)
-  // Below oasis: (0.48, 0.48) -> south of crater: (0.68, 0.43) -> north of mist forest: (0.82, 0.36)
-  // Exits right screen border at (1.0, 0.30)
+  // Bound by worldData formula (z < -130 + sin(x*0.01)*45 && x > -120)
+  // Sweeping organic curve from northwest snowy mountains down across center, north of mist forest
   const normDesertPoly: [number, number][] = [
-    [0.35, 0.00],
-    [0.36, 0.12],
-    [0.37, 0.25],
-    [0.41, 0.42], // Turns SE west of Pyramid & Oasis
-    [0.48, 0.48], // Below Oasis
-    [0.58, 0.46],
-    [0.68, 0.43], // South of World Boss Crater
+    [0.38, 0.00],
+    [0.38, 0.14],
+    [0.39, 0.26],
+    [0.42, 0.42], // West of Pyramid & Oasis
+    [0.48, 0.47], // Below Oasis
+    [0.58, 0.45],
+    [0.68, 0.42], // South of World Boss Crater
     [0.82, 0.36], // North of Hutan Kabut Eldoria
-    [0.92, 0.33],
-    [1.00, 0.30], // Exits right border
+    [0.92, 0.32],
+    [1.00, 0.28], // Exits right border
     [1.00, 0.00], // Top-Right corner
-    [0.35, 0.00], // Back to start along top border
+    [0.38, 0.00], // Top border
   ];
   const desertCanvas = normDesertPoly.map((p) => toC(p[0], p[1]));
 
@@ -259,15 +268,15 @@ export function renderIllustratedMap(
   ctx.stroke();
   ctx.restore();
 
-  // Beautiful Rolling Sand Dune Curves
+  // Rolling Sand Dune Curves
   ctx.save();
   const duneCurves: [number, number][][] = [
-    [[0.40, 0.18], [0.46, 0.16], [0.52, 0.19]],
+    [[0.42, 0.18], [0.48, 0.16], [0.54, 0.19]],
     [[0.50, 0.28], [0.56, 0.26], [0.62, 0.29]],
     [[0.60, 0.35], [0.66, 0.33], [0.72, 0.36]],
     [[0.68, 0.12], [0.74, 0.10], [0.80, 0.13]],
     [[0.54, 0.20], [0.60, 0.18], [0.66, 0.21]],
-    [[0.42, 0.30], [0.47, 0.28], [0.52, 0.31]],
+    [[0.43, 0.30], [0.48, 0.28], [0.53, 0.31]],
     [[0.72, 0.28], [0.78, 0.26], [0.84, 0.29]],
     [[0.82, 0.20], [0.88, 0.18], [0.94, 0.22]],
   ];
@@ -278,7 +287,7 @@ export function renderIllustratedMap(
     drawSmoothSpline(ctx, pts);
     ctx.stroke();
 
-    // Dune crest sunlight highlight
+    // Sunlight crest highlight
     ctx.strokeStyle = '#fef08a';
     ctx.lineWidth = 1.0;
     ctx.beginPath();
@@ -291,70 +300,71 @@ export function renderIllustratedMap(
 
   // ==========================================================================
   // 4. KANYON KUNO (NORTHERN RED CANYON MESAS & STRATIFIED CLIFFS)
+  // Center: [90, -490] -> norm [0.590, 0.067]
   // ==========================================================================
   ctx.save();
+  const canyonCenter = toC(0.590, 0.067);
   const mesaBlocks = [
-    { nx: 0.45, ny: 0.05, nw: 0.045, nh: 0.038 },
-    { nx: 0.50, ny: 0.04, nw: 0.055, nh: 0.042 },
-    { nx: 0.56, ny: 0.06, nw: 0.050, nh: 0.039 },
-    { nx: 0.48, ny: 0.09, nw: 0.040, nh: 0.032 },
-    { nx: 0.53, ny: 0.08, nw: 0.048, nh: 0.035 },
+    { ox: -35, oy: -15, w: 42, h: 32 },
+    { ox: 0, oy: -20, w: 48, h: 36 },
+    { ox: 38, oy: -12, w: 44, h: 32 },
+    { ox: -18, oy: 15, w: 38, h: 26 },
+    { ox: 22, oy: 18, w: 42, h: 28 },
   ];
   mesaBlocks.forEach((m) => {
-    const [mx, my] = toC(m.nx, m.ny);
-    const mw = m.nw * width;
-    const mh = m.nh * height;
+    const mx = canyonCenter[0] + m.ox;
+    const my = canyonCenter[1] + m.oy;
 
     // Drop shadow
     ctx.fillStyle = 'rgba(69, 26, 3, 0.45)';
-    ctx.fillRect(mx - mw / 2 + 2, my - mh / 2 + 3, mw, mh);
+    ctx.fillRect(mx - m.w / 2 + 2, my - m.h / 2 + 3, m.w, m.h);
 
     // Terracotta cliff face
-    const mesaGrad = ctx.createLinearGradient(mx, my - mh / 2, mx, my + mh / 2);
+    const mesaGrad = ctx.createLinearGradient(mx, my - m.h / 2, mx, my + m.h / 2);
     mesaGrad.addColorStop(0, '#ea580c');
     mesaGrad.addColorStop(0.5, '#c2410c');
     mesaGrad.addColorStop(1, '#9a3412');
     ctx.fillStyle = mesaGrad;
     ctx.beginPath();
-    ctx.roundRect(mx - mw / 2, my - mh / 2, mw, mh, 4);
+    ctx.roundRect(mx - m.w / 2, my - m.h / 2, m.w, m.h, 4);
     ctx.fill();
 
     // Strata geological lines
     ctx.strokeStyle = '#7c2d12';
     ctx.lineWidth = 1.3;
     ctx.beginPath();
-    ctx.moveTo(mx - mw / 2 + 2, my);
-    ctx.lineTo(mx + mw / 2 - 2, my);
-    ctx.moveTo(mx - mw / 2 + 4, my + mh * 0.25);
-    ctx.lineTo(mx + mw / 2 - 4, my + mh * 0.25);
+    ctx.moveTo(mx - m.w / 2 + 2, my);
+    ctx.lineTo(mx + m.w / 2 - 2, my);
+    ctx.moveTo(mx - m.w / 2 + 4, my + m.h * 0.25);
+    ctx.lineTo(mx + m.w / 2 - 4, my + m.h * 0.25);
     ctx.stroke();
 
     // Top rim highlight
     ctx.strokeStyle = '#fdba74';
     ctx.lineWidth = 1.3;
     ctx.beginPath();
-    ctx.moveTo(mx - mw / 2, my - mh / 2);
-    ctx.lineTo(mx + mw / 2, my - mh / 2);
+    ctx.moveTo(mx - m.w / 2, my - m.h / 2);
+    ctx.lineTo(mx + m.w / 2, my - m.h / 2);
     ctx.stroke();
   });
   ctx.restore();
 
   // ==========================================================================
   // 5. NORTHWEST SNOWY MOUNTAINS & TITAN LAKE
+  // Titan Lake center: [-250, -430] -> norm [0.250, 0.133]
   // ==========================================================================
   ctx.save();
-  // Mountain peaks encircling Titan Lake [0.254, 0.125]
   const snowPeaks = [
     { nx: 0.08, ny: 0.06, nw: 0.055, nh: 0.058 },
     { nx: 0.14, ny: 0.04, nw: 0.060, nh: 0.065 },
     { nx: 0.20, ny: 0.03, nw: 0.065, nh: 0.070 },
     { nx: 0.28, ny: 0.03, nw: 0.062, nh: 0.068 },
-    { nx: 0.34, ny: 0.05, nw: 0.058, nh: 0.060 },
-    { nx: 0.10, ny: 0.13, nw: 0.052, nh: 0.055 },
-    { nx: 0.12, ny: 0.21, nw: 0.050, nh: 0.052 },
-    { nx: 0.33, ny: 0.12, nw: 0.052, nh: 0.056 },
-    { nx: 0.36, ny: 0.20, nw: 0.048, nh: 0.052 },
-    { nx: 0.19, ny: 0.20, nw: 0.045, nh: 0.048 },
+    { nx: 0.35, ny: 0.05, nw: 0.058, nh: 0.060 },
+    { nx: 0.10, ny: 0.14, nw: 0.052, nh: 0.055 },
+    { nx: 0.12, ny: 0.22, nw: 0.050, nh: 0.052 },
+    { nx: 0.33, ny: 0.13, nw: 0.052, nh: 0.056 },
+    { nx: 0.36, ny: 0.21, nw: 0.048, nh: 0.052 },
+    { nx: 0.19, ny: 0.21, nw: 0.045, nh: 0.048 },
   ];
   snowPeaks.forEach((p) => {
     const [px, py] = toC(p.nx, p.ny);
@@ -394,8 +404,8 @@ export function renderIllustratedMap(
     ctx.stroke();
   });
 
-  // Ancient Titan Alpine Lake [0.254, 0.125]
-  const [tlx, tly] = toC(0.254, 0.125);
+  // Ancient Titan Alpine Lake [0.250, 0.133]
+  const [tlx, tly] = toC(0.250, 0.133);
   const tlrX = width * 0.075;
   const tlrY = height * 0.052;
 
@@ -417,7 +427,7 @@ export function renderIllustratedMap(
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Small mystical center island in Titan Lake
+  // Center islet in Titan Lake
   ctx.beginPath();
   ctx.ellipse(tlx, tly, tlrX * 0.18, tlrY * 0.18, 0, 0, Math.PI * 2);
   ctx.fillStyle = '#15803d';
@@ -425,7 +435,6 @@ export function renderIllustratedMap(
   ctx.strokeStyle = '#fef08a';
   ctx.lineWidth = 1;
   ctx.stroke();
-
   ctx.restore();
 
   // ==========================================================================
@@ -451,7 +460,6 @@ export function renderIllustratedMap(
     ctx.fillStyle = '#4d7c0f';
     ctx.fill();
 
-    // Shaded side
     ctx.beginPath();
     ctx.moveTo(px, py - ph);
     ctx.lineTo(px + pw / 2, py);
@@ -501,12 +509,12 @@ export function renderIllustratedMap(
 
   // ==========================================================================
   // 8. ELDORIA MIST FOREST (EAST CANOPY & CLOUD COVER)
+  // Center: [330, -140] -> norm [0.830, 0.455]
   // ==========================================================================
   ctx.save();
-  const [mfx, mfy] = toC(0.762, 0.423);
+  const [mfx, mfy] = toC(0.830, 0.455);
   const mfr = width * 0.065;
 
-  // Massive lush green forest canopy
   const mistForestClusters = [
     [mfx - mfr * 0.40, mfy - mfr * 0.30, mfr * 0.50],
     [mfx + mfr * 0.40, mfy - mfr * 0.35, mfr * 0.52],
@@ -528,7 +536,7 @@ export function renderIllustratedMap(
   });
 
   // Soft mystical mist clouds floating across the canopy
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.48)';
   const mistPuffs = [
     [mfx - mfr * 0.20, mfy - mfr * 0.10, mfr * 0.48, mfr * 0.26],
     [mfx + mfr * 0.20, mfy + mfr * 0.10, mfr * 0.50, mfr * 0.28],
@@ -543,108 +551,62 @@ export function renderIllustratedMap(
 
   // ==========================================================================
   // 9. ORGANIC MEANDERING RIVERS (4 BRANCHES)
+  // Driven 100% by RIVER_SPLINES in worldData.ts
   // ==========================================================================
-  // Central Confluence at (0.460, 0.560)
-  // 1. NW: from Titan lake outlet (0.254, 0.170) -> east of Astraea -> (0.460, 0.560)
-  // 2. North/Desert: (0.460, 0.560) -> (0.560, 0.440) -> west of crater -> foot of canyon (0.515, 0.100)
-  // 3. East: (0.460, 0.560) -> between castle & valkragor -> loops north of mist forest -> NE mountains
-  // 4. South: (0.460, 0.560) -> straight south to muara (0.476, 0.745)
   ctx.save();
-  const riverNW: [number, number][] = [
-    [0.254, 0.170], // Danau Titan Outlet
-    [0.265, 0.220],
-    [0.285, 0.280],
-    [0.315, 0.340], // East of Astraea
-    [0.360, 0.420],
-    [0.410, 0.500],
-    [0.460, 0.560], // Confluence
-  ];
-  const riverDesert: [number, number][] = [
-    [0.460, 0.560], // Confluence
-    [0.510, 0.500],
-    [0.560, 0.440], // Enters Solaria Desert
-    [0.585, 0.360],
-    [0.595, 0.280], // West of World Boss Crater
-    [0.575, 0.200],
-    [0.540, 0.140],
-    [0.515, 0.100], // Kaki Kanyon Kuno
-  ];
-  const riverEast: [number, number][] = [
-    [0.460, 0.560], // Confluence
-    [0.520, 0.565],
-    [0.580, 0.540],
-    [0.640, 0.525], // Between Ruined Castle & Val-Kragor
-    [0.710, 0.550],
-    [0.770, 0.535],
-    [0.820, 0.470], // Loops north east of Hutan Kabut
-    [0.835, 0.380],
-    [0.840, 0.280], // NE mountains (NO branch to SE sea)
-  ];
-  const riverSouth: [number, number][] = [
-    [0.460, 0.560], // Confluence
-    [0.465, 0.620],
-    [0.472, 0.680],
-    [0.476, 0.745], // Muara Samudra Selatan
-  ];
-
-  const riverBranches = [riverNW, riverDesert, riverEast, riverSouth];
+  const riverBranches = RIVER_SPLINES.map((s) => s.points.map((p) => wToC(p[0], p[1])));
 
   // Pass 1: Dark Blue Edge
   ctx.strokeStyle = '#0284c7';
-  ctx.lineWidth = 6.8;
+  ctx.lineWidth = Math.max(5, width * 0.009);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   riverBranches.forEach((b) => {
-    drawSmoothSpline(ctx, b.map((p) => toC(p[0], p[1])));
+    drawSmoothSpline(ctx, b);
     ctx.stroke();
   });
 
   // Pass 2: Light Blue Water Body
   ctx.strokeStyle = '#38bdf8';
-  ctx.lineWidth = 4.4;
+  ctx.lineWidth = Math.max(3.2, width * 0.006);
   riverBranches.forEach((b) => {
-    drawSmoothSpline(ctx, b.map((p) => toC(p[0], p[1])));
+    drawSmoothSpline(ctx, b);
     ctx.stroke();
   });
 
   // Pass 3: Delicate Water Shimmer
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.50)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
   ctx.lineWidth = 1.3;
   riverBranches.forEach((b) => {
-    drawSmoothSpline(ctx, b.map((p) => toC(p[0], p[1])));
+    drawSmoothSpline(ctx, b);
     ctx.stroke();
   });
   ctx.restore();
 
   // ==========================================================================
   // 10. WOODEN BRIDGES (ACROSS HIGHWAY INTERSECTIONS)
+  // Driven 100% by BRIDGE_CONFIGS in worldData.ts
   // ==========================================================================
   ctx.save();
-  const bridges: { nx: number; ny: number; angle: number; len: number }[] = [
-    { nx: 0.315, ny: 0.340, angle: -Math.PI / 4, len: 18 },  // West Bridge (Astraea Highway)
-    { nx: 0.465, ny: 0.600, angle: 0, len: 20 },             // Central Village Bridge
-    { nx: 0.640, ny: 0.525, angle: Math.PI / 2.2, len: 18 }, // Castle Access Bridge
-    { nx: 0.770, ny: 0.535, angle: Math.PI / 2, len: 18 },   // East Bridge (Val-Kragor)
-    { nx: 0.560, ny: 0.440, angle: Math.PI / 3, len: 18 },   // Desert Bridge
-  ];
-  bridges.forEach((br) => {
-    const [bx, by] = toC(br.nx, br.ny);
+  BRIDGE_CONFIGS.forEach((br) => {
+    const [bx, by] = wToC(br.x, br.z);
+    const bLen = Math.max(16, width * 0.024);
     ctx.save();
     ctx.translate(bx, by);
-    ctx.rotate(br.angle);
+    ctx.rotate(br.rotationY);
 
-    // Shadow
+    // Drop Shadow
     ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-    ctx.fillRect(-br.len / 2 - 1, -5, br.len + 2, 10);
+    ctx.fillRect(-bLen / 2 - 1, -5, bLen + 2, 10);
 
-    // Deck planks
-    ctx.fillStyle = '#854d0e';
-    ctx.fillRect(-br.len / 2, -4, br.len, 8);
+    // Deck Planks
+    ctx.fillStyle = br.type === 'stone' ? '#94a3b8' : '#854d0e';
+    ctx.fillRect(-bLen / 2, -4, bLen, 8);
 
-    // Planks division lines
-    ctx.strokeStyle = '#451a03';
+    // Plank seams
+    ctx.strokeStyle = br.type === 'stone' ? '#475569' : '#451a03';
     ctx.lineWidth = 1.0;
-    for (let px = -br.len / 2 + 2; px <= br.len / 2 - 2; px += 3) {
+    for (let px = -bLen / 2 + 2; px <= bLen / 2 - 2; px += 3) {
       ctx.beginPath();
       ctx.moveTo(px, -4);
       ctx.lineTo(px, 4);
@@ -652,13 +614,13 @@ export function renderIllustratedMap(
     }
 
     // Railings
-    ctx.strokeStyle = '#713f12';
+    ctx.strokeStyle = br.type === 'stone' ? '#334155' : '#713f12';
     ctx.lineWidth = 1.4;
     ctx.beginPath();
-    ctx.moveTo(-br.len / 2, -4);
-    ctx.lineTo(br.len / 2, -4);
-    ctx.moveTo(-br.len / 2, 4);
-    ctx.lineTo(br.len / 2, 4);
+    ctx.moveTo(-bLen / 2, -4);
+    ctx.lineTo(bLen / 2, -4);
+    ctx.moveTo(-bLen / 2, 4);
+    ctx.lineTo(bLen / 2, 4);
     ctx.stroke();
 
     ctx.restore();
@@ -667,52 +629,27 @@ export function renderIllustratedMap(
 
   // ==========================================================================
   // 11. ROAD NETWORK (ROADS OVER CONTINENT)
+  // Driven 100% by ROAD_SPLINES in worldData.ts
   // ==========================================================================
   ctx.save();
-  const roadWest: [number, number][] = [
-    [0.476, 0.683], [0.380, 0.700], [0.260, 0.620], [0.220, 0.500],
-    [0.230, 0.420], [0.270, 0.346]
-  ];
-  const roadEast: [number, number][] = [
-    [0.476, 0.683], [0.465, 0.600], [0.550, 0.590], [0.643, 0.500],
-    [0.722, 0.644], [0.800, 0.600], [0.841, 0.577]
-  ];
-  const roadDesert: [number, number][] = [
-    [0.460, 0.560], [0.560, 0.440], [0.476, 0.327], [0.444, 0.250],
-    [0.550, 0.200], [0.627, 0.211], [0.746, 0.135]
-  ];
-  const roadHarbor: [number, number][] = [
-    [0.476, 0.683], [0.420, 0.710], [0.360, 0.740]
-  ];
+  ROAD_SPLINES.forEach((road) => {
+    const pts = road.points.map((p) => wToC(p[0], p[1]));
+    const isDesert = road.id === 'road_desert_caravan';
 
-  const mainRoads = [roadWest, roadEast, roadHarbor];
-  mainRoads.forEach((r) => {
-    const pts = r.map((p) => toC(p[0], p[1]));
-    ctx.strokeStyle = 'rgba(74, 54, 38, 0.45)';
-    ctx.lineWidth = 4.2;
+    // Shadow / base path
+    ctx.strokeStyle = isDesert ? 'rgba(180, 130, 50, 0.45)' : 'rgba(74, 54, 38, 0.45)';
+    ctx.lineWidth = isDesert ? 3.6 : 4.0;
     drawSmoothSpline(ctx, pts);
     ctx.stroke();
 
-    ctx.strokeStyle = '#a3917a';
-    ctx.lineWidth = 2.4;
+    // Dashed center
+    ctx.strokeStyle = isDesert ? '#d9be8b' : '#a3917a';
+    ctx.lineWidth = isDesert ? 2.2 : 2.4;
     ctx.setLineDash([5, 4]);
     drawSmoothSpline(ctx, pts);
     ctx.stroke();
     ctx.setLineDash([]);
   });
-
-  // Desert caravan trail
-  const desertRoadPts = roadDesert.map((p) => toC(p[0], p[1]));
-  ctx.strokeStyle = 'rgba(180, 130, 50, 0.45)';
-  ctx.lineWidth = 3.6;
-  drawSmoothSpline(ctx, desertRoadPts);
-  ctx.stroke();
-  ctx.strokeStyle = '#d9be8b';
-  ctx.lineWidth = 2.2;
-  ctx.setLineDash([4, 4]);
-  drawSmoothSpline(ctx, desertRoadPts);
-  ctx.stroke();
-  ctx.setLineDash([]);
   ctx.restore();
 
   // ==========================================================================
@@ -720,8 +657,8 @@ export function renderIllustratedMap(
   // ==========================================================================
   ctx.save();
 
-  // 12A. Golden Pyramids [0.444, 0.250]
-  const [pyrX, pyrY] = toC(0.444, 0.250);
+  // 12A. Golden Pyramids [15, -330] -> norm [0.515, 0.244]
+  const [pyrX, pyrY] = wToC(15, -330);
   // Large Pyramid
   ctx.beginPath();
   ctx.moveTo(pyrX, pyrY - 16);
@@ -756,8 +693,8 @@ export function renderIllustratedMap(
   ctx.fillStyle = '#b45309';
   ctx.fill();
 
-  // 12B. Solaria Oasis Pool & Palms [0.476, 0.327]
-  const [oasX, oasY] = toC(0.476, 0.327);
+  // 12B. Solaria Oasis Pool & Palms [65, -240] -> norm [0.565, 0.344]
+  const [oasX, oasY] = wToC(65, -240);
   ctx.fillStyle = '#06b6d4';
   ctx.beginPath();
   ctx.ellipse(oasX, oasY, 15, 10, 0, 0, Math.PI * 2);
@@ -789,8 +726,8 @@ export function renderIllustratedMap(
     }
   });
 
-  // 12C. World Boss Crater Sinkhole [0.627, 0.211]
-  const [cratX, cratY] = toC(0.627, 0.211);
+  // 12C. World Boss Crater Sinkhole [235, -380] -> norm [0.735, 0.189]
+  const [cratX, cratY] = wToC(235, -380);
   ctx.fillStyle = '#9a3412';
   ctx.beginPath();
   ctx.ellipse(cratX, cratY, 34, 23, 0, 0, Math.PI * 2);
@@ -817,8 +754,8 @@ export function renderIllustratedMap(
     ctx.stroke();
   }
 
-  // 12D. Sultan Malik Palace [0.746, 0.135]
-  const [sultX, sultY] = toC(0.746, 0.135);
+  // 12D. Sultan Malik Palace [375, -440] -> norm [0.875, 0.122]
+  const [sultX, sultY] = wToC(375, -440);
   // Marble Base
   ctx.fillStyle = '#f1f5f9';
   ctx.fillRect(sultX - 20, sultY - 7, 40, 18);
@@ -849,8 +786,8 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12E. Astraea Imperial Castle & Sun Palace [0.270, 0.346]
-  const [astX, astY] = toC(0.270, 0.346);
+  // 12E. Astraea Imperial Castle & Sun Palace [-250, -210] -> norm [0.250, 0.378]
+  const [astX, astY] = wToC(-250, -210);
   // Outer Stone Wall
   ctx.fillStyle = '#64748b';
   ctx.fillRect(astX - 28, astY - 15, 56, 30);
@@ -887,8 +824,8 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12F. Puing Kastil Terbengkalai [0.643, 0.500]
-  const [ruinX, ruinY] = toC(0.643, 0.500);
+  // 12F. Puing Kastil Terbengkalai [215, -25] -> norm [0.715, 0.583]
+  const [ruinX, ruinY] = wToC(215, -25);
   ctx.fillStyle = '#475569';
   ctx.fillRect(ruinX - 12, ruinY - 7, 24, 14);
   // Broken battlements
@@ -896,8 +833,8 @@ export function renderIllustratedMap(
   ctx.fillStyle = '#334155';
   ctx.fillRect(ruinX - 14, ruinY - 14, 7, 21);
 
-  // 12G. Desa Benteng Val-Kragor [0.722, 0.644]
-  const [valX, valY] = toC(0.722, 0.644);
+  // 12G. Desa Benteng Val-Kragor [315, 105] -> norm [0.815, 0.728]
+  const [valX, valY] = wToC(315, 105);
   // Palisade wooden boundary
   ctx.strokeStyle = '#78350f';
   ctx.lineWidth = 3.6;
@@ -923,8 +860,8 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12H. Lembah Batu Lumut [0.841, 0.577]
-  const [mosX, mosY] = toC(0.841, 0.577);
+  // 12H. Lembah Batu Lumut [455, 35] -> norm [0.955, 0.650]
+  const [mosX, mosY] = wToC(455, 35);
   ctx.fillStyle = '#65a30d';
   ctx.beginPath();
   ctx.ellipse(mosX, mosY, 22, 15, 0, 0, Math.PI * 2);
@@ -947,8 +884,8 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12I. Desa Utama & Sanctuary [0.476, 0.683]
-  const [vilX, vilY] = toC(0.476, 0.683);
+  // 12I. Desa Utama & Sanctuary [25, 135] -> norm [0.525, 0.761]
+  const [vilX, vilY] = wToC(25, 135);
   // Thatched huts
   [-14, 8].forEach((hx) => {
     ctx.fillStyle = '#e5e7eb';
@@ -973,8 +910,8 @@ export function renderIllustratedMap(
   ctx.lineTo(vilX + 29, vilY - 4);
   ctx.stroke();
 
-  // 12J. Pelabuhan Sanctuary [0.360, 0.740]
-  const [harbX, harbY] = toC(0.360, 0.740);
+  // 12J. Pelabuhan Sanctuary [-135, 165] -> norm [0.365, 0.794]
+  const [harbX, harbY] = wToC(-135, 165);
   // Wooden piers
   ctx.fillStyle = '#78350f';
   ctx.fillRect(harbX - 18, harbY, 36, 5);
@@ -999,8 +936,8 @@ export function renderIllustratedMap(
     ctx.stroke();
   });
 
-  // 12K. Kaldera Sarang Naga [0.524, 0.904]
-  const [volX, volY] = toC(0.524, 0.904);
+  // 12K. Kaldera Sarang Naga [-40, 275] -> norm [0.460, 0.916]
+  const [volX, volY] = wToC(-40, 275);
   // Obsidian Island Body
   ctx.fillStyle = '#1c1917';
   ctx.beginPath();
@@ -1022,27 +959,26 @@ export function renderIllustratedMap(
   ctx.beginPath();
   ctx.ellipse(volX, volY, width * 0.04, height * 0.024, 0, 0, Math.PI * 2);
   ctx.fill();
-
   ctx.restore();
 
   // ==========================================================================
   // 13. CLEAN OUTLINED LANDMARK LABELS (NO BLACK BACKGROUND BOXES)
+  // Driven 100% by WORLD_LANDMARKS in worldData.ts
   // ==========================================================================
-  // Rendered cleanly directly onto canvas with thick black stroke and white text
-  drawOutlinedText(ctx, 'Lembah Danau Titan Kuno', toC(0.254, 0.060)[0], toC(0.254, 0.060)[1], 12);
-  drawOutlinedText(ctx, 'Ibukota Kerajaan Emas Astraea & Istana Kaisar', toC(0.270, 0.280)[0], toC(0.270, 0.280)[1], 11);
-  drawOutlinedText(ctx, 'Kanyon Kuno', toC(0.500, 0.025)[0], toC(0.500, 0.025)[1], 12);
-  drawOutlinedText(ctx, 'Piramida Emas Solaria', toC(0.444, 0.190)[0], toC(0.444, 0.190)[1], 11);
-  drawOutlinedText(ctx, 'Oase Solaria', toC(0.476, 0.370)[0], toC(0.476, 0.370)[1], 11);
-  drawOutlinedText(ctx, 'Kawah Cacat World Boss (Lv. 10)', toC(0.627, 0.150)[0], toC(0.627, 0.150)[1], 11);
-  drawOutlinedText(ctx, 'Istana Sultan Malik', toC(0.746, 0.075)[0], toC(0.746, 0.075)[1], 11);
-  drawOutlinedText(ctx, 'Hutan Kabut Eldoria', toC(0.762, 0.355)[0], toC(0.762, 0.355)[1], 12);
-  drawOutlinedText(ctx, 'Puing Kastil Terbengkalai', toC(0.643, 0.450)[0], toC(0.643, 0.450)[1], 11);
-  drawOutlinedText(ctx, 'Desa Benteng Val-Kragor', toC(0.722, 0.705)[0], toC(0.722, 0.705)[1], 11);
-  drawOutlinedText(ctx, 'Lembah Batu Lumut', toC(0.841, 0.635)[0], toC(0.841, 0.635)[1], 11);
-  drawOutlinedText(ctx, 'Pelabuhan Sanctuary', toC(0.360, 0.795)[0], toC(0.360, 0.795)[1], 11);
-  drawOutlinedText(ctx, 'Desa Utama & Padang Rumput Eldoria', toC(0.500, 0.785)[0], toC(0.500, 0.785)[1], 11);
-  drawOutlinedText(ctx, 'Kaldera Sarang Naga', toC(0.524, 0.970)[0], toC(0.524, 0.970)[1], 12);
+  drawOutlinedText(ctx, 'Lembah Danau Titan Kuno', wToC(-250, -430)[0], wToC(-250, -430)[1] - 32, 12);
+  drawOutlinedText(ctx, 'Ibukota Kerajaan Emas Astraea & Istana Kaisar', wToC(-250, -210)[0], wToC(-250, -210)[1] - 32, 11);
+  drawOutlinedText(ctx, 'Kanyon Kuno', wToC(90, -490)[0], wToC(90, -490)[1] - 32, 12);
+  drawOutlinedText(ctx, 'Piramida Emas Solaria', wToC(15, -330)[0], wToC(15, -330)[1] - 25, 11);
+  drawOutlinedText(ctx, 'Oase Solaria', wToC(65, -240)[0], wToC(65, -240)[1] + 24, 11);
+  drawOutlinedText(ctx, 'Kawah Cacat World Boss (Lv. 10)', wToC(235, -380)[0], wToC(235, -380)[1] - 30, 11);
+  drawOutlinedText(ctx, 'Istana Sultan Malik', wToC(375, -440)[0], wToC(375, -440)[1] - 38, 11);
+  drawOutlinedText(ctx, 'Hutan Kabut Eldoria', wToC(330, -140)[0], wToC(330, -140)[1] - 38, 12);
+  drawOutlinedText(ctx, 'Puing Kastil Terbengkalai', wToC(215, -25)[0], wToC(215, -25)[1] - 22, 11);
+  drawOutlinedText(ctx, 'Desa Benteng Val-Kragor', wToC(315, 105)[0], wToC(315, 105)[1] + 30, 11);
+  drawOutlinedText(ctx, 'Lembah Batu Lumut', wToC(455, 35)[0], wToC(455, 35)[1] + 26, 11);
+  drawOutlinedText(ctx, 'Pelabuhan Sanctuary', wToC(-135, 165)[0], wToC(-135, 165)[1] + 28, 11);
+  drawOutlinedText(ctx, 'Desa Utama & Padang Rumput Eldoria', wToC(25, 135)[0], wToC(25, 135)[1] + 28, 11);
+  drawOutlinedText(ctx, 'Kaldera Sarang Naga', wToC(-40, 275)[0], wToC(-40, 275)[1] + 36, 12);
 
   ctx.restore();
 }

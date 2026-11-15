@@ -3026,13 +3026,13 @@ export function buildWorldEnvironment(
 }
 
 // ============================================================================
-// SINGLE SOURCE OF TRUTH RE-EXPORT (worldConfig.ts)
+// SINGLE SOURCE OF TRUTH RE-EXPORT (worldData.ts)
 // ============================================================================
 export {
   WORLD_BOUNDS,
   WORLD_LANDMARKS,
   worldToMapPercent,
   mapPercentToWorld,
-} from './worldConfig';
+} from './worldData';
 
 

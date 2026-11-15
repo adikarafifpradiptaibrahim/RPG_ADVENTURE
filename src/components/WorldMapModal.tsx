@@ -12,15 +12,21 @@ import {
 } from 'lucide-react';
 import { MapMarker, RegionInfo } from '../types/game';
 import { REGIONS, WAYPOINTS } from '../game/mapData';
-import { WORLD_LANDMARKS, worldToMapPercent } from '../game/3d/worldConfig';
-import worldMapTexture from '../assets/images/1c0c5afc-239a-45a4-b086-037637bd88af.png';
+import {
+  WORLD_BOUNDS,
+  WORLD_LANDMARKS,
+  worldToMapPercent,
+  mapPercentToWorld,
+  LandmarkDef,
+} from '../game/3d/worldData';
+import { renderIllustratedMap } from '../game/mapIllustratedRenderer';
 
 export interface WorldHotspot {
   id: string;
   nameId: string;
   nameEn: string;
-  leftPct: number; // percentage left on reference map image
-  topPct: number;  // percentage top on reference map image
+  leftPct: number; // percentage left on reference map (0..100)
+  topPct: number;  // percentage top on reference map (0..100)
   worldX: number;
   worldZ: number;
   level: number;
@@ -47,22 +53,25 @@ export interface MapLandmark {
   topPct?: number;
 }
 
-// 100% Single Source of Truth derived from worldConfig.ts
-export const WORLD_HOTSPOTS: WorldHotspot[] = WORLD_LANDMARKS.map((lm) => ({
-  id: lm.id,
-  nameId: lm.nameId,
-  nameEn: lm.name,
-  leftPct: lm.pctX,
-  topPct: lm.pctY,
-  worldX: lm.x,
-  worldZ: lm.z,
-  level: lm.level,
-  isBoss: lm.isBoss,
-  desc: lm.desc,
-  waypointId: lm.waypointId,
-  icon: lm.icon,
-  color: lm.color,
-}));
+// 100% Single Source of Truth derived from worldData.ts
+export const WORLD_HOTSPOTS: WorldHotspot[] = WORLD_LANDMARKS.map((lm) => {
+  const { xPercent, yPercent } = worldToMapPercent(lm.x, lm.z);
+  return {
+    id: lm.id,
+    nameId: lm.nameId,
+    nameEn: lm.name,
+    leftPct: xPercent,
+    topPct: yPercent,
+    worldX: lm.x,
+    worldZ: lm.z,
+    level: lm.level,
+    isBoss: lm.isBoss,
+    desc: lm.descriptionId || lm.description,
+    waypointId: lm.waypointId,
+    icon: lm.icon,
+    color: lm.color,
+  };
+});
 
 // Re-export LANDMARKS for full backward compatibility
 export const LANDMARKS: MapLandmark[] = WORLD_HOTSPOTS.map((h) => ({
@@ -104,6 +113,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
   const [inspectedHotspot, setInspectedHotspot] = useState<WorldHotspot | null>(null);
   const [hoveredHotspot, setHoveredHotspot] = useState<WorldHotspot | null>(null);
   const [waypointMarker, setWaypointMarker] = useState<{ x: number; z: number; name: string } | null>(null);
+
+  // Canvas ref for procedural vector map
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Navigation transform using uncontrolled Direct DOM (useRef) for 60/120 FPS performance
   const transformRef = useRef<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 1.0 });
@@ -216,6 +228,21 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
     setHudScale(1.0);
   };
 
+  // Render high-res illustrated procedural map once onto canvas on open
+  useEffect(() => {
+    if (!isOpen) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // High resolution render buffer (1600 x 1200)
+    canvas.width = 1600;
+    canvas.height = 1200;
+    renderIllustratedMap(ctx, 1600, 1200);
+  }, [isOpen]);
+
   // Optimized Event Listeners for smooth drag/zoom
   useEffect(() => {
     if (!isOpen) return;
@@ -297,7 +324,6 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
 
     const onPointerMove = (e: PointerEvent) => {
       if (!isDraggingRef.current || transformRef.current.scale <= 1.0) return;
-
       e.preventDefault();
       e.stopPropagation();
 
@@ -406,7 +432,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
         <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
           {/* Main Map Viewport Area */}
           <div className="relative flex-1 bg-stone-950/90 overflow-hidden flex items-center justify-center p-2 sm:p-4">
-            {/* Topographical Map Container with Zoom & Pan Viewport (Locked to 512:382 Aspect Ratio) */}
+            {/* Topographical Map Container with Zoom & Pan Viewport (Aspect Ratio 1000/900 ~ 10:9) */}
             <div
               ref={mapContainerRef}
               style={{
@@ -416,7 +442,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 cursor: hudScale > 1.0 ? 'grab' : 'default',
               } as React.CSSProperties}
               onClick={() => setInspectedHotspot(null)}
-              className="relative w-full max-w-[800px] aspect-[512/382] max-h-[82vh] rounded-2xl overflow-hidden border border-stone-700/60 shadow-2xl bg-[#0284c7]"
+              className="relative w-full max-w-[840px] aspect-[1000/900] max-h-[82vh] rounded-2xl overflow-hidden border border-stone-700/60 shadow-2xl bg-[#0284c7]"
             >
               {/* GPU Hardware Accelerated Continent Map Plane (translate3d + will-change: transform) */}
               <div
@@ -433,30 +459,13 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                   transition: 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
                 } as React.CSSProperties}
               >
-                {/* High-Resolution Reference Illustrated Map Asset */}
-                <img
-                  src={worldMapTexture}
-                  alt="Peta Benua Eldoria"
-                  className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none"
-                  draggable={false}
+                {/* High-Resolution Procedural Vector Illustrated Map Canvas */}
+                <canvas
+                  ref={canvasRef}
+                  className="absolute inset-0 w-full h-full pointer-events-none select-none"
                 />
 
-                {/* Patch Padang Rumput: Menutupi ikon panah kuning & badge "Kamu Disini" bawaan tekstur peta di depan Astraea */}
-                <div
-                  className="absolute pointer-events-none z-10 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                  style={{
-                    left: '23.8%',
-                    top: '48.0%',
-                    width: '13.5%',
-                    height: '7.8%',
-                    background: 'radial-gradient(ellipse at center, #71a31b 0%, #6fa01c 70%, #689918 100%)',
-                    boxShadow: '0 0 6px 3px #6fa01c',
-                  }}
-                />
-
-                {/* HOTSPOT AREA TRANSPARAN (INVISIBLE INTERACTIVE HITBOXES)
-                    Tidak ada pin lingkaran, gembok, atau teks buatan yang menimpa gambar.
-                    Pemain dapat mengarahkan kursor (hover) atau mengetuk (tap) area ilustrasi langsung. */}
+                {/* INTERACTIVE HOTSPOTS & CLICKABLE LANDMARK HITBOXES */}
                 {WORLD_HOTSPOTS.map((spot) => {
                   const isHovered = hoveredHotspot?.id === spot.id;
                   const isInspected = inspectedHotspot?.id === spot.id;
@@ -485,14 +494,16 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                       className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer pointer-events-auto flex flex-col items-center group"
                       title={spot.nameId}
                     >
-                      {/* Invisible interactive circular hitbox - soft glow ring on hover/inspect only */}
+                      {/* Interactive circular pin badge */}
                       <div
-                        className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full transition-all duration-150 ${
+                        className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all duration-200 border-2 ${
                           isHovered || isInspected
-                            ? 'bg-amber-400/15 ring-2 ring-amber-400/60 shadow-[0_0_16px_rgba(251,191,36,0.35)]'
-                            : 'bg-transparent'
+                            ? 'bg-amber-400 border-white shadow-[0_0_20px_rgba(251,191,36,0.8)] scale-110 z-30'
+                            : 'bg-stone-900/85 border-amber-400/70 hover:border-amber-300 shadow-md'
                         }`}
-                      />
+                      >
+                        <span className="text-base sm:text-lg select-none">{spot.icon}</span>
+                      </div>
 
                       {/* Desktop Hover Floating Info Card */}
                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center z-40 pointer-events-none animate-in fade-in duration-150">
@@ -543,23 +554,23 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                   );
                 })()}
 
-                {/* LIVE PLAYER PIN WITH HEADING ARROW (SATU-SATUNYA PENANDA DINAMIS DI ATAS PETA) */}
+                {/* LIVE DYNAMIC PLAYER PIN WITH ROTATING HEADING ARROW */}
                 <div
                   style={{ left: playerScreen.left, top: playerScreen.top }}
                   className="absolute -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none flex flex-col items-center"
                 >
                   <div className="relative flex items-center justify-center">
-                    <div className="absolute w-7 h-7 rounded-full bg-amber-400/30 animate-ping" />
+                    <div className="absolute w-8 h-8 rounded-full bg-amber-400/30 animate-ping" />
                     <div
-                      className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-amber-400 border-2 border-white shadow-2xl flex items-center justify-center"
+                      className="w-6 h-6 rounded-full bg-amber-400 border-2 border-white shadow-2xl flex items-center justify-center"
                       style={{
                         transform: `rotate(${(playerPos.rotationY * 180) / Math.PI + 180}deg)`,
                       }}
                     >
-                      <Navigation className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-stone-900 fill-stone-900" />
+                      <Navigation className="w-3.5 h-3.5 text-stone-900 fill-stone-900" />
                     </div>
                   </div>
-                  <span className="mt-0.5 px-1.5 py-0.2 bg-black/85 border border-amber-400/70 rounded text-[8px] sm:text-[9px] font-bold text-amber-300 whitespace-nowrap shadow">
+                  <span className="mt-1 px-2 py-0.5 bg-black/90 border border-amber-400/80 rounded-md text-[9px] font-bold text-amber-300 whitespace-nowrap shadow-xl">
                     Kamu Disini
                   </span>
                 </div>
@@ -625,7 +636,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 <span className="text-[8px] sm:text-[9px] text-stone-500">S</span>
               </div>
 
-              {/* Tap-to-Inspect Landmark Bottom-Sheet Card (Mobile & Tap mode) */}
+              {/* Tap-to-Inspect Landmark Bottom-Sheet Card */}
               {inspectedHotspot && (
                 <div
                   onClick={(e) => e.stopPropagation()}
@@ -752,10 +763,10 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                           }
                         }}
                         disabled={!isUnlocked}
-                        className={`px-2.5 py-1 rounded text-[10px] font-bold shadow transition-colors ${
+                        className={`px-2.5 py-1 rounded text-xs font-bold transition-all ${
                           isUnlocked
-                            ? 'bg-cyan-700/80 hover:bg-cyan-600 text-white cursor-pointer'
-                            : 'bg-stone-800 text-stone-500 border border-stone-700 cursor-not-allowed'
+                            ? 'bg-cyan-600 hover:bg-cyan-500 text-white cursor-pointer active:scale-95'
+                            : 'bg-stone-800 text-stone-600 cursor-not-allowed'
                         }`}
                       >
                         {isUnlocked ? 'Teleport' : 'Terkunci'}
@@ -768,53 +779,39 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
 
             {/* Map Legend */}
             {showLegend && (
-              <div className="mt-auto p-3 rounded-xl bg-stone-900/50 border border-stone-800/80">
-                <h5 className="text-[11px] font-bold text-stone-400 uppercase tracking-wider mb-2">
-                  Keterangan Simbol
-                </h5>
-                <div className="grid grid-cols-2 gap-2 text-[10px] text-stone-300">
+              <div className="p-3 rounded-xl bg-stone-900/60 border border-stone-800/80 text-[11px]">
+                <h4 className="font-bold text-amber-300 mb-2 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5" />
+                  Legenda Peta
+                </h4>
+                <div className="grid grid-cols-2 gap-2 text-stone-400">
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                    <span>Posisi Pemain</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#65a30d]" />
+                    <span>Padang Rumput</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
-                    <span>Teleportasi</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#eab308]" />
+                    <span>Gurun Pasir Solaria</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
-                    <span>Ibukota / Istana</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#0284c7]" />
+                    <span>Samudra Azure & Sungai</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
-                    <span>Hutan / Lembah</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#e2e8f0]" />
+                    <span>Pegunungan Salju</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />
-                    <span>Kanyon / Gurun</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#15803d]" />
+                    <span>Hutan Kabut</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-red-600" />
-                    <span>World Boss</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#dc2626]" />
+                    <span>Kaldera Sarang Naga</span>
                   </div>
                 </div>
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Modal Footer */}
-        <div className="flex items-center justify-between px-6 py-2.5 bg-stone-950 border-t border-stone-800 text-[11px] text-stone-400 font-mono">
-          <div className="flex items-center gap-4">
-            <span>
-              Koordinat Kamu: <strong className="text-amber-400">X: {Math.round(playerPos.x)}, Z: {Math.round(playerPos.z)}</strong>
-            </span>
-            <span>
-              Wilayah Saat Ini: <strong className="text-stone-200">{currentRegion.nameId}</strong>
-            </span>
-          </div>
-          <div>
-            Tekan <kbd className="px-1.5 py-0.5 bg-stone-800 text-amber-300 rounded border border-stone-700">M</kbd> atau <kbd className="px-1.5 py-0.5 bg-stone-800 text-amber-300 rounded border border-stone-700">ESC</kbd> untuk menutup
           </div>
         </div>
       </div>
@@ -822,13 +819,5 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
   );
 };
 
-export const WorldMapModal = React.memo(WorldMapModalComponent, (prev, next) => {
-  if (!prev.isOpen && !next.isOpen) return true;
-  if (prev.isOpen !== next.isOpen) return false;
-  if (prev.currentRegion.id !== next.currentRegion.id) return false;
-  if (prev.unlockedCheckpoints?.length !== next.unlockedCheckpoints?.length) return false;
-  const dPos = Math.hypot(prev.playerPos.x - next.playerPos.x, prev.playerPos.z - next.playerPos.z);
-  const dRot = Math.abs(prev.playerPos.rotationY - next.playerPos.rotationY);
-  if (dPos < 1.2 && dRot < 0.1) return true;
-  return false;
-});
+export const WorldMapModal = React.memo(WorldMapModalComponent);
+export default WorldMapModal;
