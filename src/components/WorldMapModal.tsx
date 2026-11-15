@@ -1,14 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   X,
-  MapPin,
   Compass,
   Sparkles,
   Navigation,
-  Footprints,
-  Shield,
   Layers,
-  HelpCircle,
   ZoomIn,
   ZoomOut,
   RotateCcw,
@@ -16,14 +12,24 @@ import {
 } from 'lucide-react';
 import { MapMarker, RegionInfo } from '../types/game';
 import { REGIONS, WAYPOINTS } from '../game/mapData';
-import { getContinentBiomeSample, getBiomeAt } from '../game/mapSampler';
-import { drawRoadsOnWorldMap } from '../game/RoadSystem';
-import { renderIllustratedMap } from '../game/mapIllustratedRenderer';
+import { worldToMapPercent } from '../game/3d/worldEnvironment';
+import worldMapTexture from '../assets/images/1c0c5afc-239a-45a4-b086-037637bd88af.png';
 
-// Persistent continent map cached image data to eliminate all lag on open & pan
-const MAP_CACHE_VERSION = 'v12.0_vector_illustrated_continent';
-let cachedMapVersion = '';
-let cachedMapImageData: ImageData | null = null;
+export interface WorldHotspot {
+  id: string;
+  nameId: string;
+  nameEn: string;
+  leftPct: number; // percentage left on reference map image
+  topPct: number;  // percentage top on reference map image
+  worldX: number;
+  worldZ: number;
+  level: number;
+  isBoss?: boolean;
+  desc: string;
+  waypointId?: string;
+  icon: string;
+  color: string;
+}
 
 export interface MapLandmark {
   id: string;
@@ -37,191 +43,227 @@ export interface MapLandmark {
   color: string;
   isBoss?: boolean;
   waypointId?: string;
+  leftPct?: number;
+  topPct?: number;
 }
 
-export const LANDMARKS: MapLandmark[] = [
-  {
-    id: 'village',
-    name: 'Sanctuary Village & Central Plains',
-    nameId: 'Desa Utama & Padang Rumput Eldoria',
-    icon: '🏡',
-    x: 20,
-    z: 130,
-    level: 1,
-    desc: 'Pemukiman sentral awal para petualang di padang rumput pesisir selatan Eldoria.',
-    color: '#65a30d',
-    waypointId: 'wp_village',
-  },
-  {
-    id: 'harbor',
-    name: 'Sanctuary Harbor',
-    nameId: 'Pelabuhan Sanctuary',
-    icon: '⛵',
-    x: 20,
-    z: 175,
-    level: 1,
-    desc: 'Dermaga kayu pesisir selatan menghadap langsung ke Samudra Azure terbuka.',
-    color: '#06b6d4',
-    waypointId: 'wp_harbor',
-  },
+export const WORLD_HOTSPOTS: WorldHotspot[] = [
   {
     id: 'danau_titan',
-    name: 'Ancient Titan Lake Valley',
     nameId: 'Lembah Danau Titan Kuno',
-    icon: '🏔️',
-    x: -260,
-    z: -450,
+    nameEn: 'Ancient Titan Lake Valley',
+    leftPct: 24,
+    topPct: 15,
+    worldX: -260,
+    worldZ: -450,
     level: 8,
     desc: 'Danau purba berair jernih di kaki pegunungan salju barat laut, hulu utama aliran sungai Eldoria.',
-    color: '#38bdf8',
     waypointId: 'wp_titan',
+    icon: '🏔️',
+    color: '#38bdf8',
   },
   {
     id: 'astraea',
-    name: 'Imperial Capital Astraea & Sun Palace',
     nameId: 'Ibukota Kerajaan Emas Astraea & Istana Kaisar',
-    icon: '👑',
-    x: -240,
-    z: -220,
+    nameEn: 'Imperial Capital Astraea & Sun Palace',
+    leftPct: 23,
+    topPct: 37,
+    worldX: -240,
+    worldZ: -220,
     level: 5,
-    desc: 'Ibukota megah berpilar emas putih dan tahta Kaisar Aurelius di padang rumput barat.',
-    color: '#fbbf24',
+    desc: 'Ibukota megah berpilar emas putih dan tahta Kaisar Aurelius di padang rumput barat laut.',
     waypointId: 'wp_astraea',
+    icon: '👑',
+    color: '#fbbf24',
   },
   {
-    id: 'ancient_canyon',
-    name: 'Ancient Canyon',
+    id: 'kanyon_kuno',
     nameId: 'Kanyon Kuno',
-    icon: '🏜️',
-    x: 50,
-    z: -520,
+    nameEn: 'Ancient Canyon',
+    leftPct: 62,
+    topPct: 8,
+    worldX: 50,
+    worldZ: -520,
     level: 9,
     desc: 'Jurang bebatuan cadas merah terjal dan tebing sandstone di perbatasan gurun paling utara benua.',
-    color: '#ea580c',
     waypointId: 'wp_canyon',
+    icon: '🏜️',
+    color: '#ea580c',
   },
   {
-    id: 'pyramid',
-    name: 'Solaria Golden Pyramid',
+    id: 'piramida_emas',
     nameId: 'Piramida Emas Solaria',
-    icon: '🏜️',
-    x: -20,
-    z: -320,
+    nameEn: 'Solaria Golden Pyramid',
+    leftPct: 52,
+    topPct: 24,
+    worldX: -20,
+    worldZ: -320,
     level: 6,
     desc: 'Monumen piramida batu pasir kuno peninggalan firaun matahari di bukit pasir gurun.',
-    color: '#eab308',
     waypointId: 'wp_pyramid',
+    icon: '🏜️',
+    color: '#eab308',
   },
   {
-    id: 'oasis',
-    name: 'Hidden Solaria Oasis',
+    id: 'oase_solaria',
     nameId: 'Oase Solaria',
-    icon: '🌴',
-    x: 20,
-    z: -240,
+    nameEn: 'Hidden Solaria Oasis',
+    leftPct: 55,
+    topPct: 33,
+    worldX: 20,
+    worldZ: -240,
     level: 5,
     desc: 'Mata air tawar pirus alami dinaungi rumpun palem kurma di tengah padang pasir Solaria.',
-    color: '#14b8a6',
     waypointId: 'wp_oasis',
+    icon: '🌴',
+    color: '#14b8a6',
   },
   {
-    id: 'worm_sinkhole',
-    name: 'Ancient Sandworm Sinkhole',
+    id: 'kawah_boss',
     nameId: 'Kawah Cacat World Boss (Lv. 10)',
-    icon: '🪱',
-    x: 210,
-    z: -360,
+    nameEn: 'Ancient Sandworm Sinkhole',
+    leftPct: 72,
+    topPct: 20,
+    worldX: 210,
+    worldZ: -360,
     level: 10,
     isBoss: true,
     desc: 'Kawah pusaran pasir retak raksasa, arena pertarungan World Boss Cacing Purba Jarrus.',
-    color: '#ea580c',
     waypointId: 'wp_boss_crater',
+    icon: '🪱',
+    color: '#ea580c',
   },
   {
-    id: 'taj_palace',
-    name: 'Sultan Malik Palace',
+    id: 'istana_sultan',
     nameId: 'Istana Sultan Malik',
-    icon: '🕌',
-    x: 360,
-    z: -440,
+    nameEn: 'Sultan Malik Palace',
+    leftPct: 85,
+    topPct: 12,
+    worldX: 360,
+    worldZ: -440,
     level: 7,
     desc: 'Kompleks istana kubah marmer emas megah penguasa Gurun Pasir Solaria di timur laut.',
-    color: '#d97706',
     waypointId: 'wp_sultan_palace',
+    icon: '🕌',
+    color: '#d97706',
   },
   {
-    id: 'mist_forest',
-    name: 'Eldoria Mist Forest',
+    id: 'hutan_kabut',
     nameId: 'Hutan Kabut Eldoria',
-    icon: '🌲',
-    x: 380,
-    z: -140,
+    nameEn: 'Eldoria Mist Forest',
+    leftPct: 84,
+    topPct: 43,
+    worldX: 380,
+    worldZ: -140,
     level: 4,
     desc: 'Hutan pinus purba lebat yang senantiasa diselimuti kabut tebal misterius di perbukitan timur.',
-    color: '#15803d',
     waypointId: 'wp_mist_forest',
+    icon: '🌲',
+    color: '#15803d',
   },
   {
-    id: 'abandoned_castle',
-    name: 'Abandoned Castle Ruins',
+    id: 'puing_kastil',
     nameId: 'Puing Kastil Terbengkalai',
-    icon: '🏰',
-    x: 230,
-    z: -60,
+    nameEn: 'Abandoned Castle Ruins',
+    leftPct: 72,
+    topPct: 53,
+    worldX: 230,
+    worldZ: -60,
     level: 5,
     desc: 'Reruntuhan benteng kastil masa lalu dengan pilar batu slate dan reruntuhan menara berlumut.',
-    color: '#64748b',
     waypointId: 'wp_abandoned_castle',
+    icon: '🏰',
+    color: '#64748b',
   },
   {
     id: 'valkragor',
-    name: 'Fortress Village Val-Kragor',
     nameId: 'Desa Benteng Val-Kragor',
-    icon: '🛡️',
-    x: 330,
-    z: 90,
+    nameEn: 'Fortress Village Val-Kragor',
+    leftPct: 81,
+    topPct: 68,
+    worldX: 330,
+    worldZ: 90,
     level: 4,
     desc: 'Desa benteng pertahanan batu dan kayu di padang rumput tenggara Eldoria.',
-    color: '#3b82f6',
     waypointId: 'wp_valkragor',
+    icon: '🛡️',
+    color: '#3b82f6',
   },
   {
-    id: 'moss_valley',
-    name: 'Moss Rock Valley',
+    id: 'batu_lumut',
     nameId: 'Lembah Batu Lumut',
-    icon: '🪨',
-    x: 480,
-    z: 20,
+    nameEn: 'Moss Rock Valley',
+    leftPct: 93,
+    topPct: 57,
+    worldX: 480,
+    worldZ: 20,
     level: 5,
     desc: 'Lembah tersembunyi penuh gugusan batu megalit purba berlumut dan pendar spora mistis.',
-    color: '#65a30d',
     waypointId: 'wp_moss_valley',
+    icon: '🪨',
+    color: '#65a30d',
   },
   {
-    id: 'dragon_caldera',
-    name: 'Dragonfang Caldera',
+    id: 'pelabuhan',
+    nameId: 'Pelabuhan Sanctuary',
+    nameEn: 'Sanctuary Harbor',
+    leftPct: 33,
+    topPct: 75,
+    worldX: -180,
+    worldZ: 165,
+    level: 1,
+    desc: 'Dermaga kayu pesisir selatan menghadap langsung ke Samudra Azure terbuka.',
+    waypointId: 'wp_harbor',
+    icon: '⛵',
+    color: '#06b6d4',
+  },
+  {
+    id: 'desa_utama',
+    nameId: 'Desa Utama & Padang Rumput Eldoria',
+    nameEn: 'Sanctuary Village & Central Plains',
+    leftPct: 52,
+    topPct: 75,
+    worldX: 20,
+    worldZ: 130,
+    level: 1,
+    desc: 'Pemukiman sentral awal para petualang di padang rumput pesisir selatan Eldoria.',
+    waypointId: 'wp_village',
+    icon: '🏡',
+    color: '#65a30d',
+  },
+  {
+    id: 'sarang_naga',
     nameId: 'Kaldera Sarang Naga',
-    icon: '🐉',
-    x: 80,
-    z: 360,
+    nameEn: 'Dragonfang Caldera',
+    leftPct: 41,
+    topPct: 88,
+    worldX: -100,
+    worldZ: 290,
     level: 10,
     isBoss: true,
     desc: 'Pulau vulkanik magma bergejolak di seberang samudra, sarang World Boss Ignis Sang Naga Purba.',
-    color: '#dc2626',
     waypointId: 'wp_caldera',
-  },
-  {
-    id: 'thunderpeak',
-    name: 'Thunderpeak Mage Tower',
-    nameId: 'Mage Tower Puncak Halilintar',
-    icon: '⚡',
-    x: 70,
-    z: 20,
-    level: 3,
-    desc: 'Menara riset sihir purba di bukit pertemuan aliran sungai padang rumput timur.',
-    color: '#8b5cf6',
+    icon: '🐉',
+    color: '#dc2626',
   },
 ];
+
+// Re-export LANDMARKS for full backward compatibility
+export const LANDMARKS: MapLandmark[] = WORLD_HOTSPOTS.map((h) => ({
+  id: h.id,
+  name: h.nameEn,
+  nameId: h.nameId,
+  icon: h.icon,
+  x: h.worldX,
+  z: h.worldZ,
+  level: h.level,
+  desc: h.desc,
+  color: h.color,
+  isBoss: h.isBoss,
+  waypointId: h.waypointId,
+  leftPct: h.leftPct,
+  topPct: h.topPct,
+}));
 
 interface WorldMapModalProps {
   isOpen: boolean;
@@ -244,71 +286,51 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
 }) => {
   const [selectedRegion, setSelectedRegion] = useState<RegionInfo>(currentRegion);
   const [showLegend, setShowLegend] = useState(true);
-  const [inspectedLandmark, setInspectedLandmark] = useState<MapLandmark | null>(null);
-  const [hoveredLandmark, setHoveredLandmark] = useState<MapLandmark | null>(null);
+  const [inspectedHotspot, setInspectedHotspot] = useState<WorldHotspot | null>(null);
+  const [hoveredHotspot, setHoveredHotspot] = useState<WorldHotspot | null>(null);
   const [waypointMarker, setWaypointMarker] = useState<{ x: number; z: number; name: string } | null>(null);
 
-  // Navigation state using uncontrolled Direct DOM (useRef) to ensure pure 60/120 FPS performance with zero React re-renders
+  // Navigation transform using uncontrolled Direct DOM (useRef) for 60/120 FPS performance
   const transformRef = useRef<{ x: number; y: number; scale: number }>({ x: 0, y: 0, scale: 1.0 });
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapPlaneRef = useRef<HTMLDivElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const zoomLabelRef = useRef<HTMLDivElement | null>(null);
   const navHintRef = useRef<HTMLSpanElement | null>(null);
 
-  // Drag interaction tracking (uncontrolled)
+  // Drag interaction tracking
   const isDraggingRef = useRef<boolean>(false);
   const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Single RAF rendering scheduler
+  // Single RAF scheduler
   const rafIdRef = useRef<number | null>(null);
   const wheelCommitTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // HUD button state only (updated strictly on gesture settlement or button clicks)
+  // HUD scale state
   const [hudScale, setHudScale] = useState<number>(1.0);
 
-  // Filtered Important Markers: Hapus seluruh ikon/pin monster biasa (mob/trash monsters)
-  // Sisakan HANYA pin lokasi utama (Desa, Istana, Benteng, Reruntuhan) dan Boss Raksasa (Titan, Naga Ignis, Cacing Jarrus)
-  const importantMarkers = useMemo(() => {
+  // Dynamic boss spawns not covered in preset hotspots
+  const dynamicBosses = useMemo(() => {
     return markers.filter((marker) => {
-      // 1. Hapus seluruh monster biasa / trash mobs
-      if (marker.type === 'enemy') return false;
-
-      // 2. Boss Raksasa dinamis (selain yang sudah ada di LANDMARKS)
       if (marker.type === 'boss') {
-        if (LANDMARKS.some((lm) => lm.id === marker.id || lm.nameId === marker.title)) return false;
+        if (WORLD_HOTSPOTS.some((h) => h.id === marker.id || h.nameId === marker.title)) return false;
         return true;
       }
-
-      // 3. Jangan render marker statis legacy berawalan landmark_
-      if (marker.id.startsWith('landmark_')) return false;
-
-      // 4. Waypoint kustom pemain jika ada
-      if (marker.type === 'waypoint' && !WAYPOINTS.some((wp) => wp.id === marker.id)) return true;
-
       return false;
     });
   }, [markers]);
 
-  // Map world coordinate boundaries for projection
-  // Expanded World bounds: X from -580 to +680 (width 1260), Z from -580 to +460 (height 1040)
-  const minX = -580;
-  const maxX = 680;
-  const minZ = -580;
-  const maxZ = 460;
-
-  // Clamped Pan Handler (prevents panning past the map boundaries at any zoom level)
+  // Clamped Pan Handler
   const clampPan = useCallback((nx: number, ny: number, curScale: number) => {
-    const maxPanX = (curScale - 1.0) * 280;
-    const maxPanY = (curScale - 1.0) * 210;
+    const maxPanX = (curScale - 1.0) * 320;
+    const maxPanY = (curScale - 1.0) * 240;
     return {
       x: Math.max(-maxPanX, Math.min(maxPanX, nx)),
       y: Math.max(-maxPanY, Math.min(maxPanY, ny)),
     };
   }, []);
 
-  // Hardware-accelerated RAF transform update (runs on monitor refresh rate cycle, 60/120 FPS)
+  // Hardware-accelerated RAF transform update
   const requestTransformUpdate = useCallback(() => {
     if (rafIdRef.current !== null) return;
     rafIdRef.current = requestAnimationFrame(() => {
@@ -334,14 +356,13 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
     });
   }, []);
 
-  // Center on player (centers view onto player position and zooms in if at default scale)
+  // Center on player position
   const handleCenterOnPlayer = useCallback(() => {
     const curScale = Math.max(1.5, transformRef.current.scale);
     transformRef.current.scale = curScale;
-    const normX = (playerPos.x - minX) / (maxX - minX);
-    const normZ = (playerPos.z - minZ) / (maxZ - minZ);
-    const targetPanX = -(normX - 0.5) * 560 * curScale;
-    const targetPanY = -(normZ - 0.5) * 420 * curScale;
+    const { xPercent, yPercent } = worldToMapPercent(playerPos.x, playerPos.z);
+    const targetPanX = -(xPercent / 100 - 0.5) * 560 * curScale;
+    const targetPanY = -(yPercent / 100 - 0.5) * 420 * curScale;
     const nextPan = clampPan(targetPanX, targetPanY, curScale);
     transformRef.current.x = nextPan.x;
     transformRef.current.y = nextPan.y;
@@ -353,9 +374,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
     setHudScale(curScale);
   }, [playerPos.x, playerPos.z, clampPan, requestTransformUpdate]);
 
-  // Zoom In / Out Handlers with smooth GPU transitions
+  // Zoom In / Out Handlers
   const handleZoomIn = () => {
-    const next = Math.min(3.5, Math.round((transformRef.current.scale + 0.5) * 10) / 10);
+    const next = Math.min(3.0, Math.round((transformRef.current.scale + 0.5) * 10) / 10);
     transformRef.current.scale = next;
     const nextPan = clampPan(transformRef.current.x, transformRef.current.y, next);
     transformRef.current.x = nextPan.x;
@@ -391,7 +412,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
     setHudScale(1.0);
   };
 
-  // Optimized Native Non-Passive Event Listeners for smooth drag/zoom with zero gesture delay
+  // Optimized Event Listeners for smooth drag/zoom
   useEffect(() => {
     if (!isOpen) return;
     const container = mapContainerRef.current;
@@ -418,7 +439,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
 
       const delta = e.deltaY < 0 ? 0.25 : -0.25;
       const prevScale = transformRef.current.scale;
-      const nextScale = Math.max(1.0, Math.min(3.5, Math.round((prevScale + delta) * 100) / 100));
+      const nextScale = Math.max(1.0, Math.min(3.0, Math.round((prevScale + delta) * 100) / 100));
 
       if (nextScale === prevScale) return;
 
@@ -446,7 +467,6 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
       if (e.button !== 0) return;
       if (transformRef.current.scale <= 1.0) return;
 
-      // Do not hijack clicks on waypoints or interactive buttons
       const target = e.target as HTMLElement | null;
       if (target && (target.closest('button') || target.closest('.cursor-pointer'))) {
         return;
@@ -532,35 +552,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
     };
   }, [isOpen, clampPan, requestTransformUpdate]);
 
-  // Normalized World to screen percentage conversion (relative to the GPU transformed map plane)
-  const worldToScreen = (wx: number, wz: number) => {
-    const normX = (wx - minX) / (maxX - minX);
-    const normZ = (wz - minZ) / (maxZ - minZ);
-    return {
-      left: `${normX * 100}%`,
-      top: `${normZ * 100}%`,
-      visible: true,
-    };
-  };
-
-  const playerScreen = worldToScreen(playerPos.x, playerPos.z);
-
-  // Render High-Resolution Vector Illustrated Continent Map (Smooth anti-aliased curves & illustrated landmarks)
-  useEffect(() => {
-    if (!isOpen) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const width = canvas.width;
-    const height = canvas.height;
-
-    ctx.clearRect(0, 0, width, height);
-    renderIllustratedMap(ctx, width, height, { minX, maxX, minZ, maxZ });
-  }, [isOpen]);
-
   if (!isOpen) return null;
+
+  const playerScreen = worldToMapPercent(playerPos.x, playerPos.z);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/80 backdrop-blur-md animate-fade-in select-none">
@@ -579,7 +573,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 </span>
               </h2>
               <p className="text-[10px] sm:text-xs text-stone-400 hidden sm:block">
-                Jelajahi benua raksasa Eldoria: Ibukota Astraea Utara, Jurang Es Frostpeak, Gurun Solaria, Rawa Shadowfen, Kuil Pagoda, dan Pelabuhan Sanctuary.
+                Jelajahi benua raksasa Eldoria: Danau Titan, Ibukota Astraea, Gurun Solaria, Hutan Kabut, hingga Kaldera Naga Api.
               </p>
             </div>
           </div>
@@ -606,9 +600,9 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
 
         {/* Content Body: Map Viewport + Sidebar Info */}
         <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
-          {/* Main Map Canvas Area */}
+          {/* Main Map Viewport Area */}
           <div className="relative flex-1 bg-stone-950/90 overflow-hidden flex items-center justify-center p-2 sm:p-4">
-            {/* Topographical Map Container with Zoom & Pan Viewport */}
+            {/* Topographical Map Container with Zoom & Pan Viewport (Locked to 512:382 Aspect Ratio) */}
             <div
               ref={mapContainerRef}
               style={{
@@ -617,8 +611,8 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 touchAction: 'none',
                 cursor: hudScale > 1.0 ? 'grab' : 'default',
               } as React.CSSProperties}
-              onClick={() => setInspectedLandmark(null)}
-              className="relative w-full h-full max-w-[620px] max-h-[580px] rounded-xl overflow-hidden border border-stone-700/60 shadow-inner bg-[#1e232a]"
+              onClick={() => setInspectedHotspot(null)}
+              className="relative w-full max-w-[800px] aspect-[512/382] max-h-[82vh] rounded-2xl overflow-hidden border border-stone-700/60 shadow-2xl bg-[#0284c7]"
             >
               {/* GPU Hardware Accelerated Continent Map Plane (translate3d + will-change: transform) */}
               <div
@@ -635,138 +629,139 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                   transition: 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
                 } as React.CSSProperties}
               >
-              {/* Real-time Topographical Biome Canvas */}
-              <canvas
-                ref={canvasRef}
-                width={1120}
-                height={840}
-                className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-                style={{
-                  pointerEvents: 'none',
-                  userSelect: 'none',
-                  WebkitUserSelect: 'none',
-                  WebkitUserDrag: 'none',
-                  touchAction: 'none',
-                  willChange: 'transform',
-                } as React.CSSProperties}
-              />
+                {/* High-Resolution Reference Illustrated Map Asset */}
+                <img
+                  src={worldMapTexture}
+                  alt="Peta Benua Eldoria"
+                  className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none"
+                  draggable={false}
+                />
 
-              {/* UNIFIED THEMATIC LOCATION PINS (Single uncluttered layer, labels rendered directly on vector canvas) */}
-              {LANDMARKS.map((lm) => {
-                const sp = worldToScreen(lm.x, lm.z);
-                if (!sp.visible) return null;
-                const isHovered = hoveredLandmark?.id === lm.id;
-                const isInspected = inspectedLandmark?.id === lm.id;
-                const hasWaypoint = Boolean(lm.waypointId);
-                const isUnlocked = hasWaypoint && lm.waypointId ? unlockedCheckpoints.includes(lm.waypointId) : false;
+                {/* OVERLAY INTERAKTIF: HOTSPOTS ELEGAN */}
+                {WORLD_HOTSPOTS.map((spot) => {
+                  const isHovered = hoveredHotspot?.id === spot.id;
+                  const isInspected = inspectedHotspot?.id === spot.id;
+                  const hasWaypoint = Boolean(spot.waypointId);
+                  const isUnlocked = hasWaypoint && spot.waypointId ? unlockedCheckpoints.includes(spot.waypointId) : false;
 
-                return (
-                  <div
-                    key={lm.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setInspectedLandmark(lm);
-                      const reg = REGIONS.find((r) => Math.hypot(lm.x - r.center[0], lm.z - r.center[1]) < 90);
-                      if (reg) setSelectedRegion(reg);
-                    }}
-                    onDoubleClick={(e) => {
-                      e.stopPropagation();
-                      if (isUnlocked) {
-                        onFastTravel(lm.x, lm.z);
-                        onClose();
-                      }
-                    }}
-                    onMouseEnter={() => setHoveredLandmark(lm)}
-                    onMouseLeave={() => setHoveredLandmark(null)}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-25 cursor-pointer pointer-events-auto flex flex-col items-center group"
-                    title={lm.nameId}
-                  >
+                  return (
                     <div
-                      className={`relative flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full transition-all duration-150 ${
-                        isHovered || isInspected ? 'scale-125 z-30 shadow-2xl ring-2 ring-amber-300' : 'hover:scale-115 shadow-md'
-                      }`}
-                      style={{
-                        backgroundColor: lm.isBoss
-                          ? 'rgba(185, 28, 28, 0.95)'
-                          : isUnlocked
-                          ? 'rgba(8, 145, 178, 0.95)'
-                          : 'rgba(15, 23, 42, 0.92)',
-                        border: `2px solid ${isUnlocked ? '#38bdf8' : lm.color}`,
-                        boxShadow: isHovered || isInspected ? `0 0 14px ${lm.color}` : '0 2px 6px rgba(0,0,0,0.6)',
+                      key={spot.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setInspectedHotspot(spot);
+                        const reg = REGIONS.find((r) => Math.hypot(spot.worldX - r.center[0], spot.worldZ - r.center[1]) < 120);
+                        if (reg) setSelectedRegion(reg);
                       }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        if (isUnlocked) {
+                          onFastTravel(spot.worldX, spot.worldZ);
+                          onClose();
+                        }
+                      }}
+                      onMouseEnter={() => setHoveredHotspot(spot)}
+                      onMouseLeave={() => setHoveredHotspot(null)}
+                      style={{ left: `${spot.leftPct}%`, top: `${spot.topPct}%` }}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 z-25 cursor-pointer pointer-events-auto flex flex-col items-center group"
+                      title={spot.nameId}
                     >
-                      {lm.isBoss && (
-                        <div className="absolute inset-0 rounded-full bg-red-500/40 animate-ping pointer-events-none" />
-                      )}
-                      <span className="text-[11px] sm:text-xs select-none">
-                        {hasWaypoint && !isUnlocked ? '🔒' : lm.icon}
-                      </span>
-                    </div>
-
-                    {/* Tooltip on hover */}
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center z-35 pointer-events-none">
-                      <div className="px-2.5 py-1.5 bg-stone-950/95 border border-amber-400/80 rounded-lg shadow-2xl text-center whitespace-nowrap backdrop-blur-md">
-                        <div className="flex items-center gap-1 justify-center text-[10px] sm:text-[11px] font-bold text-amber-200">
-                          <span>{lm.icon}</span>
-                          <span>{lm.nameId}</span>
-                        </div>
-                        <span className="text-[8px] sm:text-[9px] font-mono text-cyan-300">
-                          {lm.isBoss ? `World Boss (Lv. ${lm.level})` : `Lv. ${lm.level}+`}
-                        </span>
-                        {hasWaypoint && (
-                          <p className="text-[8px] mt-0.5 text-stone-300">
-                            {isUnlocked ? 'Klik Ganda: Fast Travel' : '🔒 Checkpoint Belum Terbuka'}
-                          </p>
+                      {/* Subtle Elegant Hotspot Pin */}
+                      <div
+                        className={`relative flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full transition-all duration-150 ${
+                          isHovered || isInspected
+                            ? 'scale-125 z-30 shadow-2xl ring-2 ring-amber-300'
+                            : 'hover:scale-115 shadow-md'
+                        }`}
+                        style={{
+                          backgroundColor: spot.isBoss
+                            ? 'rgba(185, 28, 28, 0.85)'
+                            : isUnlocked
+                            ? 'rgba(8, 145, 178, 0.85)'
+                            : 'rgba(15, 23, 42, 0.75)',
+                          border: `2px solid ${isUnlocked ? '#38bdf8' : spot.color}`,
+                          boxShadow: isHovered || isInspected ? `0 0 14px ${spot.color}` : '0 2px 6px rgba(0,0,0,0.6)',
+                          backdropFilter: 'blur(2px)',
+                        }}
+                      >
+                        {spot.isBoss && (
+                          <div className="absolute inset-0 rounded-full bg-red-500/40 animate-ping pointer-events-none" />
                         )}
+                        <span className="text-[11px] sm:text-xs select-none">
+                          {hasWaypoint && !isUnlocked ? '🔒' : spot.icon}
+                        </span>
+                      </div>
+
+                      {/* Desktop Hover Floating Info Card */}
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center z-40 pointer-events-none animate-in fade-in duration-150">
+                        <div className="px-3 py-2 bg-stone-950/95 border border-amber-400/80 rounded-xl shadow-2xl text-center whitespace-nowrap backdrop-blur-md min-w-[150px]">
+                          <div className="flex items-center gap-1.5 justify-center text-[11px] sm:text-xs font-bold text-amber-200">
+                            <span>{spot.icon}</span>
+                            <span>{spot.nameId}</span>
+                          </div>
+                          <div className="flex items-center justify-center gap-1 mt-0.5">
+                            <span className={`text-[9px] font-mono font-semibold px-2 py-0.2 rounded-full ${
+                              spot.isBoss
+                                ? 'bg-red-950/90 text-red-300 border border-red-800/80'
+                                : 'bg-cyan-950/90 text-cyan-300 border border-cyan-800/80'
+                            }`}>
+                              {spot.isBoss ? `World Boss (Lv. ${spot.level})` : `Lv. ${spot.level}+`}
+                            </span>
+                          </div>
+                          <p className="text-[9px] text-stone-300 mt-1 max-w-[210px] whitespace-normal leading-tight">
+                            {spot.desc}
+                          </p>
+                          {hasWaypoint && (
+                            <p className="text-[8px] mt-1 text-amber-300 font-semibold">
+                              {isUnlocked ? '⚡ Klik Ganda: Fast Travel' : '🔒 Checkpoint Belum Terbuka'}
+                            </p>
+                          )}
+                        </div>
+                        <div className="w-2 h-2 bg-stone-950 border-r border-b border-amber-400/80 rotate-45 -mt-1" />
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
 
-              {/* Waypoint Marker Beam if active */}
-              {waypointMarker && (() => {
-                const sp = worldToScreen(waypointMarker.x, waypointMarker.z);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-full z-28 pointer-events-none animate-bounce"
-                  >
-                    <div className="flex flex-col items-center">
-                      <span className="text-xl drop-shadow-lg">📍</span>
-                      <span className="px-1.5 py-0.5 rounded bg-black/90 text-[8px] font-bold text-amber-300 border border-amber-400 whitespace-nowrap shadow-lg">
-                        {waypointMarker.name}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* DYNAMIC BOSS SPAWN MARKERS (Only bosses not covered in LANDMARKS) */}
-              {importantMarkers.map((marker) => {
-                const sp = worldToScreen(marker.x, marker.z);
-                if (!sp.visible) return null;
-                return (
-                  <div
-                    key={marker.id}
-                    style={{ left: sp.left, top: sp.top }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-22 pointer-events-none"
-                    title={marker.title}
-                  >
-                    <div className="relative flex items-center justify-center">
-                      <div className="absolute w-5 h-5 rounded-full bg-red-600/40 animate-ping" />
-                      <div className="w-5 h-5 rounded-full bg-red-600 border border-white shadow-xl flex items-center justify-center text-[10px] text-white font-bold drop-shadow">
-                        {marker.icon || '💀'}
+                {/* Custom Player Placed Waypoint Marker */}
+                {waypointMarker && (() => {
+                  const { left, top } = worldToMapPercent(waypointMarker.x, waypointMarker.z);
+                  return (
+                    <div
+                      style={{ left, top }}
+                      className="absolute -translate-x-1/2 -translate-y-full z-28 pointer-events-none animate-bounce"
+                    >
+                      <div className="flex flex-col items-center">
+                        <span className="text-xl drop-shadow-lg">📍</span>
+                        <span className="px-1.5 py-0.5 rounded bg-black/90 text-[8px] font-bold text-amber-300 border border-amber-400 whitespace-nowrap shadow-lg">
+                          {waypointMarker.name}
+                        </span>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })()}
 
-              {/* LIVE PLAYER PIN WITH HEADING ARROW */}
-              {playerScreen.visible && (
+                {/* DYNAMIC BOSS SPAWN MARKERS (Only bosses not covered in WORLD_HOTSPOTS) */}
+                {dynamicBosses.map((marker) => {
+                  const { left, top } = worldToMapPercent(marker.x, marker.z);
+                  return (
+                    <div
+                      key={marker.id}
+                      style={{ left, top }}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 z-22 pointer-events-none"
+                      title={marker.title}
+                    >
+                      <div className="relative flex items-center justify-center">
+                        <div className="absolute w-5 h-5 rounded-full bg-red-600/40 animate-ping" />
+                        <div className="w-5 h-5 rounded-full bg-red-600 border border-white shadow-xl flex items-center justify-center text-[10px] text-white font-bold drop-shadow">
+                          {marker.icon || '💀'}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* LIVE PLAYER PIN WITH HEADING ARROW */}
                 <div
                   style={{ left: playerScreen.left, top: playerScreen.top }}
                   className="absolute -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none flex flex-col items-center"
@@ -786,8 +781,6 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                     Kamu Disini
                   </span>
                 </div>
-              )}
-
               </div>
               {/* END GPU Hardware Accelerated Continent Map Plane */}
 
@@ -795,7 +788,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
               <div className="absolute top-3 left-3 z-35 flex items-center gap-1.5 p-1 bg-stone-900/90 backdrop-blur-md border border-amber-600/60 rounded-xl shadow-xl pointer-events-auto">
                 <button
                   onClick={handleZoomIn}
-                  disabled={hudScale >= 3.5}
+                  disabled={hudScale >= 3.0}
                   className="w-7 h-7 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-amber-300 flex items-center justify-center transition-all active:scale-95 cursor-pointer"
                   title="Perbesar Peta (+)"
                 >
@@ -850,8 +843,8 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 <span className="text-[8px] sm:text-[9px] text-stone-500">S</span>
               </div>
 
-              {/* Tap-to-Inspect Landmark Bottom-Sheet Card */}
-              {inspectedLandmark && (
+              {/* Tap-to-Inspect Landmark Bottom-Sheet Card (Mobile & Tap mode) */}
+              {inspectedHotspot && (
                 <div
                   onClick={(e) => e.stopPropagation()}
                   className="absolute bottom-3 left-3 right-3 sm:left-auto sm:right-3 sm:w-80 z-40 bg-stone-950/95 border border-amber-400/90 rounded-2xl shadow-2xl backdrop-blur-md p-3 animate-in fade-in slide-in-from-bottom duration-200 pointer-events-auto"
@@ -859,47 +852,47 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-lg shadow">
-                        {inspectedLandmark.icon}
+                        {inspectedHotspot.icon}
                       </div>
                       <div>
                         <h3 className="text-xs sm:text-sm font-bold text-amber-200 leading-tight">
-                          {inspectedLandmark.nameId}
+                          {inspectedHotspot.nameId}
                         </h3>
                         <span className="text-[9px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-800/60 inline-block mt-0.5">
-                          {inspectedLandmark.isBoss
-                            ? `World Boss (Lv. ${inspectedLandmark.level})`
-                            : `Rekomendasi Level ${inspectedLandmark.level}+`}
+                          {inspectedHotspot.isBoss
+                            ? `World Boss (Lv. ${inspectedHotspot.level})`
+                            : `Rekomendasi Level ${inspectedHotspot.level}+`}
                         </span>
                       </div>
                     </div>
                     <button
-                      onClick={() => setInspectedLandmark(null)}
+                      onClick={() => setInspectedHotspot(null)}
                       className="w-5 h-5 rounded-full bg-stone-800/80 hover:bg-stone-700 text-stone-400 hover:text-white flex items-center justify-center text-[10px] transition-colors cursor-pointer"
                     >
                       ✕
                     </button>
                   </div>
                   <p className="text-[10px] text-stone-300 mt-2 leading-relaxed">
-                    {inspectedLandmark.desc}
+                    {inspectedHotspot.desc}
                   </p>
                   <div className="flex items-center gap-2 mt-2 pt-2 border-t border-stone-800">
                     <button
                       onClick={() => {
                         setWaypointMarker({
-                          x: inspectedLandmark.x,
-                          z: inspectedLandmark.z,
-                          name: inspectedLandmark.nameId,
+                          x: inspectedHotspot.worldX,
+                          z: inspectedHotspot.worldZ,
+                          name: inspectedHotspot.nameId,
                         });
-                        setInspectedLandmark(null);
+                        setInspectedHotspot(null);
                       }}
                       className="flex-1 py-1.5 px-3 rounded-lg bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-stone-950 font-bold text-[11px] shadow-md transition-transform active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <span>📍</span> Tandai Lokasi
                     </button>
-                    {unlockedCheckpoints.some((wp) => wp.includes(inspectedLandmark.id)) && (
+                    {inspectedHotspot.waypointId && unlockedCheckpoints.includes(inspectedHotspot.waypointId) && (
                       <button
                         onClick={() => {
-                          onFastTravel(inspectedLandmark.x, inspectedLandmark.z);
+                          onFastTravel(inspectedHotspot.worldX, inspectedHotspot.worldZ);
                           onClose();
                         }}
                         className="py-1.5 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[11px] shadow-md transition-transform active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
@@ -1008,19 +1001,19 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
-                    <span>Tetua / NPC</span>
+                    <span>Ibukota / Istana</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                    <span>Peti Harta</span>
+                    <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                    <span>Hutan / Lembah</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                    <span>Musuh / Monster</span>
+                    <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                    <span>Kanyon / Gurun</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-full bg-red-600" />
-                    <span>Boss Titan</span>
+                    <span>World Boss</span>
                   </div>
                 </div>
               </div>
@@ -1048,18 +1041,10 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
 };
 
 export const WorldMapModal = React.memo(WorldMapModalComponent, (prev, next) => {
-  // If modal is closed and remains closed, do not re-render
   if (!prev.isOpen && !next.isOpen) return true;
-  // If modal open state toggled, must re-render
   if (prev.isOpen !== next.isOpen) return false;
-  // If current region or checkpoints changed, re-render
   if (prev.currentRegion.id !== next.currentRegion.id) return false;
   if (prev.unlockedCheckpoints?.length !== next.unlockedCheckpoints?.length) return false;
-  // Ignore trash mob length changes completely (only re-render if important markers change)
-  const prevImp = prev.markers.filter((m) => m.type === 'boss' && !m.id.startsWith('landmark_')).length;
-  const nextImp = next.markers.filter((m) => m.type === 'boss' && !m.id.startsWith('landmark_')).length;
-  if (prevImp !== nextImp) return false;
-  // If player moved only slightly (< 1.2 units), avoid re-rendering entire modal tree during active interaction
   const dPos = Math.hypot(prev.playerPos.x - next.playerPos.x, prev.playerPos.z - next.playerPos.z);
   const dRot = Math.abs(prev.playerPos.rotationY - next.playerPos.rotationY);
   if (dPos < 1.2 && dRot < 0.1) return true;

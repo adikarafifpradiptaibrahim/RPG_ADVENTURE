@@ -3025,3 +3025,97 @@ export function buildWorldEnvironment(
   };
 }
 
+// ============================================================================
+// KALIBRASI SINKRONISASI KOORDINAT DUNIA 3D KE PERSENTASE PETA ACUAN (worldMapTexture)
+// ============================================================================
+
+export interface MapCalibrationAnchor {
+  name: string;
+  x: number;
+  z: number;
+  px: number; // percentage left (0..100)
+  py: number; // percentage top (0..100)
+}
+
+export const MAP_CALIBRATION_ANCHORS: MapCalibrationAnchor[] = [
+  { name: 'Danau Titan', x: -260, z: -450, px: 24, py: 15 },
+  { name: 'Astraea', x: -240, z: -220, px: 23, py: 37 },
+  { name: 'Kanyon Kuno', x: 50, z: -520, px: 62, py: 8 },
+  { name: 'Piramida', x: -20, z: -320, px: 52, py: 24 },
+  { name: 'Oase', x: 20, z: -240, px: 55, py: 33 },
+  { name: 'Kawah Boss', x: 210, z: -360, px: 72, py: 20 },
+  { name: 'Sultan Malik', x: 360, z: -440, px: 85, py: 12 },
+  { name: 'Hutan Kabut', x: 380, z: -140, px: 84, py: 43 },
+  { name: 'Puing Kastil', x: 230, z: -60, px: 72, py: 53 },
+  { name: 'Val-Kragor', x: 330, z: 90, px: 81, py: 68 },
+  { name: 'Batu Lumut', x: 480, z: 20, px: 93, py: 57 },
+  { name: 'Pelabuhan', x: -180, z: 165, px: 33, py: 75 },
+  { name: 'Desa Utama', x: 20, z: 130, px: 52, py: 75 },
+  { name: 'Kaldera Naga', x: -100, z: 290, px: 41, py: 88 },
+];
+
+/**
+ * Mengonversi koordinat dunia 3D (x, z) ke persentase koordinat gambar worldMapTexture (0..100%).
+ * Menggunakan proyeksi affine dasar yang diperhalus dengan Inverse Distance Weighting (IDW)
+ * pada titik-titik jangkar untuk memastikan 100% presisi identik pada setiap landmark utama.
+ */
+export function worldToMapPercent(x: number, z: number): {
+  xPercent: number;
+  yPercent: number;
+  left: string;
+  top: string;
+} {
+  const basePX = 0.09406 * x + 50.69;
+  const basePY = 0.1018 * z + 58.38;
+
+  let wSum = 0;
+  let rXSum = 0;
+  let rYSum = 0;
+  const p = 2;
+
+  for (const a of MAP_CALIBRATION_ANCHORS) {
+    const d = Math.hypot(x - a.x, z - a.z);
+    if (d < 1e-4) {
+      return {
+        xPercent: a.px,
+        yPercent: a.py,
+        left: `${a.px}%`,
+        top: `${a.py}%`,
+      };
+    }
+    const aResX = a.px - (0.09406 * a.x + 50.69);
+    const aResY = a.py - (0.1018 * a.z + 58.38);
+    const w = 1 / Math.pow(d + 40, p);
+    wSum += w;
+    rXSum += w * aResX;
+    rYSum += w * aResY;
+  }
+
+  const xPercent = Math.max(0, Math.min(100, basePX + rXSum / wSum));
+  const yPercent = Math.max(0, Math.min(100, basePY + rYSum / wSum));
+
+  return {
+    xPercent,
+    yPercent,
+    left: `${xPercent.toFixed(2)}%`,
+    top: `${yPercent.toFixed(2)}%`,
+  };
+}
+
+/**
+ * Konversi terbalik dari persentase peta (0..100) ke koordinat dunia 3D (x, z) untuk fast travel.
+ */
+export function mapPercentToWorld(pctX: number, pctY: number): { x: number; z: number } {
+  const match = MAP_CALIBRATION_ANCHORS.find(
+    (a) => Math.hypot(pctX - a.px, pctY - a.py) < 0.8
+  );
+  if (match) {
+    return { x: match.x, z: match.z };
+  }
+
+  const x = (pctX - 50.69) / 0.09406;
+  const z = (pctY - 58.38) / 0.1018;
+  return { x, z };
+}
+
+
