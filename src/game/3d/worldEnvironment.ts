@@ -15,6 +15,7 @@ export interface WorldEnvironmentResult {
   group: THREE.Group;
   colliders: WorldCollider[];
   update: (delta: number, time: number) => void;
+  setVegetationVisible: (visible: boolean) => void;
 }
 
 /**
@@ -3129,10 +3130,50 @@ export function buildWorldEnvironment(
     });
   };
 
+  const vegetationAndFarGroups: THREE.Object3D[] = [
+    pineTrunkMesh,
+    pineFoliageMesh1,
+    pineFoliageMesh2,
+    pineFoliageMesh3,
+    oakTrunkMesh,
+    oakCrownMesh,
+    boulderMesh,
+    shrubMesh,
+    reefStoneMesh,
+    beachGrassMesh,
+    plainsGrassMesh,
+    desertFloraGroup,
+    titanLakeGroup,
+    ancientCanyonGroup,
+    mistForestGroup,
+    castleRuinsGroup,
+    valkragorGroup,
+    mossValleyGroup,
+    swForestGroup,
+    colosseumGroup,
+    canyonGroup,
+    savannaGroup,
+    outpostGroup,
+    beastGroup,
+    ruinsGroup,
+    farmGroup,
+    coastGroup,
+    meadowGroup,
+    westPOIGroup,
+    windmillHillGroup,
+  ];
+
+  const setVegetationVisible = (visible: boolean) => {
+    for (let i = 0; i < vegetationAndFarGroups.length; i++) {
+      vegetationAndFarGroups[i].visible = visible;
+    }
+  };
+
   return {
     group: envGroup,
     colliders,
     update,
+    setVegetationVisible,
   };
 }
 

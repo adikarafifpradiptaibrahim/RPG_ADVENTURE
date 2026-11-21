@@ -411,6 +411,7 @@ export default function App() {
       engineRef.current.setCharacterClass(selectedClass);
       engineRef.current.clearRemotePlayers();
       engineRef.current.setMenuMode('gameplay');
+      engineRef.current.prewarmMageShadersInFrustum();
       engineRef.current.compileAllShaders();
     }
 
@@ -445,6 +446,7 @@ export default function App() {
       engineRef.current.setGameMode('multiplayer', options.playerName);
       engineRef.current.setCharacterClass(options.charClass);
       engineRef.current.setMenuMode('gameplay');
+      engineRef.current.prewarmMageShadersInFrustum();
       engineRef.current.compileAllShaders();
     }
 
@@ -623,15 +625,47 @@ export default function App() {
       engine.setMenuMode('main_menu');
     }
 
-    engine.compileAllShaders();
-    const initTimer = setTimeout(() => {
-      setIsInitialLoading(false);
-    }, 600);
+    // Asynchronous Staggered Loading (Anti-Freeze Main Thread) & In-Frustum GPU Warm-Up
+    let isCancelled = false;
+    const runStaggeredInit = async () => {
+      // Step 1: Pre-decode all Mage skill SFX audio buffers into AudioBuffer memory
+      await soundManager.preloadMageAudioBuffers();
+      if (isCancelled) return;
+
+      // Yield main thread
+      await new Promise((r) => requestAnimationFrame(r));
+      if (isCancelled) return;
+
+      // Step 2: In-Frustum GPU Shader Warm-Up (renders 2 frames directly in front of camera)
+      engine.prewarmMageShadersInFrustum();
+      engine.compileAllShaders();
+      if (isCancelled) return;
+
+      // Yield main thread
+      await new Promise((r) => requestAnimationFrame(r));
+      if (isCancelled) return;
+
+      // Step 3: Wait for 3 stable render frames before dismissing initial loading screen
+      let frameCount = 0;
+      const countFrames = () => {
+        frameCount++;
+        if (frameCount >= 3) {
+          if (!isCancelled) {
+            setIsInitialLoading(false);
+          }
+        } else {
+          requestAnimationFrame(countFrames);
+        }
+      };
+      requestAnimationFrame(countFrames);
+    };
+
+    runStaggeredInit();
 
     engineRef.current = engine;
 
     return () => {
-      clearTimeout(initTimer);
+      isCancelled = true;
       engine.destroy();
       engineRef.current = null;
     };

@@ -708,7 +708,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             <button
               type="button"
               onClick={() => setView('singleplayer_slots')}
-              className="px-5 py-2 rounded-xl bg-stone-950/80 hover:bg-stone-900 border-2 border-stone-300 text-white font-black text-xs sm:text-sm tracking-widest shadow-xl backdrop-blur-md active:scale-95 transition cursor-pointer"
+              className="px-5 py-2 rounded-xl bg-stone-950/90 hover:bg-stone-900 border-2 border-stone-300 text-white font-black text-xs sm:text-sm tracking-widest shadow-xl active:scale-95 transition cursor-pointer"
             >
               KEMBALI
             </button>
@@ -764,7 +764,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           {/* Bottom Section: 360° Drag Hint, Action Buttons, and Skill Bars (Positioned cleanly below the 3D character bodies) */}
           <div className="w-full flex flex-col items-center gap-2.5 pointer-events-none pb-2 z-20">
             {/* 360° Rotation & Interaction Hint Pill */}
-            <div className="pointer-events-none text-[11px] font-semibold text-amber-200/90 bg-stone-950/75 border border-amber-500/30 px-3 py-1 rounded-full shadow-lg backdrop-blur-sm select-none">
+            <div className="pointer-events-none text-[11px] font-semibold text-amber-200/90 bg-stone-950/90 border border-amber-500/40 px-3 py-1 rounded-full shadow-lg select-none">
               💡 Geser mouse / drag untuk memutar karakter 360° • Klik role untuk memilih
             </div>
 
@@ -783,7 +783,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                     setSelectedRole('warrior');
                     onSelectPreviewRole?.('warrior');
                   }}
-                  className={`pointer-events-auto w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl backdrop-blur-md active:scale-95 transition cursor-pointer text-center ${
+                  className={`pointer-events-auto w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl active:scale-95 transition cursor-pointer text-center ${
                     selectedRole === 'warrior'
                       ? 'bg-amber-500/90 border-amber-200 text-stone-950 shadow-amber-500/40 ring-2 ring-amber-400/60 scale-105'
                       : 'bg-stone-950/85 hover:bg-stone-900 border-stone-400/60 text-white'
@@ -806,7 +806,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                     setSelectedRole('mage');
                     onSelectPreviewRole?.('mage');
                   }}
-                  className={`pointer-events-auto w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl backdrop-blur-md active:scale-95 transition cursor-pointer text-center ${
+                  className={`pointer-events-auto w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl active:scale-95 transition cursor-pointer text-center ${
                     selectedRole === 'mage'
                       ? 'bg-purple-500/90 border-purple-200 text-stone-950 shadow-purple-500/40 ring-2 ring-purple-400/60 scale-105'
                       : 'bg-stone-950/85 hover:bg-stone-900 border-stone-400/60 text-white'
@@ -829,7 +829,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                     setSelectedRole('rogue');
                     onSelectPreviewRole?.('rogue');
                   }}
-                  className={`pointer-events-auto w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl backdrop-blur-md active:scale-95 transition cursor-pointer text-center ${
+                  className={`pointer-events-auto w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl active:scale-95 transition cursor-pointer text-center ${
                     selectedRole === 'rogue'
                       ? 'bg-emerald-500/90 border-emerald-200 text-stone-950 shadow-emerald-500/40 ring-2 ring-emerald-400/60 scale-105'
                       : 'bg-stone-950/85 hover:bg-stone-900 border-stone-400/60 text-white'
@@ -844,7 +844,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             <div className="w-full flex items-center justify-center gap-2 sm:gap-4 md:gap-6 flex-wrap pointer-events-none">
               {/* Knight Skills Bar */}
               <div
-                className={`pointer-events-auto flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-black/80 border backdrop-blur-md shadow-2xl transition-all cursor-pointer ${
+                className={`pointer-events-auto flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-stone-950/95 border shadow-2xl transition-all cursor-pointer ${
                   selectedRole === 'warrior'
                     ? 'border-amber-400 ring-1 ring-amber-400/50 scale-[1.02]'
                     : 'border-amber-600/30'
@@ -877,7 +877,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
               {/* Mage Skills Bar */}
               <div
-                className={`pointer-events-auto flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-black/80 border backdrop-blur-md shadow-2xl transition-all cursor-pointer ${
+                className={`pointer-events-auto flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-stone-950/95 border shadow-2xl transition-all cursor-pointer ${
                   selectedRole === 'mage'
                     ? 'border-blue-400 ring-1 ring-blue-400/50 scale-[1.02]'
                     : 'border-blue-600/30'
@@ -910,7 +910,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
               {/* Assassin Skills Bar */}
               <div
-                className={`pointer-events-auto flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-black/80 border backdrop-blur-md shadow-2xl transition-all cursor-pointer ${
+                className={`pointer-events-auto flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-stone-950/95 border shadow-2xl transition-all cursor-pointer ${
                   selectedRole === 'rogue'
                     ? 'border-emerald-400 ring-1 ring-emerald-400/50 scale-[1.02]'
                     : 'border-emerald-600/30'

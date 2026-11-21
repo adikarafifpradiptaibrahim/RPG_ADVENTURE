@@ -324,6 +324,60 @@ export class GameEngine {
   private cameraFovPunch = 0;
   private charClass: CharacterClass = 'warrior';
   public isMoving = false;
+
+  // Static Player Skill PointLight (Zero-Allocation & Zero Shader Invalidation)
+  public skillVfxLight!: THREE.PointLight;
+
+  // Reusable Class Scratch Vectors (Zero Garbage Collection during Skills)
+  private readonly _scratchVec1 = new THREE.Vector3();
+  private readonly _scratchVec2 = new THREE.Vector3();
+  private readonly _scratchVec3 = new THREE.Vector3();
+  private readonly _scratchForward = new THREE.Vector3();
+  private readonly _scratchOrigin = new THREE.Vector3();
+  private readonly _scratchTarget = new THREE.Vector3();
+  private readonly _scratchUp = new THREE.Vector3(0, 1, 0);
+  private readonly _scratchToEnemy = new THREE.Vector3();
+  private readonly _scratchClosestPoint = new THREE.Vector3();
+  private readonly _scratchHitPos = new THREE.Vector3();
+
+  // Static Ring Buffer Particle Pool for Sparks & Mage VFX (Zero Dynamic Allocations)
+  private sparkInstancedMesh!: THREE.InstancedMesh;
+  private sparkDummy = new THREE.Object3D();
+  private readonly SPARK_MAX_COUNT = 120;
+  private sparkPool: Array<{
+    active: boolean;
+    x: number;
+    y: number;
+    z: number;
+    vx: number;
+    vy: number;
+    vz: number;
+    life: number;
+    maxLife: number;
+    color: THREE.Color;
+  }> = [];
+  private sparkNextIndex = 0;
+
+  // Reusable Static Pools for Shockwave Rings & Starbursts
+  private shockwavePool: Array<{
+    mesh: THREE.Mesh;
+    mat: THREE.MeshBasicMaterial;
+    active: boolean;
+    elapsed: number;
+    duration: number;
+    maxRadius: number;
+  }> = [];
+  private shockwaveNextIndex = 0;
+
+  private starburstPool: Array<{
+    group: THREE.Group;
+    mat: THREE.MeshBasicMaterial;
+    active: boolean;
+    elapsed: number;
+    duration: number;
+    scale: number;
+  }> = [];
+  private starburstNextIndex = 0;
   public get currentRole(): string {
     return this.charClass === 'rogue' ? 'assassin' : this.charClass;
   }
@@ -443,6 +497,25 @@ export class GameEngine {
     this.selectedPreviewRole = role;
   }
 
+  public triggerSkillVfxLight(pos: THREE.Vector3, color: number, intensity: number, distance: number) {
+    if (!this.skillVfxLight) return;
+    this.skillVfxLight.position.copy(pos);
+    this.skillVfxLight.color.setHex(color);
+    this.skillVfxLight.intensity = intensity;
+    this.skillVfxLight.distance = distance;
+  }
+
+  public extinguishSkillVfxLight() {
+    if (!this.skillVfxLight) return;
+    this.skillVfxLight.intensity = 0;
+  }
+
+  public prewarmMageShadersInFrustum(): void {
+    if (this.scene && this.renderer && this.camera) {
+      preloadMageVfxPool(this.scene, this.renderer, this.camera);
+    }
+  }
+
   public setMenuMode(mode: 'main_menu' | 'character_select' | 'gameplay') {
     this.menuMode = mode;
     if (mode === 'main_menu') {
@@ -451,24 +524,33 @@ export class GameEngine {
         this.playerMesh.group.visible = false;
       }
       if (this.renderer) {
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
         this.renderer.shadowMap.enabled = false;
+        this.renderer.shadowMap.autoUpdate = false;
       }
       if (this.camera) {
         this.camera.far = 160;
         this.camera.updateProjectionMatrix();
       }
+      // Zero-lag Main Menu: hide instanced vegetation, distant chunks, and all monsters
+      this.worldEnvironment?.setVegetationVisible(false);
+      this.enemies.forEach((e) => { e.mesh.visible = false; });
       this.setControlsLocked(true);
     } else if (mode === 'character_select') {
       if (this.playerMesh?.group) {
         this.playerMesh.group.visible = false;
       }
       if (this.renderer) {
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
         this.renderer.shadowMap.enabled = false;
+        this.renderer.shadowMap.autoUpdate = false;
       }
       if (this.camera) {
         this.camera.far = 160;
         this.camera.updateProjectionMatrix();
       }
+      this.worldEnvironment?.setVegetationVisible(false);
+      this.enemies.forEach((e) => { e.mesh.visible = false; });
       this.setupCharacterSelectScene();
       this.setControlsLocked(true);
     } else if (mode === 'gameplay') {
@@ -477,12 +559,19 @@ export class GameEngine {
         this.playerMesh.group.visible = true;
       }
       if (this.renderer) {
+        this.renderer.setPixelRatio(this.graphicsSettings.renderScale * Math.min(window.devicePixelRatio, 1.5));
         this.renderer.shadowMap.enabled = this.graphicsSettings.shadows;
+        this.renderer.shadowMap.autoUpdate = this.graphicsSettings.shadows;
       }
       if (this.camera) {
         this.camera.far = 1200;
         this.camera.updateProjectionMatrix();
       }
+      // Restore vegetation & alive monster meshes for gameplay
+      this.worldEnvironment?.setVegetationVisible(true);
+      this.enemies.forEach((e) => {
+        if (!e.data.isDead) e.mesh.visible = true;
+      });
       this.setControlsLocked(false);
       this.teleportGraceTimer = 0.5;
     }
@@ -762,7 +851,16 @@ export class GameEngine {
       this.dayNightSystem.applyOutdoorLighting(this.scene, this.world.hemiLight, this.world.dirLight, this.playerPos);
     }
 
-    // Warm-up & pre-compile all Mage shaders, geometries, and object pools (Arcane Beam, Starfall, Blink, Celestial Heal)
+    // Static Player Skill PointLight (always in scene with 0 default intensity)
+    this.skillVfxLight = new THREE.PointLight(0x00f0ff, 0, 15);
+    this.skillVfxLight.name = 'PlayerSkill_StaticLight';
+    this.scene.add(this.skillVfxLight);
+
+    // Initialize Zero-Allocation Object Pools for Sparks and Combat VFX
+    this.initSparksPool();
+    this.initCombatVfxPools();
+
+    // Warm-up & pre-compile all Mage shaders, geometries, and object pools in frustum
     preloadMageVfxPool(this.scene, this.renderer, this.camera);
 
     // Initialize Boss Manager
@@ -3081,47 +3179,180 @@ export class GameEngine {
     this.activeVfx.push({ object, update, cleanup, isPriority });
   }
 
-  // Radiant 4-pointed Starburst Cross on Crits and Heavy Impacts
-  private spawnHitStarburst(position: THREE.Vector3, color: number, scale = 1.0) {
-    const group = new THREE.Group();
-    group.position.copy(position);
+  // ============================================================================
+  // ZERO-ALLOCATION COMBAT VFX OBJECT POOLS (Sparks, Starbursts, Shockwaves)
+  // ============================================================================
+  private initSparksPool() {
+    const geo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
+    const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 1 });
+    this.sparkInstancedMesh = new THREE.InstancedMesh(geo, mat, this.SPARK_MAX_COUNT);
+    this.sparkInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.sparkInstancedMesh.frustumCulled = false;
 
-    const mat = new THREE.MeshBasicMaterial({
-      color,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.95,
-      depthWrite: false,
-    });
+    this.sparkDummy.position.set(0, -999, 0);
+    this.sparkDummy.scale.set(0, 0, 0);
+    this.sparkDummy.updateMatrix();
 
-    const geomV = new THREE.PlaneGeometry(0.12 * scale, 1.4 * scale);
-    const geomH = new THREE.PlaneGeometry(1.4 * scale, 0.12 * scale);
-    const beamV = new THREE.Mesh(geomV, mat);
-    const beamH = new THREE.Mesh(geomH, mat);
-    group.add(beamV, beamH);
+    for (let i = 0; i < this.SPARK_MAX_COUNT; i++) {
+      this.sparkInstancedMesh.setMatrixAt(i, this.sparkDummy.matrix);
+      this.sparkInstancedMesh.setColorAt(i, new THREE.Color(0xffffff));
+      this.sparkPool.push({
+        active: false,
+        x: 0,
+        y: -999,
+        z: 0,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        life: 0,
+        maxLife: 0.35,
+        color: new THREE.Color(0xffffff),
+      });
+    }
+    this.sparkInstancedMesh.instanceMatrix.needsUpdate = true;
+    if (this.sparkInstancedMesh.instanceColor) {
+      this.sparkInstancedMesh.instanceColor.needsUpdate = true;
+    }
+    this.scene.add(this.sparkInstancedMesh);
+  }
 
-    // Glowing core sphere
-    const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const core = new THREE.Mesh(new THREE.SphereGeometry(0.16 * scale, 8, 8), coreMat);
-    group.add(core);
-
-    // Face camera
-    group.quaternion.copy(this.camera.quaternion);
-
-    let life = 0.2;
-    const maxLife = 0.2;
-    this.addVfx(group, (delta) => {
-      life -= delta;
-      if (life <= 0) {
-        this.scene.remove(group);
-        return false;
+  private updateSparks(delta: number) {
+    let hasActive = false;
+    for (let i = 0; i < this.SPARK_MAX_COUNT; i++) {
+      const p = this.sparkPool[i];
+      if (!p.active) continue;
+      hasActive = true;
+      p.life -= delta;
+      if (p.life <= 0) {
+        p.active = false;
+        this.sparkDummy.position.set(0, -999, 0);
+        this.sparkDummy.scale.set(0, 0, 0);
+        this.sparkDummy.updateMatrix();
+        this.sparkInstancedMesh.setMatrixAt(i, this.sparkDummy.matrix);
+        continue;
       }
-      const progress = 1 - life / maxLife;
-      const s = 0.5 + progress * 0.85;
-      group.scale.set(s, s, s);
-      mat.opacity = (life / maxLife) * 0.95;
-      return true;
-    });
+
+      p.vy -= 12 * delta; // Gravity
+      p.x += p.vx * delta;
+      p.y += p.vy * delta;
+      p.z += p.vz * delta;
+
+      const progress = p.life / p.maxLife;
+      const scale = progress * 1.1;
+      this.sparkDummy.position.set(p.x, p.y, p.z);
+      this.sparkDummy.scale.set(scale, scale, scale);
+      this.sparkDummy.rotation.x += delta * 6;
+      this.sparkDummy.rotation.y += delta * 6;
+      this.sparkDummy.updateMatrix();
+      this.sparkInstancedMesh.setMatrixAt(i, this.sparkDummy.matrix);
+    }
+
+    if (hasActive) {
+      this.sparkInstancedMesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  private initCombatVfxPools() {
+    // 1. Shockwave Rings Pool (8 pre-allocated meshes)
+    for (let i = 0; i < 8; i++) {
+      const geom = new THREE.RingGeometry(0.3, 0.65, 32);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+      });
+      const ring = new THREE.Mesh(geom, mat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.visible = false;
+      this.scene.add(ring);
+      this.shockwavePool.push({
+        mesh: ring,
+        mat,
+        active: false,
+        elapsed: 0,
+        duration: 0.4,
+        maxRadius: 4.5,
+      });
+    }
+
+    // 2. Starburst Cross Pool (8 pre-allocated groups)
+    for (let i = 0; i < 8; i++) {
+      const group = new THREE.Group();
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x00f0ff,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+      });
+      const beamV = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 1.4), mat);
+      const beamH = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.12), mat);
+      const core = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      group.add(beamV, beamH, core);
+      group.visible = false;
+      this.scene.add(group);
+      this.starburstPool.push({
+        group,
+        mat,
+        active: false,
+        elapsed: 0,
+        duration: 0.2,
+        scale: 1.0,
+      });
+    }
+  }
+
+  private updateCombatVfxPools(delta: number) {
+    // Update active shockwaves
+    for (let i = 0; i < this.shockwavePool.length; i++) {
+      const item = this.shockwavePool[i];
+      if (!item.active) continue;
+      item.elapsed += delta;
+      if (item.elapsed >= item.duration) {
+        item.active = false;
+        item.mesh.visible = false;
+        continue;
+      }
+      const progress = item.elapsed / item.duration;
+      const s = 1 + progress * (item.maxRadius / 0.65);
+      item.mesh.scale.set(s, s, s);
+      item.mat.opacity = (1 - progress) * 0.9;
+    }
+
+    // Update active starbursts
+    for (let i = 0; i < this.starburstPool.length; i++) {
+      const item = this.starburstPool[i];
+      if (!item.active) continue;
+      item.elapsed += delta;
+      if (item.elapsed >= item.duration) {
+        item.active = false;
+        item.group.visible = false;
+        continue;
+      }
+      const progress = item.elapsed / item.duration;
+      const s = (0.5 + progress * 0.85) * item.scale;
+      item.group.scale.set(s, s, s);
+      item.mat.opacity = (1 - progress) * 0.95;
+      item.group.quaternion.copy(this.camera.quaternion);
+    }
+  }
+
+  // Pre-allocated Zero-Allocation Radiant 4-pointed Starburst Cross
+  private spawnHitStarburst(position: THREE.Vector3, color: number, scale = 1.0) {
+    const item = this.starburstPool[this.starburstNextIndex];
+    this.starburstNextIndex = (this.starburstNextIndex + 1) % this.starburstPool.length;
+    item.group.position.copy(position);
+    item.group.quaternion.copy(this.camera.quaternion);
+    item.group.scale.set(0.5 * scale, 0.5 * scale, 0.5 * scale);
+    item.mat.color.setHex(color);
+    item.mat.opacity = 0.95;
+    item.scale = scale;
+    item.elapsed = 0;
+    item.duration = 0.2;
+    item.active = true;
+    item.group.visible = true;
   }
 
   // Visual layered crescent slash wave (incandescent core + dynamic outer energy ribbon)
@@ -3236,79 +3467,45 @@ export class GameEngine {
     });
   }
 
-  // Particle sparks with active particle limiter (max 150 particles)
+  // Pre-allocated Zero-Allocation Fixed-Size Ring Buffer Spark Particles
   private spawnSparks(position: THREE.Vector3, color: number, count = 8, speed = 4) {
-    const maxAllowed = Math.max(0, 150 - this.currentParticleCount);
-    const actualCount = Math.min(count, maxAllowed);
-    if (actualCount <= 0) return;
-    this.currentParticleCount += actualCount;
-
-    const group = new THREE.Group();
-    group.position.copy(position);
-
-    const particles: { mesh: THREE.Mesh; vel: THREE.Vector3 }[] = [];
-    const geom = new THREE.BoxGeometry(0.08, 0.08, 0.08);
-
+    const actualCount = Math.min(count, 24);
     for (let i = 0; i < actualCount; i++) {
-      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 });
-      const mesh = new THREE.Mesh(geom, mat);
-      const vel = new THREE.Vector3(
-        (Math.random() - 0.5) * speed,
-        Math.random() * speed * 0.8 + 1.0,
-        (Math.random() - 0.5) * speed
-      );
-      group.add(mesh);
-      particles.push({ mesh, vel });
-    }
+      const p = this.sparkPool[this.sparkNextIndex];
+      const idx = this.sparkNextIndex;
+      this.sparkNextIndex = (this.sparkNextIndex + 1) % this.SPARK_MAX_COUNT;
 
-    let life = 0.35;
-    this.addVfx(group, (delta) => {
-      life -= delta;
-      if (life <= 0) {
-        this.scene.remove(group);
-        this.currentParticleCount = Math.max(0, this.currentParticleCount - actualCount);
-        return false;
-      }
-      const opacity = life / 0.35;
-      particles.forEach((p) => {
-        p.vel.y -= 12 * delta; // gravity
-        p.mesh.position.addScaledVector(p.vel, delta);
-        p.mesh.rotation.x += delta * 6;
-        p.mesh.rotation.y += delta * 6;
-        (p.mesh.material as THREE.MeshBasicMaterial).opacity = opacity;
-      });
-      return true;
-    });
+      p.active = true;
+      p.x = position.x;
+      p.y = position.y;
+      p.z = position.z;
+      p.vx = (Math.random() - 0.5) * speed;
+      p.vy = Math.random() * speed * 0.8 + 1.0;
+      p.vz = (Math.random() - 0.5) * speed;
+      p.life = 0.35;
+      p.maxLife = 0.35;
+      p.color.setHex(color);
+      this.sparkInstancedMesh.setColorAt(idx, p.color);
+    }
+    if (this.sparkInstancedMesh.instanceColor) {
+      this.sparkInstancedMesh.instanceColor.needsUpdate = true;
+    }
   }
 
-  // Shockwave Ring on Ground
+  // Pre-allocated Zero-Allocation Shockwave Ring
   private spawnShockwaveRing(position: THREE.Vector3, color: number, maxRadius = 4.5, duration = 0.4) {
-    const geom = new THREE.RingGeometry(0.3, 0.65, 32);
-    const mat = new THREE.MeshBasicMaterial({
-      color,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.9,
-      depthWrite: false,
-    });
-    const ring = new THREE.Mesh(geom, mat);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.copy(position);
-    ring.position.y += 0.08;
-
-    let elapsed = 0;
-    this.addVfx(ring, (delta) => {
-      elapsed += delta;
-      if (elapsed >= duration) {
-        this.scene.remove(ring);
-        return false;
-      }
-      const progress = elapsed / duration;
-      const scale = 1 + progress * (maxRadius / 0.65);
-      ring.scale.set(scale, scale, scale);
-      mat.opacity = (1 - progress) * 0.9;
-      return true;
-    });
+    const item = this.shockwavePool[this.shockwaveNextIndex];
+    this.shockwaveNextIndex = (this.shockwaveNextIndex + 1) % this.shockwavePool.length;
+    item.mesh.position.copy(position);
+    item.mesh.position.y += 0.08;
+    item.mesh.scale.set(1, 1, 1);
+    item.mat.color.setHex(color);
+    item.mat.opacity = 0.9;
+    item.maxRadius = maxRadius;
+    item.duration = duration;
+    item.elapsed = 0;
+    item.active = true;
+    item.mesh.visible = true;
   }
 
   // Footstep VFX
@@ -4438,41 +4635,42 @@ export class GameEngine {
   // 5. Mage Arcane Laser Beam & 3D Magic Circle (1.0s Channel with continuous raycast hit detection)
   private spawnMageArcaneLaserBeam(customFwd?: THREE.Vector3, customSpawnPos?: THREE.Vector3, isRemote = false) {
     const fwd = customFwd
-      ? customFwd.clone().normalize()
-      : new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+      ? this._scratchForward.copy(customFwd).normalize()
+      : this._scratchForward.set(0, 0, 1).applyAxisAngle(this._scratchUp, this.playerRotationY);
 
-    // Position Magic Circle right in front of the staff crystal tip (+0.12 unit forward)
-    let origin: THREE.Vector3;
+    const origin = this._scratchOrigin;
     let getOriginCb: (() => { origin: THREE.Vector3; direction?: THREE.Vector3 }) | undefined;
 
     if (customSpawnPos) {
-      origin = customSpawnPos.clone().add(fwd.clone().multiplyScalar(0.7)).add(new THREE.Vector3(0, 1.45, 0));
+      origin.copy(customSpawnPos).addScaledVector(fwd, 0.7);
+      origin.y += 1.45;
     } else if (this.playerMesh && this.playerMesh.orbMesh) {
       this.playerMesh.group.updateMatrixWorld(true);
       this.playerMesh.orbMesh.updateMatrixWorld(true);
-      const crystalWorldPos = new THREE.Vector3();
-      this.playerMesh.orbMesh.getWorldPosition(crystalWorldPos);
-      origin = crystalWorldPos.clone();
+      this.playerMesh.orbMesh.getWorldPosition(origin);
 
       getOriginCb = () => {
         if (!this.playerMesh?.orbMesh) return { origin, direction: fwd };
         this.playerMesh.group.updateMatrixWorld(true);
         this.playerMesh.orbMesh.updateMatrixWorld(true);
-        const curCrystalPos = new THREE.Vector3();
-        this.playerMesh.orbMesh.getWorldPosition(curCrystalPos);
-        const curFwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+        this.playerMesh.orbMesh.getWorldPosition(this._scratchVec2);
+        this._scratchVec3.set(0, 0, 1).applyAxisAngle(this._scratchUp, this.playerRotationY);
         return {
-          origin: curCrystalPos,
-          direction: curFwd,
+          origin: this._scratchVec2,
+          direction: this._scratchVec3,
         };
       };
     } else {
-      origin = this.playerPos.clone().add(fwd.clone().multiplyScalar(1.1)).add(new THREE.Vector3(0, 1.5, 0));
+      origin.copy(this.playerPos).addScaledVector(fwd, 1.1);
+      origin.y += 1.5;
     }
 
     const beamLength = 34.0;
 
-    // Helper for raycast hitbox damage against all enemies (mobs and bosses)
+    // Trigger Static Player Skill Light (No scene.add/remove)
+    this.triggerSkillVfxLight(origin, 0xe879f9, 4.2, 18.0);
+
+    // Helper for raycast hitbox damage against all enemies (mobs and bosses) - Zero Dynamic Vector Allocations
     const checkLaserHit = (isContinuousTick: boolean) => {
       if (isRemote || !this.isRunning) return;
 
@@ -4481,7 +4679,6 @@ export class GameEngine {
         const tierMult = 1 + (this.playerTier - 1) * 0.25;
         const fullSpellDmg = (stats.baseAttack + stats.intelligence * 2.4) * tierMult;
 
-        // Initial burst does 52% damage with full impact, ticks do 28% continuous damage (Total ~136% spell power over 0.8s)
         const rawDmg = isContinuousTick ? fullSpellDmg * 0.28 : fullSpellDmg * 0.52;
         const finalDmg = Math.max(4, Math.round(isCrit ? rawDmg * 1.85 : rawDmg));
 
@@ -4489,13 +4686,12 @@ export class GameEngine {
           if (enemy.data.isDead) return;
 
           const enemyPos = enemy.mesh.position;
-          const toEnemy = new THREE.Vector3().subVectors(enemyPos, origin);
-          const projDist = toEnemy.dot(fwd);
+          this._scratchToEnemy.subVectors(enemyPos, origin);
+          const projDist = this._scratchToEnemy.dot(fwd);
 
-          // Check if enemy lies within beam length forward
           if (projDist >= 0.2 && projDist <= beamLength + 1.2) {
-            const closestPoint = origin.clone().addScaledVector(fwd, projDist);
-            const distToBeam = enemyPos.distanceTo(closestPoint);
+            this._scratchClosestPoint.copy(origin).addScaledVector(fwd, projDist);
+            const distToBeam = enemyPos.distanceTo(this._scratchClosestPoint);
 
             const isBoss = enemy.data.type === 'boss' || enemy.data.id.includes('boss');
             const hitRadius = isBoss ? 4.8 : 2.2;
@@ -4503,13 +4699,14 @@ export class GameEngine {
             if (distToBeam <= hitRadius) {
               this.damageEnemy(enemy, finalDmg, isCrit, isContinuousTick ? 0.05 : 0.35);
 
-              const hitPos = enemyPos.clone().add(new THREE.Vector3(0, 1.2, 0));
-              this.spawnSparks(hitPos, 0x00f0ff, isContinuousTick ? 6 : 14, 4.0);
-              this.spawnSparks(hitPos, 0xffffff, isContinuousTick ? 3 : 8, 3.2);
+              this._scratchHitPos.copy(enemyPos);
+              this._scratchHitPos.y += 1.2;
+              this.spawnSparks(this._scratchHitPos, 0x00f0ff, isContinuousTick ? 6 : 14, 4.0);
+              this.spawnSparks(this._scratchHitPos, 0xffffff, isContinuousTick ? 3 : 8, 3.2);
 
               if (!isContinuousTick) {
-                this.spawnHitStarburst(hitPos, 0x00f0ff, 1.3);
-                this.spawnShockwaveRing(hitPos, 0x38bdf8, 2.4, 0.25);
+                this.spawnHitStarburst(this._scratchHitPos, 0x00f0ff, 1.3);
+                this.spawnShockwaveRing(this._scratchHitPos, 0x38bdf8, 2.4, 0.25);
               }
             }
           }
@@ -4533,7 +4730,21 @@ export class GameEngine {
       },
     });
 
-    this.addVfx(vfx.group, vfx.update, vfx.cleanup, true);
+    this.addVfx(
+      vfx.group,
+      (delta) => {
+        const keepGoing = vfx.update(delta);
+        if (keepGoing) {
+          this.triggerSkillVfxLight(origin, 0xe879f9, 3.5, 18.0);
+        }
+        return keepGoing;
+      },
+      () => {
+        vfx.cleanup();
+        this.extinguishSkillVfxLight();
+      },
+      true
+    );
 
     // Initial cast sparks at the magic circle aperture
     this.spawnSparks(origin, 0x00f0ff, 12, 4.2);
@@ -4552,6 +4763,9 @@ export class GameEngine {
     this.castingDuration = 1.0;
     this.castingSkillName = 'Starfall';
     this.playerVel.set(0, 0, 0);
+
+    // Static Player Skill Light for Starfall
+    this.triggerSkillVfxLight(this.playerPos, 0xfacc15, 2.5, 14.0);
 
     // Audio: 1.0s swelling runic charging hum
     soundManager.playStarfallCharge(1.0);
@@ -4574,6 +4788,7 @@ export class GameEngine {
       },
       () => {
         circle.cleanup();
+        this.extinguishSkillVfxLight();
         if (this.castingCircleInstance === circle) {
           this.castingCircleInstance = null;
         }
@@ -4744,6 +4959,7 @@ export class GameEngine {
 
   // 7. Mage Arcane Blink VFX (Dual Runic Magic Circles + 3 Afterimages + Ethereal Tracer + Landing Burst)
   private spawnMageBlinkVfx(startPos: THREE.Vector3, endPos: THREE.Vector3) {
+    this.triggerSkillVfxLight(endPos, 0x38bdf8, 3.2, 12.0);
     const vfx = createMageBlinkVfx({
       startPos,
       targetPos: endPos,
@@ -4771,9 +4987,11 @@ export class GameEngine {
             }
           }
 
-          // 2. Dual-color neon spark bursts (Cyan & Magenta) at character's feet
-          this.spawnSparks(endPos.clone().add(new THREE.Vector3(0, 0.4, 0)), 0x38bdf8, 16, 5.2);
-          this.spawnSparks(endPos.clone().add(new THREE.Vector3(0, 0.4, 0)), 0xd946ef, 14, 4.8);
+          // 2. Dual-color neon spark bursts (Cyan & Magenta) at character's feet using scratch vector
+          this._scratchVec1.copy(endPos);
+          this._scratchVec1.y += 0.4;
+          this.spawnSparks(this._scratchVec1, 0x38bdf8, 16, 5.2);
+          this.spawnSparks(this._scratchVec1, 0xd946ef, 14, 4.8);
 
           // 3. Camera FOV Punch (+4 FOV) and visceral Camera Shake
           this.triggerCameraFovPunch(4.0, 0.18);
@@ -4782,6 +5000,7 @@ export class GameEngine {
       },
       () => {
         vfx.cleanup();
+        this.extinguishSkillVfxLight();
         if (this.playerMesh && this.playerMesh.group) {
           this.playerMesh.group.visible = true;
           if (this.charClass === 'mage' && this.playerMesh.body) {
@@ -4794,14 +5013,21 @@ export class GameEngine {
 
   // 8. Mage Celestial Heal Light Pillar (Zero-Lag Pre-allocated Pool + Circuit Stroke Reveal)
   private spawnMageCelestialHealVfx() {
+    this.triggerSkillVfxLight(this.playerPos, 0x67e8f9, 2.5, 10.0);
     const vfx = CelestialHealResourcePool.get().acquire(this.playerPos);
     if (!this.scene.children.includes(vfx.group)) {
       this.scene.add(vfx.group);
     }
-    this.addVfx(vfx.group, (delta) => {
-      const terrainH = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
-      return vfx.update(delta, this.playerPos, terrainH);
-    });
+    this.addVfx(
+      vfx.group,
+      (delta) => {
+        const terrainH = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+        return vfx.update(delta, this.playerPos, terrainH);
+      },
+      () => {
+        this.extinguishSkillVfxLight();
+      }
+    );
     this.triggerCameraShake(0.18);
   }
 
@@ -5839,7 +6065,8 @@ export class GameEngine {
         if (this.charClass === 'mage') {
           // Mage: Langkah Dimensi (Instant Blink Teleport with Dual Runic Circles, Afterimages & Enemy Penetration)
           soundManager.playMageBlink();
-          const startPos = this.playerPos.clone();
+          // Reusable Scratch Vectors - Zero GC during Mage Blink
+          const startPos = this._scratchOrigin.copy(this.playerPos);
           const blinkDir = this.getPlayerMovementDirection();
 
           let maxDist = 12.0;
@@ -5872,7 +6099,7 @@ export class GameEngine {
 
           // Resolve collisions so player never blinks inside walls or buildings
           const resolved = this.resolveCollisions(targetX, targetZ);
-          const targetPos = new THREE.Vector3(
+          const targetPos = this._scratchTarget.set(
             resolved.x,
             this.world.getTerrainHeight(resolved.x, resolved.z),
             resolved.z
@@ -8682,6 +8909,8 @@ export class GameEngine {
     this.updateCamera(delta);
     this.updateRemotePlayers(delta);
     this.worldEnvironment?.update(delta, this.clock.getElapsedTime());
+    this.updateSparks(delta);
+    this.updateCombatVfxPools(delta);
 
     // Update Mage Arcane Shield Timer
     if (this.arcaneShieldTimer > 0) {

@@ -858,6 +858,20 @@ export class SoundManager {
     }
   }
 
+  /**
+   * Pre-decodes all Mage skill audio buffers into AudioBuffer memory ahead of time
+   * to eliminate audio decoding latency and disk I/O freezes during skill casting.
+   */
+  public async preloadMageAudioBuffers(): Promise<void> {
+    this.initContext();
+    await Promise.allSettled([
+      this.loadArcaneBeamBuffer(),
+      this.loadStarfallAudioBuffers(),
+      this.loadCahayaSpellBuffer(),
+      this.loadBlinkMagicBuffer(),
+    ]);
+  }
+
   // Helper for generating organic noise bursts (whooshes, blade friction, gas hiss, explosions)
   private playNoiseBurst(options: {
     duration: number;

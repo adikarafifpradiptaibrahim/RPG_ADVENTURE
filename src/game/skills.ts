@@ -395,8 +395,10 @@ class ArcaneBeamResourcePool {
     const coreSphere = new THREE.Mesh(this.coreSphereGeom, this.coreSphereMat);
     const crossH = new THREE.Mesh(this.crossHGeom, this.crossMat);
     const crossV = new THREE.Mesh(this.crossVGeom, this.crossMat);
-    const beamLight = new THREE.PointLight(0xe879f9, 4.5, 18.0);
-    magicCircleGroup.add(circlePlane, outerTorus, innerTorus, coreSphere, crossH, crossV, beamLight);
+    // Dummy light reference kept detached from scene graph to satisfy local callbacks without pipeline invalidation
+    const beamLight = new THREE.PointLight(0xe879f9, 0, 18.0);
+    // Static Lighting Rule: Player skills do not add dynamic PointLights to scene groups
+    magicCircleGroup.add(circlePlane, outerTorus, innerTorus, coreSphere, crossH, crossV);
     group.add(magicCircleGroup);
 
     const laserBeamGroup = new THREE.Group();
@@ -1211,7 +1213,7 @@ export class StarfallResourcePool {
 
     const circleLight = new THREE.PointLight(0xfacc15, 0.0, 10.0);
     circleLight.position.set(0, 1.2, 0);
-    group.add(circleLight);
+    // Static Lighting Rule: circleLight is not attached to scene graph to avoid pipeline re-compilation
 
     let elapsed = 0;
     let sparkTimer = 0;
@@ -1760,11 +1762,33 @@ export function preloadMageVfxPool(scene: THREE.Scene, renderer?: THREE.WebGLRen
     dummyGroup.add(new THREE.Mesh(blinkPool.torsoGeom, blinkPool.afterimageMat1));
     dummyGroup.add(new THREE.Mesh(blinkPool.shockwaveGeom1, blinkPool.landingShockwaveMatCyan));
 
-    dummyGroup.position.set(0, -999, 0);
+    dummyGroup.visible = true;
+    dummyGroup.traverse((child) => {
+      child.visible = true;
+      child.frustumCulled = false;
+    });
+
+    // In-Frustum GPU Shader Warm-Up: Position 5 units directly ahead of camera
+    const camDir = new THREE.Vector3();
+    camera.getWorldDirection(camDir);
+    dummyGroup.position.copy(camera.position).addScaledVector(camDir, 5.0);
+    dummyGroup.lookAt(camera.position);
+
     scene.add(dummyGroup);
     try {
       renderer.compile(scene, camera);
-    } catch {}
+      // Run 2 full frames behind loading screen so GPU driver compiles 100% shaders & uploads textures to VRAM
+      renderer.render(scene, camera);
+      renderer.render(scene, camera);
+    } catch (e) {
+      console.warn('[VFX] Shader prewarm render error:', e);
+    }
+
+    dummyGroup.visible = false;
+    dummyGroup.traverse((child) => {
+      child.visible = false;
+      child.frustumCulled = true;
+    });
     scene.remove(dummyGroup);
   }
 }
@@ -2335,10 +2359,9 @@ export class CelestialHealResourcePool {
     const stardust = new THREE.Points(this.stardustGeom, this.stardustMat);
     group.add(stardust);
 
-    // 7. Dynamic PointLight: Soft Cyan (0x67e8f9), intensity 2.0, distance 6.0, y = 1.0
+    // 7. Dynamic PointLight: soft cyan (not added to scene graph to maintain static lighting)
     const pointLight = new THREE.PointLight(0x67e8f9, 0.0, 6.0);
     pointLight.position.set(0, 1.0, 0);
-    group.add(pointLight);
 
     let elapsed = 0;
     let isActive = false;
