@@ -947,12 +947,12 @@ export function animateMageSkillPose(
     playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0.05, lerpSpeed);
   }
 
-  // B. Skill 1: Starfall (Fase Casting 1.0 Detik & Fase Barrage Meteor 10-Barrage)
+  // B. Skill 1: Starfall / Celestial Apocalypse (Fase Casting)
   if (ctx.isCasting) {
-    // Detik 0.0 - 1.0 (Fase Casting):
-    // Karakter diam di tempat, kepala mendongak ke atas
+    // Kaki berdiri tegak di atas tanah, badan condong mantap
     playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0, lerpSpeed);
     playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0, lerpSpeed);
+    playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, -0.06, lerpSpeed);
 
     // Lengan Kanan (Tongkat): Angkat tinggi ke atas mengacungkan tongkat ke langit
     playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -Math.PI * 0.85, lerpSpeed);
@@ -964,16 +964,13 @@ export function animateMageSkillPose(
     playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, 0, lerpSpeed);
     playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0, lerpSpeed);
 
-    // Lengan Kiri (Buku): TETAP DIAM di samping badan / di pinggul mendekap grimoire (JANGAN MENGANGKAT LENGAN KIRI)
-    playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0.06, lerpSpeed);
-    playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.10, lerpSpeed);
-    playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.12, lerpSpeed);
+    // Lengan Kiri: Terangkat ke atas menyalurkan energi langit bersama tangan kanan
+    playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -Math.PI * 0.70, lerpSpeed);
+    playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.15, lerpSpeed);
+    playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.20, lerpSpeed);
 
-    // Kepala mendongak ke atas (head rotation.x = -0.3 rad)
-    playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, -0.30, lerpSpeed);
-
-    // Seluruh model terangkat halus (+0.15 unit Y) melayang selama casting
-    playerMesh.group.position.y += THREE.MathUtils.lerp(0, 0.15, ctx.castingProgress);
+    // Kepala mendongak ke atas menatap kosmos
+    playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, -0.35, lerpSpeed);
     return;
   }
 

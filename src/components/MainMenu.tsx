@@ -322,6 +322,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     }
   }, [view, isOpen, onMenuModeChange]);
 
+  // Whenever Main Menu opens (e.g. from Pause Menu Exit), reset view explicitly to 'main'
+  useEffect(() => {
+    if (isOpen) {
+      setView('main');
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleOpenSinglePlayer = () => {

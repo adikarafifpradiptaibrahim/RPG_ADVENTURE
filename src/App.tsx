@@ -130,6 +130,8 @@ export default function App() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoadingGameplay, setIsLoadingGameplay] = useState(false);
   const [isLoadingFadeOut, setIsLoadingFadeOut] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState('Memuat Dunia & Mengompilasi Shader...');
 
   // Graphics Settings State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -381,7 +383,7 @@ export default function App() {
   };
 
   // Start Single Player Mode (100% Client-Side offline, no server/WebSocket connection)
-  const handleStartSinglePlayer = (selectedClass: CharacterClass, slotData?: SaveSlotData) => {
+  const handleStartSinglePlayer = async (selectedClass: CharacterClass, slotData?: SaveSlotData) => {
     setIsPauseMenuOpen(false);
     setGameMode('singleplayer');
     multiplayerClient.disconnect();
@@ -401,69 +403,71 @@ export default function App() {
 
     setHasStarted(true);
 
-    // Gameplay Transition Loading Screen & Shader Precompilation (1.4s hold + 0.5s fade out)
+    // Time-Sliced Async World Loading Pipeline (Anti-Freeze 15% -> 100%)
     setIsLoadingGameplay(true);
     setIsLoadingFadeOut(false);
+    setLoadingProgress(5);
+    setLoadingMessage('Mempersiapkan Benua Eldoria...');
 
     if (engineRef.current) {
       engineRef.current.setPaused(true);
-      engineRef.current.initFullWorld();
+      await engineRef.current.initFullWorldAsync((percent, text) => {
+        setLoadingProgress(percent);
+        setLoadingMessage(text);
+      });
       engineRef.current.setGameMode('singleplayer', 'Pahlawan');
       engineRef.current.setCharacterClass(selectedClass);
       engineRef.current.clearRemotePlayers();
       engineRef.current.setMenuMode('gameplay');
-      engineRef.current.prewarmMageShadersInFrustum();
-      engineRef.current.compileAllShaders();
     }
 
+    soundManager.playOverworldBGM(1.5);
+    setIsMusicPlaying(true);
+    setIsLoadingFadeOut(true);
+    if (engineRef.current) {
+      engineRef.current.setPaused(false);
+    }
     setTimeout(() => {
-      soundManager.playOverworldBGM(1.5);
-      setIsMusicPlaying(true);
-      setIsLoadingFadeOut(true);
-      if (engineRef.current) {
-        engineRef.current.setPaused(false);
-      }
-      setTimeout(() => {
-        setIsLoadingGameplay(false);
-        setIsLoadingFadeOut(false);
-      }, 500);
-    }, 1400);
+      setIsLoadingGameplay(false);
+      setIsLoadingFadeOut(false);
+    }, 500);
   };
 
   // Start Multiplayer Mode (Socket.io client-server synchronization)
-  const handleStartMultiplayer = (options: MultiplayerStartOptions) => {
+  const handleStartMultiplayer = async (options: MultiplayerStartOptions) => {
     setIsPauseMenuOpen(false);
     setGameMode('multiplayer');
     setMultiplayerConfig(options);
     applyClassStats(options.charClass);
     setHasStarted(true);
 
-    // Gameplay Transition Loading Screen & Shader Precompilation (1.4s hold + 0.5s fade out)
+    // Time-Sliced Async World Loading Pipeline (Anti-Freeze 15% -> 100%)
     setIsLoadingGameplay(true);
     setIsLoadingFadeOut(false);
+    setLoadingProgress(5);
+    setLoadingMessage('Menghubungkan ke Server & Mempersiapkan Dunia...');
 
     if (engineRef.current) {
       engineRef.current.setPaused(true);
-      engineRef.current.initFullWorld();
+      await engineRef.current.initFullWorldAsync((percent, text) => {
+        setLoadingProgress(percent);
+        setLoadingMessage(text);
+      });
       engineRef.current.setGameMode('multiplayer', options.playerName);
       engineRef.current.setCharacterClass(options.charClass);
       engineRef.current.setMenuMode('gameplay');
-      engineRef.current.prewarmMageShadersInFrustum();
-      engineRef.current.compileAllShaders();
     }
 
+    soundManager.playOverworldBGM(1.5);
+    setIsMusicPlaying(true);
+    setIsLoadingFadeOut(true);
+    if (engineRef.current) {
+      engineRef.current.setPaused(false);
+    }
     setTimeout(() => {
-      soundManager.playOverworldBGM(1.5);
-      setIsMusicPlaying(true);
-      setIsLoadingFadeOut(true);
-      if (engineRef.current) {
-        engineRef.current.setPaused(false);
-      }
-      setTimeout(() => {
-        setIsLoadingGameplay(false);
-        setIsLoadingFadeOut(false);
-      }, 500);
-    }, 1400);
+      setIsLoadingGameplay(false);
+      setIsLoadingFadeOut(false);
+    }, 500);
   };
 
   // Return to Main Menu from Single Player
@@ -473,12 +477,14 @@ export default function App() {
     soundManager.playMenuBGM(1.5);
     if (engineRef.current) {
       engineRef.current.setPaused(false);
+      engineRef.current.clearCombatState();
       engineRef.current.setGameMode('singleplayer');
       engineRef.current.clearRemotePlayers();
       engineRef.current.setMenuMode('main_menu');
     }
     setMultiplayerPlayers({});
     setIsChatOpen(false);
+    setFloatingTexts([]);
   };
 
   // Disconnect & Return to Main Menu from Multiplayer (Disconnects Socket.io client)
@@ -489,12 +495,14 @@ export default function App() {
     soundManager.playMenuBGM(1.5);
     if (engineRef.current) {
       engineRef.current.setPaused(false);
+      engineRef.current.clearCombatState();
       engineRef.current.setGameMode('singleplayer');
       engineRef.current.clearRemotePlayers();
       engineRef.current.setMenuMode('main_menu');
     }
     setMultiplayerPlayers({});
     setIsChatOpen(false);
+    setFloatingTexts([]);
     addFloatingText('Terputus dari server. Kembali ke Menu Utama.', '#f59e0b', 'info');
   };
 
@@ -1114,7 +1122,8 @@ export default function App() {
       <LoadingScreen
         isLoading={isInitialLoading || isLoadingGameplay}
         isFadingOut={isLoadingFadeOut}
-        message={isInitialLoading ? "Menyiapkan Dunia & Mengompilasi Shader Tiga Dimensi..." : "Memuat Dunia & Mengompilasi Shader..."}
+        progress={isInitialLoading ? undefined : loadingProgress}
+        message={isInitialLoading ? "Menyiapkan Dunia & Mengompilasi Shader Tiga Dimensi..." : loadingMessage}
       />
 
       {/* Primary In-Game HUD Overlay */}

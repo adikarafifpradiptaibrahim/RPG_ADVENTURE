@@ -81,13 +81,25 @@ import {
   createMageBlinkVfx,
   preloadStarfallPool,
   preloadMageVfxPool,
+  preloadMageVfxPoolAsync,
   StarfallCastingCircleInstance,
+  StarfallResourcePool,
+  ArcaneBeamResourcePool,
   CelestialHealResourcePool,
   CelestialHealVfxInstance,
   MageBlinkResourcePool,
   MageBlinkVfxInstance,
 } from '../skills';
 import { DayNightSystem, getSharedDayNightSystem } from './dayNightSystem';
+
+/**
+ * Helper to yield execution to browser main thread for 1 frame (~16ms)
+ * to keep UI, progress animations, and DOM fully responsive without "Page Unresponsive" warnings.
+ */
+export const yieldToMainThread = () =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, 16);
+  });
 
 export interface LootPickup {
   mesh: THREE.Group;
@@ -1071,6 +1083,181 @@ export class GameEngine {
     this.spawnEnemies();
 
     this.isWorldLoaded = true;
+  }
+
+  /**
+   * Time-Sliced Asynchronous World Initialization:
+   * Splits terrain generation (1200x950), water bodies, instanced vegetation, boss arena,
+   * shader precompilation and in-frustum Mage warm-up across 8 distinct stages.
+   * Yields 1 frame (16ms) to main thread at each interval to guarantee 0% UI freeze
+   * and eliminate browser "Page Unresponsive" warnings.
+   */
+  public async initFullWorldAsync(
+    onProgress?: (percent: number, statusText: string) => void
+  ): Promise<void> {
+    if (this.isWorldLoaded) {
+      onProgress?.(100, 'Dunia Eldoria Siap!');
+      return;
+    }
+
+    // Tahap 1: 15% Membangun Geometri & Heightmap Benua Eldoria
+    onProgress?.(15, 'Membangun Geometri & Heightmap Benua Eldoria...');
+    await yieldToMainThread();
+
+    // 1. Build 3D World (terrain, ocean, structures, colliders, lights, props)
+    this.world = buildWorld(this.scene);
+
+    // Tahap 2: 30% Membentuk Sungai, Jembatan, & Perairan Laut
+    onProgress?.(30, 'Membentuk Sungai, Jembatan, & Perairan Laut...');
+    await yieldToMainThread();
+
+    // Connect Day-Night outdoor lighting and dynamic PointLights
+    if (this.world?.hemiLight && this.world?.dirLight) {
+      this.dayNightSystem.applyOutdoorLighting(this.scene, this.world.hemiLight, this.world.dirLight, this.playerPos);
+    }
+    this.scenePointLights = this.world.pointLights || [];
+
+    // Tahap 3: 45% Menempatkan Struktur Kota, Kastil, & Arena Boss
+    onProgress?.(45, 'Menempatkan Struktur Kota, Kastil, & Arena Boss...');
+    await yieldToMainThread();
+
+    // Initialize Boss Manager
+    this.bossManager = new BossManager(
+      this.scene,
+      (x, z) => this.world.getTerrainHeight(x, z),
+      {
+        onAddFloatingText: (text, color, type) => this.callbacks.onAddFloatingText(text, color, type),
+        onUpdateStats: (updater) => this.callbacks.onUpdateStats(updater),
+        onCameraShake: (amount) => {
+          this.cameraShake = Math.max(this.cameraShake, amount);
+        },
+        onSpawnShockwave: (pos, color, maxRadius, duration) => {
+          this.spawnShockwaveRing(pos, color, maxRadius, duration);
+        },
+        onSpawnSparks: (pos, color, count, speed) => {
+          this.spawnSparks(pos, color, count, speed);
+        },
+        onSpawnBoulderProjectile: (fromPos, toPos, damage) => {
+          this.spawnTitanBoulderProjectile(fromPos, toPos, damage);
+        },
+        onSpawnFireballProjectile: (fromPos, toPos, damage) => {
+          this.spawnIgnisFireballProjectile(fromPos, toPos, damage);
+        },
+        onPlayerDeath: () => {
+          this.respawnPlayerAtLastVisitedTown();
+        },
+        onDamageAbsorb: (rawDmg) => this.absorbDamageWithShield(rawDmg).remainingDamage,
+        onAirborneChange: (isAirborne: boolean) => {
+          this.isDragonAirborne = isAirborne;
+        },
+      }
+    );
+
+    // Initialize Checkpoints from saved state
+    try {
+      const saved = localStorage.getItem('eldoria_unlocked_checkpoints');
+      if (saved) {
+        const list = JSON.parse(saved);
+        if (Array.isArray(list)) {
+          list.forEach((id: string) => this.unlockedCheckpoints.add(id));
+        }
+      }
+    } catch {}
+    this.unlockedCheckpoints.add('wp_village');
+
+    if (this.world.checkpoints) {
+      this.world.checkpoints.forEach((cp) => {
+        if (this.unlockedCheckpoints.has(cp.id)) {
+          cp.unlocked = true;
+          if (cp.setUnlocked) cp.setUnlocked(true);
+        }
+      });
+    }
+
+    // Tahap 4: 60% Populasi Vegetasi & Bebatuan (InstancedMesh)
+    onProgress?.(60, 'Populasi Vegetasi & Bebatuan (InstancedMesh)...');
+    await yieldToMainThread();
+
+    // 2. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation
+    this.worldEnvironment = buildWorldEnvironment(
+      this.scene,
+      (x, z) => this.world.getTerrainHeight(x, z),
+      this.world.colliders
+    );
+
+    // Position player mesh on terrain
+    const startY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+    this.playerPos.y = startY;
+    if (this.playerMesh?.group) {
+      this.playerMesh.group.position.copy(this.playerPos);
+    }
+
+    // Spawn enemies
+    this.spawnEnemies();
+
+    // Tahap 5: 75% Pre-Alokasi Pool VFX Karakter & Skill Mage
+    onProgress?.(75, 'Pre-Alokasi Pool VFX Karakter & Skill Mage...');
+    await yieldToMainThread();
+
+    // Pre-decode audio buffers
+    await soundManager.preloadMageAudioBuffers();
+
+    // Pre-allocate Skill Resource Pools
+    StarfallResourcePool.get();
+    ArcaneBeamResourcePool.get();
+    CelestialHealResourcePool.get();
+    MageBlinkResourcePool.get();
+
+    // Apply shadow & distance culling settings
+    this.applyGraphicsSettings(this.graphicsSettings);
+
+    // Tahap 6: 85% Mengompilasi Shader GPU (renderer.compile)
+    onProgress?.(85, 'Mengompilasi Shader GPU...');
+    await yieldToMainThread();
+
+    if (this.renderer && this.scene && this.camera) {
+      try {
+        this.renderer.compile(this.scene, this.camera);
+      } catch (e) {
+        console.warn('[Engine] Shader compilation warning:', e);
+      }
+    }
+
+    // Tahap 7: 95% In-Frustum GPU Shader Warm-Up Khusus Mage
+    onProgress?.(95, 'In-Frustum GPU Shader Warm-Up Khusus Mage...');
+    await yieldToMainThread();
+
+    if (this.scene && this.renderer && this.camera) {
+      await preloadMageVfxPoolAsync(this.scene, this.renderer, this.camera, yieldToMainThread);
+    }
+
+    this.isWorldLoaded = true;
+
+    // Tahap 8: 100% Membuka tirai loading secara halus
+    onProgress?.(100, 'Dunia Eldoria Siap! Menyerahkan Kontrol...');
+    await yieldToMainThread();
+  }
+
+  public clearCombatState(): void {
+    if (this.isCasting) {
+      this.isCasting = false;
+      this.callbacks.onCastingUpdate?.(null);
+      soundManager.stopStarfallCharge();
+      if (this.castingCircleInstance) {
+        this.scene.remove(this.castingCircleInstance.group);
+        this.castingCircleInstance.cleanup();
+        this.castingCircleInstance = null;
+      }
+    }
+    this.isAttacking = false;
+    this.attackTimer = 0;
+    this.isDashing = false;
+    this.dashTimer = 0;
+    this.mageUltimateCooldownTimer = 0;
+    this.activeScorchedCraters = [];
+    this.arcaneShieldTimer = 0;
+    this.arcaneShieldHp = 0;
+    this.bossManager?.clearDebuffs();
   }
 
   public getTerrainHeight(x: number, z: number): number {
@@ -5023,7 +5210,8 @@ export class GameEngine {
             });
           }
         } else {
-          // Phase 3: Cataclysmic Giant Meteor (Impact at 3.2s)
+          // Phase 3: Cataclysmic Giant Meteor (Impact at 3.2s) - Meteor_Boom.wav at full volume 1.0
+          soundManager.playMeteorBoom(1.0);
           soundManager.playStarfallImpact(true, 13);
           this.triggerCameraShake(0.55); // Dramatic Camera Shake
 
@@ -7197,42 +7385,37 @@ export class GameEngine {
     }
 
     // Casting State Handling (Movement Lock & Starfall Channeling - image_68.png)
+    // Casting State Handling (Movement Lock & Starfall Channeling)
     if (this.isCasting) {
       this.castingTimer += delta;
       const progress = Math.min(1.0, this.castingTimer / this.castingDuration);
       this.callbacks.onCastingUpdate?.({
         isCasting: true,
         progress,
-        text: 'Casting... 1.0s',
+        text: `${this.castingSkillName || 'Casting'}... ${this.castingDuration.toFixed(1)}s`,
       });
 
-      // Strict movement lock: velocity is 0, ignore input keys/joystick
+      // Strict movement lock: velocity is 0, player strictly grounded to terrain
       this.playerVel.x = 0;
+      this.playerVel.y = 0;
       this.playerVel.z = 0;
-      this.playerVel.y -= 22 * delta;
-      this.playerPos.y += this.playerVel.y * delta;
-      let groundY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
-      if (this.playerPos.y <= groundY) {
-        this.playerPos.y = groundY;
-        this.playerVel.y = 0;
-        this.isGrounded = true;
-      }
+      const groundY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+      this.playerPos.y = groundY;
+      this.isGrounded = true;
       this.playerMesh.group.position.copy(this.playerPos);
 
-      // Celestial Apocalypse / Starfall Casting pose: right arm raised high to sky, left arm holds grimoire at hip, head tilted up
+      // Celestial Apocalypse / Starfall Casting pose:
+      // Kaki berdiri tegak, badan condong mantap, dan kedua tangan mengangkat tongkat ke atas
       if (this.charClass === 'mage' && this.playerMesh) {
-        this.playerMesh.leftLeg.rotation.x = 0;
-        this.playerMesh.rightLeg.rotation.x = 0;
-        // Lengan Kanan (Tongkat): Angkat tinggi mengacungkan tongkat ke langit
+        this.playerMesh.leftLeg.rotation.set(0, 0, 0);
+        this.playerMesh.rightLeg.rotation.set(0, 0, 0);
+        this.playerMesh.body.rotation.set(-0.06, 0, 0);
+        // Lengan Kanan & Kiri: Mengangkat tongkat sihir ke langit menyalurkan energi kosmis
         this.playerMesh.rightArm.rotation.set(-Math.PI * 0.85, -0.15, -0.20);
-        // Orientasi Tongkat: Bagian kristal dan cincin emas menunjuk ke langit
+        this.playerMesh.leftArm.rotation.set(-Math.PI * 0.70, 0.15, 0.20);
+        // Orientasi Tongkat: Bagian kristal dan cincin menunjuk tegak ke langit
         this.playerMesh.weapon.rotation.set(Math.PI, 0, 0);
-        // Lengan Kiri (Buku): TETAP DIAM di samping badan / di pinggul mendekap grimoire
-        this.playerMesh.leftArm.rotation.set(0.06, 0.10, 0.12);
-        this.playerMesh.head.rotation.x = -0.30;
-        // Melayang 0.5 unit di atas tanah saat mengangkat tongkat
-        this.playerPos.y = groundY + Math.sin(progress * Math.PI) * 0.5;
-        this.playerMesh.group.position.y = this.playerPos.y;
+        this.playerMesh.head.rotation.x = -0.35;
       }
 
       if (this.castingTimer >= this.castingDuration) {

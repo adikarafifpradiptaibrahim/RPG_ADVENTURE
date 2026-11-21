@@ -5,12 +5,14 @@ interface LoadingScreenProps {
   isLoading: boolean;
   isFadingOut?: boolean;
   message?: string;
+  progress?: number;
 }
 
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   isLoading,
   isFadingOut = false,
   message = 'Memuat Dunia & Mengompilasi Shader...',
+  progress,
 }) => {
   if (!isLoading) return null;
 
@@ -62,14 +64,22 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
         <Sparkles className="w-8 h-8 text-amber-300 animate-pulse drop-shadow-[0_0_12px_rgba(251,191,36,0.9)]" />
       </div>
 
-      {/* Loading Status Message */}
-      <div className="mt-6 flex flex-col items-center gap-2 text-center px-4">
-        <span className="text-sm sm:text-base font-bold text-amber-100 tracking-wide">
+      {/* Loading Status Message & Percentage Progress Bar */}
+      <div className="mt-6 flex flex-col items-center gap-2.5 text-center px-4 w-full max-w-sm sm:max-w-md">
+        <span className="text-sm sm:text-base font-bold text-amber-100 tracking-wide min-h-[1.5rem]">
           {message}
         </span>
-        <div className="w-48 sm:w-64 h-1.5 bg-stone-900 rounded-full overflow-hidden border border-stone-800">
-          <div className="h-full bg-gradient-to-r from-amber-500 via-cyan-400 to-amber-300 rounded-full animate-pulse w-full" />
+        <div className="w-full h-2.5 bg-stone-900/90 rounded-full overflow-hidden border border-amber-500/30 p-[1px] shadow-[0_0_12px_rgba(245,158,11,0.2)]">
+          <div
+            className="h-full bg-gradient-to-r from-amber-500 via-cyan-400 to-amber-300 rounded-full transition-all duration-300 ease-out"
+            style={{ width: `${Math.min(100, Math.max(progress !== undefined ? progress : 100, 5))}%` }}
+          />
         </div>
+        {progress !== undefined && (
+          <span className="text-xs font-mono font-bold tracking-widest text-amber-300/80">
+            {Math.round(progress)}%
+          </span>
+        )}
       </div>
     </div>
   );

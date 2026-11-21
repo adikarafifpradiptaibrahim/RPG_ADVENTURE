@@ -9,6 +9,7 @@ import basaltDragonBgmUrl from '../assets/audio/Basalt_and_Brimstone.mp3';
 import arcaneBeamSfxUrl from '../assets/sfx/mage/arcane beam/magic_beam.wav';
 import starfallCastingSfxUrl from '../assets/sfx/mage/starfall/Magic_circle_casting.wav';
 import starfallImpactSfxUrl from '../assets/sfx/mage/starfall/meteor_fall.wav';
+import meteorBoomSfxUrl from '../assets/sfx/mage/starfall/Meteor_Boom.wav';
 import cahayaSpellSfxUrl from '../assets/sfx/mage/cahaya/casting_spell.wav';
 import blinkMagicSfxUrl from '../assets/sfx/mage/blink/blink_magic.wav';
 
@@ -21,6 +22,7 @@ export {
   arcaneBeamSfxUrl,
   starfallCastingSfxUrl,
   starfallImpactSfxUrl,
+  meteorBoomSfxUrl,
   cahayaSpellSfxUrl,
   blinkMagicSfxUrl,
   whereTheRiverBendsUrl as relaxBgmUrl,
@@ -95,6 +97,12 @@ export class SoundManager {
   private isBlinkMagicLoading = false;
   private blinkMagicAudioPool: HTMLAudioElement[] = [];
   private blinkMagicPoolIndex = 0;
+
+  // --- Meteor Boom SFX Buffer & Pool (Meteor_Boom.wav for Giant Meteor Detonation) ---
+  private meteorBoomBuffer: AudioBuffer | null = null;
+  private isMeteorBoomLoading = false;
+  private meteorBoomAudioPool: HTMLAudioElement[] = [];
+  private meteorBoomPoolIndex = 0;
 
   constructor() {
     this.setupUserGestureAutoplay();
@@ -206,6 +214,16 @@ export class SoundManager {
         this.blinkMagicAudioPool.push(blink);
       }
       this.loadBlinkMagicBuffer();
+
+      // 7. Preload Meteor Boom SFX Audio Pool (Meteor_Boom.wav for Giant Meteor Impact)
+      this.meteorBoomAudioPool = [];
+      for (let i = 0; i < 3; i++) {
+        const boom = new Audio(meteorBoomSfxUrl);
+        boom.preload = 'auto';
+        boom.volume = this.isMuted ? 0 : 1.0;
+        this.meteorBoomAudioPool.push(boom);
+      }
+      this.loadMeteorBoomAudioBuffer();
 
       this.initBossAudioNodes();
     } catch (e) {
@@ -774,6 +792,9 @@ export class SoundManager {
     if (!this.blinkMagicBuffer && !this.isBlinkMagicLoading) {
       this.loadBlinkMagicBuffer();
     }
+    if (!this.meteorBoomBuffer && !this.isMeteorBoomLoading) {
+      this.loadMeteorBoomAudioBuffer();
+    }
   }
 
   public async loadArcaneBeamBuffer() {
@@ -858,6 +879,24 @@ export class SoundManager {
     }
   }
 
+  public async loadMeteorBoomAudioBuffer() {
+    if (this.meteorBoomBuffer || this.isMeteorBoomLoading || typeof window === 'undefined') return;
+    this.isMeteorBoomLoading = true;
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+      const response = await fetch(meteorBoomSfxUrl);
+      const arrayBuffer = await response.arrayBuffer();
+      if (this.ctx) {
+        this.meteorBoomBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+      }
+    } catch (e) {
+      console.warn('[SoundManager] Could not decode Meteor_Boom.wav buffer, using HTMLAudioElement fallback:', e);
+    } finally {
+      this.isMeteorBoomLoading = false;
+    }
+  }
+
   /**
    * Pre-decodes all Mage skill audio buffers into AudioBuffer memory ahead of time
    * to eliminate audio decoding latency and disk I/O freezes during skill casting.
@@ -869,6 +908,7 @@ export class SoundManager {
       this.loadStarfallAudioBuffers(),
       this.loadCahayaSpellBuffer(),
       this.loadBlinkMagicBuffer(),
+      this.loadMeteorBoomAudioBuffer(),
     ]);
   }
 
@@ -962,6 +1002,7 @@ export class SoundManager {
       this.starfallImpactAudioPool.forEach((a) => (a.volume = 0));
       this.cahayaSpellAudioPool.forEach((a) => (a.volume = 0));
       this.blinkMagicAudioPool.forEach((a) => (a.volume = 0));
+      this.meteorBoomAudioPool.forEach((a) => (a.volume = 0));
     } else {
       if (currentChill) currentChill.volume = this.bgmVolume * 0.7;
       if (this.titanAudio) this.titanAudio.volume = this.bgmVolume * 0.85;
@@ -972,6 +1013,7 @@ export class SoundManager {
       this.starfallImpactAudioPool.forEach((a) => (a.volume = 0.95 * this.sfxVolume));
       this.cahayaSpellAudioPool.forEach((a) => (a.volume = 0.9 * this.sfxVolume));
       this.blinkMagicAudioPool.forEach((a) => (a.volume = 0.9 * this.sfxVolume));
+      this.meteorBoomAudioPool.forEach((a) => (a.volume = 1.0 * this.sfxVolume));
       if (this.isMusicPlaying && !this.isVictoryPlaying) {
         if (this.currentBossMusic && currentBoss) {
           currentBoss.volume = this.bgmVolume * 0.85;
@@ -1585,6 +1627,58 @@ export class SoundManager {
     }
   }
 
+  // 3. Meteor Boom SFX for Giant Cataclysmic Meteor Detonation (Meteor_Boom.wav - Volume 1.0)
+  public playMeteorBoom(volume = 1.0) {
+    if (this.isMuted) return;
+    this.initContext();
+
+    const finalVolume = Math.min(1.0, Math.max(0.0, volume));
+
+    // Priority 1: Web Audio API AudioBuffer (Instant 0ms latency, high dynamic range)
+    if (this.ctx && this.meteorBoomBuffer) {
+      try {
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+        const now = this.ctx.currentTime;
+        const source = this.ctx.createBufferSource();
+        source.buffer = this.meteorBoomBuffer;
+
+        const gainNode = this.ctx.createGain();
+        gainNode.gain.setValueAtTime(finalVolume, now);
+
+        source.connect(gainNode);
+        if (this.sfxGain) {
+          gainNode.connect(this.sfxGain);
+        } else {
+          gainNode.connect(this.ctx.destination);
+        }
+
+        source.start(now);
+        return;
+      } catch (e) {
+        console.warn('[SoundManager] Could not play meteor boom buffer, falling back to Audio pool:', e);
+      }
+    }
+
+    // Priority 2: Pre-allocated HTMLAudioElement Pool
+    if (this.meteorBoomAudioPool.length > 0) {
+      const audio = this.meteorBoomAudioPool[this.meteorBoomPoolIndex];
+      this.meteorBoomPoolIndex = (this.meteorBoomPoolIndex + 1) % this.meteorBoomAudioPool.length;
+      if (audio) {
+        try {
+          audio.currentTime = 0;
+          audio.volume = this.isMuted ? 0 : Math.min(1.0, finalVolume);
+          audio.play().catch(() => {});
+        } catch {}
+      }
+    }
+
+    if (!this.meteorBoomBuffer && !this.isMeteorBoomLoading) {
+      this.loadMeteorBoomAudioBuffer();
+    }
+  }
+
   public playMageNova() {
     if (this.isMuted) return;
     this.initContext();
@@ -1688,6 +1782,9 @@ export class SoundManager {
     // Trigger buffer decoding in background if not already loaded
     if (!this.blinkMagicBuffer && !this.isBlinkMagicLoading) {
       this.loadBlinkMagicBuffer();
+    }
+    if (!this.meteorBoomBuffer && !this.isMeteorBoomLoading) {
+      this.loadMeteorBoomAudioBuffer();
     }
   }
 

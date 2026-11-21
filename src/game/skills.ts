@@ -225,7 +225,7 @@ export interface MageLaserBeamVfxInstance {
  * Singleton Static Geometries and Materials for Arcane Laser Beam
  * Pre-allocates all 3D geometries, materials, and instances so cast execution is 100% zero-lag at 60 FPS
  */
-class ArcaneBeamResourcePool {
+export class ArcaneBeamResourcePool {
   private static instance: ArcaneBeamResourcePool | null = null;
 
   public circlePlaneGeom!: THREE.PlaneGeometry;
@@ -2045,6 +2045,105 @@ export function preloadMageVfxPool(scene: THREE.Scene, renderer?: THREE.WebGLRen
       console.warn('[VFX] Shader prewarm render error:', e);
     }
 
+    dummyGroup.visible = false;
+    dummyGroup.traverse((child) => {
+      child.visible = false;
+      child.frustumCulled = true;
+    });
+    scene.remove(dummyGroup);
+  }
+}
+
+/**
+ * Time-Sliced Async GPU Shader Warm-Up for Mage VFX
+ * Renders 2 consecutive frames with yieldToMainThread in between
+ * to compile 100% shaders to VRAM without freezing the UI or browser tab.
+ */
+export async function preloadMageVfxPoolAsync(
+  scene: THREE.Scene,
+  renderer: THREE.WebGLRenderer,
+  camera: THREE.Camera,
+  yieldFn: () => Promise<void>
+): Promise<void> {
+  const starfallPool = StarfallResourcePool.get();
+  const arcanePool = ArcaneBeamResourcePool.get();
+  const celestialPool = CelestialHealResourcePool.get();
+  const blinkPool = MageBlinkResourcePool.get();
+
+  getStarfallMagicCircleTexture();
+  getMageMagicCircleTexture();
+
+  const dummyGroup = new THREE.Group();
+  dummyGroup.name = 'MageVfx_PrewarmAsyncGroup';
+
+  // 1. Starfall & Celestial Apocalypse (Lingkaran Sihir, Kristal Es, Meteor Raksasa, Shockwave Ring)
+  dummyGroup.add(new THREE.Mesh(starfallPool.circlePlaneGeom, starfallPool.baseShaderMat));
+  dummyGroup.add(new THREE.Mesh(starfallPool.outerTorusGeom, starfallPool.outerTorusMat));
+  dummyGroup.add(new THREE.Mesh(starfallPool.innerTorusGeom, starfallPool.innerTorusMat));
+  dummyGroup.add(new THREE.Mesh(starfallPool.auraCylGeom, starfallPool.auraCylMat));
+  dummyGroup.add(new THREE.Mesh(starfallPool.aoeRingGeom, starfallPool.aoeRingMat));
+  dummyGroup.add(new THREE.Mesh(starfallPool.aoeDiskGeom, starfallPool.aoeDiskMat));
+  dummyGroup.add(new THREE.Mesh(starfallPool.giantMeteorGeom, starfallPool.giantMeteorMat));
+  dummyGroup.add(new THREE.Mesh(starfallPool.giantMeteorAtmosphereGeom, starfallPool.giantMeteorAtmosphereMat));
+  dummyGroup.add(new THREE.Mesh(starfallPool.giantMeteorFlameGeom, starfallPool.giantMeteorFlameMat));
+  dummyGroup.add(new THREE.Mesh(starfallPool.giantShockwaveGeom1, starfallPool.giantShockwaveMat1));
+  dummyGroup.add(new THREE.Mesh(starfallPool.giantShockwaveGeom2, starfallPool.giantShockwaveMat2));
+  dummyGroup.add(new THREE.Mesh(starfallPool.scorchedCraterGeom, starfallPool.scorchedCraterMat));
+  dummyGroup.add(new THREE.Mesh(starfallPool.iceCrystalGeom, starfallPool.iceCrystalMat));
+  dummyGroup.add(new THREE.Mesh(starfallPool.iceCoreGeom, starfallPool.iceCoreMat));
+  dummyGroup.add(new THREE.Mesh(starfallPool.iceMistGeom, starfallPool.iceMistMat));
+  dummyGroup.add(new THREE.Mesh(starfallPool.pooledParticleGeom, starfallPool.pooledIceSparkMat));
+  dummyGroup.add(new THREE.Mesh(starfallPool.pooledParticleGeom, starfallPool.pooledEmberMat));
+
+  // 2. Arcane Laser Beam
+  dummyGroup.add(new THREE.Mesh(arcanePool.circlePlaneGeom, arcanePool.circlePlaneMat));
+  dummyGroup.add(new THREE.Mesh(arcanePool.coreCylGeom, arcanePool.coreCylMat));
+  dummyGroup.add(new THREE.Mesh(arcanePool.plasmaCylGeom, arcanePool.plasmaCylMat));
+  dummyGroup.add(new THREE.Mesh(arcanePool.shroudCylGeom, arcanePool.shroudCylMat));
+  dummyGroup.add(new THREE.Mesh(arcanePool.ringGeom, arcanePool.ringMat));
+
+  // 3. Cahaya Suci (Celestial Heal)
+  dummyGroup.add(new THREE.Mesh(celestialPool.circlePlaneGeom, celestialPool.baseShaderMat));
+  dummyGroup.add(new THREE.Mesh(celestialPool.outerBeamGeom, celestialPool.outerBeamMat));
+  dummyGroup.add(new THREE.Mesh(celestialPool.innerBeamGeom, celestialPool.innerBeamMat));
+  dummyGroup.add(new THREE.Mesh(celestialPool.runeRingGeom1, celestialPool.runeRingMat1));
+  dummyGroup.add(new THREE.Mesh(celestialPool.runeRingGeom2, celestialPool.runeRingMat2));
+  dummyGroup.add(new THREE.Points(celestialPool.stardustGeom, celestialPool.stardustMat));
+  dummyGroup.add(new THREE.Mesh(celestialPool.shockwaveGeom1, celestialPool.shockwaveMat1));
+
+  // 4. Arcane Blink
+  dummyGroup.add(new THREE.Mesh(blinkPool.circlePlaneGeom, blinkPool.departureCircleMat));
+  dummyGroup.add(new THREE.Mesh(blinkPool.circlePlaneGeom, blinkPool.arrivalCircleMat));
+  dummyGroup.add(new THREE.Mesh(blinkPool.tracerGeom, blinkPool.tracerMat));
+  dummyGroup.add(new THREE.Mesh(blinkPool.tracerCoreGeom, blinkPool.tracerCoreMat));
+  dummyGroup.add(new THREE.Mesh(blinkPool.torsoGeom, blinkPool.afterimageMat1));
+  dummyGroup.add(new THREE.Mesh(blinkPool.shockwaveGeom1, blinkPool.landingShockwaveMatCyan));
+
+  dummyGroup.visible = true;
+  dummyGroup.traverse((child) => {
+    child.visible = true;
+    child.frustumCulled = false;
+  });
+
+  // Position directly ahead of camera
+  const camDir = new THREE.Vector3();
+  camera.getWorldDirection(camDir);
+  dummyGroup.position.copy(camera.position).addScaledVector(camDir, 5.0);
+  dummyGroup.lookAt(camera.position);
+
+  scene.add(dummyGroup);
+
+  try {
+    renderer.compile(scene, camera);
+    // Render Frame 1
+    renderer.render(scene, camera);
+    await yieldFn();
+    // Render Frame 2
+    renderer.render(scene, camera);
+    await yieldFn();
+  } catch (e) {
+    console.warn('[VFX] Async shader prewarm render error:', e);
+  } finally {
     dummyGroup.visible = false;
     dummyGroup.traverse((child) => {
       child.visible = false;
