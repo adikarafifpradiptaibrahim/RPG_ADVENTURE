@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Shield,
   Settings,
+  Users,
   ArrowLeft,
   Trash2,
   Play,
@@ -457,6 +458,138 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       />
 
       {/* ============================================================== */}
+      {/* 2D FANTASY PANORAMA BACKDROP & DAY-NIGHT ATMOSPHERE (0% GPU)     */}
+      {/* Tampil saat berada di Main Menu, Save Slots, Settings, MP Setup  */}
+      {/* ============================================================== */}
+      {view !== 'character_select' ? (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10 transition-colors duration-1000">
+          {/* Dynamic Sky Gradient according to Day/Night phase */}
+          <div
+            className="absolute inset-0 transition-all duration-1000"
+            style={{
+              background:
+                dayNight.phase === 'day'
+                  ? 'radial-gradient(ellipse at 50% 20%, #38bdf8 0%, #1d4ed8 45%, #0f172a 100%)'
+                  : dayNight.phase === 'sunset'
+                  ? 'radial-gradient(ellipse at 50% 35%, #ea580c 0%, #7f1d1d 35%, #311042 70%, #090314 100%)'
+                  : dayNight.phase === 'dawn'
+                  ? 'radial-gradient(ellipse at 50% 30%, #f472b6 0%, #818cf8 35%, #312e81 70%, #030712 100%)'
+                  : 'radial-gradient(ellipse at 50% 15%, #1e1b4b 0%, #0f172a 45%, #020617 100%)',
+            }}
+          />
+
+          {/* Celestial Orb: Sun or Moon */}
+          <div
+            className="absolute rounded-full transition-all duration-1000 pointer-events-none"
+            style={{
+              top: dayNight.phase === 'night' ? '12%' : '14%',
+              left: dayNight.phase === 'night' ? '78%' : '72%',
+              width: dayNight.phase === 'night' ? '64px' : '90px',
+              height: dayNight.phase === 'night' ? '64px' : '90px',
+              background:
+                dayNight.phase === 'night'
+                  ? 'radial-gradient(circle, #f8fafc 40%, #cbd5e1 70%, rgba(203,213,225,0) 100%)'
+                  : dayNight.phase === 'sunset'
+                  ? 'radial-gradient(circle, #fef08a 25%, #f97316 65%, rgba(249,115,22,0) 100%)'
+                  : dayNight.phase === 'dawn'
+                  ? 'radial-gradient(circle, #fef08a 30%, #f472b6 65%, rgba(244,114,182,0) 100%)'
+                  : 'radial-gradient(circle, #fffbeb 30%, #fde047 60%, rgba(253,224,71,0) 100%)',
+              boxShadow:
+                dayNight.phase === 'night'
+                  ? '0 0 45px rgba(226, 232, 240, 0.45)'
+                  : '0 0 75px rgba(251, 191, 36, 0.6)',
+            }}
+          />
+
+          {/* Distant Mountain Silhouettes (SVGs) */}
+          <svg
+            className="absolute bottom-0 left-0 w-full h-[65%] object-cover pointer-events-none opacity-40"
+            viewBox="0 0 1440 600"
+            preserveAspectRatio="none"
+          >
+            {/* Far Range Mountains */}
+            <path
+              d="M0,600 L0,320 L160,190 L340,310 L520,150 L680,270 L890,120 L1080,260 L1260,140 L1440,280 L1440,600 Z"
+              fill={dayNight.phase === 'night' ? '#0b0f19' : dayNight.phase === 'sunset' ? '#2d0e29' : '#1e293b'}
+            />
+            {/* Mid Range Mountain Ridges */}
+            <path
+              d="M0,600 L0,380 L120,280 L290,410 L480,250 L640,360 L820,220 L1010,340 L1200,210 L1360,330 L1440,290 L1440,600 Z"
+              fill={dayNight.phase === 'night' ? '#060911' : dayNight.phase === 'sunset' ? '#1c071a' : '#111827'}
+              opacity="0.75"
+            />
+            {/* Near Ridge & Eldoria Castle / Pine Canopy Horizon */}
+            <path
+              d="M0,600 L0,480 Q140,430 300,470 T620,440 T960,480 T1280,450 T1440,470 L1440,600 Z"
+              fill={dayNight.phase === 'night' ? '#030712' : dayNight.phase === 'sunset' ? '#120410' : '#0a0f1d'}
+            />
+          </svg>
+
+          {/* Pure CSS Light Dust & Fireflies Floating Particles (0% GPU) */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {[...Array(18)].map((_, i) => {
+              const left = (i * 5.7 + 3) % 96;
+              const size = (i % 3) + 2;
+              const duration = 7 + (i % 5) * 1.8;
+              const delay = (i % 6) * 0.9;
+              const isFirefly = dayNight.phase === 'night' || dayNight.phase === 'sunset';
+              return (
+                <div
+                  key={i}
+                  className="absolute rounded-full pointer-events-none animate-float-dust"
+                  style={{
+                    left: `${left}%`,
+                    bottom: '-20px',
+                    width: `${size}px`,
+                    height: `${size}px`,
+                    backgroundColor: isFirefly ? '#fde047' : '#e0f2fe',
+                    boxShadow: isFirefly
+                      ? '0 0 8px #f59e0b, 0 0 16px rgba(245, 158, 11, 0.6)'
+                      : '0 0 8px #38bdf8, 0 0 16px rgba(56, 189, 248, 0.5)',
+                    animationDuration: `${duration}s`,
+                    animationDelay: `${delay}s`,
+                    animationIterationCount: 'infinite',
+                    animationTimingFunction: 'ease-in-out',
+                  }}
+                />
+              );
+            })}
+          </div>
+
+          {/* Atmospheric Fog / Color Overlay */}
+          <div
+            className="absolute inset-0 pointer-events-none transition-colors duration-1000"
+            style={{
+              backgroundColor:
+                dayNight.phase === 'night'
+                  ? 'rgba(2, 6, 23, 0.35)'
+                  : dayNight.phase === 'sunset'
+                  ? 'rgba(124, 45, 18, 0.18)'
+                  : dayNight.phase === 'dawn'
+                  ? 'rgba(112, 26, 117, 0.15)'
+                  : 'rgba(14, 116, 144, 0.08)',
+            }}
+          />
+
+          {/* Cinematic Vignette */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: 'radial-gradient(circle at 50% 50%, transparent 40%, rgba(0, 0, 0, 0.75) 100%)',
+            }}
+          />
+        </div>
+      ) : (
+        /* Dark Studio Vignette Backdrop for 3D Isolated Character Select */
+        <div
+          className="absolute inset-0 pointer-events-none -z-10 transition-opacity duration-700"
+          style={{
+            background: 'radial-gradient(circle at 50% 45%, rgba(20, 20, 30, 0.4) 0%, rgba(5, 5, 10, 0.96) 100%)',
+          }}
+        />
+      )}
+
+      {/* ============================================================== */}
       {/* 1. MAIN MENU SCREEN (Referensi: image_30.png)                   */}
       {/* ============================================================== */}
       {view === 'main' && (
@@ -523,22 +656,21 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <span className="drop-shadow-sm group-hover:scale-105 transition-transform">SINGLE PLAYER</span>
               </button>
 
-              {/* 2. MULTIPLAYER (Dark Wood Button with Helmets) */}
+              {/* 2. MULTIPLAYER (Dark Wood Button with Users Icon) */}
               <button
                 type="button"
                 onClick={handleOpenMultiplayer}
-                className="group relative w-full py-3 px-4 rounded-xl font-bold text-sm sm:text-base tracking-wider uppercase transition-all duration-200 transform active:scale-95 cursor-pointer flex items-center justify-between text-amber-100 shadow-md"
+                className="group relative w-full py-3 px-4 rounded-xl font-bold text-sm sm:text-base tracking-wider uppercase transition-all duration-200 transform active:scale-95 cursor-pointer flex items-center justify-center gap-2.5 text-amber-100 shadow-md"
                 style={{
                   background: 'linear-gradient(180deg, #3d2a1d 0%, #291a11 60%, #190f09 100%)',
                   border: '2px solid #634329',
                   boxShadow: '0 4px 0 #140b06, 0 6px 15px rgba(0,0,0,0.5)',
                 }}
               >
-                <span className="text-base sm:text-lg">🪖</span>
+                <Users className="w-4 h-4 sm:w-5 sm:h-5 text-amber-300/80 group-hover:scale-110 transition-transform duration-200" />
                 <span className="font-extrabold tracking-wide drop-shadow text-amber-100 group-hover:text-amber-300 transition-colors">
                   MULTIPLAYER
                 </span>
-                <span className="text-base sm:text-lg">🪖</span>
               </button>
 
               {/* 3. SETTINGS (Dark Wood Button with Gear) */}

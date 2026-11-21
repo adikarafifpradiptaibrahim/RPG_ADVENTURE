@@ -31,7 +31,7 @@ import {
   animateHunterWalk,
 } from './models';
 export { USE_LEGACY_KNIGHT, USE_LEGACY_MAGE, USE_LEGACY_HUNTER };
-import { buildWorld, WorldObjects, WorldCheckpoint } from './world';
+import { buildWorld, WorldObjects, WorldCheckpoint, getTerrainHeight as getProceduralTerrainHeight } from './world';
 import { buildWorldEnvironment, WorldEnvironmentResult } from './worldEnvironment';
 import { BossManager } from '../BossManager';
 import { BOSS_ARENA_ZONES, BossArenaZone } from '../monsterAI';
@@ -268,9 +268,11 @@ export class GameEngine {
   private currentParticleCount = 0;
   public dayNightSystem: DayNightSystem;
 
-  // World and Player
-  private world: WorldObjects;
+  // World and Player (Deferred / Lazy World Loading for instant 60 FPS Main Menu)
+  public isWorldLoaded = false;
+  private world!: WorldObjects;
   private worldEnvironment?: WorldEnvironmentResult;
+  private characterSelectStudioGroup: THREE.Group | null = null;
   private playerMesh: PlayerMeshObjects;
   private playerPos = new THREE.Vector3(-40, 0, 148);
   private playerVel = new THREE.Vector3();
@@ -527,6 +529,7 @@ export class GameEngine {
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
         this.renderer.shadowMap.enabled = false;
         this.renderer.shadowMap.autoUpdate = false;
+        this.renderer.clear();
       }
       if (this.camera) {
         this.camera.far = 160;
@@ -554,6 +557,9 @@ export class GameEngine {
       this.setupCharacterSelectScene();
       this.setControlsLocked(true);
     } else if (mode === 'gameplay') {
+      if (!this.isWorldLoaded) {
+        this.initFullWorld();
+      }
       this.clearCharacterSelectScene();
       if (this.playerMesh?.group) {
         this.playerMesh.group.visible = true;
@@ -593,35 +599,112 @@ export class GameEngine {
   public setupCharacterSelectScene() {
     this.clearCharacterSelectScene();
 
-    // Dry paving level in front of village fountain [-35, 135]
-    const targetX = -35;
-    const targetZ = 144;
-    const targetY = 0.28;
+    // Isolated Mini-Stage Studio Group centered at (0, 0, 0)
+    this.characterSelectStudioGroup = new THREE.Group();
 
-    // 1. Knight Preview (Left: X: targetX - 2.2, Z: targetZ) - Facing camera (rotation.y = 0)
+    // 1. Isolated Round Stone Platform Pedestal
+    const pedestalGeo = new THREE.CylinderGeometry(2.7, 2.9, 0.36, 48);
+    const pedestalMat = new THREE.MeshStandardMaterial({
+      color: 0x1f242d,
+      roughness: 0.85,
+      metalness: 0.2,
+      flatShading: true,
+    });
+    const pedestalMesh = new THREE.Mesh(pedestalGeo, pedestalMat);
+    pedestalMesh.position.set(0, 0.18, 0);
+    this.characterSelectStudioGroup.add(pedestalMesh);
+
+    // Stone Top Trim
+    const trimGeo = new THREE.CylinderGeometry(2.55, 2.7, 0.08, 48);
+    const trimMat = new THREE.MeshStandardMaterial({
+      color: 0x333b47,
+      roughness: 0.65,
+      metalness: 0.35,
+    });
+    const trimMesh = new THREE.Mesh(trimGeo, trimMat);
+    trimMesh.position.set(0, 0.39, 0);
+    this.characterSelectStudioGroup.add(trimMesh);
+
+    // Golden Rune Ornamental Rim
+    const goldRimGeo = new THREE.TorusGeometry(2.62, 0.035, 12, 48);
+    goldRimGeo.rotateX(Math.PI / 2);
+    const goldRimMat = new THREE.MeshStandardMaterial({
+      color: 0xd97706,
+      roughness: 0.35,
+      metalness: 0.85,
+    });
+    const goldRimMesh = new THREE.Mesh(goldRimGeo, goldRimMat);
+    goldRimMesh.position.set(0, 0.43, 0);
+    this.characterSelectStudioGroup.add(goldRimMesh);
+
+    // Soft Studio Drop Shadow
+    const shadowGeo = new THREE.CircleGeometry(3.2, 32);
+    shadowGeo.rotateX(-Math.PI / 2);
+    const shadowMat = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      transparent: true,
+      opacity: 0.55,
+    });
+    const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+    shadowMesh.position.set(0, 0.01, 0);
+    this.characterSelectStudioGroup.add(shadowMesh);
+
+    // 2. Studio Lighting connected with Day/Night cycle
+    const dnState = this.dayNightSystem.getState();
+    const isNight = dnState.phase === 'night';
+    const isSunset = dnState.phase === 'sunset';
+    const isDawn = dnState.phase === 'dawn';
+
+    const ambColor = isNight ? 0x64748b : isSunset ? 0xfdba74 : isDawn ? 0xfbcfe8 : 0xe2e8f0;
+    const keyColor = isNight ? 0xe0e7ff : isSunset ? 0xf97316 : isDawn ? 0xfdba74 : 0xfff7ed;
+    const fillCol = isNight ? 0x818cf8 : isSunset ? 0xa855f7 : isDawn ? 0xc084fc : 0x93c5fd;
+    const rimCol = isNight ? 0x38bdf8 : isSunset ? 0xfbbf24 : isDawn ? 0xf472b6 : 0xfef08a;
+
+    const ambientLight = new THREE.AmbientLight(ambColor, 0.85);
+    this.characterSelectStudioGroup.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(keyColor, 1.4);
+    keyLight.position.set(2.5, 5, 4);
+    this.characterSelectStudioGroup.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(fillCol, 0.65);
+    fillLight.position.set(-3.5, 3, 2.5);
+    this.characterSelectStudioGroup.add(fillLight);
+
+    const rimLight = new THREE.DirectionalLight(rimCol, 0.8);
+    rimLight.position.set(0, 4, -3.5);
+    this.characterSelectStudioGroup.add(rimLight);
+
+    this.scene.add(this.characterSelectStudioGroup);
+
+    // 3. Isolated Character Preview Meshes on Studio Platform (Y = 0.43, Z = 0)
+    const targetY = 0.43;
+    const targetZ = 0;
+
+    // Knight Preview (Left: X: -1.8)
     this.knightPreview = createPlayerMesh('warrior', 1);
-    this.knightPreview.group.position.set(targetX - 2.2, targetY, targetZ);
+    this.knightPreview.group.position.set(-1.8, targetY, targetZ);
     this.knightPreview.group.rotation.set(0, 0, 0);
     this.preparePreviewMaterials(this.knightPreview.group);
     this.scene.add(this.knightPreview.group);
 
-    // 2. Mage Preview (Center: X: targetX, Z: targetZ) - Facing camera (rotation.y = 0)
+    // Mage Preview (Center: X: 0)
     this.magePreview = createPlayerMesh('mage', 1);
-    this.magePreview.group.position.set(targetX, targetY, targetZ);
+    this.magePreview.group.position.set(0, targetY, targetZ);
     this.magePreview.group.rotation.set(0, 0, 0);
     this.preparePreviewMaterials(this.magePreview.group);
     this.scene.add(this.magePreview.group);
 
-    // 3. Assassin / Rogue Preview (Right: X: targetX + 2.2, Z: targetZ) - Facing camera (rotation.y = 0)
+    // Assassin / Rogue Preview (Right: X: 1.8)
     this.assassinPreview = createPlayerMesh('rogue', 1);
-    this.assassinPreview.group.position.set(targetX + 2.2, targetY, targetZ);
+    this.assassinPreview.group.position.set(1.8, targetY, targetZ);
     this.assassinPreview.group.rotation.set(0, 0, 0);
     this.preparePreviewMaterials(this.assassinPreview.group);
     this.scene.add(this.assassinPreview.group);
 
-    const initialOffset = this.selectedPreviewRole === 'warrior' ? -2.2 : this.selectedPreviewRole === 'mage' ? 0 : 2.2;
+    const initialOffset = this.selectedPreviewRole === 'warrior' ? -1.8 : this.selectedPreviewRole === 'mage' ? 0 : 1.8;
 
-    // Magic Rune Pedestal Ring (di bawah kaki karakter pada permukaan paving ground level)
+    // Magic Rune Pedestal Ring (di bawah kaki karakter pada permukaan platform)
     const ringGeo = new THREE.RingGeometry(0.85, 1.05, 32);
     ringGeo.rotateX(-Math.PI / 2);
     this.selectionPedestalMat = new THREE.MeshBasicMaterial({
@@ -636,11 +719,30 @@ export class GameEngine {
       opacity: 0.85,
     });
     this.selectionPedestal = new THREE.Mesh(ringGeo, this.selectionPedestalMat);
-    this.selectionPedestal.position.set(targetX + initialOffset, targetY + 0.025, targetZ);
+    this.selectionPedestal.position.set(initialOffset, targetY + 0.015, targetZ);
     this.scene.add(this.selectionPedestal);
+
+    // Setup camera position framing
+    this.camera.position.set(0, 1.55, 4.8);
+    this.camera.lookAt(0, 1.1, 0);
   }
 
   public clearCharacterSelectScene() {
+    if (this.characterSelectStudioGroup) {
+      this.scene.remove(this.characterSelectStudioGroup);
+      this.characterSelectStudioGroup.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const m = child as THREE.Mesh;
+          m.geometry?.dispose();
+          if (Array.isArray(m.material)) {
+            m.material.forEach((mat) => mat.dispose());
+          } else if (m.material) {
+            m.material.dispose();
+          }
+        }
+      });
+      this.characterSelectStudioGroup = null;
+    }
     if (this.knightPreview?.group) {
       this.disposePreviewGroup(this.knightPreview.group);
       this.knightPreview = null;
@@ -835,21 +937,8 @@ export class GameEngine {
     (this.renderer.domElement.style as any).webkitUserSelect = 'none';
     container.appendChild(this.renderer.domElement);
 
-    // 3. Build 3D World
-    this.world = buildWorld(this.scene);
-
-    // 3b. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation
-    this.worldEnvironment = buildWorldEnvironment(
-      this.scene,
-      (x, z) => this.world.getTerrainHeight(x, z),
-      this.world.colliders
-    );
-
-    // 3c. Initialize 24-hour Celestial Day-Night System & Atmosphere (24-minute real-time cycle)
+    // 3. Atmosphere & Day-Night System
     this.dayNightSystem = getSharedDayNightSystem();
-    if (this.world?.hemiLight && this.world?.dirLight) {
-      this.dayNightSystem.applyOutdoorLighting(this.scene, this.world.hemiLight, this.world.dirLight, this.playerPos);
-    }
 
     // Static Player Skill PointLight (always in scene with 0 default intensity)
     this.skillVfxLight = new THREE.PointLight(0x00f0ff, 0, 15);
@@ -860,10 +949,48 @@ export class GameEngine {
     this.initSparksPool();
     this.initCombatVfxPools();
 
-    // Warm-up & pre-compile all Mage shaders, geometries, and object pools in frustum
+    // 4. Create Player Mesh (initially hidden in main menu)
+    this.playerMesh = createPlayerMesh(charClass);
+    this.playerMesh.group.position.copy(this.playerPos);
+    this.playerMesh.group.visible = false;
+    this.scene.add(this.playerMesh.group);
+    this.setControlsLocked(true);
+
+    // 5. Setup Listeners
+    this.setupEventListeners();
+
+    // 6. Start Loop
+    this.isRunning = true;
+    this.animate();
+  }
+
+  /**
+   * Deferred Full World Initialization:
+   * Generates terrain (1200x950), water, instanced vegetation, boss manager, colliders, and enemies
+   * inside the gameplay loading screen after character or save slot selection.
+   */
+  public initFullWorld(): void {
+    if (this.isWorldLoaded) return;
+
+    // 1. Build 3D World (terrain, ocean, structures, colliders, lights, props)
+    this.world = buildWorld(this.scene);
+
+    // 2. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation
+    this.worldEnvironment = buildWorldEnvironment(
+      this.scene,
+      (x, z) => this.world.getTerrainHeight(x, z),
+      this.world.colliders
+    );
+
+    // 3. Connect Day-Night lights
+    if (this.world?.hemiLight && this.world?.dirLight) {
+      this.dayNightSystem.applyOutdoorLighting(this.scene, this.world.hemiLight, this.world.dirLight, this.playerPos);
+    }
+
+    // 4. Warm-up & pre-compile all Mage shaders, geometries, and object pools in frustum
     preloadMageVfxPool(this.scene, this.renderer, this.camera);
 
-    // Initialize Boss Manager
+    // 5. Initialize Boss Manager
     this.bossManager = new BossManager(
       this.scene,
       (x, z) => this.world.getTerrainHeight(x, z),
@@ -893,10 +1020,10 @@ export class GameEngine {
       }
     );
 
-    // Dynamic PointLights cache for distance-based lighting optimization
+    // 6. Dynamic PointLights cache for distance-based lighting optimization
     this.scenePointLights = this.world.pointLights || [];
 
-    // Initialize Checkpoints from saved state
+    // 7. Initialize Checkpoints from saved state
     try {
       const saved = localStorage.getItem('eldoria_unlocked_checkpoints');
       if (saved) {
@@ -917,27 +1044,27 @@ export class GameEngine {
       });
     }
 
-    // Apply shadow & distance culling settings
+    // 8. Apply shadow & distance culling settings
     this.applyGraphicsSettings(this.graphicsSettings);
 
-    // 4. Create Player Mesh
-    this.playerMesh = createPlayerMesh(charClass);
+    // 9. Position player mesh on terrain
     const startY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
     this.playerPos.y = startY;
-    this.playerMesh.group.position.copy(this.playerPos);
-    this.playerMesh.group.visible = false; // Initially hidden in main menu
-    this.scene.add(this.playerMesh.group);
-    this.setControlsLocked(true);
+    if (this.playerMesh?.group) {
+      this.playerMesh.group.position.copy(this.playerPos);
+    }
 
-    // 5. Spawn Enemies
+    // 10. Spawn Enemies
     this.spawnEnemies();
 
-    // 6. Setup Listeners
-    this.setupEventListeners();
+    this.isWorldLoaded = true;
+  }
 
-    // 7. Start Game Loop
-    this.isRunning = true;
-    this.animate();
+  public getTerrainHeight(x: number, z: number): number {
+    if (this.world && typeof this.world.getTerrainHeight === 'function') {
+      return this.world.getTerrainHeight(x, z);
+    }
+    return getProceduralTerrainHeight(x, z);
   }
 
   public setCharacterClass(newClass: CharacterClass) {
@@ -8604,12 +8731,10 @@ export class GameEngine {
       return;
     }
 
-    // 3D Character Selection Framing Camera
+    // 3D Character Selection Framing Camera (Isolated Mini-Stage Platform at 0, 0, 0)
     if (this.menuMode === 'character_select') {
-      const targetX = -35;
-      const targetZ = 144;
-      this.camera.position.lerp(new THREE.Vector3(targetX, 1.5, targetZ + 6.8), 0.1);
-      this.camera.lookAt(targetX, 1.05, targetZ);
+      this.camera.position.lerp(new THREE.Vector3(0, 1.55, 4.8), 0.1);
+      this.camera.lookAt(0, 1.1, 0);
       return;
     }
 
@@ -8711,8 +8836,8 @@ export class GameEngine {
   private updateCharacterSelectPreviews(delta: number) {
     const t = this.clock.getElapsedTime();
     const breathe = Math.sin(t * 3.0) * 0.025;
-    const targetZ = 144;
-    const targetY = 0.28;
+    const targetZ = 0;
+    const targetY = 0.43;
 
     const activePreview =
       this.selectedPreviewRole === 'warrior'
@@ -8873,33 +8998,20 @@ export class GameEngine {
     if (this.menuMode !== 'gameplay') {
       if (this.menuMode === 'character_select') {
         this.updateCharacterSelectPreviews(delta);
+        this.updateCamera(delta);
+        this.renderer.render(this.scene, this.camera);
+        return;
       }
-      this.updateCamera(delta);
-      // Traversal Sanitization Lock mutlak tepat sebelum frame dirender ke canvas
-    if (this.playerMesh) {
-      this.playerMesh.group.rotation.x = 0;
-      this.playerMesh.group.rotation.z = 0;
-      if (this.playerMesh.rotation) {
-        this.playerMesh.rotation.x = 0;
-        this.playerMesh.rotation.z = 0;
+      if (this.menuMode === 'main_menu') {
+        // Zero-lag 60 FPS: Do NOT render 3D scene in main menu (0% GPU)
+        return;
       }
-      this.playerMesh.group.traverse((child) => {
-        if (child instanceof THREE.Mesh || child instanceof THREE.Group) {
-          if (
-            child.name.toLowerCase().includes('body') ||
-            child.name.toLowerCase().includes('torso') ||
-            child.name.toLowerCase().includes('chest') ||
-            child === (this.playerMesh as any).body
-          ) {
-            child.rotation.x = 0;
-            child.rotation.z = 0;
-          }
-        }
-      });
+      return;
     }
 
-    this.renderer.render(this.scene, this.camera);
-      return;
+    // Lazy load world guarantee if entering gameplay
+    if (!this.isWorldLoaded) {
+      this.initFullWorld();
     }
 
     // Update Player & World Physics
@@ -9290,6 +9402,7 @@ export class GameEngine {
 
   public destroy() {
     this.isRunning = false;
+    this.clearCharacterSelectScene();
     if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
     }

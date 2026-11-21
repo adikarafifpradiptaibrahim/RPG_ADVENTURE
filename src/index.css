@@ -45,6 +45,27 @@
   animation: rotatePhone 2.6s ease-in-out infinite;
 }
 
+@keyframes floatDust {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.8);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  85% {
+    opacity: 0.75;
+  }
+  100% {
+    transform: translate3d(30px, -100vh, 0) scale(1.2);
+    opacity: 0;
+  }
+}
+
+@utility animate-float-dust {
+  animation: floatDust 8s ease-in-out infinite;
+}
+
 /* ========================================================================== */
 /* GLOBAL BASE STYLES FOR CANVAS, UI & ANTI-INSPECT PROTECTION               */
 /* ========================================================================== */
