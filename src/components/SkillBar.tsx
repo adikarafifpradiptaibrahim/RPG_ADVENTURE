@@ -50,9 +50,9 @@ export const SkillBar: React.FC<SkillBarProps> = ({
       case 'mage':
         return {
           basic: { label: 'Arcane Beam', icon: '🔮', hint: 'Klik / J' },
-          skill1: { name: 'Starfall', icon: '☄️', cost: '15 MP', key: 'Q', color: 'border-amber-500/70 text-amber-300 bg-amber-950/40' },
-          skill2: { name: 'Blink', icon: '🌌', cost: '15 Stm', key: 'E', color: 'border-cyan-500/70 text-cyan-300 bg-cyan-950/40' },
-          skill3: { name: 'Cahaya', icon: '✨', cost: '25 MP', key: 'R', color: 'border-blue-500/70 text-blue-300 bg-blue-950/40' },
+          skill1: { name: 'Slot 1 (Segera Hadir)', icon: '🔒', cost: '-', key: 'Q', color: 'border-stone-700 text-stone-500 bg-stone-900/40 opacity-60' },
+          skill2: { name: 'Cahaya Suci', icon: '✨', cost: '25 MP', key: 'E', color: 'border-blue-500/70 text-blue-300 bg-blue-950/40' },
+          skill3: { name: 'Celestial Apocalypse', icon: '☄️', cost: '45 MP', key: 'R', color: 'border-purple-500/70 text-purple-300 bg-purple-950/40' },
         };
       case 'rogue':
         if (hunterWeaponMode === 'bow') {
@@ -209,7 +209,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         </span>
       </button>
 
-      {/* Dash Button (E) */}
+      {/* Dash / Mobility Button */}
       <button
         type="button"
         onTouchStart={(e) => {
@@ -221,18 +221,29 @@ export const SkillBar: React.FC<SkillBarProps> = ({
           if (onDash) onDash();
         }}
         style={{ touchAction: 'none', userSelect: 'none' }}
-        className="skill-btn skill-btn-dash touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-800 to-stone-900 hover:from-stone-700 text-amber-200 border border-amber-600/70 shadow-lg cursor-pointer active:scale-90 transition-all select-none"
-        title="Dash [E]"
+        className={`skill-btn skill-btn-dash touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-800 to-stone-900 hover:from-stone-700 shadow-lg cursor-pointer active:scale-90 transition-all select-none ${
+          stats.characterClass === 'mage'
+            ? 'text-cyan-200 border border-cyan-500/70'
+            : 'text-amber-200 border border-amber-600/70'
+        }`}
+        title={stats.characterClass === 'mage' ? 'Arcane Blink [Shift]' : (stats.characterClass === 'warrior' ? 'Shield Dash [Shift]' : 'Dash [Shift]')}
       >
         <span className="text-sm sm:text-base md:text-base">
-          {stats.characterClass === 'warrior' ? '🛡️' : '💨'}
+          {stats.characterClass === 'warrior' ? '🛡️' : (stats.characterClass === 'mage' ? '🌌' : '💨')}
         </span>
-        <span className="hidden md:inline text-[8px] font-bold text-amber-300">
-          Dash
+        <span className={`hidden md:inline text-[8px] font-bold ${stats.characterClass === 'mage' ? 'text-cyan-300' : 'text-amber-300'}`}>
+          {stats.characterClass === 'mage' ? 'Blink' : 'Dash'}
         </span>
-        <span className="absolute -top-1 -right-1 bg-amber-700 text-white text-[6px] md:text-[7px] font-mono px-0.5 rounded border border-amber-500">
-          E
+        <span className={`absolute -top-1 -right-1 text-white text-[6px] md:text-[7px] font-mono px-0.5 rounded border ${
+          stats.characterClass === 'mage' ? 'bg-cyan-700 border-cyan-400' : 'bg-amber-700 border-amber-500'
+        }`}>
+          Shift
         </span>
+        {stats.characterClass === 'mage' && (
+          <span className="hidden md:inline absolute -bottom-1 text-[6px] text-cyan-300 font-mono font-bold bg-stone-900/90 px-0.5 rounded">
+            15 Stm
+          </span>
+        )}
       </button>
 
       {/* Jump Button (Spasi) */}

@@ -942,6 +942,61 @@ export const starfallCircuitFragmentShader = `
 export const starfallRadialVertexShader = starfallCircuitVertexShader;
 export const starfallRadialFragmentShader = starfallCircuitFragmentShader;
 
+let cachedScorchedCraterTexture: THREE.CanvasTexture | null = null;
+export function getScorchedCraterTexture(): THREE.CanvasTexture {
+  if (cachedScorchedCraterTexture) return cachedScorchedCraterTexture;
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    cachedScorchedCraterTexture = new THREE.CanvasTexture(canvas);
+    return cachedScorchedCraterTexture;
+  }
+  const cx = size / 2;
+  const cy = size / 2;
+
+  // Dark charred circle with glowing molten radial fade
+  const grad = ctx.createRadialGradient(cx, cy, 20, cx, cy, 240);
+  grad.addColorStop(0, 'rgba(255, 120, 0, 0.95)');
+  grad.addColorStop(0.35, 'rgba(239, 68, 68, 0.75)');
+  grad.addColorStop(0.7, 'rgba(40, 10, 5, 0.55)');
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 240, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Draw 14 jagged magma fissure cracks
+  for (let i = 0; i < 14; i++) {
+    const angle = (i / 14) * Math.PI * 2 + (Math.sin(i * 1.5) * 0.15);
+    ctx.save();
+    ctx.strokeStyle = '#fef08a';
+    ctx.shadowColor = '#f97316';
+    ctx.shadowBlur = 12;
+    ctx.lineWidth = 4.0;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    let curX = cx;
+    let curY = cy;
+    const len = 140 + (i % 4) * 30;
+    for (let step = 0; step < 5; step++) {
+      const segLen = len / 5;
+      const deviation = Math.sin(step * 2.1 + i) * 18;
+      curX += Math.cos(angle) * segLen + Math.sin(angle) * deviation;
+      curY += Math.sin(angle) * segLen - Math.cos(angle) * deviation;
+      ctx.lineTo(curX, curY);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+  cachedScorchedCraterTexture = new THREE.CanvasTexture(canvas);
+  cachedScorchedCraterTexture.wrapS = THREE.ClampToEdgeWrapping;
+  cachedScorchedCraterTexture.wrapT = THREE.ClampToEdgeWrapping;
+  return cachedScorchedCraterTexture;
+}
+
 export interface StarfallCastingCircleInstance {
   group: THREE.Group;
   update: (delta: number, currentPos?: THREE.Vector3) => boolean;
@@ -967,47 +1022,81 @@ export interface StarfallMeteorBarrageInstance {
 }
 
 /**
- * Singleton Static Geometries, Materials & Object Pools for Starfall
+ * Singleton Static Geometries, Materials & Object Pools for Celestial Apocalypse (Ultimate) & Starfall
  * Eliminates garbage collection spikes and runtime shader compiling freezes at 60 FPS
  */
 export class StarfallResourcePool {
   private static instance: StarfallResourcePool | null = null;
 
+  // Casting Circle (Phase 1)
   public circlePlaneGeom!: THREE.PlaneGeometry;
   public outerTorusGeom!: THREE.TorusGeometry;
   public innerTorusGeom!: THREE.TorusGeometry;
   public auraCylGeom!: THREE.CylinderGeometry;
   public sparkGeom!: THREE.SphereGeometry;
 
+  // Glacial Hailstorm (Phase 2 - 14 Ice Crystals)
+  public iceCrystalGeom!: THREE.ConeGeometry;
+  public iceCoreGeom!: THREE.IcosahedronGeometry;
+  public iceMistGeom!: THREE.SphereGeometry;
+
+  // Cataclysmic Giant Meteor (Phase 3 - Radius 3.2 units)
+  public giantMeteorGeom!: THREE.DodecahedronGeometry;
+  public giantMeteorAtmosphereGeom!: THREE.TorusGeometry;
+  public giantMeteorFlameGeom!: THREE.ConeGeometry;
+
+  // Shockwave Rings & Scorched Crater
+  public giantShockwaveGeom1!: THREE.TorusGeometry;
+  public giantShockwaveGeom2!: THREE.TorusGeometry;
+  public scorchedCraterGeom!: THREE.PlaneGeometry;
+
+  // Particle Pool (60 static particle meshes)
+  public pooledParticleGeom!: THREE.SphereGeometry;
+
+  // Materials
+  public baseShaderMat!: THREE.ShaderMaterial;
+  public outerTorusMatCyan!: THREE.MeshBasicMaterial;
+  public innerTorusMatGold!: THREE.MeshBasicMaterial;
+  public auraCylMat!: THREE.MeshBasicMaterial;
+  public leadingSparkMat!: THREE.MeshBasicMaterial;
+
+  public iceCrystalMat!: THREE.MeshBasicMaterial;
+  public iceCoreMat!: THREE.MeshBasicMaterial;
+  public iceMistMat!: THREE.MeshBasicMaterial;
+
+  public giantMeteorMat!: THREE.MeshBasicMaterial;
+  public giantMeteorAtmosphereMat!: THREE.MeshBasicMaterial;
+  public giantMeteorFlameMat!: THREE.MeshBasicMaterial;
+
+  public giantShockwaveMat1!: THREE.MeshBasicMaterial;
+  public giantShockwaveMat2!: THREE.MeshBasicMaterial;
+  public scorchedCraterMat!: THREE.MeshBasicMaterial;
+
+  public pooledIceSparkMat!: THREE.MeshBasicMaterial;
+  public pooledEmberMat!: THREE.MeshBasicMaterial;
+
+  // Backward-compatible properties
   public aoeRingGeom!: THREE.TorusGeometry;
   public aoeInnerRingGeom!: THREE.TorusGeometry;
   public aoeDiskGeom!: THREE.PlaneGeometry;
-
   public meteorCoreGeom!: THREE.ConeGeometry;
   public meteorFlareGeom!: THREE.SphereGeometry;
   public meteorFlameGeom!: THREE.ConeGeometry;
-
   public shockwaveGeom!: THREE.TorusGeometry;
   public crackGeom!: THREE.PlaneGeometry;
   public shardGeom!: THREE.ConeGeometry;
 
   public outerTorusMat!: THREE.MeshBasicMaterial;
   public innerTorusMat!: THREE.MeshBasicMaterial;
-  public auraCylMat!: THREE.MeshBasicMaterial;
-  public leadingSparkMat!: THREE.MeshBasicMaterial;
-
   public aoeRingMat!: THREE.MeshBasicMaterial;
   public aoeInnerRingMat!: THREE.MeshBasicMaterial;
   public aoeDiskMat!: THREE.MeshBasicMaterial;
-
   public meteorCrystalMat!: THREE.MeshBasicMaterial;
   public meteorWhiteFlareMat!: THREE.MeshBasicMaterial;
   public meteorFlameMat!: THREE.MeshBasicMaterial;
-
   public shockwaveMat!: THREE.MeshBasicMaterial;
   public crackMat!: THREE.MeshBasicMaterial;
   public shardMat!: THREE.MeshBasicMaterial;
-  public baseShaderMat!: THREE.ShaderMaterial;
 
   public isInitialized = false;
 
@@ -1025,54 +1114,65 @@ export class StarfallResourcePool {
   private init() {
     if (this.isInitialized) return;
 
-    // 1. Magic Circle Geometries
-    this.circlePlaneGeom = new THREE.PlaneGeometry(6.6, 6.6);
-    this.outerTorusGeom = new THREE.TorusGeometry(3.0, 0.045, 8, 48);
-    this.innerTorusGeom = new THREE.TorusGeometry(1.9, 0.035, 8, 36);
-    this.auraCylGeom = new THREE.CylinderGeometry(2.7, 3.0, 4.0, 24, 1, true);
-    this.sparkGeom = new THREE.SphereGeometry(0.18, 8, 8);
+    // 1. Casting Circle Geometries (Radius 14.5 units)
+    this.circlePlaneGeom = new THREE.PlaneGeometry(29.0, 29.0);
+    this.outerTorusGeom = new THREE.TorusGeometry(14.5, 0.16, 8, 64);
+    this.innerTorusGeom = new THREE.TorusGeometry(11.6, 0.12, 8, 56);
+    this.auraCylGeom = new THREE.CylinderGeometry(13.8, 14.5, 5.0, 32, 1, true);
+    this.sparkGeom = new THREE.SphereGeometry(0.24, 8, 8);
 
-    // 2. Expanded AOE Target Zone Geometries (radius 10.5)
-    this.aoeRingGeom = new THREE.TorusGeometry(10.5, 0.14, 8, 56);
-    this.aoeInnerRingGeom = new THREE.TorusGeometry(9.6, 0.06, 8, 48);
-    this.aoeDiskGeom = new THREE.PlaneGeometry(21.0, 21.0);
+    // 2. Glacial Hailstorm Geometries (14 Ice Crystals)
+    this.iceCrystalGeom = new THREE.ConeGeometry(0.75, 2.8, 6);
+    this.iceCoreGeom = new THREE.IcosahedronGeometry(0.85, 0);
+    this.iceMistGeom = new THREE.SphereGeometry(0.55, 8, 8);
 
-    // 3. Meteor Geometries
-    this.meteorCoreGeom = new THREE.ConeGeometry(0.75, 2.8, 6);
-    this.meteorFlareGeom = new THREE.SphereGeometry(0.6, 8, 8);
-    this.meteorFlameGeom = new THREE.ConeGeometry(1.3, 4.8, 8);
+    // 3. Cataclysmic Giant Meteor (Phase 3 - Radius 3.2 units)
+    this.giantMeteorGeom = new THREE.DodecahedronGeometry(3.2, 1);
+    this.giantMeteorAtmosphereGeom = new THREE.TorusGeometry(3.8, 0.28, 8, 36);
+    this.giantMeteorFlameGeom = new THREE.ConeGeometry(3.6, 9.5, 8);
 
-    // 4. Impact Geometries
-    this.shockwaveGeom = new THREE.TorusGeometry(1.0, 0.16, 8, 32);
-    this.crackGeom = new THREE.PlaneGeometry(0.3, 3.8);
-    this.shardGeom = new THREE.ConeGeometry(0.32, 1.6, 5);
+    // 4. Shockwave Rings & Scorched Crater
+    this.giantShockwaveGeom1 = new THREE.TorusGeometry(1.0, 0.35, 8, 48);
+    this.giantShockwaveGeom2 = new THREE.TorusGeometry(1.0, 0.24, 8, 48);
+    this.scorchedCraterGeom = new THREE.PlaneGeometry(12.0, 12.0);
 
-    // 5. Shared Materials
-    this.outerTorusMat = new THREE.MeshBasicMaterial({
-      color: 0xfacc15,
+    // 5. Particle Pool
+    this.pooledParticleGeom = new THREE.SphereGeometry(0.22, 6, 6);
+
+    // Backward compat aliases
+    this.aoeRingGeom = this.outerTorusGeom;
+    this.aoeInnerRingGeom = this.innerTorusGeom;
+    this.aoeDiskGeom = this.circlePlaneGeom;
+    this.meteorCoreGeom = this.iceCrystalGeom;
+    this.meteorFlareGeom = this.iceMistGeom;
+    this.meteorFlameGeom = this.giantMeteorFlameGeom;
+    this.shockwaveGeom = this.giantShockwaveGeom1;
+    this.crackGeom = this.scorchedCraterGeom;
+    this.shardGeom = this.iceCrystalGeom;
+
+    // Materials
+    this.outerTorusMatCyan = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.9,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
-
-    this.innerTorusMat = new THREE.MeshBasicMaterial({
-      color: 0x67e8f9,
+    this.innerTorusMatGold = new THREE.MeshBasicMaterial({
+      color: 0xfbbf24,
       transparent: true,
-      opacity: 0.75,
+      opacity: 0.9,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
-
     this.auraCylMat = new THREE.MeshBasicMaterial({
-      color: 0xfef08a,
+      color: 0x38bdf8,
       transparent: true,
-      opacity: 0.22,
+      opacity: 0.18,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
-
     this.leadingSparkMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
@@ -1080,82 +1180,103 @@ export class StarfallResourcePool {
       depthWrite: false,
     });
 
-    this.aoeRingMat = new THREE.MeshBasicMaterial({
-      color: 0xef4444,
+    this.iceCrystalMat = new THREE.MeshBasicMaterial({
+      color: 0x7dd3fc,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.88,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
-
-    this.aoeInnerRingMat = new THREE.MeshBasicMaterial({
-      color: 0xf97316,
+    this.iceCoreMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
       transparent: true,
-      opacity: 0.75,
+      opacity: 0.95,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
     });
-
-    this.aoeDiskMat = new THREE.MeshBasicMaterial({
-      color: 0xdc2626,
-      transparent: true,
-      opacity: 0.22,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-    });
-
-    this.meteorCrystalMat = new THREE.MeshBasicMaterial({
+    this.iceMistMat = new THREE.MeshBasicMaterial({
       color: 0x38bdf8,
       transparent: true,
-      opacity: 0.98,
+      opacity: 0.35,
       depthWrite: false,
+      blending: THREE.AdditiveBlending,
     });
 
-    this.meteorWhiteFlareMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      depthWrite: false,
+    this.giantMeteorMat = new THREE.MeshBasicMaterial({
+      color: 0xff4500,
+      depthWrite: true,
     });
-
-    this.meteorFlameMat = new THREE.MeshBasicMaterial({
+    this.giantMeteorAtmosphereMat = new THREE.MeshBasicMaterial({
       color: 0xf97316,
       transparent: true,
       opacity: 0.85,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
+    this.giantMeteorFlameMat = new THREE.MeshBasicMaterial({
+      color: 0x9333ea,
+      transparent: true,
+      opacity: 0.8,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
 
-    this.shockwaveMat = new THREE.MeshBasicMaterial({
+    this.giantShockwaveMat1 = new THREE.MeshBasicMaterial({
       color: 0xf97316,
       transparent: true,
       opacity: 0.95,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
-
-    this.crackMat = new THREE.MeshBasicMaterial({
-      color: 0xff5722,
+    this.giantShockwaveMat2 = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    this.scorchedCraterMat = new THREE.MeshBasicMaterial({
+      map: getScorchedCraterTexture(),
       transparent: true,
       opacity: 0.95,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
     });
 
-    this.shardMat = new THREE.MeshBasicMaterial({
+    this.pooledIceSparkMat = new THREE.MeshBasicMaterial({
       color: 0x38bdf8,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.85,
       depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    this.pooledEmberMat = new THREE.MeshBasicMaterial({
+      color: 0xfbbf24,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
     });
 
-    // 6. Base Circuit Shader Material
+    // Backward compat aliases
+    this.outerTorusMat = this.outerTorusMatCyan;
+    this.innerTorusMat = this.innerTorusMatGold;
+    this.aoeRingMat = this.outerTorusMatCyan;
+    this.aoeInnerRingMat = this.innerTorusMatGold;
+    this.aoeDiskMat = this.auraCylMat;
+    this.meteorCrystalMat = this.iceCrystalMat;
+    this.meteorWhiteFlareMat = this.iceCoreMat;
+    this.meteorFlameMat = this.giantMeteorFlameMat;
+    this.shockwaveMat = this.giantShockwaveMat1;
+    this.crackMat = this.scorchedCraterMat;
+    this.shardMat = this.iceCrystalMat;
+
     this.baseShaderMat = new THREE.ShaderMaterial({
       uniforms: {
         uMap: { value: getStarfallMagicCircleTexture() },
         uProgress: { value: 0.0 },
         uOpacity: { value: 1.0 },
-        uElectricColor: { value: new THREE.Vector3(1.0, 0.95, 0.65) },
+        uElectricColor: { value: new THREE.Vector3(0.22, 0.74, 0.97) },
         uTime: { value: 0.0 },
       },
       vertexShader: starfallCircuitVertexShader,
@@ -1166,7 +1287,7 @@ export class StarfallResourcePool {
       blending: THREE.AdditiveBlending,
     });
 
-    // 7. Pre-instantiate 2 reusable Casting Circle instances and 2 Barrage instances in pool
+    // Pre-instantiate 2 reusable Casting Circle instances and 2 Barrage instances in pool
     for (let i = 0; i < 2; i++) {
       this.castingCirclePool.push(this.buildCastingCircleInstance());
       this.meteorBarragePool.push(this.buildMeteorBarrageInstance());
@@ -1181,25 +1302,27 @@ export class StarfallResourcePool {
 
     const shaderMat = this.baseShaderMat.clone();
 
+    // Player casting circle (feet aura)
     const circlePlane = new THREE.Mesh(this.circlePlaneGeom, shaderMat);
     circlePlane.rotation.x = -Math.PI / 2;
+    circlePlane.scale.set(0.24, 0.24, 0.24); // Compact player aura scale
     group.add(circlePlane);
 
-    const outerTorusMat = this.outerTorusMat.clone();
+    const outerTorusMat = this.outerTorusMatCyan.clone();
     const outerTorus = new THREE.Mesh(this.outerTorusGeom, outerTorusMat);
     outerTorus.rotation.x = Math.PI / 2;
-    outerTorus.scale.set(0.01, 0.01, 0.01);
+    outerTorus.scale.set(0.24, 0.24, 0.24);
     group.add(outerTorus);
 
-    const innerTorusMat = this.innerTorusMat.clone();
+    const innerTorusMat = this.innerTorusMatGold.clone();
     const innerTorus = new THREE.Mesh(this.innerTorusGeom, innerTorusMat);
     innerTorus.rotation.x = Math.PI / 2;
-    innerTorus.scale.set(0.01, 0.01, 0.01);
+    innerTorus.scale.set(0.24, 0.24, 0.24);
     group.add(innerTorus);
 
     const auraCylMat = this.auraCylMat.clone();
     const auraCyl = new THREE.Mesh(this.auraCylGeom, auraCylMat);
-    auraCyl.scale.set(1, 0.01, 1);
+    auraCyl.scale.set(0.24, 0.01, 0.24);
     auraCyl.position.y = 0.05;
     group.add(auraCyl);
 
@@ -1211,17 +1334,11 @@ export class StarfallResourcePool {
       circuitSparks.push(sp);
     }
 
-    const circleLight = new THREE.PointLight(0xfacc15, 0.0, 10.0);
-    circleLight.position.set(0, 1.2, 0);
-    // Static Lighting Rule: circleLight is not attached to scene graph to avoid pipeline re-compilation
-
     let elapsed = 0;
     let sparkTimer = 0;
     let isActive = false;
-    let castDuration = 1.0;
-    const holdDuration = 2.0; // 2.0s continuous meteor shower active hold
-    const fadeDuration = 0.5; // 0.5s smooth fadeout
-    const totalDuration = castDuration + holdDuration + fadeDuration; // 3.5s total visual lifespan
+    let castDuration = 0.8;
+    const fadeDuration = 0.35;
     let spawnSparksCb: ((pos: THREE.Vector3, color: number, count: number, speed: number) => void) | undefined;
 
     const cleanup = () => {
@@ -1229,16 +1346,18 @@ export class StarfallResourcePool {
       group.visible = false;
       shaderMat.uniforms.uOpacity.value = 0;
       shaderMat.uniforms.uProgress.value = 0;
-      circleLight.intensity = 0;
       auraCylMat.opacity = 0;
-      outerTorusMat.opacity = 0.85;
-      innerTorusMat.opacity = 0.75;
+      outerTorusMat.opacity = 0.9;
+      innerTorusMat.opacity = 0.9;
       circuitSparks.forEach((sp) => (sp.visible = false));
+      if (group.parent) {
+        group.parent.remove(group);
+      }
     };
 
     const activate = (
       playerPos: THREE.Vector3,
-      duration = 1.0,
+      duration = 0.8,
       onSpawnSparks?: (pos: THREE.Vector3, color: number, count: number, speed: number) => void
     ) => {
       elapsed = 0;
@@ -1257,17 +1376,16 @@ export class StarfallResourcePool {
 
       outerTorus.scale.set(0.01, 0.01, 0.01);
       innerTorus.scale.set(0.01, 0.01, 0.01);
-      auraCyl.scale.set(1, 0.01, 1);
+      auraCyl.scale.set(0.24, 0.01, 0.24);
       auraCyl.position.y = 0.05;
 
-      outerTorusMat.opacity = 0.85;
-      innerTorusMat.opacity = 0.75;
+      outerTorusMat.opacity = 0.9;
+      innerTorusMat.opacity = 0.9;
       auraCylMat.opacity = 0;
 
       shaderMat.uniforms.uProgress.value = 0.0;
       shaderMat.uniforms.uOpacity.value = 1.0;
       shaderMat.uniforms.uTime.value = 0.0;
-      circleLight.intensity = 0.0;
 
       circuitSparks.forEach((sp) => {
         sp.position.set(0, 0.08, 0);
@@ -1280,103 +1398,59 @@ export class StarfallResourcePool {
 
       elapsed += delta;
 
-      // Track player feet position during casting phase (0.0s to 1.0s)
       if (elapsed <= castDuration && currentPos) {
         group.position.set(currentPos.x, currentPos.y + 0.05, currentPos.z);
       }
 
       shaderMat.uniforms.uTime.value = elapsed;
 
-      // Torus & aura rotations
+      // Counter-rotating dual rings
       outerTorus.rotation.z += delta * 1.5;
-      innerTorus.rotation.z -= delta * 1.2;
-      auraCyl.rotation.y += delta * 0.8;
+      innerTorus.rotation.z -= delta * 1.8;
+      auraCyl.rotation.y += delta * 0.9;
 
       if (elapsed <= castDuration) {
-        // Phase 1: Circuit Stroke Reveal (0.0 to 1.0 over exactly 1.0s)
         const progress = Math.min(1.0, elapsed / castDuration);
         shaderMat.uniforms.uProgress.value = progress;
         shaderMat.uniforms.uOpacity.value = 1.0;
 
-        const cylHeightScale = Math.min(1.0, progress * 1.15);
-        auraCyl.scale.set(1, cylHeightScale, 1);
-        auraCyl.position.y = (cylHeightScale * 4.0) / 2.0;
+        const cylH = Math.min(1.0, progress * 1.2);
+        auraCyl.scale.set(0.24, cylH * 0.24, 0.24);
+        auraCyl.position.y = (cylH * 5.0 * 0.24) / 2.0;
         auraCylMat.opacity = 0.22 * Math.min(1.0, progress * 1.2);
 
-        if (progress >= 0.5) {
-          const innerScale = Math.min(1.0, (progress - 0.5) / 0.3);
-          innerTorus.scale.set(innerScale, innerScale, 1);
-        }
-        if (progress >= 0.85) {
-          const outerScale = Math.min(1.0, (progress - 0.85) / 0.15);
-          outerTorus.scale.set(outerScale, outerScale, 1);
-        }
+        const currentScale = Math.min(0.24, progress * 0.24);
+        innerTorus.scale.set(currentScale, currentScale, 1);
+        outerTorus.scale.set(currentScale, currentScale, 1);
 
-        const sparkRadius = Math.min(3.0, progress * 3.1);
+        const sparkRadius = Math.min(3.2, progress * 3.3);
         for (let i = 0; i < 4; i++) {
-          const a = (i * Math.PI) / 2;
+          const a = (i * Math.PI) / 2 + elapsed * 2.0;
           circuitSparks[i].position.set(Math.cos(a) * sparkRadius, 0.08, Math.sin(a) * sparkRadius);
           circuitSparks[i].visible = true;
         }
 
-        circleLight.intensity = progress * 4.8;
-
         sparkTimer += delta;
-        if (sparkTimer >= 0.035) {
+        if (sparkTimer >= 0.04) {
           sparkTimer = 0;
           for (let i = 0; i < 4; i++) {
             const spPos = group.position.clone().add(circuitSparks[i].position);
-            spawnSparksCb?.(spPos, 0xfacc15, 2, 2.8);
-            spawnSparksCb?.(spPos, 0xffffff, 1, 2.0);
-          }
-        }
-      } else if (elapsed <= castDuration + holdDuration) {
-        // Phase 2: Active Meteor Shower (1.0s to 3.0s, full 2.0s continuous barrage hold)
-        shaderMat.uniforms.uProgress.value = 1.0;
-        shaderMat.uniforms.uOpacity.value = 1.0;
-
-        auraCyl.scale.set(1, 1.0, 1);
-        auraCyl.position.y = 2.0;
-        auraCylMat.opacity = 0.22;
-
-        innerTorus.scale.set(1, 1, 1);
-        outerTorus.scale.set(1, 1, 1);
-        outerTorusMat.opacity = 0.85;
-        innerTorusMat.opacity = 0.75;
-
-        circleLight.intensity = 4.8;
-
-        // Dynamic orbiting celestial sparks at perimeter
-        for (let i = 0; i < 4; i++) {
-          const a = (i * Math.PI) / 2 + elapsed * 2.5;
-          circuitSparks[i].position.set(Math.cos(a) * 3.0, 0.08, Math.sin(a) * 3.0);
-          circuitSparks[i].visible = true;
-        }
-
-        sparkTimer += delta;
-        if (sparkTimer >= 0.06) {
-          sparkTimer = 0;
-          for (let i = 0; i < 4; i++) {
-            const spPos = group.position.clone().add(circuitSparks[i].position);
-            spawnSparksCb?.(spPos, 0xfacc15, 1, 2.0);
+            spawnSparksCb?.(spPos, 0x38bdf8, 2, 2.5);
+            spawnSparksCb?.(spPos, 0xfbbf24, 1, 2.0);
           }
         }
       } else {
-        // Phase 3: Smooth 0.5s Fade Out (3.0s to 3.5s total lifespan)
-        const fadeElapsed = elapsed - (castDuration + holdDuration);
+        const fadeElapsed = elapsed - castDuration;
         const alpha = Math.max(0.0, 1.0 - fadeElapsed / fadeDuration);
 
         shaderMat.uniforms.uProgress.value = 1.0;
         shaderMat.uniforms.uOpacity.value = alpha;
-
-        circleLight.intensity = 4.8 * alpha;
         auraCylMat.opacity = 0.22 * alpha;
-        outerTorusMat.opacity = 0.85 * alpha;
-        innerTorusMat.opacity = 0.75 * alpha;
-
+        outerTorusMat.opacity = 0.9 * alpha;
+        innerTorusMat.opacity = 0.9 * alpha;
         circuitSparks.forEach((sp) => (sp.visible = false));
 
-        if (elapsed >= totalDuration) {
+        if (elapsed >= castDuration + fadeDuration) {
           cleanup();
           return false;
         }
@@ -1400,131 +1474,220 @@ export class StarfallResourcePool {
     const group = new THREE.Group();
     group.visible = false;
 
-    // 1. AOE Target Group on Ground (Radius 10.5 units)
-    const aoeGroup = new THREE.Group();
-    const aoeRingMat = this.aoeRingMat.clone();
-    const aoeRing = new THREE.Mesh(this.aoeRingGeom, aoeRingMat);
-    aoeRing.rotation.x = Math.PI / 2;
-    aoeGroup.add(aoeRing);
+    // 1. Giant Target Runic Circle on Ground (Radius 14.5 units)
+    const runicGroup = new THREE.Group();
 
-    const aoeInnerRingMat = this.aoeInnerRingMat.clone();
-    const aoeInnerRing = new THREE.Mesh(this.aoeInnerRingGeom, aoeInnerRingMat);
-    aoeInnerRing.rotation.x = Math.PI / 2;
-    aoeGroup.add(aoeInnerRing);
+    const shaderMat = this.baseShaderMat.clone();
+    const runicPlane = new THREE.Mesh(this.circlePlaneGeom, shaderMat);
+    runicPlane.rotation.x = -Math.PI / 2;
+    runicGroup.add(runicPlane);
 
-    const aoeDiskMat = this.aoeDiskMat.clone();
-    const aoeDisk = new THREE.Mesh(this.aoeDiskGeom, aoeDiskMat);
-    aoeDisk.rotation.x = -Math.PI / 2;
-    aoeGroup.add(aoeDisk);
+    // Dual counter-rotating rings: Cyan ice (0x38bdf8) & Cosmic gold (0xfbbf24)
+    const outerTorusMat = this.outerTorusMatCyan.clone();
+    const outerTorus = new THREE.Mesh(this.outerTorusGeom, outerTorusMat);
+    outerTorus.rotation.x = Math.PI / 2;
+    runicGroup.add(outerTorus);
 
-    group.add(aoeGroup);
+    const innerTorusMat = this.innerTorusMatGold.clone();
+    const innerTorus = new THREE.Mesh(this.innerTorusGeom, innerTorusMat);
+    innerTorus.rotation.x = Math.PI / 2;
+    runicGroup.add(innerTorus);
 
-    // 2. 10 Pre-allocated Meteors
-    interface MeteorItem {
+    const auraCylMat = this.auraCylMat.clone();
+    const auraCyl = new THREE.Mesh(this.auraCylGeom, auraCylMat);
+    auraCyl.position.y = 2.5;
+    runicGroup.add(auraCyl);
+
+    group.add(runicGroup);
+
+    // 2. 14 Pre-allocated Glacial Ice Crystals (Glacial Hailstorm)
+    interface IceItem {
       mesh: THREE.Group;
       startPos: THREE.Vector3;
       endPos: THREE.Vector3;
       impactTime: number;
+      startTime: number;
       hasImpacted: boolean;
     }
 
-    const meteors: MeteorItem[] = [];
-    const shockwaves: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; timer: number; maxRadius: number; active: boolean }[] = [];
-    const fissures: { mesh: THREE.Group; crackMat: THREE.MeshBasicMaterial; shardMat: THREE.MeshBasicMaterial; timer: number; active: boolean }[] = [];
+    const iceCrystals: IceItem[] = [];
+    const hailstormOffsets: [number, number][] = [
+      [-4.2, 3.5],
+      [5.1, 2.2],
+      [-1.5, -6.2],
+      [6.5, -3.8],
+      [-7.8, -1.2],
+      [2.2, 7.8],
+      [-5.5, 6.0],
+      [3.8, -7.5],
+      [-8.2, 4.5],
+      [8.5, 3.2],
+      [-3.0, -8.5],
+      [7.2, 6.8],
+      [-6.8, -5.5],
+      [1.0, -2.5],
+    ];
 
-    for (let idx = 0; idx < 10; idx++) {
-      const mGroup = new THREE.Group();
-      const crystalCore = new THREE.Mesh(this.meteorCoreGeom, this.meteorCrystalMat);
-      crystalCore.rotation.x = Math.PI;
-      mGroup.add(crystalCore);
+    for (let idx = 0; idx < 14; idx++) {
+      const cGroup = new THREE.Group();
+      const cone = new THREE.Mesh(this.iceCrystalGeom, this.iceCrystalMat);
+      cone.rotation.x = Math.PI;
+      cGroup.add(cone);
 
-      const whiteFlare = new THREE.Mesh(this.meteorFlareGeom, this.meteorWhiteFlareMat);
-      mGroup.add(whiteFlare);
+      const core = new THREE.Mesh(this.iceCoreGeom, this.iceCoreMat);
+      cGroup.add(core);
 
-      const flameTail = new THREE.Mesh(this.meteorFlameGeom, this.meteorFlameMat);
-      flameTail.position.y = 1.8;
-      mGroup.add(flameTail);
+      const mist = new THREE.Mesh(this.iceMistGeom, this.iceMistMat);
+      mist.position.y = 1.0;
+      cGroup.add(mist);
 
-      mGroup.visible = false;
-      group.add(mGroup);
+      cGroup.visible = false;
+      group.add(cGroup);
 
-      meteors.push({
-        mesh: mGroup,
+      iceCrystals.push({
+        mesh: cGroup,
         startPos: new THREE.Vector3(),
         endPos: new THREE.Vector3(),
         impactTime: 0,
+        startTime: 0,
         hasImpacted: false,
       });
-
-      // Shockwave Ring
-      const swMat = this.shockwaveMat.clone();
-      const swMesh = new THREE.Mesh(this.shockwaveGeom, swMat);
-      swMesh.rotation.x = Math.PI / 2;
-      swMesh.visible = false;
-      group.add(swMesh);
-      shockwaves.push({ mesh: swMesh, mat: swMat, timer: 0.45, maxRadius: idx === 9 ? 8.2 : 5.8, active: false });
-
-      // Fissure Group
-      const fGroup = new THREE.Group();
-      const cMat = this.crackMat.clone();
-      const sMat = this.shardMat.clone();
-      for (let c = 0; c < 5; c++) {
-        const crack = new THREE.Mesh(this.crackGeom, cMat);
-        crack.rotation.x = -Math.PI / 2;
-        crack.rotation.z = (c / 5) * Math.PI + c * 0.2;
-        fGroup.add(crack);
-      }
-      for (let s = 0; s < 4; s++) {
-        const shard = new THREE.Mesh(this.shardGeom, sMat);
-        shard.position.set(((s % 2) - 0.5) * 1.2, 0.5, ((s > 1 ? 1 : 0) - 0.5) * 1.2);
-        shard.rotation.z = (s - 1.5) * 0.25;
-        fGroup.add(shard);
-      }
-      fGroup.visible = false;
-      group.add(fGroup);
-      fissures.push({ mesh: fGroup, crackMat: cMat, shardMat: sMat, timer: 1.6, active: false });
     }
+
+    // 3. Cataclysmic Giant Meteor (Radius 3.2 units)
+    const giantMeteorGroup = new THREE.Group();
+    const magmaCore = new THREE.Mesh(this.giantMeteorGeom, this.giantMeteorMat);
+    giantMeteorGroup.add(magmaCore);
+
+    const atmosphereRing = new THREE.Mesh(this.giantMeteorAtmosphereGeom, this.giantMeteorAtmosphereMat);
+    giantMeteorGroup.add(atmosphereRing);
+
+    const flameTail = new THREE.Mesh(this.giantMeteorFlameGeom, this.giantMeteorFlameMat);
+    flameTail.position.y = 4.5;
+    giantMeteorGroup.add(flameTail);
+
+    giantMeteorGroup.visible = false;
+    group.add(giantMeteorGroup);
+
+    const giantMeteorStartPos = new THREE.Vector3();
+    const giantMeteorEndPos = new THREE.Vector3();
+    let giantMeteorImpacted = false;
+
+    // 4. Shockwave Rings (Expanding up to 14.5 units radius)
+    const sw1Mat = this.giantShockwaveMat1.clone();
+    const sw1Mesh = new THREE.Mesh(this.giantShockwaveGeom1, sw1Mat);
+    sw1Mesh.rotation.x = Math.PI / 2;
+    sw1Mesh.visible = false;
+    group.add(sw1Mesh);
+
+    const sw2Mat = this.giantShockwaveMat2.clone();
+    const sw2Mesh = new THREE.Mesh(this.giantShockwaveGeom2, sw2Mat);
+    sw2Mesh.rotation.x = Math.PI / 2;
+    sw2Mesh.visible = false;
+    group.add(sw2Mesh);
+
+    let swTimer1 = 0;
+    let swTimer2 = 0;
+
+    // 5. Scorched Crater Decal (Tanah Membara 3 Detik)
+    const craterMat = this.scorchedCraterMat.clone();
+    const craterMesh = new THREE.Mesh(this.scorchedCraterGeom, craterMat);
+    craterMesh.rotation.x = -Math.PI / 2;
+    craterMesh.visible = false;
+    group.add(craterMesh);
+    let craterActiveTimer = 0;
+
+    // 6. 60 Pooled Static Particles (30 ice sparks + 30 embers)
+    interface PooledParticle {
+      mesh: THREE.Mesh;
+      vel: THREE.Vector3;
+      timer: number;
+      maxTimer: number;
+      active: boolean;
+    }
+    const particlePool: PooledParticle[] = [];
+    for (let p = 0; p < 60; p++) {
+      const isEmber = p >= 30;
+      const pMesh = new THREE.Mesh(
+        this.pooledParticleGeom,
+        isEmber ? this.pooledEmberMat : this.pooledIceSparkMat
+      );
+      pMesh.visible = false;
+      group.add(pMesh);
+      particlePool.push({
+        mesh: pMesh,
+        vel: new THREE.Vector3(),
+        timer: 0,
+        maxTimer: 1.0,
+        active: false,
+      });
+    }
+
+    const spawnPooledBurst = (center: THREE.Vector3, isEmber: boolean, count: number, speed: number) => {
+      let spawned = 0;
+      for (let p = 0; p < particlePool.length; p++) {
+        const pt = particlePool[p];
+        if (pt.active) continue;
+        const ptIsEmber = p >= 30;
+        if (ptIsEmber !== isEmber) continue;
+
+        pt.active = true;
+        pt.timer = 0.5 + Math.random() * 0.4;
+        pt.maxTimer = pt.timer;
+        pt.mesh.position.copy(center).add(new THREE.Vector3(
+          (Math.random() - 0.5) * 1.5,
+          Math.random() * 0.8,
+          (Math.random() - 0.5) * 1.5
+        ));
+        pt.mesh.scale.set(1, 1, 1);
+        pt.mesh.visible = true;
+
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.random() * Math.PI * 0.5;
+        const spd = speed * (0.6 + Math.random() * 0.8);
+        pt.vel.set(
+          Math.cos(theta) * Math.cos(phi) * spd,
+          Math.sin(phi) * spd + 2.0,
+          Math.sin(theta) * Math.cos(phi) * spd
+        );
+
+        spawned++;
+        if (spawned >= count) break;
+      }
+    };
 
     let elapsed = 0;
     let isActive = false;
-    const maxLifetime = 3.0; // 2.0s barrage + 1.0s crater dissipation
+    const maxTotalLifespan = 6.3; // Full 3-phase Ultimate + 3.0s Scorched Crater + dissipation
     let onImpactCb: ((impactPos: THREE.Vector3, isLast: boolean, index: number) => void) | undefined;
     let onSpawnSparksCb: ((pos: THREE.Vector3, color: number, count: number, speed: number) => void) | undefined;
-
-    const meteorOffsets: [number, number][] = [
-      [-3.8, 1.5],   // 1. Forward left
-      [4.2, 2.0],    // 2. Forward right
-      [0.5, 4.8],    // 3. Deep north
-      [-4.5, -0.5],  // 4. Mid left
-      [4.6, 0.2],    // 5. Mid right
-      [-1.8, 5.2],   // 6. Deep north-left
-      [2.4, 3.5],    // 7. North-right
-      [-2.6, 2.8],   // 8. Inner left
-      [3.2, 4.6],    // 9. North-east
-      [0.0, 1.2],    // 10. GRAND FINALE - Direct Center Bullseye!
-    ];
-    const skyOffset = new THREE.Vector3(-18, 52, -14);
 
     const cleanup = () => {
       isActive = false;
       group.visible = false;
-      aoeRingMat.opacity = 0.9;
-      aoeInnerRingMat.opacity = 0.75;
-      aoeDiskMat.opacity = 0.22;
+      runicGroup.visible = false;
+      outerTorusMat.opacity = 0.9;
+      innerTorusMat.opacity = 0.9;
+      auraCylMat.opacity = 0.18;
+      shaderMat.uniforms.uOpacity.value = 0;
+      shaderMat.uniforms.uProgress.value = 0;
 
-      shockwaves.forEach((sw) => {
-        sw.active = false;
-        sw.mesh.visible = false;
+      iceCrystals.forEach((c) => {
+        c.mesh.visible = false;
+        c.hasImpacted = true;
       });
 
-      fissures.forEach((f) => {
-        f.active = false;
-        f.mesh.visible = false;
-      });
+      giantMeteorGroup.visible = false;
+      giantMeteorImpacted = true;
 
-      meteors.forEach((m) => {
-        m.mesh.visible = false;
-        m.hasImpacted = true;
+      sw1Mesh.visible = false;
+      sw2Mesh.visible = false;
+      craterMesh.visible = false;
+      craterActiveTimer = 0;
+
+      particlePool.forEach((pt) => {
+        pt.active = false;
+        pt.mesh.visible = false;
       });
 
       if (group.parent) {
@@ -1543,126 +1706,208 @@ export class StarfallResourcePool {
       onSpawnSparksCb = onSpawnSparks;
 
       group.visible = true;
-      aoeGroup.visible = true;
-      aoeGroup.position.set(targetCenter.x, targetCenter.y + 0.05, targetCenter.z);
 
-      aoeRingMat.opacity = 0.9;
-      aoeInnerRingMat.opacity = 0.75;
-      aoeDiskMat.opacity = 0.22;
+      // Phase 1: Setup 14.5 unit Runic Circle at targetCenter
+      runicGroup.visible = true;
+      runicGroup.position.set(targetCenter.x, targetCenter.y + 0.05, targetCenter.z);
+      outerTorus.scale.set(1, 1, 1);
+      innerTorus.scale.set(1, 1, 1);
+      outerTorusMat.opacity = 0.9;
+      innerTorusMat.opacity = 0.9;
+      auraCylMat.opacity = 0.18;
+      shaderMat.uniforms.uProgress.value = 0.0;
+      shaderMat.uniforms.uOpacity.value = 1.0;
+      shaderMat.uniforms.uTime.value = 0.0;
 
-      meteorOffsets.forEach(([ox, oz], idx) => {
-        const m = meteors[idx];
-        m.endPos.set(targetCenter.x + ox, targetCenter.y, targetCenter.z + oz);
-        m.startPos.copy(m.endPos).add(skyOffset).add(new THREE.Vector3((idx - 4.5) * 2.0, 0, (idx - 4.5) * 1.4));
-        m.impactTime = 0.18 + idx * 0.185; // Continuous staggered impact across 2.0s!
-        m.hasImpacted = false;
-        m.mesh.position.copy(m.startPos);
+      // Phase 2: Setup 14 Glacial Ice Crystals
+      hailstormOffsets.forEach(([ox, oz], idx) => {
+        const ice = iceCrystals[idx];
+        ice.endPos.set(targetCenter.x + ox, targetCenter.y, targetCenter.z + oz);
+        ice.startPos.copy(ice.endPos).add(new THREE.Vector3(-10 + (idx % 3) * 2, 42, -8 + (idx % 4) * 2));
+        ice.impactTime = 0.85 + idx * 0.135; // Staggered between 0.85s and 2.65s
+        ice.startTime = Math.max(0.0, ice.impactTime - 0.35); // 0.35s travel duration
+        ice.hasImpacted = false;
+        ice.mesh.position.copy(ice.startPos);
 
-        const travelDir = new THREE.Vector3().subVectors(m.endPos, m.startPos).normalize();
-        m.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), travelDir);
-        m.mesh.visible = true;
+        const travelDir = new THREE.Vector3().subVectors(ice.endPos, ice.startPos).normalize();
+        ice.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), travelDir);
+        ice.mesh.visible = false;
+      });
 
-        shockwaves[idx].active = false;
-        shockwaves[idx].mesh.visible = false;
-        fissures[idx].active = false;
-        fissures[idx].mesh.visible = false;
+      // Phase 3: Setup Giant Meteor (radius 3.2)
+      giantMeteorEndPos.copy(targetCenter);
+      giantMeteorStartPos.copy(targetCenter).add(new THREE.Vector3(-14, 52, -10));
+      giantMeteorGroup.position.copy(giantMeteorStartPos);
+      giantMeteorGroup.scale.set(1, 1, 1);
+      giantMeteorGroup.visible = false;
+      giantMeteorImpacted = false;
+
+      const meteorDir = new THREE.Vector3().subVectors(giantMeteorEndPos, giantMeteorStartPos).normalize();
+      giantMeteorGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), meteorDir);
+
+      sw1Mesh.visible = false;
+      sw2Mesh.visible = false;
+      swTimer1 = 0;
+      swTimer2 = 0;
+
+      craterMesh.position.set(targetCenter.x, targetCenter.y + 0.06, targetCenter.z);
+      craterMesh.visible = false;
+      craterActiveTimer = 0;
+
+      particlePool.forEach((pt) => {
+        pt.active = false;
+        pt.mesh.visible = false;
       });
     };
 
-    const triggerImpact = (idx: number, impactPos: THREE.Vector3, isLast: boolean) => {
-      const sw = shockwaves[idx];
-      if (sw) {
-        sw.mesh.position.set(impactPos.x, impactPos.y + 0.08, impactPos.z);
-        sw.mesh.scale.set(1, 1, 1);
-        sw.mesh.visible = true;
-        sw.timer = 0.45;
-        sw.active = true;
-      }
+    const triggerHailImpact = (idx: number, impactPos: THREE.Vector3) => {
+      spawnPooledBurst(impactPos, false, 4, 4.5);
+      onSpawnSparksCb?.(impactPos.clone().add(new THREE.Vector3(0, 0.4, 0)), 0x38bdf8, 10, 4.5);
+      onSpawnSparksCb?.(impactPos.clone().add(new THREE.Vector3(0, 0.5, 0)), 0xffffff, 6, 3.5);
+      onImpactCb?.(impactPos, false, idx);
+    };
 
-      const f = fissures[idx];
-      if (f) {
-        f.mesh.position.set(impactPos.x, impactPos.y + 0.07, impactPos.z);
-        f.mesh.visible = true;
-        f.timer = 1.6;
-        f.active = true;
-      }
+    const triggerGiantMeteorImpact = (impactCenter: THREE.Vector3) => {
+      giantMeteorImpacted = true;
+      giantMeteorGroup.visible = false;
 
-      onSpawnSparksCb?.(impactPos.clone().add(new THREE.Vector3(0, 0.5, 0)), 0xf97316, isLast ? 36 : 18, 6.0);
-      onSpawnSparksCb?.(impactPos.clone().add(new THREE.Vector3(0, 0.8, 0)), 0x38bdf8, isLast ? 24 : 12, 5.0);
-      onSpawnSparksCb?.(impactPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0xffffff, isLast ? 18 : 8, 4.5);
+      // 1. Shockwaves expanding to 14.5 units radius
+      sw1Mesh.position.set(impactCenter.x, impactCenter.y + 0.08, impactCenter.z);
+      sw1Mesh.scale.set(1, 1, 1);
+      sw1Mesh.visible = true;
+      swTimer1 = 0.55;
 
-      onImpactCb?.(impactPos, isLast, idx);
+      sw2Mesh.position.set(impactCenter.x, impactCenter.y + 0.09, impactCenter.z);
+      sw2Mesh.scale.set(1, 1, 1);
+      sw2Mesh.visible = true;
+      swTimer2 = 0.65;
+
+      // 2. Scorched Crater Decal (Tanah Membara 3 Detik)
+      craterMesh.position.set(impactCenter.x, impactCenter.y + 0.06, impactCenter.z);
+      craterMesh.visible = true;
+      craterMat.opacity = 0.95;
+      craterActiveTimer = 3.0; // 3.0s active burning ground
+
+      // 3. Pooled Ember & Fire Burst (30 embers + sparks)
+      spawnPooledBurst(impactCenter, true, 26, 8.5);
+      onSpawnSparksCb?.(impactCenter.clone().add(new THREE.Vector3(0, 0.8, 0)), 0xf97316, 32, 7.5);
+      onSpawnSparksCb?.(impactCenter.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xfbbf24, 24, 6.5);
+      onSpawnSparksCb?.(impactCenter.clone().add(new THREE.Vector3(0, 1.5, 0)), 0xffffff, 16, 5.0);
+
+      onImpactCb?.(impactCenter, true, 14);
     };
 
     const update = (delta: number): boolean => {
       if (!isActive) return false;
 
       elapsed += delta;
+      shaderMat.uniforms.uTime.value = elapsed;
 
-      // 1. Update 10 falling meteors across 2.0s
-      for (let i = 0; i < meteors.length; i++) {
-        const m = meteors[i];
-        if (m.hasImpacted) continue;
+      // Counter-rotating dual rings at target area
+      outerTorus.rotation.z += delta * 1.0;
+      innerTorus.rotation.z -= delta * 1.4;
+      auraCyl.rotation.y += delta * 0.7;
 
-        if (elapsed < m.impactTime) {
-          const t = elapsed / m.impactTime;
-          m.mesh.position.lerpVectors(m.startPos, m.endPos, t);
+      // Phase 1: Cosmic Runic Circle Reveal (0.0s - 0.8s)
+      if (elapsed <= 0.8) {
+        const progress = Math.min(1.0, elapsed / 0.8);
+        shaderMat.uniforms.uProgress.value = progress;
+        shaderMat.uniforms.uOpacity.value = 1.0;
+      } else {
+        shaderMat.uniforms.uProgress.value = 1.0;
+      }
 
-          if (Math.random() > 0.45) {
-            onSpawnSparksCb?.(m.mesh.position, 0xf97316, 2, 2.5);
-            onSpawnSparksCb?.(m.mesh.position, 0x38bdf8, 1, 2.0);
-          }
-        } else {
-          m.hasImpacted = true;
-          m.mesh.visible = false;
-          triggerImpact(i, m.endPos, i === meteors.length - 1);
+      // Phase 2: Glacial Hailstorm (0.8s - 2.8s)
+      for (let i = 0; i < iceCrystals.length; i++) {
+        const ice = iceCrystals[i];
+        if (ice.hasImpacted) continue;
+
+        if (elapsed >= ice.startTime && elapsed < ice.impactTime) {
+          ice.mesh.visible = true;
+          const t = (elapsed - ice.startTime) / (ice.impactTime - ice.startTime);
+          ice.mesh.position.lerpVectors(ice.startPos, ice.endPos, t);
+        } else if (elapsed >= ice.impactTime) {
+          ice.hasImpacted = true;
+          ice.mesh.visible = false;
+          triggerHailImpact(i, ice.endPos);
         }
       }
 
-      // 2. Pulse AOE Target Ring continuously through the full 2.0s barrage
-      const pulse = 1.0 + Math.sin(elapsed * 12) * 0.04;
-      aoeGroup.scale.set(pulse, 1, pulse);
-
-      // 3. Update active shockwaves
-      for (let i = 0; i < shockwaves.length; i++) {
-        const sw = shockwaves[i];
-        if (!sw.active) continue;
-        sw.timer -= delta;
-        const t = Math.max(0, sw.timer / 0.45);
-        const scale = 1.0 + (1.0 - t) * (sw.maxRadius - 1.0);
-        sw.mesh.scale.set(scale, scale, 1);
-        sw.mat.opacity = t * 0.95;
-
-        if (sw.timer <= 0) {
-          sw.active = false;
-          sw.mesh.visible = false;
+      // Phase 3: Cataclysmic Giant Meteor (2.8s - 3.2s)
+      if (!giantMeteorImpacted) {
+        if (elapsed >= 2.8 && elapsed < 3.2) {
+          giantMeteorGroup.visible = true;
+          const t = (elapsed - 2.8) / 0.4;
+          giantMeteorGroup.position.lerpVectors(giantMeteorStartPos, giantMeteorEndPos, t);
+          magmaCore.rotation.y += delta * 4.0;
+          magmaCore.rotation.x += delta * 2.0;
+          atmosphereRing.rotation.z += delta * 6.0;
+        } else if (elapsed >= 3.2) {
+          triggerGiantMeteorImpact(giantMeteorEndPos);
         }
       }
 
-      // 4. Update active fissures
-      for (let i = 0; i < fissures.length; i++) {
-        const f = fissures[i];
-        if (!f.active) continue;
-        f.timer -= delta;
-        const alpha = Math.max(0, f.timer / 1.6);
-        f.crackMat.opacity = alpha * 0.95;
-        f.shardMat.opacity = alpha * 0.92;
-
-        if (f.timer <= 0) {
-          f.active = false;
-          f.mesh.visible = false;
+      // Shockwave Ring 1 Animation
+      if (swTimer1 > 0) {
+        swTimer1 -= delta;
+        const t = Math.max(0, swTimer1 / 0.55);
+        const radiusScale = 1.0 + (1.0 - t) * 13.5; // Expands to 14.5 units radius
+        sw1Mesh.scale.set(radiusScale, radiusScale, 1);
+        sw1Mat.opacity = t * 0.95;
+        if (swTimer1 <= 0) {
+          sw1Mesh.visible = false;
         }
       }
 
-      // 5. Fade out AOE Ring after all 10 meteors impact (t > 2.0s)
-      if (elapsed > 2.0) {
-        const aoeAlpha = Math.max(0, (maxLifetime - elapsed) / (maxLifetime - 2.0));
-        aoeRingMat.opacity = 0.9 * aoeAlpha;
-        aoeInnerRingMat.opacity = 0.75 * aoeAlpha;
-        aoeDiskMat.opacity = 0.22 * aoeAlpha;
+      // Shockwave Ring 2 Animation
+      if (swTimer2 > 0) {
+        swTimer2 -= delta;
+        const t = Math.max(0, swTimer2 / 0.65);
+        const radiusScale = 1.0 + (1.0 - t) * 14.5;
+        sw2Mesh.scale.set(radiusScale, radiusScale, 1);
+        sw2Mat.opacity = t * 0.90;
+        if (swTimer2 <= 0) {
+          sw2Mesh.visible = false;
+        }
       }
 
-      if (elapsed >= maxLifetime) {
+      // Scorched Crater (Tanah Membara 3 Detik: 3.2s to 6.2s)
+      if (craterActiveTimer > 0) {
+        craterActiveTimer -= delta;
+        if (craterActiveTimer <= 0.6) {
+          // Smooth fade-out in final 0.6 seconds
+          craterMat.opacity = Math.max(0, (craterActiveTimer / 0.6) * 0.95);
+        }
+        if (craterActiveTimer <= 0) {
+          craterMesh.visible = false;
+        }
+      }
+
+      // Update pooled particles (zero dynamic GC)
+      for (let p = 0; p < particlePool.length; p++) {
+        const pt = particlePool[p];
+        if (!pt.active) continue;
+        pt.timer -= delta;
+        pt.mesh.position.addScaledVector(pt.vel, delta);
+        pt.vel.y -= 14.0 * delta; // Gravity
+        const lifeT = Math.max(0, pt.timer / pt.maxTimer);
+        pt.mesh.scale.set(lifeT, lifeT, lifeT);
+        if (pt.timer <= 0) {
+          pt.active = false;
+          pt.mesh.visible = false;
+        }
+      }
+
+      // Fade out Runic Circle after 5.7s to 6.3s
+      if (elapsed > 5.7) {
+        const aoeAlpha = Math.max(0, (maxTotalLifespan - elapsed) / (maxTotalLifespan - 5.7));
+        outerTorusMat.opacity = 0.9 * aoeAlpha;
+        innerTorusMat.opacity = 0.9 * aoeAlpha;
+        auraCylMat.opacity = 0.18 * aoeAlpha;
+        shaderMat.uniforms.uOpacity.value = aoeAlpha;
+      }
+
+      if (elapsed >= maxTotalLifespan) {
         cleanup();
         return false;
       }
@@ -1683,7 +1928,7 @@ export class StarfallResourcePool {
 
   public acquireCastingCircle(
     playerPos: THREE.Vector3,
-    duration = 1.0,
+    duration = 0.8,
     onSpawnSparks?: (pos: THREE.Vector3, color: number, count: number, speed: number) => void
   ): StarfallCastingCircleInstance {
     let inst = this.castingCirclePool.find((c) => !c.isActive);
@@ -1710,6 +1955,9 @@ export class StarfallResourcePool {
   }
 }
 
+// Celestial Apocalypse backward-compatible aliases
+export const CelestialApocalypseResourcePool = StarfallResourcePool;
+
 /**
  * Preloads and compiles all Mage Skill Shaders and Geometries (Arcane Beam + Starfall) into WebGL context
  * Called once during gameEngine initialization to guarantee 60 FPS without any GC pauses or shader compile stutter
@@ -1735,6 +1983,19 @@ export function preloadMageVfxPool(scene: THREE.Scene, renderer?: THREE.WebGLRen
     dummyGroup.add(new THREE.Mesh(starfallPool.meteorFlameGeom, starfallPool.meteorFlameMat));
     dummyGroup.add(new THREE.Mesh(starfallPool.shockwaveGeom, starfallPool.shockwaveMat));
     dummyGroup.add(new THREE.Mesh(starfallPool.crackGeom, starfallPool.crackMat));
+
+    // Celestial Apocalypse Ultimate Geometries & Materials Pre-compilation
+    dummyGroup.add(new THREE.Mesh(starfallPool.giantMeteorGeom, starfallPool.giantMeteorMat));
+    dummyGroup.add(new THREE.Mesh(starfallPool.giantMeteorAtmosphereGeom, starfallPool.giantMeteorAtmosphereMat));
+    dummyGroup.add(new THREE.Mesh(starfallPool.giantMeteorFlameGeom, starfallPool.giantMeteorFlameMat));
+    dummyGroup.add(new THREE.Mesh(starfallPool.giantShockwaveGeom1, starfallPool.giantShockwaveMat1));
+    dummyGroup.add(new THREE.Mesh(starfallPool.giantShockwaveGeom2, starfallPool.giantShockwaveMat2));
+    dummyGroup.add(new THREE.Mesh(starfallPool.scorchedCraterGeom, starfallPool.scorchedCraterMat));
+    dummyGroup.add(new THREE.Mesh(starfallPool.iceCrystalGeom, starfallPool.iceCrystalMat));
+    dummyGroup.add(new THREE.Mesh(starfallPool.iceCoreGeom, starfallPool.iceCoreMat));
+    dummyGroup.add(new THREE.Mesh(starfallPool.iceMistGeom, starfallPool.iceMistMat));
+    dummyGroup.add(new THREE.Mesh(starfallPool.pooledParticleGeom, starfallPool.pooledIceSparkMat));
+    dummyGroup.add(new THREE.Mesh(starfallPool.pooledParticleGeom, starfallPool.pooledEmberMat));
 
     // Arcane Laser Beam Material Pre-compilation
     dummyGroup.add(new THREE.Mesh(arcanePool.circlePlaneGeom, arcanePool.circlePlaneMat));
@@ -1830,6 +2091,9 @@ export function createStarfallMeteorBarrageVfx(params: {
     params.onSpawnSparks
   );
 }
+
+export const createCelestialApocalypseVfx = createStarfallMeteorBarrageVfx;
+export type CelestialApocalypseInstance = StarfallMeteorBarrageInstance;
 
 // =========================================================================
 // MAGE SKILL 3: CELESTIAL HEAL (HUJAN CAHAYA ASTRAL) - REVAMPED ZERO-LAG POOL

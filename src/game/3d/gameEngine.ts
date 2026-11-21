@@ -319,6 +319,14 @@ export class GameEngine {
   private castingDuration = 1.0;
   private castingSkillName = '';
   private castingCircleInstance: StarfallCastingCircleInstance | null = null;
+  private mageUltimateCooldownTimer = 0;
+  private activeScorchedCraters: {
+    center: THREE.Vector3;
+    radius: number;
+    timer: number;
+    dps: number;
+    tickTimer: number;
+  }[] = [];
   private isDashing = false;
   private dashTimer = 0;
   private isInvulnerable = false;
@@ -892,6 +900,11 @@ export class GameEngine {
     leashRadius?: number;
     attackAnimTimer?: number;
     staggerTimer?: number;
+    velocity?: THREE.Vector3;
+    stunTimer?: number;
+    slowTimer?: number;
+    slowFactor?: number;
+    brittleTimer?: number;
   }[] = [];
 
   // Active 3D Physical Loot Pickups (Materials & Items dropped by defeated monsters)
@@ -2735,7 +2748,14 @@ export class GameEngine {
     } else if (key === 'q' || code === 'keyq') {
       this.castSkill(1);
     } else if (key === 'e' || code === 'keye') {
-      // Tombol [E] untuk Dash semua class (Shield Dash untuk Warrior, Blink untuk Mage, Dash untuk Rogue)
+      // Mage Slot 2: Cahaya Suci [E], Warrior & Rogue: Dash [E]
+      if (this.charClass === 'mage') {
+        this.castSkill(2);
+      } else {
+        this.performDash();
+      }
+    } else if (key === 'shift' || code === 'shiftleft' || code === 'shiftright') {
+      // Tombol [Shift] untuk Mobilitas / Dash semua class (Arcane Blink untuk Mage, Shield Dash untuk Warrior, Dash untuk Rogue)
       this.performDash();
     } else if (key === 'r' || code === 'keyr') {
       this.castSkill(3);
@@ -4883,25 +4903,24 @@ export class GameEngine {
     this.spawnMageArcaneLaserBeam(customFwd, customSpawnPos, isRemote);
   }
 
-  // --- MAGE STARFALL (1.0s Cast Time, Movement Lock, Circuit Stroke Reveal & 10-Meteor Continuous Barrage) ---
-  private startStarfallCasting() {
+  // --- MAGE CELESTIAL APOCALYPSE (ULTIMATE: 0.8s Cast Time, 14.5 Radius Runic Circle, 14 Glacial Crystals, Giant Magma Meteor & Scorched Crater) ---
+  private startCelestialApocalypseCasting() {
     this.isCasting = true;
     this.castingTimer = 0;
-    this.castingDuration = 1.0;
-    this.castingSkillName = 'Starfall';
+    this.castingDuration = 0.8;
+    this.castingSkillName = 'Celestial Apocalypse';
     this.playerVel.set(0, 0, 0);
 
-    // Static Player Skill Light for Starfall
-    this.triggerSkillVfxLight(this.playerPos, 0xfacc15, 2.5, 14.0);
+    // Audio: 0.8s swelling runic charging hum
+    soundManager.playStarfallCharge(0.8);
 
-    // Audio: 1.0s swelling runic charging hum
-    soundManager.playStarfallCharge(1.0);
+    // Static Player Skill Light
+    this.triggerSkillVfxLight(this.playerPos, 0x38bdf8, 3.0, 16.0);
 
     // 3D Magic Circle at feet (y = terrainHeight + 0.05)
-    // Pooled Zero-GC instance with 3.5s total visual lifespan (1.0s casting + 2.0s barrage hold + 0.5s fade-out)
     this.castingCircleInstance = createStarfallCastingCircleVfx({
       playerPos: this.playerPos,
-      duration: 1.0,
+      duration: 0.8,
       onSpawnSparks: (pos, color, count, speed) => {
         this.spawnSparks(pos, color, count, speed);
       },
@@ -4923,84 +4942,144 @@ export class GameEngine {
       true // Priority VFX: never prune during casting
     );
 
-    // Notify UI: Display casting progress bar ("Casting... 1.0s")
+    // Calculate target impact area in front of character (18 units ahead: radius 14.5)
+    const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+    let targetPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(18.0));
+    let terrainH = this.world.getTerrainHeight(targetPos.x, targetPos.z);
+    if (isNaN(terrainH) || terrainH < -20 || isNaN(targetPos.x) || isNaN(targetPos.z)) {
+      targetPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(18.0));
+      terrainH = this.world.getTerrainHeight(targetPos.x, targetPos.z);
+    }
+    targetPos.y = Math.max(isNaN(terrainH) ? 0 : terrainH, 0);
+
+    // Spawn 14.5 unit radius Glacial Hailstorm & Giant Meteor Barrage at targetPos
+    this.spawnCelestialApocalypseBarrage(targetPos);
+
+    // Notify UI: Display casting progress bar ("Celestial Apocalypse... 0.8s")
     this.callbacks.onCastingUpdate?.({
       isCasting: true,
       progress: 0,
-      text: 'Casting... 1.0s',
+      text: 'Celestial Apocalypse... 0.8s',
     });
   }
 
-  private completeStarfallCasting() {
+  // Backward-compatible alias
+  private startStarfallCasting() {
+    this.startCelestialApocalypseCasting();
+  }
+
+  private completeCelestialApocalypseCasting() {
     this.isCasting = false;
     this.callbacks.onCastingUpdate?.(null);
 
-    // Trigger Phase 2 Starfall Slam Gesture (0.2s downward staff strike pose)
-    // Karakter mengayunkan tongkat ke depan selama 0.2 detik (Detik 1.0 s/d 1.2),
-    // lalu kembali ke IDLE / WALK normal sehingga pemain bebas bergerak saat 10 meteor turun
+    // Downward staff cast gesture pose (0.2s)
     this.isAttacking = true;
     this.attackType = 'starfall';
     this.attackDuration = 0.20;
     this.attackTimer = 0.20;
 
-    // Stop casting hum and immediately trigger Phase 2 Meteor Fall Impact SFX (meteor_fall.wav)
     soundManager.stopStarfallCharge();
-    soundManager.playStarfallImpact(false, 0);
-
-    // NOTE: Magic Circle is NOT removed here!
-    // It remains illuminated on the ground during the full 2.0s meteor shower,
-    // then smoothly fades out over 0.5s via this.addVfx and castingCircleInstance.update().
-
-    // Calculate target impact area in front of character (14.5 units ahead: safe 12-15 range)
-    const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
-    let targetPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(14.5));
-    let terrainH = this.world.getTerrainHeight(targetPos.x, targetPos.z);
-    if (isNaN(terrainH) || terrainH < -20 || isNaN(targetPos.x) || isNaN(targetPos.z)) {
-      targetPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(14.5));
-      terrainH = this.world.getTerrainHeight(targetPos.x, targetPos.z);
-    }
-    targetPos.y = Math.max(isNaN(terrainH) ? 0 : terrainH, 0);
-
-    this.spawnStarfallMeteorBarrage(targetPos);
   }
 
-  private spawnStarfallMeteorBarrage(targetCenter: THREE.Vector3, isRemote = false) {
+  // Backward-compatible alias
+  private completeStarfallCasting() {
+    this.completeCelestialApocalypseCasting();
+  }
+
+  private spawnCelestialApocalypseBarrage(targetCenter: THREE.Vector3, isRemote = false) {
     const safeTargetCenter = targetCenter.clone();
     safeTargetCenter.y = Math.max(safeTargetCenter.y, 0);
 
     const vfx = createStarfallMeteorBarrageVfx({
       targetCenter: safeTargetCenter,
       onImpact: (impactPos, isLast, idx) => {
-        soundManager.playStarfallImpact(isLast, idx);
-        this.triggerCameraShake(isLast ? 0.44 : 0.20);
+        if (!isLast) {
+          // Phase 2: Glacial Hailstorm (14 Ice Crystals)
+          soundManager.playStarfallImpact(false, idx);
+          this.triggerCameraShake(0.12);
 
-        if (!isRemote && this.isRunning) {
-          this.callbacks.onUpdateStats((stats) => {
-            const isCrit = Math.random() < 0.25 + stats.intelligence * 0.015;
-            const tierMult = 1 + (this.playerTier - 1) * 0.25;
-            // 10 Meteors continuous volley: 9 x ~30% + 1 x ~65% finisher = ~335% spell power!
-            const mult = isLast ? 0.65 : 0.30;
-            const baseDmg = (stats.baseAttack + stats.intelligence * 2.8) * tierMult * mult;
-            const finalDmg = Math.max(5, Math.round(isCrit ? baseDmg * 1.85 : baseDmg));
+          if (!isRemote && this.isRunning) {
+            this.callbacks.onUpdateStats((stats) => {
+              const tierMult = 1 + (this.playerTier - 1) * 0.25;
+              const isCrit = Math.random() < 0.20 + stats.intelligence * 0.015;
+              // 22% Spell Power per glacial chunk hit
+              const baseDmg = (stats.baseAttack + stats.intelligence * 2.8) * tierMult * 0.22;
+              const finalDmg = Math.max(3, Math.round(isCrit ? baseDmg * 1.85 : baseDmg));
 
-            this.enemies.forEach((enemy) => {
-              if (enemy.data.isDead) return;
-              const dist = enemy.mesh.position.distanceTo(impactPos);
-              if (dist <= 6.8) {
-                // Apply AOE damage and knockback away from impact point
-                const knockDir = new THREE.Vector3().subVectors(enemy.mesh.position, impactPos).normalize();
-                knockDir.y = 0;
-                this.damageEnemy(enemy, finalDmg, isCrit, isLast ? 0.55 : 0.30);
-                enemy.mesh.position.addScaledVector(knockDir, isLast ? 0.85 : 0.40);
-              }
+              this.enemies.forEach((enemy) => {
+                if (enemy.data.isDead) return;
+                const dist = enemy.mesh.position.distanceTo(impactPos);
+                if (dist <= 3.8) {
+                  this.damageEnemy(enemy, finalDmg, isCrit, 0.2);
+                  // Frostbite Slow: -55% Movement Speed for 3 seconds
+                  enemy.slowTimer = 3.0;
+                  enemy.slowFactor = 0.55;
+                  // Brittle: +20% Damage Taken for 3 seconds
+                  enemy.brittleTimer = 3.0;
+                  this.spawnHitStarburst(enemy.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)), 0x38bdf8, 1.4);
+                }
+              });
+              return stats;
+            });
+          }
+        } else {
+          // Phase 3: Cataclysmic Giant Meteor (Impact at 3.2s)
+          soundManager.playStarfallImpact(true, 13);
+          this.triggerCameraShake(0.55); // Dramatic Camera Shake
+
+          if (!isRemote && this.isRunning) {
+            this.callbacks.onUpdateStats((stats) => {
+              const tierMult = 1 + (this.playerTier - 1) * 0.25;
+              const isCrit = Math.random() < 0.30 + stats.intelligence * 0.015;
+              // 240% Spell Power across full 14.5 unit radius
+              const baseDmg = (stats.baseAttack + stats.intelligence * 2.8) * tierMult * 2.40;
+              const finalDmg = Math.max(10, Math.round(isCrit ? baseDmg * 1.85 : baseDmg));
+
+              this.enemies.forEach((enemy) => {
+                if (enemy.data.isDead) return;
+                const dist = enemy.mesh.position.distanceTo(safeTargetCenter);
+                if (dist <= 14.5) {
+                  // Damage enemy (damageEnemy applies +20% if enemy has Brittle debuff)
+                  this.damageEnemy(enemy, finalDmg, isCrit, 0.6);
+
+                  // Crowd Control Differentiation (Normal Mob vs Boss)
+                  const isBoss = enemy.data.type === 'boss' || enemy.data.id.startsWith('boss_');
+                  if (isBoss) {
+                    // Boss is immune to knock-up to prevent awkward flight, replaced with 1.2s Stun
+                    enemy.stunTimer = Math.max(enemy.stunTimer || 0, 1.2);
+                    this.callbacks.onAddFloatingText('⚡ BOSS STUNNED!', '#fbbf24', 'crit');
+                  } else {
+                    // Normal mob launched vertically (Knock-Up) and pushed radially
+                    if (!enemy.velocity) enemy.velocity = new THREE.Vector3();
+                    enemy.velocity.y = 11.5;
+                    const pushDir = new THREE.Vector3().subVectors(enemy.mesh.position, safeTargetCenter);
+                    pushDir.y = 0;
+                    if (pushDir.lengthSq() < 0.01) {
+                      pushDir.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+                    }
+                    pushDir.normalize();
+                    enemy.velocity.x += pushDir.x * 7.5;
+                    enemy.velocity.z += pushDir.z * 7.5;
+                    enemy.stunTimer = Math.max(enemy.stunTimer || 0, 0.8);
+                  }
+                }
+              });
+
+              // Scorched Crater (3s Burning Ground DoT: 15% Spell Power / sec)
+              const craterDps = Math.max(2, Math.round((stats.baseAttack + stats.intelligence * 2.8) * tierMult * 0.15));
+              this.activeScorchedCraters.push({
+                center: safeTargetCenter.clone(),
+                radius: 6.0,
+                timer: 3.0,
+                dps: craterDps,
+                tickTimer: 0.5,
+              });
+
+              return stats;
             });
 
-            return stats;
-          });
-        }
-
-        if (isLast && !isRemote) {
-          this.callbacks.onAddFloatingText('☄️ Starfall Celestial Rain!', '#f59e0b', 'crit');
+            this.callbacks.onAddFloatingText('☄️ CELESTIAL APOCALYPSE!', '#fbbf24', 'crit');
+          }
         }
       },
       onSpawnSparks: (pos, color, count, speed) => {
@@ -5009,6 +5088,11 @@ export class GameEngine {
     });
 
     this.addVfx(vfx.group, vfx.update, vfx.cleanup, true);
+  }
+
+  // Backward-compatible alias
+  private spawnStarfallMeteorBarrage(targetCenter: THREE.Vector3, isRemote = false) {
+    this.spawnCelestialApocalypseBarrage(targetCenter, isRemote);
   }
 
   // 6. Mage Supernova Astral VFX (Celestial Pillar, Concentric Cosmic Shockwaves & Radial Astral Beams)
@@ -6113,18 +6197,20 @@ export class GameEngine {
         return;
       }
 
-      // Skill 1 (Cost: 15 MP)
+      if (this.charClass === 'mage') {
+        // Mage Slot 1 (Q): Placeholder untuk skill baru nanti
+        this.callbacks.onAddFloatingText('Slot Skill 1 Belum Tersedia (Segera Hadir)', '#94a3b8', 'info');
+        return;
+      }
+
+      // Rogue Skill 1 (Cost: 15 MP)
       this.callbacks.onUpdateStats((stats) => {
         if (stats.mp < 15) {
           this.callbacks.onAddFloatingText('MP Tidak Cukup!', '#e57373', 'info');
           return stats;
         }
 
-        if (this.charClass === 'mage') {
-          // Mage: Starfall (Hujan Meteor 10-Meteor Barrage with 1.0s Cast Time, Circuit Magic Circle & Movement Lock)
-          this.startStarfallCasting();
-          return { ...stats, mp: Math.max(0, stats.mp - 15) };
-        } else if (this.charClass === 'rogue') {
+        if (this.charClass === 'rogue') {
           if (this.hunterWeaponMode === 'bow') {
             // Hunter Bow Skill 1: Hujan Panah Badai (5-Arrow Spread Barrage)
             soundManager.playBowShoot();
@@ -6143,7 +6229,7 @@ export class GameEngine {
             });
             this.callbacks.onAddFloatingText('Hujan Panah Badai! 🏹', '#34d399', 'crit');
           } else {
-            // Hunter Daggers Skill 1: Tarian 1000 Belati (Shadow Flurry 360Â°)
+            // Hunter Daggers Skill 1: Tarian 1000 Belati (Shadow Flurry 360°)
             soundManager.playRogueShadowFlurry();
             this.spawnRogueShadowFlurryVfx();
             this.isAttacking = true;
@@ -6158,7 +6244,7 @@ export class GameEngine {
                 this.damageEnemy(enemy, skillDmg, true, 0.4);
               }
             });
-            this.callbacks.onAddFloatingText('Tarian 1000 Belati 360Â°!', '#34d399', 'crit');
+            this.callbacks.onAddFloatingText('Tarian 1000 Belati 360°!', '#34d399', 'crit');
           }
         }
 
@@ -6177,7 +6263,61 @@ export class GameEngine {
         return;
       }
 
-      // Skill 2 (Cost: 15 Stamina)
+      if (this.charClass === 'mage') {
+        // Mage Slot 2 (E): Cahaya Suci (Heal, Cleanse, Overheal Shield, +30 MP - 25 MP)
+        this.callbacks.onUpdateStats((stats) => {
+          if (stats.mp < 25) {
+            this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 25 MP)!', '#e57373', 'info');
+            return stats;
+          }
+
+          soundManager.playMageCelestialHeal();
+          this.spawnMageCelestialHealVfx();
+          this.isAttacking = true;
+          this.attackType = 'celestial_heal';
+          this.attackDuration = 0.8;
+          this.attackTimer = 0.8;
+
+          // 1. Cleanse Debuff: removes 1 negative status effect (Burn / Stun / Poison / Slow)
+          const cleansed = this.bossManager?.cleanseDebuff();
+          if (cleansed) {
+            this.callbacks.onAddFloatingText(`✨ Debuff [${cleansed}] Dibersihkan!`, '#76ff03', 'info');
+          }
+
+          // 2. Heal Formula: round(75 + (stats.intelligence * 4.5))
+          const healAmt = Math.round(75 + stats.intelligence * 4.5);
+          const currentHp = stats.hp;
+          const maxHp = stats.maxHp;
+          const potentialHp = currentHp + healAmt;
+          const newHp = Math.min(maxHp, potentialHp);
+
+          // 3. Overheal-to-Shield: Convert 50% of overflowing heal into 6-second Arcane Shield
+          const overflowHeal = Math.max(0, potentialHp - maxHp);
+          let shieldGain = 0;
+          if (overflowHeal > 0) {
+            shieldGain = Math.round(overflowHeal * 0.5);
+            this.arcaneShieldHp = Math.min(Math.round(maxHp * 0.75), this.arcaneShieldHp + shieldGain);
+            this.arcaneShieldTimer = 6.0;
+          }
+
+          // 4. Mana Battery (+30 MP, net +5 MP after 25 MP cost)
+          const newMp = Math.min(stats.maxMp, stats.mp - 25 + 30);
+
+          if (shieldGain > 0 && newHp > currentHp) {
+            const actualHealed = newHp - currentHp;
+            this.callbacks.onAddFloatingText(`+${actualHealed} HP & +${shieldGain} Perisai Astral (6s)!`, '#38bdf8', 'heal');
+          } else if (shieldGain > 0) {
+            this.callbacks.onAddFloatingText(`HP Penuh! +${shieldGain} Perisai Astral (6s)`, '#38bdf8', 'heal');
+          } else {
+            this.callbacks.onAddFloatingText(`+${healAmt} HP & +30 Mana Astral`, '#38bdf8', 'heal');
+          }
+
+          return { ...stats, mp: newMp, hp: newHp };
+        });
+        return;
+      }
+
+      // Rogue Skill 2 (Cost: 15 Stamina)
       this.callbacks.onUpdateStats((stats) => {
         if (stats.stamina < 15) {
           this.callbacks.onAddFloatingText('Stamina Habis!', '#ffb74d', 'info');
@@ -6189,80 +6329,7 @@ export class GameEngine {
           this.playerRotationY
         );
 
-        if (this.charClass === 'mage') {
-          // Mage: Langkah Dimensi (Instant Blink Teleport with Dual Runic Circles, Afterimages & Enemy Penetration)
-          soundManager.playMageBlink();
-          // Reusable Scratch Vectors - Zero GC during Mage Blink
-          const startPos = this._scratchOrigin.copy(this.playerPos);
-          const blinkDir = this.getPlayerMovementDirection();
-
-          let maxDist = 12.0;
-
-          // Raycast Layer Mask: ONLY detect solid environment (buildings, walls, rocks, towers)
-          // EXCLUDE enemies, monsters, NPCs, and bosses so player can penetrate through enemies
-          const inInterior = this.playerPos.y < -10;
-          for (const col of this.world.colliders) {
-            const isInteriorCollider = col.maxY !== undefined && col.maxY < 0;
-            if (inInterior !== isInteriorCollider) continue;
-
-            if (col.type === 'box' && col.minX !== undefined && col.maxX !== undefined && col.minZ !== undefined && col.maxZ !== undefined) {
-              const hit = this.intersectRayAABB2D(startPos.x, startPos.z, blinkDir.x, blinkDir.z, col.minX, col.maxX, col.minZ, col.maxZ);
-              if (hit !== null && hit > 0 && hit < maxDist) {
-                maxDist = Math.min(maxDist, Math.max(0.6, hit - 0.7));
-              }
-            } else if (col.type === 'circle' && col.x !== undefined && col.z !== undefined && col.radius !== undefined) {
-              const hit = this.intersectRayCircle2D(startPos.x, startPos.z, blinkDir.x, blinkDir.z, col.x, col.z, col.radius);
-              if (hit !== null && hit > 0 && hit < maxDist) {
-                maxDist = Math.min(maxDist, Math.max(0.6, hit - 0.7));
-              }
-            }
-          }
-
-          // Clamp to expanded world boundaries (-595..595, -595..345)
-          let targetX = startPos.x + blinkDir.x * maxDist;
-          let targetZ = startPos.z + blinkDir.z * maxDist;
-          targetX = Math.max(-595, Math.min(595, targetX));
-          targetZ = Math.max(-595, Math.min(345, targetZ));
-
-          // Resolve collisions so player never blinks inside walls or buildings
-          const resolved = this.resolveCollisions(targetX, targetZ);
-          const targetPos = this._scratchTarget.set(
-            resolved.x,
-            this.world.getTerrainHeight(resolved.x, resolved.z),
-            resolved.z
-          );
-
-          // Invulnerability (iFrame) during dimension shift (0.2s)
-          this.isInvulnerable = true;
-          this.invulnerableTimer = 0.2;
-          this.isDashing = true;
-          this.dashTimer = 0.2;
-          this.isAttacking = true;
-          this.attackType = 'blink';
-          this.attackDuration = 0.2;
-          this.attackTimer = 0.2;
-
-          // Torso leans forward in blink direction
-          if (this.playerMesh && this.playerMesh.body) {
-            this.playerMesh.body.rotation.x = 0.40;
-          }
-
-          // Align rotation to blink direction
-          this.playerRotationY = Math.atan2(blinkDir.x, blinkDir.z);
-          this.playerMesh.group.rotation.y = this.playerRotationY;
-
-          // Immediately teleport player coordinates
-          this.playerPos.copy(targetPos);
-          this.playerMesh.group.position.copy(targetPos);
-          this.playerVel.set(0, 0, 0);
-
-          // Hide original player mesh during the 0.18s leap so only ethereal afterimages are visible
-          this.playerMesh.group.visible = false;
-
-          // Spawn pooled VFX
-          this.spawnMageBlinkVfx(startPos, targetPos);
-          this.callbacks.onAddFloatingText('Langkah Dimensi!', '#38bdf8', 'info');
-        } else if (this.charClass === 'rogue') {
+        if (this.charClass === 'rogue') {
           if (this.hunterWeaponMode === 'bow') {
             // Hunter Bow Skill 2: Loncat Akrobatik & Tembakan Bayangan (Backflip Evasive Snipe)
             soundManager.playDash();
@@ -6307,58 +6374,38 @@ export class GameEngine {
         return;
       }
 
-      // Skill 3 (Cost: 25 MP)
+      if (this.charClass === 'mage') {
+        // Mage Slot 3 (R - ULTIMATE): Celestial Apocalypse (45 MP, CD 18s)
+        if (this.mageUltimateCooldownTimer > 0) {
+          this.callbacks.onAddFloatingText(
+            `Celestial Apocalypse Cooldown (${this.mageUltimateCooldownTimer.toFixed(1)}s)!`,
+            '#a855f7',
+            'info'
+          );
+          return;
+        }
+
+        this.callbacks.onUpdateStats((stats) => {
+          if (stats.mp < 45) {
+            this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 45 MP)!', '#e57373', 'info');
+            return stats;
+          }
+
+          this.mageUltimateCooldownTimer = 18.0;
+          this.startCelestialApocalypseCasting();
+          return { ...stats, mp: Math.max(0, stats.mp - 45) };
+        });
+        return;
+      }
+
+      // Rogue Skill 3 (Cost: 25 MP)
       this.callbacks.onUpdateStats((stats) => {
         if (stats.mp < 25) {
           this.callbacks.onAddFloatingText('MP Tidak Cukup!', '#e57373', 'info');
           return stats;
         }
 
-        if (this.charClass === 'mage') {
-          // Mage: Hujan Cahaya Astral (Revamped Zero-Lag Celestial Light Pillar & Arcane Shield)
-          soundManager.playMageCelestialHeal();
-          this.spawnMageCelestialHealVfx();
-          this.isAttacking = true;
-          this.attackType = 'celestial_heal';
-          this.attackDuration = 0.8;
-          this.attackTimer = 0.8;
-
-          // 1. Cleanse Debuff: removes 1 negative status effect (Burn / Stun / Poison / Slow)
-          const cleansed = this.bossManager?.cleanseDebuff();
-          if (cleansed) {
-            this.callbacks.onAddFloatingText(`✨ Debuff [${cleansed}] Dibersihkan!`, '#76ff03', 'info');
-          }
-
-          // 2. Heal Formula: round(75 + (stats.intelligence * 4.5))
-          const healAmt = Math.round(75 + stats.intelligence * 4.5);
-          const currentHp = stats.hp;
-          const maxHp = stats.maxHp;
-          const potentialHp = currentHp + healAmt;
-          const newHp = Math.min(maxHp, potentialHp);
-
-          // 3. Overheal-to-Shield: Convert 50% of overflowing heal into 6-second Arcane Shield
-          const overflowHeal = Math.max(0, potentialHp - maxHp);
-          let shieldGain = 0;
-          if (overflowHeal > 0) {
-            shieldGain = Math.round(overflowHeal * 0.5);
-            this.arcaneShieldHp = Math.min(Math.round(maxHp * 0.75), this.arcaneShieldHp + shieldGain);
-            this.arcaneShieldTimer = 6.0;
-          }
-
-          // 4. Mana Battery (+30 MP, net +5 MP after 25 MP cost)
-          const newMp = Math.min(stats.maxMp, stats.mp - 25 + 30);
-
-          if (shieldGain > 0 && newHp > currentHp) {
-            const actualHealed = newHp - currentHp;
-            this.callbacks.onAddFloatingText(`+${actualHealed} HP & +${shieldGain} Perisai Astral (6s)!`, '#38bdf8', 'heal');
-          } else if (shieldGain > 0) {
-            this.callbacks.onAddFloatingText(`HP Penuh! +${shieldGain} Perisai Astral (6s)`, '#38bdf8', 'heal');
-          } else {
-            this.callbacks.onAddFloatingText(`+${healAmt} HP & +30 Mana Astral`, '#38bdf8', 'heal');
-          }
-
-          return { ...stats, mp: newMp, hp: newHp };
-        } else if (this.charClass === 'rogue') {
+        if (this.charClass === 'rogue') {
           if (this.hunterWeaponMode === 'bow') {
             // Hunter Bow Skill 3: Panah Bom Racun Siluman
             soundManager.playBowShoot();
@@ -6403,6 +6450,92 @@ export class GameEngine {
     }
   }
 
+  // --- MAGE MOBILITY: ARCANE BLINK (Shift) ---
+  public performMageBlink() {
+    if (this.isControlsLocked || this.isCasting || this.isDashing) return;
+
+    if (this.playerStamina < 15) {
+      this.callbacks.onAddFloatingText('Stamina Habis (Butuh 15)!', '#ffb74d', 'info');
+      return;
+    }
+
+    this.callbacks.onUpdateStats((stats) => {
+      if (stats.stamina < 15) return stats;
+      return { ...stats, stamina: Math.max(0, stats.stamina - 15) };
+    });
+
+    // Mage: Langkah Dimensi (Instant Blink Teleport with Dual Runic Circles, Afterimages & Enemy Penetration)
+    soundManager.playMageBlink();
+    const startPos = this._scratchOrigin.copy(this.playerPos);
+    const blinkDir = this.getPlayerMovementDirection();
+
+    let maxDist = 12.0;
+
+    // Raycast Layer Mask: ONLY detect solid environment (buildings, walls, rocks, towers)
+    // EXCLUDE enemies, monsters, NPCs, and bosses so player can penetrate through enemies
+    const inInterior = this.playerPos.y < -10;
+    for (const col of this.world.colliders) {
+      const isInteriorCollider = col.maxY !== undefined && col.maxY < 0;
+      if (inInterior !== isInteriorCollider) continue;
+
+      if (col.type === 'box' && col.minX !== undefined && col.maxX !== undefined && col.minZ !== undefined && col.maxZ !== undefined) {
+        const hit = this.intersectRayAABB2D(startPos.x, startPos.z, blinkDir.x, blinkDir.z, col.minX, col.maxX, col.minZ, col.maxZ);
+        if (hit !== null && hit > 0 && hit < maxDist) {
+          maxDist = Math.min(maxDist, Math.max(0.6, hit - 0.7));
+        }
+      } else if (col.type === 'circle' && col.x !== undefined && col.z !== undefined && col.radius !== undefined) {
+        const hit = this.intersectRayCircle2D(startPos.x, startPos.z, blinkDir.x, blinkDir.z, col.x, col.z, col.radius);
+        if (hit !== null && hit > 0 && hit < maxDist) {
+          maxDist = Math.min(maxDist, Math.max(0.6, hit - 0.7));
+        }
+      }
+    }
+
+    // Clamp to expanded world boundaries (-595..595, -595..345)
+    let targetX = startPos.x + blinkDir.x * maxDist;
+    let targetZ = startPos.z + blinkDir.z * maxDist;
+    targetX = Math.max(-595, Math.min(595, targetX));
+    targetZ = Math.max(-595, Math.min(345, targetZ));
+
+    // Resolve collisions so player never blinks inside walls or buildings
+    const resolved = this.resolveCollisions(targetX, targetZ);
+    const targetPos = this._scratchTarget.set(
+      resolved.x,
+      this.world.getTerrainHeight(resolved.x, resolved.z),
+      resolved.z
+    );
+
+    // Invulnerability (iFrame) during dimension shift (0.2s)
+    this.isInvulnerable = true;
+    this.invulnerableTimer = 0.2;
+    this.isDashing = true;
+    this.dashTimer = 0.2;
+    this.attackType = 'blink';
+    this.attackDuration = 0.2;
+    this.attackTimer = 0.2;
+
+    // Torso leans forward in blink direction
+    if (this.playerMesh && this.playerMesh.body) {
+      this.playerMesh.body.rotation.x = 0.40;
+    }
+
+    // Align rotation to blink direction
+    this.playerRotationY = Math.atan2(blinkDir.x, blinkDir.z);
+    this.playerMesh.group.rotation.y = this.playerRotationY;
+
+    // Immediately teleport player coordinates
+    this.playerPos.copy(targetPos);
+    this.playerMesh.group.position.copy(targetPos);
+    this.playerVel.set(0, 0, 0);
+
+    // Hide original player mesh during the 0.18s leap so only ethereal afterimages are visible
+    this.playerMesh.group.visible = false;
+
+    // Spawn pooled VFX
+    this.spawnMageBlinkVfx(startPos, targetPos);
+    this.callbacks.onAddFloatingText('Langkah Dimensi!', '#38bdf8', 'info');
+  }
+
   public jump() {
     if (this.isControlsLocked || this.isCasting) return;
     if (this.isGrounded) {
@@ -6426,6 +6559,8 @@ export class GameEngine {
     if (this.isControlsLocked || this.isCasting) return;
     if (this.charClass === 'warrior') {
       this.performShieldDash();
+    } else if (this.charClass === 'mage') {
+      this.performMageBlink();
     } else {
       this.castSkill(2);
     }
@@ -6437,7 +6572,10 @@ export class GameEngine {
 
   private damageEnemy(enemy: (typeof this.enemies)[0], rawDamage: number, isCrit: boolean, knockback = 0.4) {
     const defense = enemy.data.defense;
-    const actualDamage = Math.max(3, rawDamage - defense);
+    let actualDamage = Math.max(3, rawDamage - defense);
+    if (enemy.brittleTimer && enemy.brittleTimer > 0) {
+      actualDamage = Math.round(actualDamage * 1.20); // Brittle: +20% Damage Taken
+    }
     enemy.data.hp -= actualDamage;
 
     if (this.gameMode === 'multiplayer') {
@@ -7081,7 +7219,7 @@ export class GameEngine {
       }
       this.playerMesh.group.position.copy(this.playerPos);
 
-      // Starfall Casting pose: right arm raised high to sky, left arm holds grimoire at hip, head tilted up
+      // Celestial Apocalypse / Starfall Casting pose: right arm raised high to sky, left arm holds grimoire at hip, head tilted up
       if (this.charClass === 'mage' && this.playerMesh) {
         this.playerMesh.leftLeg.rotation.x = 0;
         this.playerMesh.rightLeg.rotation.x = 0;
@@ -7092,11 +7230,13 @@ export class GameEngine {
         // Lengan Kiri (Buku): TETAP DIAM di samping badan / di pinggul mendekap grimoire
         this.playerMesh.leftArm.rotation.set(0.06, 0.10, 0.12);
         this.playerMesh.head.rotation.x = -0.30;
-        this.playerMesh.group.position.y += Math.sin(progress * Math.PI) * 0.15;
+        // Melayang 0.5 unit di atas tanah saat mengangkat tongkat
+        this.playerPos.y = groundY + Math.sin(progress * Math.PI) * 0.5;
+        this.playerMesh.group.position.y = this.playerPos.y;
       }
 
       if (this.castingTimer >= this.castingDuration) {
-        this.completeStarfallCasting();
+        this.completeCelestialApocalypseCasting();
       }
       return;
     }
@@ -8182,6 +8322,35 @@ export class GameEngine {
       const spawnPos = enemy.spawnPos || new THREE.Vector3(...enemy.data.position);
       const distFromSpawn = Math.hypot(ePos.x - spawnPos.x, ePos.z - spawnPos.z);
       const distToPlayer = this.playerPos.distanceTo(ePos);
+
+      // Physics: Vertical knock-up and radial velocity
+      if (enemy.velocity && (Math.abs(enemy.velocity.x) > 0.01 || Math.abs(enemy.velocity.y) > 0.01 || Math.abs(enemy.velocity.z) > 0.01)) {
+        ePos.x += enemy.velocity.x * delta;
+        ePos.z += enemy.velocity.z * delta;
+        ePos.y += enemy.velocity.y * delta;
+        enemy.velocity.y -= 26.0 * delta; // Gravity
+        enemy.velocity.x *= Math.max(0, 1 - 4.0 * delta); // Friction
+        enemy.velocity.z *= Math.max(0, 1 - 4.0 * delta);
+        const groundH = this.world.getTerrainHeight(ePos.x, ePos.z);
+        if (ePos.y <= groundH) {
+          ePos.y = groundH;
+          enemy.velocity.set(0, 0, 0);
+        }
+      }
+
+      // Status Effects: Stun, Slow, Brittle
+      if (enemy.slowTimer && enemy.slowTimer > 0) {
+        enemy.slowTimer -= delta;
+      }
+      if (enemy.brittleTimer && enemy.brittleTimer > 0) {
+        enemy.brittleTimer -= delta;
+      }
+      if (enemy.stunTimer && enemy.stunTimer > 0) {
+        enemy.stunTimer -= delta;
+        return; // Stunned: skip movement and attacks
+      }
+
+      const slowMult = (enemy.slowTimer && enemy.slowTimer > 0) ? (1 - (enemy.slowFactor || 0.55)) : 1.0;
       const territoryRadius =
         enemy.leashRadius ||
         (enemy.data.id === 'boss_dragonfang'
@@ -8218,7 +8387,7 @@ export class GameEngine {
           enemy.mesh.rotation.y = Math.atan2(toSpawnX, toSpawnZ);
 
           // Berjalan kembali ke tempat asalnya dengan langkah santai
-          const returnSpeed = enemy.data.speed * delta;
+          const returnSpeed = enemy.data.speed * slowMult * delta;
           ePos.x += (toSpawnX / distToSpawn) * returnSpeed;
           ePos.z += (toSpawnZ / distToSpawn) * returnSpeed;
           ePos.y = this.world.getTerrainHeight(ePos.x, ePos.z);
@@ -8282,7 +8451,7 @@ export class GameEngine {
 
         if (distToPlayer > enemy.data.attackRange) {
           const baseSpeed = enemy.data.id === 'boss_dragonfang' ? 5.8 : enemy.data.speed;
-          const moveSpeed = baseSpeed * delta;
+          const moveSpeed = baseSpeed * slowMult * delta;
           ePos.x += toPlayer.x * moveSpeed;
           ePos.z += toPlayer.z * moveSpeed;
           ePos.y = this.world.getTerrainHeight(ePos.x, ePos.z);
@@ -9031,6 +9200,35 @@ export class GameEngine {
         this.arcaneShieldTimer = 0;
         this.arcaneShieldHp = 0;
         this.callbacks.onAddFloatingText('Perisai Sihir Berakhir', '#94a3b8', 'info');
+      }
+    }
+
+    // Mage Ultimate Cooldown Timer
+    if (this.mageUltimateCooldownTimer > 0) {
+      this.mageUltimateCooldownTimer = Math.max(0, this.mageUltimateCooldownTimer - delta);
+    }
+
+    // Scorched Crater (Ground Fire DoT: 15% Spell Power / sec)
+    if (this.activeScorchedCraters.length > 0) {
+      for (let i = this.activeScorchedCraters.length - 1; i >= 0; i--) {
+        const crater = this.activeScorchedCraters[i];
+        crater.timer -= delta;
+        crater.tickTimer -= delta;
+        if (crater.tickTimer <= 0) {
+          crater.tickTimer = 0.5; // Tick twice per second
+          const tickDmg = Math.max(1, Math.round(crater.dps * 0.5));
+          this.enemies.forEach((enemy) => {
+            if (enemy.data.isDead) return;
+            const dist = enemy.mesh.position.distanceTo(crater.center);
+            if (dist <= crater.radius) {
+              this.damageEnemy(enemy, tickDmg, false, 0);
+              this.spawnHitStarburst(enemy.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)), 0xff5722, 1.2);
+            }
+          });
+        }
+        if (crater.timer <= 0) {
+          this.activeScorchedCraters.splice(i, 1);
+        }
       }
     }
 
