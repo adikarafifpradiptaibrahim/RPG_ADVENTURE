@@ -50,7 +50,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
       case 'mage':
         return {
           basic: { label: 'Arcane Beam', icon: '🔮', hint: 'Klik / J' },
-          skill1: { name: 'Slot 1 (Segera Hadir)', icon: '🔒', cost: '-', key: 'Q', color: 'border-stone-700 text-stone-500 bg-stone-900/40 opacity-60' },
+          skill1: { name: 'Slot Kosong / Segera Hadir', icon: '🔒', cost: '-', key: 'Q', color: 'border-stone-700 text-stone-500 bg-stone-900/40 opacity-60' },
           skill2: { name: 'Cahaya Suci', icon: '✨', cost: '25 MP', key: 'E', color: 'border-blue-500/70 text-blue-300 bg-blue-950/40' },
           skill3: { name: 'Celestial Apocalypse', icon: '☄️', cost: '45 MP', key: 'R', color: 'border-purple-500/70 text-purple-300 bg-purple-950/40' },
         };
@@ -131,26 +131,35 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         }}
         style={{ touchAction: 'none', userSelect: 'none' }}
         className="skill-btn skill-btn-attack touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-amber-600 via-stone-800 to-stone-950 hover:from-amber-500 hover:to-stone-900 text-stone-100 border-2 border-amber-400/90 shadow-2xl cursor-pointer active:scale-90 transition-all select-none"
-        title={`${classSkills.basic.label} (Klik Kiri / Tahan / J)`}
+        title={`${classSkills.basic.label} (${stats.characterClass === 'mage' ? 'Klik Kiri / J' : 'Klik Kiri / Tahan / J'})`}
       >
         <span className="text-xl sm:text-2xl md:text-xl drop-shadow">{classSkills.basic.icon}</span>
         <span className="hidden md:inline text-[8px] font-bold text-stone-300 line-clamp-1">{classSkills.basic.label}</span>
         <span className="absolute -top-1 -right-1 bg-amber-600 text-stone-950 font-black text-[7px] md:text-[7px] font-mono px-1 rounded-full border border-amber-300">
-          J
+          {stats.characterClass === 'mage' ? 'Klik / J' : 'J'}
         </span>
       </button>
 
-      {/* Skill 1 (Supernova / Pusaran / 1000 Belati) */}
+      {/* Skill 1 (Supernova / Pusaran / 1000 Belati / Slot Kosong) */}
       <button
         type="button"
+        disabled={stats.characterClass === 'mage'}
         onTouchStart={(e) => {
+          if (stats.characterClass === 'mage') return;
           e.preventDefault();
           e.stopPropagation();
           onCastSkill(1);
         }}
-        onClick={() => onCastSkill(1)}
+        onClick={() => {
+          if (stats.characterClass === 'mage') return;
+          onCastSkill(1);
+        }}
         style={{ touchAction: 'none', userSelect: 'none' }}
-        className={`skill-btn skill-btn-1 touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 border shadow-lg cursor-pointer active:scale-90 transition-all select-none ${classSkills.skill1.color}`}
+        className={`skill-btn skill-btn-1 touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 border shadow-lg transition-all select-none ${
+          stats.characterClass === 'mage'
+            ? 'opacity-50 cursor-not-allowed border-stone-700 text-stone-500'
+            : `cursor-pointer active:scale-90 ${classSkills.skill1.color}`
+        }`}
         title={`${classSkills.skill1.name} (${classSkills.skill1.key})`}
       >
         <span className="text-sm sm:text-base md:text-base">{classSkills.skill1.icon}</span>
@@ -226,18 +235,18 @@ export const SkillBar: React.FC<SkillBarProps> = ({
             ? 'text-cyan-200 border border-cyan-500/70'
             : 'text-amber-200 border border-amber-600/70'
         }`}
-        title={stats.characterClass === 'mage' ? 'Arcane Blink [Shift]' : (stats.characterClass === 'warrior' ? 'Shield Dash [Shift]' : 'Dash [Shift]')}
+        title={stats.characterClass === 'mage' ? 'Arcane Blink [F / Shift]' : (stats.characterClass === 'warrior' ? 'Shield Dash [Shift]' : 'Dash [Shift]')}
       >
         <span className="text-sm sm:text-base md:text-base">
           {stats.characterClass === 'warrior' ? '🛡️' : (stats.characterClass === 'mage' ? '🌌' : '💨')}
         </span>
         <span className={`hidden md:inline text-[8px] font-bold ${stats.characterClass === 'mage' ? 'text-cyan-300' : 'text-amber-300'}`}>
-          {stats.characterClass === 'mage' ? 'Blink' : 'Dash'}
+          {stats.characterClass === 'mage' ? 'Arcane Blink' : 'Dash'}
         </span>
         <span className={`absolute -top-1 -right-1 text-white text-[6px] md:text-[7px] font-mono px-0.5 rounded border ${
           stats.characterClass === 'mage' ? 'bg-cyan-700 border-cyan-400' : 'bg-amber-700 border-amber-500'
         }`}>
-          Shift
+          {stats.characterClass === 'mage' ? 'F / Shift' : 'Shift'}
         </span>
         {stats.characterClass === 'mage' && (
           <span className="hidden md:inline absolute -bottom-1 text-[6px] text-cyan-300 font-mono font-bold bg-stone-900/90 px-0.5 rounded">

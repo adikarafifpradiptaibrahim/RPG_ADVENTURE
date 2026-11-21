@@ -111,19 +111,19 @@ export const MAGE_SKILLS: SkillInfo[] = [
     shortName: 'Arcane Beam',
     icon: '🔮',
     color: '#8b5cf6',
-    title: 'ARCANE BEAM',
+    title: 'ARCANE BEAM (KLIK / J)',
     description:
-      'Serangan Dasar (Klik / J): Menembakkan berkas laser sihir murni menembus lurus tanpa biaya MP.',
+      'Serangan Dasar [Klik / J]: Menembakkan berkas laser sihir murni menembus lurus tanpa biaya MP.',
   },
   {
     id: 'm_slot1',
-    name: 'Slot 1',
+    name: 'Slot 1 (Q)',
     shortName: 'Segera Hadir',
     icon: '🔒',
     color: '#64748b',
-    title: 'SLOT SKILL 1 (SEGERA HADIR)',
+    title: 'SLOT SKILL 1 [Q] (SEGERA HADIR)',
     description:
-      'Slot kemampuan khusus baru sedang disiapkan oleh Dewan Agung Penyihir.',
+      'Slot Skill 1 [Q]: Slot kemampuan khusus baru sedang disiapkan oleh Dewan Agung Penyihir (Non-aktif sementara).',
   },
   {
     id: 'm_cahaya',
@@ -131,7 +131,7 @@ export const MAGE_SKILLS: SkillInfo[] = [
     shortName: 'Cahaya Suci',
     icon: '✨',
     color: '#38bdf8',
-    title: 'CAHAYA SUCI (SANCTUARY)',
+    title: 'CAHAYA SUCI (SANCTUARY) [E]',
     description:
       'Skill 2 [E]: Memulihkan HP, menyucikan 1 debuff, mengubah sisa overheal menjadi Perisai Astral (6s), dan mengembalikan +30 Mana Astral (Biaya: 25 MP).',
   },
@@ -141,7 +141,7 @@ export const MAGE_SKILLS: SkillInfo[] = [
     shortName: 'Celestial Apocalypse',
     icon: '☄️',
     color: '#a855f7',
-    title: 'CELESTIAL APOCALYPSE (ULTIMATE)',
+    title: 'CELESTIAL APOCALYPSE (ULTIMATE) [R]',
     description:
       'Ultimate [R]: Membuka lingkaran sihir radius 14.5 unit. Menghujani 14 kristal es (slow 55% & brittle +20%), diakhiri Meteor Raksasa yang meledak di seluruh area (240% Spell Power, Stun Boss 1.2s, Knock-Up mob, dan kawah membara 3s) (Biaya: 45 MP, CD: 18s).',
   },
@@ -151,9 +151,9 @@ export const MAGE_SKILLS: SkillInfo[] = [
     shortName: 'Arcane Blink',
     icon: '🌌',
     color: '#06b6d4',
-    title: 'ARCANE BLINK (MOBILITAS)',
+    title: 'ARCANE BLINK (MOBILITAS) [F / SHIFT]',
     description:
-      'Mobilitas [Shift]: Teleportasi instan menembus musuh dengan perlindungan iFrame 0.2s untuk menghindari bahaya (Biaya: 15 Stamina).',
+      'Mobilitas [F / Shift]: Teleportasi instan menembus musuh dengan perlindungan iFrame 0.2s untuk menghindari bahaya (Biaya: 15 Stamina).',
   },
 ];
 

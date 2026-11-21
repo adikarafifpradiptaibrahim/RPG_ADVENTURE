@@ -2922,7 +2922,13 @@ export class GameEngine {
     if (key === 'f' || code === 'keyf') {
       const didInteract = this.checkInteract();
       if (!didInteract) {
-        this.castSkill(2); // Skill 3 (Cataclysmic Leap Slam untuk Knight / Skill Mobilitas Acrobatic untuk Assassin / Mage)
+        if (this.charClass === 'mage') {
+          // Mage: Tombol [F] memicu Arcane Blink (Mobilitas)
+          this.castArcaneBlink();
+        } else {
+          // Knight: Cataclysmic Leap Slam / Rogue: Akrobatik/Siluman
+          this.castSkill(2);
+        }
       }
     } else if (key === 'j' || code === 'keyj') {
       if (!this.isChargingAttack) {
@@ -2933,9 +2939,11 @@ export class GameEngine {
     } else if (key === 'c' || code === 'keyc') {
       // Tombol [C] khusus Character Status modal (Dash dihilangkan dari C)
     } else if (key === 'q' || code === 'keyq') {
+      // Slot 1 (Q): Knight Triple Crescent / Mage Placeholder / Rogue 1000 Belati
       this.castSkill(1);
     } else if (key === 'e' || code === 'keye') {
-      // Mage Slot 2: Cahaya Suci [E], Warrior & Rogue: Dash [E]
+      // Mage Slot 2: Cahaya Suci [E] -> HANYA dipicu oleh tombol E
+      // Warrior & Rogue: Dash [E]
       if (this.charClass === 'mage') {
         this.castSkill(2);
       } else {
@@ -2945,6 +2953,7 @@ export class GameEngine {
       // Tombol [Shift] untuk Mobilitas / Dash semua class (Arcane Blink untuk Mage, Shield Dash untuk Warrior, Dash untuk Rogue)
       this.performDash();
     } else if (key === 'r' || code === 'keyr') {
+      // Slot 3 (R): Ultimate semua class (Celestial Apocalypse untuk Mage, Aegis untuk Knight, Bom Asap untuk Rogue)
       this.castSkill(3);
     } else if (key === 'x' || code === 'keyx' || key === 't' || code === 'keyt') {
       this.switchHunterWeapon();
@@ -6722,6 +6731,20 @@ export class GameEngine {
     // Spawn pooled VFX
     this.spawnMageBlinkVfx(startPos, targetPos);
     this.callbacks.onAddFloatingText('Langkah Dimensi!', '#38bdf8', 'info');
+  }
+
+  public castArcaneBlink() {
+    this.performMageBlink();
+  }
+
+  public castCahayaSuci() {
+    if (this.charClass === 'mage') {
+      this.castSkill(2);
+    }
+  }
+
+  public startArcaneBeam() {
+    this.startBasicAttack();
   }
 
   public jump() {
