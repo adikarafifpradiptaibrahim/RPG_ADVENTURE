@@ -132,6 +132,7 @@ export interface GameEngineCallbacks {
   onBossDefeated?: (bossName?: string) => void;
   onSpectatorModeChange?: (active: boolean) => void;
   onHunterWeaponSwitch?: (mode: 'dagger' | 'bow') => void;
+  onGlacialAimChange?: (isAiming: boolean) => void;
   onCastingUpdate?: (casting: { isCasting: boolean; progress: number; text: string } | null) => void;
   onCheckpointUnlocked?: (id: string, nameId: string, pos: [number, number]) => void;
   onPreviewRoleSelected?: (role: 'warrior' | 'mage' | 'rogue') => void;
@@ -321,6 +322,7 @@ export class GameEngine {
     | 'cataclysmic_slam'
     | 'aegis_retribution'
     | 'shield_dash'
+    | 'mage_aim_glacial'
     | null = null;
   public isCasting = false;
   private castingTimer = 0;
@@ -329,6 +331,16 @@ export class GameEngine {
   private castingCircleInstance: StarfallCastingCircleInstance | null = null;
   private mageUltimateCooldownTimer = 0;
   private mageGlacialBarrageCooldownTimer = 0;
+  // Mage Glacial Crystal Barrage: Hold-to-Aim & Over-the-Shoulder camera state
+  private isAimGlacialActive = false;
+  private aimGlacialCancelled = false;
+  private activeGlacialVfx: GlacialBarrageVfxInstance | null = null;
+  private aimIndicatorGroup: THREE.Group | null = null;
+  private aimIndicatorBeamMesh: THREE.Mesh | null = null;
+  private aimIndicatorCoreMesh: THREE.Mesh | null = null;
+  private aimIndicatorGroundRing: THREE.Mesh | null = null;
+  private aimTargetPoint = new THREE.Vector3();
+  private cameraCurrentLookAt = new THREE.Vector3();
   private activeScorchedCraters: {
     center: THREE.Vector3;
     radius: number;
@@ -2704,7 +2716,12 @@ export class GameEngine {
     window.addEventListener('touchcancel', this.handleTouchEnd, { passive: true });
   }
 
-  private handleContextMenu = () => {
+  private handleContextMenu = (e: MouseEvent) => {
+    if (this.isAimGlacialActive) {
+      e.preventDefault();
+      this.cancelAimGlacialBarrage();
+      return;
+    }
     // If context menu opens, release all keys immediately so player does not walk by itself
     this.resetKeys();
   };
@@ -2948,8 +2965,14 @@ export class GameEngine {
     } else if (key === 'c' || code === 'keyc') {
       // Tombol [C] khusus Character Status modal (Dash dihilangkan dari C)
     } else if (key === 'q' || code === 'keyq') {
-      // Slot 1 (Q): Knight Triple Crescent / Mage Placeholder / Rogue 1000 Belati
-      this.castSkill(1);
+      // Slot 1 (Q): Mage Glacial Crystal Barrage (Hold-to-Aim) / Warrior Triple Crescent / Rogue 1000 Belati
+      if (this.charClass === 'mage') {
+        if (!e.repeat) {
+          this.startAimGlacialBarrage();
+        }
+      } else {
+        this.castSkill(1);
+      }
     } else if (key === 'e' || code === 'keye') {
       // Slot 2 (E):
       // Mage Slot 2 (E): Arcane Blink [E] (Teleportasi instan menembus musuh dengan iFrame 0.2s)
@@ -3022,6 +3045,13 @@ export class GameEngine {
     if (key === 'j' || code === 'keyj') {
       this.releaseBasicAttack();
     }
+    if (key === 'q' || code === 'keyq') {
+      if (this.charClass === 'mage') {
+        if (this.isAimGlacialActive) {
+          this.releaseAimGlacialBarrage(false);
+        }
+      }
+    }
 
     // If no movement keys are currently pressed and joystick is centered, cancel momentum immediately
     if (!this.isKeyPressed('w', 'keyw', 'arrowup', 's', 'keys', 'arrowdown', 'a', 'keya', 'arrowleft', 'd', 'keyd', 'arrowright')) {
@@ -3088,6 +3118,15 @@ export class GameEngine {
     }
 
     if (this.isControlsLocked || this.menuMode !== 'gameplay') return;
+
+    if (e.button === 2) {
+      if (this.isAimGlacialActive) {
+        e.preventDefault();
+        this.cancelAimGlacialBarrage();
+        return;
+      }
+    }
+
     this.isMouseDown = true;
     this.isDraggingCamera = false;
     this.prevMouseX = e.clientX;
@@ -3115,7 +3154,25 @@ export class GameEngine {
       return;
     }
 
-    if (!this.isMouseDown || this.menuMode !== 'gameplay') return;
+    if (this.menuMode !== 'gameplay') return;
+
+    // Freely control aiming yaw & pitch while holding Q (Glacial Barrage)
+    if (this.isAimGlacialActive) {
+      const deltaX = e.clientX - this.prevMouseX;
+      const deltaY = e.clientY - this.prevMouseY;
+      this.prevMouseX = e.clientX;
+      this.prevMouseY = e.clientY;
+
+      this.cameraAngleH = normalizeCameraYaw(
+        this.cameraAngleH - deltaX * CAMERA_CONFIG.MOUSE_LOOK_SENSITIVITY_H
+      );
+      this.cameraAngleV = clampCameraPitch(
+        this.cameraAngleV + deltaY * CAMERA_CONFIG.MOUSE_LOOK_SENSITIVITY_V
+      );
+      return;
+    }
+
+    if (!this.isMouseDown) return;
     const deltaX = e.clientX - this.prevMouseX;
     const deltaY = e.clientY - this.prevMouseY;
 
@@ -5479,7 +5536,345 @@ export class GameEngine {
     this.triggerCameraShake(0.18);
   }
 
-  // 9. Glacial Crystal Barrage (Mage Skill 1 [Q] - 12 Aimable Ice Shards Wide Arc Curtain + Sequential Barrage)
+  // 9. Glacial Crystal Barrage (Mage Skill 1 [Q] - Hold-to-Aim, Over-the-Shoulder Camera & MOBA Drag-Aim)
+  private initAimIndicator() {
+    if (this.aimIndicatorGroup) return;
+
+    this.aimIndicatorGroup = new THREE.Group();
+    this.aimIndicatorGroup.name = 'GlacialAimIndicator';
+    this.aimIndicatorGroup.visible = false;
+
+    // Outer laser beam cylinder
+    const beamGeom = new THREE.CylinderGeometry(0.06, 0.09, 1.0, 12, 1, false);
+    beamGeom.rotateX(Math.PI / 2);
+    beamGeom.translate(0, 0, 0.5);
+
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.65,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.aimIndicatorBeamMesh = new THREE.Mesh(beamGeom, beamMat);
+    this.aimIndicatorGroup.add(this.aimIndicatorBeamMesh);
+
+    // Inner bright core cylinder
+    const coreGeom = new THREE.CylinderGeometry(0.02, 0.03, 1.0, 8, 1, false);
+    coreGeom.rotateX(Math.PI / 2);
+    coreGeom.translate(0, 0, 0.5);
+
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0xe0f2fe,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.aimIndicatorCoreMesh = new THREE.Mesh(coreGeom, coreMat);
+    this.aimIndicatorGroup.add(this.aimIndicatorCoreMesh);
+
+    // Ground Target Decal Ring
+    const ringGeom = new THREE.RingGeometry(0.8, 1.15, 32);
+    ringGeom.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.8,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.aimIndicatorGroundRing = new THREE.Mesh(ringGeom, ringMat);
+    this.aimIndicatorGroup.add(this.aimIndicatorGroundRing);
+
+    this.scene.add(this.aimIndicatorGroup);
+  }
+
+  public startAimGlacialBarrage() {
+    if (this.isControlsLocked) return;
+    if (this.charClass !== 'mage') return;
+    if (this.isAimGlacialActive) return;
+
+    if (this.mageGlacialBarrageCooldownTimer > 0) {
+      this.callbacks.onAddFloatingText(
+        `Glacial Barrage Cooldown (${this.mageGlacialBarrageCooldownTimer.toFixed(1)}s)!`,
+        '#94a3b8',
+        'info'
+      );
+      return;
+    }
+
+    let hasEnoughMp = true;
+    this.callbacks.onUpdateStats((stats) => {
+      if (stats.mp < 18) {
+        hasEnoughMp = false;
+        this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#ef4444', 'info');
+      }
+      return stats;
+    });
+    if (!hasEnoughMp) return;
+
+    this.isAimGlacialActive = true;
+    this.aimGlacialCancelled = false;
+    this.playerVel.set(0, 0, 0);
+
+    // Hitung sudut arah hadap maju dari vektor arah pandang kamera (membelakangi kamera, menghadap lurus ke depan)
+    const cameraForward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    const horizForward = cameraForward.clone();
+    horizForward.y = 0;
+    if (horizForward.lengthSq() > 0.001) {
+      horizForward.normalize();
+      this.playerRotationY = Math.atan2(horizForward.x, horizForward.z);
+      if (this.playerMesh?.group) {
+        this.playerMesh.group.rotation.y = this.playerRotationY;
+      }
+    }
+
+    // Mage Combat Aiming Pose
+    this.isAttacking = true;
+    this.attackType = 'mage_aim_glacial';
+    this.attackTimer = 999;
+    if (this.playerMesh) {
+      if (this.playerMesh.body) this.playerMesh.body.rotation.set(0, 0, 0);
+      if (this.playerMesh.rightArm) this.playerMesh.rightArm.rotation.set(-Math.PI * 0.45, 0.1, 0.15);
+      if (this.playerMesh.weapon) this.playerMesh.weapon.rotation.set(Math.PI * 0.35, 0, 0);
+      if (this.playerMesh.leftArm) this.playerMesh.leftArm.rotation.set(-Math.PI * 0.35, -0.2, -0.3);
+      if (this.playerMesh.head) this.playerMesh.head.rotation.set(0, 0, 0);
+    }
+
+    this.triggerSkillVfxLight(this.playerPos, 0x38bdf8, 2.8, 14.0);
+
+    // Inisialisasi garis bidik & target reticle di dunia 3D
+    this.initAimIndicator();
+    if (this.aimIndicatorGroup) {
+      this.aimIndicatorGroup.visible = true;
+    }
+
+    // Acquire ke-12 bilah kristal es di udara di atas & belakang Mage dalam mode Hold-to-Aim
+    this.activeGlacialVfx = GlacialBarrageResourcePool.get().acquire(
+      this.playerPos,
+      this.playerRotationY,
+      (shardIndex: number) => soundManager.playIceShardLaunch(shardIndex),
+      (targetEnemy: (typeof this.enemies)[0], hitPos: THREE.Vector3) => {
+        const isBoss = targetEnemy.data.type === 'boss' || targetEnemy.data.id?.startsWith('boss_');
+        soundManager.playIceShatter(isBoss);
+        this.triggerCameraShake(0.12);
+        this.spawnHitStarburst(hitPos, 0x38bdf8, 1.3);
+
+        if (this.isRunning) {
+          this.callbacks.onUpdateStats((stats) => {
+            const tierMult = 1 + (this.playerTier - 1) * 0.25;
+            const isCrit = Math.random() < 0.20 + stats.intelligence * 0.015;
+            const baseDmg = (stats.baseAttack + stats.intelligence * 2.5) * tierMult * 0.24;
+            const finalDmg = Math.max(3, Math.round(isCrit ? baseDmg * 1.85 : baseDmg));
+            this.damageEnemy(targetEnemy, finalDmg, isCrit, 0.25);
+
+            if (!targetEnemy.slowFactor || !targetEnemy.slowTimer || targetEnemy.slowTimer <= 0) {
+              targetEnemy.slowFactor = 0.30;
+            } else {
+              targetEnemy.slowFactor = Math.min(0.60, targetEnemy.slowFactor + 0.30);
+            }
+            targetEnemy.slowTimer = 2.5;
+            return stats;
+          });
+        }
+      },
+      (hitPos: THREE.Vector3) => {
+        soundManager.playIceShatter(false);
+        this.spawnHitStarburst(hitPos, 0x7dd3fc, 0.9);
+      },
+      true // isHoldToAim
+    );
+
+    if (!this.scene.children.includes(this.activeGlacialVfx.group)) {
+      this.scene.add(this.activeGlacialVfx.group);
+    }
+
+    this.addVfx(
+      this.activeGlacialVfx.group,
+      (delta: number) => {
+        if (!this.activeGlacialVfx) return false;
+        return this.activeGlacialVfx.update(
+          delta,
+          this.playerPos,
+          this.playerRotationY,
+          this.aimTargetPoint,
+          this.enemies,
+          (x, z) => this.world.getTerrainHeight(x, z)
+        );
+      },
+      () => {
+        this.activeGlacialVfx?.cleanup();
+        this.activeGlacialVfx = null;
+        this.extinguishSkillVfxLight();
+      },
+      true
+    );
+
+    this.callbacks.onGlacialAimChange?.(true);
+  }
+
+  public updateAimGlacialBarrage(deltaX: number, deltaY: number) {
+    if (!this.isAimGlacialActive) return;
+    this.cameraAngleH = normalizeCameraYaw(this.cameraAngleH - deltaX * 0.015);
+    this.cameraAngleV = clampCameraPitch(this.cameraAngleV + deltaY * 0.015);
+  }
+
+  public releaseAimGlacialBarrage(isCancelled = false) {
+    if (!this.isAimGlacialActive) return;
+
+    if (isCancelled) {
+      this.cancelAimGlacialBarrage();
+      return;
+    }
+
+    let fired = false;
+    this.callbacks.onUpdateStats((stats) => {
+      if (stats.mp < 18) {
+        this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#ef4444', 'info');
+        return stats;
+      }
+      fired = true;
+      return { ...stats, mp: Math.max(0, stats.mp - 18) };
+    });
+
+    if (!fired) {
+      this.cancelAimGlacialBarrage();
+      return;
+    }
+
+    this.mageGlacialBarrageCooldownTimer = 7.5;
+
+    this.callbacks.onAddFloatingText('💠 GLACIAL CRYSTAL BARRAGE!', '#38bdf8', 'crit');
+
+    // Sembunyikan garis bidik
+    if (this.aimIndicatorGroup) {
+      this.aimIndicatorGroup.visible = false;
+    }
+
+    // Luncurkan ke-12 kristal es secara bertubi-tubi menuju target bidikan terakhir
+    if (this.activeGlacialVfx) {
+      this.activeGlacialVfx.releaseFire(this.aimTargetPoint.clone());
+    }
+
+    this.isAimGlacialActive = false;
+    this.callbacks.onGlacialAimChange?.(false);
+
+    // Kembalikan pose karakter setelah selesai menembak
+    setTimeout(() => {
+      if (!this.isRunning) return;
+      this.isAttacking = false;
+      this.attackType = null;
+      this.attackTimer = 0;
+      if (this.playerMesh?.body) {
+        this.playerMesh.body.rotation.set(0, 0, 0);
+        this.playerMesh.weapon?.rotation.set(0.32, 0.10, 0.05);
+        this.playerMesh.leftArm?.rotation.set(0, 0, 0);
+        this.playerMesh.rightArm?.rotation.set(0, 0, 0);
+      }
+    }, 900);
+  }
+
+  public cancelAimGlacialBarrage() {
+    if (!this.isAimGlacialActive) return;
+
+    this.isAimGlacialActive = false;
+    this.aimGlacialCancelled = true;
+
+    // Sembunyikan garis bidik dan kristal tanpa mengurangi MP maupun memicu cooldown
+    if (this.aimIndicatorGroup) {
+      this.aimIndicatorGroup.visible = false;
+    }
+
+    if (this.activeGlacialVfx) {
+      this.activeGlacialVfx.cleanup();
+      this.activeGlacialVfx = null;
+      this.extinguishSkillVfxLight();
+    }
+
+    this.isAttacking = false;
+    this.attackType = null;
+    this.attackTimer = 0;
+    if (this.playerMesh?.body) {
+      this.playerMesh.body.rotation.set(0, 0, 0);
+      this.playerMesh.weapon?.rotation.set(0.32, 0.10, 0.05);
+      this.playerMesh.leftArm?.rotation.set(0, 0, 0);
+      this.playerMesh.rightArm?.rotation.set(0, 0, 0);
+    }
+
+    this.callbacks.onAddFloatingText('Dibatalkan', '#94a3b8', 'info');
+    this.callbacks.onGlacialAimChange?.(false);
+  }
+
+  public updateGlacialAimFrame(delta: number) {
+    if (!this.isAimGlacialActive) return;
+
+    this.playerVel.set(0, 0, 0);
+
+    // Karakter SELALU menghadap searah pandangan kamera ke depan
+    const camFwdX = -Math.sin(this.cameraAngleH);
+    const camFwdZ = -Math.cos(this.cameraAngleH);
+    this.playerRotationY = Math.atan2(camFwdX, camFwdZ);
+    if (this.playerMesh?.group) {
+      this.playerMesh.group.rotation.y = this.playerRotationY;
+    }
+
+    // Mage Combat Aiming Pose
+    if (this.playerMesh) {
+      if (this.playerMesh.body) this.playerMesh.body.rotation.set(0, 0, 0);
+      if (this.playerMesh.rightArm) this.playerMesh.rightArm.rotation.set(-Math.PI * 0.45, 0.1, 0.15);
+      if (this.playerMesh.weapon) this.playerMesh.weapon.rotation.set(Math.PI * 0.35, 0, 0);
+      if (this.playerMesh.leftArm) this.playerMesh.leftArm.rotation.set(-Math.PI * 0.35, -0.2, -0.3);
+      if (this.playerMesh.head) this.playerMesh.head.rotation.set(0, 0, 0);
+    }
+
+    // Arah bidikan 3D (pitch & yaw)
+    const camFwdY = -Math.sin(this.cameraAngleV);
+    const camDirXZ = Math.cos(this.cameraAngleV);
+    const aimDir = new THREE.Vector3(camFwdX * camDirXZ, camFwdY, camFwdZ * camDirXZ).normalize();
+    this.aimTargetPoint.copy(this.playerPos).add(new THREE.Vector3(0, 1.4, 0)).addScaledVector(aimDir, 28.0);
+
+    // Soft-lock terdekat di jalur bidik kursor
+    let bestEnemy: (typeof this.enemies)[0] | null = null;
+    let bestDot = 0.65;
+    for (let e = 0; e < this.enemies.length; e++) {
+      const enemy = this.enemies[e];
+      if (enemy.data?.isDead) continue;
+      const toE = enemy.mesh.position.clone().sub(this.playerPos);
+      const dist = toE.length();
+      if (dist > 32.0) continue;
+      toE.normalize();
+      const dot = aimDir.dot(toE);
+      if (dot > bestDot) {
+        bestDot = dot;
+        bestEnemy = enemy;
+      }
+    }
+
+    if (bestEnemy) {
+      this.aimTargetPoint.copy(bestEnemy.mesh.position);
+      this.aimTargetPoint.y += (bestEnemy.data.type === 'boss' || bestEnemy.data.id?.startsWith('boss_')) ? 2.5 : 1.0;
+    }
+
+    // Update garis proyeksi jalur tembakan (Aim Indicator Line)
+    if (this.aimIndicatorGroup && this.aimIndicatorGroup.visible) {
+      const startPos = this.playerPos.clone().add(new THREE.Vector3(0, 1.35, 0));
+      this.aimIndicatorGroup.position.copy(startPos);
+      this.aimIndicatorGroup.lookAt(this.aimTargetPoint);
+      const lineDist = Math.max(1.0, startPos.distanceTo(this.aimTargetPoint));
+      if (this.aimIndicatorBeamMesh) this.aimIndicatorBeamMesh.scale.set(1, 1, lineDist);
+      if (this.aimIndicatorCoreMesh) this.aimIndicatorCoreMesh.scale.set(1, 1, lineDist);
+      if (this.aimIndicatorGroundRing) {
+        const groundY = this.world.getTerrainHeight(this.aimTargetPoint.x, this.aimTargetPoint.z);
+        this.aimIndicatorGroundRing.position.copy(this.aimTargetPoint);
+        this.aimIndicatorGroundRing.position.y = groundY + 0.08;
+        const pulse = 1.0 + Math.sin(this.clock.getElapsedTime() * 8.0) * 0.12;
+        this.aimIndicatorGroundRing.scale.set(pulse, pulse, pulse);
+      }
+    }
+  }
+
   public castGlacialCrystalBarrage(isRemote = false) {
     if (this.isControlsLocked) return;
     if (this.charClass !== 'mage') return;
@@ -5491,8 +5886,17 @@ export class GameEngine {
     this.castingSkillName = 'Glacial Crystal Barrage';
     this.playerVel.set(0, 0, 0);
 
-    // Initial orientation towards input or nearest enemy
-    this.alignPlayerOrientationToInputOrTarget(26);
+    // Initial orientation towards camera forward (NOT facing camera)
+    const cameraForward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    const horizForward = cameraForward.clone();
+    horizForward.y = 0;
+    if (horizForward.lengthSq() > 0.001) {
+      horizForward.normalize();
+      this.playerRotationY = Math.atan2(horizForward.x, horizForward.z);
+      if (this.playerMesh?.group) {
+        this.playerMesh.group.rotation.y = this.playerRotationY;
+      }
+    }
 
     // Floating combat text
     this.callbacks.onAddFloatingText('💠 GLACIAL CRYSTAL BARRAGE!', '#38bdf8', 'crit');
@@ -5516,9 +5920,9 @@ export class GameEngine {
 
     if (this.playerMesh?.body) {
       this.playerMesh.body.rotation.set(0, 0, 0);
-      this.playerMesh.weapon.rotation.set(0.32, 0.10, 0.05);
-      this.playerMesh.leftArm.rotation.set(0, 0, 0);
-      this.playerMesh.rightArm.rotation.set(0, 0, 0);
+      this.playerMesh.weapon?.rotation.set(0.32, 0.10, 0.05);
+      this.playerMesh.leftArm?.rotation.set(0, 0, 0);
+      this.playerMesh.rightArm?.rotation.set(0, 0, 0);
     }
   }
 
@@ -6567,26 +6971,13 @@ export class GameEngine {
       }
 
       if (this.charClass === 'mage') {
-        // Mage Slot 1 (Q): Glacial Crystal Barrage (18 MP, CD 7.5s)
-        if (this.mageGlacialBarrageCooldownTimer > 0) {
-          this.callbacks.onAddFloatingText(
-            `Glacial Barrage Cooldown (${this.mageGlacialBarrageCooldownTimer.toFixed(1)}s)!`,
-            '#94a3b8',
-            'info'
-          );
-          return;
+        // Mage Slot 1 (Q): Glacial Crystal Barrage
+        if (!this.isAimGlacialActive) {
+          this.startAimGlacialBarrage();
+          this.releaseAimGlacialBarrage(false);
+        } else {
+          this.releaseAimGlacialBarrage(false);
         }
-
-        this.callbacks.onUpdateStats((stats) => {
-          if (stats.mp < 18) {
-            this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#e57373', 'info');
-            return stats;
-          }
-
-          this.mageGlacialBarrageCooldownTimer = 7.5;
-          this.castGlacialCrystalBarrage();
-          return { ...stats, mp: Math.max(0, stats.mp - 18) };
-        });
         return;
       }
 
@@ -7587,6 +7978,12 @@ export class GameEngine {
       return;
     }
 
+    // Mage Glacial Barrage: Hold-to-Aim interactive aiming frame
+    if (this.isAimGlacialActive) {
+      this.updateGlacialAimFrame(delta);
+      return;
+    }
+
     // Casting State Handling (Movement Lock & Starfall Channeling - image_68.png)
     // Casting State Handling (Movement Lock & Starfall Channeling)
     if (this.isCasting) {
@@ -7624,8 +8021,8 @@ export class GameEngine {
           while (diff < -Math.PI) diff += Math.PI * 2;
           this.playerRotationY += diff * 16 * delta;
         } else {
-          // If no directional input, smoothly follow camera facing direction
-          const camFacingAngle = this.cameraAngleH;
+          // If no directional input, smoothly follow camera facing forward direction
+          const camFacingAngle = Math.atan2(camFwdX, camFwdZ);
           let diff = camFacingAngle - this.playerRotationY;
           while (diff > Math.PI) diff -= Math.PI * 2;
           while (diff < -Math.PI) diff += Math.PI * 2;
@@ -9362,6 +9759,33 @@ export class GameEngine {
       this.cameraAerialZoom = THREE.MathUtils.lerp(this.cameraAerialZoom, 0, delta * 4.0);
     }
 
+    // Over-the-Shoulder Zoom Camera saat Merapal Glacial Barrage (Bahu Kanan: right: +1.15, up: +2.15, back: -3.2)
+    if (this.isAimGlacialActive) {
+      const camFwdX = -Math.sin(this.cameraAngleH);
+      const camFwdZ = -Math.cos(this.cameraAngleH);
+      const horizForward = new THREE.Vector3(camFwdX, 0, camFwdZ).normalize();
+      const right = new THREE.Vector3(Math.cos(this.cameraAngleH), 0, -Math.sin(this.cameraAngleH)).normalize();
+
+      const camDirY = -Math.sin(this.cameraAngleV);
+      const camDirXZ = Math.cos(this.cameraAngleV);
+      const cameraForward = new THREE.Vector3(camFwdX * camDirXZ, camDirY, camFwdZ * camDirXZ).normalize();
+
+      const shoulderCamPos = this.playerPos.clone()
+        .addScaledVector(right, 1.15)
+        .add(new THREE.Vector3(0, 2.15, 0))
+        .addScaledVector(horizForward, -3.2);
+
+      const targetCamLookAt = shoulderCamPos.clone().addScaledVector(cameraForward, 35.0);
+
+      const lerpSpeed = Math.min(1.0, delta * 14.0); // Cepat 0.15s
+      this.camera.position.lerp(shoulderCamPos, lerpSpeed);
+      this.cameraCurrentLookAt.lerp(targetCamLookAt, lerpSpeed);
+      this.camera.lookAt(this.cameraCurrentLookAt);
+      this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, 48.0, lerpSpeed);
+      this.camera.updateProjectionMatrix();
+      return;
+    }
+
     // Orbit camera calculation with aerial zoom adjustment
     const effectiveDist = this.cameraDistance + this.cameraAerialZoom;
     const offsetX = Math.sin(this.cameraAngleH) * Math.cos(this.cameraAngleV) * effectiveDist;
@@ -9377,7 +9801,8 @@ export class GameEngine {
     // Instant snap without lerp during interior teleport grace period (eliminates black screen / void clipping)
     if (this.teleportGraceTimer > 0) {
       this.camera.position.copy(targetPos);
-      this.camera.lookAt(this.playerPos.x, this.playerPos.y + 1.4 + this.cameraTargetOffsetY, this.playerPos.z);
+      this.cameraCurrentLookAt.set(this.playerPos.x, this.playerPos.y + 1.4 + this.cameraTargetOffsetY, this.playerPos.z);
+      this.camera.lookAt(this.cameraCurrentLookAt);
       return;
     }
 
@@ -9399,10 +9824,15 @@ export class GameEngine {
         this.camera.fov = 60;
         this.camera.updateProjectionMatrix();
       }
+    } else if (Math.abs(this.camera.fov - 60.0) > 0.05) {
+      this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, 60.0, Math.min(1.0, delta * 10.0));
+      this.camera.updateProjectionMatrix();
     }
 
+    const normalLookAt = new THREE.Vector3(this.playerPos.x, this.playerPos.y + 1.4 + this.cameraTargetOffsetY, this.playerPos.z);
+    this.cameraCurrentLookAt.lerp(normalLookAt, Math.min(1.0, delta * 12.0));
     this.camera.position.lerp(targetPos, 0.15);
-    this.camera.lookAt(this.playerPos.x, this.playerPos.y + 1.4 + this.cameraTargetOffsetY, this.playerPos.z);
+    this.camera.lookAt(this.cameraCurrentLookAt);
   }
 
   private updateRemotePlayers(delta: number) {
@@ -10082,6 +10512,10 @@ export class GameEngine {
     // Clean up active VFX and projectiles
     this.starfallTimeoutIds.forEach((id) => clearTimeout(id));
     this.starfallTimeoutIds = [];
+    if (this.aimIndicatorGroup) {
+      this.scene.remove(this.aimIndicatorGroup);
+      this.aimIndicatorGroup = null;
+    }
     this.activeVfx.forEach((v) => {
       this.scene.remove(v.object);
       if (v.cleanup) {

@@ -54,10 +54,14 @@ interface HUDProps {
   onAttackStart?: () => void;
   onAttackEnd?: () => void;
   onCastSkill: (slot: 1 | 2 | 3 | 4) => void;
+  onAimSkillStart?: (slot: 1 | 2 | 3 | 4) => void;
+  onAimSkillMove?: (slot: 1 | 2 | 3 | 4, delta: { x: number; y: number }, aimAngleRad: number) => void;
+  onAimSkillEnd?: (slot: 1 | 2 | 3 | 4, isCancelled: boolean) => void;
   onJump: () => void;
   onDash?: () => void;
   onRotateCamera?: (deltaX: number, deltaY: number) => void;
   onZoomCamera?: (deltaZoom: number) => void;
+  isGlacialAiming?: boolean;
   bossState: {
     active: boolean;
     name?: string;
@@ -112,10 +116,14 @@ export const HUD: React.FC<HUDProps> = ({
   onAttackStart,
   onAttackEnd,
   onCastSkill,
+  onAimSkillStart,
+  onAimSkillMove,
+  onAimSkillEnd,
   onJump,
   onDash,
   onRotateCamera,
   onZoomCamera,
+  isGlacialAiming,
   bossState,
   bossVictoryName,
   isMuted,
@@ -630,10 +638,38 @@ export const HUD: React.FC<HUDProps> = ({
           onAttackStart={onAttackStart}
           onAttackEnd={onAttackEnd}
           onCastSkill={onCastSkill}
+          onAimSkillStart={onAimSkillStart}
+          onAimSkillMove={onAimSkillMove}
+          onAimSkillEnd={onAimSkillEnd}
           onJump={onJump}
           onDash={onDash}
           onSwitchHunterWeapon={onSwitchHunterWeapon}
         />
+      )}
+
+      {/* Glacial Barrage Hold-to-Aim Reticle & Crosshair */}
+      {isGlacialAiming && (
+        <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-40 select-none animate-fadeIn">
+          <div className="relative flex items-center justify-center">
+            {/* Center Core Dot */}
+            <div className="w-2.5 h-2.5 rounded-full bg-sky-300 shadow-[0_0_12px_#38bdf8] animate-ping" />
+            <div className="absolute w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_#38bdf8]" />
+
+            {/* Corner Brackets */}
+            <div className="absolute -top-7 -left-7 w-4 h-4 border-t-2 border-l-2 border-sky-400 shadow-[0_0_8px_#38bdf8]" />
+            <div className="absolute -top-7 -right-7 w-4 h-4 border-t-2 border-r-2 border-sky-400 shadow-[0_0_8px_#38bdf8]" />
+            <div className="absolute -bottom-7 -left-7 w-4 h-4 border-b-2 border-l-2 border-sky-400 shadow-[0_0_8px_#38bdf8]" />
+            <div className="absolute -bottom-7 -right-7 w-4 h-4 border-b-2 border-r-2 border-sky-400 shadow-[0_0_8px_#38bdf8]" />
+
+            {/* Dashed Target Ring */}
+            <div className="absolute w-20 h-20 rounded-full border border-sky-400/50 border-dashed animate-spin-slow" />
+
+            {/* Instruction Badge */}
+            <div className="absolute -bottom-16 px-4 py-1.5 rounded-full bg-sky-950/90 border border-sky-400/80 text-sky-200 text-[11px] md:text-xs font-mono font-bold tracking-wider backdrop-blur-md shadow-2xl shadow-sky-950/90 whitespace-nowrap">
+              💠 BIDIK ES • LEPAS [Q] UNTUK TEMBAK • KLIK KANAN BATAL
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Desktop Bottom Right: Full Menu Navigation Buttons */}

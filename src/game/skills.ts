@@ -3332,13 +3332,17 @@ export function createMageBlinkVfx(params: {
 export interface GlacialBarrageVfxInstance {
   group: THREE.Group;
   isActive: boolean;
+  readonly isAiming: boolean;
   activate: (
     casterPos: THREE.Vector3,
     casterRotationY: number,
     onShardLaunch?: (index: number) => void,
     onShardHit?: (targetEnemy: any, hitPos: THREE.Vector3) => void,
-    onShardGroundHit?: (hitPos: THREE.Vector3) => void
+    onShardGroundHit?: (hitPos: THREE.Vector3) => void,
+    isHoldToAim?: boolean
   ) => void;
+  releaseFire: (finalTargetPoint?: THREE.Vector3) => void;
+  cancel: () => void;
   update: (
     delta: number,
     casterPos: THREE.Vector3,
@@ -3590,6 +3594,9 @@ export class GlacialBarrageResourcePool {
 
     let elapsed = 0;
     let isActive = false;
+    let isHoldingAim = false;
+    let fireStartTime = -1;
+    let lockedTargetPoint: THREE.Vector3 | null = null;
     let onShardLaunchCb: ((index: number) => void) | undefined;
     let onShardHitCb: ((targetEnemy: any, hitPos: THREE.Vector3) => void) | undefined;
     let onShardGroundHitCb: ((hitPos: THREE.Vector3) => void) | undefined;
@@ -3599,6 +3606,9 @@ export class GlacialBarrageResourcePool {
 
     const cleanup = () => {
       isActive = false;
+      isHoldingAim = false;
+      fireStartTime = -1;
+      lockedTargetPoint = null;
       group.visible = false;
       shards.forEach((s) => {
         s.state = 'inactive';
@@ -3621,10 +3631,14 @@ export class GlacialBarrageResourcePool {
       casterRotationY: number,
       onShardLaunch?: (index: number) => void,
       onShardHit?: (targetEnemy: any, hitPos: THREE.Vector3) => void,
-      onShardGroundHit?: (hitPos: THREE.Vector3) => void
+      onShardGroundHit?: (hitPos: THREE.Vector3) => void,
+      isHoldToAim = false
     ) => {
       elapsed = 0;
       isActive = true;
+      isHoldingAim = isHoldToAim;
+      fireStartTime = isHoldToAim ? -1 : 0.45;
+      lockedTargetPoint = null;
       group.visible = true;
       onShardLaunchCb = onShardLaunch;
       onShardHitCb = onShardHit;
@@ -3652,8 +3666,25 @@ export class GlacialBarrageResourcePool {
 
         // Schedule fire times (interval 0.075s from outer to inner)
         const orderIdx = FIRE_ORDER.indexOf(i);
-        s.fireTime = 0.45 + orderIdx * 0.075;
+        s.fireTime = isHoldToAim ? Infinity : 0.45 + orderIdx * 0.075;
       }
+    };
+
+    const releaseFire = (finalTargetPoint?: THREE.Vector3) => {
+      if (!isActive) return;
+      isHoldingAim = false;
+      fireStartTime = elapsed;
+      if (finalTargetPoint) {
+        lockedTargetPoint = finalTargetPoint.clone();
+      }
+      for (let i = 0; i < NUM_SHARDS; i++) {
+        const orderIdx = FIRE_ORDER.indexOf(i);
+        shards[i].fireTime = fireStartTime + orderIdx * 0.075;
+      }
+    };
+
+    const cancel = () => {
+      cleanup();
     };
 
     const update = (
@@ -3679,14 +3710,16 @@ export class GlacialBarrageResourcePool {
 
         if (s.state === 'forming') {
           anyFlyingOrForming = true;
-          // Scale-in between 0.0s and 0.35s
+          // Scale-in between 0.0s and 0.25s
           const u = (i / (NUM_SHARDS - 1)) * 2.0 - 1.0;
-          const appearTime = Math.abs(u) * 0.12;
-          const p = Math.max(0, Math.min(1.0, (elapsed - appearTime) / 0.18));
-          const scale = p < 1.0 ? p * p * (3.0 - 2.0 * p) * 1.15 : 1.0;
+          const appearTime = Math.abs(u) * 0.08;
+          const p = Math.max(0, Math.min(1.0, (elapsed - appearTime) / 0.16));
+          const scale = isHoldingAim
+            ? 1.0
+            : (p < 1.0 ? p * p * (3.0 - 2.0 * p) * 1.15 : 1.0);
           s.group.scale.set(scale, scale, scale);
 
-          // Update position relative to moving caster during Phase 1
+          // Update position relative to moving caster during Phase 1 / Aiming
           s.worldPos.copy(casterPos)
             .addScaledVector(right, s.localOffset.x)
             .addScaledVector(up, s.localOffset.y)
@@ -3694,17 +3727,19 @@ export class GlacialBarrageResourcePool {
           s.group.position.copy(s.worldPos);
 
           // Dynamic Aimable Tracking: continuous lookAt towards aim target
-          s.group.lookAt(aimTargetPoint);
+          const curTarget = lockedTargetPoint || aimTargetPoint;
+          s.group.lookAt(curTarget);
 
-          // Check if time to launch
-          if (elapsed >= s.fireTime && !s.hasFired) {
+          // Check if time to launch (only when NOT holding aim)
+          if (!isHoldingAim && elapsed >= s.fireTime && !s.hasFired) {
             s.hasFired = true;
             s.state = 'flying';
             s.group.scale.set(1, 1, 1);
             s.trailMesh.visible = true;
 
-            // Fire velocity: 48 units/s directly towards aimTargetPoint
-            s.velocity.subVectors(aimTargetPoint, s.worldPos).normalize().multiplyScalar(48.0);
+            // Fire velocity: 48 units/s directly towards aimTargetPoint / locked target
+            const target = lockedTargetPoint || aimTargetPoint;
+            s.velocity.subVectors(target, s.worldPos).normalize().multiplyScalar(48.0);
             s.group.lookAt(s.worldPos.clone().add(s.velocity));
 
             const orderIdx = FIRE_ORDER.indexOf(i);
@@ -3828,7 +3863,12 @@ export class GlacialBarrageResourcePool {
       get isActive() {
         return isActive;
       },
+      get isAiming() {
+        return isHoldingAim;
+      },
       activate,
+      releaseFire,
+      cancel,
       update,
       cleanup,
     };
@@ -3839,14 +3879,15 @@ export class GlacialBarrageResourcePool {
     casterRotationY: number,
     onShardLaunch?: (index: number) => void,
     onShardHit?: (targetEnemy: any, hitPos: THREE.Vector3) => void,
-    onShardGroundHit?: (hitPos: THREE.Vector3) => void
+    onShardGroundHit?: (hitPos: THREE.Vector3) => void,
+    isHoldToAim = false
   ): GlacialBarrageVfxInstance {
     let instance = this.instances.find((i) => !i.isActive);
     if (!instance) {
       instance = this.instances[0];
       instance.cleanup();
     }
-    instance.activate(casterPos, casterRotationY, onShardLaunch, onShardHit, onShardGroundHit);
+    instance.activate(casterPos, casterRotationY, onShardLaunch, onShardHit, onShardGroundHit, isHoldToAim);
     return instance;
   }
 }
@@ -3860,13 +3901,15 @@ export function createGlacialBarrageVfx(params: {
   onShardLaunch?: (index: number) => void;
   onShardHit?: (targetEnemy: any, hitPos: THREE.Vector3) => void;
   onShardGroundHit?: (hitPos: THREE.Vector3) => void;
+  isHoldToAim?: boolean;
 }): GlacialBarrageVfxInstance {
   return GlacialBarrageResourcePool.get().acquire(
     params.casterPos,
     params.casterRotationY,
     params.onShardLaunch,
     params.onShardHit,
-    params.onShardGroundHit
+    params.onShardGroundHit,
+    params.isHoldToAim
   );
 }
 
