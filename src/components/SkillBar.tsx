@@ -7,7 +7,7 @@ export interface SkillBarProps {
   onPerformAttack: () => void;
   onAttackStart?: () => void;
   onAttackEnd?: () => void;
-  onCastSkill: (slot: 1 | 2 | 3) => void;
+  onCastSkill: (slot: 1 | 2 | 3 | 4) => void;
   onJump: () => void;
   onDash?: () => void;
   onSwitchHunterWeapon?: () => void;
@@ -50,9 +50,10 @@ export const SkillBar: React.FC<SkillBarProps> = ({
       case 'mage':
         return {
           basic: { label: 'Arcane Beam', icon: '🔮', hint: 'Klik / J' },
-          skill1: { name: 'Slot Kosong / Segera Hadir', icon: '🔒', cost: '-', key: 'Q', color: 'border-stone-700 text-stone-500 bg-stone-900/40 opacity-60' },
-          skill2: { name: 'Cahaya Suci', icon: '✨', cost: '25 MP', key: 'E', color: 'border-blue-500/70 text-blue-300 bg-blue-950/40' },
-          skill3: { name: 'Celestial Apocalypse', icon: '☄️', cost: '45 MP', key: 'R', color: 'border-purple-500/70 text-purple-300 bg-purple-950/40' },
+          skill1: { name: 'Slot Kosong', icon: '🔒', cost: '-', key: 'Q', color: 'border-stone-700 text-stone-500 bg-stone-900/40 opacity-60' },
+          skill2: { name: 'Arcane Blink', icon: '🌌', cost: '15 Stm', key: 'E', color: 'border-cyan-500/70 text-cyan-300 bg-cyan-950/40' },
+          skill3: { name: 'Cahaya Suci', icon: '✨', cost: '25 MP', key: 'R', color: 'border-blue-500/70 text-blue-300 bg-blue-950/40' },
+          skill4: { name: 'Celestial Apocalypse', icon: '☄️', cost: '45 MP', key: 'F', color: 'border-2 border-amber-400/90 text-amber-200 bg-gradient-to-b from-purple-900/90 via-purple-950/90 to-amber-950/80 shadow-purple-500/50 ring-1 ring-purple-400/60' },
         };
       case 'rogue':
         if (hunterWeaponMode === 'bow') {
@@ -218,42 +219,57 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         </span>
       </button>
 
-      {/* Dash / Mobility Button */}
-      <button
-        type="button"
-        onTouchStart={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          if (onDash) onDash();
-        }}
-        onClick={() => {
-          if (onDash) onDash();
-        }}
-        style={{ touchAction: 'none', userSelect: 'none' }}
-        className={`skill-btn skill-btn-dash touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-800 to-stone-900 hover:from-stone-700 shadow-lg cursor-pointer active:scale-90 transition-all select-none ${
-          stats.characterClass === 'mage'
-            ? 'text-cyan-200 border border-cyan-500/70'
-            : 'text-amber-200 border border-amber-600/70'
-        }`}
-        title={stats.characterClass === 'mage' ? 'Arcane Blink [F / Shift]' : (stats.characterClass === 'warrior' ? 'Shield Dash [Shift]' : 'Dash [Shift]')}
-      >
-        <span className="text-sm sm:text-base md:text-base">
-          {stats.characterClass === 'warrior' ? '🛡️' : (stats.characterClass === 'mage' ? '🌌' : '💨')}
-        </span>
-        <span className={`hidden md:inline text-[8px] font-bold ${stats.characterClass === 'mage' ? 'text-cyan-300' : 'text-amber-300'}`}>
-          {stats.characterClass === 'mage' ? 'Arcane Blink' : 'Dash'}
-        </span>
-        <span className={`absolute -top-1 -right-1 text-white text-[6px] md:text-[7px] font-mono px-0.5 rounded border ${
-          stats.characterClass === 'mage' ? 'bg-cyan-700 border-cyan-400' : 'bg-amber-700 border-amber-500'
-        }`}>
-          {stats.characterClass === 'mage' ? 'F / Shift' : 'Shift'}
-        </span>
-        {stats.characterClass === 'mage' && (
-          <span className="hidden md:inline absolute -bottom-1 text-[6px] text-cyan-300 font-mono font-bold bg-stone-900/90 px-0.5 rounded">
-            15 Stm
+      {/* Slot 4 (Ultimate) untuk Mage atau Dash Button untuk Warrior & Rogue */}
+      {stats.characterClass === 'mage' ? (
+        <button
+          type="button"
+          onTouchStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onCastSkill(4);
+          }}
+          onClick={() => onCastSkill(4)}
+          style={{ touchAction: 'none', userSelect: 'none' }}
+          className="skill-btn skill-btn-4 touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-purple-900/90 via-purple-950/90 to-amber-950/80 text-amber-200 border-2 border-amber-400/90 ring-1 ring-purple-400/60 shadow-lg shadow-purple-900/50 cursor-pointer active:scale-90 transition-all select-none"
+          title="Celestial Apocalypse (F - Ultimate)"
+        >
+          <span className="text-sm sm:text-base md:text-base animate-pulse">☄️</span>
+          <span className="hidden md:inline text-[8px] font-bold text-amber-300 line-clamp-1">
+            Apocalypse
           </span>
-        )}
-      </button>
+          <span className="absolute -top-1 -right-1 bg-amber-600 text-stone-950 font-black text-[6px] md:text-[7px] font-mono px-1 rounded-full border border-amber-300 shadow">
+            F
+          </span>
+          <span className="hidden md:inline absolute -bottom-1 text-[6px] text-amber-300 font-mono font-bold bg-purple-950/90 px-0.5 rounded border border-amber-500/40">
+            45 MP
+          </span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onTouchStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (onDash) onDash();
+          }}
+          onClick={() => {
+            if (onDash) onDash();
+          }}
+          style={{ touchAction: 'none', userSelect: 'none' }}
+          className="skill-btn skill-btn-dash touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-800 to-stone-900 hover:from-stone-700 shadow-lg cursor-pointer active:scale-90 transition-all select-none text-amber-200 border border-amber-600/70"
+          title={stats.characterClass === 'warrior' ? 'Shield Dash [Shift]' : 'Dash [Shift]'}
+        >
+          <span className="text-sm sm:text-base md:text-base">
+            {stats.characterClass === 'warrior' ? '🛡️' : '💨'}
+          </span>
+          <span className="hidden md:inline text-[8px] font-bold text-amber-300">
+            Dash
+          </span>
+          <span className="absolute -top-1 -right-1 bg-amber-700 text-white text-[6px] md:text-[7px] font-mono px-0.5 rounded border border-amber-500">
+            Shift
+          </span>
+        </button>
+      )}
 
       {/* Jump Button (Spasi) */}
       <button

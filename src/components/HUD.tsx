@@ -53,7 +53,7 @@ interface HUDProps {
   onPerformAttack: () => void;
   onAttackStart?: () => void;
   onAttackEnd?: () => void;
-  onCastSkill: (slot: 1 | 2 | 3) => void;
+  onCastSkill: (slot: 1 | 2 | 3 | 4) => void;
   onJump: () => void;
   onDash?: () => void;
   onRotateCamera?: (deltaX: number, deltaY: number) => void;

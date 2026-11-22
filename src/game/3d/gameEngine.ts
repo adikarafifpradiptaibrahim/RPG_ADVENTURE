@@ -436,6 +436,7 @@ export class GameEngine {
   private hunterWeaponMode: 'dagger' | 'bow' = 'dagger';
   private attackComboIndex = 0;
   private mageLandingCrouchTimer = 0;
+  private mageHoverOffsetY = 0;
   private lastAttackTime = 0;
 
   // Multiplayer Synchronization State (Reusable for both Single Player & Multiplayer)
@@ -2932,8 +2933,8 @@ export class GameEngine {
       const didInteract = this.checkInteract();
       if (!didInteract) {
         if (this.charClass === 'mage') {
-          // Mage: Tombol [F] memicu Arcane Blink (Mobilitas)
-          this.castArcaneBlink();
+          // Mage: Tombol [F] (Slot 4 - ULTIMATE): Celestial Apocalypse / Starfall Ultimate
+          this.startStarfallCasting();
         } else {
           // Knight: Cataclysmic Leap Slam / Rogue: Akrobatik/Siluman
           this.castSkill(2);
@@ -2951,19 +2952,30 @@ export class GameEngine {
       // Slot 1 (Q): Knight Triple Crescent / Mage Placeholder / Rogue 1000 Belati
       this.castSkill(1);
     } else if (key === 'e' || code === 'keye') {
-      // Mage Slot 2: Cahaya Suci [E] -> HANYA dipicu oleh tombol E
+      // Slot 2 (E):
+      // Mage Slot 2 (E): Arcane Blink [E] (Teleportasi instan menembus musuh dengan iFrame 0.2s)
       // Warrior & Rogue: Dash [E]
       if (this.charClass === 'mage') {
-        this.castSkill(2);
+        this.castArcaneBlink();
       } else {
         this.performDash();
       }
     } else if (key === 'shift' || code === 'shiftleft' || code === 'shiftright') {
-      // Tombol [Shift] untuk Mobilitas / Dash semua class (Arcane Blink untuk Mage, Shield Dash untuk Warrior, Dash untuk Rogue)
-      this.performDash();
+      // Tombol [Shift] (Sprint / Terbang Cepat):
+      // HAPUS binding castArcaneBlink() dari tombol Shift!
+      // Saat tombol Shift ditahan sambil bergerak, mode Terbang Cepat (Astral Glide) aktif di updateMovement()
+      if (this.charClass !== 'mage') {
+        this.performDash();
+      }
     } else if (key === 'r' || code === 'keyr') {
-      // Slot 3 (R): Ultimate semua class (Celestial Apocalypse untuk Mage, Aegis untuk Knight, Bom Asap untuk Rogue)
-      this.castSkill(3);
+      // Slot 3 (R):
+      // Mage Slot 3 (R): Cahaya Suci / Sanctuary [R] (Heal, Cleanse, Overheal Shield, & +30 MP)
+      // Knight: Aegis Retribution [R] / Rogue: Bom Asap [R]
+      if (this.charClass === 'mage') {
+        this.castCahayaSuci();
+      } else {
+        this.castSkill(3);
+      }
     } else if (key === 'x' || code === 'keyx' || key === 't' || code === 'keyt') {
       this.switchHunterWeapon();
     }
@@ -3922,10 +3934,11 @@ export class GameEngine {
     const footPos = this.playerPos.clone();
     footPos.y += 0.08;
 
-    // Glowing Runic Star Ring beneath gliding feet
+    // Glowing Runic Star Ring beneath gliding feet (Jejak Energi Cyan-Ungu Lembut)
     const geom = new THREE.RingGeometry(0.12, 0.42, 6);
+    const isCyan = Math.random() > 0.45;
     const mat = new THREE.MeshBasicMaterial({
-      color: Math.random() > 0.4 ? 0x00f0ff : 0xfbbf24,
+      color: isCyan ? 0x38bdf8 : 0xc084fc,
       side: THREE.DoubleSide,
       transparent: true,
       opacity: 0.85,
@@ -3949,8 +3962,8 @@ export class GameEngine {
       return true;
     });
 
-    if (Math.random() < 0.6) {
-      this.spawnSparks(footPos, 0x00f0ff, 2, 1.8);
+    if (Math.random() < 0.65) {
+      this.spawnSparks(footPos, isCyan ? 0x38bdf8 : 0xa855f7, 2, 1.6);
     }
   }
 
@@ -5168,9 +5181,30 @@ export class GameEngine {
     });
   }
 
-  // Backward-compatible alias
-  private startStarfallCasting() {
-    this.startCelestialApocalypseCasting();
+  // Slot 4 - ULTIMATE: Celestial Apocalypse / Starfall
+  public startStarfallCasting() {
+    if (this.isControlsLocked || this.isCasting) return;
+    if (this.charClass !== 'mage') return;
+
+    if (this.mageUltimateCooldownTimer > 0) {
+      this.callbacks.onAddFloatingText(
+        `Celestial Apocalypse Cooldown (${this.mageUltimateCooldownTimer.toFixed(1)}s)!`,
+        '#a855f7',
+        'info'
+      );
+      return;
+    }
+
+    this.callbacks.onUpdateStats((stats) => {
+      if (stats.mp < 45) {
+        this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 45 MP)!', '#e57373', 'info');
+        return stats;
+      }
+
+      this.mageUltimateCooldownTimer = 18.0;
+      this.startCelestialApocalypseCasting();
+      return { ...stats, mp: Math.max(0, stats.mp - 45) };
+    });
   }
 
   private completeCelestialApocalypseCasting() {
@@ -6371,10 +6405,10 @@ export class GameEngine {
     }
   }
 
-  public castSkill(skillSlot: 1 | 2 | 3) {
+  public castSkill(skillSlot: 1 | 2 | 3 | 4) {
     if (this.isControlsLocked || this.isCasting) return;
 
-    // Dynamically align facing to movement or closest 360Â° enemy
+    // Dynamically align facing to movement or closest 360° enemy
     this.alignPlayerOrientationToInputOrTarget(this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' ? 22 : 16);
 
     if (this.gameMode === 'multiplayer') {
@@ -6470,56 +6504,8 @@ export class GameEngine {
       }
 
       if (this.charClass === 'mage') {
-        // Mage Slot 2 (E): Cahaya Suci (Heal, Cleanse, Overheal Shield, +30 MP - 25 MP)
-        this.callbacks.onUpdateStats((stats) => {
-          if (stats.mp < 25) {
-            this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 25 MP)!', '#e57373', 'info');
-            return stats;
-          }
-
-          soundManager.playMageCelestialHeal();
-          this.spawnMageCelestialHealVfx();
-          this.isAttacking = true;
-          this.attackType = 'celestial_heal';
-          this.attackDuration = 0.8;
-          this.attackTimer = 0.8;
-
-          // 1. Cleanse Debuff: removes 1 negative status effect (Burn / Stun / Poison / Slow)
-          const cleansed = this.bossManager?.cleanseDebuff();
-          if (cleansed) {
-            this.callbacks.onAddFloatingText(`✨ Debuff [${cleansed}] Dibersihkan!`, '#76ff03', 'info');
-          }
-
-          // 2. Heal Formula: round(75 + (stats.intelligence * 4.5))
-          const healAmt = Math.round(75 + stats.intelligence * 4.5);
-          const currentHp = stats.hp;
-          const maxHp = stats.maxHp;
-          const potentialHp = currentHp + healAmt;
-          const newHp = Math.min(maxHp, potentialHp);
-
-          // 3. Overheal-to-Shield: Convert 50% of overflowing heal into 6-second Arcane Shield
-          const overflowHeal = Math.max(0, potentialHp - maxHp);
-          let shieldGain = 0;
-          if (overflowHeal > 0) {
-            shieldGain = Math.round(overflowHeal * 0.5);
-            this.arcaneShieldHp = Math.min(Math.round(maxHp * 0.75), this.arcaneShieldHp + shieldGain);
-            this.arcaneShieldTimer = 6.0;
-          }
-
-          // 4. Mana Battery (+30 MP, net +5 MP after 25 MP cost)
-          const newMp = Math.min(stats.maxMp, stats.mp - 25 + 30);
-
-          if (shieldGain > 0 && newHp > currentHp) {
-            const actualHealed = newHp - currentHp;
-            this.callbacks.onAddFloatingText(`+${actualHealed} HP & +${shieldGain} Perisai Astral (6s)!`, '#38bdf8', 'heal');
-          } else if (shieldGain > 0) {
-            this.callbacks.onAddFloatingText(`HP Penuh! +${shieldGain} Perisai Astral (6s)`, '#38bdf8', 'heal');
-          } else {
-            this.callbacks.onAddFloatingText(`+${healAmt} HP & +30 Mana Astral`, '#38bdf8', 'heal');
-          }
-
-          return { ...stats, mp: newMp, hp: newHp };
-        });
+        // Mage Slot 2 (E): Arcane Blink (Teleportasi instan menembus musuh dengan iFrame 0.2s)
+        this.castArcaneBlink();
         return;
       }
 
@@ -6581,26 +6567,8 @@ export class GameEngine {
       }
 
       if (this.charClass === 'mage') {
-        // Mage Slot 3 (R - ULTIMATE): Celestial Apocalypse (45 MP, CD 18s)
-        if (this.mageUltimateCooldownTimer > 0) {
-          this.callbacks.onAddFloatingText(
-            `Celestial Apocalypse Cooldown (${this.mageUltimateCooldownTimer.toFixed(1)}s)!`,
-            '#a855f7',
-            'info'
-          );
-          return;
-        }
-
-        this.callbacks.onUpdateStats((stats) => {
-          if (stats.mp < 45) {
-            this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 45 MP)!', '#e57373', 'info');
-            return stats;
-          }
-
-          this.mageUltimateCooldownTimer = 18.0;
-          this.startCelestialApocalypseCasting();
-          return { ...stats, mp: Math.max(0, stats.mp - 45) };
-        });
+        // Mage Slot 3 (R): Cahaya Suci / Sanctuary (Heal, Cleanse, Overheal Shield, & +30 MP)
+        this.castCahayaSuci();
         return;
       }
 
@@ -6653,6 +6621,12 @@ export class GameEngine {
 
         return stats;
       });
+    } else if (skillSlot === 4) {
+      if (this.charClass === 'mage') {
+        // Mage Slot 4 (F - ULTIMATE): Celestial Apocalypse / Starfall Ultimate
+        this.startStarfallCasting();
+        return;
+      }
     }
   }
 
@@ -6746,10 +6720,60 @@ export class GameEngine {
     this.performMageBlink();
   }
 
+  // Slot 3 (R): Cahaya Suci / Sanctuary (Heal, Cleanse, Overheal Shield, & +30 MP)
   public castCahayaSuci() {
-    if (this.charClass === 'mage') {
-      this.castSkill(2);
-    }
+    if (this.isControlsLocked || this.isCasting) return;
+    if (this.charClass !== 'mage') return;
+
+    this.callbacks.onUpdateStats((stats) => {
+      if (stats.mp < 25) {
+        this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 25 MP)!', '#e57373', 'info');
+        return stats;
+      }
+
+      soundManager.playMageCelestialHeal();
+      this.spawnMageCelestialHealVfx();
+      this.isAttacking = true;
+      this.attackType = 'celestial_heal';
+      this.attackDuration = 0.8;
+      this.attackTimer = 0.8;
+
+      // 1. Cleanse Debuff: removes 1 negative status effect (Burn / Stun / Poison / Slow)
+      const cleansed = this.bossManager?.cleanseDebuff();
+      if (cleansed) {
+        this.callbacks.onAddFloatingText(`✨ Debuff [${cleansed}] Dibersihkan!`, '#76ff03', 'info');
+      }
+
+      // 2. Heal Formula: round(75 + (stats.intelligence * 4.5))
+      const healAmt = Math.round(75 + stats.intelligence * 4.5);
+      const currentHp = stats.hp;
+      const maxHp = stats.maxHp;
+      const potentialHp = currentHp + healAmt;
+      const newHp = Math.min(maxHp, potentialHp);
+
+      // 3. Overheal-to-Shield: Convert 50% of overflowing heal into 6-second Arcane Shield
+      const overflowHeal = Math.max(0, potentialHp - maxHp);
+      let shieldGain = 0;
+      if (overflowHeal > 0) {
+        shieldGain = Math.round(overflowHeal * 0.5);
+        this.arcaneShieldHp = Math.min(Math.round(maxHp * 0.75), this.arcaneShieldHp + shieldGain);
+        this.arcaneShieldTimer = 6.0;
+      }
+
+      // 4. Mana Battery (+30 MP, net +5 MP after 25 MP cost)
+      const newMp = Math.min(stats.maxMp, stats.mp - 25 + 30);
+
+      if (shieldGain > 0 && newHp > currentHp) {
+        const actualHealed = newHp - currentHp;
+        this.callbacks.onAddFloatingText(`+${actualHealed} HP & +${shieldGain} Perisai Astral (6s)!`, '#38bdf8', 'heal');
+      } else if (shieldGain > 0) {
+        this.callbacks.onAddFloatingText(`HP Penuh! +${shieldGain} Perisai Astral (6s)`, '#38bdf8', 'heal');
+      } else {
+        this.callbacks.onAddFloatingText(`+${healAmt} HP & +30 Mana Astral`, '#38bdf8', 'heal');
+      }
+
+      return { ...stats, mp: newMp, hp: newHp };
+    });
   }
 
   public startArcaneBeam() {
@@ -7578,7 +7602,7 @@ export class GameEngine {
       targetSpeed = this.charClass === 'rogue' ? 24.0 : this.charClass === 'warrior' ? 19.0 : 16.0;
     } else {
       if (this.isSprinting) {
-        targetSpeed *= 1.45; // Sprint: +45% movement speed
+        targetSpeed *= (this.charClass === 'mage' ? 1.65 : 1.45); // Mage: Kecepatan gerak meningkat 1.65x lipat saat Terbang Cepat (Astral Glide)
       }
       if (isPointOnRoad(this.playerPos.x, this.playerPos.z)) {
         // Buff Pergerakan Jalur Jalan (Movement Speed +15% saat berlari di atas jalan raya/setapak)
@@ -7772,6 +7796,10 @@ export class GameEngine {
 
     // Role-specific posture offsets
     if (this.charClass === 'mage') {
+      const targetHover = (this.isSprinting && isMoving && this.playerStamina > 0) ? 0.45 : 0.0;
+      this.mageHoverOffsetY = THREE.MathUtils.lerp(this.mageHoverOffsetY, targetHover, Math.min(1.0, delta * 8.0));
+      this.playerMesh.group.position.y += this.mageHoverOffsetY;
+
       if (this.mageLandingCrouchTimer > 0) {
         this.mageLandingCrouchTimer = Math.max(0, this.mageLandingCrouchTimer - delta);
         const crouchRatio = this.mageLandingCrouchTimer / 0.15;
@@ -7817,7 +7845,7 @@ export class GameEngine {
       } else if (this.charClass === 'mage') {
         // Heroic Blocky Low-Poly Mage Walk Cycle & Floating Sprint Locomotion
         const walkTime = this.clock.getElapsedTime();
-        animateMageWalk(this.playerMesh, walkTime, this.playerPos.y, true, this.isAttacking, this.isSprinting);
+        animateMageWalk(this.playerMesh, walkTime, this.playerPos.y + this.mageHoverOffsetY, true, this.isAttacking, this.isSprinting);
       } else if (this.charClass === 'rogue') {
         // Gunakan akumulator fase langkah berbasis delta waktu dan kecepatan gerak riil:
         const moveSpeed = this.isSprinting ? 1.75 : 1.0;
@@ -7908,7 +7936,7 @@ export class GameEngine {
       } else if (this.charClass === 'mage') {
         // Heroic Blocky Low-Poly Mage Idle State (Subtle Breathing & Relaxed Staff/Grimoire Pose)
         const walkTime = this.clock.getElapsedTime();
-        animateMageWalk(this.playerMesh, walkTime, this.playerPos.y, false, this.isAttacking);
+        animateMageWalk(this.playerMesh, walkTime, this.playerPos.y + this.mageHoverOffsetY, false, this.isAttacking);
       } else if (this.charClass === 'rogue') {
         // Saat pemain melepas tombol arah (!this.isMoving):
         // Lakukan lerp cepat (kecepatan 0.25) pada rotation.x kaki dan tangan kembali ke sudut 0 (posisi berdiri netral).

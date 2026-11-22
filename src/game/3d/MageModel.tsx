@@ -745,9 +745,9 @@ export function animateMageWalk(
 
   if (isMoving) {
     if (isSprinting) {
-      // 1b. Floating Sprint (Melayang Cepat): Kaki menyilang santai, jubah berkibar, mengambang 0.4 unit
-      const floatBob = Math.sin(walkTime * 4.0) * 0.05;
-      playerMesh.group.position.y = THREE.MathUtils.lerp(playerMesh.group.position.y, playerPosY + 0.4 + floatBob, lerpSpeed);
+      // 1b. Floating Sprint (Melayang Cepat): Kaki menyilang santai, jubah berkibar, mengambang 0.45 unit
+      const floatBob = Math.sin(walkTime * 4.0) * 0.04;
+      playerMesh.group.position.y = THREE.MathUtils.lerp(playerMesh.group.position.y, playerPosY + 0.45 + floatBob, lerpSpeed);
       playerMesh.group.rotation.z = THREE.MathUtils.lerp(playerMesh.group.rotation.z, Math.sin(walkTime * 3.5) * 0.02, lerpSpeed);
 
       // Kaki diam menyilang santai di udara
@@ -756,8 +756,8 @@ export function animateMageWalk(
       playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0.40, lerpSpeed);
       playerMesh.rightLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.z, 0.22, lerpSpeed);
 
-      // Torso sedikit condong ke depan meluncur
-      playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0.12, lerpSpeed);
+      // Torso condong ke depan meluncur (0.22 rad)
+      playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0.22, lerpSpeed);
       playerMesh.body.rotation.y = THREE.MathUtils.lerp(playerMesh.body.rotation.y, 0, lerpSpeed);
       playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, lerpSpeed);
       playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.35, lerpSpeed);
@@ -841,6 +841,7 @@ export function animateMageWalk(
     playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0, lerpSpeed);
     playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0, lerpSpeed);
     playerMesh.group.rotation.z = THREE.MathUtils.lerp(playerMesh.group.rotation.z, 0, lerpSpeed);
+    playerMesh.group.position.y = THREE.MathUtils.lerp(playerMesh.group.position.y, playerPosY, lerpSpeed);
 
     // Pastikan torso tegak kembali (reset bungkuk pasca-Blink atau skill pose)
     playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, lerpSpeed);
