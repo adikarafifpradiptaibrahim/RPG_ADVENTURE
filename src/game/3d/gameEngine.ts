@@ -287,6 +287,7 @@ export class GameEngine {
     return { id: 'wp_village', x: 0, y: 0.5, z: 184, name: 'Desa Utama Sanctuary' };
   })();
   private scenePointLights: THREE.PointLight[] = [];
+  private frameCount: number = 0;
   private currentParticleCount = 0;
   public dayNightSystem: DayNightSystem;
 
@@ -634,9 +635,15 @@ export class GameEngine {
         this.playerMesh.group.visible = true;
       }
       if (this.renderer) {
-        this.renderer.setPixelRatio(this.graphicsSettings.renderScale * Math.min(window.devicePixelRatio, 1.5));
+        const isMobileOrLowEnd = typeof navigator !== 'undefined' && (
+          navigator.hardwareConcurrency <= 4 || /Android|iPhone|iPad/i.test(navigator.userAgent)
+        );
+        this.renderer.setPixelRatio(this.graphicsSettings.renderScale * Math.min(window.devicePixelRatio, isMobileOrLowEnd ? 1.0 : 1.5));
         this.renderer.shadowMap.enabled = this.graphicsSettings.shadows;
-        this.renderer.shadowMap.autoUpdate = this.graphicsSettings.shadows;
+        this.renderer.shadowMap.autoUpdate = false;
+        if (this.graphicsSettings.shadows) {
+          this.renderer.shadowMap.needsUpdate = true;
+        }
       }
       if (this.camera) {
         this.camera.far = 1200;
@@ -1002,10 +1009,14 @@ export class GameEngine {
       precision: 'mediump',
     });
     this.renderer.setSize(container.clientWidth, container.clientHeight);
+    const isMobileOrLowEnd = typeof navigator !== 'undefined' && (
+      navigator.hardwareConcurrency <= 4 || /Android|iPhone|iPad/i.test(navigator.userAgent)
+    );
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1;
-    this.renderer.setPixelRatio(this.graphicsSettings.renderScale * Math.min(dpr, 1.5));
+    this.renderer.setPixelRatio(this.graphicsSettings.renderScale * Math.min(dpr, isMobileOrLowEnd ? 1.0 : 1.5));
     this.renderer.shadowMap.enabled = this.graphicsSettings.shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.autoUpdate = false;
     this.renderer.domElement.style.touchAction = 'none';
     this.renderer.domElement.style.userSelect = 'none';
     (this.renderer.domElement.style as any).webkitUserSelect = 'none';
@@ -1336,11 +1347,18 @@ export class GameEngine {
     this.graphicsSettings = settings;
 
     // 1. Resolution / Pixel ratio scaling (Great for Potato PCs)
+    const isMobileOrLowEnd = typeof navigator !== 'undefined' && (
+      navigator.hardwareConcurrency <= 4 || /Android|iPhone|iPad/i.test(navigator.userAgent)
+    );
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1;
-    this.renderer.setPixelRatio(settings.renderScale * Math.min(dpr, 1.5));
+    this.renderer.setPixelRatio(settings.renderScale * Math.min(dpr, isMobileOrLowEnd ? 1.0 : 1.5));
 
     // 2. Shadows on/off (halves draw calls on low spec)
     this.renderer.shadowMap.enabled = settings.shadows;
+    this.renderer.shadowMap.autoUpdate = false;
+    if (settings.shadows) {
+      this.renderer.shadowMap.needsUpdate = true;
+    }
     if (this.scene) {
       this.scene.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
@@ -10573,6 +10591,10 @@ export class GameEngine {
       }
     }
     this.lastFrameTime = now;
+    this.frameCount++;
+    if (this.renderer?.shadowMap.enabled && this.frameCount % 3 === 0) {
+      this.renderer.shadowMap.needsUpdate = true;
+    }
 
     // Single Player Pause: Hentikan sementara loop animasi Three.js dan logika monster
     if (this.isPaused && !this.isMultiplayer) {

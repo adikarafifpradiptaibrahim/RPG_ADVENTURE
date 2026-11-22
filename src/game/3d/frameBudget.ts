@@ -9,6 +9,20 @@
  */
 
 let sliceStart = performance.now();
+let lastSliceTimestamp = performance.now();
+
+/**
+ * Principal WebGL Performance Engineer & Browser Runtime Optimization Architect
+ * Global cooperativeYield (4ms budget default)
+ * Uses setTimeout(16) when the 4ms budget is exceeded so Chrome UI and tabs get a full 16ms frame to breathe.
+ */
+export async function cooperativeYield(budgetMs = 4): Promise<void> {
+  if (performance.now() - lastSliceTimestamp >= budgetMs) {
+    // Gunakan setTimeout(16) agar browser UI & tab lain mendapat 1 frame penuh untuk bernapas
+    await new Promise<void>((resolve) => setTimeout(resolve, 16));
+    lastSliceTimestamp = performance.now();
+  }
+}
 
 /**
  * Yields control to Chrome with a 16ms pause if CPU work exceeds maxWorkMs (default 5ms).

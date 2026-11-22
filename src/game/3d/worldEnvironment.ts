@@ -20,6 +20,45 @@ export interface WorldEnvironmentResult {
   setVegetationVisible: (visible: boolean) => void;
 }
 
+let lastSliceTimestamp = performance.now();
+export async function cooperativeYield(budgetMs = 4): Promise<void> {
+  if (performance.now() - lastSliceTimestamp >= budgetMs) {
+    // Gunakan setTimeout(16) agar browser UI & tab lain mendapat 1 frame penuh untuk bernapas
+    await new Promise<void>((resolve) => setTimeout(resolve, 16));
+    lastSliceTimestamp = performance.now();
+  }
+}
+
+export const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
+export const UNIT_CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 12);
+export const UNIT_CONE = new THREE.ConeGeometry(1, 1, 1, 12);
+
+export const MaterialCache = new Map<string, THREE.MeshStandardMaterial>();
+
+export function getSharedMaterial(
+  color: number,
+  roughness = 0.8,
+  metalness = 0.1,
+  flatShading = true,
+  emissive = 0x000000,
+  emissiveIntensity = 0
+): THREE.MeshStandardMaterial {
+  const key = `${color}_${roughness}_${metalness}_${flatShading}_${emissive}_${emissiveIntensity}`;
+  let mat = MaterialCache.get(key);
+  if (!mat) {
+    mat = new THREE.MeshStandardMaterial({
+      color,
+      roughness,
+      metalness,
+      flatShading,
+      emissive,
+      emissiveIntensity,
+    });
+    MaterialCache.set(key, mat);
+  }
+  return mat;
+}
+
 /**
  * Lead Level Designer & World Builder
  * Modul Builder Tata Ruang Lanskap Dunia Berbasis 4 Zonasi Lingkungan & Instanced Mesh Vegetasi
@@ -1476,6 +1515,9 @@ export async function buildWorldEnvironmentAsync(
   // 24 Bay melingkar di sekeliling arena, menyisakan gapura selatan
   const totalBays = 24;
   for (let b = 0; b < totalBays; b++) {
+    if (b > 0 && b % 4 === 0) {
+      await cooperativeYield(4);
+    }
     const angle = (b / totalBays) * Math.PI * 2;
     // Celah gapura masuk selatan di sisi Z positif (sekitar angle ~ PI/2, yaitu Z: -382)
     const isSouthEntrance = Math.abs(angle - Math.PI / 2) < 0.28;
@@ -1492,32 +1534,37 @@ export async function buildWorldEnvironmentAsync(
     bayGroup.position.set(bx, by, bz);
     bayGroup.rotation.y = -angle + Math.PI / 2;
 
-    // Tingkat 1: Pilar Batu dan Lengkungan Bawah (Tier 1 Arcade)
-    const pierL = new THREE.Mesh(new THREE.BoxGeometry(1.6, 7.5, 1.8), matStoneRuins);
+    // Tingkat 1: Pilar Batu dan Lengkungan Bawah (Tier 1 Arcade) - Shared UNIT_BOX Cache
+    const pierL = new THREE.Mesh(UNIT_BOX, matStoneRuins);
+    pierL.scale.set(1.6, 7.5, 1.8);
     pierL.position.set(-2.4, 3.75, 0);
     pierL.castShadow = true;
     bayGroup.add(pierL);
 
-    const pierR = new THREE.Mesh(new THREE.BoxGeometry(1.6, 7.5, 1.8), matStoneRuins);
+    const pierR = new THREE.Mesh(UNIT_BOX, matStoneRuins);
+    pierR.scale.set(1.6, 7.5, 1.8);
     pierR.position.set(2.4, 3.75, 0);
     pierR.castShadow = true;
     bayGroup.add(pierR);
 
     // Lintel balok lengkung atas tingkat 1
-    const archHeader = new THREE.Mesh(new THREE.BoxGeometry(5.6, 1.2, 2.0), matStoneRuins);
+    const archHeader = new THREE.Mesh(UNIT_BOX, matStoneRuins);
+    archHeader.scale.set(5.6, 1.2, 2.0);
     archHeader.position.set(0, 7.5 + 0.6, 0);
     archHeader.castShadow = true;
     bayGroup.add(archHeader);
 
     if (!isRuined) {
       // Tingkat 2: Galeri Dinding Bertingkat Atas (Tier 2 Gallery)
-      const tier2Wall = new THREE.Mesh(new THREE.BoxGeometry(5.4, 5.5, 1.6), matStoneRuins);
+      const tier2Wall = new THREE.Mesh(UNIT_BOX, matStoneRuins);
+      tier2Wall.scale.set(5.4, 5.5, 1.6);
       tier2Wall.position.set(0, 8.7 + 2.75, 0);
       tier2Wall.castShadow = true;
       bayGroup.add(tier2Wall);
 
       // Cornice pembatas atas
-      const cornice = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.8, 2.2), matStoneRuins);
+      const cornice = new THREE.Mesh(UNIT_BOX, matStoneRuins);
+      cornice.scale.set(5.8, 0.8, 2.2);
       cornice.position.set(0, 14.2 + 0.4, 0);
       cornice.castShadow = true;
       bayGroup.add(cornice);
@@ -3153,5 +3200,15 @@ export {
   worldToMapPercent,
   mapPercentToWorld,
 } from './worldData';
+
+export {
+  buildMainVillage,
+  buildHarbor,
+  buildAstraeaCastle,
+  buildValKragorFort,
+  buildDesertStructures,
+  buildTitanLakeAndCanyon,
+  buildDragonCaldera,
+} from './world';
 
 

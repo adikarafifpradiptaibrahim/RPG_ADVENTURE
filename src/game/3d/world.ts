@@ -96,7 +96,7 @@ import {
   createSandVortexSwirlMesh,
 } from './models';
 import { buildWorldRoadNetwork, isPointOnRoad } from '../RoadSystem';
-import { checkFrameBudget, yieldIfBudgetExceeded } from './frameBudget';
+import { checkFrameBudget, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield } from './frameBudget';
 import { SpatialLookupGrid } from './spatialGrid';
 
 export interface WorldCollider {
@@ -192,8 +192,12 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   const dirLight = new THREE.DirectionalLight(0xfff9c4, 1.25);
   dirLight.position.set(50, 90, 45);
   dirLight.castShadow = true;
-  dirLight.shadow.mapSize.width = 1024;
-  dirLight.shadow.mapSize.height = 1024;
+  const isMobileOrLowEnd = typeof navigator !== 'undefined' && (
+    navigator.hardwareConcurrency <= 4 || /Android|iPhone|iPad/i.test(navigator.userAgent)
+  );
+  const shadowResolution = isMobileOrLowEnd ? 1024 : 1536;
+  dirLight.shadow.mapSize.width = shadowResolution;
+  dirLight.shadow.mapSize.height = shadowResolution;
   dirLight.shadow.camera.near = 10;
   dirLight.shadow.camera.far = 380;
   const d = 110;
@@ -438,8 +442,12 @@ export async function buildWorldAsync(
   const dirLight = new THREE.DirectionalLight(0xfff9c4, 1.25);
   dirLight.position.set(50, 90, 45);
   dirLight.castShadow = true;
-  dirLight.shadow.mapSize.width = 1024;
-  dirLight.shadow.mapSize.height = 1024;
+  const isMobileOrLowEndAsync = typeof navigator !== 'undefined' && (
+    navigator.hardwareConcurrency <= 4 || /Android|iPhone|iPad/i.test(navigator.userAgent)
+  );
+  const shadowResolutionAsync = isMobileOrLowEndAsync ? 1024 : 1536;
+  dirLight.shadow.mapSize.width = shadowResolutionAsync;
+  dirLight.shadow.mapSize.height = shadowResolutionAsync;
   dirLight.shadow.camera.near = 10;
   dirLight.shadow.camera.far = 380;
   const d = 110;
@@ -472,7 +480,7 @@ export async function buildWorldAsync(
   for (let i = 0; i < vertexCount; i++) {
     rawHeights[i] = getProceduralHeight(posAttr.getX(i), posAttr.getZ(i));
     if (i % 100 === 0) {
-      await yieldIfBudgetExceeded(8);
+      await cooperativeYield(4);
     }
   }
 
@@ -508,7 +516,7 @@ export async function buildWorldAsync(
         smoothedHeights[idx] = cur;
       }
       if (gz % 5 === 0) {
-        await yieldIfBudgetExceeded(8);
+        await cooperativeYield(4);
       }
     }
   }
@@ -526,7 +534,7 @@ export async function buildWorldAsync(
     colors.push(sample.color[0] / 255, sample.color[1] / 255, sample.color[2] / 255);
 
     if (i % 100 === 0) {
-      await yieldIfBudgetExceeded(8);
+      await cooperativeYield(4);
     }
   }
 
@@ -586,29 +594,19 @@ export async function buildWorldAsync(
   // 4. Build Spatial Lookup Grid (2D TypedArray Float32 & Uint8)
   onProgress?.(26, 'Membangun Spatial Lookup Grid & Heightmap (TypedArray)...');
   await SpatialLookupGrid.get().buildAsync(getTerrainHeight, onProgress);
-  await yieldIfBudgetExceeded(8);
+  await cooperativeYield(4);
 
   return await populateWorldEntities(scene, terrainMesh, getTerrainHeight, dirLight, hemiLight, decorativeProps, pointLights, onProgress);
 }
 
-async function populateWorldEntities(
+
+export async function buildHarbor(
   scene: THREE.Scene,
-  terrainMesh: THREE.Mesh,
   getTerrainHeight: (x: number, z: number, forVisualMesh?: boolean) => number,
-  dirLight: THREE.DirectionalLight,
-  hemiLight: THREE.HemisphereLight,
-  decorativeProps: THREE.Object3D[],
-  pointLights: THREE.PointLight[],
-  onProgress?: (percent: number, statusText: string) => void
-): Promise<WorldObjects> {
-
-  // ==========================================
-  // 1. VAST AZURE OCEAN WATER PLANE & COASTAL HARBOR & SANCTUARY VILLAGE (33%)
-  // ==========================================
-  onProgress?.(33, 'Membangun Desa Utama & Pelabuhan Sanctuary...');
-  await yieldIfBudgetExceeded(8);
-
-  // ==========================================
+  colliders: WorldCollider[],
+  decorativeProps?: THREE.Object3D[]
+): Promise<{ oceanMesh: THREE.Mesh }> {
+  await cooperativeYield(4);
   // 1. VAST AZURE OCEAN WATER PLANE
   // ==========================================
   const oceanGeo = new THREE.PlaneGeometry(1600, 800, 32, 32);
@@ -694,23 +692,28 @@ async function populateWorldEntities(
   gangwayWest.position.set(harborX - 16.9, 1.86, 200.0);
   scene.add(gangwayWest);
 
-  // ==========================================
-  // 2. ORGANIZED SANCTUARY VILLAGE & FACILITIES
-  // Symmetrical street grid on flat dry mainland (y = 0.25, z: -32..15).
-  // Zero flooding, zero overlaps with roads or props!
-  // ==========================================
-  const colliders: WorldCollider[] = [];
-  const npcs: WorldNPC[] = [];
-  const villageMainlandY = 0.25;
 
-  // 2.0 Moored Ship Hull Solid Boundaries (Dermaga Pelabuhan Sanctuary X: -20)
   colliders.push(
     // Ship Hull Colliders (Outer water boundaries)
     { type: 'box', minX: harborX + 14.5, maxX: harborX + 19.5, minZ: 193, maxZ: 207, label: 'Lambung Kapal Dagang Emas 1' },
     { type: 'box', minX: harborX - 19.5, maxX: harborX - 14.5, minZ: 193, maxZ: 207, label: 'Lambung Kapal Perang Bershield' }
   );
 
-  // 2.1 Northern Village Gateway Arch (Start of North Highway at X = -35, Z = 105)
+  await cooperativeYield(4);
+  return { oceanMesh };
+}
+
+
+export async function buildMainVillage(
+  scene: THREE.Scene,
+  getTerrainHeight: (x: number, z: number, forVisualMesh?: boolean) => number,
+  colliders: WorldCollider[],
+  decorativeProps: THREE.Object3D[],
+  pointLights: THREE.PointLight[],
+  npcs: WorldNPC[]
+): Promise<{ elderGroup: THREE.Group; elderPos: [number, number, number] }> {
+  const villageMainlandY = 0.25;
+  await cooperativeYield(4);
   const villageArch = createVillageArchMesh('GERBANG UTARA ELDORIA');
   const archX = -35;
   const archZ = 105;
@@ -1121,13 +1124,21 @@ async function populateWorldEntities(
     dialogueId: 'villager_maya',
   });
 
-  // ==========================================
-  // 8b. GRAND IMPERIAL KINGDOM OF ASTRAEA (North-West Plains Metropolis: [-250, -240]) (36%)
-  // ==========================================
-  onProgress?.(36, 'Membangun Ibukota Kerajaan Emas Astraea...');
-  await yieldIfBudgetExceeded(8);
+  await cooperativeYield(4);
+  return { elderGroup, elderPos };
+}
 
+
+export async function buildAstraeaCastle(
+  scene: THREE.Scene,
+  getTerrainHeight: (x: number, z: number, forVisualMesh?: boolean) => number,
+  colliders: WorldCollider[],
+  decorativeProps: THREE.Object3D[],
+  pointLights: THREE.PointLight[],
+  npcs: WorldNPC[]
+): Promise<void> {
   const astraeaBaseY = 2.00;
+  await cooperativeYield(4);
 
   // A. Grand Imperial Sun Palace of Astraea (North End: X: -250, Z: -265)
   // Facing SOUTH (Direction: 0° / rotation.y = 0) looking over the plaza and south gate
@@ -1369,15 +1380,21 @@ async function populateWorldEntities(
     icon: '🛡️',
   });
 
-  // ==========================================
-  // 2.8 SECOND VILLAGE: RELOCATED & EXPANDED DESA BENTENG VAL-KRAGOR & PUING KASTIL (39%)
-  // (Pusat Dataran Padang Rumput Timur: Center [315, 95], Courtyard X: 289..341, Z: 73..117 at y = 2.00)
-  // Gerbang Utama diputar lurus menghadap Barat (Rotation Y = Math.PI * 1.5 / 270°).
-  // Interior lengkap: Barak Prajurit, Bengkel Persenjataan Goran, Menara Panah, Tempat Latihan Pedang & Panahan, Api Unggun.
-  // ==========================================
-  onProgress?.(39, 'Membangun Desa Benteng Val-Kragor & Puing Kastil...');
-  await yieldIfBudgetExceeded(8);
+  await cooperativeYield(4);
+}
+
+
+export async function buildValKragorFort(
+  scene: THREE.Scene,
+  getTerrainHeight: (x: number, z: number, forVisualMesh?: boolean) => number,
+  colliders: WorldCollider[],
+  decorativeProps: THREE.Object3D[],
+  pointLights: THREE.PointLight[],
+  npcs: WorldNPC[],
+  floatingCrystals: THREE.Mesh[]
+): Promise<void> {
   const valKragorBaseY = 2.00;
+  await cooperativeYield(4);
   const vkBaseX = 310;
   const vkBaseZ = 115;
   const vkDX = vkBaseX - 380; // -70
@@ -1807,7 +1824,7 @@ async function populateWorldEntities(
   // ==========================================
   // 4. MYSTIC FOREST & MANA CRYSTALS (Hutan Pinus Mistis: X: -80..-40, Z: 80..140)
   // ==========================================
-  const floatingCrystals: THREE.Mesh[] = [];
+  // floatingCrystals passed as argument
   const monolith1 = createCrystalMonolithMesh();
   monolith1.group.position.set(-60, getTerrainHeight(-60, 100), 100);
   scene.add(monolith1.group);
@@ -1825,6 +1842,7 @@ async function populateWorldEntities(
 
   // Mystic Pine Forest dense groves
   for (let i = 0; i < 45; i++) {
+    if (i > 0 && i % 15 === 0) await cooperativeYield(4);
     const px = -80 + Math.random() * 40;
     const pz = 80 + Math.random() * 60;
     // DILARANG SPAWN di biome gurun!
@@ -1846,6 +1864,7 @@ async function populateWorldEntities(
   // General wilderness trees in plains
   const treeCount = 60;
   for (let i = 0; i < treeCount; i++) {
+    if (i > 0 && i % 15 === 0) await cooperativeYield(4);
     const angle = Math.random() * Math.PI * 2;
     const dist = 30 + Math.random() * 120;
     const tx = Math.cos(angle) * dist;
@@ -1929,12 +1948,19 @@ async function populateWorldEntities(
   const villageTreesMesh = createInstancedVillageTrees(villageTreesData);
   scene.add(villageTreesMesh);
 
-  // ==========================================
-  // 5. SOLARIA GOLDEN DESERT: VILLAGE, GRAND PALACE & SUNKEN PYRAMID (42%)
-  // ==========================================
-  onProgress?.(42, 'Membangun Piramida, Oase, & Istana Sultan Malik...');
-  await yieldIfBudgetExceeded(8);
+  await cooperativeYield(4);
+}
 
+
+export async function buildDesertStructures(
+  scene: THREE.Scene,
+  getTerrainHeight: (x: number, z: number, forVisualMesh?: boolean) => number,
+  colliders: WorldCollider[],
+  decorativeProps: THREE.Object3D[],
+  pointLights: THREE.PointLight[],
+  npcs: WorldNPC[]
+): Promise<void> {
+  await cooperativeYield(4);
   // ------------------------------------------
   // 5A. ANCIENT SUNKEN PYRAMID RUINS ([120, -280])
   // ------------------------------------------
@@ -2352,11 +2378,19 @@ async function populateWorldEntities(
 
   // Gundukan pasir oval melayang (sandDunes) dihapus total sesuai permintaan user.
 
-  // ==========================================
-  // 5D. THE GREAT SOLARIA SINKHOLE & REGIONAL MONUMENTS (45%)
-  // ==========================================
-  onProgress?.(45, 'Membangun Lembah Danau Titan, Kanyon Kuno, & Kaldera Naga...');
-  await yieldIfBudgetExceeded(8);
+  await cooperativeYield(4);
+}
+
+
+export async function buildTitanLakeAndCanyon(
+  scene: THREE.Scene,
+  getTerrainHeight: (x: number, z: number, forVisualMesh?: boolean) => number,
+  colliders: WorldCollider[],
+  decorativeProps: THREE.Object3D[],
+  pointLights: THREE.PointLight[],
+  npcs: WorldNPC[]
+): Promise<void> {
+  await cooperativeYield(4);
   const sinkholeCenter = { x: -30, z: -220 };
   const sinkholeBaseY = getTerrainHeight(sinkholeCenter.x, sinkholeCenter.z);
 
@@ -2548,10 +2582,18 @@ async function populateWorldEntities(
     colliders.push({ type: 'circle', x: pos.x, z: pos.z, radius: 1.2, label: 'Pilar Petir Melayang' });
   });
 
-  // ==========================================
-  // 8. DRAGONFANG CALDERA & INFERNO ARCHIPELAGO (South Across Ocean: [-40, 340])
-  // Arena Kaldera Naga: Kawah Melingkar (Diameter ~45m), 4 Pilar Obsidian Naga, Fosil Naga, & Lahar Pijar
-  // ==========================================
+  await cooperativeYield(4);
+}
+
+
+export async function buildDragonCaldera(
+  scene: THREE.Scene,
+  getTerrainHeight: (x: number, z: number, forVisualMesh?: boolean) => number,
+  colliders: WorldCollider[],
+  decorativeProps: THREE.Object3D[],
+  pointLights: THREE.PointLight[]
+): Promise<{ chests: WorldObjects['chests'] }> {
+  await cooperativeYield(4);
   const dragonArenaCenter = { x: -40, z: 340 };
   const dragonArenaBaseY = 2.50;
 
@@ -2641,6 +2683,7 @@ async function populateWorldEntities(
 
   // B3. Tebing Basalt Curam Melingkar Setinggi 6 unit di Radius 45 unit
   for (let b = 0; b < 16; b++) {
+    if (b > 0 && b % 15 === 0) await cooperativeYield(4);
     const angle = (b / 16) * Math.PI * 2;
     const bx = dragonArenaCenter.x + Math.cos(angle) * 45.5;
     const bz = dragonArenaCenter.z + Math.sin(angle) * 45.5;
@@ -2757,7 +2800,67 @@ async function populateWorldEntities(
     });
   });
 
+  await cooperativeYield(4);
+  return { chests };
+}
+
+
+async function populateWorldEntities(
+  scene: THREE.Scene,
+  terrainMesh: THREE.Mesh,
+  getTerrainHeight: (x: number, z: number, forVisualMesh?: boolean) => number,
+  dirLight: THREE.DirectionalLight,
+  hemiLight: THREE.HemisphereLight,
+  decorativeProps: THREE.Object3D[],
+  pointLights: THREE.PointLight[],
+  onProgress?: (percent: number, statusText: string) => void
+): Promise<WorldObjects> {
+  const colliders: WorldCollider[] = [];
+  const npcs: WorldNPC[] = [];
+  const floatingCrystals: THREE.Mesh[] = [];
+
   // ==========================================
+  // 1. VAST AZURE OCEAN WATER PLANE & COASTAL HARBOR & SANCTUARY VILLAGE (33%)
+  // ==========================================
+  onProgress?.(33, 'Membangun Desa Utama & Pelabuhan Sanctuary...');
+  await cooperativeYield(4);
+  const { oceanMesh } = await buildHarbor(scene, getTerrainHeight, colliders, decorativeProps);
+  const { elderGroup, elderPos } = await buildMainVillage(scene, getTerrainHeight, colliders, decorativeProps, pointLights, npcs);
+
+  // ==========================================
+  // 2. GRAND IMPERIAL KINGDOM OF ASTRAEA (36%)
+  // ==========================================
+  onProgress?.(36, 'Membangun Ibukota Kerajaan Emas Astraea...');
+  await cooperativeYield(4);
+  await buildAstraeaCastle(scene, getTerrainHeight, colliders, decorativeProps, pointLights, npcs);
+
+  // ==========================================
+  // 3. FORTRESS VAL-KRAGOR & CASTLE RUINS (39%)
+  // ==========================================
+  onProgress?.(39, 'Membangun Desa Benteng Val-Kragor & Puing Kastil...');
+  await cooperativeYield(4);
+  await buildValKragorFort(scene, getTerrainHeight, colliders, decorativeProps, pointLights, npcs, floatingCrystals);
+
+  // ==========================================
+  // 4. SOLARIA GOLDEN DESERT: VILLAGE, GRAND PALACE & SUNKEN PYRAMID (42%)
+  // ==========================================
+  onProgress?.(42, 'Membangun Piramida, Oase, & Istana Sultan Malik...');
+  await cooperativeYield(4);
+  await buildDesertStructures(scene, getTerrainHeight, colliders, decorativeProps, pointLights, npcs);
+
+  // ==========================================
+  // 5. TITAN LAKE, CANYON & DRAGON CALDERA (45%)
+  // ==========================================
+  onProgress?.(45, 'Membangun Lembah Danau Titan, Kanyon Kuno, & Kaldera Naga...');
+  await cooperativeYield(4);
+  await buildTitanLakeAndCanyon(scene, getTerrainHeight, colliders, decorativeProps, pointLights, npcs);
+  const { chests } = await buildDragonCaldera(scene, getTerrainHeight, colliders, decorativeProps, pointLights);
+
+  // ==========================================
+  // 6. SACRED SPRING, CHECKPOINTS & BOSS NPCS (48%)
+  // ==========================================
+  onProgress?.(48, 'Menempatkan NPC, Pedagang, & World Boss...');
+  await cooperativeYield(4);
   // 10. MATA AIR SUCI & TAMAN BUNGA ELDORIA (Plains Spring: [-144, -270])
   // Ganti bekas wilayah raksasa lama: kolam air tawar melingkar kecil, tepian batu kali halus berlumut,
   // tumbuhan teratai air terapung, hamparan rumpun bunga liar (lavender, kamomil), dan 2 pohon willow rindang.
@@ -2788,6 +2891,7 @@ async function populateWorldEntities(
   });
   const stoneCount = 28;
   for (let i = 0; i < stoneCount; i++) {
+    if (i > 0 && i % 20 === 0) await cooperativeYield(4);
     const angle = (i / stoneCount) * Math.PI * 2;
     const r = 5.4 + (i % 3) * 0.25;
     const sx = springCenter.x + Math.cos(angle) * r;
@@ -2866,6 +2970,7 @@ async function populateWorldEntities(
   const flowerStemMat = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.8 });
 
   for (let f = 0; f < 36; f++) {
+    if (f > 0 && f % 20 === 0) await cooperativeYield(4);
     const fAng = (f / 36) * Math.PI * 2 + (f % 5) * 0.3;
     const fDist = 6.8 + (f % 7) * 1.5;
     const fx = springCenter.x + Math.cos(fAng) * fDist;
@@ -2968,6 +3073,7 @@ async function populateWorldEntities(
   });
 
   for (let m = 0; m < 32; m++) {
+    if (m > 0 && m % 20 === 0) await cooperativeYield(4);
     const angle = (m / 32) * Math.PI * 2 + ((m * 17) % 7) * 0.15;
     const r = 8.0 + ((m * 19) % 24);
     const mx = 465 + Math.cos(angle) * r;
@@ -3025,6 +3131,7 @@ async function populateWorldEntities(
   const shrubMat = new THREE.MeshStandardMaterial({ color: 0x4d7c0f, roughness: 0.8, flatShading: true });
   const flowerColors = [0xe879f9, 0x38bdf8, 0xfacc15, 0xf43f5e];
   for (let s = 0; s < 18; s++) {
+    if (s > 0 && s % 20 === 0) await cooperativeYield(4);
     const sAngle = (s / 18) * Math.PI * 2 + 0.5;
     const sDist = 6 + (s % 5) * 4.5;
     const sx = 465 + Math.cos(sAngle) * sDist;
@@ -3075,6 +3182,7 @@ async function populateWorldEntities(
   // ==========================================
   const mistForestTreesData: { x: number; y: number; z: number; scale: number; rotationY: number }[] = [];
   for (let t = 0; t < 160; t++) {
+    if (t > 0 && t % 20 === 0) await cooperativeYield(4);
     if (t % 50 === 0) {
       await yieldIfBudgetExceeded(8);
     }
@@ -3371,3 +3479,4 @@ async function populateWorldEntities(
     getTerrainHeight,
   };
 }
+
