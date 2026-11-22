@@ -92,6 +92,7 @@ import {
   CelestialHealVfxInstance,
   MageBlinkResourcePool,
   MageBlinkVfxInstance,
+  SKILL_COOLDOWNS,
 } from '../skills';
 import { DayNightSystem, getSharedDayNightSystem } from './dayNightSystem';
 import { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome } from './frameBudget';
@@ -329,8 +330,11 @@ export class GameEngine {
   private castingDuration = 1.0;
   private castingSkillName = '';
   private castingCircleInstance: StarfallCastingCircleInstance | null = null;
+  // TODO: Kembalikan cooldown normal setelah pengujian selesai
   private mageUltimateCooldownTimer = 0;
   private mageGlacialBarrageCooldownTimer = 0;
+  private mageBlinkCooldownTimer = 0;
+  private mageCahayaSuciCooldownTimer = 0;
   // Mage Glacial Crystal Barrage: Hold-to-Aim & Over-the-Shoulder camera state
   private isAimGlacialActive = false;
   private aimGlacialCancelled = false;
@@ -1279,6 +1283,8 @@ export class GameEngine {
     this.dashTimer = 0;
     this.mageUltimateCooldownTimer = 0;
     this.mageGlacialBarrageCooldownTimer = 0;
+    this.mageBlinkCooldownTimer = 0;
+    this.mageCahayaSuciCooldownTimer = 0;
     this.activeScorchedCraters = [];
     this.arcaneShieldTimer = 0;
     this.arcaneShieldHp = 0;
@@ -5293,7 +5299,8 @@ export class GameEngine {
         return stats;
       }
 
-      this.mageUltimateCooldownTimer = 18.0;
+      // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 18.0s)
+      this.mageUltimateCooldownTimer = SKILL_COOLDOWNS.CELESTIAL_APOCALYPSE;
       this.startCelestialApocalypseCasting();
       return { ...stats, mp: Math.max(0, stats.mp - 45) };
     });
@@ -5724,15 +5731,15 @@ export class GameEngine {
       true // isHoldToAim
     );
 
-    if (!this.scene.children.includes(this.activeGlacialVfx.group)) {
-      this.scene.add(this.activeGlacialVfx.group);
+    const vfxInstance = this.activeGlacialVfx;
+    if (!this.scene.children.includes(vfxInstance.group)) {
+      this.scene.add(vfxInstance.group);
     }
 
     this.addVfx(
-      this.activeGlacialVfx.group,
+      vfxInstance.group,
       (delta: number) => {
-        if (!this.activeGlacialVfx) return false;
-        return this.activeGlacialVfx.update(
+        return vfxInstance.update(
           delta,
           this.playerPos,
           this.playerRotationY,
@@ -5742,9 +5749,11 @@ export class GameEngine {
         );
       },
       () => {
-        this.activeGlacialVfx?.cleanup();
-        this.activeGlacialVfx = null;
-        this.extinguishSkillVfxLight();
+        vfxInstance.cleanup();
+        if (this.activeGlacialVfx === vfxInstance) {
+          this.activeGlacialVfx = null;
+          this.extinguishSkillVfxLight();
+        }
       },
       true
     );
@@ -5787,7 +5796,8 @@ export class GameEngine {
       return;
     }
 
-    this.mageGlacialBarrageCooldownTimer = 7.5;
+    // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 7.5s)
+    this.mageGlacialBarrageCooldownTimer = SKILL_COOLDOWNS.GLACIAL_BARRAGE;
     this.callbacks.onAddFloatingText('💠 GLACIAL CRYSTAL BARRAGE!', '#38bdf8', 'crit');
 
     // Sembunyikan garis bidik
@@ -5890,7 +5900,8 @@ export class GameEngine {
     });
     if (!hasEnoughMp) return;
 
-    this.mageGlacialBarrageCooldownTimer = 7.5;
+    // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 7.5s)
+    this.mageGlacialBarrageCooldownTimer = SKILL_COOLDOWNS.GLACIAL_BARRAGE;
     this.castGlacialCrystalBarrage();
   }
 
@@ -7322,6 +7333,15 @@ export class GameEngine {
   public performMageBlink() {
     if (this.isControlsLocked || this.isCasting || this.isDashing) return;
 
+    if (this.mageBlinkCooldownTimer > 0) {
+      this.callbacks.onAddFloatingText(
+        `Arcane Blink Cooldown (${this.mageBlinkCooldownTimer.toFixed(1)}s)!`,
+        '#06b6d4',
+        'info'
+      );
+      return;
+    }
+
     if (this.playerStamina < 15) {
       this.callbacks.onAddFloatingText('Stamina Habis (Butuh 15)!', '#ffb74d', 'info');
       return;
@@ -7401,6 +7421,8 @@ export class GameEngine {
 
     // Spawn pooled VFX
     this.spawnMageBlinkVfx(startPos, targetPos);
+    // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 2.0s)
+    this.mageBlinkCooldownTimer = SKILL_COOLDOWNS.ARCANE_BLINK;
     this.callbacks.onAddFloatingText('Langkah Dimensi!', '#38bdf8', 'info');
   }
 
@@ -7413,6 +7435,15 @@ export class GameEngine {
     if (this.isControlsLocked || this.isCasting) return;
     if (this.charClass !== 'mage') return;
 
+    if (this.mageCahayaSuciCooldownTimer > 0) {
+      this.callbacks.onAddFloatingText(
+        `Cahaya Suci Cooldown (${this.mageCahayaSuciCooldownTimer.toFixed(1)}s)!`,
+        '#38bdf8',
+        'info'
+      );
+      return;
+    }
+
     this.callbacks.onUpdateStats((stats) => {
       if (stats.mp < 25) {
         this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 25 MP)!', '#e57373', 'info');
@@ -7421,6 +7452,8 @@ export class GameEngine {
 
       soundManager.playMageCelestialHeal();
       this.spawnMageCelestialHealVfx();
+      // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 12.0s)
+      this.mageCahayaSuciCooldownTimer = SKILL_COOLDOWNS.CAHAYA_SUCI;
       this.isAttacking = true;
       this.attackType = 'celestial_heal';
       this.attackDuration = 0.8;
@@ -10262,6 +10295,16 @@ export class GameEngine {
     // Mage Glacial Barrage Cooldown Timer
     if (this.mageGlacialBarrageCooldownTimer > 0) {
       this.mageGlacialBarrageCooldownTimer = Math.max(0, this.mageGlacialBarrageCooldownTimer - delta);
+    }
+
+    // Mage Blink Cooldown Timer
+    if (this.mageBlinkCooldownTimer > 0) {
+      this.mageBlinkCooldownTimer = Math.max(0, this.mageBlinkCooldownTimer - delta);
+    }
+
+    // Mage Cahaya Suci Cooldown Timer
+    if (this.mageCahayaSuciCooldownTimer > 0) {
+      this.mageCahayaSuciCooldownTimer = Math.max(0, this.mageCahayaSuciCooldownTimer - delta);
     }
 
     // Scorched Crater (Ground Fire DoT: 15% Spell Power / sec)

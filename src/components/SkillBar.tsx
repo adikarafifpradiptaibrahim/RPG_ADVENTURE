@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PlayerStats } from '../types/game';
+import { SKILL_COOLDOWNS } from '../game/skills';
+
+// TODO: Kembalikan cooldown normal setelah pengujian selesai (semua skill cooldown diset ke 0 untuk stress-testing)
 
 export interface SkillBarProps {
   stats: PlayerStats;

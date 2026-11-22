@@ -1,5 +1,21 @@
 import * as THREE from 'three';
 
+// ============================================================================
+// SKILL COOLDOWN CONSTANTS (STRESS-TESTING & BALANCING)
+// ============================================================================
+// TODO: Kembalikan cooldown normal setelah pengujian selesai
+// Nilai balancing normal:
+// - GLACIAL_BARRAGE: 7.5s
+// - CELESTIAL_APOCALYPSE: 18.0s
+// - ARCANE_BLINK: 0.1s (atau 2.0s)
+// - CAHAYA_SUCI: 0.1s (atau 12.0s)
+export const SKILL_COOLDOWNS = {
+  GLACIAL_BARRAGE: 0, // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 7.5s)
+  CELESTIAL_APOCALYPSE: 0, // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 18.0s)
+  ARCANE_BLINK: 0, // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 0.1s / 2.0s)
+  CAHAYA_SUCI: 0, // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 0.1s / 12.0s)
+};
+
 /**
  * Procedural Arcane Magic Circle Texture Generator
  * Creates a high-resolution 512x512 glowing runic circle matching the Mage Magic Circle aesthetics:
@@ -1287,8 +1303,8 @@ export class StarfallResourcePool {
       blending: THREE.AdditiveBlending,
     });
 
-    // Pre-instantiate 2 reusable Casting Circle instances and 2 Barrage instances in pool
-    for (let i = 0; i < 2; i++) {
+    // Pre-instantiate reusable Casting Circle instances and Barrage instances in pool (4 for stress testing & rapid spam)
+    for (let i = 0; i < 4; i++) {
       this.castingCirclePool.push(this.buildCastingCircleInstance());
       this.meteorBarragePool.push(this.buildMeteorBarrageInstance());
     }
@@ -3467,8 +3483,8 @@ export class GlacialBarrageResourcePool {
       depthWrite: false,
     });
 
-    // 3. Pre-allocate 2 VFX instances
-    for (let k = 0; k < 2; k++) {
+    // 3. Pre-allocate VFX instances (6 instances for stress testing & rapid spam)
+    for (let k = 0; k < 6; k++) {
       this.instances.push(this.createVfxInstance());
     }
 
