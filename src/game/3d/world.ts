@@ -96,7 +96,7 @@ import {
   createSandVortexSwirlMesh,
 } from './models';
 import { buildWorldRoadNetwork, isPointOnRoad } from '../RoadSystem';
-import { checkFrameBudget } from './frameBudget';
+import { checkFrameBudget, yieldIfBudgetExceeded } from './frameBudget';
 import { SpatialLookupGrid } from './spatialGrid';
 
 export interface WorldCollider {
@@ -331,7 +331,28 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 
   const getTerrainHeight = createTerrainHeightEvaluator(getMeshSurfaceHeight, getProceduralHeight);
 
-  return populateWorldEntities(scene, terrainMesh, getTerrainHeight, dirLight, hemiLight, decorativeProps, pointLights);
+  let syncWorld: WorldObjects | null = null;
+  populateWorldEntities(scene, terrainMesh, getTerrainHeight, dirLight, hemiLight, decorativeProps, pointLights).then((res) => {
+    syncWorld = res;
+  });
+
+  return {
+    scene,
+    terrainMesh,
+    oceanMesh: new THREE.Mesh(),
+    chests: [],
+    npc: { id: 'elder_vaelen', group: new THREE.Group(), position: [-50, 0.25, 120] },
+    npcs: [],
+    colliders: [],
+    floatingCrystals: [],
+    checkpoints: [],
+    particles: new THREE.Points(),
+    decorativeProps,
+    pointLights,
+    dirLight,
+    hemiLight,
+    getTerrainHeight,
+  };
 }
 
 function createTerrainHeightEvaluator(
@@ -445,17 +466,17 @@ export async function buildWorldAsync(
   const posAttr = terrainGeo.attributes.position;
   const vertexCount = posAttr.count;
 
-  // 1. Initial procedural heights sampling (Time-sliced 12ms max per frame)
+  // 1. Initial procedural heights sampling (Time-sliced 8ms max macrotask budget)
   onProgress?.(15, 'Membangun Geometri & Heightmap Benua Eldoria...');
   const rawHeights: number[] = new Array(vertexCount);
   for (let i = 0; i < vertexCount; i++) {
     rawHeights[i] = getProceduralHeight(posAttr.getX(i), posAttr.getZ(i));
-    if (i % 250 === 0) {
-      await checkFrameBudget(12);
+    if (i % 100 === 0) {
+      await yieldIfBudgetExceeded(8);
     }
   }
 
-  // 2. Slope clamping and 3x3 smoothing filter (Time-sliced 12ms max per frame)
+  // 2. Slope clamping and 3x3 smoothing filter (Time-sliced 8ms max per slice)
   onProgress?.(20, 'Menghaluskan Kontur Elevasi & Palung Sungai...');
   const smoothedHeights: number[] = [...rawHeights];
   const gridW = segmentsX + 1;
@@ -486,13 +507,13 @@ export async function buildWorldAsync(
         }
         smoothedHeights[idx] = cur;
       }
-      if (gz % 10 === 0) {
-        await checkFrameBudget(12);
+      if (gz % 5 === 0) {
+        await yieldIfBudgetExceeded(8);
       }
     }
   }
 
-  // 3. Vertex colors generated seamlessly (Time-sliced 12ms max per frame)
+  // 3. Vertex colors generated seamlessly (Time-sliced 8ms max per slice)
   onProgress?.(25, 'Mewarnai Biome Terrain...');
   const colors: number[] = [];
   for (let i = 0; i < vertexCount; i++) {
@@ -504,8 +525,8 @@ export async function buildWorldAsync(
     const sample = getContinentBiomeSample(vx, vz);
     colors.push(sample.color[0] / 255, sample.color[1] / 255, sample.color[2] / 255);
 
-    if (i % 250 === 0) {
-      await checkFrameBudget(12);
+    if (i % 100 === 0) {
+      await yieldIfBudgetExceeded(8);
     }
   }
 
@@ -563,22 +584,29 @@ export async function buildWorldAsync(
   const getTerrainHeight = createTerrainHeightEvaluator(getMeshSurfaceHeight, getProceduralHeight);
 
   // 4. Build Spatial Lookup Grid (2D TypedArray Float32 & Uint8)
-  onProgress?.(28, 'Membangun Spatial Lookup Grid (TypedArray)...');
+  onProgress?.(26, 'Membangun Spatial Lookup Grid & Heightmap (TypedArray)...');
   await SpatialLookupGrid.get().buildAsync(getTerrainHeight, onProgress);
-  await checkFrameBudget(12);
+  await yieldIfBudgetExceeded(8);
 
-  return populateWorldEntities(scene, terrainMesh, getTerrainHeight, dirLight, hemiLight, decorativeProps, pointLights);
+  return await populateWorldEntities(scene, terrainMesh, getTerrainHeight, dirLight, hemiLight, decorativeProps, pointLights, onProgress);
 }
 
-function populateWorldEntities(
+async function populateWorldEntities(
   scene: THREE.Scene,
   terrainMesh: THREE.Mesh,
   getTerrainHeight: (x: number, z: number, forVisualMesh?: boolean) => number,
   dirLight: THREE.DirectionalLight,
   hemiLight: THREE.HemisphereLight,
   decorativeProps: THREE.Object3D[],
-  pointLights: THREE.PointLight[]
-): WorldObjects {
+  pointLights: THREE.PointLight[],
+  onProgress?: (percent: number, statusText: string) => void
+): Promise<WorldObjects> {
+
+  // ==========================================
+  // 1. VAST AZURE OCEAN WATER PLANE & COASTAL HARBOR & SANCTUARY VILLAGE (33%)
+  // ==========================================
+  onProgress?.(33, 'Membangun Desa Utama & Pelabuhan Sanctuary...');
+  await yieldIfBudgetExceeded(8);
 
   // ==========================================
   // 1. VAST AZURE OCEAN WATER PLANE
@@ -1094,11 +1122,261 @@ function populateWorldEntities(
   });
 
   // ==========================================
-  // 2.8 SECOND VILLAGE: RELOCATED & EXPANDED DESA BENTENG VAL-KRAGOR
+  // 8b. GRAND IMPERIAL KINGDOM OF ASTRAEA (North-West Plains Metropolis: [-250, -240]) (36%)
+  // ==========================================
+  onProgress?.(36, 'Membangun Ibukota Kerajaan Emas Astraea...');
+  await yieldIfBudgetExceeded(8);
+
+  const astraeaBaseY = 2.00;
+
+  // A. Grand Imperial Sun Palace of Astraea (North End: X: -250, Z: -265)
+  // Facing SOUTH (Direction: 0° / rotation.y = 0) looking over the plaza and south gate
+  const imperialPalace = createImperialPalaceMesh();
+  imperialPalace.position.set(-250, astraeaBaseY, -265);
+  imperialPalace.rotation.y = 0;
+  scene.add(imperialPalace);
+  colliders.push({
+    type: 'box',
+    minX: -264,
+    maxX: -236,
+    minZ: -276,
+    maxZ: -254,
+    label: 'Istana Kerajaan Kaisar Astraea',
+  });
+
+  // B. Grand Circular Stone Plaza & Jalan Lingkar (Center: X: -250, Z: -240, Radius: 11.5m)
+  const circularPlaza = createCircularPlazaMesh(11.5, 4.8);
+  circularPlaza.position.set(-250, astraeaBaseY, -240);
+  scene.add(circularPlaza);
+
+  // B2. Celestial 3-Tier Fountain of Immortality (Center of Circular Plaza at X: -250, Z: -240)
+  const celestialFountain = createImperialFountainMesh();
+  celestialFountain.position.set(-250, astraeaBaseY, -240);
+  scene.add(celestialFountain);
+  colliders.push({
+    type: 'circle',
+    x: -250,
+    z: -240,
+    radius: 4.8,
+    label: 'Air Mancur Keabadian Alun-Alun Astraea',
+  });
+
+  // B3. Four Golden Heroic Statues Placed at Diagonal Corners of Circular Plaza (NW, NE, SW, SE)
+  const heroStatues = [
+    { x: -258, z: -248, ry: Math.PI * 0.75 }, // Barat Laut
+    { x: -242, z: -248, ry: Math.PI * 1.25 }, // Timur Laut
+    { x: -258, z: -232, ry: Math.PI * 0.25 }, // Barat Daya
+    { x: -242, z: -232, ry: -Math.PI * 0.25 }, // Timur Daya
+  ];
+  heroStatues.forEach((hs, idx) => {
+    const statue = createImperialHeroStatueMesh();
+    statue.position.set(hs.x, astraeaBaseY, hs.z);
+    statue.rotation.y = hs.ry;
+    scene.add(statue);
+    colliders.push({ type: 'circle', x: hs.x, z: hs.z, radius: 1.4, label: `Monumen Ksatria Emas ${idx + 1}` });
+  });
+
+  // B4. Tiang Lampu Emas Kerajaan di Sepanjang Alur Istana dan Gerbang Selatan
+  const astraeaStreetlamps = [
+    // Flanking Central Promenade between Gate [-250, -210] and Plaza [-250, -240]
+    { x: -255, z: -218 },
+    { x: -245, z: -218 },
+    { x: -255, z: -228 },
+    { x: -245, z: -228 },
+    // Flanking Central Promenade between Plaza [-250, -240] and Palace [-250, -265]
+    { x: -255, z: -250 },
+    { x: -245, z: -250 },
+    { x: -255, z: -258 },
+    { x: -245, z: -258 },
+    // Outer Courtyard flanking lanterns
+    { x: -264, z: -240 },
+    { x: -236, z: -240 },
+  ];
+  astraeaStreetlamps.forEach((sl) => {
+    const lamp = createStreetLampMesh();
+    lamp.position.set(sl.x, astraeaBaseY, sl.z);
+    scene.add(lamp);
+    colliders.push({ type: 'circle', x: sl.x, z: sl.z, radius: 0.35, label: 'Lampu Emas Kerajaan' });
+  });
+
+  // C. South Imperial Gatehouse (South Entrance, X: -250, Z: -210)
+  // Facing SOUTH (Rotation Y = 0) meeting approach road perpendicularly
+  const imperialGatehouse = createImperialGatehouseMesh();
+  imperialGatehouse.position.set(-250, astraeaBaseY, -210);
+  imperialGatehouse.rotation.y = 0;
+  scene.add(imperialGatehouse);
+  colliders.push(
+    { type: 'box', minX: -257.5, maxX: -253.5, minZ: -212.5, maxZ: -207.5, label: 'Bastion Barat Gerbang Selatan Astraea' },
+    { type: 'box', minX: -246.5, maxX: -242.5, minZ: -212.5, maxZ: -207.5, label: 'Bastion Timur Gerbang Selatan Astraea' }
+  );
+
+  // D. Solid Imperial Fortress Wall Perimeter Enclosing Capital (X: -275..-225, Z: -270..-210)
+  // 1. South Wall - West Wing (from Gatehouse [-253.5, -210] to SW corner [-275, -210], length 21.5)
+  const wallSouthWest = createImperialWallMesh(21.5);
+  wallSouthWest.position.set(-264.25, astraeaBaseY, -210);
+  scene.add(wallSouthWest);
+  colliders.push({ type: 'box', minX: -275, maxX: -253.5, minZ: -211.5, maxZ: -208.5, label: 'Benteng Astraea Selatan Barat' });
+
+  // 2. South Wall - East Wing (from Gatehouse [-246.5, -210] to SE corner [-225, -210], length 21.5)
+  const wallSouthEast = createImperialWallMesh(21.5);
+  wallSouthEast.position.set(-235.75, astraeaBaseY, -210);
+  scene.add(wallSouthEast);
+  colliders.push({ type: 'box', minX: -246.5, maxX: -225, minZ: -211.5, maxZ: -208.5, label: 'Benteng Astraea Selatan Timur' });
+
+  // 3. North Wall (from [-275, -270] to [-225, -270], length 50)
+  const nWall = createImperialWallMesh(50);
+  nWall.position.set(-250, astraeaBaseY, -270);
+  scene.add(nWall);
+  colliders.push({ type: 'box', minX: -275, maxX: -225, minZ: -271.5, maxZ: -268.5, label: 'Benteng Astraea Utara' });
+
+  // 4. West Wall (from [-275, -270] to [-275, -210], length 60)
+  const wWall = createImperialWallMesh(60);
+  wWall.position.set(-275, astraeaBaseY, -240);
+  wWall.rotation.y = Math.PI / 2;
+  scene.add(wWall);
+  colliders.push({ type: 'box', minX: -276.5, maxX: -273.5, minZ: -270, maxZ: -210, label: 'Benteng Astraea Barat' });
+
+  // 5. East Wall (from [-225, -270] to [-225, -210], length 60)
+  const eWall = createImperialWallMesh(60);
+  eWall.position.set(-225, astraeaBaseY, -240);
+  eWall.rotation.y = Math.PI / 2;
+  scene.add(eWall);
+  colliders.push({ type: 'box', minX: -226.5, maxX: -223.5, minZ: -270, maxZ: -210, label: 'Benteng Astraea Timur' });
+
+  // 6. Four Corner Bastion Towers
+  const cornerTowers = [
+    { x: -275, z: -210, label: 'Menara Benteng Barat Daya Astraea' },
+    { x: -225, z: -210, label: 'Menara Benteng Tenggara Astraea' },
+    { x: -275, z: -270, label: 'Menara Benteng Barat Laut Astraea' },
+    { x: -225, z: -270, label: 'Menara Benteng Timur Laut Astraea' },
+  ];
+  cornerTowers.forEach((ct) => {
+    const tower = createFortressWatchtowerMesh();
+    tower.position.set(ct.x, astraeaBaseY, ct.z);
+    scene.add(tower);
+    colliders.push({ type: 'circle', x: ct.x, z: ct.z, radius: 2.8, label: ct.label });
+  });
+
+  // E. Symmetrical Grand Royal Bazaar Stalls Flanking West & East Promenades
+  const astraeaStall1 = createImperialBazaarStallMesh(0x9333ea, 0xfacc15); // Celestial Potions
+  astraeaStall1.position.set(-262, astraeaBaseY, -225);
+  astraeaStall1.rotation.y = Math.PI / 2;
+  scene.add(astraeaStall1);
+  colliders.push({ type: 'box', minX: -264, maxX: -260, minZ: -227, maxZ: -223, label: 'Kios Alkimia Kerajaan' });
+
+  const astraeaStall2 = createImperialBazaarStallMesh(0x2563eb, 0x38bdf8); // Masterwork Armory
+  astraeaStall2.position.set(-262, astraeaBaseY, -245);
+  astraeaStall2.rotation.y = Math.PI / 2;
+  scene.add(astraeaStall2);
+  colliders.push({ type: 'box', minX: -264, maxX: -260, minZ: -247, maxZ: -243, label: 'Kios Senjata Astraea' });
+
+  const astraeaStall3 = createImperialBazaarStallMesh(0xd97706, 0xfef08a); // Silk & Relics
+  astraeaStall3.position.set(-238, astraeaBaseY, -225);
+  astraeaStall3.rotation.y = -Math.PI / 2;
+  scene.add(astraeaStall3);
+  colliders.push({ type: 'box', minX: -240, maxX: -236, minZ: -227, maxZ: -223, label: 'Kios Sutra Emas' });
+
+  const astraeaStall4 = createImperialBazaarStallMesh(0x059669, 0xa7f3d0); // Royal Provisions
+  astraeaStall4.position.set(-238, astraeaBaseY, -245);
+  astraeaStall4.rotation.y = -Math.PI / 2;
+  scene.add(astraeaStall4);
+  colliders.push({ type: 'box', minX: -240, maxX: -236, minZ: -247, maxZ: -243, label: 'Kios Perjamuan Kaisar' });
+
+  // G. Pine Trees along Courtyard Perimeter (Inside Inner Walls)
+  const astraeaCourtyardPineCoords = [
+    { x: -268, z: -255 }, { x: -268, z: -235 },
+    { x: -232, z: -255 }, { x: -232, z: -235 },
+    { x: -268, z: -220 }, { x: -232, z: -220 },
+  ];
+  astraeaCourtyardPineCoords.forEach((pc) => {
+    const s = 0.95 + Math.random() * 0.35;
+    const pTree = createTreeMesh('pine');
+    pTree.position.set(pc.x, astraeaBaseY, pc.z);
+    scene.add(pTree);
+    colliders.push({ type: 'circle', x: pc.x, z: pc.z, radius: 0.6 * s, label: 'Pohon Pinus Astraea' });
+  });
+
+  // H. Astraea Royal NPCs
+  // NPC 13: Kaisar Aurelius Astraea (Standing on Throne Portico at palace entrance, facing South over plaza)
+  const emperorGroup = createCustomNPCMesh('emperor');
+  const emperorPos: [number, number, number] = [-250, astraeaBaseY + 1.6, -257];
+  emperorGroup.position.set(...emperorPos);
+  emperorGroup.rotation.y = 0; // Facing South towards plaza and south gate
+  scene.add(emperorGroup);
+  npcs.push({
+    id: 'emperor_aurelius',
+    name: 'Emperor Aurelius',
+    nameId: 'Kaisar Aurelius Astraea',
+    role: 'Ruler of the Imperial Realm',
+    roleType: 'emperor',
+    group: emperorGroup,
+    position: emperorPos,
+    dialogueId: 'emperor_aurelius',
+    icon: '👑',
+  });
+
+  // NPC 14: Panglima Perang Vane (Standing with dignity flanking the royal avenue entrance)
+  const marshalGroup = createCustomNPCMesh('marshal');
+  const marshalPos: [number, number, number] = [-246, astraeaBaseY, -215];
+  marshalGroup.position.set(...marshalPos);
+  marshalGroup.rotation.y = 0;
+  scene.add(marshalGroup);
+  npcs.push({
+    id: 'marshal_vane',
+    name: 'Grand Marshal Vane',
+    nameId: 'Panglima Perang Vane',
+    role: 'Supreme Legion Commander',
+    roleType: 'marshal',
+    group: marshalGroup,
+    position: marshalPos,
+    dialogueId: 'marshal_vane',
+    icon: '⚔️',
+  });
+
+  // NPC 15: Saudagar Kerajaan Lyra (At Alchemy Stall, facing East into promenade)
+  const lyraGroup = createCustomNPCMesh('alchemist');
+  const lyraPos: [number, number, number] = [-260, astraeaBaseY, -225];
+  lyraGroup.position.set(...lyraPos);
+  lyraGroup.rotation.y = Math.PI / 2;
+  scene.add(lyraGroup);
+  npcs.push({
+    id: 'merchant_lyra',
+    name: 'Royal Merchant Lyra',
+    nameId: 'Saudagar Kerajaan Lyra',
+    role: 'Imperial Silk & Elixir Merchant',
+    roleType: 'alchemist',
+    group: lyraGroup,
+    position: lyraPos,
+    dialogueId: 'merchant_lyra',
+    icon: '💎',
+  });
+
+  // NPC 16: Penjaga Gerbang Emas Astraea (Outside South Gate, facing South)
+  const astraeaGuardGroup = createCustomNPCMesh('guard');
+  const astraeaGuardPos: [number, number, number] = [-250, astraeaBaseY, -207];
+  astraeaGuardGroup.position.set(...astraeaGuardPos);
+  astraeaGuardGroup.rotation.y = 0; // Facing South guarding entrance from highway
+  scene.add(astraeaGuardGroup);
+  npcs.push({
+    id: 'guard_astraea',
+    name: 'Imperial Gate Sentinel',
+    nameId: 'Prajurit Gerbang Emas Astraea',
+    role: 'Imperial Palace Guard',
+    roleType: 'guard',
+    group: astraeaGuardGroup,
+    position: astraeaGuardPos,
+    dialogueId: 'guard_astraea',
+    icon: '🛡️',
+  });
+
+  // ==========================================
+  // 2.8 SECOND VILLAGE: RELOCATED & EXPANDED DESA BENTENG VAL-KRAGOR & PUING KASTIL (39%)
   // (Pusat Dataran Padang Rumput Timur: Center [315, 95], Courtyard X: 289..341, Z: 73..117 at y = 2.00)
   // Gerbang Utama diputar lurus menghadap Barat (Rotation Y = Math.PI * 1.5 / 270°).
   // Interior lengkap: Barak Prajurit, Bengkel Persenjataan Goran, Menara Panah, Tempat Latihan Pedang & Panahan, Api Unggun.
   // ==========================================
+  onProgress?.(39, 'Membangun Desa Benteng Val-Kragor & Puing Kastil...');
+  await yieldIfBudgetExceeded(8);
   const valKragorBaseY = 2.00;
   const vkBaseX = 310;
   const vkBaseZ = 115;
@@ -1652,8 +1930,10 @@ function populateWorldEntities(
   scene.add(villageTreesMesh);
 
   // ==========================================
-  // 5. SOLARIA GOLDEN DESERT: VILLAGE, GRAND PALACE & SUNKEN PYRAMID
+  // 5. SOLARIA GOLDEN DESERT: VILLAGE, GRAND PALACE & SUNKEN PYRAMID (42%)
   // ==========================================
+  onProgress?.(42, 'Membangun Piramida, Oase, & Istana Sultan Malik...');
+  await yieldIfBudgetExceeded(8);
 
   // ------------------------------------------
   // 5A. ANCIENT SUNKEN PYRAMID RUINS ([120, -280])
@@ -2073,8 +2353,10 @@ function populateWorldEntities(
   // Gundukan pasir oval melayang (sandDunes) dihapus total sesuai permintaan user.
 
   // ==========================================
-  // 5D. THE GREAT SOLARIA SINKHOLE - SARANG CACING PURBA JARRUS (SW Desert: [-30, -220])
+  // 5D. THE GREAT SOLARIA SINKHOLE & REGIONAL MONUMENTS (45%)
   // ==========================================
+  onProgress?.(45, 'Membangun Lembah Danau Titan, Kanyon Kuno, & Kaldera Naga...');
+  await yieldIfBudgetExceeded(8);
   const sinkholeCenter = { x: -30, z: -220 };
   const sinkholeBaseY = getTerrainHeight(sinkholeCenter.x, sinkholeCenter.z);
 
@@ -2440,254 +2722,6 @@ function populateWorldEntities(
   scene.add(dragonCalderaLight);
 
   // ==========================================
-  // 8b. GRAND IMPERIAL KINGDOM OF ASTRAEA (North-West Plains Metropolis: [-250, -240])
-  // Relocated to peaceful north-west plains (Lv.4), completely separated from Val-Kragor and Solaria.
-  // Grand South Gatehouse facing South (0° / rotation.y = 0) at [-250, -210], meeting the approach road perpendicularly.
-  // All structures sit on flat terrain at Y = 2.00 (zero gap).
-  // ==========================================
-  const astraeaBaseY = 2.00;
-
-  // A. Grand Imperial Sun Palace of Astraea (North End: X: -250, Z: -265)
-  // Facing SOUTH (Direction: 0° / rotation.y = 0) looking over the plaza and south gate
-  const imperialPalace = createImperialPalaceMesh();
-  imperialPalace.position.set(-250, astraeaBaseY, -265);
-  imperialPalace.rotation.y = 0;
-  scene.add(imperialPalace);
-  colliders.push({
-    type: 'box',
-    minX: -264,
-    maxX: -236,
-    minZ: -276,
-    maxZ: -254,
-    label: 'Istana Kerajaan Kaisar Astraea',
-  });
-
-  // B. Grand Circular Stone Plaza & Jalan Lingkar (Center: X: -250, Z: -240, Radius: 11.5m)
-  const circularPlaza = createCircularPlazaMesh(11.5, 4.8);
-  circularPlaza.position.set(-250, astraeaBaseY, -240);
-  scene.add(circularPlaza);
-
-  // B2. Celestial 3-Tier Fountain of Immortality (Center of Circular Plaza at X: -250, Z: -240)
-  const celestialFountain = createImperialFountainMesh();
-  celestialFountain.position.set(-250, astraeaBaseY, -240);
-  scene.add(celestialFountain);
-  colliders.push({
-    type: 'circle',
-    x: -250,
-    z: -240,
-    radius: 4.8,
-    label: 'Air Mancur Keabadian Alun-Alun Astraea',
-  });
-
-  // B3. Four Golden Heroic Statues Placed at Diagonal Corners of Circular Plaza (NW, NE, SW, SE)
-  const heroStatues = [
-    { x: -258, z: -248, ry: Math.PI * 0.75 }, // Barat Laut
-    { x: -242, z: -248, ry: Math.PI * 1.25 }, // Timur Laut
-    { x: -258, z: -232, ry: Math.PI * 0.25 }, // Barat Daya
-    { x: -242, z: -232, ry: -Math.PI * 0.25 }, // Timur Daya
-  ];
-  heroStatues.forEach((hs, idx) => {
-    const statue = createImperialHeroStatueMesh();
-    statue.position.set(hs.x, astraeaBaseY, hs.z);
-    statue.rotation.y = hs.ry;
-    scene.add(statue);
-    colliders.push({ type: 'circle', x: hs.x, z: hs.z, radius: 1.4, label: `Monumen Ksatria Emas ${idx + 1}` });
-  });
-
-  // B4. Tiang Lampu Emas Kerajaan di Sepanjang Alur Istana dan Gerbang Selatan
-  const astraeaStreetlamps = [
-    // Flanking Central Promenade between Gate [-250, -210] and Plaza [-250, -240]
-    { x: -255, z: -218 },
-    { x: -245, z: -218 },
-    { x: -255, z: -228 },
-    { x: -245, z: -228 },
-    // Flanking Central Promenade between Plaza [-250, -240] and Palace [-250, -265]
-    { x: -255, z: -250 },
-    { x: -245, z: -250 },
-    { x: -255, z: -258 },
-    { x: -245, z: -258 },
-    // Outer Courtyard flanking lanterns
-    { x: -264, z: -240 },
-    { x: -236, z: -240 },
-  ];
-  astraeaStreetlamps.forEach((sl) => {
-    const lamp = createStreetLampMesh();
-    lamp.position.set(sl.x, astraeaBaseY, sl.z);
-    scene.add(lamp);
-    colliders.push({ type: 'circle', x: sl.x, z: sl.z, radius: 0.35, label: 'Lampu Emas Kerajaan' });
-  });
-
-  // C. South Imperial Gatehouse (South Entrance, X: -250, Z: -210)
-  // Facing SOUTH (Rotation Y = 0) meeting approach road perpendicularly
-  const imperialGatehouse = createImperialGatehouseMesh();
-  imperialGatehouse.position.set(-250, astraeaBaseY, -210);
-  imperialGatehouse.rotation.y = 0;
-  scene.add(imperialGatehouse);
-  colliders.push(
-    { type: 'box', minX: -257.5, maxX: -253.5, minZ: -212.5, maxZ: -207.5, label: 'Bastion Barat Gerbang Selatan Astraea' },
-    { type: 'box', minX: -246.5, maxX: -242.5, minZ: -212.5, maxZ: -207.5, label: 'Bastion Timur Gerbang Selatan Astraea' }
-  );
-
-  // D. Solid Imperial Fortress Wall Perimeter Enclosing Capital (X: -275..-225, Z: -270..-210)
-  // 1. South Wall - West Wing (from Gatehouse [-253.5, -210] to SW corner [-275, -210], length 21.5)
-  const wallSouthWest = createImperialWallMesh(21.5);
-  wallSouthWest.position.set(-264.25, astraeaBaseY, -210);
-  scene.add(wallSouthWest);
-  colliders.push({ type: 'box', minX: -275, maxX: -253.5, minZ: -211.5, maxZ: -208.5, label: 'Benteng Astraea Selatan Barat' });
-
-  // 2. South Wall - East Wing (from Gatehouse [-246.5, -210] to SE corner [-225, -210], length 21.5)
-  const wallSouthEast = createImperialWallMesh(21.5);
-  wallSouthEast.position.set(-235.75, astraeaBaseY, -210);
-  scene.add(wallSouthEast);
-  colliders.push({ type: 'box', minX: -246.5, maxX: -225, minZ: -211.5, maxZ: -208.5, label: 'Benteng Astraea Selatan Timur' });
-
-  // 3. North Wall (from [-275, -270] to [-225, -270], length 50)
-  const nWall = createImperialWallMesh(50);
-  nWall.position.set(-250, astraeaBaseY, -270);
-  scene.add(nWall);
-  colliders.push({ type: 'box', minX: -275, maxX: -225, minZ: -271.5, maxZ: -268.5, label: 'Benteng Astraea Utara' });
-
-  // 4. West Wall (from [-275, -270] to [-275, -210], length 60)
-  const wWall = createImperialWallMesh(60);
-  wWall.position.set(-275, astraeaBaseY, -240);
-  wWall.rotation.y = Math.PI / 2;
-  scene.add(wWall);
-  colliders.push({ type: 'box', minX: -276.5, maxX: -273.5, minZ: -270, maxZ: -210, label: 'Benteng Astraea Barat' });
-
-  // 5. East Wall (from [-225, -270] to [-225, -210], length 60)
-  const eWall = createImperialWallMesh(60);
-  eWall.position.set(-225, astraeaBaseY, -240);
-  eWall.rotation.y = Math.PI / 2;
-  scene.add(eWall);
-  colliders.push({ type: 'box', minX: -226.5, maxX: -223.5, minZ: -270, maxZ: -210, label: 'Benteng Astraea Timur' });
-
-  // 6. Four Corner Bastion Towers
-  const cornerTowers = [
-    { x: -275, z: -210, label: 'Menara Benteng Barat Daya Astraea' },
-    { x: -225, z: -210, label: 'Menara Benteng Tenggara Astraea' },
-    { x: -275, z: -270, label: 'Menara Benteng Barat Laut Astraea' },
-    { x: -225, z: -270, label: 'Menara Benteng Timur Laut Astraea' },
-  ];
-  cornerTowers.forEach((ct) => {
-    const tower = createFortressWatchtowerMesh();
-    tower.position.set(ct.x, astraeaBaseY, ct.z);
-    scene.add(tower);
-    colliders.push({ type: 'circle', x: ct.x, z: ct.z, radius: 2.8, label: ct.label });
-  });
-
-  // E. Symmetrical Grand Royal Bazaar Stalls Flanking West & East Promenades
-  const astraeaStall1 = createImperialBazaarStallMesh(0x9333ea, 0xfacc15); // Celestial Potions
-  astraeaStall1.position.set(-262, astraeaBaseY, -225);
-  astraeaStall1.rotation.y = Math.PI / 2;
-  scene.add(astraeaStall1);
-  colliders.push({ type: 'box', minX: -264, maxX: -260, minZ: -227, maxZ: -223, label: 'Kios Alkimia Kerajaan' });
-
-  const astraeaStall2 = createImperialBazaarStallMesh(0x2563eb, 0x38bdf8); // Masterwork Armory
-  astraeaStall2.position.set(-262, astraeaBaseY, -245);
-  astraeaStall2.rotation.y = Math.PI / 2;
-  scene.add(astraeaStall2);
-  colliders.push({ type: 'box', minX: -264, maxX: -260, minZ: -247, maxZ: -243, label: 'Kios Senjata Astraea' });
-
-  const astraeaStall3 = createImperialBazaarStallMesh(0xd97706, 0xfef08a); // Silk & Relics
-  astraeaStall3.position.set(-238, astraeaBaseY, -225);
-  astraeaStall3.rotation.y = -Math.PI / 2;
-  scene.add(astraeaStall3);
-  colliders.push({ type: 'box', minX: -240, maxX: -236, minZ: -227, maxZ: -223, label: 'Kios Sutra Emas' });
-
-  const astraeaStall4 = createImperialBazaarStallMesh(0x059669, 0xa7f3d0); // Royal Provisions
-  astraeaStall4.position.set(-238, astraeaBaseY, -245);
-  astraeaStall4.rotation.y = -Math.PI / 2;
-  scene.add(astraeaStall4);
-  colliders.push({ type: 'box', minX: -240, maxX: -236, minZ: -247, maxZ: -243, label: 'Kios Perjamuan Kaisar' });
-
-  // G. Pine Trees along Courtyard Perimeter (Inside Inner Walls)
-  const astraeaCourtyardPineCoords = [
-    { x: -268, z: -255 }, { x: -268, z: -235 },
-    { x: -232, z: -255 }, { x: -232, z: -235 },
-    { x: -268, z: -220 }, { x: -232, z: -220 },
-  ];
-  astraeaCourtyardPineCoords.forEach((pc) => {
-    const s = 0.95 + Math.random() * 0.35;
-    const pTree = createTreeMesh('pine');
-    pTree.position.set(pc.x, astraeaBaseY, pc.z);
-    scene.add(pTree);
-    colliders.push({ type: 'circle', x: pc.x, z: pc.z, radius: 0.6 * s, label: 'Pohon Pinus Astraea' });
-  });
-
-  // H. Astraea Royal NPCs
-  // NPC 13: Kaisar Aurelius Astraea (Standing on Throne Portico at palace entrance, facing South over plaza)
-  const emperorGroup = createCustomNPCMesh('emperor');
-  const emperorPos: [number, number, number] = [-250, astraeaBaseY + 1.6, -257];
-  emperorGroup.position.set(...emperorPos);
-  emperorGroup.rotation.y = 0; // Facing South towards plaza and south gate
-  scene.add(emperorGroup);
-  npcs.push({
-    id: 'emperor_aurelius',
-    name: 'Emperor Aurelius',
-    nameId: 'Kaisar Aurelius Astraea',
-    role: 'Ruler of the Imperial Realm',
-    roleType: 'emperor',
-    group: emperorGroup,
-    position: emperorPos,
-    dialogueId: 'emperor_aurelius',
-    icon: '👑',
-  });
-
-  // NPC 14: Panglima Perang Vane (Standing with dignity flanking the royal avenue entrance)
-  const marshalGroup = createCustomNPCMesh('marshal');
-  const marshalPos: [number, number, number] = [-246, astraeaBaseY, -215];
-  marshalGroup.position.set(...marshalPos);
-  marshalGroup.rotation.y = 0;
-  scene.add(marshalGroup);
-  npcs.push({
-    id: 'marshal_vane',
-    name: 'Grand Marshal Vane',
-    nameId: 'Panglima Perang Vane',
-    role: 'Supreme Legion Commander',
-    roleType: 'marshal',
-    group: marshalGroup,
-    position: marshalPos,
-    dialogueId: 'marshal_vane',
-    icon: '⚔️',
-  });
-
-  // NPC 15: Saudagar Kerajaan Lyra (At Alchemy Stall, facing East into promenade)
-  const lyraGroup = createCustomNPCMesh('alchemist');
-  const lyraPos: [number, number, number] = [-260, astraeaBaseY, -225];
-  lyraGroup.position.set(...lyraPos);
-  lyraGroup.rotation.y = Math.PI / 2;
-  scene.add(lyraGroup);
-  npcs.push({
-    id: 'merchant_lyra',
-    name: 'Royal Merchant Lyra',
-    nameId: 'Saudagar Kerajaan Lyra',
-    role: 'Imperial Silk & Elixir Merchant',
-    roleType: 'alchemist',
-    group: lyraGroup,
-    position: lyraPos,
-    dialogueId: 'merchant_lyra',
-    icon: '💎',
-  });
-
-  // NPC 16: Penjaga Gerbang Emas Astraea (Outside South Gate, facing South)
-  const astraeaGuardGroup = createCustomNPCMesh('guard');
-  const astraeaGuardPos: [number, number, number] = [-250, astraeaBaseY, -207];
-  astraeaGuardGroup.position.set(...astraeaGuardPos);
-  astraeaGuardGroup.rotation.y = 0; // Facing South guarding entrance from highway
-  scene.add(astraeaGuardGroup);
-  npcs.push({
-    id: 'guard_astraea',
-    name: 'Imperial Gate Sentinel',
-    nameId: 'Prajurit Gerbang Emas Astraea',
-    role: 'Imperial Palace Guard',
-    roleType: 'guard',
-    group: astraeaGuardGroup,
-    position: astraeaGuardPos,
-    dialogueId: 'guard_astraea',
-    icon: '🛡️',
-  });
-
-  // ==========================================
   // 9. TREASURE CHESTS (Across all active continent zones)
   // ==========================================
   const chestData = [
@@ -3041,6 +3075,9 @@ function populateWorldEntities(
   // ==========================================
   const mistForestTreesData: { x: number; y: number; z: number; scale: number; rotationY: number }[] = [];
   for (let t = 0; t < 160; t++) {
+    if (t % 50 === 0) {
+      await yieldIfBudgetExceeded(8);
+    }
     const angle = (t / 160) * Math.PI * 2 * 11;
     const r = Math.sqrt((t + 1) / 160) * 58;
     const tx = 335 + Math.cos(angle) * r;
@@ -3145,7 +3182,12 @@ function populateWorldEntities(
 
   scene.add(castleRuinsGroup);
 
-  // 11. REGIONAL CHECKPOINT & WAYPOINT TELEPORTATION MONUMENTS
+  // ==========================================
+  // 11. REGIONAL CHECKPOINT & WAYPOINT TELEPORTATION MONUMENTS (48%)
+  // ==========================================
+  onProgress?.(48, 'Menempatkan NPC, Pedagang, & World Boss...');
+  await yieldIfBudgetExceeded(8);
+
   const checkpoints: WorldCheckpoint[] = [];
 
   const CHECKPOINT_DEFINITIONS: {

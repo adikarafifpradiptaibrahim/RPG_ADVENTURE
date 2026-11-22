@@ -16,7 +16,7 @@ import {
   isDesertBiome,
 } from '../mapSampler';
 import { getSampledRoads } from '../RoadSystem';
-import { checkFrameBudget } from './frameBudget';
+import { checkFrameBudget, yieldIfBudgetExceeded } from './frameBudget';
 
 export const SPATIAL_CELL_SIZE = 2.0;
 export const SPATIAL_MIN_X = WORLD_BOUNDS.minX; // -600
@@ -278,12 +278,12 @@ export class SpatialLookupGrid {
         }
       }
 
-      // Check frame budget every 15 rows (~9,000 cells)
-      if (row % 15 === 0) {
-        await checkFrameBudget(12);
+      // Check frame budget every 2 rows (~1,200 cells) with strict 8ms macrotask budget
+      if (row % 2 === 0) {
+        await yieldIfBudgetExceeded(8);
         if (onProgress) {
-          const pct = 20 + Math.round((row / SPATIAL_ROWS) * 10);
-          onProgress(pct, 'Membangun Spatial Lookup Grid & Heightmap...');
+          const pct = 26 + Math.round((row / SPATIAL_ROWS) * 4);
+          onProgress(pct, 'Membangun Spatial Lookup Grid & Heightmap (TypedArray)...');
         }
       }
     }

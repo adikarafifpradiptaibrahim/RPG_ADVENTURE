@@ -94,15 +94,8 @@ import {
   MageBlinkVfxInstance,
 } from '../skills';
 import { DayNightSystem, getSharedDayNightSystem } from './dayNightSystem';
-
-/**
- * Helper to yield execution to browser main thread for 1 frame (~16ms)
- * to keep UI, progress animations, and DOM fully responsive without "Page Unresponsive" warnings.
- */
-export const yieldToMainThread = () =>
-  new Promise<void>((resolve) => {
-    setTimeout(resolve, 16);
-  });
+import { yieldToMainThread, yieldIfBudgetExceeded } from './frameBudget';
+export { yieldToMainThread, yieldIfBudgetExceeded };
 
 export interface LootPickup {
   mesh: THREE.Group;
@@ -1116,19 +1109,15 @@ export class GameEngine {
     // 1. Build 3D World (terrain, ocean, structures, colliders, lights, props) with time-sliced async generation
     this.world = await buildWorldAsync(this.scene, onProgress);
 
-    // Tahap 2: 30% Membentuk Sungai, Jembatan, & Perairan Laut
-    onProgress?.(30, 'Membentuk Sungai, Jembatan, & Perairan Laut...');
-    await yieldToMainThread();
-
     // Connect Day-Night outdoor lighting and dynamic PointLights
     if (this.world?.hemiLight && this.world?.dirLight) {
       this.dayNightSystem.applyOutdoorLighting(this.scene, this.world.hemiLight, this.world.dirLight, this.playerPos);
     }
     this.scenePointLights = this.world.pointLights || [];
 
-    // Tahap 3: 45% Menempatkan Struktur Kota, Kastil, & Arena Boss
-    onProgress?.(45, 'Menempatkan Struktur Kota, Kastil, & Arena Boss...');
-    await yieldToMainThread();
+    // Tahap 3b: 49% Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya
+    onProgress?.(49, 'Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya...');
+    await yieldIfBudgetExceeded(8);
 
     // Initialize Boss Manager
     this.bossManager = new BossManager(
@@ -1185,7 +1174,7 @@ export class GameEngine {
 
     // Tahap 4: 50% - 70% Populasi Vegetasi & Bebatuan (InstancedMesh) Time-Sliced
     onProgress?.(50, 'Populasi Vegetasi & Bebatuan (InstancedMesh)...');
-    await yieldToMainThread();
+    await yieldIfBudgetExceeded(8);
 
     // 2. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation with TypedArray spatial lookup
     this.worldEnvironment = await buildWorldEnvironmentAsync(

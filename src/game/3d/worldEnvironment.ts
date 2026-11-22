@@ -11,7 +11,7 @@ import {
   RIVER_MAIN_DOWNSTREAM,
 } from '../mapSampler';
 import { SpatialLookupGrid } from './spatialGrid';
-import { checkFrameBudget } from './frameBudget';
+import { checkFrameBudget, yieldIfBudgetExceeded } from './frameBudget';
 
 export interface WorldEnvironmentResult {
   group: THREE.Group;
@@ -2225,8 +2225,8 @@ export async function buildWorldEnvironmentAsync(
   let pineAttempts = 0;
   while (pineAssigned < PINE_COUNT && pineAttempts < 1500) {
     pineAttempts++;
-    if (pineAttempts % 150 === 0) {
-      await checkFrameBudget(12);
+    if (pineAttempts % 100 === 0) {
+      await yieldIfBudgetExceeded(8);
     }
     // Cakupan diperluas ke seluruh barat, utara dan timur Eldoria Padang Rumput
     const cx = -460 + Math.random() * 880;
@@ -2283,8 +2283,8 @@ export async function buildWorldEnvironmentAsync(
   let oakAttempts = 0;
   while (oakAssigned < OAK_COUNT && oakAttempts < 1200) {
     oakAttempts++;
-    if (oakAttempts % 150 === 0) {
-      await checkFrameBudget(12);
+    if (oakAttempts % 100 === 0) {
+      await yieldIfBudgetExceeded(8);
     }
     const cx = -440 + Math.random() * 860;
     const cz = -380 + Math.random() * 560;
@@ -2330,8 +2330,8 @@ export async function buildWorldEnvironmentAsync(
   let boulderAttempts = 0;
   while (boulderAssigned < BOULDER_COUNT && boulderAttempts < 1400) {
     boulderAttempts++;
-    if (boulderAttempts % 150 === 0) {
-      await checkFrameBudget(12);
+    if (boulderAttempts % 100 === 0) {
+      await yieldIfBudgetExceeded(8);
     }
     const cx = -460 + Math.random() * 880;
     const cz = -400 + Math.random() * 580;
@@ -2384,8 +2384,8 @@ export async function buildWorldEnvironmentAsync(
   let shrubAttempts = 0;
   while (shrubAssigned < SHRUB_COUNT && shrubAttempts < 1800) {
     shrubAttempts++;
-    if (shrubAttempts % 150 === 0) {
-      await checkFrameBudget(12);
+    if (shrubAttempts % 100 === 0) {
+      await yieldIfBudgetExceeded(8);
     }
     const cx = -460 + Math.random() * 880;
     const cz = -420 + Math.random() * 600;
@@ -2428,7 +2428,7 @@ export async function buildWorldEnvironmentAsync(
   let reefAttempts = 0;
   while (reefAssigned < REEF_STONE_COUNT && reefAttempts < 500) {
     reefAttempts++;
-    if (reefAttempts % 100 === 0) await checkFrameBudget(12);
+    if (reefAttempts % 100 === 0) await yieldIfBudgetExceeded(8);
     const rx = -410 - Math.random() * 38;
     const rz = -50 - Math.random() * 190;
     if (spatialGrid.isDesert(rx, rz)) continue;
@@ -2458,7 +2458,7 @@ export async function buildWorldEnvironmentAsync(
   let bgAttempts = 0;
   while (bgAssigned < BEACH_GRASS_COUNT && bgAttempts < 600) {
     bgAttempts++;
-    if (bgAttempts % 100 === 0) await checkFrameBudget(12);
+    if (bgAttempts % 100 === 0) await yieldIfBudgetExceeded(8);
     const gx = -402 - Math.random() * 26;
     const gz = -55 - Math.random() * 180;
     if (spatialGrid.isDesert(gx, gz)) continue;
@@ -2493,8 +2493,8 @@ export async function buildWorldEnvironmentAsync(
   let pgAttempts = 0;
   while (pgAssigned < PLAINS_GRASS_COUNT && pgAttempts < 4000) {
     pgAttempts++;
-    if (pgAttempts % 200 === 0) {
-      await checkFrameBudget(12);
+    if (pgAttempts % 100 === 0) {
+      await yieldIfBudgetExceeded(8);
     }
     const gx = -450 + Math.random() * 880;
     const gz = -400 + Math.random() * 580;
@@ -2517,7 +2517,7 @@ export async function buildWorldEnvironmentAsync(
   envGroup.add(plainsGrassMesh);
 
   onProgress?.(70, 'Membangun Ekosistem Gurun, Danau Titan & Hutan Kabut...');
-  await checkFrameBudget(12);
+  await yieldIfBudgetExceeded(8);
 
   // ============================================================================
   // ZONA L: VEGETASI & BEBATUAN GURUN SOLARIA (SAGUARO CACTI, SANDSTONE CRAGS & DRY TREES)
@@ -2642,6 +2642,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(desertFloraGroup);
+  await yieldIfBudgetExceeded(8);
 
   // ============================================================================
   // ZONA M: LEMBAH DANAU TITAN KUNO & PINUS BERSALJU (NORTHWEST TITAN LAKE)
@@ -2731,6 +2732,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(titanLakeGroup);
+  await yieldIfBudgetExceeded(8);
 
   // ============================================================================
   // ZONA N: KANYON KUNO (NORTHERN RED CANYON MESAS & CANYON CLIFFS)
@@ -2774,6 +2776,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(ancientCanyonGroup);
+  await yieldIfBudgetExceeded(8);
 
   // ============================================================================
   // ZONA O: HUTAN KABUT ELDORIA (MIST FOREST & FOG EFFECT)
@@ -2838,6 +2841,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(mistForestGroup);
+  await yieldIfBudgetExceeded(8);
 
   // ============================================================================
   // ZONA P: PUING KASTIL TERBENGKALAI (ABANDONED CASTLE RUINS)
@@ -2888,6 +2892,7 @@ export async function buildWorldEnvironmentAsync(
   }
 
   envGroup.add(castleRuinsGroup);
+  await yieldIfBudgetExceeded(8);
 
   // ============================================================================
   // ZONA Q: DESA BENTENG VAL-KRAGOR (EAST FORTRESS VILLAGE)
@@ -2938,6 +2943,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(valkragorGroup);
+  await yieldIfBudgetExceeded(8);
 
   // ============================================================================
   // ZONA R: LEMBAH BATU LUMUT (MOSSY ROCK VALLEY & GLADE SPORES)
@@ -2992,6 +2998,7 @@ export async function buildWorldEnvironmentAsync(
   }
 
   envGroup.add(mossValleyGroup);
+  await yieldIfBudgetExceeded(8);
 
   // ============================================================================
   // ZONA S: HUTAN LINDUNG BARAT DAYA (SOUTHWEST LUSH OAK FOREST)

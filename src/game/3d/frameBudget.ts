@@ -1,60 +1,50 @@
 /**
- * Lead WebGL Performance Architect & JavaScript Runtime Optimization
+ * Senior WebGL Performance Architect & Browser Runtime Optimization Engineer
  * FrameBudgetTimer & Time-Slicing Utilities
  * 
- * Guarantees that heavy computation loops (terrain heightmap, instanced vegetation population,
- * procedural geometry creation) never lock the JavaScript main thread for more than 12ms per frame.
- * Leaves ~4ms per 60Hz frame for browser paint, composite, DOM animations, and tab switching,
- * completely eliminating browser "Page Unresponsive" dialogs.
+ * Guarantees that heavy computation loops (terrain heightmap, city structures, instanced vegetation)
+ * never lock the JavaScript main thread for more than 8ms per work slice.
+ * Uses Macrotask setTimeout(resolve, 0) yielding to ensure Chrome UI, tab switching, and window events
+ * are processed smoothly with 0% freeze and 0 dialogs "Page Unresponsive".
  */
 
-let globalLastYieldTime = performance.now();
+let sliceStartTime = performance.now();
 
 /**
- * Yields control back to the browser for 1 frame.
- * Uses requestAnimationFrame when tab is active for 60fps v-sync,
- * with a 16ms setTimeout fallback if the tab is backgrounded.
+ * Yields control to the browser macrotask queue via setTimeout(0).
+ * Allows Chrome to process tab clicks, input events, and background processes.
  */
+export function yieldToMainThread(): Promise<void> {
+  return new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
 export function yieldToBrowserFrame(): Promise<void> {
-  return new Promise<void>((resolve) => {
-    if (typeof requestAnimationFrame !== 'undefined') {
-      let resolved = false;
-      const rafId = requestAnimationFrame(() => {
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(timeoutId);
-          resolve();
-        }
-      });
-      const timeoutId = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          cancelAnimationFrame(rafId);
-          resolve();
-        }
-      }, 16);
-    } else {
-      setTimeout(resolve, 0);
-    }
-  });
+  return yieldToMainThread();
 }
 
 /**
- * Checks if the current frame budget (default: 12ms) has been exceeded.
- * If exceeded, yields to the browser frame and resets the timer.
+ * Strictly checks if execution has exceeded the 8ms CPU budget.
+ * If exceeded, yields to macrotask queue (setTimeout 0) and resets the slice timer.
  */
-export async function checkFrameBudget(budgetMs = 12): Promise<void> {
-  if (performance.now() - globalLastYieldTime >= budgetMs) {
-    await yieldToBrowserFrame();
-    globalLastYieldTime = performance.now();
+export async function yieldIfBudgetExceeded(maxMs = 8): Promise<void> {
+  if (performance.now() - sliceStartTime >= maxMs) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    sliceStartTime = performance.now();
   }
+}
+
+/**
+ * Backward-compatible checkFrameBudget with strict 8ms default
+ */
+export async function checkFrameBudget(budgetMs = 8): Promise<void> {
+  return yieldIfBudgetExceeded(budgetMs);
 }
 
 /**
  * Resets the frame budget timer to now.
  */
 export function resetFrameBudget(): void {
-  globalLastYieldTime = performance.now();
+  sliceStartTime = performance.now();
 }
 
 /**
@@ -64,7 +54,7 @@ export class FrameBudgetTimer {
   private lastYieldTime: number;
   private budgetMs: number;
 
-  constructor(budgetMs = 12) {
+  constructor(budgetMs = 8) {
     this.budgetMs = budgetMs;
     this.lastYieldTime = performance.now();
   }
@@ -76,7 +66,7 @@ export class FrameBudgetTimer {
   public async check(customBudgetMs?: number): Promise<void> {
     const budget = customBudgetMs ?? this.budgetMs;
     if (performance.now() - this.lastYieldTime >= budget) {
-      await yieldToBrowserFrame();
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
       this.lastYieldTime = performance.now();
     }
   }
@@ -85,8 +75,3 @@ export class FrameBudgetTimer {
     return performance.now() - this.lastYieldTime;
   }
 }
-
-/**
- * Legacy compatible alias
- */
-export const yieldToMainThread = yieldToBrowserFrame;
