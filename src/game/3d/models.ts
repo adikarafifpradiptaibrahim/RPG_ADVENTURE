@@ -22,6 +22,7 @@ import {
   createBlockyHunterMesh,
   createLegacyHunterMesh,
   USE_LEGACY_HUNTER,
+  updateHunterWeaponStance,
   animateHunterWalk,
   animateHunterBowAim,
 } from './playerModel';
@@ -43,6 +44,7 @@ export {
   createBlockyHunterMesh,
   createLegacyHunterMesh,
   USE_LEGACY_HUNTER,
+  updateHunterWeaponStance,
   animateHunterWalk,
   animateHunterBowAim,
 };
@@ -132,6 +134,7 @@ export interface PlayerMeshObjects {
   sheathedDaggers?: THREE.Group;
   hunterWeaponMode?: 'dagger' | 'bow';
   setHunterWeaponMode?: (mode: 'dagger' | 'bow') => void;
+  setHunterSheathed?: (sheathed: boolean) => void;
 }
 
 export function createPlayerMesh(charClass: CharacterClass = 'warrior', tier: number = 1): PlayerMeshObjects {

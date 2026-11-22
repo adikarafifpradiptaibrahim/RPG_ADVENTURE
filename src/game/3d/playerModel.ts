@@ -459,7 +459,7 @@ export function createHunterModel(): THREE.Group {
   return root;
 }
 
-export function updateHunterWeaponStance(model: THREE.Group, stance: 'dagger' | 'bow') {
+export function updateHunterWeaponStance(model: THREE.Group, stance: 'dagger' | 'bow', isSheathed: boolean = false) {
   const backBow = model.getObjectByName('BackBow');
   const handBow = model.getObjectByName('HandBow');
   const bowArrow = model.getObjectByName('BowArrow');
@@ -472,6 +472,24 @@ export function updateHunterWeaponStance(model: THREE.Group, stance: 'dagger' | 
 
   if (bowArrow) bowArrow.visible = false;
   if (arrowVortex) arrowVortex.visible = false;
+
+  if (isSheathed) {
+    // Mode Tersimpan (Ninja Sprint Auto-Sheathe):
+    // Bebaskan kedua tangan, simpan busur di punggung & belati di pinggang
+    if (handBow) handBow.visible = false;
+    if (leftDagger) leftDagger.visible = false;
+    if (rightDagger) rightDagger.visible = false;
+    if (backBow) backBow.visible = true;
+
+    // Pose lengan netral agar leluasa dikendalikan oleh animasi Shinobi Arm Sweep
+    if (leftArmPose) {
+      leftArmPose.rotation.set(0, 0, 0);
+    }
+    if (rightArmPose) {
+      rightArmPose.rotation.set(0, 0, 0);
+    }
+    return;
+  }
 
   if (stance === 'bow') {
     // Mode Panah:
@@ -536,12 +554,17 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
   const leftWeapon = ((root as any).leftWeapon || leftArm) as THREE.Group;
 
   let hunterWeaponMode: 'dagger' | 'bow' = 'dagger';
+  let isHunterSheathed = false;
   const setHunterWeaponMode = (mode: 'dagger' | 'bow') => {
     hunterWeaponMode = mode;
-    updateHunterWeaponStance(root, mode);
+    updateHunterWeaponStance(root, mode, isHunterSheathed);
+  };
+  const setHunterSheathed = (sheathed: boolean) => {
+    isHunterSheathed = sheathed;
+    updateHunterWeaponStance(root, hunterWeaponMode, sheathed);
   };
 
-  updateHunterWeaponStance(root, hunterWeaponMode);
+  updateHunterWeaponStance(root, hunterWeaponMode, false);
 
   const orbitingOrbs: THREE.Mesh[] = [];
   let halo: THREE.Mesh | undefined;
@@ -602,6 +625,7 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
     auraRing2,
     hunterWeaponMode,
     setHunterWeaponMode,
+    setHunterSheathed,
   };
 }
 
@@ -622,57 +646,92 @@ export function animateHunterWalk(
 ): void {
   if (!playerMesh) return;
 
-  // KUNCI MUTLAK: Badan dan root mesh selalu tegak lurus sempurna (X=0, Y=0, Z=0)
-  if (playerMesh.body) {
-    playerMesh.body.rotation.set(0, 0, 0);
-  }
-  if (playerMesh.group) {
-    playerMesh.group.rotation.x = 0;
-    playerMesh.group.rotation.z = 0;
-  }
-  if (playerMesh.rotation) {
-    playerMesh.rotation.x = 0;
-    playerMesh.rotation.z = 0;
-  }
-
   if (isMoving) {
-    // Ayunan langkah kaki sinkron berbasis fase walkTime
-    const legSwing = Math.sin(walkTime);
-    const armSwing = Math.cos(walkTime);
-
-    // Amplitudo ayunan langkah kaki (tegas & lincah khas assassin)
-    if (playerMesh.leftLeg) {
-      playerMesh.leftLeg.rotation.set(legSwing * 0.75, 0, 0);
-    }
-    if (playerMesh.rightLeg) {
-      playerMesh.rightLeg.rotation.set(-legSwing * 0.75, 0, 0);
-    }
-
-    // Sedikit tekukan lutut saat kaki mengayun ke belakang agar langkah natural:
-    if (playerMesh.leftKnee) {
-      playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.4 : 0;
-    }
-    if (playerMesh.rightKnee) {
-      playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.4 : 0;
-    }
-
-    // Ayunan tangan berlawanan dengan kaki (lengan tertekuk siaga memegang belati)
-    if (!isAttacking) {
-      if (playerMesh.leftArm) {
-        playerMesh.leftArm.rotation.set(-0.4 + armSwing * 0.45, 0, 0);
+    if (isSprinting) {
+      // ========================================================================
+      // POSTUR & ANIMASI LARI ALA NINJA (SHINOBI RUN POSE)
+      // ========================================================================
+      // 1. Kemiringan Tubuh Rendah 32 derajat (0.56 rad)
+      if (playerMesh.body) {
+        playerMesh.body.rotation.reorder('YXZ');
+        playerMesh.body.rotation.set(0.56, 0, 0);
       }
-      if (playerMesh.rightArm) {
-        playerMesh.rightArm.rotation.set(-0.4 - armSwing * 0.45, 0, 0);
+      // 2. Balas sudut pada kepala agar tatapan mata tetap lurus ke depan
+      if (playerMesh.head) {
+        playerMesh.head.rotation.set(-0.476, 0, 0); // -0.56 * 0.85
+        playerMesh.head.position.set(0, 1.45, 0.16);
       }
-    }
+      // 3. Langkah Kaki Cepat & Dinamis (tekukan lutut lebih tinggi)
+      const legSwing = Math.sin(walkTime);
+      if (playerMesh.leftLeg) playerMesh.leftLeg.rotation.set(legSwing * 0.95, 0, 0);
+      if (playerMesh.rightLeg) playerMesh.rightLeg.rotation.set(-legSwing * 0.95, 0, 0);
+      if (playerMesh.leftKnee) playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.85 : 0.15;
+      if (playerMesh.rightKnee) playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.85 : 0.15;
 
-    if (playerMesh.cape) {
-      playerMesh.cape.rotation.set(0.15 + Math.abs(Math.sin(walkTime * 0.5)) * 0.20, 0, 0);
-    }
+      // 4. Kedua Lengan Terbentang ke Belakang (Shinobi Arm Sweep)
+      if (!isAttacking) {
+        const armWindSway = Math.sin(walkTime * 2.0) * 0.06;
+        if (playerMesh.leftArm) {
+          playerMesh.leftArm.rotation.set(1.05 + armWindSway, 0.05, -0.22);
+          playerMesh.leftArm.position.set(-0.44, 1.40, 0.10);
+        }
+        if (playerMesh.rightArm) {
+          playerMesh.rightArm.rotation.set(1.05 - armWindSway, -0.05, 0.22);
+          playerMesh.rightArm.position.set(0.44, 1.40, 0.10);
+        }
+      }
 
-    playerMesh.group.position.y = playerPosY;
+      // 5. Jubah berkibar ke belakang membelah angin
+      if (playerMesh.cape) {
+        playerMesh.cape.rotation.set(0.78 + Math.abs(Math.sin(walkTime * 0.5)) * 0.25, 0, 0);
+      }
+      playerMesh.group.position.y = playerPosY;
+    } else {
+      // Normal moving walk
+      if (playerMesh.body) {
+        playerMesh.body.rotation.set(0, 0, 0);
+      }
+      if (playerMesh.head) {
+        playerMesh.head.rotation.set(0, 0, 0);
+        playerMesh.head.position.set(0, 1.50, 0);
+      }
+      const legSwing = Math.sin(walkTime);
+      const armSwing = Math.cos(walkTime);
+
+      if (playerMesh.leftLeg) playerMesh.leftLeg.rotation.set(legSwing * 0.75, 0, 0);
+      if (playerMesh.rightLeg) playerMesh.rightLeg.rotation.set(-legSwing * 0.75, 0, 0);
+      if (playerMesh.leftKnee) playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.4 : 0;
+      if (playerMesh.rightKnee) playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.4 : 0;
+
+      if (!isAttacking) {
+        if (playerMesh.leftArm) {
+          playerMesh.leftArm.position.set(-0.44, 1.44, 0.02);
+          if (hunterWeaponMode === 'bow') {
+            playerMesh.leftArm.rotation.set(0.04, 0.02, -0.10);
+          } else {
+            playerMesh.leftArm.rotation.set(-0.4 + armSwing * 0.45, 0, 0);
+          }
+        }
+        if (playerMesh.rightArm) {
+          playerMesh.rightArm.position.set(0.44, 1.44, 0.02);
+          playerMesh.rightArm.rotation.set(-0.4 - armSwing * 0.45, 0, 0);
+        }
+      }
+
+      if (playerMesh.cape) {
+        playerMesh.cape.rotation.set(0.15 + Math.abs(Math.sin(walkTime * 0.5)) * 0.20, 0, 0);
+      }
+      playerMesh.group.position.y = playerPosY;
+    }
   } else {
-    // Mode Diam (Idle Stance) - Lerp cepat (kecepatan 0.25) pada rotation.x kaki dan tangan kembali ke sudut 0
+    // Mode Diam (Idle Stance)
+    if (playerMesh.body) {
+      playerMesh.body.rotation.set(0, 0, 0);
+    }
+    if (playerMesh.head) {
+      playerMesh.head.rotation.set(0, 0, 0);
+      playerMesh.head.position.set(0, 1.50, 0);
+    }
     if (playerMesh.leftLeg) {
       playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0, 0.25);
       playerMesh.leftLeg.rotation.y = 0;
@@ -692,11 +751,17 @@ export function animateHunterWalk(
 
     if (!isAttacking) {
       if (playerMesh.leftArm) {
-        playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0, 0.25);
-        playerMesh.leftArm.rotation.y = 0;
-        playerMesh.leftArm.rotation.z = 0;
+        playerMesh.leftArm.position.set(-0.44, 1.44, 0.02);
+        if (hunterWeaponMode === 'bow') {
+          playerMesh.leftArm.rotation.set(0.04, 0.02, -0.10);
+        } else {
+          playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0, 0.25);
+          playerMesh.leftArm.rotation.y = 0;
+          playerMesh.leftArm.rotation.z = 0;
+        }
       }
       if (playerMesh.rightArm) {
+        playerMesh.rightArm.position.set(0.44, 1.44, 0.02);
         playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, 0, 0.25);
         playerMesh.rightArm.rotation.y = 0;
         playerMesh.rightArm.rotation.z = 0;
@@ -708,11 +773,6 @@ export function animateHunterWalk(
     }
 
     playerMesh.group.position.y = playerPosY;
-  }
-
-  // Kunci mutlak di akhir: tidak ada body.rotation.z atau body.rotation.y
-  if (playerMesh.body) {
-    playerMesh.body.rotation.set(0, 0, 0);
   }
 }
 
