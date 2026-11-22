@@ -1728,6 +1728,82 @@ export class SoundManager {
     });
   }
 
+  // 4. Glacial Crystal Barrage - Ice Shard Launch SFX (Crystalline High Chime Swish)
+  public playIceShardLaunch(index = 0, volume = 0.65) {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx || !this.sfxGain) return;
+
+    const now = this.ctx.currentTime;
+    const baseFreq = 1600 + (index % 6) * 110;
+
+    // High crystalline whistle chime
+    try {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(baseFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, now + 0.12);
+
+      gain.gain.setValueAtTime(volume * 0.45, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start(now);
+      osc.stop(now + 0.13);
+    } catch {}
+
+    // Resonant airy swish
+    this.playNoiseBurst({
+      duration: 0.14,
+      gain: volume * 0.4,
+      filterType: 'bandpass',
+      freqStart: baseFreq,
+      freqEnd: baseFreq * 1.6,
+    });
+  }
+
+  // 5. Glacial Crystal Barrage - Ice Shard Shatter Impact SFX (Glass/Crystal Fracture Crunch)
+  public playIceShatter(isBoss = false, volume = 0.85) {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx || !this.sfxGain) return;
+
+    const now = this.ctx.currentTime;
+    const mult = isBoss ? 1.25 : 1.0;
+    const finalVol = Math.min(1.0, volume * mult);
+
+    // Multi-frequency glass chime ring
+    [2200, 2850, 3600].forEach((freq, idx) => {
+      try {
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+        osc.type = 'triangle';
+        const start = now + idx * 0.01;
+        osc.frequency.setValueAtTime(freq, start);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.6, start + 0.18);
+
+        gain.gain.setValueAtTime(finalVol * 0.35, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.18);
+
+        osc.connect(gain);
+        gain.connect(this.sfxGain!);
+        osc.start(start);
+        osc.stop(start + 0.19);
+      } catch {}
+    });
+
+    // Sharp crystalline fracture crunch noise
+    this.playNoiseBurst({
+      duration: isBoss ? 0.28 : 0.20,
+      gain: finalVol * 0.55,
+      filterType: 'bandpass',
+      freqStart: 3800,
+      freqEnd: 850,
+    });
+  }
+
   /**
    * Plays the Mage Skill 2 'Blink' (Langkah Dimensi) SFX using blink_magic.wav with zero latency
    * Uses Web Audio API AudioBuffer with preloaded HTMLAudioElement pooling fallback

@@ -940,7 +940,8 @@ export function animateMageSkillPose(
     ctx.attackType !== 'supernova' &&
     ctx.attackType !== 'celestial_heal' &&
     ctx.attackType !== 'cahaya' &&
-    ctx.attackType !== 'celestial_light'
+    ctx.attackType !== 'celestial_light' &&
+    ctx.attackType !== 'glacial_barrage'
   ) {
     // Kembalikan orientasi tongkat ke pose menyerong diagonal ke depan saat idle/selesai attack
     playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 0.32, lerpSpeed);

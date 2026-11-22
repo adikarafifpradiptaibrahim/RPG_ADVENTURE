@@ -79,6 +79,9 @@ import {
   createStarfallMeteorBarrageVfx,
   createMageCelestialHealVfx,
   createMageBlinkVfx,
+  createGlacialBarrageVfx,
+  GlacialBarrageResourcePool,
+  GlacialBarrageVfxInstance,
   preloadStarfallPool,
   preloadMageVfxPool,
   preloadMageVfxPoolAsync,
@@ -273,7 +276,7 @@ export class GameEngine {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed.x === 'number') return parsed;
       }
-    } catch {}
+    } catch { }
     return { id: 'wp_village', x: 0, y: 0.5, z: 184, name: 'Desa Utama Sanctuary' };
   })();
   private scenePointLights: THREE.PointLight[] = [];
@@ -332,6 +335,7 @@ export class GameEngine {
   private castingSkillName = '';
   private castingCircleInstance: StarfallCastingCircleInstance | null = null;
   private mageUltimateCooldownTimer = 0;
+  private mageGlacialBarrageCooldownTimer = 0;
   private activeScorchedCraters: {
     center: THREE.Vector3;
     radius: number;
@@ -733,8 +737,8 @@ export class GameEngine {
         this.selectedPreviewRole === 'warrior'
           ? 0x3b82f6 // Knight: Biru Terang
           : this.selectedPreviewRole === 'mage'
-          ? 0xa855f7 // Mage: Ungu Arcane
-          : 0x06b6d4, // Assassin: Cyan Neon
+            ? 0xa855f7 // Mage: Ungu Arcane
+            : 0x06b6d4, // Assassin: Cyan Neon
       side: THREE.DoubleSide,
       transparent: true,
       opacity: 0.85,
@@ -1058,7 +1062,7 @@ export class GameEngine {
           list.forEach((id: string) => this.unlockedCheckpoints.add(id));
         }
       }
-    } catch {}
+    } catch { }
     this.unlockedCheckpoints.add('wp_village');
 
     if (this.world.checkpoints) {
@@ -1163,7 +1167,7 @@ export class GameEngine {
           list.forEach((id: string) => this.unlockedCheckpoints.add(id));
         }
       }
-    } catch {}
+    } catch { }
     this.unlockedCheckpoints.add('wp_village');
 
     if (this.world.checkpoints) {
@@ -1209,6 +1213,7 @@ export class GameEngine {
     ArcaneBeamResourcePool.get();
     CelestialHealResourcePool.get();
     MageBlinkResourcePool.get();
+    GlacialBarrageResourcePool.get();
 
     // Apply shadow & distance culling settings
     this.applyGraphicsSettings(this.graphicsSettings);
@@ -1264,6 +1269,7 @@ export class GameEngine {
     this.isDashing = false;
     this.dashTimer = 0;
     this.mageUltimateCooldownTimer = 0;
+    this.mageGlacialBarrageCooldownTimer = 0;
     this.activeScorchedCraters = [];
     this.arcaneShieldTimer = 0;
     this.arcaneShieldHp = 0;
@@ -1321,10 +1327,10 @@ export class GameEngine {
     // Level 100+: Tier 6 (Celestial Deity - Octa-Wings, Dual Halos, Divine Eternity Aura, Level 100 Upgrade)
     const newTier =
       level >= 100 ? 6 :
-      level >= 50 ? 5 :
-      level >= 25 ? 4 :
-      level >= 10 ? 3 :
-      level >= 5 ? 2 : 1;
+        level >= 50 ? 5 :
+          level >= 25 ? 4 :
+            level >= 10 ? 3 :
+              level >= 5 ? 2 : 1;
 
     if (newTier !== this.playerTier) {
       this.playerTier = newTier;
@@ -2649,7 +2655,7 @@ export class GameEngine {
         'eldoria_unlocked_checkpoints',
         JSON.stringify(Array.from(this.unlockedCheckpoints))
       );
-    } catch {}
+    } catch { }
     soundManager.playCheckpointUnlock();
     this.callbacks.onAddFloatingText(`🌟 Wilayah Terbuka: ${cp.nameId}!`, '#00e5ff', 'crit');
     if (this.callbacks.onCheckpointUnlocked) {
@@ -3070,8 +3076,8 @@ export class GameEngine {
       this.selectedPreviewRole === 'warrior'
         ? this.knightPreview
         : this.selectedPreviewRole === 'mage'
-        ? this.magePreview
-        : this.assassinPreview;
+          ? this.magePreview
+          : this.assassinPreview;
     if (activeMesh?.group) {
       activeMesh.group.rotation.y += deltaX * 0.015;
     }
@@ -3107,8 +3113,8 @@ export class GameEngine {
         const activeMesh = this.selectedPreviewRole === 'warrior'
           ? this.knightPreview
           : this.selectedPreviewRole === 'mage'
-          ? this.magePreview
-          : this.assassinPreview;
+            ? this.magePreview
+            : this.assassinPreview;
         if (activeMesh?.group) {
           activeMesh.group.rotation.y += deltaX * 0.015;
         }
@@ -3287,8 +3293,8 @@ export class GameEngine {
     const floorY = targetFloor === 3
       ? MAGE_TOWER_CONFIG.FLOOR_HEIGHTS.LEVEL_3
       : targetFloor === 2
-      ? MAGE_TOWER_CONFIG.FLOOR_HEIGHTS.LEVEL_2
-      : MAGE_TOWER_CONFIG.FLOOR_HEIGHTS.LEVEL_1;
+        ? MAGE_TOWER_CONFIG.FLOOR_HEIGHTS.LEVEL_2
+        : MAGE_TOWER_CONFIG.FLOOR_HEIGHTS.LEVEL_1;
 
     this.teleportGraceTimer = MAGE_TOWER_CONFIG.TRANSITION_GRACE_DURATION;
     this.playerVel.set(0, 0, 0);
@@ -3312,8 +3318,8 @@ export class GameEngine {
     const floorName = targetFloor === 3
       ? 'Lantai 3: Anjungan Puncak Observatorium 🌌'
       : targetFloor === 2
-      ? 'Lantai 2: Laboratorium Alkimia & Kristal Petir 🧪'
-      : 'Lantai 1: Perpustakaan Kitab Kuno & Altar 📜';
+        ? 'Lantai 2: Laboratorium Alkimia & Kristal Petir 🧪'
+        : 'Lantai 1: Perpustakaan Kitab Kuno & Altar 📜';
     this.callbacks.onAddFloatingText(floorName, '#38bdf8', 'info');
   }
 
@@ -3399,8 +3405,8 @@ export class GameEngine {
         const activeMesh = this.selectedPreviewRole === 'warrior'
           ? this.knightPreview
           : this.selectedPreviewRole === 'mage'
-          ? this.magePreview
-          : this.assassinPreview;
+            ? this.magePreview
+            : this.assassinPreview;
         if (activeMesh?.group) {
           activeMesh.group.rotation.y += deltaX * 0.015;
         }
@@ -3472,8 +3478,8 @@ export class GameEngine {
       const activeMesh = this.selectedPreviewRole === 'warrior'
         ? this.knightPreview
         : this.selectedPreviewRole === 'mage'
-        ? this.magePreview
-        : this.assassinPreview;
+          ? this.magePreview
+          : this.assassinPreview;
       if (activeMesh?.group) {
         activeMesh.group.rotation.y += deltaX * 0.015;
       }
@@ -3535,7 +3541,7 @@ export class GameEngine {
         if (pruned.cleanup) {
           try {
             pruned.cleanup();
-          } catch {}
+          } catch { }
         }
       }
     }
@@ -4462,17 +4468,17 @@ export class GameEngine {
 
       const pMat = isEmber
         ? new THREE.MeshBasicMaterial({
-            color: 0xffd700,
-            transparent: true,
-            opacity: 0.95,
-            blending: THREE.AdditiveBlending,
-          })
+          color: 0xffd700,
+          transparent: true,
+          opacity: 0.95,
+          blending: THREE.AdditiveBlending,
+        })
         : new THREE.MeshStandardMaterial({
-            color: 0x4a4540,
-            roughness: 0.85,
-            metalness: 0.2,
-            flatShading: true,
-          });
+          color: 0x4a4540,
+          roughness: 0.85,
+          metalness: 0.2,
+          flatShading: true,
+        });
 
       const pMesh = new THREE.Mesh(pGeom, pMat);
       pMesh.position.set(
@@ -5482,6 +5488,138 @@ export class GameEngine {
     this.triggerCameraShake(0.18);
   }
 
+  // 9. Glacial Crystal Barrage (Mage Skill 1 [Q] - 12 Aimable Ice Shards Wide Arc Curtain + Sequential Barrage)
+  public castGlacialCrystalBarrage(isRemote = false) {
+    if (this.isControlsLocked) return;
+    if (this.charClass !== 'mage') return;
+
+    // Phase 1: Casting Pose & Aimable Arc Curtain Formation (0.0s - 0.45s)
+    this.isCasting = true;
+    this.castingTimer = 0;
+    this.castingDuration = 0.45;
+    this.castingSkillName = 'Glacial Crystal Barrage';
+    this.playerVel.set(0, 0, 0);
+
+    // Initial orientation towards input or nearest enemy
+    this.alignPlayerOrientationToInputOrTarget(26);
+
+    // Floating combat text
+    this.callbacks.onAddFloatingText('💠 GLACIAL CRYSTAL BARRAGE!', '#38bdf8', 'crit');
+
+    // Trigger pre-allocated Skill VFX light
+    this.triggerSkillVfxLight(this.playerPos, 0x38bdf8, 2.8, 14.0);
+
+    // Spawn pooled barrage VFX
+    this.spawnGlacialCrystalBarrageVfx(isRemote);
+  }
+
+  private completeGlacialCrystalBarrageCasting() {
+    this.isCasting = false;
+    this.castingSkillName = '';
+    this.callbacks.onCastingUpdate?.(null);
+
+    // After 0.45s cast, return staff to combat pose and allow full player movement
+    this.isAttacking = false;
+    this.attackType = null;
+    this.attackTimer = 0;
+
+    if (this.playerMesh?.body) {
+      this.playerMesh.body.rotation.set(0, 0, 0);
+      this.playerMesh.weapon.rotation.set(0.32, 0.10, 0.05);
+      this.playerMesh.leftArm.rotation.set(0, 0, 0);
+      this.playerMesh.rightArm.rotation.set(0, 0, 0);
+    }
+  }
+
+  private spawnGlacialCrystalBarrageVfx(isRemote = false) {
+    const vfx = GlacialBarrageResourcePool.get().acquire(
+      this.playerPos,
+      this.playerRotationY,
+      // onShardLaunch callback
+      (shardIndex: number) => {
+        soundManager.playIceShardLaunch(shardIndex);
+      },
+      // onShardHit callback (mob or boss)
+      (targetEnemy: (typeof this.enemies)[0], hitPos: THREE.Vector3) => {
+        const isBoss = targetEnemy.data.type === 'boss' || targetEnemy.data.id?.startsWith('boss_');
+        soundManager.playIceShatter(isBoss);
+        this.triggerCameraShake(0.12);
+        this.spawnHitStarburst(hitPos, 0x38bdf8, 1.3);
+
+        if (!isRemote && this.isRunning) {
+          this.callbacks.onUpdateStats((stats) => {
+            const tierMult = 1 + (this.playerTier - 1) * 0.25;
+            const isCrit = Math.random() < 0.20 + stats.intelligence * 0.015;
+            // 24% Spell Power: ((Base ATK + INT * 2.5) * TierMultiplier * 0.24)
+            const baseDmg = (stats.baseAttack + stats.intelligence * 2.5) * tierMult * 0.24;
+            const finalDmg = Math.max(3, Math.round(isCrit ? baseDmg * 1.85 : baseDmg));
+
+            this.damageEnemy(targetEnemy, finalDmg, isCrit, 0.25);
+
+            // Frostbite Slow (-30% movement speed for 2.5s, stacks up to -60%)
+            if (!targetEnemy.slowFactor || !targetEnemy.slowTimer || targetEnemy.slowTimer <= 0) {
+              targetEnemy.slowFactor = 0.30;
+            } else {
+              targetEnemy.slowFactor = Math.min(0.60, targetEnemy.slowFactor + 0.30);
+            }
+            targetEnemy.slowTimer = 2.5;
+
+            return stats;
+          });
+        }
+      },
+      // onShardGroundHit callback
+      (hitPos: THREE.Vector3) => {
+        soundManager.playIceShatter(false);
+        this.spawnHitStarburst(hitPos, 0x7dd3fc, 0.9);
+      }
+    );
+
+    if (!this.scene.children.includes(vfx.group)) {
+      this.scene.add(vfx.group);
+    }
+
+    this.addVfx(
+      vfx.group,
+      (delta: number) => {
+        // Calculate dynamic aimTargetPoint (22 units ahead or closest enemy near aim line)
+        const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+        let aimTargetPoint = this.playerPos.clone().addScaledVector(forward, 22.0);
+        aimTargetPoint.y += 1.2;
+
+        let closestDist = 26.0;
+        for (let e = 0; e < this.enemies.length; e++) {
+          const enemy = this.enemies[e];
+          if (enemy.data?.isDead) continue;
+          const toE = enemy.mesh.position.clone().sub(this.playerPos);
+          const dist = toE.length();
+          if (dist > 28) continue;
+          toE.normalize();
+          const dot = forward.dot(toE);
+          if (dot > 0.55 && dist < closestDist) {
+            closestDist = dist;
+            aimTargetPoint.copy(enemy.mesh.position);
+            aimTargetPoint.y += (enemy.data.type === 'boss' || enemy.data.id?.startsWith('boss_')) ? 2.5 : 1.0;
+          }
+        }
+
+        return vfx.update(
+          delta,
+          this.playerPos,
+          this.playerRotationY,
+          aimTargetPoint,
+          this.enemies,
+          (x, z) => this.world.getTerrainHeight(x, z)
+        );
+      },
+      () => {
+        vfx.cleanup();
+        this.extinguishSkillVfxLight();
+      },
+      true
+    );
+  }
+
   /**
    * Absorbs incoming damage using active Warrior Aegis Shield & Mage Arcane Shield
    */
@@ -6438,8 +6576,26 @@ export class GameEngine {
       }
 
       if (this.charClass === 'mage') {
-        // Mage Slot 1 (Q): Placeholder untuk skill baru nanti
-        this.callbacks.onAddFloatingText('Slot Skill 1 Belum Tersedia (Segera Hadir)', '#94a3b8', 'info');
+        // Mage Slot 1 (Q): Glacial Crystal Barrage (18 MP, CD 7.5s)
+        if (this.mageGlacialBarrageCooldownTimer > 0) {
+          this.callbacks.onAddFloatingText(
+            `Glacial Barrage Cooldown (${this.mageGlacialBarrageCooldownTimer.toFixed(1)}s)!`,
+            '#94a3b8',
+            'info'
+          );
+          return;
+        }
+
+        this.callbacks.onUpdateStats((stats) => {
+          if (stats.mp < 18) {
+            this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#e57373', 'info');
+            return stats;
+          }
+
+          this.mageGlacialBarrageCooldownTimer = 7.5;
+          this.castGlacialCrystalBarrage();
+          return { ...stats, mp: Math.max(0, stats.mp - 18) };
+        });
         return;
       }
 
@@ -6972,9 +7128,9 @@ export class GameEngine {
 
     const rarityColor =
       item.rarity === 'legendary' ? 0xf59e0b :
-      item.rarity === 'epic' ? 0xa855f7 :
-      item.rarity === 'rare' ? 0x38bdf8 :
-      item.type === 'material' ? 0x10b981 : 0xd97706;
+        item.rarity === 'epic' ? 0xa855f7 :
+          item.rarity === 'rare' ? 0x38bdf8 :
+            item.type === 'material' ? 0x10b981 : 0xd97706;
 
     // Glowing core crystal
     const gemGeo = new THREE.OctahedronGeometry(0.24, 0);
@@ -7460,6 +7616,33 @@ export class GameEngine {
       this.isGrounded = true;
       this.playerMesh.group.position.copy(this.playerPos);
 
+      // Aimable tracking: allow player to steer facing direction during Glacial Barrage 0.45s cast
+      if (this.castingSkillName === 'Glacial Crystal Barrage') {
+        const inputForward = (this.isKeyPressed('w', 'arrowup') ? 1 : 0) - (this.isKeyPressed('s', 'arrowdown') ? 1 : 0) + (this.joystickVector?.y || 0);
+        const inputRight = (this.isKeyPressed('d', 'arrowright') ? 1 : 0) - (this.isKeyPressed('a', 'arrowleft') ? 1 : 0) + (this.joystickVector?.x || 0);
+        const camFwdX = -Math.sin(this.cameraAngleH);
+        const camFwdZ = -Math.cos(this.cameraAngleH);
+        const camRightX = Math.cos(this.cameraAngleH);
+        const camRightZ = -Math.sin(this.cameraAngleH);
+        const aimDirX = camFwdX * inputForward + camRightX * inputRight;
+        const aimDirZ = camFwdZ * inputForward + camRightZ * inputRight;
+        if (Math.hypot(aimDirX, aimDirZ) > 0.08) {
+          const targetAngle = Math.atan2(aimDirX, aimDirZ);
+          let diff = targetAngle - this.playerRotationY;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          this.playerRotationY += diff * 16 * delta;
+        } else {
+          // If no directional input, smoothly follow camera facing direction
+          const camFacingAngle = this.cameraAngleH;
+          let diff = camFacingAngle - this.playerRotationY;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          this.playerRotationY += diff * 12 * delta;
+        }
+        this.playerMesh.group.rotation.y = this.playerRotationY;
+      }
+
       // Celestial Apocalypse / Starfall Casting pose:
       // Kaki berdiri tegak, badan condong mantap, dan kedua tangan mengangkat tongkat ke atas
       if (this.charClass === 'mage' && this.playerMesh) {
@@ -7475,7 +7658,11 @@ export class GameEngine {
       }
 
       if (this.castingTimer >= this.castingDuration) {
-        this.completeCelestialApocalypseCasting();
+        if (this.castingSkillName === 'Glacial Crystal Barrage') {
+          this.completeGlacialCrystalBarrageCasting();
+        } else {
+          this.completeCelestialApocalypseCasting();
+        }
       }
       return;
     }
@@ -7761,25 +7948,25 @@ export class GameEngine {
       }
     } else {
       // Terrain ground collision and Ocean water surface
-    const groundY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
-    if (this.playerPos.z > 22 && this.playerPos.x >= -65 && this.playerPos.x <= 105 && groundY < -0.2) {
-      const waterSurfaceY = -0.25;
-      if (this.playerPos.y <= waterSurfaceY) {
-        this.playerPos.y = waterSurfaceY;
-        this.playerVel.y = 0;
-        this.isGrounded = true;
+      const groundY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+      if (this.playerPos.z > 22 && this.playerPos.x >= -65 && this.playerPos.x <= 105 && groundY < -0.2) {
+        const waterSurfaceY = -0.25;
+        if (this.playerPos.y <= waterSurfaceY) {
+          this.playerPos.y = waterSurfaceY;
+          this.playerVel.y = 0;
+          this.isGrounded = true;
+        }
+      } else {
+        if (this.playerPos.y <= groundY) {
+          this.playerPos.y = groundY;
+          this.playerVel.y = 0;
+          this.isGrounded = true;
+        } else if (this.isGrounded && this.playerPos.y - groundY < 0.65) {
+          // Snap to ground on gentle slope descents to prevent floating down hills
+          this.playerPos.y = groundY;
+          this.playerVel.y = 0;
+        }
       }
-    } else {
-      if (this.playerPos.y <= groundY) {
-        this.playerPos.y = groundY;
-        this.playerVel.y = 0;
-        this.isGrounded = true;
-      } else if (this.isGrounded && this.playerPos.y - groundY < 0.65) {
-        // Snap to ground on gentle slope descents to prevent floating down hills
-        this.playerPos.y = groundY;
-        this.playerVel.y = 0;
-      }
-    }
     }
 
     // Cataclysmic Leap Slam: Deteksi pendaratan presisi saat menyentuh tanah
@@ -8599,12 +8786,12 @@ export class GameEngine {
         (enemy.data.id === 'boss_dragonfang'
           ? 48
           : enemy.data.id === 'boss_titan'
-          ? 42
-          : enemy.data.id === 'boss_jarrus'
-          ? 48
-          : enemy.data.type === 'boss'
-          ? 38
-          : 22);
+            ? 42
+            : enemy.data.id === 'boss_jarrus'
+              ? 48
+              : enemy.data.type === 'boss'
+                ? 38
+                : 22);
 
       // Distance culling berdasarkan pengaturan grafis untuk performa
       const cullDist = Math.min(85, this.graphicsSettings.renderDistance * 0.9);
@@ -8702,20 +8889,20 @@ export class GameEngine {
           enemy.walkCycle += delta * (enemy.data.id === 'boss_dragonfang' ? 9.5 : 6);
           this.animateEnemyWalk(enemy, delta);
 
-        // Monster attack lunge / arm swing animation
-        if (enemy.attackAnimTimer && enemy.attackAnimTimer > 0) {
-          enemy.attackAnimTimer -= delta;
-          const animProgress = Math.sin((1 - Math.max(0, enemy.attackAnimTimer / 0.35)) * Math.PI);
-          if (enemy.parts?.rightArm) {
-            enemy.parts.rightArm.rotation.x = -Math.PI * 0.75 * animProgress;
+          // Monster attack lunge / arm swing animation
+          if (enemy.attackAnimTimer && enemy.attackAnimTimer > 0) {
+            enemy.attackAnimTimer -= delta;
+            const animProgress = Math.sin((1 - Math.max(0, enemy.attackAnimTimer / 0.35)) * Math.PI);
+            if (enemy.parts?.rightArm) {
+              enemy.parts.rightArm.rotation.x = -Math.PI * 0.75 * animProgress;
+            }
+            if (enemy.parts?.leftArm) {
+              enemy.parts.leftArm.rotation.x = 0.25 * animProgress;
+            }
+            if (enemy.data.type === 'slime' || enemy.data.type === 'magma_slime') {
+              enemy.mesh.scale.set(1 + animProgress * 0.35, 1 - animProgress * 0.3, 1 + animProgress * 0.35);
+            }
           }
-          if (enemy.parts?.leftArm) {
-            enemy.parts.leftArm.rotation.x = 0.25 * animProgress;
-          }
-          if (enemy.data.type === 'slime' || enemy.data.type === 'magma_slime') {
-            enemy.mesh.scale.set(1 + animProgress * 0.35, 1 - animProgress * 0.3, 1 + animProgress * 0.35);
-          }
-        }
         } else {
           // Serang player sesuai cooldown (1.5 detik untuk monster biasa)
           enemy.attackCooldown -= delta;
@@ -8950,7 +9137,7 @@ export class GameEngine {
           };
           try {
             localStorage.setItem('eldoria_last_visited_town', JSON.stringify(this.lastVisitedTownPos));
-          } catch {}
+          } catch { }
           this.callbacks.onAddFloatingText(`📍 Titik Respawn Disimpan: ${town.name}`, '#38bdf8', 'info');
         }
 
@@ -8962,7 +9149,7 @@ export class GameEngine {
               'eldoria_unlocked_checkpoints',
               JSON.stringify(Array.from(this.unlockedCheckpoints))
             );
-          } catch {}
+          } catch { }
           soundManager.playCheckpointUnlock();
           this.callbacks.onAddFloatingText(`🌟 Wilayah Terbuka: ${town.name}!`, '#00e5ff', 'crit');
           if (this.callbacks.onCheckpointUnlocked) {
@@ -9255,8 +9442,8 @@ export class GameEngine {
       this.selectedPreviewRole === 'warrior'
         ? this.knightPreview
         : this.selectedPreviewRole === 'mage'
-        ? this.magePreview
-        : this.assassinPreview;
+          ? this.magePreview
+          : this.assassinPreview;
 
     // 1. Update Magic Rune Pedestal Ring (di bawah kaki karakter yang aktif dipilih)
     if (this.selectionPedestal && activePreview?.group) {
@@ -9278,8 +9465,8 @@ export class GameEngine {
           this.selectedPreviewRole === 'warrior'
             ? 0x3b82f6 // Knight: 0x3b82f6 (Biru Terang / Emas)
             : this.selectedPreviewRole === 'mage'
-            ? 0xa855f7 // Mage: 0xa855f7 (Ungu Arcane)
-            : 0x06b6d4; // Assassin: 0x06b6d4 (Cyan Neon)
+              ? 0xa855f7 // Mage: 0xa855f7 (Ungu Arcane)
+              : 0x06b6d4; // Assassin: 0x06b6d4 (Cyan Neon)
         this.selectionPedestalMat.color.lerp(new THREE.Color(targetColorHex), 0.15);
       }
     }
@@ -9367,29 +9554,29 @@ export class GameEngine {
     if (this.isPaused && !this.isMultiplayer) {
       // Render frame yang sedang diam tanpa kalkulasi fisika, monster AI, atau delta waktu
       // Traversal Sanitization Lock mutlak tepat sebelum frame dirender ke canvas
-    if (this.playerMesh) {
-      this.playerMesh.group.rotation.x = 0;
-      this.playerMesh.group.rotation.z = 0;
-      if (this.playerMesh.rotation) {
-        this.playerMesh.rotation.x = 0;
-        this.playerMesh.rotation.z = 0;
-      }
-      this.playerMesh.group.traverse((child) => {
-        if (child instanceof THREE.Mesh || child instanceof THREE.Group) {
-          if (
-            child.name.toLowerCase().includes('body') ||
-            child.name.toLowerCase().includes('torso') ||
-            child.name.toLowerCase().includes('chest') ||
-            child === (this.playerMesh as any).body
-          ) {
-            child.rotation.x = 0;
-            child.rotation.z = 0;
-          }
+      if (this.playerMesh) {
+        this.playerMesh.group.rotation.x = 0;
+        this.playerMesh.group.rotation.z = 0;
+        if (this.playerMesh.rotation) {
+          this.playerMesh.rotation.x = 0;
+          this.playerMesh.rotation.z = 0;
         }
-      });
-    }
+        this.playerMesh.group.traverse((child) => {
+          if (child instanceof THREE.Mesh || child instanceof THREE.Group) {
+            if (
+              child.name.toLowerCase().includes('body') ||
+              child.name.toLowerCase().includes('torso') ||
+              child.name.toLowerCase().includes('chest') ||
+              child === (this.playerMesh as any).body
+            ) {
+              child.rotation.x = 0;
+              child.rotation.z = 0;
+            }
+          }
+        });
+      }
 
-    this.renderer.render(this.scene, this.camera);
+      this.renderer.render(this.scene, this.camera);
       return;
     }
 
@@ -9449,6 +9636,11 @@ export class GameEngine {
     // Mage Ultimate Cooldown Timer
     if (this.mageUltimateCooldownTimer > 0) {
       this.mageUltimateCooldownTimer = Math.max(0, this.mageUltimateCooldownTimer - delta);
+    }
+
+    // Mage Glacial Barrage Cooldown Timer
+    if (this.mageGlacialBarrageCooldownTimer > 0) {
+      this.mageGlacialBarrageCooldownTimer = Math.max(0, this.mageGlacialBarrageCooldownTimer - delta);
     }
 
     // Scorched Crater (Ground Fire DoT: 15% Spell Power / sec)
@@ -9524,7 +9716,7 @@ export class GameEngine {
         if (vfx.cleanup) {
           try {
             vfx.cleanup();
-          } catch {}
+          } catch { }
         }
         this.activeVfx.splice(i, 1);
       }
@@ -9879,7 +10071,7 @@ export class GameEngine {
       if (v.cleanup) {
         try {
           v.cleanup();
-        } catch {}
+        } catch { }
       }
     });
     this.activeVfx = [];

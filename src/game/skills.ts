@@ -2023,6 +2023,13 @@ export function preloadMageVfxPool(scene: THREE.Scene, renderer?: THREE.WebGLRen
     dummyGroup.add(new THREE.Mesh(blinkPool.torsoGeom, blinkPool.afterimageMat1));
     dummyGroup.add(new THREE.Mesh(blinkPool.shockwaveGeom1, blinkPool.landingShockwaveMatCyan));
 
+    // Glacial Crystal Barrage Material Pre-compilation
+    const glacialPool = GlacialBarrageResourcePool.get();
+    dummyGroup.add(new THREE.Mesh(glacialPool.iceShardGeom, glacialPool.iceShardMat));
+    dummyGroup.add(new THREE.Mesh(glacialPool.iceShardCoreGeom, glacialPool.iceShardCoreMat));
+    dummyGroup.add(new THREE.Mesh(glacialPool.frostTrailGeom, glacialPool.frostTrailMat));
+    dummyGroup.add(new THREE.Mesh(glacialPool.shatterSparkGeom, glacialPool.shatterSparkMat));
+
     dummyGroup.visible = true;
     dummyGroup.traverse((child) => {
       child.visible = true;
@@ -2118,6 +2125,13 @@ export async function preloadMageVfxPoolAsync(
   dummyGroup.add(new THREE.Mesh(blinkPool.tracerCoreGeom, blinkPool.tracerCoreMat));
   dummyGroup.add(new THREE.Mesh(blinkPool.torsoGeom, blinkPool.afterimageMat1));
   dummyGroup.add(new THREE.Mesh(blinkPool.shockwaveGeom1, blinkPool.landingShockwaveMatCyan));
+
+  // 5. Glacial Crystal Barrage
+  const glacialPool = GlacialBarrageResourcePool.get();
+  dummyGroup.add(new THREE.Mesh(glacialPool.iceShardGeom, glacialPool.iceShardMat));
+  dummyGroup.add(new THREE.Mesh(glacialPool.iceShardCoreGeom, glacialPool.iceShardCoreMat));
+  dummyGroup.add(new THREE.Mesh(glacialPool.frostTrailGeom, glacialPool.frostTrailMat));
+  dummyGroup.add(new THREE.Mesh(glacialPool.shatterSparkGeom, glacialPool.shatterSparkMat));
 
   dummyGroup.visible = true;
   dummyGroup.traverse((child) => {
@@ -3307,6 +3321,552 @@ export function createMageBlinkVfx(params: {
     params.targetPos,
     params.playerRotationY,
     params.getTerrainHeight
+  );
+}
+
+// ============================================================================
+// GLACIAL CRYSTAL BARRAGE RESOURCE POOL (Mage Skill 1 [Q])
+// 12 Aimable Ice Shards Wide Arc Curtain Formation + Sequential High-Speed Barrage
+// ============================================================================
+
+export interface GlacialBarrageVfxInstance {
+  group: THREE.Group;
+  isActive: boolean;
+  activate: (
+    casterPos: THREE.Vector3,
+    casterRotationY: number,
+    onShardLaunch?: (index: number) => void,
+    onShardHit?: (targetEnemy: any, hitPos: THREE.Vector3) => void,
+    onShardGroundHit?: (hitPos: THREE.Vector3) => void
+  ) => void;
+  update: (
+    delta: number,
+    casterPos: THREE.Vector3,
+    casterRotationY: number,
+    aimTargetPoint: THREE.Vector3,
+    enemies: any[],
+    getTerrainHeight: (x: number, z: number) => number
+  ) => boolean;
+  cleanup: () => void;
+}
+
+export class GlacialBarrageResourcePool {
+  private static instance: GlacialBarrageResourcePool | null = null;
+
+  // Shared Geometries
+  public iceShardGeom!: THREE.BufferGeometry;
+  public iceShardCoreGeom!: THREE.BufferGeometry;
+  public frostTrailGeom!: THREE.CylinderGeometry;
+  public shatterSparkGeom!: THREE.TetrahedronGeometry;
+
+  // Shared Materials
+  public iceShardMat!: THREE.MeshStandardMaterial;
+  public iceShardCoreMat!: THREE.MeshBasicMaterial;
+  public frostTrailMat!: THREE.MeshBasicMaterial;
+  public shatterSparkMat!: THREE.MeshBasicMaterial;
+
+  public isInitialized = false;
+  private instances: GlacialBarrageVfxInstance[] = [];
+
+  public static get(): GlacialBarrageResourcePool {
+    if (!GlacialBarrageResourcePool.instance) {
+      GlacialBarrageResourcePool.instance = new GlacialBarrageResourcePool();
+      GlacialBarrageResourcePool.instance.init();
+    }
+    return GlacialBarrageResourcePool.instance;
+  }
+
+  private createFacetedIceDiamondGeom(length: number, radiusX: number, radiusY: number, numPerimeter: number = 8): THREE.BufferGeometry {
+    const geom = new THREE.BufferGeometry();
+    const halfLen = length / 2;
+    const positions: number[] = [];
+    const indices: number[] = [];
+
+    // Vertex 0: Front Apex (0, 0, halfLen) -> along +Z
+    // Vertex 1: Back Apex (0, 0, -halfLen) -> along -Z
+    positions.push(0, 0, halfLen);
+    positions.push(0, 0, -halfLen);
+
+    // Perimeter vertices at Z = 0
+    for (let i = 0; i < numPerimeter; i++) {
+      const theta = (i / numPerimeter) * Math.PI * 2;
+      positions.push(Math.cos(theta) * radiusX, Math.sin(theta) * radiusY, 0);
+    }
+
+    // Front faces (Apex 0 to perimeter)
+    for (let i = 0; i < numPerimeter; i++) {
+      const next = (i + 1) % numPerimeter;
+      indices.push(0, 2 + i, 2 + next);
+    }
+
+    // Back faces (Apex 1 to perimeter)
+    for (let i = 0; i < numPerimeter; i++) {
+      const next = (i + 1) % numPerimeter;
+      indices.push(1, 2 + next, 2 + i);
+    }
+
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geom.setIndex(indices);
+    geom.computeVertexNormals();
+    return geom;
+  }
+
+  private init() {
+    if (this.isInitialized) return;
+
+    // 1. Geometries
+    this.iceShardGeom = this.createFacetedIceDiamondGeom(2.3, 0.28, 0.20, 8);
+    this.iceShardCoreGeom = this.createFacetedIceDiamondGeom(1.65, 0.16, 0.12, 6);
+
+    // Frost trail extends along -Z behind the shard
+    const trailGeom = new THREE.CylinderGeometry(0.02, 0.22, 1.8, 8, 1, true);
+    trailGeom.rotateX(Math.PI / 2);
+    trailGeom.translate(0, 0, -2.0);
+    this.frostTrailGeom = trailGeom;
+
+    this.shatterSparkGeom = new THREE.TetrahedronGeometry(0.13, 0);
+
+    // 2. Materials
+    this.iceShardMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.95,
+      roughness: 0.15,
+      metalness: 0.25,
+      transparent: true,
+      opacity: 0.90,
+      depthWrite: true,
+    });
+
+    this.iceShardCoreMat = new THREE.MeshBasicMaterial({
+      color: 0xe0f2fe,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    this.frostTrailMat = new THREE.MeshBasicMaterial({
+      color: 0x7dd3fc,
+      transparent: true,
+      opacity: 0.70,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    this.shatterSparkMat = new THREE.MeshBasicMaterial({
+      color: 0xbae6fd,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    // 3. Pre-allocate 2 VFX instances
+    for (let k = 0; k < 2; k++) {
+      this.instances.push(this.createVfxInstance());
+    }
+
+    this.isInitialized = true;
+  }
+
+  private createVfxInstance(): GlacialBarrageVfxInstance {
+    const group = new THREE.Group();
+    group.name = 'GlacialBarrageVfxInstance';
+    group.visible = false;
+
+    // 12 Shard Objects
+    interface PooledShard {
+      group: THREE.Group;
+      crystalMesh: THREE.Mesh;
+      coreMesh: THREE.Mesh;
+      trailMesh: THREE.Mesh;
+      worldPos: THREE.Vector3;
+      velocity: THREE.Vector3;
+      localOffset: THREE.Vector3;
+      fireTime: number;
+      hasFired: boolean;
+      flightTimer: number;
+      state: 'inactive' | 'forming' | 'flying' | 'impacted';
+    }
+
+    const shards: PooledShard[] = [];
+    const NUM_SHARDS = 12;
+
+    for (let i = 0; i < NUM_SHARDS; i++) {
+      const shardGroup = new THREE.Group();
+      shardGroup.name = `IceShard_${i}`;
+      shardGroup.visible = false;
+
+      const crystalMesh = new THREE.Mesh(this.iceShardGeom, this.iceShardMat);
+      const coreMesh = new THREE.Mesh(this.iceShardCoreGeom, this.iceShardCoreMat);
+      const trailMesh = new THREE.Mesh(this.frostTrailGeom, this.frostTrailMat);
+      trailMesh.visible = false;
+
+      shardGroup.add(crystalMesh);
+      shardGroup.add(coreMesh);
+      shardGroup.add(trailMesh);
+      group.add(shardGroup);
+
+      // Wide arc curtain coordinates (above & behind shoulders)
+      // i: 0 to 11 -> u: -1.0 to +1.0
+      const u = (i / (NUM_SHARDS - 1)) * 2.0 - 1.0;
+      const localX = u * 4.5; // X: -4.5 to +4.5
+      // Height Y: 2.8 to 5.2 units
+      const staggerY = i % 2 === 0 ? 0.15 : -0.15;
+      const localY = Math.max(2.8, Math.min(5.2, 3.2 + (1.0 - u * u) * 1.9 + staggerY));
+      // Curved backwards behind shoulders: -1.2 at edges, -2.6 at center
+      const staggerZ = i % 2 === 1 ? -0.22 : 0.22;
+      const localZ = -1.2 - (1.0 - u * u) * 1.4 + staggerZ;
+
+      shards.push({
+        group: shardGroup,
+        crystalMesh,
+        coreMesh,
+        trailMesh,
+        worldPos: new THREE.Vector3(),
+        velocity: new THREE.Vector3(),
+        localOffset: new THREE.Vector3(localX, localY, localZ),
+        fireTime: 0,
+        hasFired: false,
+        flightTimer: 0,
+        state: 'inactive',
+      });
+    }
+
+    // 40 Pooled Shatter Particles
+    interface ShatterParticle {
+      mesh: THREE.Mesh;
+      vel: THREE.Vector3;
+      timer: number;
+      maxTimer: number;
+      active: boolean;
+    }
+    const particlePool: ShatterParticle[] = [];
+    for (let p = 0; p < 40; p++) {
+      const pMesh = new THREE.Mesh(this.shatterSparkGeom, this.shatterSparkMat);
+      pMesh.visible = false;
+      group.add(pMesh);
+      particlePool.push({
+        mesh: pMesh,
+        vel: new THREE.Vector3(),
+        timer: 0,
+        maxTimer: 0.5,
+        active: false,
+      });
+    }
+
+    const spawnShatterBurst = (pos: THREE.Vector3, count: number, speed: number) => {
+      let spawned = 0;
+      for (let p = 0; p < particlePool.length; p++) {
+        const pt = particlePool[p];
+        if (pt.active) continue;
+
+        pt.active = true;
+        pt.timer = 0.35 + Math.random() * 0.25;
+        pt.maxTimer = pt.timer;
+        pt.mesh.position.copy(pos).add(new THREE.Vector3(
+          (Math.random() - 0.5) * 0.4,
+          (Math.random() - 0.5) * 0.4,
+          (Math.random() - 0.5) * 0.4
+        ));
+        pt.mesh.scale.set(1, 1, 1);
+        pt.mesh.visible = true;
+
+        const theta = Math.random() * Math.PI * 2;
+        const phi = (Math.random() - 0.3) * Math.PI;
+        const spd = speed * (0.65 + Math.random() * 0.7);
+        pt.vel.set(
+          Math.cos(theta) * Math.cos(phi) * spd,
+          Math.sin(phi) * spd + 1.8,
+          Math.sin(theta) * Math.cos(phi) * spd
+        );
+
+        spawned++;
+        if (spawned >= count) break;
+      }
+    };
+
+    let elapsed = 0;
+    let isActive = false;
+    let onShardLaunchCb: ((index: number) => void) | undefined;
+    let onShardHitCb: ((targetEnemy: any, hitPos: THREE.Vector3) => void) | undefined;
+    let onShardGroundHitCb: ((hitPos: THREE.Vector3) => void) | undefined;
+
+    // Firing order: outer to inner alternating
+    const FIRE_ORDER = [0, 11, 1, 10, 2, 9, 3, 8, 4, 7, 5, 6];
+
+    const cleanup = () => {
+      isActive = false;
+      group.visible = false;
+      shards.forEach((s) => {
+        s.state = 'inactive';
+        s.group.visible = false;
+        s.trailMesh.visible = false;
+        s.hasFired = false;
+        s.flightTimer = 0;
+      });
+      particlePool.forEach((pt) => {
+        pt.active = false;
+        pt.mesh.visible = false;
+      });
+      if (group.parent) {
+        group.parent.remove(group);
+      }
+    };
+
+    const activate = (
+      casterPos: THREE.Vector3,
+      casterRotationY: number,
+      onShardLaunch?: (index: number) => void,
+      onShardHit?: (targetEnemy: any, hitPos: THREE.Vector3) => void,
+      onShardGroundHit?: (hitPos: THREE.Vector3) => void
+    ) => {
+      elapsed = 0;
+      isActive = true;
+      group.visible = true;
+      onShardLaunchCb = onShardLaunch;
+      onShardHitCb = onShardHit;
+      onShardGroundHitCb = onShardGroundHit;
+
+      const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), casterRotationY);
+      const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), casterRotationY);
+      const up = new THREE.Vector3(0, 1, 0);
+
+      // Setup shards
+      for (let i = 0; i < NUM_SHARDS; i++) {
+        const s = shards[i];
+        s.state = 'forming';
+        s.group.visible = true;
+        s.trailMesh.visible = false;
+        s.hasFired = false;
+        s.flightTimer = 0;
+        s.group.scale.set(0.001, 0.001, 0.001);
+
+        s.worldPos.copy(casterPos)
+          .addScaledVector(right, s.localOffset.x)
+          .addScaledVector(up, s.localOffset.y)
+          .addScaledVector(fwd, s.localOffset.z);
+        s.group.position.copy(s.worldPos);
+
+        // Schedule fire times (interval 0.075s from outer to inner)
+        const orderIdx = FIRE_ORDER.indexOf(i);
+        s.fireTime = 0.45 + orderIdx * 0.075;
+      }
+    };
+
+    const update = (
+      delta: number,
+      casterPos: THREE.Vector3,
+      casterRotationY: number,
+      aimTargetPoint: THREE.Vector3,
+      enemies: any[],
+      getTerrainHeight: (x: number, z: number) => number
+    ): boolean => {
+      if (!isActive) return false;
+      elapsed += delta;
+
+      const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), casterRotationY);
+      const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), casterRotationY);
+      const up = new THREE.Vector3(0, 1, 0);
+
+      let anyFlyingOrForming = false;
+
+      // Update shards
+      for (let i = 0; i < NUM_SHARDS; i++) {
+        const s = shards[i];
+
+        if (s.state === 'forming') {
+          anyFlyingOrForming = true;
+          // Scale-in between 0.0s and 0.35s
+          const u = (i / (NUM_SHARDS - 1)) * 2.0 - 1.0;
+          const appearTime = Math.abs(u) * 0.12;
+          const p = Math.max(0, Math.min(1.0, (elapsed - appearTime) / 0.18));
+          const scale = p < 1.0 ? p * p * (3.0 - 2.0 * p) * 1.15 : 1.0;
+          s.group.scale.set(scale, scale, scale);
+
+          // Update position relative to moving caster during Phase 1
+          s.worldPos.copy(casterPos)
+            .addScaledVector(right, s.localOffset.x)
+            .addScaledVector(up, s.localOffset.y)
+            .addScaledVector(fwd, s.localOffset.z);
+          s.group.position.copy(s.worldPos);
+
+          // Dynamic Aimable Tracking: continuous lookAt towards aim target
+          s.group.lookAt(aimTargetPoint);
+
+          // Check if time to launch
+          if (elapsed >= s.fireTime && !s.hasFired) {
+            s.hasFired = true;
+            s.state = 'flying';
+            s.group.scale.set(1, 1, 1);
+            s.trailMesh.visible = true;
+
+            // Fire velocity: 48 units/s directly towards aimTargetPoint
+            s.velocity.subVectors(aimTargetPoint, s.worldPos).normalize().multiplyScalar(48.0);
+            s.group.lookAt(s.worldPos.clone().add(s.velocity));
+
+            const orderIdx = FIRE_ORDER.indexOf(i);
+            onShardLaunchCb?.(orderIdx);
+          }
+        } else if (s.state === 'flying') {
+          anyFlyingOrForming = true;
+          s.flightTimer += delta;
+
+          // Soft-homing: steer slightly towards nearest live enemy in cone
+          let bestTargetPos: THREE.Vector3 | null = null;
+          let bestScore = Infinity;
+          for (let e = 0; e < enemies.length; e++) {
+            const enemy = enemies[e];
+            if (enemy.data?.isDead) continue;
+            const isBoss = enemy.data.type === 'boss' || enemy.data.id?.startsWith('boss_');
+            const ePos = enemy.mesh.position.clone();
+            ePos.y += isBoss ? 2.2 : 0.9;
+
+            const toE = ePos.clone().sub(s.worldPos);
+            const dist = toE.length();
+            if (dist > 32) continue;
+            toE.normalize();
+            const dot = s.velocity.clone().normalize().dot(toE);
+            if (dot > 0.35) { // within ~69 degree cone
+              const score = dist - dot * 12;
+              if (score < bestScore) {
+                bestScore = score;
+                bestTargetPos = ePos;
+              }
+            }
+          }
+
+          if (bestTargetPos) {
+            const desiredDir = bestTargetPos.clone().sub(s.worldPos).normalize();
+            const curDir = s.velocity.clone().normalize();
+            curDir.lerp(desiredDir, Math.min(1.0, 7.5 * delta));
+            s.velocity.copy(curDir.multiplyScalar(48.0));
+          }
+
+          // Advance position
+          s.worldPos.addScaledVector(s.velocity, delta);
+          s.group.position.copy(s.worldPos);
+          s.group.lookAt(s.worldPos.clone().add(s.velocity));
+
+          // 1. Enemy collision detection
+          for (let e = 0; e < enemies.length; e++) {
+            const enemy = enemies[e];
+            if (enemy.data?.isDead) continue;
+            const isBoss = enemy.data.type === 'boss' || enemy.data.id?.startsWith('boss_');
+            const hitRadius = isBoss ? 3.5 : 1.6;
+            const ePos = enemy.mesh.position.clone();
+            ePos.y += isBoss ? 2.2 : 0.9;
+
+            if (s.worldPos.distanceTo(ePos) <= hitRadius) {
+              s.state = 'impacted';
+              s.group.visible = false;
+              spawnShatterBurst(s.worldPos, 10, 4.8);
+              onShardHitCb?.(enemy, s.worldPos);
+              break;
+            }
+          }
+
+          // 2. Terrain collision detection
+          if (s.state === 'flying') {
+            const terrainH = getTerrainHeight(s.worldPos.x, s.worldPos.z);
+            if (s.worldPos.y <= terrainH + 0.25) {
+              s.state = 'impacted';
+              s.group.visible = false;
+              s.worldPos.y = terrainH + 0.1;
+              spawnShatterBurst(s.worldPos, 8, 3.8);
+              onShardGroundHitCb?.(s.worldPos);
+            }
+          }
+
+          // 3. Max flight timeout (1.35s)
+          if (s.state === 'flying' && s.flightTimer > 1.35) {
+            s.state = 'impacted';
+            s.group.visible = false;
+            spawnShatterBurst(s.worldPos, 4, 2.5);
+          }
+        }
+      }
+
+      // Update pooled shatter particles
+      let anyParticleActive = false;
+      for (let p = 0; p < particlePool.length; p++) {
+        const pt = particlePool[p];
+        if (!pt.active) continue;
+        anyParticleActive = true;
+        pt.timer -= delta;
+        if (pt.timer <= 0) {
+          pt.active = false;
+          pt.mesh.visible = false;
+          continue;
+        }
+        const t = 1.0 - (pt.timer / pt.maxTimer);
+        pt.vel.y -= 9.8 * delta; // gravity
+        pt.mesh.position.addScaledVector(pt.vel, delta);
+        const s = (1.0 - t) * 1.2;
+        pt.mesh.scale.set(s, s, s);
+        (pt.mesh.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1.0 - t);
+      }
+
+      // Keep active until all shards finished and all particles faded
+      if (!anyFlyingOrForming && !anyParticleActive && elapsed > 1.6) {
+        cleanup();
+        return false;
+      }
+
+      if (elapsed > 4.5) {
+        cleanup();
+        return false;
+      }
+
+      return true;
+    };
+
+    return {
+      group,
+      get isActive() {
+        return isActive;
+      },
+      activate,
+      update,
+      cleanup,
+    };
+  }
+
+  public acquire(
+    casterPos: THREE.Vector3,
+    casterRotationY: number,
+    onShardLaunch?: (index: number) => void,
+    onShardHit?: (targetEnemy: any, hitPos: THREE.Vector3) => void,
+    onShardGroundHit?: (hitPos: THREE.Vector3) => void
+  ): GlacialBarrageVfxInstance {
+    let instance = this.instances.find((i) => !i.isActive);
+    if (!instance) {
+      instance = this.instances[0];
+      instance.cleanup();
+    }
+    instance.activate(casterPos, casterRotationY, onShardLaunch, onShardHit, onShardGroundHit);
+    return instance;
+  }
+}
+
+/**
+ * Creates and acquires the pre-allocated Glacial Crystal Barrage VFX Instance
+ */
+export function createGlacialBarrageVfx(params: {
+  casterPos: THREE.Vector3;
+  casterRotationY: number;
+  onShardLaunch?: (index: number) => void;
+  onShardHit?: (targetEnemy: any, hitPos: THREE.Vector3) => void;
+  onShardGroundHit?: (hitPos: THREE.Vector3) => void;
+}): GlacialBarrageVfxInstance {
+  return GlacialBarrageResourcePool.get().acquire(
+    params.casterPos,
+    params.casterRotationY,
+    params.onShardLaunch,
+    params.onShardHit,
+    params.onShardGroundHit
   );
 }
 

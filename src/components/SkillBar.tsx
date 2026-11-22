@@ -50,7 +50,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
       case 'mage':
         return {
           basic: { label: 'Arcane Beam', icon: '🔮', hint: 'Klik / J' },
-          skill1: { name: 'Slot Kosong', icon: '🔒', cost: '-', key: 'Q', color: 'border-stone-700 text-stone-500 bg-stone-900/40 opacity-60' },
+          skill1: { name: 'Glacial Barrage', icon: '💠', cost: '18 MP', key: 'Q', color: 'border-sky-400/80 text-sky-200 bg-sky-950/50 shadow-sky-500/40' },
           skill2: { name: 'Arcane Blink', icon: '🌌', cost: '15 Stm', key: 'E', color: 'border-cyan-500/70 text-cyan-300 bg-cyan-950/40' },
           skill3: { name: 'Cahaya Suci', icon: '✨', cost: '25 MP', key: 'R', color: 'border-blue-500/70 text-blue-300 bg-blue-950/40' },
           skill4: { name: 'Celestial Apocalypse', icon: '☄️', cost: '45 MP', key: 'F', color: 'border-2 border-amber-400/90 text-amber-200 bg-gradient-to-b from-purple-900/90 via-purple-950/90 to-amber-950/80 shadow-purple-500/50 ring-1 ring-purple-400/60' },
@@ -141,26 +141,19 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         </span>
       </button>
 
-      {/* Skill 1 (Supernova / Pusaran / 1000 Belati / Slot Kosong) */}
+      {/* Skill 1 (Glacial Barrage / Triple Crescent / 1000 Belati) */}
       <button
         type="button"
-        disabled={stats.characterClass === 'mage'}
         onTouchStart={(e) => {
-          if (stats.characterClass === 'mage') return;
           e.preventDefault();
           e.stopPropagation();
           onCastSkill(1);
         }}
         onClick={() => {
-          if (stats.characterClass === 'mage') return;
           onCastSkill(1);
         }}
         style={{ touchAction: 'none', userSelect: 'none' }}
-        className={`skill-btn skill-btn-1 touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 border shadow-lg transition-all select-none ${
-          stats.characterClass === 'mage'
-            ? 'opacity-50 cursor-not-allowed border-stone-700 text-stone-500'
-            : `cursor-pointer active:scale-90 ${classSkills.skill1.color}`
-        }`}
+        className={`skill-btn skill-btn-1 touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 border shadow-lg cursor-pointer active:scale-90 transition-all select-none ${classSkills.skill1.color}`}
         title={`${classSkills.skill1.name} (${classSkills.skill1.key})`}
       >
         <span className="text-sm sm:text-base md:text-base">{classSkills.skill1.icon}</span>

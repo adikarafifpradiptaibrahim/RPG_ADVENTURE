@@ -117,13 +117,13 @@ export const MAGE_SKILLS: SkillInfo[] = [
   },
   {
     id: 'm_slot1',
-    name: 'Slot 1 (Q)',
-    shortName: 'Slot Kosong',
-    icon: '🔒',
-    color: '#64748b',
-    title: 'SLOT SKILL 1 [Q] (SEGERA HADIR)',
+    name: 'Glacial Crystal Barrage',
+    shortName: 'Glacial Barrage',
+    icon: '💠',
+    color: '#38bdf8',
+    title: 'GLACIAL CRYSTAL BARRAGE [Q]',
     description:
-      'Slot Skill 1 [Q]: Slot kemampuan khusus baru sedang disiapkan oleh Dewan Agung Penyihir (Non-aktif sementara).',
+      'Slot Skill 1 [Q]: Merapal 12 bilah kristal es runcing di udara di atas dan di belakang penyihir yang dapat diarahkan bebas, lalu menembakkannya secara bertubi-tubi ke arah target dengan efek memperlambat musuh (Biaya: 18 MP, CD: 7.5s).',
   },
   {
     id: 'm_blink',
