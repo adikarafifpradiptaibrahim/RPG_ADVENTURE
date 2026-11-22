@@ -381,6 +381,7 @@ export class GameEngine {
     life: number;
     maxLife: number;
     color: THREE.Color;
+    gravityScale?: number;
   }> = [];
   private sparkNextIndex = 0;
 
@@ -441,6 +442,9 @@ export class GameEngine {
   private attackComboIndex = 0;
   private mageLandingCrouchTimer = 0;
   private mageHoverOffsetY = 0;
+  private magePitchX = 0;
+  private mageBankingRoll = 0;
+  private mageGlideParticleTimer = 0;
   private lastAttackTime = 0;
 
   // Multiplayer Synchronization State (Reusable for both Single Player & Multiplayer)
@@ -3576,6 +3580,7 @@ export class GameEngine {
         vz: 0,
         life: 0,
         maxLife: 0.35,
+        gravityScale: 1.0,
         color: new THREE.Color(0xffffff),
       });
     }
@@ -3602,7 +3607,7 @@ export class GameEngine {
         continue;
       }
 
-      p.vy -= 12 * delta; // Gravity
+      p.vy -= (p.gravityScale ?? 1.0) * 12 * delta; // Gravity with scale
       p.x += p.vx * delta;
       p.y += p.vy * delta;
       p.z += p.vz * delta;
@@ -3838,7 +3843,15 @@ export class GameEngine {
   }
 
   // Pre-allocated Zero-Allocation Fixed-Size Ring Buffer Spark Particles
-  private spawnSparks(position: THREE.Vector3, color: number, count = 8, speed = 4) {
+  private spawnSparks(
+    position: THREE.Vector3,
+    color: number,
+    count = 8,
+    speed = 4,
+    biasVel?: THREE.Vector3,
+    lifeTime = 0.35,
+    gravityScale = 1.0
+  ) {
     const actualCount = Math.min(count, 24);
     for (let i = 0; i < actualCount; i++) {
       const p = this.sparkPool[this.sparkNextIndex];
@@ -3846,14 +3859,15 @@ export class GameEngine {
       this.sparkNextIndex = (this.sparkNextIndex + 1) % this.SPARK_MAX_COUNT;
 
       p.active = true;
-      p.x = position.x;
-      p.y = position.y;
-      p.z = position.z;
-      p.vx = (Math.random() - 0.5) * speed;
-      p.vy = Math.random() * speed * 0.8 + 1.0;
-      p.vz = (Math.random() - 0.5) * speed;
-      p.life = 0.35;
-      p.maxLife = 0.35;
+      p.x = position.x + (Math.random() - 0.5) * 0.12;
+      p.y = position.y + (Math.random() - 0.5) * 0.12;
+      p.z = position.z + (Math.random() - 0.5) * 0.12;
+      p.vx = (Math.random() - 0.5) * speed + (biasVel ? biasVel.x : 0);
+      p.vy = ((Math.random() - 0.2) * speed * 0.8 + 0.6) * (gravityScale < 0.5 ? 0.3 : 1.0) + (biasVel ? biasVel.y : 0);
+      p.vz = (Math.random() - 0.5) * speed + (biasVel ? biasVel.z : 0);
+      p.life = lifeTime;
+      p.maxLife = lifeTime;
+      p.gravityScale = gravityScale;
       p.color.setHex(color);
       this.sparkInstancedMesh.setColorAt(idx, p.color);
     }
@@ -3935,41 +3949,29 @@ export class GameEngine {
     }
   }
 
-  // Floating Sprint Magic Rune & Star Particle Spawner for Mage Locomotion
-  private spawnMageSprintRuneParticles() {
-    const footPos = this.playerPos.clone();
-    footPos.y += 0.08;
+  // Astral Glide Energy & Windstream Particle Spawner (Zero Memory Allocation)
+  private spawnMageAstralGlideStream() {
+    this.mageGlideParticleTimer = (this.mageGlideParticleTimer || 0) + 1;
+    // Emit soft cyan & lavender particles trailing backward
+    const backDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+    const backwardVel = backDir.clone().multiplyScalar(4.0);
+    backwardVel.y += 0.2;
 
-    // Glowing Runic Star Ring beneath gliding feet (Jejak Energi Cyan-Ungu Lembut)
-    const geom = new THREE.RingGeometry(0.12, 0.42, 6);
-    const isCyan = Math.random() > 0.45;
-    const mat = new THREE.MeshBasicMaterial({
-      color: isCyan ? 0x38bdf8 : 0xc084fc,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.85,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const rune = new THREE.Mesh(geom, mat);
-    rune.rotation.x = -Math.PI / 2;
-    rune.rotation.z = Math.random() * Math.PI;
-    rune.position.copy(footPos);
+    const isCyan = (this.mageGlideParticleTimer % 2 === 0);
+    const color = isCyan ? 0x38bdf8 : 0xc084fc;
 
-    let life = 0.45;
-    this.addVfx(rune, (delta) => {
-      life -= delta;
-      if (life <= 0) {
-        this.scene.remove(rune);
-        return false;
-      }
-      mat.opacity = (life / 0.45) * 0.85;
-      rune.scale.multiplyScalar(1 + delta * 0.8);
-      return true;
-    });
+    // 1. Aliran partikel dari ujung jubah bawah / kaki (trailing backward)
+    const feetPos = this.playerPos.clone();
+    feetPos.y += 0.25;
+    feetPos.addScaledVector(backDir, 0.45);
+    this.spawnSparks(feetPos, color, 2, 1.2, backwardVel, 0.40, 0.15);
 
-    if (Math.random() < 0.65) {
-      this.spawnSparks(footPos, isCyan ? 0x38bdf8 : 0xa855f7, 2, 1.6);
+    // 2. Aliran partikel dari ujung kristal bola sihir tongkat
+    if (this.playerMesh?.orbMesh) {
+      const orbPos = new THREE.Vector3();
+      this.playerMesh.orbMesh.getWorldPosition(orbPos);
+      const orbColor = isCyan ? 0xc084fc : 0x38bdf8;
+      this.spawnSparks(orbPos, orbColor, 1, 0.8, backwardVel, 0.35, 0.1);
     }
   }
 
@@ -7772,9 +7774,9 @@ export class GameEngine {
         }));
       }
 
-      // Spawning Mage Floating Sprint Star & Magic Rune Particles under feet
-      if (this.charClass === 'mage' && Math.random() < 0.45) {
-        this.spawnMageSprintRuneParticles();
+      // Spawning Mage Astral Glide Magical Energy & Wind Stream
+      if (this.charClass === 'mage') {
+        this.spawnMageAstralGlideStream();
       }
     } else {
       this.isSprinting = false;
@@ -7815,6 +7817,14 @@ export class GameEngine {
       while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
       this.playerRotationY += angleDiff * 16 * delta;
 
+      // Kemiringan samping (banking roll) saat berbelok di udara bagi Mage
+      if (this.charClass === 'mage' && this.isSprinting) {
+        const desiredRoll = Math.max(-0.25, Math.min(0.25, angleDiff * 0.7));
+        this.mageBankingRoll = THREE.MathUtils.lerp(this.mageBankingRoll, desiredRoll, Math.min(1.0, delta * 10.0));
+      } else {
+        this.mageBankingRoll = THREE.MathUtils.lerp(this.mageBankingRoll, 0, Math.min(1.0, delta * 8.0));
+      }
+
       // Spawn movement footsteps
       if (this.isGrounded) {
         this.footstepTimer -= delta;
@@ -7829,6 +7839,7 @@ export class GameEngine {
       this.playerVel.z *= 0.4;
       if (Math.abs(this.playerVel.x) < 0.04) this.playerVel.x = 0;
       if (Math.abs(this.playerVel.z) < 0.04) this.playerVel.z = 0;
+      this.mageBankingRoll = THREE.MathUtils.lerp(this.mageBankingRoll, 0, Math.min(1.0, delta * 8.0));
     }
 
     // 4. Calculate movement with building collisions & cliff climbing physics
@@ -7974,16 +7985,20 @@ export class GameEngine {
       this.triggerCataclysmicLandingImpact();
     }
 
-    // Update mesh position and rotation (KUNCI MUTLAK: X=0, Z=0)
+    // Update mesh position and rotation (KUNCI MUTLAK: X=0, Z=0 kecuali Astral Glide Mage)
     this.playerMesh.group.position.copy(this.playerPos);
-    this.playerMesh.group.rotation.set(0, this.playerRotationY, 0);
+    if (this.charClass !== 'mage') {
+      this.playerMesh.group.rotation.set(0, this.playerRotationY, 0);
+    }
     if (this.playerMesh.rotation) {
       this.playerMesh.rotation.set(0, this.playerRotationY, 0);
     }
 
     // Role-specific posture offsets
     if (this.charClass === 'mage') {
-      const targetHover = (this.isSprinting && isMoving && this.playerStamina > 0) ? 0.45 : 0.0;
+      this.playerMesh.group.rotation.order = 'YXZ';
+      const isAstralGlide = this.isSprinting && isMoving && this.playerStamina > 0;
+      const targetHover = isAstralGlide ? 0.45 + Math.sin(this.walkTime * 7.0) * 0.08 : 0.0;
       this.mageHoverOffsetY = THREE.MathUtils.lerp(this.mageHoverOffsetY, targetHover, Math.min(1.0, delta * 8.0));
       this.playerMesh.group.position.y += this.mageHoverOffsetY;
 
@@ -7992,8 +8007,14 @@ export class GameEngine {
         const crouchRatio = this.mageLandingCrouchTimer / 0.15;
         this.playerMesh.group.position.y -= 0.10 * crouchRatio;
       }
-      this.playerMesh.group.rotation.x = 0;
-      this.playerMesh.group.rotation.z = 0;
+
+      // Kemiringan badan ke depan 28 derajat (0.48 rad) saat meluncur cepat
+      const targetPitch = isAstralGlide ? 0.48 : 0.0;
+      this.magePitchX = THREE.MathUtils.lerp(this.magePitchX, targetPitch, Math.min(1.0, delta * 10.0));
+      this.playerMesh.group.rotation.y = this.playerRotationY;
+      this.playerMesh.group.rotation.x = this.magePitchX;
+      const targetRoll = isAstralGlide ? this.mageBankingRoll : 0.0;
+      this.playerMesh.group.rotation.z = THREE.MathUtils.lerp(this.playerMesh.group.rotation.z, targetRoll, Math.min(1.0, delta * 8.0));
     } else if (this.charClass === 'rogue') {
       // Kunci mutlak postur tegak Assassin tanpa forward prowl crouch di sumbu X agar tidak miring saat drag mouse
       this.playerMesh.group.rotation.x = 0;

@@ -528,7 +528,7 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
   group.add(leftArm);
 
   // 7. Kaki (leftLegGroup & rightLegGroup) & Boots Cokelat Kaku
-  const buildMageLeg = (posX: number): THREE.Group => {
+  const buildMageLeg = (posX: number): { leg: THREE.Group; knee: THREE.Group } => {
     const leg = new THREE.Group();
     leg.position.set(posX, 0.88, 0);
 
@@ -538,42 +538,51 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
     thigh.castShadow = true;
     leg.add(thigh);
 
+    // Pelindung Lutut & Betis / Kaki Bawah (Pivot di Lutut y=-0.38)
+    const kneeGroup = new THREE.Group();
+    kneeGroup.position.set(0, -0.38, 0);
+
     // Pelindung Lutut Abu-abu Metalik
     const knee = new THREE.Mesh(geos.kneeBandGeo, mats.kneeGrayMat);
-    knee.position.set(0, -0.38, 0.02);
+    knee.position.set(0, 0, 0.02);
     knee.castShadow = true;
-    leg.add(knee);
+    kneeGroup.add(knee);
 
     // Betis Balok Ungu
     const shin = new THREE.Mesh(geos.shinGeo, mats.tunicPurpleMat);
-    shin.position.y = -0.52;
+    shin.position.y = -0.14;
     shin.castShadow = true;
-    leg.add(shin);
+    kneeGroup.add(shin);
 
     // Boots Cokelat Kaku: Pergelangan
     const ankle = new THREE.Mesh(geos.bootAnkleGeo, mats.bootBrownMat);
-    ankle.position.set(0, -0.70, 0.01);
+    ankle.position.set(0, -0.32, 0.01);
     ankle.castShadow = true;
-    leg.add(ankle);
+    kneeGroup.add(ankle);
 
     // Ujung Kotak Kaku (Toe Block)
     const toe = new THREE.Mesh(geos.bootToeGeo, mats.bootBrownMat);
-    toe.position.set(0, -0.78, 0.12);
+    toe.position.set(0, -0.40, 0.12);
     toe.castShadow = true;
-    leg.add(toe);
+    kneeGroup.add(toe);
 
     // Sol Sepatu Bot Datar (Rata menyentuh tanah y=0.00)
     const sole = new THREE.Mesh(geos.bootSoleGeo, mats.soleMat);
-    sole.position.set(0, -0.86, 0.05);
+    sole.position.set(0, -0.48, 0.05);
     sole.receiveShadow = true;
-    leg.add(sole);
+    kneeGroup.add(sole);
 
+    leg.add(kneeGroup);
     group.add(leg);
-    return leg;
+    return { leg, knee: kneeGroup };
   };
 
-  const leftLeg = buildMageLeg(0.20);
-  const rightLeg = buildMageLeg(-0.20);
+  const leftLegObj = buildMageLeg(0.20);
+  const rightLegObj = buildMageLeg(-0.20);
+  const leftLeg = leftLegObj.leg;
+  const rightLeg = rightLegObj.leg;
+  const leftKnee = leftLegObj.knee;
+  const rightKnee = rightLegObj.knee;
 
   // 8. Tier 3 - 6 Celestial Archmage Features (Orbiting Crystals, Halos, Wings, Mandalas)
   let halo: THREE.Mesh | undefined;
@@ -699,6 +708,8 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
     rightHand,
     leftLeg,
     rightLeg,
+    leftKnee,
+    rightKnee,
     weapon,
     cape,
     body,
@@ -745,42 +756,85 @@ export function animateMageWalk(
 
   if (isMoving) {
     if (isSprinting) {
-      // 1b. Floating Sprint (Melayang Cepat): Kaki menyilang santai, jubah berkibar, mengambang 0.45 unit
-      const floatBob = Math.sin(walkTime * 4.0) * 0.04;
-      playerMesh.group.position.y = THREE.MathUtils.lerp(playerMesh.group.position.y, playerPosY + 0.45 + floatBob, lerpSpeed);
-      playerMesh.group.rotation.z = THREE.MathUtils.lerp(playerMesh.group.rotation.z, Math.sin(walkTime * 3.5) * 0.02, lerpSpeed);
+      // 1b. Floating Sprint (Astral Glide / Melayang Cepat Aerodinamis):
+      // Dongakkan kepala sedikit ke atas (-0.35 rad) sehingga Mage menatap lurus ke arah tujuan di depan (tidak menunduk ke tanah)
+      playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, -0.35, lerpSpeed);
+      playerMesh.head.rotation.y = THREE.MathUtils.lerp(playerMesh.head.rotation.y, 0, lerpSpeed);
+      playerMesh.head.rotation.z = THREE.MathUtils.lerp(playerMesh.head.rotation.z, 0, lerpSpeed);
 
-      // Kaki diam menyilang santai di udara
-      playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0.40, lerpSpeed);
-      playerMesh.leftLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.z, -0.22, lerpSpeed);
-      playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0.40, lerpSpeed);
-      playerMesh.rightLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.z, 0.22, lerpSpeed);
-
-      // Torso condong ke depan meluncur (0.22 rad)
-      playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0.22, lerpSpeed);
+      // Torso/badan condong ke depan meluncur (28 derajat = 0.48 rad)
+      playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0.48, lerpSpeed);
       playerMesh.body.rotation.y = THREE.MathUtils.lerp(playerMesh.body.rotation.y, 0, lerpSpeed);
       playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, lerpSpeed);
       playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.35, lerpSpeed);
 
-      // Jubah berkibar kencang ke belakang
-      const capeFlap = Math.sin(walkTime * 12.0) * 0.08;
-      playerMesh.cape.rotation.x = THREE.MathUtils.lerp(playerMesh.cape.rotation.x, 0.55 + capeFlap, lerpSpeed);
+      // Pose Kaki Melayang Asimetris (Asymmetric Trailing Legs):
+      // Kedua paha mengarah ke belakang (hip.rotation.x = 0.45 rad)
+      playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0.45, lerpSpeed);
+      playerMesh.leftLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.z, -0.08, lerpSpeed);
+      playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0.45, lerpSpeed);
+      playerMesh.rightLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.z, 0.08, lerpSpeed);
 
-      // Tongkat menghadap ke depan terarah
-      playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 0.45, lerpSpeed);
-      playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, 0.05, lerpSpeed);
-      playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0.02, lerpSpeed);
+      // Kaki kiri lurus ke belakang (knee.rotation.x = 0.15 rad)
+      if (playerMesh.leftKnee) {
+        playerMesh.leftKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.leftKnee.rotation.x, 0.15, lerpSpeed);
+      }
+      // Lutut kanan sedikit ditekuk santai (knee.rotation.x = 0.65 rad)
+      if (playerMesh.rightKnee) {
+        playerMesh.rightKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.rightKnee.rotation.x, 0.65, lerpSpeed);
+      }
+
+      // Pose Lengan & Tongkat Sihir Aerodinamis:
+      // Tarik lengan kiri ke belakang sejajar sisi tubuh (leftArm.rotation.x = 0.65, sedikit terbuka keluar z = -0.2)
+      playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0.65, lerpSpeed);
+      playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.05, lerpSpeed);
+      playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, -0.20, lerpSpeed);
 
       if (!isAttacking) {
-        playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -0.35, lerpSpeed);
-        playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, lerpSpeed);
-        playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0, lerpSpeed);
+        // Arahkan lengan kanan ke belakang
+        playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, 0.60, lerpSpeed);
+        playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, -0.05, lerpSpeed);
+        playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0.18, lerpSpeed);
 
-        playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0.15, lerpSpeed);
-        playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.10, lerpSpeed);
-        playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0.18, lerpSpeed);
+        // Tongkat sihir dimiringkan sejajar garis terbang di samping tubuh
+        playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 1.25, lerpSpeed);
+        playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, -0.10, lerpSpeed);
+        playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0.05, lerpSpeed);
       }
+
+      // Bola kristal di ujung tongkat memancarkan cahaya lebih terang saat terbang cepat
+      if (playerMesh.orbMesh && (playerMesh.orbMesh.material as THREE.MeshStandardMaterial)) {
+        (playerMesh.orbMesh.material as THREE.MeshStandardMaterial).emissiveIntensity = THREE.MathUtils.lerp(
+          (playerMesh.orbMesh.material as THREE.MeshStandardMaterial).emissiveIntensity,
+          2.5,
+          lerpSpeed
+        );
+      }
+
+      // Jubah berkibar kencang ke belakang
+      const capeFlap = Math.sin(walkTime * 14.0) * 0.12;
+      playerMesh.cape.rotation.x = THREE.MathUtils.lerp(playerMesh.cape.rotation.x, 0.72 + capeFlap, lerpSpeed);
     } else {
+      // Reset head tilt saat jalan biasa
+      playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, 0, lerpSpeed);
+
+      // Reset knee bend saat jalan biasa
+      if (playerMesh.leftKnee) {
+        playerMesh.leftKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.leftKnee.rotation.x, 0, lerpSpeed);
+      }
+      if (playerMesh.rightKnee) {
+        playerMesh.rightKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.rightKnee.rotation.x, 0, lerpSpeed);
+      }
+
+      // Reset crystal orb glow saat jalan biasa
+      if (playerMesh.orbMesh && (playerMesh.orbMesh.material as THREE.MeshStandardMaterial)) {
+        (playerMesh.orbMesh.material as THREE.MeshStandardMaterial).emissiveIntensity = THREE.MathUtils.lerp(
+          (playerMesh.orbMesh.material as THREE.MeshStandardMaterial).emissiveIntensity,
+          1.0,
+          lerpSpeed
+        );
+      }
+
       // 1. Walk Cycle biasa (Frekuensi 8.5)
       playerMesh.leftLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.z, 0, lerpSpeed);
       playerMesh.rightLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.z, 0, lerpSpeed);
@@ -836,10 +890,26 @@ export function animateMageWalk(
     }
   } else {
     // 2. Idle State: Pernapasan halus & pose santai
+    playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, 0, lerpSpeed);
     playerMesh.leftLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.z, 0, lerpSpeed);
     playerMesh.rightLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.z, 0, lerpSpeed);
     playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0, lerpSpeed);
     playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0, lerpSpeed);
+
+    if (playerMesh.leftKnee) {
+      playerMesh.leftKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.leftKnee.rotation.x, 0, lerpSpeed);
+    }
+    if (playerMesh.rightKnee) {
+      playerMesh.rightKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.rightKnee.rotation.x, 0, lerpSpeed);
+    }
+
+    if (playerMesh.orbMesh && (playerMesh.orbMesh.material as THREE.MeshStandardMaterial)) {
+      (playerMesh.orbMesh.material as THREE.MeshStandardMaterial).emissiveIntensity = THREE.MathUtils.lerp(
+        (playerMesh.orbMesh.material as THREE.MeshStandardMaterial).emissiveIntensity,
+        1.0,
+        lerpSpeed
+      );
+    }
     playerMesh.group.rotation.z = THREE.MathUtils.lerp(playerMesh.group.rotation.z, 0, lerpSpeed);
     playerMesh.group.position.y = THREE.MathUtils.lerp(playerMesh.group.position.y, playerPosY, lerpSpeed);
 
