@@ -62,6 +62,7 @@ interface HUDProps {
   onRotateCamera?: (deltaX: number, deltaY: number) => void;
   onZoomCamera?: (deltaZoom: number) => void;
   isGlacialAiming?: boolean;
+  glacialTarget?: { name: string; hp: number; maxHp: number; isBoss?: boolean } | null;
   bossState: {
     active: boolean;
     name?: string;
@@ -124,6 +125,7 @@ export const HUD: React.FC<HUDProps> = ({
   onRotateCamera,
   onZoomCamera,
   isGlacialAiming,
+  glacialTarget,
   bossState,
   bossVictoryName,
   isMuted,
@@ -647,27 +649,111 @@ export const HUD: React.FC<HUDProps> = ({
         />
       )}
 
-      {/* Glacial Barrage Hold-to-Aim Reticle & Crosshair */}
+      {/* Glacial Barrage Hold-to-Aim Arcane Frost Reticle */}
       {isGlacialAiming && (
         <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-40 select-none animate-fadeIn">
-          <div className="relative flex items-center justify-center">
-            {/* Center Core Dot */}
-            <div className="w-2.5 h-2.5 rounded-full bg-sky-300 shadow-[0_0_12px_#38bdf8] animate-ping" />
-            <div className="absolute w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_#38bdf8]" />
-
-            {/* Corner Brackets */}
-            <div className="absolute -top-7 -left-7 w-4 h-4 border-t-2 border-l-2 border-sky-400 shadow-[0_0_8px_#38bdf8]" />
-            <div className="absolute -top-7 -right-7 w-4 h-4 border-t-2 border-r-2 border-sky-400 shadow-[0_0_8px_#38bdf8]" />
-            <div className="absolute -bottom-7 -left-7 w-4 h-4 border-b-2 border-l-2 border-sky-400 shadow-[0_0_8px_#38bdf8]" />
-            <div className="absolute -bottom-7 -right-7 w-4 h-4 border-b-2 border-r-2 border-sky-400 shadow-[0_0_8px_#38bdf8]" />
-
-            {/* Dashed Target Ring */}
-            <div className="absolute w-20 h-20 rounded-full border border-sky-400/50 border-dashed animate-spin-slow" />
-
-            {/* Instruction Badge */}
-            <div className="absolute -bottom-16 px-4 py-1.5 rounded-full bg-sky-950/90 border border-sky-400/80 text-sky-200 text-[11px] md:text-xs font-mono font-bold tracking-wider backdrop-blur-md shadow-2xl shadow-sky-950/90 whitespace-nowrap">
-              💠 BIDIK ES • LEPAS [Q] UNTUK TEMBAK • KLIK KANAN BATAL
+          {/* Locked Enemy Info Badge (floating smoothly above the reticle) */}
+          {glacialTarget && (
+            <div className="absolute top-[calc(50%-60px)] flex flex-col items-center pointer-events-none transition-all duration-200">
+              <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-950/80 border border-amber-400/70 shadow-[0_0_12px_rgba(251,191,36,0.4)] backdrop-blur-sm">
+                {glacialTarget.isBoss && <span className="text-[10px] text-amber-400">👑</span>}
+                <span className="text-[10px] font-bold tracking-wide text-amber-300 font-mono">
+                  {glacialTarget.name}
+                </span>
+                <span className="text-[9px] text-amber-200/80 font-mono">
+                  {Math.round(glacialTarget.hp)}/{glacialTarget.maxHp}
+                </span>
+              </div>
+              <div className="w-24 h-1 bg-black/60 rounded-full mt-1 overflow-hidden border border-amber-400/40">
+                <div
+                  className="h-full bg-gradient-to-r from-cyan-400 to-amber-400 transition-all duration-150 rounded-full"
+                  style={{ width: `${Math.min(100, Math.max(0, (glacialTarget.hp / glacialTarget.maxHp) * 100))}%` }}
+                />
+              </div>
             </div>
+          )}
+
+          {/* Dynamic Arcane Frost Reticle */}
+          <div
+            className={`relative flex items-center justify-center transition-all duration-200 ${
+              glacialTarget ? 'scale-85' : 'scale-100'
+            }`}
+          >
+            {/* Center Core Dot */}
+            <div
+              className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                glacialTarget
+                  ? 'bg-amber-300 shadow-[0_0_10px_#fbbf24]'
+                  : 'bg-sky-200 shadow-[0_0_10px_#38bdf8]'
+              }`}
+            />
+
+            {/* Rotating Runic Ice Crystal Ring */}
+            <div
+              className={`absolute w-16 h-16 rounded-full border border-dashed transition-colors duration-200 animate-spin-slow ${
+                glacialTarget
+                  ? 'border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)]'
+                  : 'border-sky-400/70 shadow-[0_0_12px_rgba(56,189,248,0.4)]'
+              }`}
+              style={{ animationDuration: '12s' }}
+            />
+
+            {/* Inner Runic Ring */}
+            <div
+              className={`absolute w-11 h-11 rounded-full border border-dotted transition-colors duration-200 ${
+                glacialTarget ? 'border-amber-300/80' : 'border-cyan-300/60'
+              }`}
+            />
+
+            {/* 4 Diamond Ticks (Top, Bottom, Left, Right) */}
+            <div
+              className={`absolute -top-8 w-2 h-2 rotate-45 border transition-all duration-200 ${
+                glacialTarget
+                  ? 'bg-amber-400 border-amber-200 shadow-[0_0_8px_#fbbf24]'
+                  : 'bg-sky-400/90 border-cyan-200 shadow-[0_0_6px_#38bdf8]'
+              }`}
+            />
+            <div
+              className={`absolute -bottom-8 w-2 h-2 rotate-45 border transition-all duration-200 ${
+                glacialTarget
+                  ? 'bg-amber-400 border-amber-200 shadow-[0_0_8px_#fbbf24]'
+                  : 'bg-sky-400/90 border-cyan-200 shadow-[0_0_6px_#38bdf8]'
+              }`}
+            />
+            <div
+              className={`absolute -left-8 w-2 h-2 rotate-45 border transition-all duration-200 ${
+                glacialTarget
+                  ? 'bg-amber-400 border-amber-200 shadow-[0_0_8px_#fbbf24]'
+                  : 'bg-sky-400/90 border-cyan-200 shadow-[0_0_6px_#38bdf8]'
+              }`}
+            />
+            <div
+              className={`absolute -right-8 w-2 h-2 rotate-45 border transition-all duration-200 ${
+                glacialTarget
+                  ? 'bg-amber-400 border-amber-200 shadow-[0_0_8px_#fbbf24]'
+                  : 'bg-sky-400/90 border-cyan-200 shadow-[0_0_6px_#38bdf8]'
+              }`}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Guide Pill Banner - Repositioned cleanly above the Skill Bar at bottom: 108px */}
+      {isGlacialAiming && (
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-40 pointer-events-none select-none animate-fadeIn flex items-center justify-center whitespace-nowrap"
+          style={{ bottom: '108px' }}
+        >
+          <div
+            className="px-3.5 py-1.5 rounded-full border border-sky-400/70 text-sky-200 font-mono tracking-wider backdrop-blur-md flex items-center gap-2"
+            style={{
+              fontSize: '11px',
+              backgroundColor: 'rgba(10, 15, 28, 0.75)',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.6), 0 0 12px rgba(56, 189, 248, 0.3)',
+            }}
+          >
+            <span className="text-sky-300">💠</span>
+            <span>BIDIK ES • LEPAS [Q] / KLIK KIRI TEMBAK • KLIK KANAN BATAL</span>
           </div>
         </div>
       )}

@@ -132,7 +132,7 @@ export interface GameEngineCallbacks {
   onBossDefeated?: (bossName?: string) => void;
   onSpectatorModeChange?: (active: boolean) => void;
   onHunterWeaponSwitch?: (mode: 'dagger' | 'bow') => void;
-  onGlacialAimChange?: (isAiming: boolean) => void;
+  onGlacialAimChange?: (isAiming: boolean, targetInfo?: { name: string; hp: number; maxHp: number; isBoss?: boolean } | null) => void;
   onCastingUpdate?: (casting: { isCasting: boolean; progress: number; text: string } | null) => void;
   onCheckpointUnlocked?: (id: string, nameId: string, pos: [number, number]) => void;
   onPreviewRoleSelected?: (role: 'warrior' | 'mage' | 'rogue') => void;
@@ -334,12 +334,16 @@ export class GameEngine {
   // Mage Glacial Crystal Barrage: Hold-to-Aim & Over-the-Shoulder camera state
   private isAimGlacialActive = false;
   private aimGlacialCancelled = false;
+  private isHoldingGlacialKey = false;
+  private glacialKeyDownTime = 0;
+  private glacialAimTimer: number | null = null;
   private activeGlacialVfx: GlacialBarrageVfxInstance | null = null;
   private aimIndicatorGroup: THREE.Group | null = null;
-  private aimIndicatorBeamMesh: THREE.Mesh | null = null;
-  private aimIndicatorCoreMesh: THREE.Mesh | null = null;
   private aimIndicatorGroundRing: THREE.Mesh | null = null;
+  private aimIndicatorInnerRing: THREE.Mesh | null = null;
+  private aimTrajectoryLine: THREE.Line | null = null;
   private aimTargetPoint = new THREE.Vector3();
+  private lastGlacialTargetId: string | null = null;
   private cameraCurrentLookAt = new THREE.Vector3();
   private activeScorchedCraters: {
     center: THREE.Vector3;
@@ -2719,7 +2723,7 @@ export class GameEngine {
   private handleContextMenu = (e: MouseEvent) => {
     if (this.isAimGlacialActive) {
       e.preventDefault();
-      this.cancelAimGlacialBarrage();
+      this.cancelGlacialAim();
       return;
     }
     // If context menu opens, release all keys immediately so player does not walk by itself
@@ -2727,6 +2731,9 @@ export class GameEngine {
   };
 
   private handleBlur = () => {
+    if (this.isAimGlacialActive) {
+      this.cancelGlacialAim();
+    }
     this.resetKeys();
   };
 
@@ -2737,6 +2744,9 @@ export class GameEngine {
 
   private handleVisibilityChange = () => {
     if (document.hidden) {
+      if (this.isAimGlacialActive) {
+        this.cancelGlacialAim();
+      }
       this.resetKeys();
     }
   };
@@ -2945,6 +2955,13 @@ export class GameEngine {
       e.preventDefault();
     }
 
+    if (key === 'escape' || code === 'escape') {
+      if (this.isAimGlacialActive) {
+        this.cancelGlacialAim();
+        return;
+      }
+    }
+
     if (key === 'f' || code === 'keyf') {
       const didInteract = this.checkInteract();
       if (!didInteract) {
@@ -2965,10 +2982,19 @@ export class GameEngine {
     } else if (key === 'c' || code === 'keyc') {
       // Tombol [C] khusus Character Status modal (Dash dihilangkan dari C)
     } else if (key === 'q' || code === 'keyq') {
-      // Slot 1 (Q): Mage Glacial Crystal Barrage (Hold-to-Aim) / Warrior Triple Crescent / Rogue 1000 Belati
+      // Slot 1 (Q): Mage Glacial Crystal Barrage (Tap-or-Hold State Machine) / Warrior Triple Crescent / Rogue 1000 Belati
       if (this.charClass === 'mage') {
         if (!e.repeat) {
-          this.startAimGlacialBarrage();
+          this.isHoldingGlacialKey = true;
+          this.glacialKeyDownTime = performance.now();
+          if (this.glacialAimTimer) {
+            clearTimeout(this.glacialAimTimer);
+          }
+          this.glacialAimTimer = window.setTimeout(() => {
+            if (this.isHoldingGlacialKey && !this.isAimGlacialActive) {
+              this.startAimGlacialBarrage();
+            }
+          }, 180);
         }
       } else {
         this.castSkill(1);
@@ -3047,8 +3073,16 @@ export class GameEngine {
     }
     if (key === 'q' || code === 'keyq') {
       if (this.charClass === 'mage') {
+        const pressDuration = performance.now() - this.glacialKeyDownTime;
+        if (this.glacialAimTimer) {
+          clearTimeout(this.glacialAimTimer);
+          this.glacialAimTimer = null;
+        }
+        this.isHoldingGlacialKey = false;
         if (this.isAimGlacialActive) {
-          this.releaseAimGlacialBarrage(false);
+          this.fireGlacialBarrage();
+        } else if (pressDuration < 180) {
+          this.quickCastGlacialBarrage();
         }
       }
     }
@@ -3122,7 +3156,7 @@ export class GameEngine {
     if (e.button === 2) {
       if (this.isAimGlacialActive) {
         e.preventDefault();
-        this.cancelAimGlacialBarrage();
+        this.cancelGlacialAim();
         return;
       }
     }
@@ -3133,6 +3167,10 @@ export class GameEngine {
     this.prevMouseY = e.clientY;
 
     if (e.button === 0 && !this.isSpectatorMode) {
+      if (this.charClass === 'mage' && this.isAimGlacialActive) {
+        this.fireGlacialBarrage();
+        return;
+      }
       this.startBasicAttack();
     }
   };
@@ -5544,49 +5582,48 @@ export class GameEngine {
     this.aimIndicatorGroup.name = 'GlacialAimIndicator';
     this.aimIndicatorGroup.visible = false;
 
-    // Outer laser beam cylinder
-    const beamGeom = new THREE.CylinderGeometry(0.06, 0.09, 1.0, 12, 1, false);
-    beamGeom.rotateX(Math.PI / 2);
-    beamGeom.translate(0, 0, 0.5);
-
-    const beamMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.65,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    this.aimIndicatorBeamMesh = new THREE.Mesh(beamGeom, beamMat);
-    this.aimIndicatorGroup.add(this.aimIndicatorBeamMesh);
-
-    // Inner bright core cylinder
-    const coreGeom = new THREE.CylinderGeometry(0.02, 0.03, 1.0, 8, 1, false);
-    coreGeom.rotateX(Math.PI / 2);
-    coreGeom.translate(0, 0, 0.5);
-
-    const coreMat = new THREE.MeshBasicMaterial({
-      color: 0xe0f2fe,
-      transparent: true,
-      opacity: 0.85,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    this.aimIndicatorCoreMesh = new THREE.Mesh(coreGeom, coreMat);
-    this.aimIndicatorGroup.add(this.aimIndicatorCoreMesh);
-
-    // Ground Target Decal Ring
-    const ringGeom = new THREE.RingGeometry(0.8, 1.15, 32);
-    ringGeom.rotateX(-Math.PI / 2);
+    // Ground Target Decal Ring (Radius: 2.2 units)
+    // Outer magical ice ring
+    const outerRingGeom = new THREE.RingGeometry(1.95, 2.25, 48);
+    outerRingGeom.rotateX(-Math.PI / 2);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0x38bdf8,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.85,
       side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-    this.aimIndicatorGroundRing = new THREE.Mesh(ringGeom, ringMat);
+    this.aimIndicatorGroundRing = new THREE.Mesh(outerRingGeom, ringMat);
     this.aimIndicatorGroup.add(this.aimIndicatorGroundRing);
+
+    // Inner rune accent ring (Radius: 0.85 units)
+    const innerRingGeom = new THREE.RingGeometry(0.65, 0.85, 32);
+    innerRingGeom.rotateX(-Math.PI / 2);
+    const innerRingMat = new THREE.MeshBasicMaterial({
+      color: 0xbae6fd,
+      transparent: true,
+      opacity: 0.65,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.aimIndicatorInnerRing = new THREE.Mesh(innerRingGeom, innerRingMat);
+    this.aimIndicatorGroup.add(this.aimIndicatorInnerRing);
+
+    // Arched energy trajectory line from hovering crystals above shoulders to target point
+    const TRAJECTORY_SEGMENTS = 36;
+    const trajectoryGeom = new THREE.BufferGeometry();
+    const positions = new Float32Array(TRAJECTORY_SEGMENTS * 3);
+    trajectoryGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const trajectoryMat = new THREE.LineBasicMaterial({
+      color: 0x7dd3fc,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+    });
+    this.aimTrajectoryLine = new THREE.Line(trajectoryGeom, trajectoryMat);
+    this.aimIndicatorGroup.add(this.aimTrajectoryLine);
 
     this.scene.add(this.aimIndicatorGroup);
   }
@@ -5617,9 +5654,9 @@ export class GameEngine {
 
     this.isAimGlacialActive = true;
     this.aimGlacialCancelled = false;
-    this.playerVel.set(0, 0, 0);
+    this.lastGlacialTargetId = null;
 
-    // Hitung sudut arah hadap maju dari vektor arah pandang kamera (membelakangi kamera, menghadap lurus ke depan)
+    // Hitung sudut arah hadap maju dari vektor arah pandang kamera
     const cameraForward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
     const horizForward = cameraForward.clone();
     horizForward.y = 0;
@@ -5712,7 +5749,7 @@ export class GameEngine {
       true
     );
 
-    this.callbacks.onGlacialAimChange?.(true);
+    this.callbacks.onGlacialAimChange?.(true, null);
   }
 
   public updateAimGlacialBarrage(deltaX: number, deltaY: number) {
@@ -5722,6 +5759,12 @@ export class GameEngine {
   }
 
   public releaseAimGlacialBarrage(isCancelled = false) {
+    if (this.glacialAimTimer) {
+      clearTimeout(this.glacialAimTimer);
+      this.glacialAimTimer = null;
+    }
+    this.isHoldingGlacialKey = false;
+
     if (!this.isAimGlacialActive) return;
 
     if (isCancelled) {
@@ -5745,7 +5788,6 @@ export class GameEngine {
     }
 
     this.mageGlacialBarrageCooldownTimer = 7.5;
-
     this.callbacks.onAddFloatingText('💠 GLACIAL CRYSTAL BARRAGE!', '#38bdf8', 'crit');
 
     // Sembunyikan garis bidik
@@ -5759,7 +5801,8 @@ export class GameEngine {
     }
 
     this.isAimGlacialActive = false;
-    this.callbacks.onGlacialAimChange?.(false);
+    this.lastGlacialTargetId = null;
+    this.callbacks.onGlacialAimChange?.(false, null);
 
     // Kembalikan pose karakter setelah selesai menembak
     setTimeout(() => {
@@ -5777,10 +5820,17 @@ export class GameEngine {
   }
 
   public cancelAimGlacialBarrage() {
+    if (this.glacialAimTimer) {
+      clearTimeout(this.glacialAimTimer);
+      this.glacialAimTimer = null;
+    }
+    this.isHoldingGlacialKey = false;
+
     if (!this.isAimGlacialActive) return;
 
     this.isAimGlacialActive = false;
     this.aimGlacialCancelled = true;
+    this.lastGlacialTargetId = null;
 
     // Sembunyikan garis bidik dan kristal tanpa mengurangi MP maupun memicu cooldown
     if (this.aimIndicatorGroup) {
@@ -5804,13 +5854,48 @@ export class GameEngine {
     }
 
     this.callbacks.onAddFloatingText('Dibatalkan', '#94a3b8', 'info');
-    this.callbacks.onGlacialAimChange?.(false);
+    this.callbacks.onGlacialAimChange?.(false, null);
+  }
+
+  public fireGlacialBarrage = () => {
+    this.releaseAimGlacialBarrage(false);
+  };
+
+  public cancelGlacialAim = () => {
+    this.cancelAimGlacialBarrage();
+  };
+
+  public quickCastGlacialBarrage() {
+    if (this.isControlsLocked) return;
+    if (this.charClass !== 'mage') return;
+    if (this.isAimGlacialActive) return;
+
+    if (this.mageGlacialBarrageCooldownTimer > 0) {
+      this.callbacks.onAddFloatingText(
+        `Glacial Barrage Cooldown (${this.mageGlacialBarrageCooldownTimer.toFixed(1)}s)!`,
+        '#94a3b8',
+        'info'
+      );
+      return;
+    }
+
+    let hasEnoughMp = false;
+    this.callbacks.onUpdateStats((stats) => {
+      if (stats.mp < 18) {
+        this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#ef4444', 'info');
+        return stats;
+      }
+      hasEnoughMp = true;
+      return { ...stats, mp: Math.max(0, stats.mp - 18) };
+    });
+    if (!hasEnoughMp) return;
+
+    this.mageGlacialBarrageCooldownTimer = 7.5;
+    this.castGlacialCrystalBarrage();
   }
 
   public updateGlacialAimFrame(delta: number) {
     if (!this.isAimGlacialActive) return;
-
-    this.playerVel.set(0, 0, 0);
 
     // Karakter SELALU menghadap searah pandangan kamera ke depan
     const camFwdX = -Math.sin(this.cameraAngleH);
@@ -5833,7 +5918,25 @@ export class GameEngine {
     const camFwdY = -Math.sin(this.cameraAngleV);
     const camDirXZ = Math.cos(this.cameraAngleV);
     const aimDir = new THREE.Vector3(camFwdX * camDirXZ, camFwdY, camFwdZ * camDirXZ).normalize();
-    this.aimTargetPoint.copy(this.playerPos).add(new THREE.Vector3(0, 1.4, 0)).addScaledVector(aimDir, 28.0);
+
+    // Raycast / step against terrain ground
+    let foundGround = false;
+    for (let d = 4.0; d <= 36.0; d += 1.0) {
+      const tx = this.playerPos.x + aimDir.x * d;
+      const tz = this.playerPos.z + aimDir.z * d;
+      const ty = this.playerPos.y + 1.5 + aimDir.y * d;
+      const gy = this.world.getTerrainHeight(tx, tz);
+      if (ty <= gy + 0.35) {
+        this.aimTargetPoint.set(tx, gy, tz);
+        foundGround = true;
+        break;
+      }
+    }
+    if (!foundGround) {
+      this.aimTargetPoint.copy(this.playerPos).add(new THREE.Vector3(0, 1.4, 0)).addScaledVector(aimDir, 28.0);
+      const gy = this.world.getTerrainHeight(this.aimTargetPoint.x, this.aimTargetPoint.z);
+      this.aimTargetPoint.y = Math.max(this.aimTargetPoint.y, gy);
+    }
 
     // Soft-lock terdekat di jalur bidik kursor
     let bestEnemy: (typeof this.enemies)[0] | null = null;
@@ -5852,25 +5955,73 @@ export class GameEngine {
       }
     }
 
+    const isLocked = !!bestEnemy;
     if (bestEnemy) {
       this.aimTargetPoint.copy(bestEnemy.mesh.position);
-      this.aimTargetPoint.y += (bestEnemy.data.type === 'boss' || bestEnemy.data.id?.startsWith('boss_')) ? 2.5 : 1.0;
+      const targetId = bestEnemy.data?.id || bestEnemy.data?.name || 'enemy';
+      if (this.lastGlacialTargetId !== targetId) {
+        this.lastGlacialTargetId = targetId;
+        this.callbacks.onGlacialAimChange?.(true, {
+          name: bestEnemy.data.name || 'Musuh',
+          hp: Math.max(0, bestEnemy.data.hp || 0),
+          maxHp: bestEnemy.data.maxHp || 100,
+          isBoss: bestEnemy.data.type === 'boss' || bestEnemy.data.id?.startsWith('boss_'),
+        });
+      }
+    } else {
+      if (this.lastGlacialTargetId !== null) {
+        this.lastGlacialTargetId = null;
+        this.callbacks.onGlacialAimChange?.(true, null);
+      }
     }
 
-    // Update garis proyeksi jalur tembakan (Aim Indicator Line)
+    // Update 3D Ground Ring and Curved Trajectory Line
     if (this.aimIndicatorGroup && this.aimIndicatorGroup.visible) {
-      const startPos = this.playerPos.clone().add(new THREE.Vector3(0, 1.35, 0));
-      this.aimIndicatorGroup.position.copy(startPos);
-      this.aimIndicatorGroup.lookAt(this.aimTargetPoint);
-      const lineDist = Math.max(1.0, startPos.distanceTo(this.aimTargetPoint));
-      if (this.aimIndicatorBeamMesh) this.aimIndicatorBeamMesh.scale.set(1, 1, lineDist);
-      if (this.aimIndicatorCoreMesh) this.aimIndicatorCoreMesh.scale.set(1, 1, lineDist);
+      const groundY = this.world.getTerrainHeight(this.aimTargetPoint.x, this.aimTargetPoint.z);
+      const ringY = Math.max(this.aimTargetPoint.y, groundY) + 0.08;
+      const time = this.clock.getElapsedTime();
+      const pulse = 1.0 + Math.sin(time * 6.0) * 0.06;
+
       if (this.aimIndicatorGroundRing) {
-        const groundY = this.world.getTerrainHeight(this.aimTargetPoint.x, this.aimTargetPoint.z);
-        this.aimIndicatorGroundRing.position.copy(this.aimTargetPoint);
-        this.aimIndicatorGroundRing.position.y = groundY + 0.08;
-        const pulse = 1.0 + Math.sin(this.clock.getElapsedTime() * 8.0) * 0.12;
+        this.aimIndicatorGroundRing.position.set(this.aimTargetPoint.x, ringY, this.aimTargetPoint.z);
+        this.aimIndicatorGroundRing.rotation.z = time * 0.8;
         this.aimIndicatorGroundRing.scale.set(pulse, pulse, pulse);
+        const ringMat = this.aimIndicatorGroundRing.material as THREE.MeshBasicMaterial;
+        ringMat.color.setHex(isLocked ? 0xfbbf24 : 0x38bdf8); // Cyan-Gold when locked
+      }
+
+      if (this.aimIndicatorInnerRing) {
+        this.aimIndicatorInnerRing.position.set(this.aimTargetPoint.x, ringY + 0.01, this.aimTargetPoint.z);
+        this.aimIndicatorInnerRing.rotation.z = -time * 1.2;
+        this.aimIndicatorInnerRing.scale.set(pulse, pulse, pulse);
+        const innerMat = this.aimIndicatorInnerRing.material as THREE.MeshBasicMaterial;
+        innerMat.color.setHex(isLocked ? 0xfde047 : 0xbae6fd);
+      }
+
+      // Curved Trajectory Line from crystals above Mage shoulders down to target point
+      if (this.aimTrajectoryLine) {
+        const lineMat = this.aimTrajectoryLine.material as THREE.LineBasicMaterial;
+        lineMat.color.setHex(isLocked ? 0xfbbf24 : 0x7dd3fc);
+
+        const startPos = this.playerPos.clone().add(new THREE.Vector3(0, 2.6, 0));
+        const endPos = this.aimTargetPoint.clone();
+        const dist = startPos.distanceTo(endPos);
+        const midPoint = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
+        midPoint.y += Math.min(6.0, Math.max(1.8, dist * 0.15));
+
+        const geom = this.aimTrajectoryLine.geometry as THREE.BufferGeometry;
+        const posAttr = geom.getAttribute('position') as THREE.BufferAttribute;
+        const count = posAttr.count;
+
+        for (let i = 0; i < count; i++) {
+          const t = i / (count - 1);
+          const oneMinusT = 1 - t;
+          const x = oneMinusT * oneMinusT * startPos.x + 2 * oneMinusT * t * midPoint.x + t * t * endPos.x;
+          const y = oneMinusT * oneMinusT * startPos.y + 2 * oneMinusT * t * midPoint.y + t * t * endPos.y;
+          const z = oneMinusT * oneMinusT * startPos.z + 2 * oneMinusT * t * midPoint.z + t * t * endPos.z;
+          posAttr.setXYZ(i, x, y, z);
+        }
+        posAttr.needsUpdate = true;
       }
     }
   }
@@ -6973,10 +7124,9 @@ export class GameEngine {
       if (this.charClass === 'mage') {
         // Mage Slot 1 (Q): Glacial Crystal Barrage
         if (!this.isAimGlacialActive) {
-          this.startAimGlacialBarrage();
-          this.releaseAimGlacialBarrage(false);
+          this.quickCastGlacialBarrage();
         } else {
-          this.releaseAimGlacialBarrage(false);
+          this.fireGlacialBarrage();
         }
         return;
       }
@@ -7978,10 +8128,13 @@ export class GameEngine {
       return;
     }
 
-    // Mage Glacial Barrage: Hold-to-Aim interactive aiming frame
+    // Mage Glacial Barrage: Hold-to-Aim interactive aiming frame & strafe walk
     if (this.isAimGlacialActive) {
-      this.updateGlacialAimFrame(delta);
-      return;
+      if (!this.isHoldingGlacialKey && !this.isMouseDown && !this.activeGlacialVfx) {
+        this.cancelGlacialAim();
+      } else {
+        this.updateGlacialAimFrame(delta);
+      }
     }
 
     // Casting State Handling (Movement Lock & Starfall Channeling - image_68.png)
@@ -8142,6 +8295,7 @@ export class GameEngine {
     const hasStamina = this.playerStamina > 0;
 
     if (
+      !this.isAimGlacialActive &&
       (this.charClass === 'warrior' || this.charClass === 'rogue' || this.charClass === 'mage') &&
       isMoving &&
       (isShiftPressed || isJoySprint) &&
@@ -8170,18 +8324,22 @@ export class GameEngine {
     }
 
     let targetSpeed = baseSpeed;
-    if (this.bossManager?.playerDebuffs?.isSlowed) {
-      targetSpeed *= 0.5; // Efek Slow -50% pergerakan dari Boss / Sand Spikes
-    }
-    if (this.isDashing) {
-      targetSpeed = this.charClass === 'rogue' ? 24.0 : this.charClass === 'warrior' ? 19.0 : 16.0;
+    if (this.isAimGlacialActive) {
+      targetSpeed = baseSpeed * 0.55; // 55% normal movement speed while aiming
     } else {
-      if (this.isSprinting) {
-        targetSpeed *= (this.charClass === 'mage' ? 1.65 : 1.45); // Mage: Kecepatan gerak meningkat 1.65x lipat saat Terbang Cepat (Astral Glide)
+      if (this.bossManager?.playerDebuffs?.isSlowed) {
+        targetSpeed *= 0.5; // Efek Slow -50% pergerakan dari Boss / Sand Spikes
       }
-      if (isPointOnRoad(this.playerPos.x, this.playerPos.z)) {
-        // Buff Pergerakan Jalur Jalan (Movement Speed +15% saat berlari di atas jalan raya/setapak)
-        targetSpeed *= 1.15;
+      if (this.isDashing) {
+        targetSpeed = this.charClass === 'rogue' ? 24.0 : this.charClass === 'warrior' ? 19.0 : 16.0;
+      } else {
+        if (this.isSprinting) {
+          targetSpeed *= (this.charClass === 'mage' ? 1.65 : 1.45); // Mage: Kecepatan gerak meningkat 1.65x lipat saat Terbang Cepat (Astral Glide)
+        }
+        if (isPointOnRoad(this.playerPos.x, this.playerPos.z)) {
+          // Buff Pergerakan Jalur Jalan (Movement Speed +15% saat berlari di atas jalan raya/setapak)
+          targetSpeed *= 1.15;
+        }
       }
     }
 
@@ -8196,19 +8354,30 @@ export class GameEngine {
       this.playerVel.z = moveDirZ * targetSpeed;
 
       // Rotate player mesh smoothly to facing direction
-      // Player mesh front faces +Z (0, 0, 1), so angle is Math.atan2(moveDirX, moveDirZ)
-      const targetAngle = Math.atan2(moveDirX, moveDirZ);
-      let angleDiff = targetAngle - this.playerRotationY;
-      while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-      while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-      this.playerRotationY += angleDiff * 16 * delta;
-
-      // Kemiringan samping (banking roll) saat berbelok di udara bagi Mage
-      if (this.charClass === 'mage' && this.isSprinting) {
-        const desiredRoll = Math.max(-0.25, Math.min(0.25, angleDiff * 0.7));
-        this.mageBankingRoll = THREE.MathUtils.lerp(this.mageBankingRoll, desiredRoll, Math.min(1.0, delta * 10.0));
-      } else {
+      if (this.isAimGlacialActive) {
+        // Karakter menghadap searah pandangan kamera (strafe movement)
+        const camFwdX = -Math.sin(this.cameraAngleH);
+        const camFwdZ = -Math.cos(this.cameraAngleH);
+        this.playerRotationY = Math.atan2(camFwdX, camFwdZ);
+        if (this.playerMesh?.group) {
+          this.playerMesh.group.rotation.y = this.playerRotationY;
+        }
         this.mageBankingRoll = THREE.MathUtils.lerp(this.mageBankingRoll, 0, Math.min(1.0, delta * 8.0));
+      } else {
+        // Player mesh front faces +Z (0, 0, 1), so angle is Math.atan2(moveDirX, moveDirZ)
+        const targetAngle = Math.atan2(moveDirX, moveDirZ);
+        let angleDiff = targetAngle - this.playerRotationY;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        this.playerRotationY += angleDiff * 16 * delta;
+
+        // Kemiringan samping (banking roll) saat berbelok di udara bagi Mage
+        if (this.charClass === 'mage' && this.isSprinting) {
+          const desiredRoll = Math.max(-0.25, Math.min(0.25, angleDiff * 0.7));
+          this.mageBankingRoll = THREE.MathUtils.lerp(this.mageBankingRoll, desiredRoll, Math.min(1.0, delta * 10.0));
+        } else {
+          this.mageBankingRoll = THREE.MathUtils.lerp(this.mageBankingRoll, 0, Math.min(1.0, delta * 8.0));
+        }
       }
 
       // Spawn movement footsteps
@@ -9784,6 +9953,12 @@ export class GameEngine {
       this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, 48.0, lerpSpeed);
       this.camera.updateProjectionMatrix();
       return;
+    }
+
+    // Restore standard camera FOV smoothly when not aiming
+    if (Math.abs(this.camera.fov - 60.0) > 0.05) {
+      this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, 60.0, Math.min(1.0, delta * 8.0));
+      this.camera.updateProjectionMatrix();
     }
 
     // Orbit camera calculation with aerial zoom adjustment

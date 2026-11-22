@@ -123,6 +123,7 @@ export default function App() {
   const [hunterWeaponMode, setHunterWeaponMode] = useState<'dagger' | 'bow'>('dagger');
   const [castingState, setCastingState] = useState<{ isCasting: boolean; progress: number; text: string } | null>(null);
   const [isGlacialAiming, setIsGlacialAiming] = useState(false);
+  const [glacialTarget, setGlacialTarget] = useState<{ name: string; hp: number; maxHp: number; isBoss?: boolean } | null>(null);
 
   // Pause Menu State
   const [isPauseMenuOpen, setIsPauseMenuOpen] = useState(false);
@@ -587,8 +588,9 @@ export default function App() {
       onHunterWeaponSwitch: (mode) => {
         setHunterWeaponMode(mode);
       },
-      onGlacialAimChange: (aiming) => {
+      onGlacialAimChange: (aiming, targetInfo) => {
         setIsGlacialAiming(aiming);
+        setGlacialTarget(targetInfo || null);
       },
       onCastingUpdate: (casting) => {
         setCastingState(casting);
@@ -1163,6 +1165,7 @@ export default function App() {
               if (slot === 1) engineRef.current?.releaseAimGlacialBarrage(isCancelled);
             }}
             isGlacialAiming={isGlacialAiming}
+            glacialTarget={glacialTarget}
             onJump={() => engineRef.current?.jump()}
             onDash={() => engineRef.current?.performDash()}
             onRotateCamera={(dx, dy) => engineRef.current?.rotateCameraByDelta(dx, dy)}
