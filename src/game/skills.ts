@@ -14,6 +14,7 @@ export const SKILL_COOLDOWNS = {
   CELESTIAL_APOCALYPSE: 0, // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 18.0s)
   ARCANE_BLINK: 0, // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 0.1s / 2.0s)
   CAHAYA_SUCI: 0, // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 0.1s / 12.0s)
+  SKYWARD_VOLLEY: 0, // TODO: Kembalikan cooldown 8s setelah pengujian selesai (Normal: 8.0s)
 };
 
 /**
@@ -3926,6 +3927,737 @@ export function createGlacialBarrageVfx(params: {
     params.onShardHit,
     params.onShardGroundHit,
     params.isHoldToAim
+  );
+}
+
+/**
+ * Procedural Gale Magic Circle Texture Generator (512x512)
+ * Creates an emerald-green wind compass magic circle with concentric rings,
+ * compass rose points (N, S, E, W diamonds), wind runes, and spiral gale currents.
+ */
+let cachedGaleMagicCircleTexture: THREE.CanvasTexture | null = null;
+
+export function getGaleMagicCircleTexture(): THREE.CanvasTexture {
+  if (cachedGaleMagicCircleTexture) return cachedGaleMagicCircleTexture;
+
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    cachedGaleMagicCircleTexture = new THREE.CanvasTexture(canvas);
+    return cachedGaleMagicCircleTexture;
+  }
+
+  const cx = size / 2;
+  const cy = size / 2;
+
+  // 1. Emerald glowing radial background
+  const bgGrad = ctx.createRadialGradient(cx, cy, 20, cx, cy, 248);
+  bgGrad.addColorStop(0, 'rgba(167, 243, 208, 0.28)');
+  bgGrad.addColorStop(0.25, 'rgba(52, 211, 153, 0.22)');
+  bgGrad.addColorStop(0.55, 'rgba(16, 185, 129, 0.15)');
+  bgGrad.addColorStop(0.85, 'rgba(5, 150, 105, 0.06)');
+  bgGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = bgGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 248, 0, Math.PI * 2);
+  ctx.fill();
+
+  const drawGlowRing = (r: number, color: string, width: number, blur = 6) => {
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = blur;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  // Outer primary ring
+  drawGlowRing(242, '#34d399', 3.5, 12);
+  drawGlowRing(234, '#10b981', 1.8, 8);
+  drawGlowRing(210, '#6ee7b7', 1.5, 6);
+  drawGlowRing(160, '#34d399', 2.0, 10);
+  drawGlowRing(110, '#10b981', 1.6, 6);
+  drawGlowRing(50, '#6ee7b7', 2.5, 8);
+
+  // Outer perimeter ticks (32 directional tick marks)
+  ctx.save();
+  ctx.strokeStyle = '#6ee7b7';
+  ctx.lineWidth = 2.0;
+  ctx.shadowColor = '#10b981';
+  ctx.shadowBlur = 6;
+  for (let i = 0; i < 32; i++) {
+    const angle = (i / 32) * Math.PI * 2;
+    const isMajor = i % 8 === 0;
+    const rIn = isMajor ? 222 : 234;
+    const rOut = 242;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * rIn, cy + Math.sin(angle) * rIn);
+    ctx.lineTo(cx + Math.cos(angle) * rOut, cy + Math.sin(angle) * rOut);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 4-point Grand Compass Rose Star + 4 minor needles
+  ctx.save();
+  ctx.shadowColor = '#34d399';
+  ctx.shadowBlur = 10;
+  for (let c = 0; c < 8; c++) {
+    const angle = (c / 8) * Math.PI * 2;
+    const isMajor = c % 2 === 0;
+    const starLen = isMajor ? 190 : 130;
+    const starWidth = isMajor ? 26 : 14;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+
+    const grad = ctx.createLinearGradient(0, -starLen, 0, 0);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.3, isMajor ? '#6ee7b7' : '#34d399');
+    grad.addColorStop(1.0, 'rgba(16, 185, 129, 0.1)');
+    ctx.fillStyle = grad;
+
+    ctx.beginPath();
+    ctx.moveTo(0, -starLen);
+    ctx.lineTo(starWidth / 2, 0);
+    ctx.lineTo(-starWidth / 2, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = '#a7f3d0';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // Spiral Wind Runes in middle annular ring (r: 160..210)
+  ctx.save();
+  ctx.strokeStyle = '#34d399';
+  ctx.lineWidth = 2.0;
+  ctx.shadowColor = '#10b981';
+  ctx.shadowBlur = 8;
+  for (let w = 0; w < 16; w++) {
+    const a = (w / 16) * Math.PI * 2;
+    const rMid = 185;
+    const wx = cx + Math.cos(a) * rMid;
+    const wy = cy + Math.sin(a) * rMid;
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.rotate(a + Math.PI / 2);
+    ctx.beginPath();
+    ctx.arc(0, 0, 10, -Math.PI * 0.7, Math.PI * 0.7, false);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+
+  cachedGaleMagicCircleTexture = new THREE.CanvasTexture(canvas);
+  cachedGaleMagicCircleTexture.needsUpdate = true;
+  return cachedGaleMagicCircleTexture;
+}
+
+export interface SkywardArrowVolleyVfxInstance {
+  group: THREE.Group;
+  isActive: boolean;
+  activate: (
+    casterPos: THREE.Vector3,
+    targetPos: THREE.Vector3,
+    onFlareLaunch?: () => void,
+    onArrowImpact?: (impactPos: THREE.Vector3, arrowIndex: number) => void,
+    onFinisherImpact?: (impactPos: THREE.Vector3) => void
+  ) => void;
+  update: (
+    delta: number,
+    enemies: any[],
+    damageArrowCallback: (enemy: any, impactPos: THREE.Vector3) => void,
+    damageFinisherCallback: (enemies: any[], impactPos: THREE.Vector3) => void
+  ) => boolean;
+  cleanup: () => void;
+}
+
+export class SkywardArrowVolleyResourcePool {
+  private static instance: SkywardArrowVolleyResourcePool | null = null;
+
+  // Shared Geometries
+  public arrowShaftGeom!: THREE.CylinderGeometry;
+  public arrowHeadGeom!: THREE.ConeGeometry;
+  public arrowTrailGeom!: THREE.CylinderGeometry;
+  public flareTrailGeom!: THREE.CylinderGeometry;
+  public magicCircleGeom!: THREE.CircleGeometry;
+  public magicRingGeom!: THREE.RingGeometry;
+  public giantShaftGeom!: THREE.CylinderGeometry;
+  public giantHeadGeom!: THREE.ConeGeometry;
+  public giantVortexGeom!: THREE.CylinderGeometry;
+  public shockwaveGeom!: THREE.RingGeometry;
+  public particleGeom!: THREE.TetrahedronGeometry;
+
+  // Shared Materials
+  public arrowShaftMat!: THREE.MeshStandardMaterial;
+  public arrowHeadMat!: THREE.MeshStandardMaterial;
+  public arrowTrailMat!: THREE.MeshBasicMaterial;
+  public flareArrowMat!: THREE.MeshStandardMaterial;
+  public flareTrailMat!: THREE.MeshBasicMaterial;
+  public magicCircleMat!: THREE.MeshBasicMaterial;
+  public magicRingMat!: THREE.MeshBasicMaterial;
+  public giantShaftMat!: THREE.MeshStandardMaterial;
+  public giantHeadMat!: THREE.MeshStandardMaterial;
+  public giantVortexMat!: THREE.MeshBasicMaterial;
+  public shockwaveMat!: THREE.MeshBasicMaterial;
+  public particleMat!: THREE.MeshStandardMaterial;
+
+  public isInitialized = false;
+  private instances: SkywardArrowVolleyVfxInstance[] = [];
+
+  public static get(): SkywardArrowVolleyResourcePool {
+    if (!SkywardArrowVolleyResourcePool.instance) {
+      SkywardArrowVolleyResourcePool.instance = new SkywardArrowVolleyResourcePool();
+      SkywardArrowVolleyResourcePool.instance.init();
+    }
+    return SkywardArrowVolleyResourcePool.instance;
+  }
+
+  private init() {
+    if (this.isInitialized) return;
+
+    // 1. Geometries
+    this.arrowShaftGeom = new THREE.CylinderGeometry(0.04, 0.04, 1.4, 6);
+    this.arrowHeadGeom = new THREE.ConeGeometry(0.12, 0.32, 6);
+
+    const rainTrail = new THREE.CylinderGeometry(0.01, 0.12, 1.8, 6, 1, true);
+    rainTrail.rotateX(Math.PI / 2);
+    rainTrail.translate(0, 0, -1.0);
+    this.arrowTrailGeom = rainTrail;
+
+    const flareTrail = new THREE.CylinderGeometry(0.02, 0.25, 3.2, 8, 1, true);
+    flareTrail.rotateX(Math.PI / 2);
+    flareTrail.translate(0, 0, -1.8);
+    this.flareTrailGeom = flareTrail;
+
+    const circle = new THREE.CircleGeometry(5.5, 48);
+    circle.rotateX(-Math.PI / 2);
+    this.magicCircleGeom = circle;
+
+    const ring = new THREE.RingGeometry(5.1, 5.5, 48);
+    ring.rotateX(-Math.PI / 2);
+    this.magicRingGeom = ring;
+
+    this.giantShaftGeom = new THREE.CylinderGeometry(0.12, 0.12, 3.8, 8);
+    this.giantHeadGeom = new THREE.ConeGeometry(0.35, 0.85, 8);
+    this.giantVortexGeom = new THREE.CylinderGeometry(0.9, 0.45, 3.4, 12, 1, true);
+
+    const sw = new THREE.RingGeometry(0.5, 1.2, 48);
+    sw.rotateX(-Math.PI / 2);
+    this.shockwaveGeom = sw;
+
+    this.particleGeom = new THREE.TetrahedronGeometry(0.16, 0);
+
+    // 2. Materials
+    this.arrowShaftMat = new THREE.MeshStandardMaterial({
+      color: 0x10b981,
+      roughness: 0.3,
+      metalness: 0.4,
+      emissive: 0x059669,
+      emissiveIntensity: 0.8,
+    });
+    this.arrowHeadMat = new THREE.MeshStandardMaterial({
+      color: 0xecfdf5,
+      roughness: 0.2,
+      metalness: 0.8,
+      emissive: 0x34d399,
+      emissiveIntensity: 1.2,
+    });
+    this.arrowTrailMat = new THREE.MeshBasicMaterial({
+      color: 0x34d399,
+      transparent: true,
+      opacity: 0.75,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    this.flareArrowMat = new THREE.MeshStandardMaterial({
+      color: 0x6ee7b7,
+      roughness: 0.1,
+      metalness: 0.9,
+      emissive: 0x10b981,
+      emissiveIntensity: 2.5,
+    });
+    this.flareTrailMat = new THREE.MeshBasicMaterial({
+      color: 0xa7f3d0,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    this.magicCircleMat = new THREE.MeshBasicMaterial({
+      map: getGaleMagicCircleTexture(),
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this.magicRingMat = new THREE.MeshBasicMaterial({
+      color: 0x34d399,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    this.giantShaftMat = new THREE.MeshStandardMaterial({
+      color: 0x047857,
+      roughness: 0.2,
+      metalness: 0.85,
+      emissive: 0x10b981,
+      emissiveIntensity: 1.8,
+    });
+    this.giantHeadMat = new THREE.MeshStandardMaterial({
+      color: 0xf0fdf4,
+      roughness: 0.15,
+      metalness: 0.9,
+      emissive: 0x34d399,
+      emissiveIntensity: 2.2,
+    });
+    this.giantVortexMat = new THREE.MeshBasicMaterial({
+      color: 0x6ee7b7,
+      transparent: true,
+      opacity: 0.65,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    this.shockwaveMat = new THREE.MeshBasicMaterial({
+      color: 0x6ee7b7,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    this.particleMat = new THREE.MeshStandardMaterial({
+      color: 0x10b981,
+      emissive: 0x34d399,
+      emissiveIntensity: 1.5,
+      roughness: 0.4,
+    });
+
+    // 3. Pre-allocate 2 VFX Instances
+    for (let inst = 0; inst < 2; inst++) {
+      this.instances.push(this.createInstance());
+    }
+
+    this.isInitialized = true;
+  }
+
+  private createInstance(): SkywardArrowVolleyVfxInstance {
+    const rootGroup = new THREE.Group();
+    rootGroup.name = 'SkywardArrowVolley_Instance';
+    rootGroup.visible = false;
+
+    // A. Flare Arrow (Phase 1)
+    const flareGroup = new THREE.Group();
+    const flareShaft = new THREE.Mesh(this.arrowShaftGeom, this.flareArrowMat);
+    flareShaft.rotation.x = Math.PI / 2;
+    const flareHead = new THREE.Mesh(this.arrowHeadGeom, this.flareArrowMat);
+    flareHead.position.z = 0.8;
+    flareHead.rotation.x = Math.PI / 2;
+    const flareTrail = new THREE.Mesh(this.flareTrailGeom, this.flareTrailMat);
+    flareGroup.add(flareShaft, flareHead, flareTrail);
+    flareGroup.visible = false;
+    rootGroup.add(flareGroup);
+
+    // B. Magic Circle & Outer Ring
+    const magicCircleMesh = new THREE.Mesh(this.magicCircleGeom, this.magicCircleMat);
+    const magicRingMesh = new THREE.Mesh(this.magicRingGeom, this.magicRingMat);
+    magicCircleMesh.visible = false;
+    magicRingMesh.visible = false;
+    rootGroup.add(magicCircleMesh, magicRingMesh);
+
+    // C. 16 Gale Rain Arrows (Phase 2)
+    const RAIN_COUNT = 16;
+    const rainArrowGroups: THREE.Group[] = [];
+    for (let r = 0; r < RAIN_COUNT; r++) {
+      const arrGroup = new THREE.Group();
+      const shaft = new THREE.Mesh(this.arrowShaftGeom, this.arrowShaftMat);
+      shaft.rotation.x = -Math.PI / 2;
+      const head = new THREE.Mesh(this.arrowHeadGeom, this.arrowHeadMat);
+      head.position.z = 0.8;
+      head.rotation.x = -Math.PI / 2;
+      const trail = new THREE.Mesh(this.arrowTrailGeom, this.arrowTrailMat);
+      arrGroup.add(shaft, head, trail);
+      arrGroup.visible = false;
+      rootGroup.add(arrGroup);
+      rainArrowGroups.push(arrGroup);
+    }
+
+    // D. Giant Finisher Arrow (Phase 3)
+    const giantGroup = new THREE.Group();
+    const gShaft = new THREE.Mesh(this.giantShaftGeom, this.giantShaftMat);
+    gShaft.rotation.x = -Math.PI / 2;
+    const gHead = new THREE.Mesh(this.giantHeadGeom, this.giantHeadMat);
+    gHead.position.z = 2.0;
+    gHead.rotation.x = -Math.PI / 2;
+    const gVortex = new THREE.Mesh(this.giantVortexGeom, this.giantVortexMat);
+    gVortex.rotation.x = -Math.PI / 2;
+    giantGroup.add(gShaft, gHead, gVortex);
+    giantGroup.visible = false;
+    rootGroup.add(giantGroup);
+
+    // E. Expanding Wind Shockwave Ring
+    const shockwaveMesh = new THREE.Mesh(this.shockwaveGeom, this.shockwaveMat.clone());
+    shockwaveMesh.visible = false;
+    rootGroup.add(shockwaveMesh);
+
+    // F. 40 Emerald Wind/Leaf Particles
+    const PARTICLE_COUNT = 40;
+    const particleMeshes: THREE.Mesh[] = [];
+    const particleVels: THREE.Vector3[] = [];
+    for (let p = 0; p < PARTICLE_COUNT; p++) {
+      const pMesh = new THREE.Mesh(this.particleGeom, this.particleMat);
+      pMesh.visible = false;
+      rootGroup.add(pMesh);
+      particleMeshes.push(pMesh);
+      particleVels.push(new THREE.Vector3());
+    }
+
+    // State Variables
+    let isActive = false;
+    let elapsedTime = 0;
+    const casterPos = new THREE.Vector3();
+    const targetPos = new THREE.Vector3();
+    const arrowOffsets: { x: number; z: number }[] = [];
+    const dropStartTimes: number[] = [];
+    const arrowHasHit: boolean[] = [];
+    let finisherHasHit = false;
+    let shockwaveStartTime = -1;
+
+    let onFlareCb: (() => void) | undefined;
+    let onArrowCb: ((impactPos: THREE.Vector3, arrowIndex: number) => void) | undefined;
+    let onFinisherCb: ((impactPos: THREE.Vector3) => void) | undefined;
+
+    const activate = (
+      cPos: THREE.Vector3,
+      tPos: THREE.Vector3,
+      onFlareLaunch?: () => void,
+      onArrowImpact?: (impactPos: THREE.Vector3, arrowIndex: number) => void,
+      onFinisherImpact?: (impactPos: THREE.Vector3) => void
+    ) => {
+      isActive = true;
+      elapsedTime = 0;
+      casterPos.copy(cPos);
+      targetPos.copy(tPos);
+      onFlareCb = onFlareLaunch;
+      onArrowCb = onArrowImpact;
+      onFinisherCb = onFinisherImpact;
+      finisherHasHit = false;
+      shockwaveStartTime = -1;
+
+      rootGroup.visible = true;
+
+      // Flare arrow starts at caster
+      flareGroup.position.set(casterPos.x, casterPos.y + 1.2, casterPos.z);
+      flareGroup.visible = true;
+      onFlareCb?.();
+
+      // Magic circle at target
+      magicCircleMesh.position.set(targetPos.x, targetPos.y + 0.04, targetPos.z);
+      magicRingMesh.position.set(targetPos.x, targetPos.y + 0.05, targetPos.z);
+      magicCircleMesh.scale.set(0.15, 0.15, 0.15);
+      magicRingMesh.scale.set(0.15, 0.15, 0.15);
+      magicCircleMesh.visible = true;
+      magicRingMesh.visible = true;
+
+      // 16 Rain arrows configuration (staggered across 0.3s to 1.7s)
+      arrowOffsets.length = 0;
+      dropStartTimes.length = 0;
+      arrowHasHit.length = 0;
+      for (let i = 0; i < RAIN_COUNT; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const dist = Math.sqrt(Math.random()) * 5.0; // uniform disc distribution
+        arrowOffsets.push({
+          x: Math.cos(ang) * dist,
+          z: Math.sin(ang) * dist,
+        });
+        dropStartTimes.push(0.3 + (i / RAIN_COUNT) * 1.35);
+        arrowHasHit.push(false);
+        rainArrowGroups[i].visible = false;
+      }
+
+      giantGroup.visible = false;
+      shockwaveMesh.visible = false;
+      for (let p = 0; p < PARTICLE_COUNT; p++) {
+        particleMeshes[p].visible = false;
+      }
+    };
+
+    const cleanup = () => {
+      isActive = false;
+      rootGroup.visible = false;
+      flareGroup.visible = false;
+      magicCircleMesh.visible = false;
+      magicRingMesh.visible = false;
+      rainArrowGroups.forEach((g) => { g.visible = false; });
+      giantGroup.visible = false;
+      shockwaveMesh.visible = false;
+      particleMeshes.forEach((p) => { p.visible = false; });
+    };
+
+    const update = (
+      delta: number,
+      enemies: any[],
+      damageArrowCallback: (enemy: any, impactPos: THREE.Vector3) => void,
+      damageFinisherCallback: (enemies: any[], impactPos: THREE.Vector3) => void
+    ): boolean => {
+      if (!isActive) return true;
+      elapsedTime += delta;
+
+      // Phase 1: Flare Arrow Launch (0.0s - 0.3s)
+      if (elapsedTime < 0.3) {
+        const t = elapsedTime / 0.3;
+        flareGroup.position.set(casterPos.x, casterPos.y + 1.2 + t * 38.0, casterPos.z);
+        flareGroup.visible = true;
+      } else {
+        flareGroup.visible = false;
+      }
+
+      // Magic Circle Animation
+      if (elapsedTime <= 2.2) {
+        if (elapsedTime < 0.25) {
+          const s = 0.15 + (elapsedTime / 0.25) * 0.85;
+          magicCircleMesh.scale.set(s, s, s);
+          magicRingMesh.scale.set(s, s, s);
+        } else {
+          magicCircleMesh.scale.set(1.0, 1.0, 1.0);
+          magicRingMesh.scale.set(1.0, 1.0, 1.0);
+        }
+        magicCircleMesh.rotation.z += delta * 4.0;
+        magicRingMesh.rotation.z -= delta * 2.5;
+
+        // Fade out magic circle near finish
+        if (elapsedTime > 1.85) {
+          const fadeT = Math.max(0, 1.0 - (elapsedTime - 1.85) / 0.35);
+          (magicCircleMesh.material as THREE.MeshBasicMaterial).opacity = 0.9 * fadeT;
+          (magicRingMesh.material as THREE.MeshBasicMaterial).opacity = 0.85 * fadeT;
+        } else {
+          (magicCircleMesh.material as THREE.MeshBasicMaterial).opacity = 0.9;
+          (magicRingMesh.material as THREE.MeshBasicMaterial).opacity = 0.85;
+        }
+      }
+
+      // Phase 2: 16 Gale Rain Arrows (0.3s - 1.7s)
+      const DROP_DURATION = 0.22;
+      for (let i = 0; i < RAIN_COUNT; i++) {
+        if (arrowHasHit[i]) continue;
+        const startTime = dropStartTimes[i];
+        if (elapsedTime >= startTime) {
+          const dropElapsed = elapsedTime - startTime;
+          const ax = targetPos.x + arrowOffsets[i].x;
+          const az = targetPos.z + arrowOffsets[i].z;
+          const targetY = targetPos.y;
+
+          if (dropElapsed < DROP_DURATION) {
+            const fallT = dropElapsed / DROP_DURATION;
+            const ay = 32.0 * (1 - fallT) + targetY * fallT;
+            rainArrowGroups[i].position.set(ax, ay, az);
+            rainArrowGroups[i].visible = true;
+          } else {
+            // Impact!
+            arrowHasHit[i] = true;
+            rainArrowGroups[i].visible = false;
+            const impactPos = new THREE.Vector3(ax, targetY, az);
+            onArrowCb?.(impactPos, i);
+
+            // Splash damage within 2.4 units of impact point
+            for (let e = 0; e < enemies.length; e++) {
+              const enemy = enemies[e];
+              if (enemy.data?.isDead) continue;
+              const dist = enemy.mesh.position.distanceTo(impactPos);
+              if (dist <= 2.4) {
+                damageArrowCallback(enemy, impactPos);
+              }
+            }
+          }
+        }
+      }
+
+      // Phase 3: Great Gale Arrow Finisher (starts dropping at 1.65s, lands at 1.80s)
+      if (elapsedTime >= 1.65 && !finisherHasHit) {
+        const finElapsed = elapsedTime - 1.65;
+        const finDur = 0.15;
+        if (finElapsed < finDur) {
+          const fallT = finElapsed / finDur;
+          const gy = 36.0 * (1 - fallT) + targetPos.y * fallT;
+          giantGroup.position.set(targetPos.x, gy, targetPos.z);
+          giantGroup.visible = true;
+          gVortex.rotation.y += delta * 14.0;
+        } else {
+          // Slam Impact at 1.80s!
+          finisherHasHit = true;
+          giantGroup.visible = false;
+          onFinisherCb?.(targetPos);
+
+          // Trigger shockwave ring
+          shockwaveMesh.position.set(targetPos.x, targetPos.y + 0.08, targetPos.z);
+          shockwaveMesh.scale.set(0.15, 0.15, 0.15);
+          shockwaveMesh.visible = true;
+          (shockwaveMesh.material as THREE.MeshBasicMaterial).opacity = 0.9;
+          shockwaveStartTime = elapsedTime;
+
+          // Trigger 40 emerald leaf/wind particles
+          for (let p = 0; p < PARTICLE_COUNT; p++) {
+            const pMesh = particleMeshes[p];
+            pMesh.position.copy(targetPos).add(new THREE.Vector3(0, 0.35, 0));
+            pMesh.visible = true;
+            const pAng = (p / PARTICLE_COUNT) * Math.PI * 2 + Math.random() * 0.3;
+            const pSpeed = 6.0 + Math.random() * 10.0;
+            particleVels[p].set(
+              Math.cos(pAng) * pSpeed,
+              2.5 + Math.random() * 5.0,
+              Math.sin(pAng) * pSpeed
+            );
+          }
+
+          // Damage all enemies in 5.5 radius and apply micro-pull to center
+          const hitEnemies = [];
+          for (let e = 0; e < enemies.length; e++) {
+            const enemy = enemies[e];
+            if (enemy.data?.isDead) continue;
+            const dist = Math.hypot(
+              enemy.mesh.position.x - targetPos.x,
+              enemy.mesh.position.z - targetPos.z
+            );
+            if (dist <= 5.5) {
+              hitEnemies.push(enemy);
+              // Micro-pull towards center
+              const toCenter = new THREE.Vector3(
+                targetPos.x - enemy.mesh.position.x,
+                0,
+                targetPos.z - enemy.mesh.position.z
+              );
+              const len = toCenter.length();
+              if (len > 0.35) {
+                toCenter.normalize();
+                enemy.mesh.position.addScaledVector(toCenter, Math.min(1.2, len * 0.45));
+              }
+            }
+          }
+          damageFinisherCallback(hitEnemies, targetPos);
+        }
+      }
+
+      // Update Shockwave expansion & fade (1.80s - 2.15s)
+      if (shockwaveMesh.visible && shockwaveStartTime >= 0) {
+        const swElapsed = elapsedTime - shockwaveStartTime;
+        const swDur = 0.35;
+        if (swElapsed < swDur) {
+          const swT = swElapsed / swDur;
+          const s = 0.15 + swT * 5.35; // Expands outward to radius 5.5
+          shockwaveMesh.scale.set(s, s, s);
+          (shockwaveMesh.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1.0 - swT);
+        } else {
+          shockwaveMesh.visible = false;
+        }
+      }
+
+      // Update 40 Particles
+      if (finisherHasHit) {
+        for (let p = 0; p < PARTICLE_COUNT; p++) {
+          const pMesh = particleMeshes[p];
+          if (!pMesh.visible) continue;
+          pMesh.position.addScaledVector(particleVels[p], delta);
+          particleVels[p].y -= delta * 14.0; // Gravity
+          particleVels[p].x *= (1.0 - delta * 2.0);
+          particleVels[p].z *= (1.0 - delta * 2.0);
+          pMesh.rotation.x += delta * 6.0;
+          pMesh.rotation.y += delta * 7.0;
+          if (pMesh.position.y <= targetPos.y) {
+            pMesh.visible = false;
+          }
+        }
+      }
+
+      if (elapsedTime >= 2.2) {
+        cleanup();
+        return true;
+      }
+      return false;
+    };
+
+    return {
+      group: rootGroup,
+      get isActive() {
+        return isActive;
+      },
+      activate,
+      update,
+      cleanup,
+    };
+  }
+
+  public acquire(
+    casterPos: THREE.Vector3,
+    targetPos: THREE.Vector3,
+    onFlareLaunch?: () => void,
+    onArrowImpact?: (impactPos: THREE.Vector3, arrowIndex: number) => void,
+    onFinisherImpact?: (impactPos: THREE.Vector3) => void
+  ): SkywardArrowVolleyVfxInstance {
+    let instance = this.instances.find((i) => !i.isActive);
+    if (!instance) {
+      instance = this.instances[0];
+      instance.cleanup();
+    }
+    instance.activate(casterPos, targetPos, onFlareLaunch, onArrowImpact, onFinisherImpact);
+    return instance;
+  }
+
+  public prewarm(scene: THREE.Scene, renderer: THREE.WebGLRenderer, camera: THREE.Camera) {
+    if (this.instances.length > 0) {
+      const sample = this.instances[0];
+      if (!scene.children.includes(sample.group)) {
+        scene.add(sample.group);
+      }
+      const prevVis = sample.group.visible;
+      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+      sample.group.position.copy(camera.position).addScaledVector(fwd, 4.0);
+      sample.group.visible = true;
+      try {
+        renderer.compile(scene, camera);
+      } catch (e) {
+        console.warn('[Engine] Skyward arrow volley prewarm compile warning:', e);
+      }
+      sample.group.visible = prevVis;
+      scene.remove(sample.group);
+    }
+  }
+}
+
+export function createSkywardArrowVolleyVfx(params: {
+  casterPos: THREE.Vector3;
+  targetPos: THREE.Vector3;
+  onFlareLaunch?: () => void;
+  onArrowImpact?: (impactPos: THREE.Vector3, arrowIndex: number) => void;
+  onFinisherImpact?: (impactPos: THREE.Vector3) => void;
+}): SkywardArrowVolleyVfxInstance {
+  return SkywardArrowVolleyResourcePool.get().acquire(
+    params.casterPos,
+    params.targetPos,
+    params.onFlareLaunch,
+    params.onArrowImpact,
+    params.onFinisherImpact
   );
 }
 

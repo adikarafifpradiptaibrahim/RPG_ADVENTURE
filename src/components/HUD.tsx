@@ -65,6 +65,7 @@ interface HUDProps {
   glacialTarget?: { name: string; hp: number; maxHp: number; isBoss?: boolean } | null;
   isBowAiming?: boolean;
   bowChargeRatio?: number;
+  isArrowVolleyAiming?: boolean;
   bossState: {
     active: boolean;
     name?: string;
@@ -130,6 +131,7 @@ export const HUD: React.FC<HUDProps> = ({
   glacialTarget,
   isBowAiming,
   bowChargeRatio,
+  isArrowVolleyAiming,
   bossState,
   bossVictoryName,
   isMuted,
@@ -820,6 +822,26 @@ export const HUD: React.FC<HUDProps> = ({
           >
             <span className="text-emerald-400">🏹</span>
             <span>TAHAN [KLIK KIRI / J] TARIK BUSUR • LEPAS TEMBAK • KLIK KANAN BATAL</span>
+          </div>
+        </div>
+      )}
+
+      {/* Hunter Skyward Arrow Volley Guide Pill Banner - at bottom: 108px */}
+      {isArrowVolleyAiming && (
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-40 pointer-events-none select-none animate-fadeIn flex items-center justify-center whitespace-nowrap"
+          style={{ bottom: '108px' }}
+        >
+          <div
+            className="px-3.5 py-1.5 rounded-full border border-emerald-400/70 text-emerald-200 font-mono tracking-wider backdrop-blur-md flex items-center gap-2"
+            style={{
+              fontSize: '11px',
+              backgroundColor: 'rgba(10, 15, 28, 0.75)',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.6), 0 0 12px rgba(16, 185, 129, 0.3)',
+            }}
+          >
+            <span className="text-emerald-400">🌧️</span>
+            <span>BIDIK AREA BADAI • LEPAS [Q] / KLIK KIRI TEMBAK • KLIK KANAN BATAL</span>
           </div>
         </div>
       )}

@@ -125,6 +125,7 @@ export default function App() {
   const [isGlacialAiming, setIsGlacialAiming] = useState(false);
   const [glacialTarget, setGlacialTarget] = useState<{ name: string; hp: number; maxHp: number; isBoss?: boolean } | null>(null);
   const [isBowAiming, setIsBowAiming] = useState(false);
+  const [isArrowVolleyAiming, setIsArrowVolleyAiming] = useState(false);
   const [bowChargeRatio, setBowChargeRatio] = useState(0);
 
   // Pause Menu State
@@ -597,6 +598,9 @@ export default function App() {
       onBowAimChange: (aiming, ratio) => {
         setIsBowAiming(aiming);
         setBowChargeRatio(ratio);
+      },
+      onArrowVolleyAimChange: (aiming) => {
+        setIsArrowVolleyAiming(aiming);
       },
       onCastingUpdate: (casting) => {
         setCastingState(casting);
@@ -1162,18 +1166,37 @@ export default function App() {
             onAttackEnd={() => engineRef.current?.releaseBasicAttack()}
             onCastSkill={(slot) => engineRef.current?.castSkill(slot)}
             onAimSkillStart={(slot) => {
-              if (slot === 1) engineRef.current?.startAimGlacialBarrage();
+              if (slot === 1) {
+                if (characterClass === 'mage') {
+                  engineRef.current?.startAimGlacialBarrage();
+                } else if (characterClass === 'rogue' && hunterWeaponMode === 'bow') {
+                  engineRef.current?.startAimArrowVolley();
+                }
+              }
             }}
             onAimSkillMove={(slot, delta) => {
-              if (slot === 1) engineRef.current?.updateAimGlacialBarrage(delta.x, delta.y);
+              if (slot === 1) {
+                if (characterClass === 'mage') {
+                  engineRef.current?.updateAimGlacialBarrage(delta.x, delta.y);
+                } else if (characterClass === 'rogue' && hunterWeaponMode === 'bow') {
+                  engineRef.current?.updateAimArrowVolley(delta.x, delta.y);
+                }
+              }
             }}
             onAimSkillEnd={(slot, isCancelled) => {
-              if (slot === 1) engineRef.current?.releaseAimGlacialBarrage(isCancelled);
+              if (slot === 1) {
+                if (characterClass === 'mage') {
+                  engineRef.current?.releaseAimGlacialBarrage(isCancelled);
+                } else if (characterClass === 'rogue' && hunterWeaponMode === 'bow') {
+                  engineRef.current?.releaseAimArrowVolley(isCancelled);
+                }
+              }
             }}
             isGlacialAiming={isGlacialAiming}
             glacialTarget={glacialTarget}
             isBowAiming={isBowAiming}
             bowChargeRatio={bowChargeRatio}
+            isArrowVolleyAiming={isArrowVolleyAiming}
             onJump={() => engineRef.current?.jump()}
             onDash={() => engineRef.current?.performDash()}
             onRotateCamera={(dx, dy) => engineRef.current?.rotateCameraByDelta(dx, dy)}

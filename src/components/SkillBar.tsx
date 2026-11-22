@@ -76,7 +76,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         if (hunterWeaponMode === 'bow') {
           return {
             basic: { label: 'Tarik Busur', icon: '🏹', hint: 'Tahan / Tap' },
-            skill1: { name: 'Badai Panah', icon: '🎯', cost: '15 MP', key: 'Q', color: 'border-emerald-500/70 text-emerald-300 bg-emerald-950/40' },
+            skill1: { name: 'Skyward Volley', icon: '🏹', cost: '15 MP', key: 'Q', color: 'border-emerald-500/70 text-emerald-300 bg-emerald-950/40' },
             skill2: { name: 'Akrobatik', icon: '🦅', cost: '15 Stm', key: 'F', color: 'border-teal-500/70 text-teal-300 bg-teal-950/40' },
             skill3: { name: 'Panah Racun', icon: '💣', cost: '25 MP', key: 'R', color: 'border-green-500/70 text-green-300 bg-green-950/40' },
           };
@@ -92,6 +92,9 @@ export const SkillBar: React.FC<SkillBarProps> = ({
   };
 
   const classSkills = getClassSkills();
+  const isAimableSkill1 =
+    stats.characterClass === 'mage' ||
+    (stats.characterClass === 'rogue' && hunterWeaponMode === 'bow');
 
   return (
     <div
@@ -179,21 +182,21 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         </span>
       </button>
 
-      {/* Skill 1 (Glacial Barrage / Triple Crescent / 1000 Belati) */}
+      {/* Skill 1 (Glacial Barrage / Skyward Volley / Triple Crescent / 1000 Belati) */}
       <button
         type="button"
         onMouseDown={(e) => {
-          if (stats.characterClass === 'mage' && onAimSkillStart) {
+          if (isAimableSkill1 && onAimSkillStart) {
             if (e.button === 0) onAimSkillStart(1);
           }
         }}
         onMouseUp={(e) => {
-          if (stats.characterClass === 'mage' && onAimSkillEnd) {
+          if (isAimableSkill1 && onAimSkillEnd) {
             if (e.button === 0) onAimSkillEnd(1, false);
           }
         }}
         onContextMenu={(e) => {
-          if (stats.characterClass === 'mage') {
+          if (isAimableSkill1) {
             e.preventDefault();
             e.stopPropagation();
             onAimSkillEnd?.(1, true);
@@ -202,7 +205,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         onTouchStart={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (stats.characterClass === 'mage' && onAimSkillStart) {
+          if (isAimableSkill1 && onAimSkillStart) {
             const t = e.changedTouches[0];
             touchIdRef.current = t.identifier;
             touchStartRef.current = { x: t.clientX, y: t.clientY };
@@ -215,7 +218,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
           }
         }}
         onTouchMove={(e) => {
-          if (stats.characterClass !== 'mage' || !isAimingGlacial) return;
+          if (!isAimableSkill1 || !isAimingGlacial) return;
           e.preventDefault();
           e.stopPropagation();
           let curTouch: React.Touch | null = null;
@@ -256,7 +259,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         onTouchEnd={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (stats.characterClass === 'mage' && isAimingGlacial) {
+          if (isAimableSkill1 && isAimingGlacial) {
             if (isOverCancel) {
               onAimSkillEnd?.(1, true); // Dibatalkan tanpa membuang MP & cooldown
             } else {
@@ -266,14 +269,14 @@ export const SkillBar: React.FC<SkillBarProps> = ({
             setKnobPos({ x: 0, y: 0 });
             setIsOverCancel(false);
             touchIdRef.current = null;
-          } else if (stats.characterClass !== 'mage') {
+          } else if (!isAimableSkill1) {
             onCastSkill(1);
           }
         }}
         onTouchCancel={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (stats.characterClass === 'mage' && isAimingGlacial) {
+          if (isAimableSkill1 && isAimingGlacial) {
             onAimSkillEnd?.(1, true);
             setIsAimingGlacial(false);
             setKnobPos({ x: 0, y: 0 });
@@ -282,13 +285,13 @@ export const SkillBar: React.FC<SkillBarProps> = ({
           }
         }}
         onClick={() => {
-          if (stats.characterClass !== 'mage') {
+          if (!isAimableSkill1) {
             onCastSkill(1);
           }
         }}
         style={{ touchAction: 'none', userSelect: 'none' }}
         className={`skill-btn skill-btn-1 touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-900 to-stone-950 hover:brightness-110 border shadow-lg cursor-pointer active:scale-90 transition-all select-none ${classSkills.skill1.color} ${
-          isAimingGlacial ? 'ring-2 ring-sky-400 scale-105' : ''
+          isAimingGlacial ? (stats.characterClass === 'mage' ? 'ring-2 ring-sky-400 scale-105' : 'ring-2 ring-emerald-400 scale-105') : ''
         }`}
         title={`${classSkills.skill1.name} (${classSkills.skill1.key})`}
       >
@@ -299,7 +302,9 @@ export const SkillBar: React.FC<SkillBarProps> = ({
               className={`w-12 h-12 rounded-full border-2 flex items-center justify-center transition-colors ${
                 isOverCancel
                   ? 'border-red-500 bg-red-950/80 shadow-[0_0_15px_#ef4444]'
-                  : 'border-sky-400 bg-sky-950/80 shadow-[0_0_15px_#38bdf8]'
+                  : stats.characterClass === 'mage'
+                  ? 'border-sky-400 bg-sky-950/80 shadow-[0_0_15px_#38bdf8]'
+                  : 'border-emerald-400 bg-emerald-950/80 shadow-[0_0_15px_#10b981]'
               }`}
             >
               {/* Draggable knob */}
@@ -311,10 +316,12 @@ export const SkillBar: React.FC<SkillBarProps> = ({
                 className={`w-6 h-6 rounded-full flex items-center justify-center shadow-lg border ${
                   isOverCancel
                     ? 'bg-red-500 border-white text-white'
-                    : 'bg-sky-400 border-sky-200 text-stone-950'
+                    : stats.characterClass === 'mage'
+                    ? 'bg-sky-400 border-sky-200 text-stone-950'
+                    : 'bg-emerald-400 border-emerald-200 text-stone-950'
                 }`}
               >
-                <span className="text-[10px]">💠</span>
+                <span className="text-[10px]">{stats.characterClass === 'mage' ? '💠' : '🏹'}</span>
               </div>
             </div>
           </div>

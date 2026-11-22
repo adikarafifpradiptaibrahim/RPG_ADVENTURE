@@ -93,6 +93,10 @@ import {
   CelestialHealVfxInstance,
   MageBlinkResourcePool,
   MageBlinkVfxInstance,
+  SkywardArrowVolleyResourcePool,
+  SkywardArrowVolleyVfxInstance,
+  createSkywardArrowVolleyVfx,
+  getGaleMagicCircleTexture,
   SKILL_COOLDOWNS,
 } from '../skills';
 import { DayNightSystem, getSharedDayNightSystem } from './dayNightSystem';
@@ -136,6 +140,7 @@ export interface GameEngineCallbacks {
   onHunterWeaponSwitch?: (mode: 'dagger' | 'bow') => void;
   onGlacialAimChange?: (isAiming: boolean, targetInfo?: { name: string; hp: number; maxHp: number; isBoss?: boolean } | null) => void;
   onBowAimChange?: (isAiming: boolean, chargeRatio: number) => void;
+  onArrowVolleyAimChange?: (isAiming: boolean) => void;
   onCastingUpdate?: (casting: { isCasting: boolean; progress: number; text: string } | null) => void;
   onCheckpointUnlocked?: (id: string, nameId: string, pos: [number, number]) => void;
   onPreviewRoleSelected?: (role: 'warrior' | 'mage' | 'rogue') => void;
@@ -337,6 +342,8 @@ export class GameEngine {
     | 'aegis_retribution'
     | 'shield_dash'
     | 'mage_aim_glacial'
+    | 'hunter_aim_volley'
+    | 'hunter_volley_release'
     | null = null;
   public isCasting = false;
   private castingTimer = 0;
@@ -348,6 +355,18 @@ export class GameEngine {
   private mageGlacialBarrageCooldownTimer = 0;
   private mageBlinkCooldownTimer = 0;
   private mageCahayaSuciCooldownTimer = 0;
+  private hunterArrowVolleyCooldownTimer = 0;
+  // Hunter Bow Skyward Arrow Volley: Hold-to-Aim & Ground Decal state
+  public isAimingArrowVolley = false;
+  private isHoldingArrowVolleyKey = false;
+  private arrowVolleyKeyDownTime = 0;
+  private arrowVolleyAimTimer: number | null = null;
+  private arrowVolleyTargetPoint = new THREE.Vector3();
+  private arrowVolleyIndicatorGroup: THREE.Group | null = null;
+  private arrowVolleyDecalSubgroup: THREE.Group | null = null;
+  private arrowVolleyGroundDecal: THREE.Mesh | null = null;
+  private arrowVolleyOuterRing: THREE.Mesh | null = null;
+  private arrowVolleyTrajectoryLine: THREE.Line | null = null;
   // Mage Glacial Crystal Barrage: Hold-to-Aim & Over-the-Shoulder camera state
   private isAimGlacialActive = false;
   private aimGlacialCancelled = false;
@@ -973,6 +992,8 @@ export class GameEngine {
     slowTimer?: number;
     slowFactor?: number;
     brittleTimer?: number;
+    armorBreakTimer?: number;
+    armorBreakBonus?: number;
   }[] = [];
 
   // Active 3D Physical Loot Pickups (Materials & Items dropped by defeated monsters)
@@ -1325,6 +1346,10 @@ export class GameEngine {
     this.mageGlacialBarrageCooldownTimer = 0;
     this.mageBlinkCooldownTimer = 0;
     this.mageCahayaSuciCooldownTimer = 0;
+    this.hunterArrowVolleyCooldownTimer = 0;
+    if (this.isAimingArrowVolley) {
+      this.cancelArrowVolleyAim();
+    }
     this.activeScorchedCraters = [];
     this.arcaneShieldTimer = 0;
     this.arcaneShieldHp = 0;
@@ -2779,6 +2804,11 @@ export class GameEngine {
       this.cancelGlacialAim();
       return;
     }
+    if (this.isAimingArrowVolley) {
+      e.preventDefault();
+      this.cancelArrowVolleyAim();
+      return;
+    }
     if (this.isAimingBow || this.isHoldingBowAttack) {
       e.preventDefault();
       this.cancelBowAim();
@@ -2791,6 +2821,9 @@ export class GameEngine {
   private handleBlur = () => {
     if (this.isAimGlacialActive) {
       this.cancelGlacialAim();
+    }
+    if (this.isAimingArrowVolley) {
+      this.cancelArrowVolleyAim();
     }
     if (this.isAimingBow || this.isHoldingBowAttack) {
       this.cancelBowAim();
@@ -2807,6 +2840,9 @@ export class GameEngine {
     if (document.hidden) {
       if (this.isAimGlacialActive) {
         this.cancelGlacialAim();
+      }
+      if (this.isAimingArrowVolley) {
+        this.cancelArrowVolleyAim();
       }
       if (this.isAimingBow || this.isHoldingBowAttack) {
         this.cancelBowAim();
@@ -3024,6 +3060,10 @@ export class GameEngine {
         this.cancelGlacialAim();
         return;
       }
+      if (this.isAimingArrowVolley) {
+        this.cancelArrowVolleyAim();
+        return;
+      }
       if (this.isAimingBow || this.isHoldingBowAttack) {
         this.cancelBowAim();
         return;
@@ -3050,7 +3090,7 @@ export class GameEngine {
     } else if (key === 'c' || code === 'keyc') {
       // Tombol [C] khusus Character Status modal (Dash dihilangkan dari C)
     } else if (key === 'q' || code === 'keyq') {
-      // Slot 1 (Q): Mage Glacial Crystal Barrage (Tap-or-Hold State Machine) / Warrior Triple Crescent / Rogue 1000 Belati
+      // Slot 1 (Q): Mage Glacial Crystal Barrage / Hunter Bow Skyward Arrow Volley / Warrior Triple Crescent / Rogue 1000 Belati
       if (this.charClass === 'mage') {
         if (!e.repeat) {
           this.isHoldingGlacialKey = true;
@@ -3061,6 +3101,19 @@ export class GameEngine {
           this.glacialAimTimer = window.setTimeout(() => {
             if (this.isHoldingGlacialKey && !this.isAimGlacialActive) {
               this.startAimGlacialBarrage();
+            }
+          }, 180);
+        }
+      } else if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
+        if (!e.repeat) {
+          this.isHoldingArrowVolleyKey = true;
+          this.arrowVolleyKeyDownTime = performance.now();
+          if (this.arrowVolleyAimTimer) {
+            clearTimeout(this.arrowVolleyAimTimer);
+          }
+          this.arrowVolleyAimTimer = window.setTimeout(() => {
+            if (this.isHoldingArrowVolleyKey && !this.isAimingArrowVolley) {
+              this.startAimArrowVolley();
             }
           }, 180);
         }
@@ -3152,6 +3205,18 @@ export class GameEngine {
         } else if (pressDuration < 180) {
           this.quickCastGlacialBarrage();
         }
+      } else if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
+        const pressDuration = performance.now() - this.arrowVolleyKeyDownTime;
+        if (this.arrowVolleyAimTimer) {
+          clearTimeout(this.arrowVolleyAimTimer);
+          this.arrowVolleyAimTimer = null;
+        }
+        this.isHoldingArrowVolleyKey = false;
+        if (this.isAimingArrowVolley) {
+          this.fireArrowVolley();
+        } else if (pressDuration < 180) {
+          this.quickCastArrowVolley();
+        }
       }
     }
 
@@ -3227,6 +3292,11 @@ export class GameEngine {
         this.cancelGlacialAim();
         return;
       }
+      if (this.isAimingArrowVolley) {
+        e.preventDefault();
+        this.cancelArrowVolleyAim();
+        return;
+      }
       if (this.isAimingBow || this.isHoldingBowAttack) {
         e.preventDefault();
         this.cancelBowAim();
@@ -3242,6 +3312,10 @@ export class GameEngine {
     if (e.button === 0 && !this.isSpectatorMode) {
       if (this.charClass === 'mage' && this.isAimGlacialActive) {
         this.fireGlacialBarrage();
+        return;
+      }
+      if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' && this.isAimingArrowVolley) {
+        this.fireArrowVolley();
         return;
       }
       this.startBasicAttack();
@@ -3267,8 +3341,8 @@ export class GameEngine {
 
     if (this.menuMode !== 'gameplay') return;
 
-    // Freely control aiming yaw & pitch while holding Q (Glacial Barrage) or aiming Bow
-    if (this.isAimGlacialActive || this.isAimingBow) {
+    // Freely control aiming yaw & pitch while holding Q (Glacial Barrage / Arrow Volley) or aiming Bow
+    if (this.isAimGlacialActive || this.isAimingBow || this.isAimingArrowVolley) {
       const deltaX = e.clientX - this.prevMouseX;
       const deltaY = e.clientY - this.prevMouseY;
       this.prevMouseX = e.clientX;
@@ -4065,6 +4139,11 @@ export class GameEngine {
       sample.normalTrail.visible = prevNV;
       sample.piercingTrail.visible = prevPV;
       sample.piercingVortex.visible = prevVV;
+    }
+    try {
+      SkywardArrowVolleyResourcePool.get().prewarm(this.scene, this.renderer, this.camera);
+    } catch (e) {
+      console.warn('[Engine] Skyward arrow volley prewarm warning:', e);
     }
   }
 
@@ -6444,6 +6523,505 @@ export class GameEngine {
     );
   }
 
+  // 10. Skyward Arrow Volley (Hunter Skill 1 [Q] Mode Busur - Tap-or-Hold Ground Target Area Radius 5.5)
+  private initArrowVolleyIndicator() {
+    if (this.arrowVolleyIndicatorGroup) return;
+
+    this.arrowVolleyIndicatorGroup = new THREE.Group();
+    this.arrowVolleyIndicatorGroup.name = 'SkywardArrowVolleyIndicator';
+    this.arrowVolleyIndicatorGroup.visible = false;
+
+    // Subgroup placed at target ground point that rotates the compass
+    this.arrowVolleyDecalSubgroup = new THREE.Group();
+    this.arrowVolleyIndicatorGroup.add(this.arrowVolleyDecalSubgroup);
+
+    // 1. Wind compass magic circle plane with procedural texture (Radius: 5.5 units, Width/Height: 11)
+    const circleGeom = new THREE.PlaneGeometry(11, 11);
+    circleGeom.rotateX(-Math.PI / 2);
+    const circleTex = getGaleMagicCircleTexture();
+    const circleMat = new THREE.MeshBasicMaterial({
+      map: circleTex,
+      transparent: true,
+      opacity: 0.88,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.arrowVolleyGroundDecal = new THREE.Mesh(circleGeom, circleMat);
+    this.arrowVolleyDecalSubgroup.add(this.arrowVolleyGroundDecal);
+
+    // 2. Outer glowing perimeter ring (Radius: 5.35 to 5.5 units)
+    const outerRingGeom = new THREE.RingGeometry(5.35, 5.5, 64);
+    outerRingGeom.rotateX(-Math.PI / 2);
+    const outerRingMat = new THREE.MeshBasicMaterial({
+      color: 0x10b981,
+      transparent: true,
+      opacity: 0.9,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.arrowVolleyOuterRing = new THREE.Mesh(outerRingGeom, outerRingMat);
+    this.arrowVolleyDecalSubgroup.add(this.arrowVolleyOuterRing);
+
+    // 3. Arched parabolic trajectory line from Hunter bow to ground target point
+    const TRAJECTORY_SEGMENTS = 36;
+    const trajectoryGeom = new THREE.BufferGeometry();
+    const positions = new Float32Array(TRAJECTORY_SEGMENTS * 3);
+    trajectoryGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const trajectoryMat = new THREE.LineBasicMaterial({
+      color: 0x34d399,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+    });
+    this.arrowVolleyTrajectoryLine = new THREE.Line(trajectoryGeom, trajectoryMat);
+    this.arrowVolleyIndicatorGroup.add(this.arrowVolleyTrajectoryLine);
+
+    this.scene.add(this.arrowVolleyIndicatorGroup);
+  }
+
+  public startAimArrowVolley() {
+    if (this.isControlsLocked) return;
+    if (this.charClass !== 'rogue' || this.hunterWeaponMode !== 'bow') return;
+    if (this.isAimingArrowVolley) return;
+
+    if (this.hunterArrowVolleyCooldownTimer > 0) {
+      this.callbacks.onAddFloatingText(
+        `Skyward Volley Cooldown (${this.hunterArrowVolleyCooldownTimer.toFixed(1)}s)!`,
+        '#94a3b8',
+        'info'
+      );
+      return;
+    }
+
+    let hasEnoughMp = true;
+    this.callbacks.onUpdateStats((stats) => {
+      if (stats.mp < 15) {
+        hasEnoughMp = false;
+        this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 15 MP)!', '#ef4444', 'info');
+      }
+      return stats;
+    });
+    if (!hasEnoughMp) return;
+
+    this.isAimingArrowVolley = true;
+
+    // Face forward along camera direction
+    const cameraForward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    const horizForward = cameraForward.clone();
+    horizForward.y = 0;
+    if (horizForward.lengthSq() > 0.001) {
+      horizForward.normalize();
+      this.playerRotationY = Math.atan2(horizForward.x, horizForward.z);
+      if (this.playerMesh?.group) {
+        this.playerMesh.group.rotation.y = this.playerRotationY;
+      }
+    }
+
+    // Hunter Combat Aiming Pose: drawing bow, feet planted on ground (zero jump)
+    this.isAttacking = true;
+    this.attackType = 'hunter_aim_volley';
+    this.attackTimer = 999;
+    if (this.playerMesh) {
+      if (this.playerMesh.body) this.playerMesh.body.rotation.set(0, 0, 0);
+      if (this.playerMesh.rightArm) this.playerMesh.rightArm.rotation.set(-Math.PI * 0.45, -0.2, 0);
+      if (this.playerMesh.leftArm) this.playerMesh.leftArm.rotation.set(-Math.PI * 0.4, 0.25, 0);
+      if (this.playerMesh.weapon) this.playerMesh.weapon.rotation.set(Math.PI * 0.4, 0, 0);
+    }
+
+    soundManager.playBowDraw();
+    this.triggerSkillVfxLight(this.playerPos, 0x10b981, 2.8, 14.0);
+
+    this.initArrowVolleyIndicator();
+    if (this.arrowVolleyIndicatorGroup) {
+      this.arrowVolleyIndicatorGroup.visible = true;
+    }
+
+    this.callbacks.onArrowVolleyAimChange?.(true);
+  }
+
+  public updateAimArrowVolley(deltaX: number, deltaY: number) {
+    if (!this.isAimingArrowVolley) return;
+    this.cameraAngleH = normalizeCameraYaw(this.cameraAngleH - deltaX * 0.015);
+    this.cameraAngleV = clampCameraPitch(this.cameraAngleV + deltaY * 0.015);
+  }
+
+  public updateAimArrowVolleyFrame(delta: number) {
+    if (!this.isAimingArrowVolley) return;
+
+    // Karakter SELALU menghadap searah pandangan kamera ke depan
+    const camFwdX = -Math.sin(this.cameraAngleH);
+    const camFwdZ = -Math.cos(this.cameraAngleH);
+    this.playerRotationY = Math.atan2(camFwdX, camFwdZ);
+    if (this.playerMesh?.group) {
+      this.playerMesh.group.rotation.y = this.playerRotationY;
+    }
+
+    // Pose Pemburu menarik busur siap meluncurkan suar ke angkasa
+    if (this.playerMesh) {
+      if (this.playerMesh.body) this.playerMesh.body.rotation.set(0, 0, 0);
+      if (this.playerMesh.rightArm) this.playerMesh.rightArm.rotation.set(-Math.PI * 0.45, -0.2, 0);
+      if (this.playerMesh.leftArm) this.playerMesh.leftArm.rotation.set(-Math.PI * 0.4, 0.25, 0);
+      if (this.playerMesh.weapon) this.playerMesh.weapon.rotation.set(Math.PI * 0.4, 0, 0);
+    }
+
+    // Raycast / step terrain ground along camera aim direction
+    const camFwdY = -Math.sin(this.cameraAngleV);
+    const camDirXZ = Math.cos(this.cameraAngleV);
+    const aimDir = new THREE.Vector3(camFwdX * camDirXZ, camFwdY, camFwdZ * camDirXZ).normalize();
+
+    let foundGround = false;
+    for (let d = 4.0; d <= 36.0; d += 1.0) {
+      const tx = this.playerPos.x + aimDir.x * d;
+      const tz = this.playerPos.z + aimDir.z * d;
+      const ty = this.playerPos.y + 1.5 + aimDir.y * d;
+      const gy = this.world.getTerrainHeight(tx, tz);
+      if (ty <= gy + 0.35) {
+        this.arrowVolleyTargetPoint.set(tx, gy + 0.08, tz);
+        foundGround = true;
+        break;
+      }
+    }
+    if (!foundGround) {
+      this.arrowVolleyTargetPoint.copy(this.playerPos).add(new THREE.Vector3(0, 1.4, 0)).addScaledVector(aimDir, 24.0);
+      const gy = this.world.getTerrainHeight(this.arrowVolleyTargetPoint.x, this.arrowVolleyTargetPoint.z);
+      this.arrowVolleyTargetPoint.y = gy + 0.08;
+    }
+
+    // Soft-lock terdekat di jalur bidik kursor
+    let bestEnemy: (typeof this.enemies)[0] | null = null;
+    let bestDot = 0.72;
+    for (let e = 0; e < this.enemies.length; e++) {
+      const enemy = this.enemies[e];
+      if (enemy.data?.isDead) continue;
+      const toE = enemy.mesh.position.clone().sub(this.playerPos);
+      const dist = toE.length();
+      if (dist > 32.0) continue;
+      toE.normalize();
+      const dot = aimDir.dot(toE);
+      if (dot > bestDot) {
+        bestDot = dot;
+        bestEnemy = enemy;
+      }
+    }
+    if (bestEnemy) {
+      const ey = this.world.getTerrainHeight(bestEnemy.mesh.position.x, bestEnemy.mesh.position.z);
+      this.arrowVolleyTargetPoint.set(bestEnemy.mesh.position.x, ey + 0.08, bestEnemy.mesh.position.z);
+    }
+
+    // Update 3D Ground Ring and Rotating Wind Compass
+    if (this.arrowVolleyDecalSubgroup) {
+      this.arrowVolleyDecalSubgroup.position.copy(this.arrowVolleyTargetPoint);
+      this.arrowVolleyDecalSubgroup.rotation.y += delta * 2.0;
+    }
+
+    // Update arched trajectory curve from Hunter bow to ground target point
+    if (this.arrowVolleyTrajectoryLine) {
+      const posAttr = this.arrowVolleyTrajectoryLine.geometry.attributes.position as THREE.BufferAttribute;
+      const startX = this.playerPos.x;
+      const startY = this.playerPos.y + 1.2;
+      const startZ = this.playerPos.z;
+      const endX = this.arrowVolleyTargetPoint.x;
+      const endY = this.arrowVolleyTargetPoint.y;
+      const endZ = this.arrowVolleyTargetPoint.z;
+      const dist = this.playerPos.distanceTo(this.arrowVolleyTargetPoint);
+      const arcHeight = Math.max(3.5, dist * 0.35);
+
+      for (let i = 0; i < 36; i++) {
+        const t = i / 35;
+        const px = startX + (endX - startX) * t;
+        const pz = startZ + (endZ - startZ) * t;
+        const py = startY + (endY - startY) * t + Math.sin(t * Math.PI) * arcHeight;
+        posAttr.setXYZ(i, px, py, pz);
+      }
+      posAttr.needsUpdate = true;
+    }
+  }
+
+  public releaseAimArrowVolley(isCancelled = false) {
+    if (this.arrowVolleyAimTimer) {
+      clearTimeout(this.arrowVolleyAimTimer);
+      this.arrowVolleyAimTimer = null;
+    }
+    this.isHoldingArrowVolleyKey = false;
+
+    if (!this.isAimingArrowVolley) return;
+
+    if (isCancelled) {
+      this.cancelArrowVolleyAim();
+      return;
+    }
+
+    let fired = false;
+    this.callbacks.onUpdateStats((stats) => {
+      if (stats.mp < 15) {
+        this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 15 MP)!', '#ef4444', 'info');
+        return stats;
+      }
+      fired = true;
+      return { ...stats, mp: Math.max(0, stats.mp - 15) };
+    });
+
+    if (!fired) {
+      this.cancelArrowVolleyAim();
+      return;
+    }
+
+    // TODO: Kembalikan cooldown 8s setelah pengujian selesai (Normal: 8.0s)
+    this.hunterArrowVolleyCooldownTimer = SKILL_COOLDOWNS.SKYWARD_VOLLEY;
+    this.callbacks.onAddFloatingText('🌧️ SKYWARD ARROW VOLLEY!', '#34d399', 'crit');
+    soundManager.playBowShoot();
+
+    if (this.arrowVolleyIndicatorGroup) {
+      this.arrowVolleyIndicatorGroup.visible = false;
+    }
+
+    this.executeSkywardArrowVolley(this.playerPos.clone(), this.arrowVolleyTargetPoint.clone());
+
+    this.isAimingArrowVolley = false;
+    this.callbacks.onArrowVolleyAimChange?.(false);
+
+    // Reset pose after brief flare release animation
+    setTimeout(() => {
+      if (!this.isRunning) return;
+      this.isAttacking = false;
+      this.attackType = null;
+      this.attackTimer = 0;
+      if (this.playerMesh?.body) {
+        this.playerMesh.body.rotation.set(0, 0, 0);
+        this.playerMesh.weapon?.rotation.set(0.32, 0.10, 0.05);
+        this.playerMesh.leftArm?.rotation.set(0, 0, 0);
+        this.playerMesh.rightArm?.rotation.set(0, 0, 0);
+      }
+    }, 350);
+  }
+
+  public cancelArrowVolleyAim() {
+    if (this.arrowVolleyAimTimer) {
+      clearTimeout(this.arrowVolleyAimTimer);
+      this.arrowVolleyAimTimer = null;
+    }
+    this.isHoldingArrowVolleyKey = false;
+
+    if (!this.isAimingArrowVolley) return;
+
+    this.isAimingArrowVolley = false;
+
+    if (this.arrowVolleyIndicatorGroup) {
+      this.arrowVolleyIndicatorGroup.visible = false;
+    }
+
+    this.isAttacking = false;
+    this.attackType = null;
+    this.attackTimer = 0;
+    if (this.playerMesh?.body) {
+      this.playerMesh.body.rotation.set(0, 0, 0);
+      this.playerMesh.weapon?.rotation.set(0.32, 0.10, 0.05);
+      this.playerMesh.leftArm?.rotation.set(0, 0, 0);
+      this.playerMesh.rightArm?.rotation.set(0, 0, 0);
+    }
+
+    this.callbacks.onAddFloatingText('Dibatalkan', '#94a3b8', 'info');
+    this.callbacks.onArrowVolleyAimChange?.(false);
+  }
+
+  public fireArrowVolley = () => {
+    this.releaseAimArrowVolley(false);
+  };
+
+  public quickCastArrowVolley() {
+    if (this.isControlsLocked) return;
+    if (this.charClass !== 'rogue' || this.hunterWeaponMode !== 'bow') return;
+    if (this.isAimingArrowVolley) return;
+
+    if (this.hunterArrowVolleyCooldownTimer > 0) {
+      this.callbacks.onAddFloatingText(
+        `Skyward Volley Cooldown (${this.hunterArrowVolleyCooldownTimer.toFixed(1)}s)!`,
+        '#94a3b8',
+        'info'
+      );
+      return;
+    }
+
+    let hasEnoughMp = false;
+    this.callbacks.onUpdateStats((stats) => {
+      if (stats.mp < 15) {
+        this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 15 MP)!', '#ef4444', 'info');
+        return stats;
+      }
+      hasEnoughMp = true;
+      return { ...stats, mp: Math.max(0, stats.mp - 15) };
+    });
+    if (!hasEnoughMp) return;
+
+    // TODO: Kembalikan cooldown 8s setelah pengujian selesai (Normal: 8.0s)
+    this.hunterArrowVolleyCooldownTimer = SKILL_COOLDOWNS.SKYWARD_VOLLEY;
+    this.callbacks.onAddFloatingText('🌧️ SKYWARD ARROW VOLLEY!', '#34d399', 'crit');
+    soundManager.playBowShoot();
+
+    // Pick closest enemy in camera forward within 24 units, or ground 14 units ahead
+    const camFwdX = -Math.sin(this.cameraAngleH);
+    const camFwdZ = -Math.cos(this.cameraAngleH);
+    const camFwd = new THREE.Vector3(camFwdX, 0, camFwdZ).normalize();
+
+    let bestEnemy: (typeof this.enemies)[0] | null = null;
+    let bestDot = 0.55;
+    for (let e = 0; e < this.enemies.length; e++) {
+      const enemy = this.enemies[e];
+      if (enemy.data?.isDead) continue;
+      const toE = enemy.mesh.position.clone().sub(this.playerPos);
+      toE.y = 0;
+      const dist = toE.length();
+      if (dist > 24.0) continue;
+      toE.normalize();
+      const dot = camFwd.dot(toE);
+      if (dot > bestDot) {
+        bestDot = dot;
+        bestEnemy = enemy;
+      }
+    }
+
+    let targetPos: THREE.Vector3;
+    if (bestEnemy) {
+      const ey = this.world.getTerrainHeight(bestEnemy.mesh.position.x, bestEnemy.mesh.position.z);
+      targetPos = new THREE.Vector3(bestEnemy.mesh.position.x, ey + 0.08, bestEnemy.mesh.position.z);
+    } else {
+      const tx = this.playerPos.x + camFwd.x * 14.0;
+      const tz = this.playerPos.z + camFwd.z * 14.0;
+      const ty = this.world.getTerrainHeight(tx, tz) + 0.08;
+      targetPos = new THREE.Vector3(tx, ty, tz);
+    }
+
+    // Align player facing towards target
+    const toTarget = targetPos.clone().sub(this.playerPos);
+    toTarget.y = 0;
+    if (toTarget.lengthSq() > 0.01) {
+      toTarget.normalize();
+      this.playerRotationY = Math.atan2(toTarget.x, toTarget.z);
+      if (this.playerMesh?.group) {
+        this.playerMesh.group.rotation.y = this.playerRotationY;
+      }
+    }
+
+    // Feet planted on ground, zero jump animation
+    this.isAttacking = true;
+    this.attackType = 'hunter_volley_release';
+    this.attackTimer = 0.35;
+    if (this.playerMesh) {
+      if (this.playerMesh.body) this.playerMesh.body.rotation.set(0, 0, 0);
+      if (this.playerMesh.rightArm) this.playerMesh.rightArm.rotation.set(-Math.PI * 0.45, -0.2, 0);
+      if (this.playerMesh.leftArm) this.playerMesh.leftArm.rotation.set(-Math.PI * 0.4, 0.25, 0);
+      if (this.playerMesh.weapon) this.playerMesh.weapon.rotation.set(Math.PI * 0.4, 0, 0);
+    }
+
+    this.executeSkywardArrowVolley(this.playerPos.clone(), targetPos);
+
+    setTimeout(() => {
+      if (!this.isRunning) return;
+      this.isAttacking = false;
+      this.attackType = null;
+      this.attackTimer = 0;
+      if (this.playerMesh?.body) {
+        this.playerMesh.body.rotation.set(0, 0, 0);
+        this.playerMesh.weapon?.rotation.set(0.32, 0.10, 0.05);
+        this.playerMesh.leftArm?.rotation.set(0, 0, 0);
+        this.playerMesh.rightArm?.rotation.set(0, 0, 0);
+      }
+    }, 350);
+  }
+
+  public executeSkywardArrowVolley(casterPos: THREE.Vector3, targetPos: THREE.Vector3) {
+    if (this.gameMode === 'multiplayer') {
+      this.callbacks.onLocalPlayerAttack?.({
+        attackType: 'skill_1_bow_volley',
+        skillSlot: 1,
+        charClass: this.charClass,
+        hunterWeaponMode: this.hunterWeaponMode,
+        x: Math.round(targetPos.x * 100) / 100,
+        y: Math.round(targetPos.y * 100) / 100,
+        z: Math.round(targetPos.z * 100) / 100,
+        rotationY: Math.round(this.playerRotationY * 100) / 100,
+      });
+    }
+
+    const vfxInstance = createSkywardArrowVolleyVfx({
+      casterPos,
+      targetPos,
+      onFlareLaunch: () => {
+        this.triggerSkillVfxLight(casterPos, 0x10b981, 2.8, 14.0);
+      },
+      onArrowImpact: (impactPos, _arrowIndex) => {
+        soundManager.playBowShoot();
+        this.spawnHitStarburst(impactPos, 0x34d399, 0.8);
+        this.triggerSkillVfxLight(impactPos, 0x34d399, 1.2, 5.0);
+      },
+      onFinisherImpact: (impactPos) => {
+        soundManager.playBowShoot();
+        this.triggerCameraShake(0.25);
+        this.spawnHitStarburst(impactPos, 0x10b981, 2.5);
+        this.triggerSkillVfxLight(impactPos, 0x6ee7b7, 3.5, 18.0);
+      },
+    });
+
+    if (!this.scene.children.includes(vfxInstance.group)) {
+      this.scene.add(vfxInstance.group);
+    }
+
+    this.addVfx(
+      vfxInstance.group,
+      (delta: number) => {
+        return vfxInstance.update(
+          delta,
+          this.enemies,
+          // Arrow impact damage callback: 20% Bow Power + Gale Slow & Armor Break
+          (hitEnemy, _impactPos) => {
+            if (!this.isRunning) return;
+            this.callbacks.onUpdateStats((stats) => {
+              const tierMult = 1 + (this.playerTier - 1) * 0.25;
+              const isCrit = Math.random() < 0.20 + stats.agility * 0.02;
+              const baseDmg = (stats.baseAttack + stats.agility * 2.2) * tierMult * 0.20;
+              const finalDmg = Math.max(3, Math.round(isCrit ? baseDmg * 1.85 : baseDmg));
+              this.damageEnemy(hitEnemy, finalDmg, isCrit, 0.15);
+
+              // Gale Slow: -45% movement speed for 3s
+              hitEnemy.slowFactor = 0.45;
+              hitEnemy.slowTimer = 3.0;
+
+              // Armor Break: +15% damage taken for 3s
+              hitEnemy.armorBreakBonus = 0.15;
+              hitEnemy.armorBreakTimer = 3.0;
+
+              return stats;
+            });
+          },
+          // Finisher impact damage callback: 85% Bow Power + Gale Slow & Armor Break
+          (hitEnemies, _impactPos) => {
+            if (!this.isRunning) return;
+            this.callbacks.onUpdateStats((stats) => {
+              const tierMult = 1 + (this.playerTier - 1) * 0.25;
+              const isCrit = Math.random() < 0.25 + stats.agility * 0.02;
+              const baseDmg = (stats.baseAttack + stats.agility * 2.2) * tierMult * 0.85;
+              const finalDmg = Math.max(8, Math.round(isCrit ? baseDmg * 1.9 : baseDmg));
+              for (const enemy of hitEnemies) {
+                this.damageEnemy(enemy, finalDmg, isCrit, 0.4);
+                enemy.slowFactor = 0.45;
+                enemy.slowTimer = 3.0;
+                enemy.armorBreakBonus = 0.15;
+                enemy.armorBreakTimer = 3.0;
+              }
+              return stats;
+            });
+          }
+        );
+      },
+      () => {
+        vfxInstance.cleanup();
+      },
+      true
+    );
+  }
+
   /**
    * Absorbs incoming damage using active Warrior Aegis Shield & Mage Arcane Shield
    */
@@ -7471,52 +8049,43 @@ export class GameEngine {
       }
 
       // Rogue Skill 1 (Cost: 15 MP)
-      this.callbacks.onUpdateStats((stats) => {
-        if (stats.mp < 15) {
-          this.callbacks.onAddFloatingText('MP Tidak Cukup!', '#e57373', 'info');
-          return stats;
-        }
-
-        if (this.charClass === 'rogue') {
-          if (this.hunterWeaponMode === 'bow') {
-            // Hunter Bow Skill 1: Hujan Panah Badai (5-Arrow Spread Barrage)
-            soundManager.playBowShoot();
-            this.isAttacking = true;
-            this.attackType = 'bow_barrage';
-            this.attackDuration = 0.38;
-            this.attackTimer = 0.38;
-
-            const baseFwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
-            [-0.32, -0.16, 0, 0.16, 0.32].forEach((angleOffset, idx) => {
-              setTimeout(() => {
-                if (!this.isRunning) return;
-                const arrowDir = baseFwd.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angleOffset);
-                this.spawnHunterArrow(arrowDir, true, 1.45);
-              }, idx * 40);
-            });
-            this.callbacks.onAddFloatingText('Hujan Panah Badai! 🏹', '#34d399', 'crit');
+      if (this.charClass === 'rogue') {
+        if (this.hunterWeaponMode === 'bow') {
+          // Hunter Bow Skill 1 (Q): Skyward Arrow Volley (Tap-or-Hold Ground Targeting)
+          if (!this.isAimingArrowVolley) {
+            this.quickCastArrowVolley();
           } else {
-            // Hunter Daggers Skill 1: Tarian 1000 Belati (Shadow Flurry 360°)
-            soundManager.playRogueShadowFlurry();
-            this.spawnRogueShadowFlurryVfx();
-            this.isAttacking = true;
-            this.attackType = 'flurry';
-            this.attackDuration = 0.4;
-            this.attackTimer = 0.4;
-
-            const skillDmg = Math.round((stats.baseAttack + stats.agility * 2.5) * 1.5);
-            this.enemies.forEach((enemy) => {
-              if (enemy.data.isDead) return;
-              if (this.playerPos.distanceTo(enemy.mesh.position) <= 4.0) {
-                this.damageEnemy(enemy, skillDmg, true, 0.4);
-              }
-            });
-            this.callbacks.onAddFloatingText('Tarian 1000 Belati 360°!', '#34d399', 'crit');
+            this.fireArrowVolley();
           }
+          return;
         }
 
-        return { ...stats, mp: stats.mp - 15 };
-      });
+        this.callbacks.onUpdateStats((stats) => {
+          if (stats.mp < 15) {
+            this.callbacks.onAddFloatingText('MP Tidak Cukup!', '#e57373', 'info');
+            return stats;
+          }
+
+          // Hunter Daggers Skill 1: Tarian 1000 Belati (Shadow Flurry 360°)
+          soundManager.playRogueShadowFlurry();
+          this.spawnRogueShadowFlurryVfx();
+          this.isAttacking = true;
+          this.attackType = 'flurry';
+          this.attackDuration = 0.4;
+          this.attackTimer = 0.4;
+
+          const skillDmg = Math.round((stats.baseAttack + stats.agility * 2.5) * 1.5);
+          this.enemies.forEach((enemy) => {
+            if (enemy.data.isDead) return;
+            if (this.playerPos.distanceTo(enemy.mesh.position) <= 4.0) {
+              this.damageEnemy(enemy, skillDmg, true, 0.4);
+            }
+          });
+          this.callbacks.onAddFloatingText('Tarian 1000 Belati 360°!', '#34d399', 'crit');
+          return { ...stats, mp: stats.mp - 15 };
+        });
+        return;
+      }
     } else if (skillSlot === 2) {
       if (this.charClass === 'warrior') {
         this.callbacks.onUpdateStats((stats) => {
@@ -7868,6 +8437,9 @@ export class GameEngine {
     let actualDamage = Math.max(3, rawDamage - defense);
     if (enemy.brittleTimer && enemy.brittleTimer > 0) {
       actualDamage = Math.round(actualDamage * 1.20); // Brittle: +20% Damage Taken
+    }
+    if (enemy.armorBreakTimer && enemy.armorBreakTimer > 0) {
+      actualDamage = Math.round(actualDamage * (1 + (enemy.armorBreakBonus || 0.15))); // Armor Break: +15% Damage Taken
     }
     enemy.data.hp -= actualDamage;
 
@@ -8508,6 +9080,11 @@ export class GameEngine {
       }
     }
 
+    // Hunter Bow: Hold-to-Aim interactive Skyward Arrow Volley frame
+    if (this.isAimingArrowVolley) {
+      this.updateAimArrowVolleyFrame(delta);
+    }
+
     // Casting State Handling (Movement Lock & Starfall Channeling - image_68.png)
     // Casting State Handling (Movement Lock & Starfall Channeling)
     if (this.isCasting) {
@@ -8668,6 +9245,7 @@ export class GameEngine {
     if (
       !this.isAimGlacialActive &&
       !this.isAimingBow &&
+      !this.isAimingArrowVolley &&
       (this.charClass === 'warrior' || this.charClass === 'rogue' || this.charClass === 'mage') &&
       isMoving &&
       (isShiftPressed || isJoySprint) &&
@@ -8700,6 +9278,8 @@ export class GameEngine {
       targetSpeed = baseSpeed * 0.55; // 55% normal movement speed while aiming Glacial Barrage
     } else if (this.isAimingBow) {
       targetSpeed = baseSpeed * 0.65; // Strafe walk 65% speed while aiming Hunter Bow
+    } else if (this.isAimingArrowVolley) {
+      targetSpeed = baseSpeed * 0.65; // Strafe walk 65% speed while aiming Skyward Arrow Volley
     } else {
       if (this.bossManager?.playerDebuffs?.isSlowed) {
         targetSpeed *= 0.5; // Efek Slow -50% pergerakan dari Boss / Sand Spikes
@@ -8728,7 +9308,7 @@ export class GameEngine {
       this.playerVel.z = moveDirZ * targetSpeed;
 
       // Rotate player mesh smoothly to facing direction
-      if (this.isAimGlacialActive || this.isAimingBow) {
+      if (this.isAimGlacialActive || this.isAimingBow || this.isAimingArrowVolley) {
         // Karakter menghadap searah pandangan kamera (strafe movement)
         const camFwdX = -Math.sin(this.cameraAngleH);
         const camFwdZ = -Math.cos(this.cameraAngleH);
@@ -8770,7 +9350,7 @@ export class GameEngine {
       this.playerVel.z *= 0.4;
       if (Math.abs(this.playerVel.x) < 0.04) this.playerVel.x = 0;
       if (Math.abs(this.playerVel.z) < 0.04) this.playerVel.z = 0;
-      if (this.isAimGlacialActive || this.isAimingBow) {
+      if (this.isAimGlacialActive || this.isAimingBow || this.isAimingArrowVolley) {
         const camFwdX = -Math.sin(this.cameraAngleH);
         const camFwdZ = -Math.cos(this.cameraAngleH);
         this.playerRotationY = Math.atan2(camFwdX, camFwdZ);
@@ -9778,6 +10358,9 @@ export class GameEngine {
       if (enemy.brittleTimer && enemy.brittleTimer > 0) {
         enemy.brittleTimer -= delta;
       }
+      if (enemy.armorBreakTimer && enemy.armorBreakTimer > 0) {
+        enemy.armorBreakTimer -= delta;
+      }
       if (enemy.stunTimer && enemy.stunTimer > 0) {
         enemy.stunTimer -= delta;
         return; // Stunned: skip movement and attacks
@@ -10697,6 +11280,11 @@ export class GameEngine {
     // Mage Cahaya Suci Cooldown Timer
     if (this.mageCahayaSuciCooldownTimer > 0) {
       this.mageCahayaSuciCooldownTimer = Math.max(0, this.mageCahayaSuciCooldownTimer - delta);
+    }
+
+    // Hunter Skyward Arrow Volley Cooldown Timer
+    if (this.hunterArrowVolleyCooldownTimer > 0) {
+      this.hunterArrowVolleyCooldownTimer = Math.max(0, this.hunterArrowVolleyCooldownTimer - delta);
     }
 
     // Scorched Crater (Ground Fire DoT: 15% Spell Power / sec)
