@@ -29,6 +29,7 @@ import {
   animateMageSkillPose,
   USE_LEGACY_HUNTER,
   animateHunterWalk,
+  animateHunterBowAim,
 } from './models';
 export { USE_LEGACY_KNIGHT, USE_LEGACY_MAGE, USE_LEGACY_HUNTER };
 import { buildWorld, buildWorldAsync, WorldObjects, WorldCheckpoint, getTerrainHeight as getProceduralTerrainHeight } from './world';
@@ -134,6 +135,7 @@ export interface GameEngineCallbacks {
   onSpectatorModeChange?: (active: boolean) => void;
   onHunterWeaponSwitch?: (mode: 'dagger' | 'bow') => void;
   onGlacialAimChange?: (isAiming: boolean, targetInfo?: { name: string; hp: number; maxHp: number; isBoss?: boolean } | null) => void;
+  onBowAimChange?: (isAiming: boolean, chargeRatio: number) => void;
   onCastingUpdate?: (casting: { isCasting: boolean; progress: number; text: string } | null) => void;
   onCheckpointUnlocked?: (id: string, nameId: string, pos: [number, number]) => void;
   onPreviewRoleSelected?: (role: 'warrior' | 'mage' | 'rogue') => void;
@@ -244,6 +246,16 @@ const TOWN_ZONES: TownZoneTrigger[] = [
     respawnZ: 68,
   },
 ];
+
+interface PooledHunterArrow {
+  root: THREE.Group;
+  shaft: THREE.Mesh;
+  tip: THREE.Mesh;
+  normalTrail: THREE.Mesh;
+  piercingTrail: THREE.Mesh;
+  piercingVortex: THREE.Group;
+  inUse: boolean;
+}
 
 export class GameEngine {
   private container: HTMLElement;
@@ -485,7 +497,17 @@ export class GameEngine {
     cleanup?: () => void;
     isPriority?: boolean;
   }[] = [];
+
   private starfallTimeoutIds: Array<ReturnType<typeof setTimeout>> = [];
+  // Hunter Bow Progressive Aim & Tap-or-Hold State Machine
+  private isHoldingBowAttack = false;
+  private bowPressStartTime = 0;
+  public isAimingBow = false;
+  public bowChargeRatio = 0;
+  private hunterArrowPool: PooledHunterArrow[] = [];
+  private hunterArrowPoolGeometries: THREE.BufferGeometry[] = [];
+  private hunterArrowPoolMaterials: THREE.Material[] = [];
+
   private activeProjectiles: {
     object: THREE.Object3D;
     direction: THREE.Vector3;
@@ -497,6 +519,10 @@ export class GameEngine {
     isHostile?: boolean;
     blastRadius?: number;
     rotationAxis?: THREE.Vector3;
+    isPiercing?: boolean;
+    hitEnemyIds?: Set<string>;
+    distanceTraveled?: number;
+    pooledArrow?: PooledHunterArrow;
   }[] = [];
 
   // Spectator / Freecam Mode (Minecraft-Style Fly Cam)
@@ -557,6 +583,7 @@ export class GameEngine {
   public prewarmMageShadersInFrustum(): void {
     if (this.scene && this.renderer && this.camera) {
       preloadMageVfxPool(this.scene, this.renderer, this.camera);
+      this.prewarmHunterShadersInFrustum();
     }
   }
 
@@ -995,6 +1022,7 @@ export class GameEngine {
     // Initialize Zero-Allocation Object Pools for Sparks and Combat VFX
     this.initSparksPool();
     this.initCombatVfxPools();
+    this.initHunterArrowPool();
 
     // 4. Create Player Mesh (initially hidden in main menu)
     this.playerMesh = createPlayerMesh(charClass);
@@ -1248,14 +1276,15 @@ export class GameEngine {
     }
     await new Promise((r) => setTimeout(r, 30));
 
-    // Tahap 7: 95% In-Frustum GPU Shader Warm-Up Khusus Mage
-    onProgress?.(95, 'In-Frustum GPU Shader Warm-Up Khusus Mage...');
+    // Tahap 7: 95% In-Frustum GPU Shader Warm-Up Khusus Mage & Pemburu
+    onProgress?.(95, 'In-Frustum GPU Shader Warm-Up Khusus Mage & Pemburu...');
     await new Promise((r) => setTimeout(r, 30));
 
     if (this.scene && this.renderer && this.camera) {
       await preloadMageVfxPoolAsync(this.scene, this.renderer, this.camera, async () => {
         await new Promise((r) => setTimeout(r, 30));
       });
+      this.prewarmHunterShadersInFrustum();
     }
     await new Promise((r) => setTimeout(r, 30));
 
@@ -2732,6 +2761,11 @@ export class GameEngine {
       this.cancelGlacialAim();
       return;
     }
+    if (this.isAimingBow || this.isHoldingBowAttack) {
+      e.preventDefault();
+      this.cancelBowAim();
+      return;
+    }
     // If context menu opens, release all keys immediately so player does not walk by itself
     this.resetKeys();
   };
@@ -2739,6 +2773,9 @@ export class GameEngine {
   private handleBlur = () => {
     if (this.isAimGlacialActive) {
       this.cancelGlacialAim();
+    }
+    if (this.isAimingBow || this.isHoldingBowAttack) {
+      this.cancelBowAim();
     }
     this.resetKeys();
   };
@@ -2752,6 +2789,9 @@ export class GameEngine {
     if (document.hidden) {
       if (this.isAimGlacialActive) {
         this.cancelGlacialAim();
+      }
+      if (this.isAimingBow || this.isHoldingBowAttack) {
+        this.cancelBowAim();
       }
       this.resetKeys();
     }
@@ -2966,6 +3006,10 @@ export class GameEngine {
         this.cancelGlacialAim();
         return;
       }
+      if (this.isAimingBow || this.isHoldingBowAttack) {
+        this.cancelBowAim();
+        return;
+      }
     }
 
     if (key === 'f' || code === 'keyf') {
@@ -2980,7 +3024,7 @@ export class GameEngine {
         }
       }
     } else if (key === 'j' || code === 'keyj') {
-      if (!this.isChargingAttack) {
+      if (!this.isChargingAttack && !this.isHoldingBowAttack) {
         this.startBasicAttack();
       }
     } else if (key === ' ' || code === 'space') {
@@ -3165,6 +3209,11 @@ export class GameEngine {
         this.cancelGlacialAim();
         return;
       }
+      if (this.isAimingBow || this.isHoldingBowAttack) {
+        e.preventDefault();
+        this.cancelBowAim();
+        return;
+      }
     }
 
     this.isMouseDown = true;
@@ -3200,8 +3249,8 @@ export class GameEngine {
 
     if (this.menuMode !== 'gameplay') return;
 
-    // Freely control aiming yaw & pitch while holding Q (Glacial Barrage)
-    if (this.isAimGlacialActive) {
+    // Freely control aiming yaw & pitch while holding Q (Glacial Barrage) or aiming Bow
+    if (this.isAimGlacialActive || this.isAimingBow) {
       const deltaX = e.clientX - this.prevMouseX;
       const deltaY = e.clientY - this.prevMouseY;
       this.prevMouseX = e.clientX;
@@ -3268,6 +3317,8 @@ export class GameEngine {
       this.isChargingAttack = false;
       this.chargeTimer = 0;
       if (this.playerMesh) resetKnightBladeGlow(this.playerMesh);
+    } else if (this.isHoldingBowAttack) {
+      this.releaseBasicAttack();
     }
     this.isMouseDown = false;
     this.isDraggingCamera = false;
@@ -3818,6 +3869,204 @@ export class GameEngine {
     item.duration = 0.2;
     item.active = true;
     item.group.visible = true;
+  }
+
+  // ============================================================================
+  // ZERO-FREEZE OBJECT POOLING & GPU WARM-UP KHUSUS PANAH PEMBURU (HUNTER ARROW POOL)
+  // ============================================================================
+  private initHunterArrowPool() {
+    if (this.hunterArrowPool.length > 0 || !this.scene) return;
+
+    // Shared Geometries & Materials (Zero dynamic runtime allocations!)
+    const shaftGeom = new THREE.CylinderGeometry(0.018, 0.018, 0.95, 5);
+    const tipGeom = new THREE.ConeGeometry(0.05, 0.2, 4);
+    const fletch1Geom = new THREE.BoxGeometry(0.08, 0.16, 0.01);
+    const fletch2Geom = new THREE.BoxGeometry(0.01, 0.16, 0.08);
+    const normalTrailGeom = new THREE.CylinderGeometry(0.04, 0.01, 1.2, 8);
+    // Ekor angin Wind-Piercer Full Charge yang lebih panjang dan tebal
+    const piercingTrailGeom = new THREE.CylinderGeometry(0.14, 0.02, 2.8, 8);
+    const vortexRingOuterGeom = new THREE.RingGeometry(0.08, 0.28, 16);
+    const vortexRingInnerGeom = new THREE.RingGeometry(0.04, 0.14, 12);
+    const vortexFlareGeom = new THREE.PlaneGeometry(0.42, 0.05);
+
+    this.hunterArrowPoolGeometries.push(
+      shaftGeom,
+      tipGeom,
+      fletch1Geom,
+      fletch2Geom,
+      normalTrailGeom,
+      piercingTrailGeom,
+      vortexRingOuterGeom,
+      vortexRingInnerGeom,
+      vortexFlareGeom
+    );
+
+    const shaftMat = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
+    const tipMat = new THREE.MeshStandardMaterial({ color: 0xcfd8dc, metalness: 0.85, roughness: 0.2 });
+    const fletchMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
+    const normalTrailMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.8 });
+    const piercingTrailMat = new THREE.MeshBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0.95 });
+    const piercingVortexOuterMat = new THREE.MeshBasicMaterial({
+      color: 0x10b981,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+    });
+    const piercingVortexInnerMat = new THREE.MeshBasicMaterial({
+      color: 0xfef08a,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide,
+    });
+
+    this.hunterArrowPoolMaterials.push(
+      shaftMat,
+      tipMat,
+      fletchMat,
+      normalTrailMat,
+      piercingTrailMat,
+      piercingVortexOuterMat,
+      piercingVortexInnerMat
+    );
+
+    for (let i = 0; i < 24; i++) {
+      const arrow = new THREE.Group();
+      arrow.name = `PooledHunterArrow_${i}`;
+      arrow.visible = false;
+      arrow.frustumCulled = false;
+
+      const shaft = new THREE.Mesh(shaftGeom, shaftMat);
+      shaft.rotation.x = Math.PI / 2;
+      arrow.add(shaft);
+
+      const tip = new THREE.Mesh(tipGeom, tipMat);
+      tip.position.set(0, 0, 0.52);
+      tip.rotation.x = Math.PI / 2;
+      arrow.add(tip);
+
+      const f1 = new THREE.Mesh(fletch1Geom, fletchMat);
+      f1.position.set(0, 0, -0.36);
+      const f2 = new THREE.Mesh(fletch2Geom, fletchMat);
+      f2.position.set(0, 0, -0.36);
+      arrow.add(f1, f2);
+
+      // Normal trail
+      const normalTrail = new THREE.Mesh(normalTrailGeom, normalTrailMat);
+      normalTrail.rotation.x = Math.PI / 2;
+      normalTrail.position.z = -0.6;
+      normalTrail.visible = false;
+      arrow.add(normalTrail);
+
+      // Full-charge piercing wind trail
+      const piercingTrail = new THREE.Mesh(piercingTrailGeom, piercingTrailMat);
+      piercingTrail.rotation.x = Math.PI / 2;
+      piercingTrail.position.z = -1.4;
+      piercingTrail.visible = false;
+      arrow.add(piercingTrail);
+
+      // Full-charge piercing wind vortex head
+      const piercingVortex = new THREE.Group();
+      piercingVortex.position.set(0, 0, 0.58);
+      const vOuter = new THREE.Mesh(vortexRingOuterGeom, piercingVortexOuterMat);
+      const vInner = new THREE.Mesh(vortexRingInnerGeom, piercingVortexInnerMat);
+      vInner.position.z = 0.01;
+      const fFlare1 = new THREE.Mesh(vortexFlareGeom, piercingVortexInnerMat);
+      const fFlare2 = new THREE.Mesh(vortexFlareGeom, piercingVortexInnerMat);
+      fFlare2.rotation.z = Math.PI / 2;
+      piercingVortex.add(vOuter, vInner, fFlare1, fFlare2);
+      piercingVortex.visible = false;
+      arrow.add(piercingVortex);
+
+      this.scene.add(arrow);
+      this.hunterArrowPool.push({
+        root: arrow,
+        shaft,
+        tip,
+        normalTrail,
+        piercingTrail,
+        piercingVortex,
+        inUse: false,
+      });
+    }
+  }
+
+  private acquirePooledArrow(isPiercing: boolean): PooledHunterArrow {
+    if (this.hunterArrowPool.length === 0) {
+      this.initHunterArrowPool();
+    }
+    let item = this.hunterArrowPool.find((a) => !a.inUse);
+    if (!item) {
+      item = this.hunterArrowPool[0];
+    }
+    item.inUse = true;
+    item.root.visible = true;
+    item.normalTrail.visible = !isPiercing;
+    item.piercingTrail.visible = isPiercing;
+    item.piercingVortex.visible = isPiercing;
+    return item;
+  }
+
+  private releasePooledArrow(object: THREE.Object3D) {
+    const item = this.hunterArrowPool.find((a) => a.root === object);
+    if (item) {
+      item.inUse = false;
+      item.root.visible = false;
+      item.normalTrail.visible = false;
+      item.piercingTrail.visible = false;
+      item.piercingVortex.visible = false;
+    }
+  }
+
+  public prewarmHunterShadersInFrustum(): void {
+    if (!this.scene || !this.renderer || !this.camera) return;
+    this.initHunterArrowPool();
+    if (this.hunterArrowPool.length > 0) {
+      const sample = this.hunterArrowPool[0];
+      const prevPos = sample.root.position.clone();
+      const prevVis = sample.root.visible;
+      const prevNV = sample.normalTrail.visible;
+      const prevPV = sample.piercingTrail.visible;
+      const prevVV = sample.piercingVortex.visible;
+
+      // Tempatkan sampel panah di depan kamera untuk kompilasi shader GPU secara langsung
+      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+      sample.root.position.copy(this.camera.position).addScaledVector(fwd, 3.0);
+      sample.root.visible = true;
+      sample.normalTrail.visible = true;
+      sample.piercingTrail.visible = true;
+      sample.piercingVortex.visible = true;
+
+      try {
+        this.renderer.compile(this.scene, this.camera);
+      } catch (e) {
+        console.warn('[Engine] Hunter arrow shader warm-up compile warning:', e);
+      }
+
+      sample.root.position.copy(prevPos);
+      sample.root.visible = prevVis;
+      sample.normalTrail.visible = prevNV;
+      sample.piercingTrail.visible = prevPV;
+      sample.piercingVortex.visible = prevVV;
+    }
+  }
+
+  public cancelBowAim() {
+    this.isHoldingBowAttack = false;
+    this.isAimingBow = false;
+    this.bowChargeRatio = 0;
+    this.callbacks.onBowAimChange?.(false, 0);
+
+    const bowArrow = this.playerMesh?.group?.getObjectByName('BowArrow');
+    if (bowArrow) bowArrow.visible = false;
+    const vortex = this.playerMesh?.group?.getObjectByName('ArrowVortex');
+    if (vortex) vortex.visible = false;
+
+    if (this.playerMesh && this.charClass === 'rogue') {
+      if (this.playerMesh.leftArm) this.playerMesh.leftArm.rotation.set(0, 0, 0);
+      if (this.playerMesh.rightArm) this.playerMesh.rightArm.rotation.set(0, 0, 0);
+      const handBow = this.playerMesh.group?.getObjectByName('HandBow');
+      if (handBow) handBow.rotation.set(-Math.PI / 2, 0, 0);
+    }
   }
 
   // Visual layered crescent slash wave (incandescent core + dynamic outer energy ribbon)
@@ -6504,7 +6753,15 @@ export class GameEngine {
   }
 
   // Hunter Arrow Projectile Spawner (Aerodynamic Wind Spiral and sonic muzzle pop)
-  private spawnHunterArrow(aimDirection?: THREE.Vector3, isSkill = false, bonusDmgMult = 1.0, customSpawnPos?: THREE.Vector3, isRemote = false) {
+  private spawnHunterArrow(
+    aimDirection?: THREE.Vector3,
+    isSkill = false,
+    bonusDmgMult = 1.0,
+    customSpawnPos?: THREE.Vector3,
+    isRemote = false,
+    customSpeed?: number,
+    isPiercing = false
+  ) {
     const fwd = aimDirection
       ? aimDirection.clone().normalize()
       : new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
@@ -6512,39 +6769,35 @@ export class GameEngine {
     const spawnPos = customSpawnPos
       ? customSpawnPos.clone().add(fwd.clone().multiplyScalar(0.6)).add(new THREE.Vector3(0, 1.4, 0))
       : this.playerPos.clone().add(fwd.clone().multiplyScalar(1.0)).add(new THREE.Vector3(0, 1.4, 0));
-    const arrowObj = createArrowMesh();
+
+    const speed = customSpeed || (isSkill ? 32.0 : 28.0);
+    const pooled = this.acquirePooledArrow(isPiercing);
+    const arrowObj = pooled.root;
     arrowObj.position.copy(spawnPos);
     arrowObj.rotation.y = Math.atan2(fwd.x, fwd.z);
-
-    // Aerodynamic wind trail ribbon
-    const trailGeom = new THREE.CylinderGeometry(0.04, 0.01, 1.2, 8);
-    const trailMat = new THREE.MeshBasicMaterial({
-      color: isSkill ? 0x34d399 : 0xa7f3d0,
-      transparent: true,
-      opacity: 0.8,
-    });
-    const trail = new THREE.Mesh(trailGeom, trailMat);
-    trail.rotation.x = Math.PI / 2;
-    trail.position.z = -0.6;
-    arrowObj.add(trail);
-
-    this.scene.add(arrowObj);
+    arrowObj.rotation.x = -Math.atan2(fwd.y, Math.hypot(fwd.x, fwd.z));
 
     if (isRemote) {
       this.activeProjectiles.push({
         object: arrowObj,
         direction: fwd,
-        speed: isSkill ? 32.0 : 28.0,
-        lifetime: 1.1,
+        speed,
+        lifetime: isPiercing ? 1.5 : 1.1,
         damage: 0,
         isCrit: false,
         vfxType: isSkill ? 'hunter_arrow_rain' : 'hunter_arrow',
+        isPiercing,
+        hitEnemyIds: isPiercing ? new Set<string>() : undefined,
+        distanceTraveled: 0,
+        pooledArrow: pooled,
       });
       return;
     }
 
     this.callbacks.onUpdateStats((stats) => {
-      const isCrit = Math.random() < 0.22 + stats.agility * 0.015;
+      // Wind-Piercer Full Charge grants +25% Bonus Critical Chance
+      const critChance = (isPiercing ? 0.47 : 0.22) + stats.agility * 0.015;
+      const isCrit = Math.random() < critChance;
       const tierMult = 1 + (this.playerTier - 1) * 0.25;
       const baseDmg = (stats.baseAttack + stats.agility * 2.2) * tierMult * bonusDmgMult;
       const finalDmg = Math.round(isCrit ? baseDmg * 1.85 : baseDmg);
@@ -6552,11 +6805,15 @@ export class GameEngine {
       this.activeProjectiles.push({
         object: arrowObj,
         direction: fwd,
-        speed: isSkill ? 32.0 : 28.0,
-        lifetime: 1.1,
+        speed,
+        lifetime: isPiercing ? 1.5 : 1.1,
         damage: finalDmg,
         isCrit,
         vfxType: isSkill ? 'hunter_arrow_rain' : 'hunter_arrow',
+        isPiercing,
+        hitEnemyIds: isPiercing ? new Set<string>() : undefined,
+        distanceTraveled: 0,
+        pooledArrow: pooled,
       });
 
       return stats;
@@ -6625,10 +6882,20 @@ export class GameEngine {
     });
   }
 
-  // --- Warrior Combat Actions & Skills ---
+  // --- Warrior & Hunter Combat Actions & Skills ---
   public startBasicAttack() {
     if (this.isControlsLocked || this.isAttacking || this.isCasting) return;
     this.alignPlayerOrientationToInputOrTarget(this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' ? 22 : 16);
+
+    // Pemburu (Hunter) Bow Tap-or-Hold Charge Handler
+    if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
+      this.isHoldingBowAttack = true;
+      this.bowPressStartTime = performance.now();
+      this.isAimingBow = false;
+      this.bowChargeRatio = 0;
+      soundManager.playBowDraw();
+      return;
+    }
 
     if (this.charClass !== 'warrior') {
       this.performBasicAttack();
@@ -6641,6 +6908,49 @@ export class GameEngine {
   }
 
   public releaseBasicAttack() {
+    // Pemburu (Hunter) Bow Release Attack Handler
+    if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
+      if (!this.isHoldingBowAttack) return;
+      const holdDuration = (performance.now() - this.bowPressStartTime) / 1000;
+      this.isHoldingBowAttack = false;
+
+      const camFwdX = -Math.sin(this.cameraAngleH);
+      const camFwdZ = -Math.cos(this.cameraAngleH);
+      const camFwdY = -Math.sin(this.cameraAngleV);
+      const camDirXZ = Math.cos(this.cameraAngleV);
+      const aimDir = new THREE.Vector3(camFwdX * camDirXZ, camFwdY, camFwdZ * camDirXZ).normalize();
+
+      // Tap Cepat (< 0.20s — Quick Shot):
+      if (holdDuration < 0.20) {
+        soundManager.playBowShoot(false);
+        this.spawnHunterArrow(aimDir, false, 1.0, undefined, false, 30.0, false);
+      } else if (this.isAimingBow) {
+        // Tahan Tombol (>= 0.20s — Charged Wind-Piercer):
+        const chargeRatio = this.bowChargeRatio;
+        const isFullCharge = chargeRatio >= 0.85;
+        const speed = THREE.MathUtils.lerp(32, 54, chargeRatio);
+        const dmgMultiplier = THREE.MathUtils.lerp(1.15, 2.15, chargeRatio);
+
+        soundManager.playBowShoot(isFullCharge);
+        this.spawnHunterArrow(aimDir, isFullCharge, dmgMultiplier, undefined, false, speed, isFullCharge);
+
+        if (isFullCharge) {
+          this.callbacks.onAddFloatingText?.('🏹 PENETRATING WIND-PIERCER!', '#fef08a', 'crit');
+          this.triggerCameraShake(0.18);
+        }
+
+        this.isAimingBow = false;
+        this.bowChargeRatio = 0;
+        this.callbacks.onBowAimChange?.(false, 0);
+
+        const bowArrow = this.playerMesh?.group?.getObjectByName('BowArrow');
+        if (bowArrow) bowArrow.visible = false;
+        const vortex = this.playerMesh?.group?.getObjectByName('ArrowVortex');
+        if (vortex) vortex.visible = false;
+      }
+      return;
+    }
+
     if (this.charClass !== 'warrior') {
       return;
     }
@@ -7063,8 +7373,8 @@ export class GameEngine {
         this.attackType = 'bow_shot';
         this.attackDuration = 0.28;
         this.attackTimer = 0.28;
-        soundManager.playBowShoot();
-        this.spawnHunterArrow();
+        soundManager.playBowShoot(false);
+        this.spawnHunterArrow(undefined, false, 1.0, undefined, false, 30.0, false);
       } else {
         // Hunter Daggers Melee Combat
         if (currentCombo === 2) {
@@ -8170,6 +8480,16 @@ export class GameEngine {
       }
     }
 
+    // Hunter Bow: Hold-to-Aim progressive bow charge (>= 0.20s)
+    if (this.isHoldingBowAttack && this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
+      const holdDuration = (performance.now() - this.bowPressStartTime) / 1000;
+      if (holdDuration >= 0.20) {
+        this.isAimingBow = true;
+        this.bowChargeRatio = Math.min(1.0, (holdDuration - 0.20) / 0.65);
+        this.callbacks.onBowAimChange?.(true, this.bowChargeRatio);
+      }
+    }
+
     // Casting State Handling (Movement Lock & Starfall Channeling - image_68.png)
     // Casting State Handling (Movement Lock & Starfall Channeling)
     if (this.isCasting) {
@@ -8329,6 +8649,7 @@ export class GameEngine {
 
     if (
       !this.isAimGlacialActive &&
+      !this.isAimingBow &&
       (this.charClass === 'warrior' || this.charClass === 'rogue' || this.charClass === 'mage') &&
       isMoving &&
       (isShiftPressed || isJoySprint) &&
@@ -8358,7 +8679,9 @@ export class GameEngine {
 
     let targetSpeed = baseSpeed;
     if (this.isAimGlacialActive) {
-      targetSpeed = baseSpeed * 0.55; // 55% normal movement speed while aiming
+      targetSpeed = baseSpeed * 0.55; // 55% normal movement speed while aiming Glacial Barrage
+    } else if (this.isAimingBow) {
+      targetSpeed = baseSpeed * 0.65; // Strafe walk 65% speed while aiming Hunter Bow
     } else {
       if (this.bossManager?.playerDebuffs?.isSlowed) {
         targetSpeed *= 0.5; // Efek Slow -50% pergerakan dari Boss / Sand Spikes
@@ -8387,7 +8710,7 @@ export class GameEngine {
       this.playerVel.z = moveDirZ * targetSpeed;
 
       // Rotate player mesh smoothly to facing direction
-      if (this.isAimGlacialActive) {
+      if (this.isAimGlacialActive || this.isAimingBow) {
         // Karakter menghadap searah pandangan kamera (strafe movement)
         const camFwdX = -Math.sin(this.cameraAngleH);
         const camFwdZ = -Math.cos(this.cameraAngleH);
@@ -8395,7 +8718,9 @@ export class GameEngine {
         if (this.playerMesh?.group) {
           this.playerMesh.group.rotation.y = this.playerRotationY;
         }
-        this.mageBankingRoll = THREE.MathUtils.lerp(this.mageBankingRoll, 0, Math.min(1.0, delta * 8.0));
+        if (this.isAimGlacialActive) {
+          this.mageBankingRoll = THREE.MathUtils.lerp(this.mageBankingRoll, 0, Math.min(1.0, delta * 8.0));
+        }
       } else {
         // Player mesh front faces +Z (0, 0, 1), so angle is Math.atan2(moveDirX, moveDirZ)
         const targetAngle = Math.atan2(moveDirX, moveDirZ);
@@ -8427,6 +8752,14 @@ export class GameEngine {
       this.playerVel.z *= 0.4;
       if (Math.abs(this.playerVel.x) < 0.04) this.playerVel.x = 0;
       if (Math.abs(this.playerVel.z) < 0.04) this.playerVel.z = 0;
+      if (this.isAimGlacialActive || this.isAimingBow) {
+        const camFwdX = -Math.sin(this.cameraAngleH);
+        const camFwdZ = -Math.cos(this.cameraAngleH);
+        this.playerRotationY = Math.atan2(camFwdX, camFwdZ);
+        if (this.playerMesh?.group) {
+          this.playerMesh.group.rotation.y = this.playerRotationY;
+        }
+      }
       this.mageBankingRoll = THREE.MathUtils.lerp(this.mageBankingRoll, 0, Math.min(1.0, delta * 8.0));
     }
 
@@ -8642,40 +8975,56 @@ export class GameEngine {
         const walkTime = this.clock.getElapsedTime();
         animateMageWalk(this.playerMesh, walkTime, this.playerPos.y + this.mageHoverOffsetY, true, this.isAttacking, isAstralGlide);
       } else if (this.charClass === 'rogue') {
-        // Gunakan akumulator fase langkah berbasis delta waktu dan kecepatan gerak riil:
-        const moveSpeed = this.isSprinting ? 1.75 : 1.0;
-        // Frekuensi dinaikkan agar tapakan kaki sinkron dengan laju tanah
-        const stepFrequency = this.isSprinting ? 18.0 : 13.5;
-        this.walkCycle = (this.walkCycle || 0) + delta * stepFrequency * moveSpeed;
+        if (this.isAimingBow) {
+          this.walkCycle = (this.walkCycle || 0) + delta * 8.5;
+          animateHunterBowAim(
+            this.playerMesh,
+            this.bowChargeRatio,
+            true,
+            this.walkCycle,
+            delta
+          );
+        } else {
+          // Gunakan akumulator fase langkah berbasis delta waktu dan kecepatan gerak riil:
+          const moveSpeed = this.isSprinting ? 1.75 : 1.0;
+          // Frekuensi dinaikkan agar tapakan kaki sinkron dengan laju tanah
+          const stepFrequency = this.isSprinting ? 18.0 : 13.5;
+          this.walkCycle = (this.walkCycle || 0) + delta * stepFrequency * moveSpeed;
 
-        // Ayunan kaki kiri & kanan
-        const legSwing = Math.sin(this.walkCycle);
-        const armSwing = Math.cos(this.walkCycle);
+          // Ayunan kaki kiri & kanan
+          const legSwing = Math.sin(this.walkCycle);
+          const armSwing = Math.cos(this.walkCycle);
 
-        // Amplitudo ayunan langkah kaki (tegas & lincah khas assassin)
-        this.playerMesh.leftLeg.rotation.x = legSwing * 0.75;
-        this.playerMesh.rightLeg.rotation.x = -legSwing * 0.75;
+          // Amplitudo ayunan langkah kaki (tegas & lincah khas assassin)
+          this.playerMesh.leftLeg.rotation.x = legSwing * 0.75;
+          this.playerMesh.rightLeg.rotation.x = -legSwing * 0.75;
 
-        // Sedikit tekukan lutut saat kaki mengayun ke belakang agar langkah natural:
-        if (this.playerMesh.leftKnee) {
-          this.playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.4 : 0;
+          // Sedikit tekukan lutut saat kaki mengayun ke belakang agar langkah natural:
+          if (this.playerMesh.leftKnee) {
+            this.playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.4 : 0;
+          }
+          if (this.playerMesh.rightKnee) {
+            this.playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.4 : 0;
+          }
+
+          // Ayunan tangan berlawanan dengan kaki
+          if (!this.isAttacking) {
+            if (this.hunterWeaponMode === 'bow') {
+              this.playerMesh.leftArm.rotation.set(0.04, 0.02, -0.10);
+              this.playerMesh.rightArm.rotation.x = -0.4 - armSwing * 0.45;
+            } else {
+              this.playerMesh.leftArm.rotation.x = -0.4 + armSwing * 0.45;
+              this.playerMesh.rightArm.rotation.x = -0.4 - armSwing * 0.45;
+            }
+          }
+
+          if (this.playerMesh.cape) {
+            this.playerMesh.cape.rotation.x = 0.15 + Math.abs(Math.sin(this.walkCycle * 0.5)) * 0.20;
+          }
+
+          this.playerMesh.group.rotation.x = 0;
+          this.playerMesh.group.rotation.z = 0;
         }
-        if (this.playerMesh.rightKnee) {
-          this.playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.4 : 0;
-        }
-
-        // Ayunan tangan berlawanan dengan kaki (lengan tertekuk siaga memegang belati)
-        if (!this.isAttacking) {
-          this.playerMesh.leftArm.rotation.x = -0.4 + armSwing * 0.45;
-          this.playerMesh.rightArm.rotation.x = -0.4 - armSwing * 0.45;
-        }
-
-        if (this.playerMesh.cape) {
-          this.playerMesh.cape.rotation.x = 0.15 + Math.abs(Math.sin(this.walkCycle * 0.5)) * 0.20;
-        }
-
-        this.playerMesh.group.rotation.x = 0;
-        this.playerMesh.group.rotation.z = 0;
       } else {
         const legSwing = Math.sin(this.walkTime) * 0.62;
         this.playerMesh.leftLeg.rotation.x = legSwing;
@@ -8733,47 +9082,68 @@ export class GameEngine {
         const walkTime = this.clock.getElapsedTime();
         animateMageWalk(this.playerMesh, walkTime, this.playerPos.y + this.mageHoverOffsetY, false, this.isAttacking);
       } else if (this.charClass === 'rogue') {
-        // Saat pemain melepas tombol arah (!this.isMoving):
-        // Lakukan lerp cepat (kecepatan 0.25) pada rotation.x kaki dan tangan kembali ke sudut 0 (posisi berdiri netral).
-        // Reset atau jeda walkCycle agar langkah tidak berhenti di pose kaki terbelah canggung.
-        this.walkCycle = 0;
+        if (this.isAimingBow) {
+          animateHunterBowAim(
+            this.playerMesh,
+            this.bowChargeRatio,
+            false,
+            0,
+            delta
+          );
+        } else {
+          // Saat pemain melepas tombol arah (!this.isMoving):
+          // Lakukan lerp cepat (kecepatan 0.25) pada rotation.x kaki dan tangan kembali ke sudut 0 (posisi berdiri netral).
+          // Reset atau jeda walkCycle agar langkah tidak berhenti di pose kaki terbelah canggung.
+          this.walkCycle = 0;
 
-        if (this.playerMesh.leftLeg) {
-          this.playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftLeg.rotation.x, 0, 0.25);
-          this.playerMesh.leftLeg.rotation.y = 0;
-          this.playerMesh.leftLeg.rotation.z = 0;
-        }
-        if (this.playerMesh.rightLeg) {
-          this.playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightLeg.rotation.x, 0, 0.25);
-          this.playerMesh.rightLeg.rotation.y = 0;
-          this.playerMesh.rightLeg.rotation.z = 0;
-        }
-        if (this.playerMesh.leftKnee) {
-          this.playerMesh.leftKnee.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftKnee.rotation.x, 0, 0.25);
-        }
-        if (this.playerMesh.rightKnee) {
-          this.playerMesh.rightKnee.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightKnee.rotation.x, 0, 0.25);
-        }
-
-        if (!this.isAttacking) {
-          if (this.playerMesh.leftArm) {
-            this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, 0, 0.25);
-            this.playerMesh.leftArm.rotation.y = 0;
-            this.playerMesh.leftArm.rotation.z = 0;
+          if (this.playerMesh.leftLeg) {
+            this.playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftLeg.rotation.x, 0, 0.25);
+            this.playerMesh.leftLeg.rotation.y = 0;
+            this.playerMesh.leftLeg.rotation.z = 0;
           }
-          if (this.playerMesh.rightArm) {
-            this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0, 0.25);
-            this.playerMesh.rightArm.rotation.y = 0;
-            this.playerMesh.rightArm.rotation.z = 0;
+          if (this.playerMesh.rightLeg) {
+            this.playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightLeg.rotation.x, 0, 0.25);
+            this.playerMesh.rightLeg.rotation.y = 0;
+            this.playerMesh.rightLeg.rotation.z = 0;
           }
-        }
+          if (this.playerMesh.leftKnee) {
+            this.playerMesh.leftKnee.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftKnee.rotation.x, 0, 0.25);
+          }
+          if (this.playerMesh.rightKnee) {
+            this.playerMesh.rightKnee.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightKnee.rotation.x, 0, 0.25);
+          }
 
-        if (this.playerMesh.cape) {
-          this.playerMesh.cape.rotation.x = THREE.MathUtils.lerp(this.playerMesh.cape.rotation.x, 0.12, 0.25);
-        }
+          if (!this.isAttacking) {
+            if (this.hunterWeaponMode === 'bow') {
+              if (this.playerMesh.leftArm) {
+                this.playerMesh.leftArm.rotation.set(0.04, 0.02, -0.10);
+              }
+              if (this.playerMesh.rightArm) {
+                this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0, 0.25);
+                this.playerMesh.rightArm.rotation.y = 0;
+                this.playerMesh.rightArm.rotation.z = 0;
+              }
+            } else {
+              if (this.playerMesh.leftArm) {
+                this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, 0, 0.25);
+                this.playerMesh.leftArm.rotation.y = 0;
+                this.playerMesh.leftArm.rotation.z = 0;
+              }
+              if (this.playerMesh.rightArm) {
+                this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0, 0.25);
+                this.playerMesh.rightArm.rotation.y = 0;
+                this.playerMesh.rightArm.rotation.z = 0;
+              }
+            }
+          }
 
-        this.playerMesh.group.rotation.x = 0;
-        this.playerMesh.group.rotation.z = 0;
+          if (this.playerMesh.cape) {
+            this.playerMesh.cape.rotation.x = THREE.MathUtils.lerp(this.playerMesh.cape.rotation.x, 0.12, 0.25);
+          }
+
+          this.playerMesh.group.rotation.x = 0;
+          this.playerMesh.group.rotation.z = 0;
+        }
       } else {
         this.playerMesh.leftLeg.rotation.x *= 0.8;
         this.playerMesh.rightLeg.rotation.x *= 0.8;
@@ -9961,8 +10331,8 @@ export class GameEngine {
       this.cameraAerialZoom = THREE.MathUtils.lerp(this.cameraAerialZoom, 0, delta * 4.0);
     }
 
-    // Over-the-Shoulder Zoom Camera saat Merapal Glacial Barrage (Bahu Kanan: right: +1.15, up: +2.15, back: -3.2)
-    if (this.isAimGlacialActive) {
+    // Over-the-Shoulder Zoom Camera saat Merapal Glacial Barrage / Membidik Busur Pemburu (Bahu Kanan: right: +1.15, up: +2.15, back: -3.2)
+    if (this.isAimGlacialActive || this.isAimingBow) {
       const camFwdX = -Math.sin(this.cameraAngleH);
       const camFwdZ = -Math.cos(this.cameraAngleH);
       const horizForward = new THREE.Vector3(camFwdX, 0, camFwdZ).normalize();
@@ -10386,11 +10756,15 @@ export class GameEngine {
       }
     }
 
-    // Update active projectiles (e.g. Mage Arcane Bolt & Titan Rock Boulder)
+    // Update active projectiles (e.g. Mage Arcane Bolt, Hunter Arrows, & Titan Rock Boulder)
     for (let i = this.activeProjectiles.length - 1; i >= 0; i--) {
       const proj = this.activeProjectiles[i];
       proj.lifetime -= delta;
-      proj.object.position.addScaledVector(proj.direction, proj.speed * delta);
+      const moveDistance = proj.speed * delta;
+      proj.object.position.addScaledVector(proj.direction, moveDistance);
+      if (proj.distanceTraveled !== undefined) {
+        proj.distanceTraveled += moveDistance;
+      }
 
       if (proj.isHostile) {
         if (proj.rotationAxis) {
@@ -10449,7 +10823,11 @@ export class GameEngine {
             }
           }
 
-          this.scene.remove(proj.object);
+          if (proj.pooledArrow) {
+            this.releasePooledArrow(proj.object);
+          } else {
+            this.scene.remove(proj.object);
+          }
           this.activeProjectiles.splice(i, 1);
           continue;
         }
@@ -10459,29 +10837,51 @@ export class GameEngine {
       let hit = false;
       for (const enemy of this.enemies) {
         if (enemy.data.isDead) continue;
-        if (proj.object.position.distanceTo(enemy.mesh.position) <= 1.6) {
-          if (proj.vfxType === 'hunter_arrow' || proj.vfxType === 'hunter_arrow_rain') {
-            this.damageEnemy(enemy, proj.damage, proj.isCrit, 0.55);
-            soundManager.playArrowHit();
-            this.spawnHitStarburst(proj.object.position, 0x10b981, 0.9);
-            this.spawnSparks(proj.object.position, 0x10b981, 12, 4.5);
-            this.spawnSparks(proj.object.position, 0xffffff, 6, 3.5);
-            this.spawnShockwaveRing(proj.object.position, 0x34d399, 1.8, 0.22);
+        const hitRadius = proj.isPiercing ? 2.0 : 1.6;
+        if (proj.object.position.distanceTo(enemy.mesh.position) <= hitRadius) {
+          if (proj.isPiercing && proj.hitEnemyIds) {
+            const enemyId = enemy.data.id || String(enemy.mesh.id);
+            if (!proj.hitEnemyIds.has(enemyId)) {
+              proj.hitEnemyIds.add(enemyId);
+              // Full Charge Wind-Piercer: Menembus banyak musuh di jalur lurus + knockback kuat (1.6)
+              this.damageEnemy(enemy, proj.damage, proj.isCrit, 1.6);
+              soundManager.playArrowHit(proj.isCrit);
+              this.spawnHitStarburst(proj.object.position, 0xfef08a, 1.4);
+              this.spawnSparks(proj.object.position, 0x10b981, 16, 5.0);
+              this.spawnSparks(proj.object.position, 0xffffff, 8, 4.0);
+              this.spawnShockwaveRing(proj.object.position, 0x10b981, 2.4, 0.25);
+            }
+            // Panah penembus TIDAK hancur saat mengenai musuh pertama; terus melesat!
           } else {
-            this.damageEnemy(enemy, proj.damage, proj.isCrit, 0.5);
-            soundManager.playHit();
-            this.spawnHitStarburst(proj.object.position, 0x38bdf8, 1.1);
-            this.spawnSparks(proj.object.position, 0x38bdf8, 14, 4.8);
-            this.spawnSparks(proj.object.position, 0xc084fc, 8, 3.8);
-            this.spawnShockwaveRing(proj.object.position, 0xc084fc, 2.2, 0.28);
+            if (proj.vfxType === 'hunter_arrow' || proj.vfxType === 'hunter_arrow_rain') {
+              this.damageEnemy(enemy, proj.damage, proj.isCrit, 0.55);
+              soundManager.playArrowHit(proj.isCrit);
+              this.spawnHitStarburst(proj.object.position, 0x10b981, 0.9);
+              this.spawnSparks(proj.object.position, 0x10b981, 12, 4.5);
+              this.spawnSparks(proj.object.position, 0xffffff, 6, 3.5);
+              this.spawnShockwaveRing(proj.object.position, 0x34d399, 1.8, 0.22);
+            } else {
+              this.damageEnemy(enemy, proj.damage, proj.isCrit, 0.5);
+              soundManager.playHit();
+              this.spawnHitStarburst(proj.object.position, 0x38bdf8, 1.1);
+              this.spawnSparks(proj.object.position, 0x38bdf8, 14, 4.8);
+              this.spawnSparks(proj.object.position, 0xc084fc, 8, 3.8);
+              this.spawnShockwaveRing(proj.object.position, 0xc084fc, 2.2, 0.28);
+            }
+            hit = true;
+            break;
           }
-          hit = true;
-          break;
         }
       }
 
-      if (hit || proj.lifetime <= 0) {
-        this.scene.remove(proj.object);
+      const reachedMaxPiercingDist = Boolean(proj.isPiercing && proj.distanceTraveled !== undefined && proj.distanceTraveled >= 42.0);
+
+      if (hit || reachedMaxPiercingDist || proj.lifetime <= 0) {
+        if (proj.pooledArrow) {
+          this.releasePooledArrow(proj.object);
+        } else {
+          this.scene.remove(proj.object);
+        }
         this.activeProjectiles.splice(i, 1);
       }
     }
@@ -10745,6 +11145,14 @@ export class GameEngine {
     this.activeVfx = [];
     this.activeProjectiles.forEach((p) => this.scene.remove(p.object));
     this.activeProjectiles = [];
+
+    // Clean up Hunter Arrow Pool
+    this.hunterArrowPool.forEach((p) => this.scene.remove(p.root));
+    this.hunterArrowPool = [];
+    this.hunterArrowPoolGeometries.forEach((g) => g.dispose());
+    this.hunterArrowPoolGeometries = [];
+    this.hunterArrowPoolMaterials.forEach((m) => m.dispose());
+    this.hunterArrowPoolMaterials = [];
 
     // Clean up remote players
     this.clearRemotePlayers();

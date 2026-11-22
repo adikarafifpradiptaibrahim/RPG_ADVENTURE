@@ -63,6 +63,8 @@ interface HUDProps {
   onZoomCamera?: (deltaZoom: number) => void;
   isGlacialAiming?: boolean;
   glacialTarget?: { name: string; hp: number; maxHp: number; isBoss?: boolean } | null;
+  isBowAiming?: boolean;
+  bowChargeRatio?: number;
   bossState: {
     active: boolean;
     name?: string;
@@ -126,6 +128,8 @@ export const HUD: React.FC<HUDProps> = ({
   onZoomCamera,
   isGlacialAiming,
   glacialTarget,
+  isBowAiming,
+  bowChargeRatio,
   bossState,
   bossVictoryName,
   isMuted,
@@ -754,6 +758,68 @@ export const HUD: React.FC<HUDProps> = ({
           >
             <span className="text-sky-300">💠</span>
             <span>BIDIK ES • LEPAS [Q] / KLIK KIRI TEMBAK • KLIK KANAN BATAL</span>
+          </div>
+        </div>
+      )}
+
+      {/* Hunter Bow Hold-to-Aim Minecraft Crosshair (+) & Charge Bar */}
+      {isBowAiming && (
+        <div className="fixed inset-0 pointer-events-none flex flex-col items-center justify-center z-40 select-none animate-fadeIn">
+          {/* Sharp Minecraft-style Plus (+) Crosshair: 20px x 20px */}
+          <div
+            className={`relative flex items-center justify-center transition-transform duration-100 ${
+              (bowChargeRatio ?? 0) >= 0.85 ? 'scale-115' : 'scale-100'
+            }`}
+            style={{ width: '20px', height: '20px' }}
+          >
+            {/* Horizontal Line: 20px x 2px with subtle black drop-shadow */}
+            <div
+              className="absolute bg-white shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
+              style={{ width: '20px', height: '2px' }}
+            />
+            {/* Vertical Line: 2px x 20px with subtle black drop-shadow */}
+            <div
+              className="absolute bg-white shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
+              style={{ width: '2px', height: '20px' }}
+            />
+          </div>
+
+          {/* Thin Bow Charge Bar directly below crosshair (margin-top: 8px, width: 44px, height: 4px) */}
+          <div
+            className="bg-black/75 rounded-full overflow-hidden border border-black/90 shadow-[0_2px_5px_rgba(0,0,0,0.85)]"
+            style={{ marginTop: '8px', width: '44px', height: '4px' }}
+          >
+            <div
+              className="h-full transition-all duration-75 rounded-full"
+              style={{
+                width: `${Math.min(100, Math.max(0, (bowChargeRatio ?? 0) * 100))}%`,
+                backgroundColor: (bowChargeRatio ?? 0) >= 0.85 ? '#fef08a' : '#10b981',
+                boxShadow:
+                  (bowChargeRatio ?? 0) >= 0.85
+                    ? '0 0 10px #fef08a, 0 0 4px #ffffff'
+                    : '0 0 6px #10b981',
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Hunter Bow Guide Pill Banner - at bottom: 108px */}
+      {isBowAiming && (
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-40 pointer-events-none select-none animate-fadeIn flex items-center justify-center whitespace-nowrap"
+          style={{ bottom: '108px' }}
+        >
+          <div
+            className="px-3.5 py-1.5 rounded-full border border-emerald-400/70 text-emerald-200 font-mono tracking-wider backdrop-blur-md flex items-center gap-2"
+            style={{
+              fontSize: '11px',
+              backgroundColor: 'rgba(10, 15, 28, 0.75)',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.6), 0 0 12px rgba(16, 185, 129, 0.3)',
+            }}
+          >
+            <span className="text-emerald-400">🏹</span>
+            <span>TAHAN [KLIK KIRI / J] TARIK BUSUR • LEPAS TEMBAK • KLIK KANAN BATAL</span>
           </div>
         </div>
       )}

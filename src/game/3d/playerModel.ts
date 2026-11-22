@@ -46,8 +46,8 @@ function createRogueFaceTexture(): THREE.CanvasTexture {
   return texture;
 }
 
-// 2. BUSUR BERSUDUT 5-SEGMEN
-function createSegmentedBow(matWood: THREE.Material, matString: THREE.Material): THREE.Group {
+// 2. BUSUR BERSUDUT 5-SEGMEN DENGAN ANAK PANAH & PUSARAN ANGIN ZAMRUD
+function createSegmentedBow(matWood: THREE.Material, matString: THREE.Material, includeArrow: boolean = false): THREE.Group {
   const bow = new THREE.Group();
   bow.name = 'SegmentedBow';
 
@@ -76,8 +76,78 @@ function createSegmentedBow(matWood: THREE.Material, matString: THREE.Material):
     new THREE.Vector3(0, -0.52, 0.07)
   ]);
   const bowString = new THREE.Line(stringGeo, matString);
-
   bow.add(limbTop, limbBottom, tipTop, tipBottom, bowString);
+
+  if (includeArrow) {
+    // Anak Panah di Busur (Digunakan saat membidik dan menarik busur)
+    const arrowGroup = new THREE.Group();
+    arrowGroup.name = 'BowArrow';
+    arrowGroup.visible = false;
+
+    const matArrowWood = new THREE.MeshLambertMaterial({ color: 0x4a3321 });
+    const matArrowHead = new THREE.MeshStandardMaterial({
+      color: 0xd1fae5,
+      emissive: 0x10b981,
+      emissiveIntensity: 0.8,
+      metalness: 0.6,
+      roughness: 0.2,
+    });
+    const matWindGlow = new THREE.MeshBasicMaterial({
+      color: 0x10b981,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+    });
+    const matGoldCore = new THREE.MeshBasicMaterial({
+      color: 0xfef08a,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide,
+    });
+
+    // Batang panah (membujur ke depan sumbu +Z)
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.92, 6), matArrowWood);
+    shaft.rotation.x = Math.PI / 2;
+    shaft.position.set(0, 0, 0.04);
+    arrowGroup.add(shaft);
+
+    // Mata panah tajam
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.16, 4), matArrowHead);
+    tip.rotation.x = Math.PI / 2;
+    tip.position.set(0, 0, 0.52);
+    arrowGroup.add(tip);
+
+    // Bulu panah di pangkal senar
+    const fletch1 = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.01), matWindGlow);
+    fletch1.position.set(0, 0, -0.38);
+    const fletch2 = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.12, 0.07), matWindGlow);
+    fletch2.position.set(0, 0, -0.38);
+    arrowGroup.add(fletch1, fletch2);
+
+    // Pusaran Angin Zamrud Bercahaya (Emerald Wind Vortex) di Ujung Mata Panah
+    // Aktif saat bowChargeRatio >= 0.85
+    const vortexGroup = new THREE.Group();
+    vortexGroup.name = 'ArrowVortex';
+    vortexGroup.position.set(0, 0, 0.56);
+    vortexGroup.visible = false;
+
+    // Outer emerald wind vortex ring
+    const ringOuter = new THREE.Mesh(new THREE.RingGeometry(0.06, 0.24, 16), matWindGlow);
+    // Inner white-gold hyper-charge core ring
+    const ringInner = new THREE.Mesh(new THREE.RingGeometry(0.03, 0.13, 12), matGoldCore);
+    ringInner.position.z = 0.01;
+
+    // Cross flare blades for intense swirl appearance
+    const flare1 = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.04), matGoldCore);
+    const flare2 = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.04), matGoldCore);
+    flare2.rotation.z = Math.PI / 2;
+
+    vortexGroup.add(ringOuter, ringInner, flare1, flare2);
+    arrowGroup.add(vortexGroup);
+
+    bow.add(arrowGroup);
+  }
+
   return bow;
 }
 
@@ -312,7 +382,7 @@ export function createHunterModel(): THREE.Group {
   leftArmPose.add(leftDagger);
 
   // Busur Horizontal Membujur (Senar Cyan di Atas, Gagang di Bawah)
-  const handBow = createSegmentedBow(matWood, matString);
+  const handBow = createSegmentedBow(matWood, matString, true);
   handBow.name = 'HandBow';
   // Letakkan pas di celah sisi dalam lengan dan pinggang
   handBow.position.set(0.05, -0.42, 0.04);
@@ -392,16 +462,24 @@ export function createHunterModel(): THREE.Group {
 export function updateHunterWeaponStance(model: THREE.Group, stance: 'dagger' | 'bow') {
   const backBow = model.getObjectByName('BackBow');
   const handBow = model.getObjectByName('HandBow');
+  const bowArrow = model.getObjectByName('BowArrow');
+  const arrowVortex = model.getObjectByName('ArrowVortex');
   const leftDagger = model.getObjectByName('LeftArm')?.getObjectByName('HandDagger');
   const rightDagger = model.getObjectByName('RightArm')?.getObjectByName('HandDagger');
 
   const leftArmPose = model.getObjectByName('LeftArmPose');
   const rightArmPose = model.getObjectByName('RightArmPose');
 
+  if (bowArrow) bowArrow.visible = false;
+  if (arrowVortex) arrowVortex.visible = false;
+
   if (stance === 'bow') {
     // Mode Panah:
     if (backBow) backBow.visible = false;
-    if (handBow) handBow.visible = true;
+    if (handBow) {
+      handBow.visible = true;
+      handBow.rotation.set(-Math.PI / 2, 0, 0);
+    }
     if (leftDagger) leftDagger.visible = false;
     if (rightDagger) rightDagger.visible = false;
 
@@ -635,5 +713,109 @@ export function animateHunterWalk(
   // Kunci mutlak di akhir: tidak ada body.rotation.z atau body.rotation.y
   if (playerMesh.body) {
     playerMesh.body.rotation.set(0, 0, 0);
+  }
+}
+
+/**
+ * ============================================================================
+ * ANIMASI MEMBIDIK & MENARIK BUSUR HUNTER (PROGRESSIVE BOW CHARGE)
+ * ============================================================================
+ */
+export function animateHunterBowAim(
+  playerMesh: PlayerMeshObjects,
+  chargeRatio: number,
+  isMoving: boolean,
+  walkCycle: number,
+  delta: number
+): void {
+  if (!playerMesh) return;
+
+  // KUNCI: Badan tegak sempurna mengikuti hadap bidikan
+  if (playerMesh.body) {
+    playerMesh.body.rotation.set(0, 0, 0);
+  }
+  if (playerMesh.group) {
+    playerMesh.group.rotation.x = 0;
+    playerMesh.group.rotation.z = 0;
+  }
+  if (playerMesh.rotation) {
+    playerMesh.rotation.x = 0;
+    playerMesh.rotation.z = 0;
+  }
+
+  // 1. LENGAN KIRI: Mengangkat busur sejajar bahu lurus ke depan
+  if (playerMesh.leftArm) {
+    playerMesh.leftArm.rotation.set(-Math.PI * 0.48, 0.16, -0.06);
+  }
+
+  // Sesuaikan pose handBow agar berdiri tegak menghadap lurus ke depan
+  const handBow = playerMesh.group?.getObjectByName('HandBow');
+  if (handBow) {
+    handBow.visible = true;
+    handBow.rotation.set(0, 0, -0.15); // Vertikal alami dengan sedikit kemiringan ~8 derajat
+  }
+
+  // 2. LENGAN KANAN: Menarik senar ke belakang menuju pipi/bahu seiring naiknya bowChargeRatio (0.0 -> 1.0)
+  if (playerMesh.rightArm) {
+    playerMesh.rightArm.rotation.set(
+      -Math.PI * 0.45,
+      -0.15 - chargeRatio * 0.40,
+      0.15 + chargeRatio * 0.32
+    );
+  }
+
+  // 3. ANAK PANAH PADA BUSUR: Mundur sedikit mengikuti tarikan senar
+  const bowArrow = playerMesh.group?.getObjectByName('BowArrow');
+  if (bowArrow) {
+    bowArrow.visible = true;
+    bowArrow.position.z = -chargeRatio * 0.22;
+  }
+
+  // 4. PUSARAN ANGIN ZAMRUD BERCAHAYA: Muncul di ujung mata panah saat bowChargeRatio >= 0.85
+  const vortex = playerMesh.group?.getObjectByName('ArrowVortex');
+  if (vortex) {
+    const isFullCharge = chargeRatio >= 0.85;
+    vortex.visible = isFullCharge;
+    if (isFullCharge) {
+      vortex.rotation.z += delta * 18.0;
+    }
+  }
+
+  // 5. KAKI: Strafe walk (65% kecepatan) jika bergerak, atau berdiri tegak jika diam
+  if (isMoving) {
+    const legSwing = Math.sin(walkCycle) * 0.50;
+    if (playerMesh.leftLeg) {
+      playerMesh.leftLeg.rotation.set(legSwing, 0, 0);
+    }
+    if (playerMesh.rightLeg) {
+      playerMesh.rightLeg.rotation.set(-legSwing, 0, 0);
+    }
+    if (playerMesh.leftKnee) {
+      playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.30 : 0;
+    }
+    if (playerMesh.rightKnee) {
+      playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.30 : 0;
+    }
+  } else {
+    if (playerMesh.leftLeg) {
+      playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0, 0.25);
+      playerMesh.leftLeg.rotation.y = 0;
+      playerMesh.leftLeg.rotation.z = 0;
+    }
+    if (playerMesh.rightLeg) {
+      playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0, 0.25);
+      playerMesh.rightLeg.rotation.y = 0;
+      playerMesh.rightLeg.rotation.z = 0;
+    }
+    if (playerMesh.leftKnee) {
+      playerMesh.leftKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.leftKnee.rotation.x, 0, 0.25);
+    }
+    if (playerMesh.rightKnee) {
+      playerMesh.rightKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.rightKnee.rotation.x, 0, 0.25);
+    }
+  }
+
+  if (playerMesh.cape) {
+    playerMesh.cape.rotation.x = THREE.MathUtils.lerp(playerMesh.cape.rotation.x, 0.15, 0.20);
   }
 }

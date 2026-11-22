@@ -124,6 +124,8 @@ export default function App() {
   const [castingState, setCastingState] = useState<{ isCasting: boolean; progress: number; text: string } | null>(null);
   const [isGlacialAiming, setIsGlacialAiming] = useState(false);
   const [glacialTarget, setGlacialTarget] = useState<{ name: string; hp: number; maxHp: number; isBoss?: boolean } | null>(null);
+  const [isBowAiming, setIsBowAiming] = useState(false);
+  const [bowChargeRatio, setBowChargeRatio] = useState(0);
 
   // Pause Menu State
   const [isPauseMenuOpen, setIsPauseMenuOpen] = useState(false);
@@ -591,6 +593,10 @@ export default function App() {
       onGlacialAimChange: (aiming, targetInfo) => {
         setIsGlacialAiming(aiming);
         setGlacialTarget(targetInfo || null);
+      },
+      onBowAimChange: (aiming, ratio) => {
+        setIsBowAiming(aiming);
+        setBowChargeRatio(ratio);
       },
       onCastingUpdate: (casting) => {
         setCastingState(casting);
@@ -1166,6 +1172,8 @@ export default function App() {
             }}
             isGlacialAiming={isGlacialAiming}
             glacialTarget={glacialTarget}
+            isBowAiming={isBowAiming}
+            bowChargeRatio={bowChargeRatio}
             onJump={() => engineRef.current?.jump()}
             onDash={() => engineRef.current?.performDash()}
             onRotateCamera={(dx, dy) => engineRef.current?.rotateCameraByDelta(dx, dy)}

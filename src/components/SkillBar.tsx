@@ -75,7 +75,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
       case 'rogue':
         if (hunterWeaponMode === 'bow') {
           return {
-            basic: { label: 'Panah', icon: '🏹', hint: 'Klik / J' },
+            basic: { label: 'Tarik Busur', icon: '🏹', hint: 'Tahan / Tap' },
             skill1: { name: 'Badai Panah', icon: '🎯', cost: '15 MP', key: 'Q', color: 'border-emerald-500/70 text-emerald-300 bg-emerald-950/40' },
             skill2: { name: 'Akrobatik', icon: '🦅', cost: '15 Stm', key: 'F', color: 'border-teal-500/70 text-teal-300 bg-teal-950/40' },
             skill3: { name: 'Panah Racun', icon: '💣', cost: '25 MP', key: 'R', color: 'border-green-500/70 text-green-300 bg-green-950/40' },

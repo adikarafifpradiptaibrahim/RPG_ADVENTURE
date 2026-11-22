@@ -23,6 +23,7 @@ import {
   createLegacyHunterMesh,
   USE_LEGACY_HUNTER,
   animateHunterWalk,
+  animateHunterBowAim,
 } from './playerModel';
 
 export {
@@ -43,6 +44,7 @@ export {
   createLegacyHunterMesh,
   USE_LEGACY_HUNTER,
   animateHunterWalk,
+  animateHunterBowAim,
 };
 
 // Materials cache to optimize performance and prevent memory duplication
