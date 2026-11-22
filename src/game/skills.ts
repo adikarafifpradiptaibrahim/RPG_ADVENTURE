@@ -15,6 +15,7 @@ export const SKILL_COOLDOWNS = {
   ARCANE_BLINK: 0, // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 0.1s / 2.0s)
   CAHAYA_SUCI: 0, // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 0.1s / 12.0s)
   SKYWARD_VOLLEY: 0, // TODO: Kembalikan cooldown 8s setelah pengujian selesai (Normal: 8.0s)
+  HUNTER_MOBILITY: 0, // TODO: Kembalikan cooldown 6s setelah pengujian selesai (Normal: 6.0s)
 };
 
 /**

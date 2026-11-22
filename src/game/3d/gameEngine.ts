@@ -344,6 +344,8 @@ export class GameEngine {
     | 'mage_aim_glacial'
     | 'hunter_aim_volley'
     | 'hunter_volley_release'
+    | 'hunter_gale_vault'
+    | 'hunter_phantom_decoy'
     | null = null;
   public isCasting = false;
   private castingTimer = 0;
@@ -356,6 +358,22 @@ export class GameEngine {
   private mageBlinkCooldownTimer = 0;
   private mageCahayaSuciCooldownTimer = 0;
   private hunterArrowVolleyCooldownTimer = 0;
+  private hunterMobilityCooldownTimer = 0;
+  // Hunter Gale Vault & Snipe state
+  private isGaleVaulting = false;
+  private galeVaultTimer = 0;
+  private galeVaultShotFired = false;
+  // Hunter Phantom Decoy Step state
+  public phantomAmbushReady = false;
+  private phantomAmbushTimer = 0;
+  private shadowDecoyPool: THREE.Group[] = [];
+  private activeShadowDecoy: {
+    group: THREE.Group;
+    pos: THREE.Vector3;
+    timer: number;
+    active: boolean;
+    damage: number;
+  } | null = null;
   // Hunter Bow Skyward Arrow Volley: Hold-to-Aim & Ground Decal state
   public isAimingArrowVolley = false;
   private isHoldingArrowVolleyKey = false;
@@ -543,6 +561,7 @@ export class GameEngine {
     hitEnemyIds?: Set<string>;
     distanceTraveled?: number;
     pooledArrow?: PooledHunterArrow;
+    isCripplingSlow?: boolean;
   }[] = [];
 
   // Spectator / Freecam Mode (Minecraft-Style Fly Cam)
@@ -1347,6 +1366,16 @@ export class GameEngine {
     this.mageBlinkCooldownTimer = 0;
     this.mageCahayaSuciCooldownTimer = 0;
     this.hunterArrowVolleyCooldownTimer = 0;
+    this.hunterMobilityCooldownTimer = 0;
+    this.isGaleVaulting = false;
+    this.galeVaultTimer = 0;
+    this.phantomAmbushReady = false;
+    this.phantomAmbushTimer = 0;
+    if (this.activeShadowDecoy) {
+      this.activeShadowDecoy.active = false;
+      this.activeShadowDecoy.group.visible = false;
+      this.activeShadowDecoy = null;
+    }
     if (this.isAimingArrowVolley) {
       this.cancelArrowVolleyAim();
     }
@@ -3076,8 +3105,11 @@ export class GameEngine {
         if (this.charClass === 'mage') {
           // Mage: Tombol [F] (Slot 4 - ULTIMATE): Celestial Apocalypse / Starfall Ultimate
           this.startStarfallCasting();
+        } else if (this.charClass === 'rogue') {
+          // Rogue: Tombol [F] (Slot 4 - ULTIMATE placeholder)
+          this.castSkill(4);
         } else {
-          // Knight: Cataclysmic Leap Slam / Rogue: Akrobatik/Siluman
+          // Knight: Cataclysmic Leap Slam
           this.castSkill(2);
         }
       }
@@ -3123,19 +3155,19 @@ export class GameEngine {
     } else if (key === 'e' || code === 'keye') {
       // Slot 2 (E):
       // Mage Slot 2 (E): Arcane Blink [E] (Teleportasi instan menembus musuh dengan iFrame 0.2s)
-      // Warrior & Rogue: Dash [E]
+      // Rogue: Skill 2 Mobilitas Khusus Pemburu (Gale Vault / Phantom Decoy Step)
+      // Warrior: Dash [E]
       if (this.charClass === 'mage') {
         this.castArcaneBlink();
+      } else if (this.charClass === 'rogue') {
+        this.castSkill(2);
       } else {
         this.performDash();
       }
     } else if (key === 'shift' || code === 'shiftleft' || code === 'shiftright') {
       // Tombol [Shift] (Sprint / Terbang Cepat):
-      // HAPUS binding castArcaneBlink() dari tombol Shift!
-      // Saat tombol Shift ditahan sambil bergerak, mode Terbang Cepat (Astral Glide) aktif di updateMovement()
-      if (this.charClass !== 'mage') {
-        this.performDash();
-      }
+      // HAPUS pemanggilan performDash() dari tombol Shift!
+      // Saat tombol Shift ditahan sambil bergerak, mode Lari Cepat (Sprint) aktif di updateMovement()
     } else if (key === 'r' || code === 'keyr') {
       // Slot 3 (R):
       // Mage Slot 3 (R): Cahaya Suci / Sanctuary [R] (Heal, Cleanse, Overheal Shield, & +30 MP)
@@ -4112,6 +4144,7 @@ export class GameEngine {
   public prewarmHunterShadersInFrustum(): void {
     if (!this.scene || !this.renderer || !this.camera) return;
     this.initHunterArrowPool();
+    this.initShadowDecoyPool();
     if (this.hunterArrowPool.length > 0) {
       const sample = this.hunterArrowPool[0];
       const prevPos = sample.root.position.clone();
@@ -4139,6 +4172,21 @@ export class GameEngine {
       sample.normalTrail.visible = prevNV;
       sample.piercingTrail.visible = prevPV;
       sample.piercingVortex.visible = prevVV;
+    }
+    if (this.shadowDecoyPool.length > 0) {
+      const sampleDecoy = this.shadowDecoyPool[0];
+      const prevPos = sampleDecoy.position.clone();
+      const prevVis = sampleDecoy.visible;
+      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+      sampleDecoy.position.copy(this.camera.position).addScaledVector(fwd, 3.2);
+      sampleDecoy.visible = true;
+      try {
+        this.renderer.compile(this.scene, this.camera);
+      } catch (e) {
+        console.warn('[Engine] Hunter shadow decoy shader warm-up compile warning:', e);
+      }
+      sampleDecoy.position.copy(prevPos);
+      sampleDecoy.visible = prevVis;
     }
     try {
       SkywardArrowVolleyResourcePool.get().prewarm(this.scene, this.renderer, this.camera);
@@ -7356,7 +7404,8 @@ export class GameEngine {
     customSpawnPos?: THREE.Vector3,
     isRemote = false,
     customSpeed?: number,
-    isPiercing = false
+    isPiercing = false,
+    isCripplingSlow = false
   ) {
     const fwd = aimDirection
       ? aimDirection.clone().normalize()
@@ -7386,6 +7435,7 @@ export class GameEngine {
         hitEnemyIds: isPiercing ? new Set<string>() : undefined,
         distanceTraveled: 0,
         pooledArrow: pooled,
+        isCripplingSlow,
       });
       return;
     }
@@ -7410,6 +7460,7 @@ export class GameEngine {
         hitEnemyIds: isPiercing ? new Set<string>() : undefined,
         distanceTraveled: 0,
         pooledArrow: pooled,
+        isCripplingSlow,
       });
 
       return stats;
@@ -7973,8 +8024,18 @@ export class GameEngine {
         this.spawnHunterArrow(undefined, false, 1.0, undefined, false, 30.0, false);
       } else {
         // Hunter Daggers Melee Combat
+        const isAmbushCrit = this.phantomAmbushReady;
+        if (isAmbushCrit) {
+          this.phantomAmbushReady = false;
+          this.phantomAmbushTimer = 0;
+          soundManager.playRogueShadowFlurry();
+          this.spawnSparks(this.playerPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0x064e3b, 22, 5.0);
+          this.spawnHitStarburst(this.playerPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0x10b981, 1.8);
+          this.callbacks.onAddFloatingText('Phantom Ambush Critical! 🗡️💥', '#10b981', 'crit');
+        }
+
         if (currentCombo === 2) {
-          // Combo 3 Finisher: 360Â° Shadow Blade Whirlwind Cutter (Depan, Belakang, Kiri, Kanan!)
+          // Combo 3 Finisher: 360° Shadow Blade Whirlwind Cutter (Depan, Belakang, Kiri, Kanan!)
           this.attackType = 'basic_spin_360';
           this.attackDuration = 0.32;
           this.attackTimer = 0.32;
@@ -7984,11 +8045,11 @@ export class GameEngine {
             range: 3.4,
             is360: true,
             dmgMultiplier: 1.75,
-            critBonus: 0.45,
+            critBonus: isAmbushCrit ? 2.0 : 0.45,
             knockback: 0.5,
           });
         } else {
-          // Rapid dual dagger slashes (covers front, flanks, and close 360Â°)
+          // Rapid dual dagger slashes (covers front, flanks, and close 360°)
           this.attackType = currentCombo === 0 ? 'basic_slash_1' : 'basic_slash_2';
           this.attackDuration = 0.22;
           this.attackTimer = 0.22;
@@ -7998,7 +8059,7 @@ export class GameEngine {
             range: 3.0,
             coneAngle: -0.35,
             dmgMultiplier: 1.35,
-            critBonus: 0.35,
+            critBonus: isAmbushCrit ? 2.0 : 0.35,
             knockback: 0.25,
           });
         }
@@ -8105,57 +8166,14 @@ export class GameEngine {
         return;
       }
 
-      // Rogue Skill 2 (Cost: 15 Stamina)
-      this.callbacks.onUpdateStats((stats) => {
-        if (stats.stamina < 15) {
-          this.callbacks.onAddFloatingText('Stamina Habis!', '#ffb74d', 'info');
-          return stats;
+      if (this.charClass === 'rogue') {
+        if (this.hunterWeaponMode === 'bow') {
+          this.performHunterGaleVault();
+        } else {
+          this.performHunterPhantomDecoyStep();
         }
-
-        const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(
-          new THREE.Vector3(0, 1, 0),
-          this.playerRotationY
-        );
-
-        if (this.charClass === 'rogue') {
-          if (this.hunterWeaponMode === 'bow') {
-            // Hunter Bow Skill 2: Loncat Akrobatik & Tembakan Bayangan (Backflip Evasive Snipe)
-            soundManager.playDash();
-            soundManager.playBowShoot();
-            this.isDashing = true;
-            this.dashTimer = 0.3;
-            this.attackType = 'bow_shot';
-            this.attackDuration = 0.32;
-            this.attackTimer = 0.32;
-
-            // Leap backwards smoothly away from enemies
-            this.playerVel.add(forward.clone().multiplyScalar(-18));
-            this.spawnRogueShadowStepVfx(this.playerPos.clone(), forward.clone().multiplyScalar(-1));
-
-            // Fire high-velocity piercing arrow forward
-            setTimeout(() => {
-              if (!this.isRunning) return;
-              this.spawnHunterArrow(forward, true, 2.0);
-            }, 80);
-
-            this.callbacks.onAddFloatingText('Loncat Akrobatik & Tembakan Jitu! 🦅', '#34d399', 'info');
-          } else {
-            // Hunter Daggers Skill 2: Langkah Siluman Bayangan
-            soundManager.playDash();
-            soundManager.playRogueSmoke();
-            const startPos = this.playerPos.clone();
-            this.isDashing = true;
-            this.dashTimer = 0.3;
-            this.attackType = 'shadow_step';
-            this.spawnRogueShadowStepVfx(startPos, forward);
-
-            this.playerVel.add(forward.clone().multiplyScalar(24));
-            this.callbacks.onAddFloatingText('Langkah Siluman!', '#34d399', 'info');
-          }
-        }
-
-        return { ...stats, stamina: stats.stamina - 15 };
-      });
+        return;
+      }
     } else if (skillSlot === 3) {
       if (this.charClass === 'warrior') {
         this.castWarriorAegisRetribution();
@@ -8222,8 +8240,335 @@ export class GameEngine {
         // Mage Slot 4 (F - ULTIMATE): Celestial Apocalypse / Starfall Ultimate
         this.startStarfallCasting();
         return;
+      } else if (this.charClass === 'rogue') {
+        this.callbacks.onAddFloatingText('Skill Ultimate Pemburu Segera Hadir! 🏹✨', '#34d399', 'info');
+        return;
       }
     }
+  }
+
+  // ============================================================================
+  // HUNTER MOBILITY REVAMP: GALE VAULT (BOW) & PHANTOM DECOY STEP (DAGGER)
+  // ============================================================================
+  private initShadowDecoyPool() {
+    if (this.shadowDecoyPool.length > 0) return;
+    for (let i = 0; i < 3; i++) {
+      const decoyGroup = this.createShadowDecoyMesh();
+      decoyGroup.visible = false;
+      this.scene.add(decoyGroup);
+      this.shadowDecoyPool.push(decoyGroup);
+    }
+  }
+
+  private createShadowDecoyMesh(): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'HunterShadowDecoy';
+
+    // Dark silhouette material (dark green / deep shadow)
+    const shadowMat = new THREE.MeshLambertMaterial({
+      color: 0x022c22,
+      transparent: true,
+      opacity: 0.82,
+    });
+    // Wireframe emerald glow
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: 0x10b981,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.38,
+      blending: THREE.AdditiveBlending,
+    });
+
+    // Torso
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.65, 0.28), shadowMat);
+    torso.position.y = 1.30;
+    const torsoWire = new THREE.Mesh(new THREE.BoxGeometry(0.49, 0.66, 0.29), wireMat);
+    torso.add(torsoWire);
+    group.add(torso);
+
+    // Head & Hood
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.32, 0.30), shadowMat);
+    head.position.y = 1.82;
+    const headWire = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.33, 0.31), wireMat);
+    head.add(headWire);
+    group.add(head);
+
+    // Cape
+    const cape = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.85, 0.05), shadowMat);
+    cape.position.set(0, 1.25, -0.16);
+    cape.rotation.x = 0.20;
+    group.add(cape);
+
+    // Left & Right Arms
+    const armGeom = new THREE.BoxGeometry(0.14, 0.48, 0.14);
+    const leftArm = new THREE.Mesh(armGeom, shadowMat);
+    leftArm.position.set(0.32, 1.30, 0);
+    leftArm.rotation.set(-0.3, 0, 0.2);
+    const rightArm = new THREE.Mesh(armGeom, shadowMat);
+    rightArm.position.set(-0.32, 1.30, 0);
+    rightArm.rotation.set(-0.3, 0, -0.2);
+    group.add(leftArm, rightArm);
+
+    // Dual Daggers in arms
+    const daggerGeom = new THREE.BoxGeometry(0.04, 0.42, 0.02);
+    const daggerMat = new THREE.MeshBasicMaterial({
+      color: 0x34d399,
+      transparent: true,
+      opacity: 0.75,
+      blending: THREE.AdditiveBlending,
+    });
+    const leftDagger = new THREE.Mesh(daggerGeom, daggerMat);
+    leftDagger.position.set(0, -0.25, 0.12);
+    leftDagger.rotation.x = Math.PI / 3;
+    leftArm.add(leftDagger);
+
+    const rightDagger = new THREE.Mesh(daggerGeom, daggerMat);
+    rightDagger.position.set(0, -0.25, 0.12);
+    rightDagger.rotation.x = Math.PI / 3;
+    rightArm.add(rightDagger);
+
+    // Left & Right Legs
+    const legGeom = new THREE.BoxGeometry(0.18, 0.58, 0.18);
+    const leftLeg = new THREE.Mesh(legGeom, shadowMat);
+    leftLeg.position.set(0.14, 0.60, 0);
+    const rightLeg = new THREE.Mesh(legGeom, shadowMat);
+    rightLeg.position.set(-0.14, 0.60, 0);
+    group.add(leftLeg, rightLeg);
+
+    // Ground Rune Circle
+    const groundRingGeom = new THREE.RingGeometry(0.4, 0.9, 24);
+    const groundRingMat = new THREE.MeshBasicMaterial({
+      color: 0x10b981,
+      transparent: true,
+      opacity: 0.55,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const groundRing = new THREE.Mesh(groundRingGeom, groundRingMat);
+    groundRing.rotation.x = -Math.PI / 2;
+    groundRing.position.y = 0.05;
+    group.add(groundRing);
+
+    return group;
+  }
+
+  private spawnShadowDecoy(pos: THREE.Vector3, rotY: number) {
+    this.initShadowDecoyPool();
+
+    // If an existing decoy is active, explode it first
+    if (this.activeShadowDecoy && this.activeShadowDecoy.active) {
+      this.explodeActiveShadowDecoy();
+    }
+
+    const group = this.shadowDecoyPool.find((g) => !g.visible) || this.shadowDecoyPool[0];
+    group.position.copy(pos);
+    group.rotation.set(0, rotY, 0);
+    group.visible = true;
+
+    // Calculate 110% Dagger Power AoE damage
+    let damage = 40;
+    this.callbacks.onUpdateStats((stats) => {
+      const tierMult = 1 + (this.playerTier - 1) * 0.25;
+      damage = Math.round((stats.baseAttack + stats.agility * 2.5) * tierMult * 1.10);
+      return stats;
+    });
+
+    this.activeShadowDecoy = {
+      group,
+      pos: pos.clone(),
+      timer: 2.0,
+      active: true,
+      damage,
+    };
+  }
+
+  private explodeActiveShadowDecoy() {
+    if (!this.activeShadowDecoy || !this.activeShadowDecoy.active) return;
+    const decoyPos = this.activeShadowDecoy.pos;
+    const damage = this.activeShadowDecoy.damage;
+
+    this.activeShadowDecoy.active = false;
+    this.activeShadowDecoy.group.visible = false;
+
+    soundManager.playRogueSmoke();
+    soundManager.playHit();
+
+    // Emerald mist explosion VFX
+    this.spawnShockwaveRing(decoyPos, 0x10b981, 5.0, 0.45);
+    this.spawnSparks(decoyPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0x10b981, 28, 6.0);
+    this.spawnSparks(decoyPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0x064e3b, 20, 5.0);
+    this.spawnSparks(decoyPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0xa7f3d0, 14, 4.0);
+    this.spawnHitStarburst(decoyPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0x34d399, 2.5);
+    this.callbacks.onAddFloatingText('Ledakan Bayangan Zamrud! 💥', '#10b981', 'info');
+
+    // AoE damage within radius 5.0
+    this.enemies.forEach((enemy) => {
+      if (enemy.data.isDead) return;
+      if (enemy.mesh.position.distanceTo(decoyPos) <= 5.0) {
+        this.damageEnemy(enemy, damage, false, 1.2);
+        this.spawnHitStarburst(enemy.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)), 0x10b981, 1.2);
+      }
+    });
+
+    this.activeShadowDecoy = null;
+  }
+
+  public performHunterGaleVault() {
+    if (this.isControlsLocked || this.isCasting || this.isGaleVaulting) return;
+
+    if (this.hunterMobilityCooldownTimer > 0) {
+      this.callbacks.onAddFloatingText(
+        `Gale Vault Cooldown (${this.hunterMobilityCooldownTimer.toFixed(1)}s)!`,
+        '#34d399',
+        'info'
+      );
+      return;
+    }
+
+    this.callbacks.onUpdateStats((stats) => {
+      if (stats.stamina < 15) {
+        this.callbacks.onAddFloatingText('Stamina Habis (Butuh 15)!', '#ffb74d', 'info');
+        return stats;
+      }
+
+      this.executeHunterGaleVault();
+      return { ...stats, stamina: Math.max(0, stats.stamina - 15) };
+    });
+  }
+
+  private executeHunterGaleVault() {
+    // TODO: Kembalikan cooldown 6s setelah pengujian selesai
+    this.hunterMobilityCooldownTimer = SKILL_COOLDOWNS.HUNTER_MOBILITY ?? 0;
+
+    soundManager.playDash();
+
+    const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(
+      new THREE.Vector3(0, 1, 0),
+      this.playerRotationY
+    );
+    const startPos = this.playerPos.clone();
+
+    // Invulnerability (0.35s in mid-air)
+    this.isInvulnerable = true;
+    this.invulnerableTimer = 0.35;
+
+    // Leap backwards 9.5 units (velocity.y = 7.8, horizontal thrust -19.5 away from facing)
+    this.isGrounded = false;
+    this.playerVel.y = 7.8;
+    this.playerVel.x = -forward.x * 19.5;
+    this.playerVel.z = -forward.z * 19.5;
+
+    this.isGaleVaulting = true;
+    this.galeVaultTimer = 0.45;
+    this.galeVaultShotFired = false;
+    this.attackType = 'hunter_gale_vault';
+    this.attackDuration = 0.45;
+    this.attackTimer = 0.45;
+
+    // Emerald wind recoil shockwave ring at launch origin
+    this.spawnShockwaveRing(startPos, 0x10b981, 3.4, 0.4);
+    this.spawnSparks(startPos.clone().add(new THREE.Vector3(0, 0.2, 0)), 0x34d399, 16, 4.5);
+    this.spawnSparks(startPos.clone().add(new THREE.Vector3(0, 0.2, 0)), 0xa7f3d0, 10, 3.5);
+
+    this.callbacks.onAddFloatingText('Gale Vault & Snipe! 🦅💨', '#34d399', 'info');
+  }
+
+  public performHunterPhantomDecoyStep() {
+    if (this.isControlsLocked || this.isCasting || this.isDashing) return;
+
+    if (this.hunterMobilityCooldownTimer > 0) {
+      this.callbacks.onAddFloatingText(
+        `Phantom Decoy Cooldown (${this.hunterMobilityCooldownTimer.toFixed(1)}s)!`,
+        '#10b981',
+        'info'
+      );
+      return;
+    }
+
+    this.callbacks.onUpdateStats((stats) => {
+      if (stats.stamina < 15) {
+        this.callbacks.onAddFloatingText('Stamina Habis (Butuh 15)!', '#ffb74d', 'info');
+        return stats;
+      }
+
+      this.executeHunterPhantomDecoyStep();
+      return { ...stats, stamina: Math.max(0, stats.stamina - 15) };
+    });
+  }
+
+  private executeHunterPhantomDecoyStep() {
+    // TODO: Kembalikan cooldown 6s setelah pengujian selesai
+    this.hunterMobilityCooldownTimer = SKILL_COOLDOWNS.HUNTER_MOBILITY ?? 0;
+
+    soundManager.playDash();
+    soundManager.playRogueSmoke();
+
+    const dashDir = this.getPlayerMovementDirection();
+    const startPos = this.playerPos.clone();
+
+    // 10.5 units dash with raycasting against solid environment (penetrable through mobs/bosses)
+    let maxDist = 10.5;
+    const inInterior = this.playerPos.y < -10;
+    for (const col of this.world.colliders) {
+      const isInteriorCollider = col.maxY !== undefined && col.maxY < 0;
+      if (inInterior !== isInteriorCollider) continue;
+
+      if (col.type === 'box' && col.minX !== undefined && col.maxX !== undefined && col.minZ !== undefined && col.maxZ !== undefined) {
+        const hit = this.intersectRayAABB2D(startPos.x, startPos.z, dashDir.x, dashDir.z, col.minX, col.maxX, col.minZ, col.maxZ);
+        if (hit !== null && hit > 0 && hit < maxDist) {
+          maxDist = Math.min(maxDist, Math.max(0.6, hit - 0.7));
+        }
+      } else if (col.type === 'circle' && col.x !== undefined && col.z !== undefined && col.radius !== undefined) {
+        const hit = this.intersectRayCircle2D(startPos.x, startPos.z, dashDir.x, dashDir.z, col.x, col.z, col.radius);
+        if (hit !== null && hit > 0 && hit < maxDist) {
+          maxDist = Math.min(maxDist, Math.max(0.6, hit - 0.7));
+        }
+      }
+    }
+
+    let targetX = startPos.x + dashDir.x * maxDist;
+    let targetZ = startPos.z + dashDir.z * maxDist;
+    targetX = Math.max(-595, Math.min(595, targetX));
+    targetZ = Math.max(-595, Math.min(345, targetZ));
+
+    const resolved = this.resolveCollisions(targetX, targetZ);
+    const targetPos = new THREE.Vector3(
+      resolved.x,
+      this.world.getTerrainHeight(resolved.x, resolved.z),
+      resolved.z
+    );
+
+    // Invulnerability (iFrame 0.35s)
+    this.isInvulnerable = true;
+    this.invulnerableTimer = 0.35;
+    this.isDashing = true;
+    this.dashTimer = 0.30;
+    this.attackType = 'hunter_phantom_decoy';
+    this.attackDuration = 0.30;
+    this.attackTimer = 0.30;
+
+    // Spawn Shadow Decoy at start position
+    this.spawnShadowDecoy(startPos, this.playerRotationY);
+
+    // Teleport player swiftly to target
+    this.playerPos.copy(targetPos);
+    this.playerMesh.group.position.copy(targetPos);
+    this.playerRotationY = Math.atan2(dashDir.x, dashDir.z);
+    this.playerMesh.group.rotation.set(0, this.playerRotationY, 0);
+    this.playerVel.set(0, 0, 0);
+
+    // VFX
+    this.spawnRogueShadowStepVfx(startPos, targetPos);
+    this.spawnShockwaveRing(targetPos, 0x10b981, 2.8, 0.3);
+    this.spawnSparks(targetPos.clone().add(new THREE.Vector3(0, 0.8, 0)), 0x064e3b, 16, 4.0);
+    this.spawnSparks(targetPos.clone().add(new THREE.Vector3(0, 0.8, 0)), 0x10b981, 16, 4.5);
+
+    // Follow-up buff: phantomAmbushReady for 2.5s -> guaranteed 100% crit on next basic dagger attack
+    this.phantomAmbushReady = true;
+    this.phantomAmbushTimer = 2.5;
+
+    this.callbacks.onAddFloatingText('Phantom Decoy & Ambush Ready! 🗡️💨', '#10b981', 'info');
   }
 
   // --- MAGE MOBILITY: ARCANE BLINK (Shift) ---
@@ -9297,8 +9642,8 @@ export class GameEngine {
       }
     }
 
-    if (this.cataclysmicLeaping) {
-      // Pertahankan momentum dorongan horizontal lompatan parabola Cataclysmic Leap tanpa ditimpa input WASD / rapid stop
+    if (this.cataclysmicLeaping || this.isGaleVaulting) {
+      // Pertahankan momentum dorongan horizontal lompatan parabola Cataclysmic Leap / Gale Vault tanpa ditimpa input WASD / rapid stop
     } else if (isMoving) {
       // Normalize movement direction
       moveDirX /= inputMagnitude;
@@ -9345,11 +9690,13 @@ export class GameEngine {
         }
       }
     } else {
-      // Rapid stop: clamp velocity to 0 immediately when no movement input is active
-      this.playerVel.x *= 0.4;
-      this.playerVel.z *= 0.4;
-      if (Math.abs(this.playerVel.x) < 0.04) this.playerVel.x = 0;
-      if (Math.abs(this.playerVel.z) < 0.04) this.playerVel.z = 0;
+      // Rapid stop: clamp velocity to 0 immediately when no movement input is active (kecuali Gale Vault)
+      if (!this.isGaleVaulting) {
+        this.playerVel.x *= 0.4;
+        this.playerVel.z *= 0.4;
+        if (Math.abs(this.playerVel.x) < 0.04) this.playerVel.x = 0;
+        if (Math.abs(this.playerVel.z) < 0.04) this.playerVel.z = 0;
+      }
       if (this.isAimGlacialActive || this.isAimingBow || this.isAimingArrowVolley) {
         const camFwdX = -Math.sin(this.cameraAngleH);
         const camFwdZ = -Math.cos(this.cameraAngleH);
@@ -9504,13 +9851,25 @@ export class GameEngine {
       this.triggerCataclysmicLandingImpact();
     }
 
-    // Update mesh position and rotation (KUNCI MUTLAK: X=0, Z=0 kecuali Astral Glide Mage)
+    // Update mesh position and rotation (KUNCI MUTLAK: X=0, Z=0 kecuali Astral Glide Mage dan Gale Vault Pemburu)
     this.playerMesh.group.position.copy(this.playerPos);
     if (this.charClass !== 'mage') {
-      this.playerMesh.group.rotation.set(0, this.playerRotationY, 0);
+      if (this.isGaleVaulting) {
+        const progress = THREE.MathUtils.clamp((0.45 - this.galeVaultTimer) / 0.45, 0, 1);
+        const flipAngle = -Math.PI * 2 * progress;
+        this.playerMesh.group.rotation.set(flipAngle, this.playerRotationY, 0);
+      } else {
+        this.playerMesh.group.rotation.set(0, this.playerRotationY, 0);
+      }
     }
     if (this.playerMesh.rotation) {
-      this.playerMesh.rotation.set(0, this.playerRotationY, 0);
+      if (this.isGaleVaulting) {
+        const progress = THREE.MathUtils.clamp((0.45 - this.galeVaultTimer) / 0.45, 0, 1);
+        const flipAngle = -Math.PI * 2 * progress;
+        this.playerMesh.rotation.set(flipAngle, this.playerRotationY, 0);
+      } else {
+        this.playerMesh.rotation.set(0, this.playerRotationY, 0);
+      }
     }
 
     // Role-specific posture offsets
@@ -9534,10 +9893,12 @@ export class GameEngine {
       this.playerMesh.group.rotation.z = THREE.MathUtils.lerp(this.playerMesh.group.rotation.z, targetRoll, Math.min(1.0, delta * 8.0));
     } else if (this.charClass === 'rogue') {
       // Kunci mutlak postur tegak Assassin tanpa forward prowl crouch di sumbu X agar tidak miring saat drag mouse
-      this.playerMesh.group.rotation.x = 0;
-      this.playerMesh.group.rotation.z = 0;
+      if (!this.isGaleVaulting) {
+        this.playerMesh.group.rotation.x = 0;
+        this.playerMesh.group.rotation.z = 0;
+      }
       if (this.playerMesh.body) {
-        this.playerMesh.body.rotation.x = 0;
+        this.playerMesh.body.rotation.x = (this.isSprinting && isMoving && this.playerStamina > 0) ? 0.32 : 0;
         this.playerMesh.body.rotation.z = 0;
       }
     } else if (this.charClass === 'warrior') {
@@ -9616,12 +9977,28 @@ export class GameEngine {
             }
           }
 
-          if (this.playerMesh.cape) {
-            this.playerMesh.cape.rotation.x = 0.15 + Math.abs(Math.sin(this.walkCycle * 0.5)) * 0.20;
+          if (this.playerMesh.body) {
+            this.playerMesh.body.rotation.x = (this.isSprinting && isMoving && this.playerStamina > 0) ? 0.32 : 0;
           }
 
-          this.playerMesh.group.rotation.x = 0;
-          this.playerMesh.group.rotation.z = 0;
+          if (this.playerMesh.cape) {
+            this.playerMesh.cape.rotation.x = (this.isSprinting ? 0.65 : 0.15) + Math.abs(Math.sin(this.walkCycle * 0.5)) * 0.25;
+          }
+
+          // Partikel angin tipis di kaki saat lari cepat (Sprint)
+          if (this.isSprinting && Math.random() < 0.35) {
+            this.spawnSparks(
+              this.playerPos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.35, 0.08, (Math.random() - 0.5) * 0.35)),
+              0xa7f3d0,
+              2,
+              1.2
+            );
+          }
+
+          if (!this.isGaleVaulting) {
+            this.playerMesh.group.rotation.x = 0;
+            this.playerMesh.group.rotation.z = 0;
+          }
         }
       } else {
         const legSwing = Math.sin(this.walkTime) * 0.62;
@@ -9739,8 +10116,10 @@ export class GameEngine {
             this.playerMesh.cape.rotation.x = THREE.MathUtils.lerp(this.playerMesh.cape.rotation.x, 0.12, 0.25);
           }
 
-          this.playerMesh.group.rotation.x = 0;
-          this.playerMesh.group.rotation.z = 0;
+          if (!this.isGaleVaulting) {
+            this.playerMesh.group.rotation.x = 0;
+            this.playerMesh.group.rotation.z = 0;
+          }
         }
       } else {
         this.playerMesh.leftLeg.rotation.x *= 0.8;
@@ -9760,16 +10139,17 @@ export class GameEngine {
         this.isSprinting &&
         isMoving &&
         this.playerStamina > 0;
-      if (!isMageGliding) {
+      if (!isMageGliding && !this.isGaleVaulting) {
         this.playerMesh.group.rotation.x = 0;
         this.playerMesh.group.rotation.z = 0;
         if (this.playerMesh.rotation) {
           this.playerMesh.rotation.x = 0;
           this.playerMesh.rotation.z = 0;
         }
+        const isHunterSprint = this.charClass === 'rogue' && this.isSprinting && isMoving && this.playerStamina > 0;
         if (this.playerMesh.body) {
           this.playerMesh.body.rotation.reorder('YXZ');
-          this.playerMesh.body.rotation.x = 0;
+          this.playerMesh.body.rotation.x = isHunterSprint ? 0.32 : 0;
           this.playerMesh.body.rotation.z = 0; // KUNCI MUTLAK: DILARANG MIRING
         }
         this.playerMesh.group.traverse((child) => {
@@ -9780,7 +10160,7 @@ export class GameEngine {
               child.name.toLowerCase().includes('chest') ||
               child === (this.playerMesh as any).body
             ) {
-              child.rotation.x = 0;
+              child.rotation.x = isHunterSprint ? 0.32 : 0;
               child.rotation.z = 0;
             }
           }
@@ -9898,7 +10278,17 @@ export class GameEngine {
           isCastingLight: this.attackType === 'celestial_heal',
         });
       } else if (this.charClass === 'rogue') {
-        if (this.attackType === 'flurry') {
+        if (this.attackType === 'hunter_gale_vault') {
+          // Acrobatic backflip pose: legs tucked slightly, arms braced
+          this.playerMesh.leftArm.rotation.set(-1.4, 0.1, -0.2);
+          this.playerMesh.rightArm.rotation.set(-1.4, -0.1, 0.2);
+          if (this.playerMesh.leftLeg) this.playerMesh.leftLeg.rotation.x = 0.5;
+          if (this.playerMesh.rightLeg) this.playerMesh.rightLeg.rotation.x = 0.5;
+        } else if (this.attackType === 'hunter_phantom_decoy') {
+          // Low forward dash pose
+          this.playerMesh.leftArm.rotation.set(0.6, 0, 0.5);
+          this.playerMesh.rightArm.rotation.set(0.6, 0, -0.5);
+        } else if (this.attackType === 'flurry') {
           // Rapid alternating scissor blade thrusts
           const flurryPhase = Math.sin(this.attackTimer * 40);
           this.playerMesh.leftArm.rotation.x = -1.2 + flurryPhase * 0.8;
@@ -10459,17 +10849,26 @@ export class GameEngine {
         }
       }
 
-      // STATE 3: Jika player dalam jarak deteksi dan monster masih di dalam wilayahnya -> kejar & serang
-      if (distToPlayer <= enemy.data.detectRange && distFromSpawn <= territoryRadius) {
-        const toPlayer = new THREE.Vector3().subVectors(this.playerPos, ePos).normalize();
-        const targetRotY = Math.atan2(toPlayer.x, toPlayer.z);
+      // Check if Hunter Shadow Decoy is active and within 8.0 units of this enemy
+      const distToDecoy = this.activeShadowDecoy && this.activeShadowDecoy.active
+        ? ePos.distanceTo(this.activeShadowDecoy.pos)
+        : Infinity;
+      const isTauntedByDecoy = distToDecoy <= 8.0;
+
+      const currentTargetPos = isTauntedByDecoy ? this.activeShadowDecoy!.pos : this.playerPos;
+      const distToCurrentTarget = isTauntedByDecoy ? distToDecoy : distToPlayer;
+
+      // STATE 3: Jika target dalam jarak deteksi dan monster masih di dalam wilayahnya -> kejar & serang
+      if ((isTauntedByDecoy || distToPlayer <= enemy.data.detectRange) && distFromSpawn <= territoryRadius) {
+        const toTarget = new THREE.Vector3().subVectors(currentTargetPos, ePos).normalize();
+        const targetRotY = Math.atan2(toTarget.x, toTarget.z);
         enemy.mesh.rotation.y = targetRotY;
 
-        if (distToPlayer > enemy.data.attackRange) {
+        if (distToCurrentTarget > enemy.data.attackRange) {
           const baseSpeed = enemy.data.id === 'boss_dragonfang' ? 5.8 : enemy.data.speed;
           const moveSpeed = baseSpeed * slowMult * delta;
-          ePos.x += toPlayer.x * moveSpeed;
-          ePos.z += toPlayer.z * moveSpeed;
+          ePos.x += toTarget.x * moveSpeed;
+          ePos.z += toTarget.z * moveSpeed;
           ePos.y = this.world.getTerrainHeight(ePos.x, ePos.z);
 
           enemy.walkCycle += delta * (enemy.data.id === 'boss_dragonfang' ? 9.5 : 6);
@@ -10490,12 +10889,18 @@ export class GameEngine {
             }
           }
         } else {
-          // Serang player sesuai cooldown (1.5 detik untuk monster biasa)
+          // Serang target sesuai cooldown (1.5 detik untuk monster biasa)
           enemy.attackCooldown -= delta;
           if (enemy.attackCooldown <= 0) {
             enemy.attackCooldown = 1.5;
             enemy.attackAnimTimer = 0.35; // Trigger monster attack swing / lunge
-            this.enemyAttackPlayer(enemy);
+            if (isTauntedByDecoy) {
+              // Menyerang Shadow Decoy (animasi serang tanpa melukai player)
+              soundManager.playHit();
+              this.spawnSparks(this.activeShadowDecoy!.pos.clone().add(new THREE.Vector3(0, 0.8, 0)), 0x064e3b, 8, 3.0);
+            } else {
+              this.enemyAttackPlayer(enemy);
+            }
           }
         }
       } else if (distFromSpawn > 1.2) {
@@ -11287,6 +11692,65 @@ export class GameEngine {
       this.hunterArrowVolleyCooldownTimer = Math.max(0, this.hunterArrowVolleyCooldownTimer - delta);
     }
 
+    // Hunter Mobility Skill 2 Cooldown Timer (Gale Vault / Phantom Decoy Step)
+    if (this.hunterMobilityCooldownTimer > 0) {
+      this.hunterMobilityCooldownTimer = Math.max(0, this.hunterMobilityCooldownTimer - delta);
+    }
+
+    // Hunter Phantom Ambush Buff Timer (guaranteed 100% crit on next basic attack)
+    if (this.phantomAmbushReady) {
+      this.phantomAmbushTimer -= delta;
+      if (this.phantomAmbushTimer <= 0) {
+        this.phantomAmbushReady = false;
+      }
+    }
+
+    // Hunter Active Shadow Decoy
+    if (this.activeShadowDecoy && this.activeShadowDecoy.active) {
+      this.activeShadowDecoy.timer -= delta;
+      if (Math.random() < 0.25) {
+        this.spawnSparks(
+          this.activeShadowDecoy.pos.clone().add(new THREE.Vector3(0, 0.8, 0)),
+          0x064e3b,
+          2,
+          1.5
+        );
+      }
+      if (this.activeShadowDecoy.timer <= 0) {
+        this.explodeActiveShadowDecoy();
+      }
+    }
+
+    // Hunter Gale Vault update
+    if (this.isGaleVaulting) {
+      this.galeVaultTimer -= delta;
+
+      // Spiraling emerald wind ribbon trail around Hunter's body
+      const spiralT = (0.45 - this.galeVaultTimer) * 24.0;
+      const sx = Math.cos(spiralT) * 0.75;
+      const sz = Math.sin(spiralT) * 0.75;
+      const sy = 0.6 + Math.sin(spiralT * 0.5) * 0.4;
+      this.spawnSparks(this.playerPos.clone().add(new THREE.Vector3(sx, sy, sz)), 0x34d399, 2, 1.8);
+      this.spawnSparks(this.playerPos.clone().add(new THREE.Vector3(-sx, sy, -sz)), 0xa7f3d0, 1, 1.2);
+
+      // Counter-shot at apex (detik ke-0.15 saat di udara)
+      if (!this.galeVaultShotFired && (0.45 - this.galeVaultTimer) >= 0.15) {
+        this.galeVaultShotFired = true;
+        soundManager.playBowShoot();
+        const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(
+          new THREE.Vector3(0, 1, 0),
+          this.playerRotationY
+        );
+        this.spawnHunterArrow(forward, true, 1.85, undefined, false, 42.0, true, true);
+      }
+
+      if (this.galeVaultTimer <= 0) {
+        this.isGaleVaulting = false;
+        this.galeVaultTimer = 0;
+        this.playerMesh.group.rotation.set(0, this.playerRotationY, 0);
+      }
+    }
+
     // Scorched Crater (Ground Fire DoT: 15% Spell Power / sec)
     if (this.activeScorchedCraters.length > 0) {
       for (let i = this.activeScorchedCraters.length - 1; i >= 0; i--) {
@@ -11453,7 +11917,13 @@ export class GameEngine {
             const enemyId = enemy.data.id || String(enemy.mesh.id);
             if (!proj.hitEnemyIds.has(enemyId)) {
               proj.hitEnemyIds.add(enemyId);
-              // Full Charge Wind-Piercer: Menembus banyak musuh di jalur lurus + knockback kuat (1.6)
+              // Crippling Slow: -40% Movement Speed for 2.5s (Gale Piercing Arrow)
+              if (proj.isCripplingSlow) {
+                enemy.slowFactor = 0.40;
+                enemy.slowTimer = 2.5;
+                this.callbacks.onAddFloatingText('Crippling Slow -40%! ❄️💨', '#34d399', 'info');
+              }
+              // Full Charge Wind-Piercer / Gale Piercing Arrow: Menembus banyak musuh di jalur lurus + knockback kuat (1.6)
               this.damageEnemy(enemy, proj.damage, proj.isCrit, 1.6);
               soundManager.playArrowHit(proj.isCrit);
               this.spawnHitStarburst(proj.object.position, 0xfef08a, 1.4);
@@ -11463,6 +11933,11 @@ export class GameEngine {
             }
             // Panah penembus TIDAK hancur saat mengenai musuh pertama; terus melesat!
           } else {
+            if (proj.isCripplingSlow) {
+              enemy.slowFactor = 0.40;
+              enemy.slowTimer = 2.5;
+              this.callbacks.onAddFloatingText('Crippling Slow -40%! ❄️💨', '#34d399', 'info');
+            }
             if (proj.vfxType === 'hunter_arrow' || proj.vfxType === 'hunter_arrow_rain') {
               this.damageEnemy(enemy, proj.damage, proj.isCrit, 0.55);
               soundManager.playArrowHit(proj.isCrit);
@@ -11763,6 +12238,11 @@ export class GameEngine {
     this.hunterArrowPoolGeometries = [];
     this.hunterArrowPoolMaterials.forEach((m) => m.dispose());
     this.hunterArrowPoolMaterials = [];
+
+    // Clean up Hunter Shadow Decoys
+    this.shadowDecoyPool.forEach((d) => this.scene.remove(d));
+    this.shadowDecoyPool = [];
+    this.activeShadowDecoy = null;
 
     // Clean up remote players
     this.clearRemotePlayers();

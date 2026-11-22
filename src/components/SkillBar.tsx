@@ -77,15 +77,17 @@ export const SkillBar: React.FC<SkillBarProps> = ({
           return {
             basic: { label: 'Tarik Busur', icon: '🏹', hint: 'Tahan / Tap' },
             skill1: { name: 'Skyward Volley', icon: '🏹', cost: '15 MP', key: 'Q', color: 'border-emerald-500/70 text-emerald-300 bg-emerald-950/40' },
-            skill2: { name: 'Akrobatik', icon: '🦅', cost: '15 Stm', key: 'F', color: 'border-teal-500/70 text-teal-300 bg-teal-950/40' },
+            skill2: { name: 'Gale Vault', icon: '🦅', cost: '15 Stm', key: 'E', color: 'border-teal-500/70 text-teal-300 bg-teal-950/40' },
             skill3: { name: 'Panah Racun', icon: '💣', cost: '25 MP', key: 'R', color: 'border-green-500/70 text-green-300 bg-green-950/40' },
+            skill4: { name: 'Ultimate', icon: '🦅', cost: 'TBD', key: 'F', color: 'border-emerald-500/80 text-emerald-200 bg-emerald-950/60 shadow-emerald-500/30' },
           };
         } else {
           return {
             basic: { label: 'Belati 360°', icon: '🗡️', hint: 'Klik / J' },
             skill1: { name: '1000 Belati', icon: '⚡', cost: '15 MP', key: 'Q', color: 'border-emerald-500/70 text-emerald-300 bg-emerald-950/40' },
-            skill2: { name: 'Siluman', icon: '💨', cost: '15 Stm', key: 'F', color: 'border-teal-500/70 text-teal-300 bg-teal-950/40' },
+            skill2: { name: 'Shadow Step', icon: '💨', cost: '15 Stm', key: 'E', color: 'border-teal-500/70 text-teal-300 bg-teal-950/40' },
             skill3: { name: 'Bom Asap', icon: '🧪', cost: '25 MP', key: 'R', color: 'border-green-500/70 text-green-300 bg-green-950/40' },
+            skill4: { name: 'Ultimate', icon: '🗡️', cost: 'TBD', key: 'F', color: 'border-emerald-500/80 text-emerald-200 bg-emerald-950/60 shadow-emerald-500/30' },
           };
         }
     }
@@ -385,7 +387,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         </span>
       </button>
 
-      {/* Slot 4 (Ultimate) untuk Mage atau Dash Button untuk Warrior & Rogue */}
+      {/* Slot 4 (Ultimate) untuk Mage atau Rogue, atau Dash Button untuk Warrior */}
       {stats.characterClass === 'mage' ? (
         <button
           type="button"
@@ -410,6 +412,30 @@ export const SkillBar: React.FC<SkillBarProps> = ({
             45 MP
           </span>
         </button>
+      ) : stats.characterClass === 'rogue' ? (
+        <button
+          type="button"
+          onTouchStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onCastSkill(4);
+          }}
+          onClick={() => onCastSkill(4)}
+          style={{ touchAction: 'none', userSelect: 'none' }}
+          className="skill-btn skill-btn-4 touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-emerald-900/90 via-emerald-950/90 to-teal-950/80 text-emerald-200 border-2 border-emerald-400/90 ring-1 ring-emerald-400/60 shadow-lg shadow-emerald-900/50 cursor-pointer active:scale-90 transition-all select-none"
+          title={`${classSkills.skill4?.name || 'Ultimate'} (F - Ultimate)`}
+        >
+          <span className="text-sm sm:text-base md:text-base">{classSkills.skill4?.icon || '🏹'}</span>
+          <span className="hidden md:inline text-[8px] font-bold text-emerald-300 line-clamp-1">
+            {classSkills.skill4?.name || 'Ultimate'}
+          </span>
+          <span className="absolute -top-1 -right-1 bg-emerald-600 text-stone-950 font-black text-[6px] md:text-[7px] font-mono px-1 rounded-full border border-emerald-300 shadow">
+            F
+          </span>
+          <span className="hidden md:inline absolute -bottom-1 text-[6px] text-emerald-300 font-mono font-bold bg-emerald-950/90 px-0.5 rounded border border-emerald-500/40">
+            {classSkills.skill4?.cost || 'TBD'}
+          </span>
+        </button>
       ) : (
         <button
           type="button"
@@ -423,11 +449,9 @@ export const SkillBar: React.FC<SkillBarProps> = ({
           }}
           style={{ touchAction: 'none', userSelect: 'none' }}
           className="skill-btn skill-btn-dash touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-stone-800 to-stone-900 hover:from-stone-700 shadow-lg cursor-pointer active:scale-90 transition-all select-none text-amber-200 border border-amber-600/70"
-          title={stats.characterClass === 'warrior' ? 'Shield Dash [Shift]' : 'Dash [Shift]'}
+          title="Shield Dash [Shift]"
         >
-          <span className="text-sm sm:text-base md:text-base">
-            {stats.characterClass === 'warrior' ? '🛡️' : '💨'}
-          </span>
+          <span className="text-sm sm:text-base md:text-base">🛡️</span>
           <span className="hidden md:inline text-[8px] font-bold text-amber-300">
             Dash
           </span>
