@@ -2134,13 +2134,21 @@ export async function preloadMageVfxPoolAsync(
   scene.add(dummyGroup);
 
   try {
-    renderer.compile(scene, camera);
+    await new Promise((r) => setTimeout(r, 30));
+    if ('compileAsync' in renderer && typeof (renderer as any).compileAsync === 'function') {
+      await (renderer as any).compileAsync(scene, camera);
+    } else {
+      renderer.compile(scene, camera);
+    }
+    await new Promise((r) => setTimeout(r, 30));
     // Render Frame 1
     renderer.render(scene, camera);
     await yieldFn();
+    await new Promise((r) => setTimeout(r, 30));
     // Render Frame 2
     renderer.render(scene, camera);
     await yieldFn();
+    await new Promise((r) => setTimeout(r, 30));
   } catch (e) {
     console.warn('[VFX] Async shader prewarm render error:', e);
   } finally {

@@ -10,6 +10,8 @@ import {
   RIVER_EAST_BRANCH,
   RIVER_MAIN_DOWNSTREAM,
 } from '../mapSampler';
+import { SpatialLookupGrid } from './spatialGrid';
+import { checkFrameBudget } from './frameBudget';
 
 export interface WorldEnvironmentResult {
   group: THREE.Group;
@@ -22,11 +24,12 @@ export interface WorldEnvironmentResult {
  * Lead Level Designer & World Builder
  * Modul Builder Tata Ruang Lanskap Dunia Berbasis 4 Zonasi Lingkungan & Instanced Mesh Vegetasi
  */
-export function buildWorldEnvironment(
+export async function buildWorldEnvironmentAsync(
   scene: THREE.Scene,
   getTerrainHeight: (x: number, z: number) => number,
-  colliders: WorldCollider[]
-): WorldEnvironmentResult {
+  colliders: WorldCollider[],
+  onProgress?: (percent: number, statusText: string) => void
+): Promise<WorldEnvironmentResult> {
   const envGroup = new THREE.Group();
   envGroup.name = 'WorldEnvironment_Zones';
   scene.add(envGroup);
@@ -2202,6 +2205,13 @@ export function buildWorldEnvironment(
   const pineFoliageMesh2 = new THREE.InstancedMesh(pineConeGeo2, matPineFoliage, PINE_COUNT);
   const pineFoliageMesh3 = new THREE.InstancedMesh(pineConeGeo3, matPineFoliage, PINE_COUNT);
 
+  const spatialGrid = SpatialLookupGrid.get();
+  if (!spatialGrid.isBuilt) {
+    await spatialGrid.buildAsync(getTerrainHeight, onProgress);
+  }
+
+  onProgress?.(52, 'Menempatkan Rumpun Pohon Cemara (InstancedMesh)...');
+
   function isNearBridge(x: number, z: number, dist = 16.0): boolean {
     if (Math.hypot(x - -190, z - -230) < dist + 4.0) return true; // Bridge 1 (Astraea Highway)
     if (Math.hypot(x - -30, z - 110) < dist + 4.0) return true;   // Bridge 2 (Central Suspension Bridge)
@@ -2215,24 +2225,15 @@ export function buildWorldEnvironment(
   let pineAttempts = 0;
   while (pineAssigned < PINE_COUNT && pineAttempts < 1500) {
     pineAttempts++;
+    if (pineAttempts % 150 === 0) {
+      await checkFrameBudget(12);
+    }
     // Cakupan diperluas ke seluruh barat, utara dan timur Eldoria Padang Rumput
     const cx = -460 + Math.random() * 880;
     const cz = -420 + Math.random() * 600;
 
-    // Pengecualian Gurun Solaria (Wajib Single Source of Truth)
-    if (isDesertBiome(cx, cz)) continue;
-    // Pengecualian Pesisir Pantai Barat khusus Pohon Kelapa
+    if (spatialGrid.isBlocked(cx, cz) || spatialGrid.isDesert(cx, cz) || spatialGrid.isOcean(cx, cz)) continue;
     if (cx < -460 || cz > 190) continue;
-    // Pengecualian Pemukiman Desa
-    if (Math.hypot(cx - -40, cz - 145) < 54) continue;
-    if (Math.hypot(cx - -140, cz - 185) < 40) continue;
-    // Pengecualian Palung Aliran Sungai (Northwest, East, Downstream) - STRICT 18 UNIT EXCLUSION ZONE
-    if (getDistanceToRiver(cx, cz) < 18.0) continue;
-    if (isNearBridge(cx, cz)) continue;
-    // Pengecualian Kawah Boss Kuno
-    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 32) continue;
-    if (Math.hypot(cx - -250, cz - -35) < 32) continue; // Outpost inner
-    if (isInsideFarmYard(cx, cz)) continue;
 
     const clusterSize = 3 + Math.floor(Math.random() * 5);
     const clusterRadius = 4.0 + Math.random() * 6.5;
@@ -2243,17 +2244,9 @@ export function buildWorldEnvironment(
       const px = cx + Math.cos(angle) * dist;
       const pz = cz + Math.sin(angle) * dist;
 
-      if (isDesertBiome(px, pz)) continue;
-      if (getBiomeAt(px, pz) === 'ocean') continue;
-      if (isPointNearRoad(px, pz, 6.5)) continue;
-      if (isInsideFarmYard(px, pz)) continue;
-      if (Math.hypot(px - -40, pz - 145) < 52) continue;
-      if (Math.hypot(px - -35, pz - 185) < 40) continue; // Sanctuary harbor clearance
-      if (getDistanceToRiver(px, pz) < 18.0) continue;
-      if (isNearBridge(px, pz)) continue;
-      if (Math.hypot(px - craterCenterX, pz - craterCenterZ) < 30) continue;
+      if (spatialGrid.isBlocked(px, pz) || spatialGrid.isDesert(px, pz) || spatialGrid.isOcean(px, pz)) continue;
 
-      const py = getTerrainHeight(px, pz);
+      const py = spatialGrid.getHeight(px, pz);
       if (py < 0.0 || py > 4.5) continue; // Tidak boleh di bawah air
 
       const s = 0.8 + Math.random() * 0.55;
@@ -2276,6 +2269,7 @@ export function buildWorldEnvironment(
   envGroup.add(pineTrunkMesh, pineFoliageMesh1, pineFoliageMesh2, pineFoliageMesh3);
 
   // 2. POHON RINDANG BULAT BERUMPUN (CLUSTERED OAK TREES): 300 Instances
+  onProgress?.(56, 'Menanam Pohon Oak Rindang (InstancedMesh)...');
   const OAK_COUNT = 300;
   const oakTrunkGeo = new THREE.CylinderGeometry(0.32, 0.46, 2.6, 6);
   oakTrunkGeo.translate(0, 1.3, 0);
@@ -2289,20 +2283,13 @@ export function buildWorldEnvironment(
   let oakAttempts = 0;
   while (oakAssigned < OAK_COUNT && oakAttempts < 1200) {
     oakAttempts++;
+    if (oakAttempts % 150 === 0) {
+      await checkFrameBudget(12);
+    }
     const cx = -440 + Math.random() * 860;
     const cz = -380 + Math.random() * 560;
 
-    if (isDesertBiome(cx, cz)) continue;
-    if (getBiomeAt(cx, cz) === 'ocean') continue;
-    if (Math.hypot(cx - -40, cz - 145) < 54) continue;
-    if (Math.hypot(cx - -35, cz - 185) < 40) continue; // Pelabuhan clearance
-    if (Math.hypot(cx - ruinsCenterX, cz - ruinsCenterZ) < 26) continue;
-    if (Math.hypot(cx - -250, cz - -35) < 32) continue;
-    if (getDistanceToRiver(cx, cz) < 18.0) continue;
-    if (isNearBridge(cx, cz)) continue;
-    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 32) continue;
-    if (isInsideFarmYard(cx, cz)) continue;
-    if (isPointNearRoad(cx, cz, 6.5)) continue;
+    if (spatialGrid.isBlocked(cx, cz) || spatialGrid.isDesert(cx, cz) || spatialGrid.isOcean(cx, cz)) continue;
 
     const clusterSize = 3 + Math.floor(Math.random() * 4);
     const clusterRadius = 4.5 + Math.random() * 7.0;
@@ -2313,17 +2300,9 @@ export function buildWorldEnvironment(
       const ox = cx + Math.cos(angle) * dist;
       const oz = cz + Math.sin(angle) * dist;
 
-      if (isDesertBiome(ox, oz)) continue;
-      if (getBiomeAt(ox, oz) === 'ocean') continue;
-      if (isPointNearRoad(ox, oz, 6.5)) continue;
-      if (isInsideFarmYard(ox, oz)) continue;
-      if (Math.hypot(ox - -40, oz - 145) < 52) continue;
-      if (Math.hypot(ox - -35, oz - 185) < 40) continue;
-      if (getDistanceToRiver(ox, oz) < 18.0) continue;
-      if (isNearBridge(ox, oz)) continue;
-      if (Math.hypot(ox - craterCenterX, oz - craterCenterZ) < 30) continue;
+      if (spatialGrid.isBlocked(ox, oz) || spatialGrid.isDesert(ox, oz) || spatialGrid.isOcean(ox, oz)) continue;
 
-      const oy = getTerrainHeight(ox, oz);
+      const oy = spatialGrid.getHeight(ox, oz);
       if (oy < 0.0 || oy > 4.2) continue;
 
       const s = 0.8 + Math.random() * 0.55;
@@ -2342,6 +2321,7 @@ export function buildWorldEnvironment(
   envGroup.add(oakTrunkMesh, oakCrownMesh);
 
   // 3. FORMASI BEBATUAN ALAM (GRANITE BOULDER FORMATIONS): 500 Instances
+  onProgress?.(60, 'Membentuk Formasi Bebatuan Granit (InstancedMesh)...');
   const BOULDER_COUNT = 500;
   const boulderGeo = new THREE.DodecahedronGeometry(1.0, 0);
   const boulderMesh = new THREE.InstancedMesh(boulderGeo, matBoulder, BOULDER_COUNT);
@@ -2350,20 +2330,15 @@ export function buildWorldEnvironment(
   let boulderAttempts = 0;
   while (boulderAssigned < BOULDER_COUNT && boulderAttempts < 1400) {
     boulderAttempts++;
+    if (boulderAttempts % 150 === 0) {
+      await checkFrameBudget(12);
+    }
     const cx = -460 + Math.random() * 880;
     const cz = -400 + Math.random() * 580;
 
-    if (isDesertBiome(cx, cz)) continue;
-    if (getBiomeAt(cx, cz) === 'ocean') continue;
-    if (Math.hypot(cx - -40, cz - 145) < 52) continue;
-    if (Math.hypot(cx - -35, cz - 185) < 35) continue;
-    if (getDistanceToRiver(cx, cz) < 18.0) continue;
-    if (isNearBridge(cx, cz)) continue;
-    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 32) continue;
-    if (isInsideFarmYard(cx, cz)) continue;
-    if (isPointNearRoad(cx, cz, 6.5)) continue;
+    if (spatialGrid.isBlocked(cx, cz) || spatialGrid.isDesert(cx, cz) || spatialGrid.isOcean(cx, cz)) continue;
 
-    const cy = getTerrainHeight(cx, cz);
+    const cy = spatialGrid.getHeight(cx, cz);
     if (cy < 0.0) continue;
 
     const bigScale = 0.95 + Math.random() * 0.55;
@@ -2382,12 +2357,8 @@ export function buildWorldEnvironment(
       const bx = cx + Math.cos(sAngle) * sDist;
       const bz = cz + Math.sin(sAngle) * sDist;
 
-      if (isDesertBiome(bx, bz)) continue;
-      if (getBiomeAt(bx, bz) === 'ocean') continue;
-      if (isPointNearRoad(bx, bz, 6.5)) continue;
-      if (getDistanceToRiver(bx, bz) < 18.0) continue;
-      if (isNearBridge(bx, bz)) continue;
-      const by = getTerrainHeight(bx, bz);
+      if (spatialGrid.isBlocked(bx, bz) || spatialGrid.isDesert(bx, bz) || spatialGrid.isOcean(bx, bz)) continue;
+      const by = spatialGrid.getHeight(bx, bz);
       if (by < 0.0) continue;
 
       const smallScale = 0.4 + Math.random() * 0.45;
@@ -2404,6 +2375,7 @@ export function buildWorldEnvironment(
   envGroup.add(boulderMesh);
 
   // 4. RUMPUN SEMAK LIAR & BUNGA PADANG RUMPUT (SHRUBS): 750 Instances
+  onProgress?.(63, 'Menyebarkan Semak Liar (InstancedMesh)...');
   const SHRUB_COUNT = 750;
   const shrubGeo = new THREE.DodecahedronGeometry(0.65, 0);
   const shrubMesh = new THREE.InstancedMesh(shrubGeo, matShrub, SHRUB_COUNT);
@@ -2412,18 +2384,13 @@ export function buildWorldEnvironment(
   let shrubAttempts = 0;
   while (shrubAssigned < SHRUB_COUNT && shrubAttempts < 1800) {
     shrubAttempts++;
+    if (shrubAttempts % 150 === 0) {
+      await checkFrameBudget(12);
+    }
     const cx = -460 + Math.random() * 880;
     const cz = -420 + Math.random() * 600;
 
-    if (isDesertBiome(cx, cz)) continue;
-    if (getBiomeAt(cx, cz) === 'ocean') continue;
-    if (Math.hypot(cx - -40, cz - 145) < 52) continue;
-    if (Math.hypot(cx - -35, cz - 185) < 35) continue;
-    if (getDistanceToRiver(cx, cz) < 18.0) continue;
-    if (isNearBridge(cx, cz)) continue;
-    if (Math.hypot(cx - craterCenterX, cz - craterCenterZ) < 32) continue;
-    if (isInsideFarmYard(cx, cz)) continue;
-    if (isPointNearRoad(cx, cz, 6.5)) continue;
+    if (spatialGrid.isBlocked(cx, cz) || spatialGrid.isDesert(cx, cz) || spatialGrid.isOcean(cx, cz)) continue;
 
     const shrubClusterSize = 3 + Math.floor(Math.random() * 4);
     const shrubRadius = 2.5 + Math.random() * 4.5;
@@ -2434,14 +2401,9 @@ export function buildWorldEnvironment(
       const sx = cx + Math.cos(angle) * dist;
       const sz = cz + Math.sin(angle) * dist;
 
-      if (isDesertBiome(sx, sz)) continue;
-      if (getBiomeAt(sx, sz) === 'ocean') continue;
-      if (isPointNearRoad(sx, sz, 6.5)) continue;
-      if (isInsideFarmYard(sx, sz)) continue;
-      if (getDistanceToRiver(sx, sz) < 18.0) continue;
-      if (isNearBridge(sx, sz)) continue;
+      if (spatialGrid.isBlocked(sx, sz) || spatialGrid.isDesert(sx, sz) || spatialGrid.isOcean(sx, sz)) continue;
 
-      const sy = getTerrainHeight(sx, sz);
+      const sy = spatialGrid.getHeight(sx, sz);
       if (sy < 0.0) continue;
 
       const s = 0.55 + Math.random() * 0.65;
@@ -2466,10 +2428,11 @@ export function buildWorldEnvironment(
   let reefAttempts = 0;
   while (reefAssigned < REEF_STONE_COUNT && reefAttempts < 500) {
     reefAttempts++;
+    if (reefAttempts % 100 === 0) await checkFrameBudget(12);
     const rx = -410 - Math.random() * 38;
     const rz = -50 - Math.random() * 190;
-    if (isDesertBiome(rx, rz)) continue;
-    const ry = getTerrainHeight(rx, rz);
+    if (spatialGrid.isDesert(rx, rz)) continue;
+    const ry = spatialGrid.getHeight(rx, rz);
 
     const sX = 0.8 + Math.random() * 1.4;
     const sY = 0.6 + Math.random() * 1.2;
@@ -2495,10 +2458,11 @@ export function buildWorldEnvironment(
   let bgAttempts = 0;
   while (bgAssigned < BEACH_GRASS_COUNT && bgAttempts < 600) {
     bgAttempts++;
+    if (bgAttempts % 100 === 0) await checkFrameBudget(12);
     const gx = -402 - Math.random() * 26;
     const gz = -55 - Math.random() * 180;
-    if (isDesertBiome(gx, gz)) continue;
-    const gy = getTerrainHeight(gx, gz);
+    if (spatialGrid.isDesert(gx, gz)) continue;
+    const gy = spatialGrid.getHeight(gx, gz);
     if (gy < 0.25) continue; // Di atas garis air laut
 
     const s = 0.65 + Math.random() * 0.6;
@@ -2514,6 +2478,7 @@ export function buildWorldEnvironment(
   envGroup.add(beachGrassMesh);
 
   // 7. RUMPUN RUMPUT HIJAU PADANG RUMPUT INSTANCED (VIBRANT GREEN PLAINS GRASS): 1500 Instances
+  onProgress?.(67, 'Menumbuhkan Padang Rumput Hijau (InstancedMesh)...');
   const PLAINS_GRASS_COUNT = 1500;
   const plainsGrassGeo = new THREE.ConeGeometry(0.35, 0.75, 4);
   const matPlainsGrass = new THREE.MeshStandardMaterial({
@@ -2528,18 +2493,15 @@ export function buildWorldEnvironment(
   let pgAttempts = 0;
   while (pgAssigned < PLAINS_GRASS_COUNT && pgAttempts < 4000) {
     pgAttempts++;
+    if (pgAttempts % 200 === 0) {
+      await checkFrameBudget(12);
+    }
     const gx = -450 + Math.random() * 880;
     const gz = -400 + Math.random() * 580;
 
-    if (isDesertBiome(gx, gz)) continue;
-    if (getBiomeAt(gx, gz) === 'ocean') continue;
-    if (isInsideCastleOrFort(gx, gz)) continue;
-    if (getDistanceToRiver(gx, gz) < 14.0) continue;
-    if (isPointNearRoad(gx, gz, 7.0)) continue;
-    if (Math.hypot(gx - -35, gz - 135) < 35) continue; // Village
-    if (Math.hypot(gx - -20, gz - 185) < 30) continue; // Harbor
+    if (spatialGrid.isBlocked(gx, gz) || spatialGrid.isDesert(gx, gz) || spatialGrid.isOcean(gx, gz)) continue;
 
-    const gy = getTerrainHeight(gx, gz);
+    const gy = spatialGrid.getHeight(gx, gz);
     if (gy < 0.25 || gy > 4.5) continue;
 
     const s = 0.7 + Math.random() * 0.6;
@@ -2553,6 +2515,9 @@ export function buildWorldEnvironment(
   }
   plainsGrassMesh.instanceMatrix.needsUpdate = true;
   envGroup.add(plainsGrassMesh);
+
+  onProgress?.(70, 'Membangun Ekosistem Gurun, Danau Titan & Hutan Kabut...');
+  await checkFrameBudget(12);
 
   // ============================================================================
   // ZONA L: VEGETASI & BEBATUAN GURUN SOLARIA (SAGUARO CACTI, SANDSTONE CRAGS & DRY TREES)
@@ -3174,6 +3139,29 @@ export function buildWorldEnvironment(
     colliders,
     update,
     setVegetationVisible,
+  };
+}
+
+/**
+ * Synchronous compatibility wrapper
+ */
+export function buildWorldEnvironment(
+  scene: THREE.Scene,
+  getTerrainHeight: (x: number, z: number) => number,
+  colliders: WorldCollider[]
+): WorldEnvironmentResult {
+  let syncResult: WorldEnvironmentResult | null = null;
+  buildWorldEnvironmentAsync(scene, getTerrainHeight, colliders).then((res) => {
+    syncResult = res;
+  });
+  const envGroup = new THREE.Group();
+  envGroup.name = 'WorldEnvironment_Zones_SyncGroup';
+  scene.add(envGroup);
+  return {
+    group: envGroup,
+    colliders,
+    update: (delta, time) => { syncResult?.update(delta, time); },
+    setVegetationVisible: (visible) => { syncResult?.setVegetationVisible(visible); },
   };
 }
 

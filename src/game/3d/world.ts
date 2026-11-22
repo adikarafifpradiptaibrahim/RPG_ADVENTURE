@@ -96,6 +96,8 @@ import {
   createSandVortexSwirlMesh,
 } from './models';
 import { buildWorldRoadNetwork, isPointOnRoad } from '../RoadSystem';
+import { checkFrameBudget } from './frameBudget';
+import { SpatialLookupGrid } from './spatialGrid';
 
 export interface WorldCollider {
   type: 'box' | 'circle';
@@ -327,7 +329,16 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     }
   };
 
-  const getTerrainHeight = (x: number, z: number, forVisualMesh = false): number => {
+  const getTerrainHeight = createTerrainHeightEvaluator(getMeshSurfaceHeight, getProceduralHeight);
+
+  return populateWorldEntities(scene, terrainMesh, getTerrainHeight, dirLight, hemiLight, decorativeProps, pointLights);
+}
+
+function createTerrainHeightEvaluator(
+  getMeshSurfaceHeight: (x: number, z: number) => number,
+  getProceduralHeight: (x: number, z: number) => number
+): (x: number, z: number, forVisualMesh?: boolean) => number {
+  return (x: number, z: number, forVisualMesh = false): number => {
     if (forVisualMesh) {
       return getProceduralHeight(x, z);
     }
@@ -382,9 +393,192 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     // 9. Sanctuary Village Central Plains (Center [-35, 135], radius 35 at y = 0.25)
     if (Math.hypot(x - -35, z - 135) <= 35) return 0.25;
 
-    // 9. Exact rendered polygon surface
+    // 10. Exact rendered polygon surface
     return getMeshSurfaceHeight(x, z);
   };
+}
+
+export async function buildWorldAsync(
+  scene: THREE.Scene,
+  onProgress?: (percent: number, statusText: string) => void
+): Promise<WorldObjects> {
+  const decorativeProps: THREE.Object3D[] = [];
+  const pointLights: THREE.PointLight[] = [];
+
+  // Atmospheric Fog & Sky Color
+  scene.fog = new THREE.FogExp2(0x8bc34a, 0.012);
+  scene.background = new THREE.Color(0xaed581);
+
+  // Lighting
+  const hemiLight = new THREE.HemisphereLight(0xfff8e1, 0x4caf50, 0.7);
+  hemiLight.position.set(0, 60, 0);
+  scene.add(hemiLight);
+
+  const dirLight = new THREE.DirectionalLight(0xfff9c4, 1.25);
+  dirLight.position.set(50, 90, 45);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.width = 1024;
+  dirLight.shadow.mapSize.height = 1024;
+  dirLight.shadow.camera.near = 10;
+  dirLight.shadow.camera.far = 380;
+  const d = 110;
+  dirLight.shadow.camera.left = -d;
+  dirLight.shadow.camera.right = d;
+  dirLight.shadow.camera.top = d;
+  dirLight.shadow.camera.bottom = -d;
+  dirLight.shadow.bias = -0.001;
+  scene.add(dirLight);
+
+  // 2.5x - 3x Expanded World Terrain specifications (Span: X[-750..750], Z[-725..475])
+  const terrainWidth = 1500;
+  const terrainDepth = 1200;
+  const segmentsX = 384;
+  const segmentsZ = 384;
+  const terrainGeo = new THREE.PlaneGeometry(terrainWidth, terrainDepth, segmentsX, segmentsZ);
+  terrainGeo.rotateX(-Math.PI / 2);
+  terrainGeo.translate(0, 0, -125);
+
+  const getProceduralHeight = (x: number, z: number): number => {
+    return getProceduralContinentHeight(x, z);
+  };
+
+  const posAttr = terrainGeo.attributes.position;
+  const vertexCount = posAttr.count;
+
+  // 1. Initial procedural heights sampling (Time-sliced 12ms max per frame)
+  onProgress?.(15, 'Membangun Geometri & Heightmap Benua Eldoria...');
+  const rawHeights: number[] = new Array(vertexCount);
+  for (let i = 0; i < vertexCount; i++) {
+    rawHeights[i] = getProceduralHeight(posAttr.getX(i), posAttr.getZ(i));
+    if (i % 250 === 0) {
+      await checkFrameBudget(12);
+    }
+  }
+
+  // 2. Slope clamping and 3x3 smoothing filter (Time-sliced 12ms max per frame)
+  onProgress?.(20, 'Menghaluskan Kontur Elevasi & Palung Sungai...');
+  const smoothedHeights: number[] = [...rawHeights];
+  const gridW = segmentsX + 1;
+  const gridH = segmentsZ + 1;
+  const maxSlopeDelta = 2.4;
+
+  for (let pass = 0; pass < 2; pass++) {
+    for (let gz = 1; gz < gridH - 1; gz++) {
+      for (let gx = 1; gx < gridW - 1; gx++) {
+        const idx = gz * gridW + gx;
+        const vx = posAttr.getX(idx);
+        const vz = posAttr.getZ(idx);
+
+        if (getDistanceToRiver(vx, vz) < 6.5) continue;
+
+        const left = smoothedHeights[gz * gridW + (gx - 1)];
+        const right = smoothedHeights[gz * gridW + (gx + 1)];
+        const top = smoothedHeights[(gz - 1) * gridW + gx];
+        const bottom = smoothedHeights[(gz + 1) * gridW + gx];
+
+        const avg = (left + right + top + bottom) * 0.25;
+        let cur = smoothedHeights[idx];
+
+        if (cur - avg > maxSlopeDelta) {
+          cur = avg + maxSlopeDelta;
+        } else if (avg - cur > maxSlopeDelta) {
+          cur = avg - maxSlopeDelta;
+        }
+        smoothedHeights[idx] = cur;
+      }
+      if (gz % 10 === 0) {
+        await checkFrameBudget(12);
+      }
+    }
+  }
+
+  // 3. Vertex colors generated seamlessly (Time-sliced 12ms max per frame)
+  onProgress?.(25, 'Mewarnai Biome Terrain...');
+  const colors: number[] = [];
+  for (let i = 0; i < vertexCount; i++) {
+    const vx = posAttr.getX(i);
+    const vz = posAttr.getZ(i);
+    const vy = smoothedHeights[i];
+    posAttr.setY(i, vy);
+
+    const sample = getContinentBiomeSample(vx, vz);
+    colors.push(sample.color[0] / 255, sample.color[1] / 255, sample.color[2] / 255);
+
+    if (i % 250 === 0) {
+      await checkFrameBudget(12);
+    }
+  }
+
+  posAttr.needsUpdate = true;
+  terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  terrainGeo.computeVertexNormals();
+
+  const terrainMat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.85,
+    metalness: 0.08,
+    flatShading: true,
+  });
+
+  const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
+  terrainMesh.receiveShadow = true;
+  scene.add(terrainMesh);
+
+  const minTerrainX = -750;
+  const maxTerrainX = 750;
+  const minTerrainZ = -725;
+  const maxTerrainZ = 475;
+  const gridCellW = terrainWidth / segmentsX;
+  const gridCellD = terrainDepth / segmentsZ;
+  const gridX1 = segmentsX + 1;
+
+  const getMeshSurfaceHeight = (x: number, z: number): number => {
+    if (x <= minTerrainX || x >= maxTerrainX || z <= minTerrainZ || z >= maxTerrainZ) {
+      return getProceduralHeight(x, z);
+    }
+    const fx = (x - minTerrainX) / gridCellW;
+    const fz = (z - minTerrainZ) / gridCellD;
+    const ix = Math.min(segmentsX - 1, Math.max(0, Math.floor(fx)));
+    const iz = Math.min(segmentsZ - 1, Math.max(0, Math.floor(fz)));
+    const tx = fx - ix;
+    const tz = fz - iz;
+
+    const i00 = iz * gridX1 + ix;
+    const i10 = iz * gridX1 + (ix + 1);
+    const i01 = (iz + 1) * gridX1 + ix;
+    const i11 = (iz + 1) * gridX1 + (ix + 1);
+
+    const y00 = posAttr.getY(i00);
+    const y10 = posAttr.getY(i10);
+    const y01 = posAttr.getY(i01);
+    const y11 = posAttr.getY(i11);
+
+    if (tx + tz <= 1) {
+      return y00 + tx * (y10 - y00) + tz * (y01 - y00);
+    } else {
+      return y11 + (1 - tx) * (y01 - y11) + (1 - tz) * (y10 - y11);
+    }
+  };
+
+  const getTerrainHeight = createTerrainHeightEvaluator(getMeshSurfaceHeight, getProceduralHeight);
+
+  // 4. Build Spatial Lookup Grid (2D TypedArray Float32 & Uint8)
+  onProgress?.(28, 'Membangun Spatial Lookup Grid (TypedArray)...');
+  await SpatialLookupGrid.get().buildAsync(getTerrainHeight, onProgress);
+  await checkFrameBudget(12);
+
+  return populateWorldEntities(scene, terrainMesh, getTerrainHeight, dirLight, hemiLight, decorativeProps, pointLights);
+}
+
+function populateWorldEntities(
+  scene: THREE.Scene,
+  terrainMesh: THREE.Mesh,
+  getTerrainHeight: (x: number, z: number, forVisualMesh?: boolean) => number,
+  dirLight: THREE.DirectionalLight,
+  hemiLight: THREE.HemisphereLight,
+  decorativeProps: THREE.Object3D[],
+  pointLights: THREE.PointLight[]
+): WorldObjects {
 
   // ==========================================
   // 1. VAST AZURE OCEAN WATER PLANE

@@ -31,8 +31,8 @@ import {
   animateHunterWalk,
 } from './models';
 export { USE_LEGACY_KNIGHT, USE_LEGACY_MAGE, USE_LEGACY_HUNTER };
-import { buildWorld, WorldObjects, WorldCheckpoint, getTerrainHeight as getProceduralTerrainHeight } from './world';
-import { buildWorldEnvironment, WorldEnvironmentResult } from './worldEnvironment';
+import { buildWorld, buildWorldAsync, WorldObjects, WorldCheckpoint, getTerrainHeight as getProceduralTerrainHeight } from './world';
+import { buildWorldEnvironment, buildWorldEnvironmentAsync, WorldEnvironmentResult } from './worldEnvironment';
 import { BossManager } from '../BossManager';
 import { BOSS_ARENA_ZONES, BossArenaZone } from '../monsterAI';
 import { RemotePlayerData } from '../multiplayer';
@@ -1104,8 +1104,8 @@ export class GameEngine {
     onProgress?.(15, 'Membangun Geometri & Heightmap Benua Eldoria...');
     await yieldToMainThread();
 
-    // 1. Build 3D World (terrain, ocean, structures, colliders, lights, props)
-    this.world = buildWorld(this.scene);
+    // 1. Build 3D World (terrain, ocean, structures, colliders, lights, props) with time-sliced async generation
+    this.world = await buildWorldAsync(this.scene, onProgress);
 
     // Tahap 2: 30% Membentuk Sungai, Jembatan, & Perairan Laut
     onProgress?.(30, 'Membentuk Sungai, Jembatan, & Perairan Laut...');
@@ -1174,15 +1174,16 @@ export class GameEngine {
       });
     }
 
-    // Tahap 4: 60% Populasi Vegetasi & Bebatuan (InstancedMesh)
-    onProgress?.(60, 'Populasi Vegetasi & Bebatuan (InstancedMesh)...');
+    // Tahap 4: 50% - 70% Populasi Vegetasi & Bebatuan (InstancedMesh) Time-Sliced
+    onProgress?.(50, 'Populasi Vegetasi & Bebatuan (InstancedMesh)...');
     await yieldToMainThread();
 
-    // 2. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation
-    this.worldEnvironment = buildWorldEnvironment(
+    // 2. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation with TypedArray spatial lookup
+    this.worldEnvironment = await buildWorldEnvironmentAsync(
       this.scene,
       (x, z) => this.world.getTerrainHeight(x, z),
-      this.world.colliders
+      this.world.colliders,
+      onProgress
     );
 
     // Position player mesh on terrain
@@ -1211,25 +1212,33 @@ export class GameEngine {
     // Apply shadow & distance culling settings
     this.applyGraphicsSettings(this.graphicsSettings);
 
-    // Tahap 6: 85% Mengompilasi Shader GPU (renderer.compile)
+    // Tahap 6: 85% Mengompilasi Shader GPU (renderer.compile / compileAsync)
     onProgress?.(85, 'Mengompilasi Shader GPU...');
-    await yieldToMainThread();
+    await new Promise((r) => setTimeout(r, 30));
 
     if (this.renderer && this.scene && this.camera) {
       try {
-        this.renderer.compile(this.scene, this.camera);
+        if (typeof (this.renderer as any).compileAsync === 'function') {
+          await (this.renderer as any).compileAsync(this.scene, this.camera);
+        } else {
+          this.renderer.compile(this.scene, this.camera);
+        }
       } catch (e) {
         console.warn('[Engine] Shader compilation warning:', e);
       }
     }
+    await new Promise((r) => setTimeout(r, 30));
 
     // Tahap 7: 95% In-Frustum GPU Shader Warm-Up Khusus Mage
     onProgress?.(95, 'In-Frustum GPU Shader Warm-Up Khusus Mage...');
-    await yieldToMainThread();
+    await new Promise((r) => setTimeout(r, 30));
 
     if (this.scene && this.renderer && this.camera) {
-      await preloadMageVfxPoolAsync(this.scene, this.renderer, this.camera, yieldToMainThread);
+      await preloadMageVfxPoolAsync(this.scene, this.renderer, this.camera, async () => {
+        await new Promise((r) => setTimeout(r, 30));
+      });
     }
+    await new Promise((r) => setTimeout(r, 30));
 
     this.isWorldLoaded = true;
 
