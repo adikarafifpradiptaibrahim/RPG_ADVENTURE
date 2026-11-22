@@ -756,48 +756,62 @@ export function animateMageWalk(
 
   if (isMoving) {
     if (isSprinting) {
-      // 1b. Floating Sprint (Astral Glide / Melayang Cepat Aerodinamis):
-      // Dongakkan kepala sedikit ke atas (-0.35 rad) sehingga Mage menatap lurus ke arah tujuan di depan (tidak menunduk ke tanah)
-      playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, -0.35, lerpSpeed);
-      playerMesh.head.rotation.y = THREE.MathUtils.lerp(playerMesh.head.rotation.y, 0, lerpSpeed);
-      playerMesh.head.rotation.z = THREE.MathUtils.lerp(playerMesh.head.rotation.z, 0, lerpSpeed);
-
-      // Torso/badan condong ke depan meluncur (28 derajat = 0.48 rad)
-      playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0.48, lerpSpeed);
+      // 1b. Floating Sprint (Astral Glide / Melayang Cepat Aerodinamis Superman Pose):
+      // 1. Kemiringan Tubuh (Torso)
+      // Gunakan rotasi yang membuat dada condong ke depan +0.42 radian (~24° condong ke depan)
+      const targetBodyPitch = 0.42;
+      playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, targetBodyPitch, lerpSpeed);
       playerMesh.body.rotation.y = THREE.MathUtils.lerp(playerMesh.body.rotation.y, 0, lerpSpeed);
       playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, lerpSpeed);
       playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.35, lerpSpeed);
 
-      // Pose Kaki Melayang Asimetris (Asymmetric Trailing Legs):
-      // Kedua paha mengarah ke belakang (hip.rotation.x = 0.45 rad)
-      playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0.45, lerpSpeed);
-      playerMesh.leftLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.z, -0.08, lerpSpeed);
-      playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, 0.45, lerpSpeed);
-      playerMesh.rightLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.z, 0.08, lerpSpeed);
+      // Balas kemiringan pada head.rotation.x dengan tanda berlawanan (-body.rotation.x * 0.75) agar wajah dan mata tetap menatap lurus ke depan
+      const targetHeadPitch = -targetBodyPitch * 0.75; // -0.315 rad
+      playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, targetHeadPitch, lerpSpeed);
+      playerMesh.head.rotation.y = THREE.MathUtils.lerp(playerMesh.head.rotation.y, 0, lerpSpeed);
+      playerMesh.head.rotation.z = THREE.MathUtils.lerp(playerMesh.head.rotation.z, 0, lerpSpeed);
 
-      // Kaki kiri lurus ke belakang (knee.rotation.x = 0.15 rad)
+      // 2. Kaki Menjulur ke Belakang (Superman / Astral Glide Pose):
+      // Balik tanda rotasi hip.rotation.x agar kedua kaki menjulur ke belakang tubuh (berlawanan arah hadap wajah):
+      // Kaki kiri lurus ke belakang: leftHip.rotation.x = -body.rotation.x * 0.8, leftKnee.rotation.x = 0.15 menekuk betis ke belakang
+      const targetLeftHip = -targetBodyPitch * 0.8; // -0.336 rad
+      playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, targetLeftHip, lerpSpeed);
+      playerMesh.leftLeg.rotation.y = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.y, 0, lerpSpeed);
+      playerMesh.leftLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.z, -0.06, lerpSpeed);
       if (playerMesh.leftKnee) {
         playerMesh.leftKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.leftKnee.rotation.x, 0.15, lerpSpeed);
       }
-      // Lutut kanan sedikit ditekuk santai (knee.rotation.x = 0.65 rad)
+
+      // Kaki kanan sedikit ditekuk santai di belakang: rightHip.rotation.x = -body.rotation.x * 0.5, rightKnee.rotation.x = 0.55 menekuk betis ke belakang
+      const targetRightHip = -targetBodyPitch * 0.5; // -0.21 rad
+      playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, targetRightHip, lerpSpeed);
+      playerMesh.rightLeg.rotation.y = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.y, 0, lerpSpeed);
+      playerMesh.rightLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.z, 0.06, lerpSpeed);
       if (playerMesh.rightKnee) {
-        playerMesh.rightKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.rightKnee.rotation.x, 0.65, lerpSpeed);
+        playerMesh.rightKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.rightKnee.rotation.x, 0.55, lerpSpeed);
       }
 
-      // Pose Lengan & Tongkat Sihir Aerodinamis:
-      // Tarik lengan kiri ke belakang sejajar sisi tubuh (leftArm.rotation.x = 0.65, sedikit terbuka keluar z = -0.2)
-      playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0.65, lerpSpeed);
+      // 3. Jubah Berkibar ke Belakang:
+      // Rotasikan mesh jubah/rok belakang menjauh ke arah belakang (cape.rotation.x = -body.rotation.x * 0.6 + Math.sin(time * 12) * 0.08) agar tidak menembus paha
+      const capeWave = Math.sin(walkTime * 12.0) * 0.08;
+      const targetCapeX = -targetBodyPitch * 0.6 + capeWave; // -0.252 rad + wave
+      playerMesh.cape.rotation.x = THREE.MathUtils.lerp(playerMesh.cape.rotation.x, targetCapeX, lerpSpeed);
+
+      // 4. Lengan & Tongkat Tersapu Angin ke Belakang:
+      // Kedua lengan ditarik rileks ke belakang samping pinggul (arm.rotation.x searah kaki belakang)
+      const targetArmX = -targetBodyPitch * 0.8; // -0.336 rad
+      playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, targetArmX, lerpSpeed);
       playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.05, lerpSpeed);
-      playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, -0.20, lerpSpeed);
+      playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, -0.16, lerpSpeed);
 
       if (!isAttacking) {
-        // Arahkan lengan kanan ke belakang
-        playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, 0.60, lerpSpeed);
+        playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, targetArmX, lerpSpeed);
         playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, -0.05, lerpSpeed);
-        playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0.18, lerpSpeed);
+        playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0.16, lerpSpeed);
 
-        // Tongkat sihir dimiringkan sejajar garis terbang di samping tubuh
-        playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, 1.25, lerpSpeed);
+        // Tongkat sihir di tangan kanan dipegang mendatar mengarah ke belakang
+        // (ujung kristal biru berada di belakang bahu/pinggul Mage, bukan menusuk ke depan)
+        playerMesh.weapon.rotation.x = THREE.MathUtils.lerp(playerMesh.weapon.rotation.x, -1.45, lerpSpeed);
         playerMesh.weapon.rotation.y = THREE.MathUtils.lerp(playerMesh.weapon.rotation.y, -0.10, lerpSpeed);
         playerMesh.weapon.rotation.z = THREE.MathUtils.lerp(playerMesh.weapon.rotation.z, 0.05, lerpSpeed);
       }
@@ -810,10 +824,6 @@ export function animateMageWalk(
           lerpSpeed
         );
       }
-
-      // Jubah berkibar kencang ke belakang
-      const capeFlap = Math.sin(walkTime * 14.0) * 0.12;
-      playerMesh.cape.rotation.x = THREE.MathUtils.lerp(playerMesh.cape.rotation.x, 0.72 + capeFlap, lerpSpeed);
     } else {
       // Reset head tilt saat jalan biasa
       playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, 0, lerpSpeed);

@@ -7997,11 +7997,9 @@ export class GameEngine {
         this.playerMesh.group.position.y -= 0.10 * crouchRatio;
       }
 
-      // Kemiringan badan ke depan 28 derajat (0.48 rad) saat meluncur cepat
-      const targetPitch = isAstralGlide ? 0.48 : 0.0;
-      this.magePitchX = THREE.MathUtils.lerp(this.magePitchX, targetPitch, Math.min(1.0, delta * 10.0));
+      // Kemiringan badan dikendalikan di animateMageWalk (body.rotation.x = 0.42 rad)
       this.playerMesh.group.rotation.y = this.playerRotationY;
-      this.playerMesh.group.rotation.x = this.magePitchX;
+      this.playerMesh.group.rotation.x = 0;
       const targetRoll = isAstralGlide ? this.mageBankingRoll : 0.0;
       this.playerMesh.group.rotation.z = THREE.MathUtils.lerp(this.playerMesh.group.rotation.z, targetRoll, Math.min(1.0, delta * 8.0));
     } else if (this.charClass === 'rogue') {
@@ -8041,8 +8039,9 @@ export class GameEngine {
         this.playerMesh.cape.rotation.x = (this.isSprinting ? 0.60 : 0.30) + Math.sin(walkTime * 0.5) * 0.15;
       } else if (this.charClass === 'mage') {
         // Heroic Blocky Low-Poly Mage Walk Cycle & Floating Sprint Locomotion
+        const isAstralGlide = this.isSprinting && this.playerStamina > 0;
         const walkTime = this.clock.getElapsedTime();
-        animateMageWalk(this.playerMesh, walkTime, this.playerPos.y + this.mageHoverOffsetY, true, this.isAttacking, this.isSprinting);
+        animateMageWalk(this.playerMesh, walkTime, this.playerPos.y + this.mageHoverOffsetY, true, this.isAttacking, isAstralGlide);
       } else if (this.charClass === 'rogue') {
         // Gunakan akumulator fase langkah berbasis delta waktu dan kecepatan gerak riil:
         const moveSpeed = this.isSprinting ? 1.75 : 1.0;
@@ -8189,32 +8188,39 @@ export class GameEngine {
 
     // Kunci mutlak agar badan selalu tegak lurus sempurna di setiap frame (di loop update karakter):
     if (this.playerMesh) {
-      this.playerMesh.group.rotation.x = 0;
-      this.playerMesh.group.rotation.z = 0;
-      if (this.playerMesh.rotation) {
-        this.playerMesh.rotation.x = 0;
-        this.playerMesh.rotation.z = 0;
-      }
-      if (this.playerMesh.body) {
-        this.playerMesh.body.rotation.reorder('YXZ');
-        this.playerMesh.body.rotation.x = 0;
-        this.playerMesh.body.rotation.z = 0; // KUNCI MUTLAK: DILARANG MIRING
-      }
-      this.playerMesh.group.traverse((child) => {
-        if (child instanceof THREE.Mesh || child instanceof THREE.Group) {
-          if (
-            child.name.toLowerCase().includes('body') ||
-            child.name.toLowerCase().includes('torso') ||
-            child.name.toLowerCase().includes('chest') ||
-            child === (this.playerMesh as any).body
-          ) {
-            child.rotation.x = 0;
-            child.rotation.z = 0;
-          }
+      const isMageGliding =
+        this.charClass === 'mage' &&
+        this.isSprinting &&
+        isMoving &&
+        this.playerStamina > 0;
+      if (!isMageGliding) {
+        this.playerMesh.group.rotation.x = 0;
+        this.playerMesh.group.rotation.z = 0;
+        if (this.playerMesh.rotation) {
+          this.playerMesh.rotation.x = 0;
+          this.playerMesh.rotation.z = 0;
         }
-      });
-      if (!this.isAttacking) {
         if (this.playerMesh.body) {
+          this.playerMesh.body.rotation.reorder('YXZ');
+          this.playerMesh.body.rotation.x = 0;
+          this.playerMesh.body.rotation.z = 0; // KUNCI MUTLAK: DILARANG MIRING
+        }
+        this.playerMesh.group.traverse((child) => {
+          if (child instanceof THREE.Mesh || child instanceof THREE.Group) {
+            if (
+              child.name.toLowerCase().includes('body') ||
+              child.name.toLowerCase().includes('torso') ||
+              child.name.toLowerCase().includes('chest') ||
+              child === (this.playerMesh as any).body
+            ) {
+              child.rotation.x = 0;
+              child.rotation.z = 0;
+            }
+          }
+        });
+      }
+      if (!this.isAttacking) {
+        if (this.playerMesh.body && !isMageGliding) {
           this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y || 0, 0, 0.2);
           if (Math.abs(this.playerMesh.body.rotation.y) < 0.001) {
             this.playerMesh.body.rotation.y = 0;
