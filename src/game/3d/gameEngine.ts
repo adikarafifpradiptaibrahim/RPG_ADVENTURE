@@ -94,8 +94,8 @@ import {
   MageBlinkVfxInstance,
 } from '../skills';
 import { DayNightSystem, getSharedDayNightSystem } from './dayNightSystem';
-import { yieldToMainThread, yieldIfBudgetExceeded } from './frameBudget';
-export { yieldToMainThread, yieldIfBudgetExceeded };
+import { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome } from './frameBudget';
+export { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome };
 
 export interface LootPickup {
   mesh: THREE.Group;
@@ -1186,7 +1186,7 @@ export class GameEngine {
 
     // Tahap 4: 50% - 70% Populasi Vegetasi & Bebatuan (InstancedMesh) Time-Sliced
     onProgress?.(50, 'Populasi Vegetasi & Bebatuan (InstancedMesh)...');
-    await yieldIfBudgetExceeded(8);
+    await yieldToChrome(5);
 
     // 2. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation with TypedArray spatial lookup
     this.worldEnvironment = await buildWorldEnvironmentAsync(

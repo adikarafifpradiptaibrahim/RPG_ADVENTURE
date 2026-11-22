@@ -11,7 +11,7 @@ import {
   RIVER_MAIN_DOWNSTREAM,
 } from '../mapSampler';
 import { SpatialLookupGrid } from './spatialGrid';
-import { checkFrameBudget, yieldIfBudgetExceeded } from './frameBudget';
+import { checkFrameBudget, yieldIfBudgetExceeded, yieldToChrome } from './frameBudget';
 
 export interface WorldEnvironmentResult {
   group: THREE.Group;
@@ -2183,13 +2183,76 @@ export async function buildWorldEnvironmentAsync(
 
   // ============================================================================
   // 8. DISTRIBUSI VEGETASI ALAMI MASIF MENGGUNAKAN THREE.InstancedMesh (60 FPS)
-  // Menutupi seluruh dataran hijau yang luas (X: -460 s.d 120, Z: -420 s.d 180)
-  // Terdiri dari: 450 Cemara, 300 Oak, 500 Batu Granit, & 750 Semak Liar
+  // Jittered Grid Sampling O(N) 1x Lewat Saja - Anti-Lag & Bebas Page Unresponsive
+  // Sub-tahap: 50% Oak -> 53% Cemara -> 56% Bebatuan -> 60% Rumput -> 64% Semak & Pantai
   // ============================================================================
   const dummy = new THREE.Object3D();
 
-  // 1. POHON CEMARA SEGITIGA BERUMPUN (CLUSTERED PINE TREES): 450 Instances
-  const PINE_COUNT = 450;
+  const spatialGrid = SpatialLookupGrid.get();
+  if (!spatialGrid.isBuilt) {
+    await spatialGrid.buildAsync(getTerrainHeight, (pct, status) => {
+      onProgress?.(48 + Math.round((pct / 100) * 2), status);
+    });
+  }
+
+  function isNearBridge(x: number, z: number, dist = 16.0): boolean {
+    if (Math.hypot(x - -190, z - -230) < dist + 4.0) return true; // Bridge 1 (Astraea Highway)
+    if (Math.hypot(x - -30, z - 110) < dist + 4.0) return true;   // Bridge 2 (Central Suspension Bridge)
+    if (Math.hypot(x - 290, z - 65) < dist + 4.0) return true;    // Bridge 3 (Val-Kragor Access)
+    if (Math.hypot(x - 465, z - 30) < dist + 4.0) return true;    // Bridge 4 (Moss Valley Access)
+    if (Math.abs(x - -70) < 12.0 && z >= 220 && z <= 305) return true; // Bridge 5 (Caldera Pier Bridge)
+    return false;
+  }
+
+  // 1. SUB-TAHAP 50%: POHON OAK RINDANG / PINUS HIJAU (MAX 1.100 INSTANCE)
+  onProgress?.(50, 'Menanam Pohon Oak Rindang (InstancedMesh)...');
+  const OAK_COUNT = 1100;
+  const oakTrunkGeo = new THREE.CylinderGeometry(0.32, 0.46, 2.6, 6);
+  oakTrunkGeo.translate(0, 1.3, 0);
+  const oakCrownGeo = new THREE.DodecahedronGeometry(2.1, 0);
+  oakCrownGeo.translate(0, 3.8, 0);
+
+  const oakTrunkMesh = new THREE.InstancedMesh(oakTrunkGeo, matWoodRustic, OAK_COUNT);
+  const oakCrownMesh = new THREE.InstancedMesh(oakCrownGeo, matOakFoliage, OAK_COUNT);
+
+  let oakAssigned = 0;
+  let oakIter = 0;
+  const oakStep = 14;
+  for (let x = -450; x < 400 && oakAssigned < OAK_COUNT; x += oakStep) {
+    for (let z = -400; z < 180 && oakAssigned < OAK_COUNT; z += oakStep) {
+      oakIter++;
+      if (oakIter % 40 === 0) {
+        await yieldToChrome(5);
+      }
+      const ox = x + (0.15 + Math.random() * 0.7) * oakStep;
+      const oz = z + (0.15 + Math.random() * 0.7) * oakStep;
+
+      if (spatialGrid.isBlocked(ox, oz) || spatialGrid.isDesert(ox, oz) || spatialGrid.isOcean(ox, oz) || isNearBridge(ox, oz)) continue;
+      const oy = spatialGrid.getHeight(ox, oz);
+      if (oy < 0.25 || oy > 4.5) continue;
+
+      const s = 0.8 + Math.random() * 0.55;
+      dummy.position.set(ox, oy, oz);
+      dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+      dummy.scale.set(s, s * 1.05, s);
+      dummy.updateMatrix();
+
+      oakTrunkMesh.setMatrixAt(oakAssigned, dummy.matrix);
+      oakCrownMesh.setMatrixAt(oakAssigned, dummy.matrix);
+      oakAssigned++;
+    }
+  }
+  oakTrunkMesh.count = oakAssigned;
+  oakCrownMesh.count = oakAssigned;
+  oakTrunkMesh.instanceMatrix.needsUpdate = true;
+  oakCrownMesh.instanceMatrix.needsUpdate = true;
+  oakTrunkMesh.computeBoundingSphere();
+  oakCrownMesh.computeBoundingSphere();
+  envGroup.add(oakTrunkMesh, oakCrownMesh);
+
+  // 2. SUB-TAHAP 53%: POHON CEMARA SEGITIGA (MAX 900 INSTANCE)
+  onProgress?.(53, 'Menempatkan Rumpun Pohon Cemara (InstancedMesh)...');
+  const PINE_COUNT = 900;
   const pineTrunkGeo = new THREE.CylinderGeometry(0.22, 0.34, 2.2, 5);
   pineTrunkGeo.translate(0, 1.1, 0);
 
@@ -2205,49 +2268,21 @@ export async function buildWorldEnvironmentAsync(
   const pineFoliageMesh2 = new THREE.InstancedMesh(pineConeGeo2, matPineFoliage, PINE_COUNT);
   const pineFoliageMesh3 = new THREE.InstancedMesh(pineConeGeo3, matPineFoliage, PINE_COUNT);
 
-  const spatialGrid = SpatialLookupGrid.get();
-  if (!spatialGrid.isBuilt) {
-    await spatialGrid.buildAsync(getTerrainHeight, onProgress);
-  }
-
-  onProgress?.(52, 'Menempatkan Rumpun Pohon Cemara (InstancedMesh)...');
-
-  function isNearBridge(x: number, z: number, dist = 16.0): boolean {
-    if (Math.hypot(x - -190, z - -230) < dist + 4.0) return true; // Bridge 1 (Astraea Highway)
-    if (Math.hypot(x - -30, z - 110) < dist + 4.0) return true;   // Bridge 2 (Central Suspension Bridge)
-    if (Math.hypot(x - 290, z - 65) < dist + 4.0) return true;    // Bridge 3 (Val-Kragor Access)
-    if (Math.hypot(x - 465, z - 30) < dist + 4.0) return true;    // Bridge 4 (Moss Valley Access)
-    if (Math.abs(x - -70) < 12.0 && z >= 220 && z <= 305) return true; // Bridge 5 (Caldera Pier Bridge)
-    return false;
-  }
-
   let pineAssigned = 0;
-  let pineAttempts = 0;
-  while (pineAssigned < PINE_COUNT && pineAttempts < 1500) {
-    pineAttempts++;
-    if (pineAttempts % 100 === 0) {
-      await yieldIfBudgetExceeded(8);
-    }
-    // Cakupan diperluas ke seluruh barat, utara dan timur Eldoria Padang Rumput
-    const cx = -460 + Math.random() * 880;
-    const cz = -420 + Math.random() * 600;
+  let pineIter = 0;
+  const pineStep = 14;
+  for (let x = -457; x < 395 && pineAssigned < PINE_COUNT; x += pineStep) {
+    for (let z = -407; z < 185 && pineAssigned < PINE_COUNT; z += pineStep) {
+      pineIter++;
+      if (pineIter % 40 === 0) {
+        await yieldToChrome(5);
+      }
+      const px = x + (0.15 + Math.random() * 0.7) * pineStep;
+      const pz = z + (0.15 + Math.random() * 0.7) * pineStep;
 
-    if (spatialGrid.isBlocked(cx, cz) || spatialGrid.isDesert(cx, cz) || spatialGrid.isOcean(cx, cz)) continue;
-    if (cx < -460 || cz > 190) continue;
-
-    const clusterSize = 3 + Math.floor(Math.random() * 5);
-    const clusterRadius = 4.0 + Math.random() * 6.5;
-
-    for (let c = 0; c < clusterSize && pineAssigned < PINE_COUNT; c++) {
-      const angle = Math.random() * Math.PI * 2;
-      const dist = c === 0 ? 0 : 1.5 + Math.random() * (clusterRadius - 1.5);
-      const px = cx + Math.cos(angle) * dist;
-      const pz = cz + Math.sin(angle) * dist;
-
-      if (spatialGrid.isBlocked(px, pz) || spatialGrid.isDesert(px, pz) || spatialGrid.isOcean(px, pz)) continue;
-
+      if (spatialGrid.isBlocked(px, pz) || spatialGrid.isDesert(px, pz) || spatialGrid.isOcean(px, pz) || isNearBridge(px, pz)) continue;
       const py = spatialGrid.getHeight(px, pz);
-      if (py < 0.0 || py > 4.5) continue; // Tidak boleh di bawah air
+      if (py < 0.25 || py > 5.0) continue;
 
       const s = 0.8 + Math.random() * 0.55;
       dummy.position.set(px, py, pz);
@@ -2262,149 +2297,122 @@ export async function buildWorldEnvironmentAsync(
       pineAssigned++;
     }
   }
+  pineTrunkMesh.count = pineAssigned;
+  pineFoliageMesh1.count = pineAssigned;
+  pineFoliageMesh2.count = pineAssigned;
+  pineFoliageMesh3.count = pineAssigned;
   pineTrunkMesh.instanceMatrix.needsUpdate = true;
   pineFoliageMesh1.instanceMatrix.needsUpdate = true;
   pineFoliageMesh2.instanceMatrix.needsUpdate = true;
   pineFoliageMesh3.instanceMatrix.needsUpdate = true;
+  pineTrunkMesh.computeBoundingSphere();
+  pineFoliageMesh1.computeBoundingSphere();
+  pineFoliageMesh2.computeBoundingSphere();
+  pineFoliageMesh3.computeBoundingSphere();
   envGroup.add(pineTrunkMesh, pineFoliageMesh1, pineFoliageMesh2, pineFoliageMesh3);
 
-  // 2. POHON RINDANG BULAT BERUMPUN (CLUSTERED OAK TREES): 300 Instances
-  onProgress?.(56, 'Menanam Pohon Oak Rindang (InstancedMesh)...');
-  const OAK_COUNT = 300;
-  const oakTrunkGeo = new THREE.CylinderGeometry(0.32, 0.46, 2.6, 6);
-  oakTrunkGeo.translate(0, 1.3, 0);
-  const oakCrownGeo = new THREE.DodecahedronGeometry(2.1, 0);
-  oakCrownGeo.translate(0, 3.8, 0);
-
-  const oakTrunkMesh = new THREE.InstancedMesh(oakTrunkGeo, matWoodRustic, OAK_COUNT);
-  const oakCrownMesh = new THREE.InstancedMesh(oakCrownGeo, matOakFoliage, OAK_COUNT);
-
-  let oakAssigned = 0;
-  let oakAttempts = 0;
-  while (oakAssigned < OAK_COUNT && oakAttempts < 1200) {
-    oakAttempts++;
-    if (oakAttempts % 100 === 0) {
-      await yieldIfBudgetExceeded(8);
-    }
-    const cx = -440 + Math.random() * 860;
-    const cz = -380 + Math.random() * 560;
-
-    if (spatialGrid.isBlocked(cx, cz) || spatialGrid.isDesert(cx, cz) || spatialGrid.isOcean(cx, cz)) continue;
-
-    const clusterSize = 3 + Math.floor(Math.random() * 4);
-    const clusterRadius = 4.5 + Math.random() * 7.0;
-
-    for (let c = 0; c < clusterSize && oakAssigned < OAK_COUNT; c++) {
-      const angle = Math.random() * Math.PI * 2;
-      const dist = c === 0 ? 0 : 2.0 + Math.random() * (clusterRadius - 2.0);
-      const ox = cx + Math.cos(angle) * dist;
-      const oz = cz + Math.sin(angle) * dist;
-
-      if (spatialGrid.isBlocked(ox, oz) || spatialGrid.isDesert(ox, oz) || spatialGrid.isOcean(ox, oz)) continue;
-
-      const oy = spatialGrid.getHeight(ox, oz);
-      if (oy < 0.0 || oy > 4.2) continue;
-
-      const s = 0.8 + Math.random() * 0.55;
-      dummy.position.set(ox, oy, oz);
-      dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-      dummy.scale.set(s, s * 1.05, s);
-      dummy.updateMatrix();
-
-      oakTrunkMesh.setMatrixAt(oakAssigned, dummy.matrix);
-      oakCrownMesh.setMatrixAt(oakAssigned, dummy.matrix);
-      oakAssigned++;
-    }
-  }
-  oakTrunkMesh.instanceMatrix.needsUpdate = true;
-  oakCrownMesh.instanceMatrix.needsUpdate = true;
-  envGroup.add(oakTrunkMesh, oakCrownMesh);
-
-  // 3. FORMASI BEBATUAN ALAM (GRANITE BOULDER FORMATIONS): 500 Instances
-  onProgress?.(60, 'Membentuk Formasi Bebatuan Granit (InstancedMesh)...');
-  const BOULDER_COUNT = 500;
+  // 3. SUB-TAHAP 56%: FORMASI BEBATUAN GRANIT & KRISTAL (MAX 800 INSTANCE)
+  onProgress?.(56, 'Membentuk Formasi Bebatuan & Kristal (InstancedMesh)...');
+  const BOULDER_COUNT = 800;
   const boulderGeo = new THREE.DodecahedronGeometry(1.0, 0);
   const boulderMesh = new THREE.InstancedMesh(boulderGeo, matBoulder, BOULDER_COUNT);
 
   let boulderAssigned = 0;
-  let boulderAttempts = 0;
-  while (boulderAssigned < BOULDER_COUNT && boulderAttempts < 1400) {
-    boulderAttempts++;
-    if (boulderAttempts % 100 === 0) {
-      await yieldIfBudgetExceeded(8);
-    }
-    const cx = -460 + Math.random() * 880;
-    const cz = -400 + Math.random() * 580;
+  let boulderIter = 0;
+  const boulderStep = 18;
+  for (let x = -454; x < 400 && boulderAssigned < BOULDER_COUNT; x += boulderStep) {
+    for (let z = -404; z < 180 && boulderAssigned < BOULDER_COUNT; z += boulderStep) {
+      boulderIter++;
+      if (boulderIter % 40 === 0) {
+        await yieldToChrome(5);
+      }
+      const bx = x + (0.15 + Math.random() * 0.7) * boulderStep;
+      const bz = z + (0.15 + Math.random() * 0.7) * boulderStep;
 
-    if (spatialGrid.isBlocked(cx, cz) || spatialGrid.isDesert(cx, cz) || spatialGrid.isOcean(cx, cz)) continue;
-
-    const cy = spatialGrid.getHeight(cx, cz);
-    if (cy < 0.0) continue;
-
-    const bigScale = 0.95 + Math.random() * 0.55;
-    const bigScaleY = bigScale * (0.8 + Math.random() * 0.4);
-    dummy.position.set(cx, cy + bigScaleY * 0.38, cz);
-    dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-    dummy.scale.set(bigScale, bigScaleY, bigScale);
-    dummy.updateMatrix();
-    boulderMesh.setMatrixAt(boulderAssigned, dummy.matrix);
-    boulderAssigned++;
-
-    const satCount = 2 + Math.floor(Math.random() * 2);
-    for (let s = 0; s < satCount && boulderAssigned < BOULDER_COUNT; s++) {
-      const sAngle = Math.random() * Math.PI * 2;
-      const sDist = 1.6 + Math.random() * 2.2;
-      const bx = cx + Math.cos(sAngle) * sDist;
-      const bz = cz + Math.sin(sAngle) * sDist;
-
-      if (spatialGrid.isBlocked(bx, bz) || spatialGrid.isDesert(bx, bz) || spatialGrid.isOcean(bx, bz)) continue;
+      if (spatialGrid.isBlocked(bx, bz) || spatialGrid.isDesert(bx, bz) || spatialGrid.isOcean(bx, bz) || isNearBridge(bx, bz)) continue;
       const by = spatialGrid.getHeight(bx, bz);
-      if (by < 0.0) continue;
+      if (by < 0.2) continue;
 
-      const smallScale = 0.4 + Math.random() * 0.45;
-      const smallScaleY = smallScale * (0.7 + Math.random() * 0.5);
-      dummy.position.set(bx, by + smallScaleY * 0.35, bz);
+      const scale = 0.7 + Math.random() * 0.75;
+      const scaleY = scale * (0.75 + Math.random() * 0.45);
+      dummy.position.set(bx, by + scaleY * 0.35, bz);
       dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-      dummy.scale.set(smallScale, smallScaleY, smallScale);
+      dummy.scale.set(scale, scaleY, scale);
       dummy.updateMatrix();
+
       boulderMesh.setMatrixAt(boulderAssigned, dummy.matrix);
       boulderAssigned++;
     }
   }
+  boulderMesh.count = boulderAssigned;
   boulderMesh.instanceMatrix.needsUpdate = true;
+  boulderMesh.computeBoundingSphere();
   envGroup.add(boulderMesh);
 
-  // 4. RUMPUN SEMAK LIAR & BUNGA PADANG RUMPUT (SHRUBS): 750 Instances
-  onProgress?.(63, 'Menyebarkan Semak Liar (InstancedMesh)...');
+  // 4. SUB-TAHAP 60%: RUMPUN RUMPUT HIJAU PADANG RUMPUT (MAX 3.500 INSTANCE)
+  onProgress?.(60, 'Menumbuhkan Padang Rumput Hijau (InstancedMesh)...');
+  const PLAINS_GRASS_COUNT = 3500;
+  const plainsGrassGeo = new THREE.ConeGeometry(0.35, 0.75, 4);
+  const matPlainsGrass = new THREE.MeshStandardMaterial({
+    color: 0x5da84e,
+    roughness: 0.85,
+    metalness: 0.05,
+    flatShading: true,
+  });
+  const plainsGrassMesh = new THREE.InstancedMesh(plainsGrassGeo, matPlainsGrass, PLAINS_GRASS_COUNT);
+
+  let pgAssigned = 0;
+  let pgIter = 0;
+  const grassStep = 6.0;
+  for (let x = -450; x < 400 && pgAssigned < PLAINS_GRASS_COUNT; x += grassStep) {
+    for (let z = -400; z < 180 && pgAssigned < PLAINS_GRASS_COUNT; z += grassStep) {
+      pgIter++;
+      if (pgIter % 40 === 0) {
+        await yieldToChrome(5);
+      }
+      const gx = x + (0.15 + Math.random() * 0.7) * grassStep;
+      const gz = z + (0.15 + Math.random() * 0.7) * grassStep;
+
+      if (spatialGrid.isBlocked(gx, gz) || spatialGrid.isDesert(gx, gz) || spatialGrid.isOcean(gx, gz) || isNearBridge(gx, gz)) continue;
+      const gy = spatialGrid.getHeight(gx, gz);
+      if (gy < 0.25 || gy > 4.5) continue;
+
+      const s = 0.7 + Math.random() * 0.6;
+      dummy.position.set(gx, gy + s * 0.35, gz);
+      dummy.rotation.set(0, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.2);
+      dummy.scale.set(s, s, s);
+      dummy.updateMatrix();
+
+      plainsGrassMesh.setMatrixAt(pgAssigned, dummy.matrix);
+      pgAssigned++;
+    }
+  }
+  plainsGrassMesh.count = pgAssigned;
+  plainsGrassMesh.instanceMatrix.needsUpdate = true;
+  plainsGrassMesh.computeBoundingSphere();
+  envGroup.add(plainsGrassMesh);
+
+  // 5. SUB-TAHAP 64%: SEMAK LIAR, BATU KARANG & VEGETASI PANTAI (MAX 750 + 60 + 80)
+  onProgress?.(64, 'Menyebarkan Semak Liar & Vegetasi Pantai (InstancedMesh)...');
   const SHRUB_COUNT = 750;
   const shrubGeo = new THREE.DodecahedronGeometry(0.65, 0);
   const shrubMesh = new THREE.InstancedMesh(shrubGeo, matShrub, SHRUB_COUNT);
 
   let shrubAssigned = 0;
-  let shrubAttempts = 0;
-  while (shrubAssigned < SHRUB_COUNT && shrubAttempts < 1800) {
-    shrubAttempts++;
-    if (shrubAttempts % 100 === 0) {
-      await yieldIfBudgetExceeded(8);
-    }
-    const cx = -460 + Math.random() * 880;
-    const cz = -420 + Math.random() * 600;
+  let shrubIter = 0;
+  const shrubStep = 16;
+  for (let x = -450; x < 400 && shrubAssigned < SHRUB_COUNT; x += shrubStep) {
+    for (let z = -400; z < 180 && shrubAssigned < SHRUB_COUNT; z += shrubStep) {
+      shrubIter++;
+      if (shrubIter % 40 === 0) {
+        await yieldToChrome(5);
+      }
+      const sx = x + (0.15 + Math.random() * 0.7) * shrubStep;
+      const sz = z + (0.15 + Math.random() * 0.7) * shrubStep;
 
-    if (spatialGrid.isBlocked(cx, cz) || spatialGrid.isDesert(cx, cz) || spatialGrid.isOcean(cx, cz)) continue;
-
-    const shrubClusterSize = 3 + Math.floor(Math.random() * 4);
-    const shrubRadius = 2.5 + Math.random() * 4.5;
-
-    for (let sc = 0; sc < shrubClusterSize && shrubAssigned < SHRUB_COUNT; sc++) {
-      const angle = Math.random() * Math.PI * 2;
-      const dist = sc === 0 ? 0 : 0.8 + Math.random() * (shrubRadius - 0.8);
-      const sx = cx + Math.cos(angle) * dist;
-      const sz = cz + Math.sin(angle) * dist;
-
-      if (spatialGrid.isBlocked(sx, sz) || spatialGrid.isDesert(sx, sz) || spatialGrid.isOcean(sx, sz)) continue;
-
+      if (spatialGrid.isBlocked(sx, sz) || spatialGrid.isDesert(sx, sz) || spatialGrid.isOcean(sx, sz) || isNearBridge(sx, sz)) continue;
       const sy = spatialGrid.getHeight(sx, sz);
-      if (sy < 0.0) continue;
+      if (sy < 0.2) continue;
 
       const s = 0.55 + Math.random() * 0.65;
       dummy.position.set(sx, sy + s * 0.32, sz);
@@ -2416,108 +2424,72 @@ export async function buildWorldEnvironmentAsync(
       shrubAssigned++;
     }
   }
+  shrubMesh.count = shrubAssigned;
   shrubMesh.instanceMatrix.needsUpdate = true;
+  shrubMesh.computeBoundingSphere();
   envGroup.add(shrubMesh);
 
-  // 5. BATU KARANG LAUT PESISIR INSTANCED (COASTAL REEF STONES): 60 Instances
+  // Batu Karang Laut Pesisir (Coastal Reef Stones): 60 Instances
   const REEF_STONE_COUNT = 60;
   const reefStoneGeo = new THREE.DodecahedronGeometry(0.85, 0);
   const reefStoneMesh = new THREE.InstancedMesh(reefStoneGeo, matWetSeaRock, REEF_STONE_COUNT);
-
   let reefAssigned = 0;
-  let reefAttempts = 0;
-  while (reefAssigned < REEF_STONE_COUNT && reefAttempts < 500) {
-    reefAttempts++;
-    if (reefAttempts % 100 === 0) await yieldIfBudgetExceeded(8);
-    const rx = -410 - Math.random() * 38;
-    const rz = -50 - Math.random() * 190;
-    if (spatialGrid.isDesert(rx, rz)) continue;
-    const ry = spatialGrid.getHeight(rx, rz);
+  let reefIter = 0;
+  for (let rx = -448; rx <= -410 && reefAssigned < REEF_STONE_COUNT; rx += 7) {
+    for (let rz = -240; rz <= -50 && reefAssigned < REEF_STONE_COUNT; rz += 15) {
+      reefIter++;
+      if (reefIter % 40 === 0) await yieldToChrome(5);
+      if (spatialGrid.isDesert(rx, rz)) continue;
+      const ry = spatialGrid.getHeight(rx, rz);
 
-    const sX = 0.8 + Math.random() * 1.4;
-    const sY = 0.6 + Math.random() * 1.2;
-    const sZ = 0.8 + Math.random() * 1.4;
+      const sX = 0.8 + Math.random() * 1.4;
+      const sY = 0.6 + Math.random() * 1.2;
+      const sZ = 0.8 + Math.random() * 1.4;
+      dummy.position.set(rx, ry + sY * 0.35, rz);
+      dummy.rotation.set(Math.random() * 0.4, Math.random() * Math.PI, Math.random() * 0.4);
+      dummy.scale.set(sX, sY, sZ);
+      dummy.updateMatrix();
 
-    dummy.position.set(rx, ry + sY * 0.35, rz);
-    dummy.rotation.set(Math.random() * 0.4, Math.random() * Math.PI, Math.random() * 0.4);
-    dummy.scale.set(sX, sY, sZ);
-    dummy.updateMatrix();
-
-    reefStoneMesh.setMatrixAt(reefAssigned, dummy.matrix);
-    reefAssigned++;
+      reefStoneMesh.setMatrixAt(reefAssigned, dummy.matrix);
+      reefAssigned++;
+    }
   }
+  reefStoneMesh.count = reefAssigned;
   reefStoneMesh.instanceMatrix.needsUpdate = true;
+  reefStoneMesh.computeBoundingSphere();
   envGroup.add(reefStoneMesh);
 
-  // 6. RUMPUT GUMUK PANTAI INSTANCED (BEACH DUNE GRASS): 80 Instances
+  // Rumput Gumuk Pantai (Beach Dune Grass): 80 Instances
   const BEACH_GRASS_COUNT = 80;
   const beachGrassGeo = new THREE.ConeGeometry(0.45, 0.9, 4);
   const beachGrassMesh = new THREE.InstancedMesh(beachGrassGeo, matBeachGrass, BEACH_GRASS_COUNT);
-
   let bgAssigned = 0;
-  let bgAttempts = 0;
-  while (bgAssigned < BEACH_GRASS_COUNT && bgAttempts < 600) {
-    bgAttempts++;
-    if (bgAttempts % 100 === 0) await yieldIfBudgetExceeded(8);
-    const gx = -402 - Math.random() * 26;
-    const gz = -55 - Math.random() * 180;
-    if (spatialGrid.isDesert(gx, gz)) continue;
-    const gy = spatialGrid.getHeight(gx, gz);
-    if (gy < 0.25) continue; // Di atas garis air laut
+  let bgIter = 0;
+  for (let gx = -428; gx <= -402 && bgAssigned < BEACH_GRASS_COUNT; gx += 5) {
+    for (let gz = -235; gz <= -55 && bgAssigned < BEACH_GRASS_COUNT; gz += 10) {
+      bgIter++;
+      if (bgIter % 40 === 0) await yieldToChrome(5);
+      if (spatialGrid.isDesert(gx, gz)) continue;
+      const gy = spatialGrid.getHeight(gx, gz);
+      if (gy < 0.25) continue;
 
-    const s = 0.65 + Math.random() * 0.6;
-    dummy.position.set(gx, gy + s * 0.4, gz);
-    dummy.rotation.set(0, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.2);
-    dummy.scale.set(s, s * 1.1, s);
-    dummy.updateMatrix();
+      const s = 0.65 + Math.random() * 0.6;
+      dummy.position.set(gx, gy + s * 0.4, gz);
+      dummy.rotation.set(0, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.2);
+      dummy.scale.set(s, s * 1.1, s);
+      dummy.updateMatrix();
 
-    beachGrassMesh.setMatrixAt(bgAssigned, dummy.matrix);
-    bgAssigned++;
+      beachGrassMesh.setMatrixAt(bgAssigned, dummy.matrix);
+      bgAssigned++;
+    }
   }
+  beachGrassMesh.count = bgAssigned;
   beachGrassMesh.instanceMatrix.needsUpdate = true;
+  beachGrassMesh.computeBoundingSphere();
   envGroup.add(beachGrassMesh);
 
-  // 7. RUMPUN RUMPUT HIJAU PADANG RUMPUT INSTANCED (VIBRANT GREEN PLAINS GRASS): 1500 Instances
-  onProgress?.(67, 'Menumbuhkan Padang Rumput Hijau (InstancedMesh)...');
-  const PLAINS_GRASS_COUNT = 1500;
-  const plainsGrassGeo = new THREE.ConeGeometry(0.35, 0.75, 4);
-  const matPlainsGrass = new THREE.MeshStandardMaterial({
-    color: 0x5da84e,
-    roughness: 0.85,
-    metalness: 0.05,
-    flatShading: true,
-  });
-  const plainsGrassMesh = new THREE.InstancedMesh(plainsGrassGeo, matPlainsGrass, PLAINS_GRASS_COUNT);
-
-  let pgAssigned = 0;
-  let pgAttempts = 0;
-  while (pgAssigned < PLAINS_GRASS_COUNT && pgAttempts < 4000) {
-    pgAttempts++;
-    if (pgAttempts % 100 === 0) {
-      await yieldIfBudgetExceeded(8);
-    }
-    const gx = -450 + Math.random() * 880;
-    const gz = -400 + Math.random() * 580;
-
-    if (spatialGrid.isBlocked(gx, gz) || spatialGrid.isDesert(gx, gz) || spatialGrid.isOcean(gx, gz)) continue;
-
-    const gy = spatialGrid.getHeight(gx, gz);
-    if (gy < 0.25 || gy > 4.5) continue;
-
-    const s = 0.7 + Math.random() * 0.6;
-    dummy.position.set(gx, gy + s * 0.35, gz);
-    dummy.rotation.set(0, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.2);
-    dummy.scale.set(s, s, s);
-    dummy.updateMatrix();
-
-    plainsGrassMesh.setMatrixAt(pgAssigned, dummy.matrix);
-    pgAssigned++;
-  }
-  plainsGrassMesh.instanceMatrix.needsUpdate = true;
-  envGroup.add(plainsGrassMesh);
-
-  onProgress?.(70, 'Membangun Ekosistem Gurun, Danau Titan & Hutan Kabut...');
-  await yieldIfBudgetExceeded(8);
+  onProgress?.(68, 'Membangun Ekosistem Gurun, Danau Titan & Hutan Kabut...');
+  await yieldToChrome(5);
 
   // ============================================================================
   // ZONA L: VEGETASI & BEBATUAN GURUN SOLARIA (SAGUARO CACTI, SANDSTONE CRAGS & DRY TREES)
@@ -2642,7 +2614,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(desertFloraGroup);
-  await yieldIfBudgetExceeded(8);
+  await yieldToChrome(5);
 
   // ============================================================================
   // ZONA M: LEMBAH DANAU TITAN KUNO & PINUS BERSALJU (NORTHWEST TITAN LAKE)
@@ -2732,7 +2704,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(titanLakeGroup);
-  await yieldIfBudgetExceeded(8);
+  await yieldToChrome(5);
 
   // ============================================================================
   // ZONA N: KANYON KUNO (NORTHERN RED CANYON MESAS & CANYON CLIFFS)
@@ -2776,7 +2748,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(ancientCanyonGroup);
-  await yieldIfBudgetExceeded(8);
+  await yieldToChrome(5);
 
   // ============================================================================
   // ZONA O: HUTAN KABUT ELDORIA (MIST FOREST & FOG EFFECT)
@@ -2841,7 +2813,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(mistForestGroup);
-  await yieldIfBudgetExceeded(8);
+  await yieldToChrome(5);
 
   // ============================================================================
   // ZONA P: PUING KASTIL TERBENGKALAI (ABANDONED CASTLE RUINS)
@@ -2892,7 +2864,7 @@ export async function buildWorldEnvironmentAsync(
   }
 
   envGroup.add(castleRuinsGroup);
-  await yieldIfBudgetExceeded(8);
+  await yieldToChrome(5);
 
   // ============================================================================
   // ZONA Q: DESA BENTENG VAL-KRAGOR (EAST FORTRESS VILLAGE)
@@ -2943,7 +2915,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(valkragorGroup);
-  await yieldIfBudgetExceeded(8);
+  await yieldToChrome(5);
 
   // ============================================================================
   // ZONA R: LEMBAH BATU LUMUT (MOSSY ROCK VALLEY & GLADE SPORES)
@@ -2998,7 +2970,7 @@ export async function buildWorldEnvironmentAsync(
   }
 
   envGroup.add(mossValleyGroup);
-  await yieldIfBudgetExceeded(8);
+  await yieldToChrome(5);
 
   // ============================================================================
   // ZONA S: HUTAN LINDUNG BARAT DAYA (SOUTHWEST LUSH OAK FOREST)
