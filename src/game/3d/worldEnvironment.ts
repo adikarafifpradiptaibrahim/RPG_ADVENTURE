@@ -2238,7 +2238,7 @@ export async function buildWorldEnvironmentAsync(
   const spatialGrid = SpatialLookupGrid.get();
   if (!spatialGrid.isBuilt) {
     await spatialGrid.buildAsync(getTerrainHeight, (pct, status) => {
-      onProgress?.(48 + Math.round((pct / 100) * 2), status);
+      onProgress?.(51 + Math.round((pct / 100) * 2), status);
     });
   }
 
@@ -2251,8 +2251,8 @@ export async function buildWorldEnvironmentAsync(
     return false;
   }
 
-  // 1. SUB-TAHAP 50%: POHON OAK RINDANG / PINUS HIJAU (MAX 1.100 INSTANCE)
-  onProgress?.(50, 'Menanam Pohon Oak Rindang (InstancedMesh)...');
+  // 1. SUB-TAHAP 53%: POHON OAK RINDANG / PINUS HIJAU (MAX 1.100 INSTANCE)
+  onProgress?.(53, 'Menanam Pohon Oak Rindang (InstancedMesh)...');
   const OAK_COUNT = 1100;
   const oakTrunkGeo = new THREE.CylinderGeometry(0.32, 0.46, 2.6, 6);
   oakTrunkGeo.translate(0, 1.3, 0);
@@ -2297,8 +2297,8 @@ export async function buildWorldEnvironmentAsync(
   oakCrownMesh.computeBoundingSphere();
   envGroup.add(oakTrunkMesh, oakCrownMesh);
 
-  // 2. SUB-TAHAP 53%: POHON CEMARA SEGITIGA (MAX 900 INSTANCE)
-  onProgress?.(53, 'Menempatkan Rumpun Pohon Cemara (InstancedMesh)...');
+  // 2. SUB-TAHAP 56%: POHON CEMARA SEGITIGA (MAX 900 INSTANCE)
+  onProgress?.(56, 'Menempatkan Rumpun Pohon Cemara (InstancedMesh)...');
   const PINE_COUNT = 900;
   const pineTrunkGeo = new THREE.CylinderGeometry(0.22, 0.34, 2.2, 5);
   pineTrunkGeo.translate(0, 1.1, 0);
@@ -2358,8 +2358,8 @@ export async function buildWorldEnvironmentAsync(
   pineFoliageMesh3.computeBoundingSphere();
   envGroup.add(pineTrunkMesh, pineFoliageMesh1, pineFoliageMesh2, pineFoliageMesh3);
 
-  // 3. SUB-TAHAP 56%: FORMASI BEBATUAN GRANIT & KRISTAL (MAX 800 INSTANCE)
-  onProgress?.(56, 'Membentuk Formasi Bebatuan & Kristal (InstancedMesh)...');
+  // 3. SUB-TAHAP 59%: FORMASI BEBATUAN GRANIT & KRISTAL (MAX 800 INSTANCE)
+  onProgress?.(59, 'Membentuk Formasi Bebatuan & Kristal (InstancedMesh)...');
   const BOULDER_COUNT = 800;
   const boulderGeo = new THREE.DodecahedronGeometry(1.0, 0);
   const boulderMesh = new THREE.InstancedMesh(boulderGeo, matBoulder, BOULDER_COUNT);
@@ -2396,8 +2396,8 @@ export async function buildWorldEnvironmentAsync(
   boulderMesh.computeBoundingSphere();
   envGroup.add(boulderMesh);
 
-  // 4. SUB-TAHAP 60%: RUMPUN RUMPUT HIJAU PADANG RUMPUT (MAX 3.500 INSTANCE)
-  onProgress?.(60, 'Menumbuhkan Padang Rumput Hijau (InstancedMesh)...');
+  // 4. SUB-TAHAP 63%: RUMPUN RUMPUT HIJAU PADANG RUMPUT (MAX 3.500 INSTANCE)
+  onProgress?.(63, 'Menumbuhkan Padang Rumput Hijau (InstancedMesh)...');
   const PLAINS_GRASS_COUNT = 3500;
   const plainsGrassGeo = new THREE.ConeGeometry(0.35, 0.75, 4);
   const matPlainsGrass = new THREE.MeshStandardMaterial({
@@ -2439,8 +2439,8 @@ export async function buildWorldEnvironmentAsync(
   plainsGrassMesh.computeBoundingSphere();
   envGroup.add(plainsGrassMesh);
 
-  // 5. SUB-TAHAP 64%: SEMAK LIAR, BATU KARANG & VEGETASI PANTAI (MAX 750 + 60 + 80)
-  onProgress?.(64, 'Menyebarkan Semak Liar & Vegetasi Pantai (InstancedMesh)...');
+  // 5. SUB-TAHAP 67%: SEMAK LIAR, BATU KARANG & VEGETASI PANTAI (MAX 750 + 60 + 80)
+  onProgress?.(67, 'Menyebarkan Semak Liar & Vegetasi Pantai (InstancedMesh)...');
   const SHRUB_COUNT = 750;
   const shrubGeo = new THREE.DodecahedronGeometry(0.65, 0);
   const shrubMesh = new THREE.InstancedMesh(shrubGeo, matShrub, SHRUB_COUNT);
@@ -2535,7 +2535,7 @@ export async function buildWorldEnvironmentAsync(
   beachGrassMesh.computeBoundingSphere();
   envGroup.add(beachGrassMesh);
 
-  onProgress?.(68, 'Membangun Ekosistem Gurun, Danau Titan & Hutan Kabut...');
+  onProgress?.(71, 'Membangun Ekosistem Gurun, Danau Titan & Hutan Kabut...');
   await yieldToChrome(5);
 
   // ============================================================================

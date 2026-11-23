@@ -101,8 +101,8 @@ import {
   SKILL_COOLDOWNS,
 } from '../skills';
 import { DayNightSystem, getSharedDayNightSystem } from './dayNightSystem';
-import { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome } from './frameBudget';
-export { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome };
+import { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield } from './frameBudget';
+export { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield };
 
 export interface LootPickup {
   mesh: THREE.Group;
@@ -115,7 +115,7 @@ export interface LootPickup {
 export interface RemotePlayerInstance {
   data: RemotePlayerData;
   meshObj: PlayerMeshObjects;
-  nameTag: THREE.Sprite;
+  nameTag?: THREE.Sprite;
   targetPos: THREE.Vector3;
   targetRotationY: number;
   currentPos: THREE.Vector3;
@@ -1236,9 +1236,9 @@ export class GameEngine {
     }
     this.scenePointLights = this.world.pointLights || [];
 
-    // Tahap 3b: 49% Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya
-    onProgress?.(49, 'Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya...');
-    await yieldIfBudgetExceeded(8);
+    // Tahap 3b: 48.5% Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya
+    onProgress?.(48.5, 'Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya...');
+    await cooperativeYield(4);
 
     // Initialize Boss Manager
     this.bossManager = new BossManager(
@@ -1293,9 +1293,12 @@ export class GameEngine {
       });
     }
 
-    // Tahap 4: 50% - 70% Populasi Vegetasi & Bebatuan (InstancedMesh) Time-Sliced
-    onProgress?.(50, 'Populasi Vegetasi & Bebatuan (InstancedMesh)...');
-    await yieldToChrome(5);
+    // Tahap 3c: 48.5% - 50% Membangkitkan World Boss & Menempatkan Populasi Monster Time-Sliced
+    await this.spawnEnemiesAsync(onProgress);
+
+    // Tahap 4: 51% - 72% Populasi Vegetasi & Bebatuan (InstancedMesh) Time-Sliced
+    onProgress?.(51, 'Populasi Vegetasi & Bebatuan (InstancedMesh)...');
+    await cooperativeYield(4);
 
     // 2. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation with TypedArray spatial lookup
     this.worldEnvironment = await buildWorldEnvironmentAsync(
@@ -1312,12 +1315,9 @@ export class GameEngine {
       this.playerMesh.group.position.copy(this.playerPos);
     }
 
-    // Spawn enemies
-    this.spawnEnemies();
-
     // Tahap 5: 75% Pre-Alokasi Pool VFX Karakter & Skill Mage
-    onProgress?.(75, 'Pre-Alokasi Pool VFX Karakter & Skill Mage...');
-    await yieldToMainThread();
+    onProgress?.(75, 'Pre-Alokasi Pool VFX Karakter & Skill Mage (75%)...');
+    await cooperativeYield(4);
 
     // Pre-decode audio buffers
     await soundManager.preloadMageAudioBuffers();
@@ -1331,10 +1331,11 @@ export class GameEngine {
 
     // Apply shadow & distance culling settings
     this.applyGraphicsSettings(this.graphicsSettings);
+    await cooperativeYield(4);
 
-    // Tahap 6: 85% Mengompilasi Shader GPU (renderer.compile / compileAsync)
-    onProgress?.(85, 'Mengompilasi Shader GPU...');
-    await new Promise((r) => setTimeout(r, 30));
+    // Tahap 6: 85% Mengompilasi Shader GPU Global (renderer.compile / compileAsync)
+    onProgress?.(85, 'Mengompilasi Shader GPU Global (85%)...');
+    await cooperativeYield(4);
 
     if (this.renderer && this.scene && this.camera) {
       try {
@@ -1347,25 +1348,47 @@ export class GameEngine {
         console.warn('[Engine] Shader compilation warning:', e);
       }
     }
-    await new Promise((r) => setTimeout(r, 30));
+    await cooperativeYield(4);
 
-    // Tahap 7: 95% In-Frustum GPU Shader Warm-Up Khusus Mage & Pemburu
-    onProgress?.(95, 'In-Frustum GPU Shader Warm-Up Khusus Mage & Pemburu...');
-    await new Promise((r) => setTimeout(r, 30));
+    // Tahap 7a: 90% In-Frustum GPU Shader Warm-Up Khusus Mage
+    onProgress?.(90, 'Kompilasi Shader Pool Sihir Mage (90%)...');
+    await cooperativeYield(4);
 
     if (this.scene && this.renderer && this.camera) {
       await preloadMageVfxPoolAsync(this.scene, this.renderer, this.camera, async () => {
-        await new Promise((r) => setTimeout(r, 30));
+        await cooperativeYield(4);
       });
-      this.prewarmHunterShadersInFrustum();
     }
-    await new Promise((r) => setTimeout(r, 30));
+    await cooperativeYield(4);
+
+    // Tahap 7b: 95% In-Frustum GPU Shader Warm-Up Khusus Pemburu & Assassin
+    onProgress?.(95, 'Kompilasi Shader Pool Panah & Bayangan Pemburu (95%)...');
+    await cooperativeYield(4);
+
+    if (this.scene && this.renderer && this.camera) {
+      await this.prewarmHunterShadersInFrustumAsync();
+    }
+    await cooperativeYield(4);
+
+    // Tahap 7c: 98% Warm-Up Shader Boss Telegraph & Efek Tempur
+    onProgress?.(98, 'Kompilasi Shader Boss Telegraph & Efek Tempur (98%)...');
+    await cooperativeYield(4);
+    if (this.bossManager && this.renderer && this.scene && this.camera) {
+      try {
+        if (typeof (this.renderer as any).compileAsync === 'function') {
+          await (this.renderer as any).compileAsync(this.scene, this.camera);
+        }
+      } catch (e) {
+        console.warn('[Engine] Boss shader warm-up compile warning:', e);
+      }
+    }
+    await cooperativeYield(4);
 
     this.isWorldLoaded = true;
 
     // Tahap 8: 100% Membuka tirai loading secara halus
     onProgress?.(100, 'Dunia Eldoria Siap! Menyerahkan Kontrol...');
-    await yieldToMainThread();
+    await cooperativeYield(4);
   }
 
   public clearCombatState(): void {
@@ -1629,21 +1652,29 @@ export class GameEngine {
         existing.meshObj = createPlayerMesh(data.charClass, data.tier);
         existing.meshObj.group.position.copy(existing.currentPos);
         existing.meshObj.group.rotation.y = existing.currentRotationY;
-        existing.meshObj.group.add(existing.nameTag);
+        if (existing.nameTag) {
+          existing.meshObj.group.add(existing.nameTag);
+        }
         this.scene.add(existing.meshObj.group);
       }
     } else {
       const meshObj = createPlayerMesh(data.charClass, data.tier || 1);
-      const nameTag = this.createNameTagSprite(
-        data.name,
-        data.level || 1,
-        data.charClass,
-        data.hp || 120,
-        data.maxHp || 120
-      );
       meshObj.group.position.set(data.x, data.y, data.z);
       meshObj.group.rotation.y = data.rotationY;
-      meshObj.group.add(nameTag);
+
+      // Lazy on-proximity nameplate: only instantiate when within 35 meters
+      let nameTag: THREE.Sprite | undefined = undefined;
+      const initialDist = this.playerPos.distanceTo(new THREE.Vector3(data.x, data.y, data.z));
+      if (initialDist <= 35) {
+        nameTag = this.createNameTagSprite(
+          data.name,
+          data.level || 1,
+          data.charClass,
+          data.hp || 120,
+          data.maxHp || 120
+        );
+        meshObj.group.add(nameTag);
+      }
       this.scene.add(meshObj.group);
 
       const instance: RemotePlayerInstance = {
@@ -1668,6 +1699,11 @@ export class GameEngine {
   public removeRemotePlayer(id: string) {
     const existing = this.remotePlayers.get(id);
     if (existing) {
+      if (existing.nameTag) {
+        existing.meshObj.group.remove(existing.nameTag);
+        if (existing.nameTag.material.map) existing.nameTag.material.map.dispose();
+        existing.nameTag.material.dispose();
+      }
       this.scene.remove(existing.meshObj.group);
       this.remotePlayers.delete(id);
       this.callbacks.onAddFloatingText(`${existing.data.name} meninggalkan dunia.`, '#94a3b8', 'damage');
@@ -1676,6 +1712,11 @@ export class GameEngine {
 
   public clearRemotePlayers() {
     this.remotePlayers.forEach((rp) => {
+      if (rp.nameTag) {
+        rp.meshObj.group.remove(rp.nameTag);
+        if (rp.nameTag.material.map) rp.nameTag.material.map.dispose();
+        rp.nameTag.material.dispose();
+      }
       this.scene.remove(rp.meshObj.group);
     });
     this.remotePlayers.clear();
@@ -1822,9 +1863,24 @@ export class GameEngine {
     }
   }
 
-  private spawnEnemies() {
+  private async spawnEnemiesAsync(onProgress?: (percent: number, statusText: string) => void): Promise<void> {
+    const spawnGroupAsync = async <T>(
+      list: T[],
+      spawner: (item: T, index: number) => void
+    ) => {
+      for (let i = 0; i < list.length; i++) {
+        spawner(list[i], i);
+        if (i % 2 === 1) {
+          await cooperativeYield(4);
+        }
+      }
+    };
+
+    onProgress?.(50, 'Menempatkan Populasi Monster & Peti Harta Karun (50%)...');
+    await cooperativeYield(4);
+
     // 1. Meadow Slimes (Lv. 1) - Relocated to Eastern Plains (> 85 units east from Sanctuary)
-    MEADOW_SLIME_SPAWNS.forEach((sp) => {
+    await spawnGroupAsync(MEADOW_SLIME_SPAWNS, (sp) => {
       const { group, parts } = createEnemyMesh('slime');
       const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
       group.position.set(sp.pos[0], ey, sp.pos[1]);
@@ -1863,7 +1919,7 @@ export class GameEngine {
     });
 
     // 2. Northern Caldera Magma Slimes (Lv. 3) - Relocated deep into volcanic crags (> 85 units north)
-    MAGMA_SLIME_SPAWNS.forEach((sp) => {
+    await spawnGroupAsync(MAGMA_SLIME_SPAWNS, (sp) => {
       const { group, parts } = createEnemyMesh('magma_slime');
       const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
       group.position.set(sp.pos[0], ey, sp.pos[1]);
@@ -1902,7 +1958,7 @@ export class GameEngine {
     });
 
     // 3. Ancient Crypt Skeleton Sentinels (Lv. 2) - Upstream Outer Ruins of Vael (> 110 units west)
-    SKELETON_SENTINEL_SPAWNS.forEach((sp) => {
+    await spawnGroupAsync(SKELETON_SENTINEL_SPAWNS, (sp) => {
       const { group, parts } = createEnemyMesh('skeleton');
       const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
       group.position.set(sp.pos[0], ey, sp.pos[1]);
@@ -1941,7 +1997,7 @@ export class GameEngine {
     });
 
     // 4. Skeleton Necromancer Mages in Deep Outer Ruins (Lv. 4) (> 130 units west)
-    SKELETON_MAGE_SPAWNS.forEach((sp) => {
+    await spawnGroupAsync(SKELETON_MAGE_SPAWNS, (sp) => {
       const { group, parts } = createEnemyMesh('skeleton_mage');
       const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
       group.position.set(sp.pos[0], ey, sp.pos[1]);
@@ -1981,7 +2037,7 @@ export class GameEngine {
     });
 
     // 5. Distant Coast Beach Goblins (Lv. 2) - Far Rocky Coastline (> 110 units south-east)
-    BEACH_GOBLIN_SPAWNS.forEach((sp) => {
+    await spawnGroupAsync(BEACH_GOBLIN_SPAWNS, (sp) => {
       const { group, parts } = createEnemyMesh('goblin');
       const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
       group.position.set(sp.pos[0], ey, sp.pos[1]);
@@ -2020,7 +2076,7 @@ export class GameEngine {
     });
 
     // 6. Mystic Forest Stone Golems (Lv. 4) - Deep Eastern Wilderness (> 95 units east)
-    FOREST_GOLEM_SPAWNS.forEach((sp) => {
+    await spawnGroupAsync(FOREST_GOLEM_SPAWNS, (sp) => {
       const { group, parts } = createEnemyMesh('golem');
       const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
       group.position.set(sp.pos[0], ey, sp.pos[1]);
@@ -2060,7 +2116,7 @@ export class GameEngine {
     });
 
     // 7. Mystic Forest Venomous Spiders (Lv. 3) - Dark Northern Canopy (> 105 units north-east)
-    FOREST_SPIDER_SPAWNS.forEach((sp) => {
+    await spawnGroupAsync(FOREST_SPIDER_SPAWNS, (sp) => {
       const { group, parts } = createEnemyMesh('spider');
       const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
       group.position.set(sp.pos[0], ey, sp.pos[1]);
@@ -2099,6 +2155,7 @@ export class GameEngine {
     });
 
     // 8. Ancient Obsidian Titan Golem Boss in North Crater Arena (X: -220, Z: -400)
+    onProgress?.(48.5, 'Membangkitkan World Boss: Sang Titan Kuno Obsidian (48.5%)...');
     const bossPos: [number, number] = [SPAWN_TITAN.x, SPAWN_TITAN.z];
     const { group: bossGroup, parts: bossParts } = createEnemyMesh('boss');
     const by = this.world.getTerrainHeight(bossPos[0], bossPos[1]);
@@ -2135,9 +2192,10 @@ export class GameEngine {
       attackCooldown: 0,
       walkCycle: 0,
     });
+    await cooperativeYield(4);
 
     // 9. Frostpeak Glacier Frostfang Wolves (Spawned from src/game/monsters.ts)
-    FROST_WOLF_SPAWNS.forEach((spawn, idx) => {
+    await spawnGroupAsync(FROST_WOLF_SPAWNS, (spawn, idx) => {
       const { group, parts } = createEnemyMesh('frost_wolf');
       const ey = this.world.getTerrainHeight(spawn.pos[0], spawn.pos[1]);
       group.position.set(spawn.pos[0], ey, spawn.pos[1]);
@@ -2183,7 +2241,7 @@ export class GameEngine {
       [-114, 4],
       [-82, 22],
     ];
-    swampPositions.forEach((pos, idx) => {
+    await spawnGroupAsync(swampPositions, (pos, idx) => {
       const { group, parts } = createEnemyMesh('swamp_crawler');
       const ey = this.world.getTerrainHeight(pos[0], pos[1]);
       group.position.set(pos[0], ey, pos[1]);
@@ -2228,7 +2286,7 @@ export class GameEngine {
       [170, -270],
       [200, -285],
     ];
-    solariaPositions.forEach((pos, idx) => {
+    await spawnGroupAsync(solariaPositions, (pos, idx) => {
       const { group, parts } = createEnemyMesh('spider');
       const ey = this.world.getTerrainHeight(pos[0], pos[1]);
       group.position.set(pos[0], ey, pos[1]);
@@ -2273,7 +2331,7 @@ export class GameEngine {
       [-162, -140],
       [-140, -145],
     ];
-    thunderPositions.forEach((pos, idx) => {
+    await spawnGroupAsync(thunderPositions, (pos, idx) => {
       const { group, parts } = createEnemyMesh('golem');
       const ey = this.world.getTerrainHeight(pos[0], pos[1]);
       group.position.set(pos[0], ey, pos[1]);
@@ -2319,7 +2377,7 @@ export class GameEngine {
       [155, 125],
       [170, 130],
     ];
-    jadePositions.forEach((pos, idx) => {
+    await spawnGroupAsync(jadePositions, (pos, idx) => {
       const { group, parts } = createEnemyMesh('goblin');
       const ey = this.world.getTerrainHeight(pos[0], pos[1]);
       group.position.set(pos[0], ey, pos[1]);
@@ -2365,7 +2423,7 @@ export class GameEngine {
       [68, 375],
       [96, 370],
     ];
-    dragonPositions.forEach((pos, idx) => {
+    await spawnGroupAsync(dragonPositions, (pos, idx) => {
       const { group, parts } = createEnemyMesh('magma_slime');
       const ey = this.world.getTerrainHeight(pos[0], pos[1]);
       group.position.set(pos[0], ey, pos[1]);
@@ -2410,7 +2468,7 @@ export class GameEngine {
       [440, -345],
       [465, -330],
     ];
-    desertPositions.forEach((pos, idx) => {
+    await spawnGroupAsync(desertPositions, (pos, idx) => {
       const { group, parts } = createEnemyMesh('spider');
       const ey = this.world.getTerrainHeight(pos[0], pos[1]);
       group.position.set(pos[0], ey, pos[1]);
@@ -2450,6 +2508,7 @@ export class GameEngine {
     });
 
     // Dragonfang Super Boss: Ignis, Sang Naga Purba (Colossal Winged Dragon: [-40, 340] - Pusat Kawah Kaldera)
+    onProgress?.(48.5, 'Membangkitkan World Boss: Ignis, Sang Naga Purba (48.5%)...');
     const wyrmPos: [number, number] = [-40, 340];
     const { group: wyrmGroup, parts: wyrmParts } = createEnemyMesh('dragon');
     const wyrmY = this.world.getTerrainHeight(wyrmPos[0], wyrmPos[1]);
@@ -2487,8 +2546,10 @@ export class GameEngine {
       attackCooldown: 0,
       walkCycle: 0,
     });
+    await cooperativeYield(4);
 
     // Solaria Desert Colossal Super Boss: Jarrus, Sang Cacing Purba (Segmented Burrowing Sandworm: [495, -362])
+    onProgress?.(48.5, 'Membangkitkan World Boss: Jarrus, Sang Cacing Purba (48.5%)...');
     const wormY = this.world.getTerrainHeight(SPAWN_SANDWORM.x, SPAWN_SANDWORM.z);
     const { group: wormGroup, parts: wormParts } = createEnemyMesh('worm');
     wormGroup.position.set(SPAWN_SANDWORM.x, wormY, SPAWN_SANDWORM.z);
@@ -2530,9 +2591,10 @@ export class GameEngine {
       isReturning: false,
       deathTimer: 0,
     });
+    await cooperativeYield(4);
 
     // 18. Beast Lair (Zone C: X -170..-230, Z 70..130) - Serigala & monster buas level 2-4
-    BEAST_LAIR_SPAWNS.forEach((sp) => {
+    await spawnGroupAsync(BEAST_LAIR_SPAWNS, (sp) => {
       const { group, parts } = createEnemyMesh(sp.type);
       const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
       group.position.set(sp.pos[0], ey, sp.pos[1]);
@@ -2576,7 +2638,7 @@ export class GameEngine {
     });
 
     // 19. Enemy Outpost (Zone A: X -220..-280, Z -10..-60) - Pasukan bandit bersenjata level 3-5
-    BANDIT_OUTPOST_SPAWNS.forEach((sp) => {
+    await spawnGroupAsync(BANDIT_OUTPOST_SPAWNS, (sp) => {
       const { group, parts } = createEnemyMesh(sp.type);
       const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
       group.position.set(sp.pos[0], ey, sp.pos[1]);
@@ -2621,7 +2683,7 @@ export class GameEngine {
     });
 
     // 20. Sabana & Lereng Bukit Padang Rumput (Zone B: X -290..-350, Z 80..150) - Serigala Liar & Boar Level 2-3
-    SAVANNA_HILL_SPAWNS.forEach((sp) => {
+    await spawnGroupAsync(SAVANNA_HILL_SPAWNS, (sp) => {
       const { group, parts } = createEnemyMesh(sp.type);
       const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
       group.position.set(sp.pos[0], ey, sp.pos[1]);
@@ -2665,7 +2727,7 @@ export class GameEngine {
     });
 
     // 21. Wilayah Pesisir Barat & Tebing Pantai (Zone C: X -400..-450, Z -50..-240) - Kepiting Pantai & Hewan Pesisir Level 1-3
-    COASTAL_BEACH_SPAWNS.forEach((sp) => {
+    await spawnGroupAsync(COASTAL_BEACH_SPAWNS, (sp) => {
       const { group, parts } = createEnemyMesh(sp.type);
       const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
       group.position.set(sp.pos[0], ey, sp.pos[1]);
@@ -2709,7 +2771,7 @@ export class GameEngine {
     });
 
     // 22. Cekungan Monster Liar Padang Rumput Utara (Zone G: X -80..-110, Z -50..-80) - Serigala Belantara Level 3-4 (> 190 unit dari desa)
-    PLAINS_WOLF_SPAWNS.forEach((sp) => {
+    await spawnGroupAsync(PLAINS_WOLF_SPAWNS, (sp) => {
       const { group, parts } = createEnemyMesh(sp.type);
       const ey = this.world.getTerrainHeight(sp.pos[0], sp.pos[1]);
       group.position.set(sp.pos[0], ey, sp.pos[1]);
@@ -2761,6 +2823,11 @@ export class GameEngine {
       e.deathTimer = 0;
       e.leashRadius = e.data.id === 'boss_dragonfang' ? 48 : (e.data.id === 'boss_titan' ? 42 : (e.data.id === 'boss_jarrus' ? 48 : (e.data.type === 'boss' ? 38 : 22)));
     });
+    await cooperativeYield(4);
+  }
+
+  private spawnEnemies(): void {
+    void this.spawnEnemiesAsync();
   }
 
   // Fast travel / teleport from map
@@ -4196,11 +4263,12 @@ export class GameEngine {
     }
   }
 
-  public prewarmHunterShadersInFrustum(): void {
+  public async prewarmHunterShadersInFrustumAsync(): Promise<void> {
     if (!this.scene || !this.renderer || !this.camera) return;
     this.initHunterArrowPool();
     this.initShadowDecoyPool();
     this.initHunterAfterimagePool();
+
     if (this.hunterArrowPool.length > 0) {
       const sample = this.hunterArrowPool[0];
       const prevPos = sample.root.position.clone();
@@ -4218,7 +4286,11 @@ export class GameEngine {
       sample.piercingVortex.visible = true;
 
       try {
-        this.renderer.compile(this.scene, this.camera);
+        if ('compileAsync' in this.renderer && typeof (this.renderer as any).compileAsync === 'function') {
+          await (this.renderer as any).compileAsync(this.scene, this.camera);
+        } else {
+          this.renderer.compile(this.scene, this.camera);
+        }
       } catch (e) {
         console.warn('[Engine] Hunter arrow shader warm-up compile warning:', e);
       }
@@ -4228,6 +4300,7 @@ export class GameEngine {
       sample.normalTrail.visible = prevNV;
       sample.piercingTrail.visible = prevPV;
       sample.piercingVortex.visible = prevVV;
+      await cooperativeYield(4);
     }
     if (this.shadowDecoyPool.length > 0) {
       const sampleDecoy = this.shadowDecoyPool[0];
@@ -4237,12 +4310,17 @@ export class GameEngine {
       sampleDecoy.position.copy(this.camera.position).addScaledVector(fwd, 3.2);
       sampleDecoy.visible = true;
       try {
-        this.renderer.compile(this.scene, this.camera);
+        if ('compileAsync' in this.renderer && typeof (this.renderer as any).compileAsync === 'function') {
+          await (this.renderer as any).compileAsync(this.scene, this.camera);
+        } else {
+          this.renderer.compile(this.scene, this.camera);
+        }
       } catch (e) {
         console.warn('[Engine] Hunter shadow decoy shader warm-up compile warning:', e);
       }
       sampleDecoy.position.copy(prevPos);
       sampleDecoy.visible = prevVis;
+      await cooperativeYield(4);
     }
     if (this.hunterAfterimagePool.length > 0) {
       const sampleAfterimage = this.hunterAfterimagePool[0];
@@ -4255,7 +4333,11 @@ export class GameEngine {
         m.opacity = 0.45;
       }
       try {
-        this.renderer.compile(this.scene, this.camera);
+        if ('compileAsync' in this.renderer && typeof (this.renderer as any).compileAsync === 'function') {
+          await (this.renderer as any).compileAsync(this.scene, this.camera);
+        } else {
+          this.renderer.compile(this.scene, this.camera);
+        }
       } catch (e) {
         console.warn('[Engine] Hunter afterimage shader warm-up compile warning:', e);
       }
@@ -4264,12 +4346,18 @@ export class GameEngine {
       for (const m of sampleAfterimage.materials) {
         m.opacity = 0;
       }
+      await cooperativeYield(4);
     }
     try {
       SkywardArrowVolleyResourcePool.get().prewarm(this.scene, this.renderer, this.camera);
     } catch (e) {
       console.warn('[Engine] Skyward arrow volley prewarm warning:', e);
     }
+    await cooperativeYield(4);
+  }
+
+  public prewarmHunterShadersInFrustum(): void {
+    void this.prewarmHunterShadersInFrustumAsync();
   }
 
   public resetHunterBowStance() {
@@ -11808,6 +11896,26 @@ export class GameEngine {
       if (rp.attackTimer > 0) {
         rp.attackTimer -= delta;
         rp.meshObj.rightArm.rotation.x = -1.4 + Math.sin(rp.attackTimer * 16) * 1.6;
+      }
+
+      // Lazy On-Proximity Nameplate (Radius 35 meter) - 0% memory overhead di luar jangkauan
+      const distToPlayer = rp.currentPos.distanceTo(this.playerPos);
+      if (distToPlayer <= 35) {
+        if (!rp.nameTag) {
+          rp.nameTag = this.createNameTagSprite(
+            rp.data.name,
+            rp.data.level || 1,
+            rp.data.charClass,
+            rp.data.hp || 120,
+            rp.data.maxHp || 120
+          );
+          rp.meshObj.group.add(rp.nameTag);
+        }
+      } else if (distToPlayer > 42 && rp.nameTag) {
+        rp.meshObj.group.remove(rp.nameTag);
+        if (rp.nameTag.material.map) rp.nameTag.material.map.dispose();
+        rp.nameTag.material.dispose();
+        rp.nameTag = undefined;
       }
     });
   }

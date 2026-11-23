@@ -7,8 +7,13 @@ export type { PlayerMeshObjects };
 export const USE_LEGACY_HUNTER = false;
 export { createLegacyHunterMesh };
 
-// 1. TEKSTUR WAJAH KANVAS DETERMINISTIK
-function createRogueFaceTexture(): THREE.CanvasTexture {
+// 1. TEKSTUR WAJAH KANVAS DETERMINISTIK (CACHED SINGLETON - 0% MEMORY OVERHEAD)
+let cachedRogueFaceTexture: THREE.CanvasTexture | null = null;
+let cachedRogueFaceMaterial: THREE.MeshBasicMaterial | null = null;
+
+function getRogueFaceTexture(): THREE.CanvasTexture {
+  if (cachedRogueFaceTexture) return cachedRogueFaceTexture;
+
   const canvas = document.createElement('canvas');
   canvas.width = 128;
   canvas.height = 128;
@@ -43,7 +48,15 @@ function createRogueFaceTexture(): THREE.CanvasTexture {
   const texture = new THREE.CanvasTexture(canvas);
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.NearestFilter;
+  cachedRogueFaceTexture = texture;
   return texture;
+}
+
+function getRogueFaceMaterial(): THREE.MeshBasicMaterial {
+  if (!cachedRogueFaceMaterial) {
+    cachedRogueFaceMaterial = new THREE.MeshBasicMaterial({ map: getRogueFaceTexture() });
+  }
+  return cachedRogueFaceMaterial;
 }
 
 // 2. BUSUR BERSUDUT 5-SEGMEN DENGAN ANAK PANAH & PUSARAN ANGIN ZAMRUD
@@ -314,8 +327,7 @@ export function createHunterModel(): THREE.Group {
   cowl.position.set(0, 0.04, 0);
   headGroup.add(cowl);
 
-  const faceTexture = createRogueFaceTexture();
-  const matFace = new THREE.MeshBasicMaterial({ map: faceTexture });
+  const matFace = getRogueFaceMaterial();
   const headMaterials = [matHood, matHood, matHood, matHood, matFace, matHood];
 
   const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.44, 0.44), headMaterials);

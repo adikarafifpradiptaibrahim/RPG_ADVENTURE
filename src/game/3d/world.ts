@@ -1021,6 +1021,7 @@ export async function buildMainVillage(
     position: guardPos,
     dialogueId: 'guard_intro',
   });
+  await cooperativeYield(4);
 
   // NPC 3: Anya (Alkemis & Herbalis) - At her potion counter
   const anyaGroup = createCustomNPCMesh('alchemist');
@@ -1055,6 +1056,7 @@ export async function buildMainVillage(
     position: torvaldPos,
     dialogueId: 'blacksmith_torvald',
   });
+  await cooperativeYield(4);
 
   // NPC 5: Lyra the Wandering Bard - Outside tavern terrace
   const bardGroup = createCustomNPCMesh('bard');
@@ -1089,6 +1091,7 @@ export async function buildMainVillage(
     position: jokoPos,
     dialogueId: 'fisherman_joko',
   });
+  await cooperativeYield(4);
 
   // NPC 7: Kael (Warga Desa Muda) - By coastal alleyway
   const kaelGroup = createCustomNPCMesh('villager');
@@ -1123,6 +1126,7 @@ export async function buildMainVillage(
     position: mayaPos,
     dialogueId: 'villager_maya',
   });
+  await cooperativeYield(4);
 
   await cooperativeYield(4);
   return { elderGroup, elderPos };
@@ -1343,6 +1347,7 @@ export async function buildAstraeaCastle(
     dialogueId: 'marshal_vane',
     icon: '⚔️',
   });
+  await cooperativeYield(4);
 
   // NPC 15: Saudagar Kerajaan Lyra (At Alchemy Stall, facing East into promenade)
   const lyraGroup = createCustomNPCMesh('alchemist');
@@ -1631,6 +1636,7 @@ export async function buildValKragorFort(
     dialogueId: 'seer_elora',
     icon: '🔮',
   });
+  await cooperativeYield(4);
 
   // NPC 11: Goran Pandai Besi Dataran Tinggi (Highland Smith)
   const goranGroup = createCustomNPCMesh('frostsmith');
@@ -1667,6 +1673,7 @@ export async function buildValKragorFort(
     dialogueId: 'guard_valkragor',
     icon: '🛡️',
   });
+  await cooperativeYield(4);
 
   // NPC 12b: Prajurit Penjaga Gerbang Barat Kanan (Sentinel Gerbang Kanan)
   const fGuardGroup2 = createCustomNPCMesh('guard');
@@ -1703,6 +1710,7 @@ export async function buildValKragorFort(
     dialogueId: 'guard_valkragor',
     icon: '🛡️',
   });
+  await cooperativeYield(4);
 
   // NPC 12d: Prajurit Rekrut Latihan Pedang (Sparring Recruit)
   const fRecruitGroup = createCustomNPCMesh('guard');
@@ -1721,6 +1729,7 @@ export async function buildValKragorFort(
     dialogueId: 'guard_valkragor',
     icon: '⚔️',
   });
+  await cooperativeYield(4);
 
   // ==========================================
   // 2.9 MISTY CHASM & SOLID SUSPENSION BRIDGE (JEMBATAN 2: JALUR HILIR SELATAN - X: 15, Z: 110)
@@ -2162,6 +2171,7 @@ export async function buildDesertStructures(
     dialogueId: 'guard_solaria',
     icon: '🛡️',
   });
+  await cooperativeYield(4);
 
   // 4. Sumur Batu Oase di Tepi Jalan (Roadside Oasis Well Plaza: [250, -286])
   const desertWell = createDesertOasisWellMesh();
@@ -2313,6 +2323,7 @@ export async function buildDesertStructures(
     dialogueId: 'oasis_amina',
     icon: '🧕',
   });
+  await cooperativeYield(4);
 
   const zahraGroup = createCustomNPCMesh('bard');
   const zahraPos: [number, number, number] = [278, solariaBaseY, -274];
@@ -2347,6 +2358,7 @@ export async function buildDesertStructures(
     dialogueId: 'guard_solaria',
     icon: '🛡️',
   });
+  await cooperativeYield(4);
 
   // Cacti in Solaria Dunes
   const desertCacti = [
@@ -2530,6 +2542,7 @@ export async function buildTitanLakeAndCanyon(
     dialogueId: 'sorceress_maya',
     icon: '✨',
   });
+  await cooperativeYield(4);
 
   // 3. Archmage Pyro
   const pyroGroup = createArchmagePyroMesh();
@@ -2786,7 +2799,8 @@ export async function buildDragonCaldera(
   ];
 
   const chests: WorldObjects['chests'] = [];
-  chestData.forEach((cd) => {
+  for (let c = 0; c < chestData.length; c++) {
+    const cd = chestData[c];
     const { group, lidGroup } = createTreasureChestMesh();
     const cy = getTerrainHeight(cd.pos[0], cd.pos[2]);
     group.position.set(cd.pos[0], cy, cd.pos[2]);
@@ -2798,7 +2812,10 @@ export async function buildDragonCaldera(
       opened: false,
       position: [cd.pos[0], cy, cd.pos[2]],
     });
-  });
+    if (c % 2 === 1) {
+      await cooperativeYield(4);
+    }
+  }
 
   await cooperativeYield(4);
   return { chests };
@@ -2857,9 +2874,9 @@ async function populateWorldEntities(
   const { chests } = await buildDragonCaldera(scene, getTerrainHeight, colliders, decorativeProps, pointLights);
 
   // ==========================================
-  // 6. SACRED SPRING, CHECKPOINTS & BOSS NPCS (48%)
+  // 6. SACRED SPRING, CHECKPOINTS & BOSS NPCS (47% - 48.5%)
   // ==========================================
-  onProgress?.(48, 'Menempatkan NPC, Pedagang, & World Boss...');
+  onProgress?.(47, 'Menempatkan NPC, Pedagang, & Penjaga Wilayah (47%)...');
   await cooperativeYield(4);
   // 10. MATA AIR SUCI & TAMAN BUNGA ELDORIA (Plains Spring: [-144, -270])
   // Ganti bekas wilayah raksasa lama: kolam air tawar melingkar kecil, tepian batu kali halus berlumut,
@@ -2891,7 +2908,7 @@ async function populateWorldEntities(
   });
   const stoneCount = 28;
   for (let i = 0; i < stoneCount; i++) {
-    if (i > 0 && i % 20 === 0) await cooperativeYield(4);
+    if (i > 0 && i % 6 === 0) await cooperativeYield(4);
     const angle = (i / stoneCount) * Math.PI * 2;
     const r = 5.4 + (i % 3) * 0.25;
     const sx = springCenter.x + Math.cos(angle) * r;
@@ -2970,7 +2987,7 @@ async function populateWorldEntities(
   const flowerStemMat = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.8 });
 
   for (let f = 0; f < 36; f++) {
-    if (f > 0 && f % 20 === 0) await cooperativeYield(4);
+    if (f > 0 && f % 8 === 0) await cooperativeYield(4);
     const fAng = (f / 36) * Math.PI * 2 + (f % 5) * 0.3;
     const fDist = 6.8 + (f % 7) * 1.5;
     const fx = springCenter.x + Math.cos(fAng) * fDist;
@@ -3073,7 +3090,7 @@ async function populateWorldEntities(
   });
 
   for (let m = 0; m < 32; m++) {
-    if (m > 0 && m % 20 === 0) await cooperativeYield(4);
+    if (m > 0 && m % 8 === 0) await cooperativeYield(4);
     const angle = (m / 32) * Math.PI * 2 + ((m * 17) % 7) * 0.15;
     const r = 8.0 + ((m * 19) % 24);
     const mx = 465 + Math.cos(angle) * r;
@@ -3291,10 +3308,10 @@ async function populateWorldEntities(
   scene.add(castleRuinsGroup);
 
   // ==========================================
-  // 11. REGIONAL CHECKPOINT & WAYPOINT TELEPORTATION MONUMENTS (48%)
+  // 11. REGIONAL CHECKPOINT & WAYPOINT TELEPORTATION MONUMENTS (48.5%)
   // ==========================================
-  onProgress?.(48, 'Menempatkan NPC, Pedagang, & World Boss...');
-  await yieldIfBudgetExceeded(8);
+  onProgress?.(48.5, 'Menyiapkan Pos Penjaga & Monumen Checkpoint (48.5%)...');
+  await cooperativeYield(4);
 
   const checkpoints: WorldCheckpoint[] = [];
 
