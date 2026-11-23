@@ -119,8 +119,17 @@ export function renderIllustratedMap(
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  const toC = (nx: number, ny: number): [number, number] => normToCanvas(nx, ny, width, height);
   const wToC = (wx: number, wz: number): [number, number] => worldToCanvas(wx, wz, width, height);
+
+  // Proyeksi koordinat ternormalisasi lawas [1200 x 950] ke koordinat dunia presisi
+  const oldNormToWorld = (nx: number, ny: number): [number, number] => [
+    -600 + nx * 1200,
+    -600 + ny * 950,
+  ];
+  const toC = (nx: number, ny: number): [number, number] => {
+    const [wx, wz] = oldNormToWorld(nx, ny);
+    return wToC(wx, wz);
+  };
 
   // ==========================================================================
   // 1. AZURE OCEAN BACKGROUND
@@ -142,6 +151,9 @@ export function renderIllustratedMap(
     { pos: toC(0.78, 0.90), r: width * 0.050 },
     { pos: toC(0.12, 0.92), r: width * 0.040 },
     { pos: toC(0.92, 0.72), r: width * 0.045 },
+    { pos: wToC(-650, 480), r: width * 0.050 },
+    { pos: wToC(-380, 800), r: width * 0.060 },
+    { pos: wToC(-120, 1020), r: width * 0.045 },
   ];
   rippleZones.forEach(({ pos, r }) => {
     ctx.beginPath();
@@ -150,12 +162,8 @@ export function renderIllustratedMap(
   });
 
   // ==========================================================================
-  // 2. CONTINENTAL LANDMASS SILHOUETTE & NATURAL COASTLINE
-  // Skala Terkalibrasi [1200 x 950]:
-  // West Coast: starts below snow mountains (0.13, 0.36) -> (0.10, 0.55) -> (0.14, 0.72)
-  // South Coast: Harbor Bay (0.38, 0.78) -> Cape Village (0.52, 0.79) -> (0.70, 0.76) -> (0.78, 0.79) -> (0.88, 0.88)
-  // Southeast Bay: (0.88, 0.88) -> (0.86, 0.74) -> (0.91, 0.62) -> exits right border at (1.0, 0.55)
-  // North / NE border: Solid continental mass from (1.0, 0.55) -> (1.0, 0.0) -> (0.0, 0.0)
+  // 2. CONTINENTAL LANDMASS SILHOUETTE & NATURAL COASTLINE (BENUA UTAMA ELDORIA)
+  // Menjaga Benua Utama tetap utuh dan presisi di area Utara-Timur
   // ==========================================================================
   const normCoastline: [number, number][] = [
     [0.13, 0.36],
@@ -178,17 +186,19 @@ export function renderIllustratedMap(
     [1.00, 0.55], // Exits right screen border
   ];
 
-  const normContinentPoly: [number, number][] = [
-    [0.00, 0.00], // Top-Left corner (snow mountains)
-    [0.00, 0.36],
-    ...normCoastline,
-    [1.00, 0.55],
-    [1.00, 0.00], // Top-Right corner (desert / green mountains)
-    [0.00, 0.00],
+  const worldCoastline: [number, number][] = normCoastline.map((p) => oldNormToWorld(p[0], p[1]));
+  worldCoastline[worldCoastline.length - 1] = [WORLD_BOUNDS.maxX, -78];
+
+  const continentPoly: [number, number][] = [
+    [worldCoastline[0][0], WORLD_BOUNDS.minZ], // Batas utara barat laut
+    ...worldCoastline,
+    [WORLD_BOUNDS.maxX, -78],
+    [WORLD_BOUNDS.maxX, WORLD_BOUNDS.minZ],    // Batas pojok timur laut
+    [worldCoastline[0][0], WORLD_BOUNDS.minZ],
   ];
 
-  const coastCanvas = normCoastline.map((p) => toC(p[0], p[1]));
-  const continentCanvas = normContinentPoly.map((p) => toC(p[0], p[1]));
+  const coastCanvas = worldCoastline.map((p) => wToC(p[0], p[1]));
+  const continentCanvas = continentPoly.map((p) => wToC(p[0], p[1]));
 
   // 2A. Warm Sandy Beach Fringe (Along Coastline)
   ctx.save();
@@ -964,27 +974,264 @@ export function renderIllustratedMap(
     ctx.stroke();
   });
 
-  // 12K. Kaldera Sarang Naga [-40, 340]
-  const [volX, volY] = wToC(-40, 340);
+  // ==========================================================================
+  // 12K. NAUTICAL SHIPPING ROUTES (JALUR PELAYARAN KAPAL LAUT SELATAN & BARAT)
+  // Rute garis putus-putus bahari menghubungkan Pelabuhan Sanctuary ke Pulau-Pulau
+  // ==========================================================================
+  ctx.save();
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.75)';
+  ctx.lineWidth = 2.2;
+  ctx.setLineDash([7, 5]);
+
+  // Rute 1: Pelabuhan Sanctuary [0, 180] -> Pulau Mercusuar [-220, 460]
+  const routeHarborToLighthouse: [number, number][] = [
+    wToC(0, 180),
+    wToC(-70, 270),
+    wToC(-150, 360),
+    wToC(-220, 460),
+  ];
+  drawSmoothSpline(ctx, routeHarborToLighthouse);
+  ctx.stroke();
+
+  // Rute 2: Pulau Mercusuar [-220, 460] -> Dermaga Teluk Utara Kaldera Naga [40, 750]
+  const routeLighthouseToDragon: [number, number][] = [
+    wToC(-220, 460),
+    wToC(-120, 560),
+    wToC(-30, 660),
+    wToC(40, 750),
+  ];
+  drawSmoothSpline(ctx, routeLighthouseToDragon);
+  ctx.stroke();
+
+  // Rute 3: Pulau Mercusuar [-220, 460] -> Pulau Reruntuhan Bajak Laut [-520, 620]
+  ctx.strokeStyle = 'rgba(251, 146, 60, 0.65)';
+  const routeToPirates: [number, number][] = [
+    wToC(-220, 460),
+    wToC(-330, 520),
+    wToC(-430, 570),
+    wToC(-520, 620),
+  ];
+  drawSmoothSpline(ctx, routeToPirates);
+  ctx.stroke();
+
+  // Rute 4: Jalur Samudra Barat ke Pulau Karang Terjal [-780, 280]
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.55)';
+  const routeToReef: [number, number][] = [
+    wToC(-460, 100),
+    wToC(-620, 190),
+    wToC(-780, 280),
+  ];
+  drawSmoothSpline(ctx, routeToReef);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // ==========================================================================
+  // 12L. KEPULAUAN PERANTARA DI SELATAN & BARAT (ARCHIPELAGO PHASE 1)
+  // ==========================================================================
+
+  // 1. Pulau Mercusuar & Karang Pelaut [-220, 460]
+  const [lhX, lhY] = wToC(-220, 460);
+  // Pasir pantai
+  ctx.fillStyle = '#fef08a';
+  ctx.beginPath();
+  ctx.ellipse(lhX, lhY, 32, 28, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Daratan hijau berbukit
+  ctx.fillStyle = '#65a30d';
+  ctx.beginPath();
+  ctx.ellipse(lhX - 3, lhY, 26, 22, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Dermaga singgah kayu timur
+  ctx.fillStyle = '#78350f';
+  ctx.fillRect(lhX + 16, lhY - 3, 16, 6);
+  // Menara Mercusuar Batu
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(lhX - 5, lhY - 14, 10, 18);
+  ctx.fillStyle = '#dc2626';
+  ctx.fillRect(lhX - 5, lhY - 8, 10, 4);
+  // Ruang lentera bersinar
+  ctx.fillStyle = '#fef08a';
+  ctx.fillRect(lhX - 4, lhY - 19, 8, 5);
+  ctx.beginPath();
+  ctx.moveTo(lhX - 5, lhY - 19);
+  ctx.lineTo(lhX + 5, lhY - 19);
+  ctx.lineTo(lhX, lhY - 24);
+  ctx.closePath();
+  ctx.fillStyle = '#991b1b';
+  ctx.fill();
+  // Cahaya suar mercusuar
+  ctx.fillStyle = 'rgba(254, 240, 138, 0.35)';
+  ctx.beginPath();
+  ctx.arc(lhX, lhY - 17, 18, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 2. Pulau Reruntuhan Bajak Laut [-520, 620]
+  const [pirX, pirY] = wToC(-520, 620);
+  // Pulau bulan sabit tebing cadas
+  ctx.fillStyle = '#475569';
+  ctx.beginPath();
+  ctx.arc(pirX, pirY, 34, 0.4 * Math.PI, 1.8 * Math.PI);
+  ctx.lineTo(pirX - 8, pirY);
+  ctx.closePath();
+  ctx.fill();
+  // Pantai teluk terlindung
+  ctx.fillStyle = '#fde047';
+  ctx.beginPath();
+  ctx.ellipse(pirX + 10, pirY, 15, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Bangkai kapal karam di teluk
+  ctx.fillStyle = '#3e2723';
+  ctx.save();
+  ctx.translate(pirX + 12, pirY);
+  ctx.rotate(0.35);
+  ctx.fillRect(-8, -4, 16, 8);
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(-2, -4);
+  ctx.lineTo(-2, -12);
+  ctx.moveTo(4, -4);
+  ctx.lineTo(4, -10);
+  ctx.stroke();
+  ctx.restore();
+
+  // 3. Pulau Karang Terjal [-780, 280]
+  const [rfX, rfY] = wToC(-780, 280);
+  ctx.fillStyle = '#334155';
+  [-14, 0, 14].forEach((rx, i) => {
+    ctx.beginPath();
+    ctx.ellipse(rfX + rx, rfY + (i % 2) * 5, 11, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  // Gerbang batu karang alami
+  ctx.strokeStyle = '#64748b';
+  ctx.lineWidth = 3.2;
+  ctx.beginPath();
+  ctx.arc(rfX, rfY - 2, 12, Math.PI, 0);
+  ctx.stroke();
+
+  // ==========================================================================
+  // 12M. GUGUSAN 3 PULAU VULKANIK KALDERA NAGA [40, 840] (JAUH DI SELATAN)
+  // Bentuk Organik Bebas Kotak-Kotak & Bebas Datar (Domain-Warped FBM)
+  // ==========================================================================
+
+  // A. Pulau Satelit Barat Daya [-75, 875]
+  const [swvX, swvY] = wToC(-75, 875);
   ctx.fillStyle = '#1c1917';
   ctx.beginPath();
-  ctx.ellipse(volX, volY, width * 0.08, height * 0.055, 0, 0, Math.PI * 2);
+  ctx.ellipse(swvX, swvY, 26, 22, -0.2, 0, Math.PI * 2);
   ctx.fill();
+  ctx.fillStyle = '#44403c';
+  ctx.beginPath();
+  ctx.ellipse(swvX, swvY, 18, 14, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  // Aliran lava satelit
+  ctx.strokeStyle = '#f97316';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(swvX - 6, swvY - 4);
+  ctx.lineTo(swvX + 6, swvY + 4);
+  ctx.stroke();
 
+  // B. Pulau Satelit Barat Laut [-65, 775]
+  const [nwvX, nwvY] = wToC(-65, 775);
+  ctx.fillStyle = '#1c1917';
+  ctx.beginPath();
+  ctx.ellipse(nwvX, nwvY, 24, 20, 0.3, 0, Math.PI * 2);
+  ctx.fill();
   ctx.fillStyle = '#292524';
   ctx.beginPath();
-  ctx.ellipse(volX, volY, width * 0.06, height * 0.038, 0, 0, Math.PI * 2);
+  ctx.ellipse(nwvX, nwvY, 16, 13, 0.3, 0, Math.PI * 2);
   ctx.fill();
 
-  const lavaGrad = ctx.createRadialGradient(volX, volY, 2, volX, volY, width * 0.04);
+  // C. Jembatan Batu Rantai Vulkanik Penghubung ke Pulau Utama
+  // Jembatan 1: Satelit Barat Daya [-75, 875] -> Pulau Utama [40, 840]
+  const [br1StartX, br1StartY] = wToC(-38, 858);
+  const [br1EndX, br1EndY] = wToC(-8, 848);
+  ctx.strokeStyle = '#292524';
+  ctx.lineWidth = 4.2;
+  ctx.beginPath();
+  ctx.moveTo(br1StartX, br1StartY);
+  ctx.lineTo(br1EndX, br1EndY);
+  ctx.stroke();
+  ctx.strokeStyle = '#f97316';
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+
+  // Jembatan 2: Satelit Barat Laut [-65, 775] -> Pulau Utama [40, 840]
+  const [br2StartX, br2StartY] = wToC(-34, 792);
+  const [br2EndX, br2EndY] = wToC(-4, 808);
+  ctx.strokeStyle = '#292524';
+  ctx.lineWidth = 4.2;
+  ctx.beginPath();
+  ctx.moveTo(br2StartX, br2StartY);
+  ctx.lineTo(br2EndX, br2EndY);
+  ctx.stroke();
+  ctx.strokeStyle = '#f97316';
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+
+  // D. Pulau Utama Kaldera Naga [40, 840] (Pulau Induk Organik)
+  const [volX, volY] = wToC(40, 840);
+  const [dockX, dockY] = wToC(40, 750);
+
+  // Garis pantai bebatuan hitam vulkanik (Organic outer silhouette)
+  ctx.fillStyle = '#09090b';
+  ctx.beginPath();
+  // Poligon kawah organik dengan lekukan teluk utara
+  ctx.ellipse(volX, volY, 48, 42, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Pesisir pantai abu basal
+  ctx.fillStyle = '#1c1917';
+  ctx.beginPath();
+  ctx.ellipse(volX, volY, 42, 36, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Lereng tebing kawah bertingkat
+  ctx.fillStyle = '#27272a';
+  ctx.beginPath();
+  ctx.ellipse(volX, volY, 32, 27, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Cincin lahar mendidih bercahaya di lantai kawah
+  const lavaGrad = ctx.createRadialGradient(volX, volY, 3, volX, volY, 24);
   lavaGrad.addColorStop(0, '#fef08a');
   lavaGrad.addColorStop(0.3, '#f97316');
   lavaGrad.addColorStop(0.7, '#ef4444');
   lavaGrad.addColorStop(1, '#991b1b');
   ctx.fillStyle = lavaGrad;
   ctx.beginPath();
-  ctx.ellipse(volX, volY, width * 0.04, height * 0.024, 0, 0, Math.PI * 2);
+  ctx.ellipse(volX, volY, 24, 19, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  // Altar Rune Naga di Pusat Kawah [40, 840]
+  ctx.fillStyle = '#18181b';
+  ctx.beginPath();
+  ctx.arc(volX, volY, 8.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+
+  // Celah ngarai jalan masuk dari Dermaga Teluk Utara [40, 750] ke Kawah
+  ctx.fillStyle = '#27272a';
+  ctx.beginPath();
+  ctx.moveTo(volX - 7, volY - 18);
+  ctx.lineTo(dockX - 5, dockY + 4);
+  ctx.lineTo(dockX + 5, dockY + 4);
+  ctx.lineTo(volX + 7, volY - 18);
+  ctx.closePath();
+  ctx.fill();
+
+  // Dermaga Kayu Hangus di Teluk Utara [40, 750]
+  ctx.fillStyle = '#18181b';
+  ctx.fillRect(dockX - 4, dockY - 6, 8, 14);
+  ctx.strokeStyle = '#d97706';
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(dockX - 4, dockY - 6, 8, 14);
+
   ctx.restore();
 
   // ==========================================================================

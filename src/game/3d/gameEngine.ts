@@ -2416,12 +2416,12 @@ export class GameEngine {
       });
     });
 
-    // 14. Kaldera Naga Api: Magma Drakes & Ancient Dragon Titan Guardian (Dragonfang Caldera Island [80, 360])
+    // 14. Kaldera Naga Api: Magma Drakes & Ancient Dragon Titan Guardian (Dragonfang Caldera Archipelago [40, 840])
     const dragonPositions: [number, number][] = [
-      [60, 340],
-      [100, 345],
-      [68, 375],
-      [96, 370],
+      [22, 825],  // Pulau Utama (Dekat celah masuk utara)
+      [58, 832],  // Pulau Utama (Lereng timur kawah)
+      [-75, 875], // Pulau Satelit Barat Daya
+      [-65, 775], // Pulau Satelit Barat Laut
     ];
     await spawnGroupAsync(dragonPositions, (pos, idx) => {
       const { group, parts } = createEnemyMesh('magma_slime');
@@ -2507,9 +2507,9 @@ export class GameEngine {
       });
     });
 
-    // Dragonfang Super Boss: Ignis, Sang Naga Purba (Colossal Winged Dragon: [-40, 340] - Pusat Kawah Kaldera)
+    // Dragonfang Super Boss: Ignis, Sang Naga Purba (Colossal Winged Dragon: [40, 840] - Pusat Altar Kaldera Naga)
     onProgress?.(48.5, 'Membangkitkan World Boss: Ignis, Sang Naga Purba (48.5%)...');
-    const wyrmPos: [number, number] = [-40, 340];
+    const wyrmPos: [number, number] = [40, 840];
     const { group: wyrmGroup, parts: wyrmParts } = createEnemyMesh('dragon');
     const wyrmY = this.world.getTerrainHeight(wyrmPos[0], wyrmPos[1]);
     wyrmGroup.position.set(wyrmPos[0], wyrmY, wyrmPos[1]);

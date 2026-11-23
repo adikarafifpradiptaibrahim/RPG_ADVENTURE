@@ -19,14 +19,14 @@ export interface WorldBounds {
 }
 
 export const WORLD_BOUNDS: WorldBounds = {
-  minX: -600,
-  maxX: 600,
-  minZ: -600,
-  maxZ: 350,
+  minX: -1250,
+  maxX: 650,
+  minZ: -650,
+  maxZ: 1150,
 };
 
-export const WORLD_WIDTH = WORLD_BOUNDS.maxX - WORLD_BOUNDS.minX; // 1200
-export const WORLD_HEIGHT = WORLD_BOUNDS.maxZ - WORLD_BOUNDS.minZ; // 950
+export const WORLD_WIDTH = WORLD_BOUNDS.maxX - WORLD_BOUNDS.minX; // 1900
+export const WORLD_HEIGHT = WORLD_BOUNDS.maxZ - WORLD_BOUNDS.minZ; // 1800
 
 export type BiomeType = 'ocean' | 'volcano' | 'snow' | 'desert' | 'grassland' | 'lake';
 
@@ -94,12 +94,29 @@ export const BIOMES: Record<BiomeType, BiomeInfo> = {
  * - grassland: Padang Rumput Eldoria (seluruh daratan utama)
  */
 export function getBiomeAt(x: number, z: number): BiomeType {
-  // A. Pulau Kaldera Sarang Naga di Laut Selatan Jauh [-40, 340]
-  if (Math.hypot(x - (-40), z - 340) < 55) {
+  // A. Gugusan 3 Pulau Vulkanik Kaldera Naga di Laut Selatan Jauh [Pusat: 40, 840]
+  const distDragonMain = Math.hypot(x - 40, z - 840);
+  const distDragonSW = Math.hypot(x - -75, z - 875);
+  const distDragonNW = Math.hypot(x - -65, z - 775);
+  if (distDragonMain < 115 || distDragonSW < 55 || distDragonNW < 50) {
     return 'volcano';
   }
 
-  // B. Samudra & Garis Pantai (Pesisir Selatan di Z = 185)
+  // B. Kepulauan Perantara di Selatan & Barat (Archipelago)
+  // 1. Pulau Mercusuar & Karang Pelaut [-220, 460]
+  if (Math.hypot(x - -220, z - 460) < 58) {
+    return 'grassland';
+  }
+  // 2. Pulau Reruntuhan Bajak Laut [-520, 620]
+  if (Math.hypot(x - -520, z - 620) < 70) {
+    return 'grassland';
+  }
+  // 3. Pulau Karang Terjal [-780, 280]
+  if (Math.hypot(x - -780, z - 280) < 65) {
+    return 'grassland';
+  }
+
+  // C. Samudra & Garis Pantai Benua Utama
   const isWestOcean = x < -440 + Math.sin(z * 0.015) * 35 && z > -340;
   const isSouthOcean = z > 185 + Math.cos(x * 0.012) * 20;
   const isSoutheastBay = x > 440 && z > 130;
@@ -195,7 +212,7 @@ export const RIVER_SPLINES: RiverSplineDef[] = [
   { id: 'river_south', name: 'Sungai Muara Selatan', points: RIVER_SOUTH_BRANCH },
 ];
 
-function distToSegment(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
+export function distToSegment(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
   const dx = bx - ax;
   const dz = bz - az;
   const lenSq = dx * dx + dz * dz;
@@ -765,18 +782,63 @@ export const WORLD_LANDMARKS: LandmarkDef[] = [
   },
   {
     id: 'caldera',
-    name: 'Dragonfang Caldera',
-    nameId: 'Kaldera Sarang Naga',
-    x: -40,
-    z: 340,
+    name: 'Dragonfang Caldera Archipelago',
+    nameId: 'Kepulauan Kaldera Naga (Lv. 12)',
+    x: 40,
+    z: 840,
     level: 12,
     type: 'boss',
     icon: '🐉',
     color: '#dc2626',
-    description: 'A scorching volcanic island across the south sea, rimmed with jagged basalt horns and boiling lava pools, nest of Ancient Dragon Ignis.',
-    descriptionId: 'Pulau vulkanik magma lahar merah di laut selatan jauh, sarang bertarung World Boss Ignis Sang Naga Purba.',
+    description: 'A colossal volcanic archipelago across the south sea, rimmed with basalt cliffs, lava rivers, and charred docks, lair of World Boss Ancient Dragon Ignis.',
+    descriptionId: 'Gugusan 3 pulau vulkanik magma lahar merah di laut selatan jauh, sarang bertarung World Boss Ignis Sang Naga Purba.',
     isBoss: true,
-    waypointId: 'wp_caldera',
+    waypointId: 'wp_dragoncaldera',
+    labelPosition: 'below',
+  },
+  {
+    id: 'lighthouse_island',
+    name: 'Sailor Reef & Lighthouse Island',
+    nameId: 'Pulau Mercusuar & Karang Pelaut',
+    x: -220,
+    z: 460,
+    level: 6,
+    type: 'tower',
+    icon: '🗼',
+    color: '#38bdf8',
+    description: 'A verdant hilly island with a beacon lighthouse guiding ships through the southern sea passages.',
+    descriptionId: 'Pulau berbukit hijau dengan mercusuar pemandu pelayaran kapal dari Pelabuhan Sanctuary ke selatan.',
+    waypointId: 'wp_lighthouse_island',
+    labelPosition: 'below',
+  },
+  {
+    id: 'pirate_island',
+    name: 'Pirate Ruins Island',
+    nameId: 'Pulau Reruntuhan Bajak Laut',
+    x: -520,
+    z: 620,
+    level: 8,
+    type: 'ruins',
+    icon: '🏴‍☠️',
+    color: '#f97316',
+    description: 'A crescent-shaped island in the southwest ocean, featuring steep cliffs, shipwrecks, and a pirate encampment.',
+    descriptionId: 'Pulau bulan sabit dengan tebing curam, bangkai kapal karam di teluk, dan perkemahan bajak laut.',
+    waypointId: 'wp_pirate_island',
+    labelPosition: 'below',
+  },
+  {
+    id: 'rocky_reef_island',
+    name: 'Craggy Reef Stacks',
+    nameId: 'Pulau Karang Terjal',
+    x: -780,
+    z: 280,
+    level: 7,
+    type: 'ruins',
+    icon: '🪨',
+    color: '#94a3b8',
+    description: 'Jagged rocky sea stacks and natural stone arches rising from the west ocean.',
+    descriptionId: 'Gugusan pulau karang terjal dan gerbang batu alami di Samudra Barat.',
+    waypointId: 'wp_rocky_reef',
     labelPosition: 'below',
   },
 ];
@@ -832,29 +894,140 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return -2.5 * Math.cos(edge * (Math.PI / 2));
   }
 
-  // B. Kaldera Vulkanik Sarang Naga [-40, 340] (Pulau terisolasi di laut)
+  // B. Gugusan 3 Pulau Vulkanik Kaldera Naga di Laut Selatan Jauh [Pusat: 40, 840]
   if (biome === 'volcano') {
-    const distCenter = Math.hypot(x - -40, z - 340);
-    if (distCenter <= 25) return 2.50; // Lantai kawah lahar rata
-    if (distCenter <= 45) {
-      const t = (distCenter - 25) / 20;
-      return 2.50 + Math.sin(t * Math.PI) * 5.0; // Dinding basalt kawah
+    // 1. Jembatan Rantai Vulkanik Penghubung Antar-Pulau
+    // Jembatan 1: SW Island [-75, 875] -> Main Island [40, 840] (Segmen: [-38, 858] ke [-8, 848])
+    const dBridge1 = distToSegment(x, z, -38, 858, -8, 848);
+    if (dBridge1 <= 3.8) {
+      return 2.40;
     }
-    const tEdge = (distCenter - 45) / 20;
-    return Math.max(0.2, 3.8 * (1.0 - tEdge));
+    // Jembatan 2: NW Island [-65, 775] -> Main Island [40, 840] (Segmen: [-34, 792] ke [-4, 808])
+    const dBridge2 = distToSegment(x, z, -34, 792, -4, 808);
+    if (dBridge2 <= 3.8) {
+      return 2.40;
+    }
+
+    // 2. Pulau Satelit Barat Daya [-75, 875] (Plateau Vulkanik & Tanduk Basalt)
+    const distSW = Math.hypot(x - -75, z - 875) + Math.sin(x * 0.06 - z * 0.05) * 3.2;
+    if (distSW <= 48) {
+      if (distSW <= 18) return 6.50; // Dataran tinggi vulkanik
+      if (distSW <= 36) {
+        const t = smoothstepBlend(18, 36, distSW);
+        return lerpVal(6.50, 0.35, t);
+      }
+      const t = smoothstepBlend(36, 48, distSW);
+      return lerpVal(0.35, -4.50, t);
+    }
+
+    // 3. Pulau Satelit Barat Laut [-65, 775] (Pilar Obsidian & Danau Magma)
+    const distNW = Math.hypot(x - -65, z - 775) + Math.cos(x * 0.05 + z * 0.06) * 3.0;
+    if (distNW <= 44) {
+      if (distNW <= 16) return 5.50; // Dataran obsidian
+      if (distNW <= 32) {
+        const t = smoothstepBlend(16, 32, distNW);
+        return lerpVal(5.50, 0.35, t);
+      }
+      const t = smoothstepBlend(32, 44, distNW);
+      return lerpVal(0.35, -4.50, t);
+    }
+
+    // 4. Pulau Utama Kaldera Naga [40, 840] (Radius ~95 unit, FBM Organik)
+    const fbmMain = Math.sin(x * 0.045 + z * 0.035) * 6.5 + Math.cos(x * 0.09 - z * 0.07) * 3.5;
+    const distMain = Math.hypot(x - 40, z - 840) + fbmMain;
+
+    // Celah Ngarai Pintu Masuk Utara dari arah Dermaga Teluk [40, 750]
+    const inNorthGorge = x >= 26 && x <= 54 && z >= 745 && z <= 838;
+    if (inNorthGorge) {
+      const gorgeT = smoothstepBlend(745, 825, z);
+      return lerpVal(0.50, 2.50, gorgeT);
+    }
+
+    // Lantai Kawah Utama di Dalam (Datar Y = 2.50, Sarang World Boss Ignis)
+    if (distMain <= 36) {
+      return 2.50;
+    }
+
+    // Dinding Tebing Basalt Bertingkat Mengelilingi Kawah (+8 s.d. +22 unit)
+    if (distMain <= 80) {
+      const ridgeT = (distMain - 36) / 44;
+      const ridgeH = 2.50 + Math.sin(ridgeT * Math.PI) * 14.5 + Math.sin((x + z) * 0.06) * 2.5;
+      return Math.max(2.50, ridgeH);
+    }
+
+    // Lereng Melandai Menuju Garis Pantai Pasir Batu Hitam
+    if (distMain <= 98) {
+      const t = smoothstepBlend(80, 98, distMain);
+      return lerpVal(4.20, 0.35, t);
+    }
+
+    // Transisi Halus dari Pantai ke Dasar Samudra Dalam
+    if (distMain <= 118) {
+      const t = smoothstepBlend(98, 118, distMain);
+      return lerpVal(0.35, -4.50, t);
+    }
+
+    return -4.50;
   }
 
-  // C. Samudra & Laut Lepas
+  // B2. Kepulauan Perantara di Selatan & Barat (Archipelago Phase 1)
+  // 1. Pulau Mercusuar & Karang Pelaut [-220, 460]
+  const distLH = Math.hypot(x - -220, z - 460) + Math.sin(x * 0.05 + z * 0.04) * 3.0;
+  if (distLH <= 56) {
+    if (distLH <= 18) return 6.20; // Puncak bukit mercusuar
+    if (x > -205) {
+      // Lereng landai timur menuju dermaga singgah
+      const t = smoothstepBlend(18, 42, distLH);
+      return lerpVal(6.20, 0.50, t);
+    }
+    if (distLH <= 44) {
+      const t = smoothstepBlend(18, 44, distLH);
+      return lerpVal(6.20, 0.35, t);
+    }
+    const tDown = smoothstepBlend(44, 56, distLH);
+    return lerpVal(0.35, -4.50, tDown);
+  }
+
+  // 2. Pulau Reruntuhan Bajak Laut [-520, 620]
+  const distPirate = Math.hypot(x - -520, z - 620) + Math.cos(x * 0.04 - z * 0.05) * 4.0;
+  if (distPirate <= 68) {
+    // Teluk tenang bulan sabit di sisi timur [-495, 620] tempat bangkai kapal karam
+    const distCove = Math.hypot(x - -495, z - 620);
+    if (distCove <= 22) return 0.50; // Pasir teluk dangkal & perkemahan
+    if (distPirate <= 26) return 11.5; // Tebing cadas tinggi pelindung
+    if (distPirate <= 54) {
+      const t = smoothstepBlend(26, 54, distPirate);
+      return lerpVal(11.5, 0.35, t);
+    }
+    const tDown = smoothstepBlend(54, 68, distPirate);
+    return lerpVal(0.35, -4.50, tDown);
+  }
+
+  // 3. Pulau Karang Terjal [-780, 280]
+  const distReef = Math.hypot(x - -780, z - 280) + Math.sin(x * 0.06) * 3.5;
+  if (distReef <= 62) {
+    const stackNoise = Math.sin(x * 0.12) * Math.cos(z * 0.12) * 4.5;
+    const stackH = Math.max(0.40, 7.5 + stackNoise);
+    if (distReef <= 28) return stackH;
+    if (distReef <= 50) {
+      const t = smoothstepBlend(28, 50, distReef);
+      return lerpVal(stackH, 0.35, t);
+    }
+    const tDown = smoothstepBlend(50, 62, distReef);
+    return lerpVal(0.35, -4.50, tDown);
+  }
+
+  // C. Samudra & Laut Lepas (Kedalaman Kontinu Halus, Bebas Lonjakan Vertikal)
   if (biome === 'ocean') {
     const distSouthCoast = z - (185 + Math.cos(x * 0.012) * 20);
     const distWestCoast = (-440 + Math.sin(z * 0.015) * 35) - x;
     const isBay = x > 440 && z > 130;
     const coastDist = Math.max(distSouthCoast, distWestCoast, isBay ? 10 : -10);
 
-    if (coastDist <= 15) {
-      return 0.2 - (coastDist / 15) * 3.0; // Transisi pantai pasir basah
+    if (coastDist <= 16) {
+      return 0.35 - (coastDist / 16) * 4.85; // Transisi pantai pasir basah ke laut
     }
-    return -4.0; // Kedalaman laut lepas
+    return -4.50; // Kedalaman samudra lepas
   }
 
   // D. Danau Air Tawar Titan Kuno [-310, -480]

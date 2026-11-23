@@ -124,15 +124,15 @@ export const REGIONS: RegionInfo[] = [
   },
   {
     id: 'kaldera_naga_api',
-    name: 'Dragonfang Caldera & Volcano Island',
-    nameId: 'Kaldera Sarang Naga & Pulau Vulkanik',
+    name: 'Dragonfang Caldera Archipelago',
+    nameId: 'Kepulauan Kaldera Naga (Lv. 12)',
     icon: '🐉',
-    description: 'A blistering volcanic hellscape across the southern ocean featuring smoking magma pools, scorched basalt arches, and the primal dragon nest.',
-    descriptionId: 'Wilayah pulau vulkanik berbahaya di seberang laut selatan! Aliran lahar pijar mendidih, kawah melingkar obsidian, dan arena pertarungan Boss Naga Purba Ignis.',
+    description: 'A colossal volcanic archipelago across the south sea featuring 3 organic volcanic islands, smoking magma pools, charred docks, basalt spires, and the primal dragon altar.',
+    descriptionId: 'Gugusan 3 pulau vulkanik berbahaya di seberang samudra selatan! Aliran lahar pijar mendidih, jembatan batu rantai, pilar basal heksagonal, dan Altar Rune World Boss Naga Purba Ignis.',
     color: '#dc2626',
-    bounds: { minX: -100, maxX: 20, minZ: 280, maxZ: 400 },
-    center: [-40, 340],
-    recommendedLevel: 10,
+    bounds: { minX: -120, maxX: 160, minZ: 720, maxZ: 960 },
+    center: [40, 840],
+    recommendedLevel: 12,
   },
   {
     id: 'kawah_cacing_purba',
@@ -286,17 +286,44 @@ export const WAYPOINTS: {
   },
   {
     id: 'wp_dragoncaldera',
-    nameId: 'Kaldera Sarang Naga',
+    nameId: 'Kepulauan Kaldera Naga (Lv. 12)',
     regionId: 'kaldera_naga_api',
     icon: '🐉',
-    pos: [-40, 340],
-    desc: 'Pulau kawah lava vulkanik di seberang laut selatan dan sarang Boss Naga',
+    pos: [40, 840],
+    desc: 'Gugusan 3 pulau kawah lava vulkanik di laut selatan jauh, sarang World Boss Ignis',
+  },
+  {
+    id: 'wp_lighthouse_island',
+    nameId: 'Pulau Mercusuar & Karang Pelaut',
+    regionId: 'pantai_azure',
+    icon: '🗼',
+    pos: [-220, 460],
+    desc: 'Pulau berbukit hijau dengan mercusuar pemandu kapal di Samudra Selatan',
+  },
+  {
+    id: 'wp_pirate_island',
+    nameId: 'Pulau Reruntuhan Bajak Laut',
+    regionId: 'pantai_azure',
+    icon: '🏴‍☠️',
+    pos: [-520, 620],
+    desc: 'Pulau bulan sabit dengan bangkai kapal karam dan sarang bajak laut',
+  },
+  {
+    id: 'wp_rocky_reef',
+    nameId: 'Pulau Karang Terjal',
+    regionId: 'pantai_azure',
+    icon: '🪨',
+    pos: [-780, 280],
+    desc: 'Gugusan batu karang terjal dan gerbang alami di Samudra Barat',
   },
 ];
 
 export function getCurrentRegion(x: number, z: number): RegionInfo {
-  // 1. Dragonfang Caldera & Volcano Island
-  if (Math.hypot(x - -40, z - 340) <= 65) {
+  // 1. Dragonfang Caldera Archipelago (3 Organic Volcanic Islands [40, 840])
+  const distDragonMain = Math.hypot(x - 40, z - 840);
+  const distDragonSW = Math.hypot(x - -75, z - 875);
+  const distDragonNW = Math.hypot(x - -65, z - 775);
+  if (distDragonMain <= 115 || distDragonSW <= 55 || distDragonNW <= 50) {
     return REGIONS.find((r) => r.id === 'kaldera_naga_api') || REGIONS[10];
   }
 

@@ -18,15 +18,15 @@ import {
 import { getSampledRoads } from '../RoadSystem';
 import { checkFrameBudget, yieldIfBudgetExceeded } from './frameBudget';
 
-export const SPATIAL_CELL_SIZE = 2.0;
-export const SPATIAL_MIN_X = WORLD_BOUNDS.minX; // -600
-export const SPATIAL_MAX_X = WORLD_BOUNDS.maxX; // 600
-export const SPATIAL_MIN_Z = WORLD_BOUNDS.minZ; // -600
-export const SPATIAL_MAX_Z = WORLD_BOUNDS.maxZ; // 350
+export const SPATIAL_CELL_SIZE = 3.0;
+export const SPATIAL_MIN_X = WORLD_BOUNDS.minX; // -1250
+export const SPATIAL_MAX_X = WORLD_BOUNDS.maxX; // 650
+export const SPATIAL_MIN_Z = WORLD_BOUNDS.minZ; // -650
+export const SPATIAL_MAX_Z = WORLD_BOUNDS.maxZ; // 1150
 
-export const SPATIAL_COLS = Math.round((SPATIAL_MAX_X - SPATIAL_MIN_X) / SPATIAL_CELL_SIZE); // 600
-export const SPATIAL_ROWS = Math.round((SPATIAL_MAX_Z - SPATIAL_MIN_Z) / SPATIAL_CELL_SIZE); // 475
-export const SPATIAL_TOTAL_CELLS = SPATIAL_COLS * SPATIAL_ROWS; // 285,000
+export const SPATIAL_COLS = Math.round((SPATIAL_MAX_X - SPATIAL_MIN_X) / SPATIAL_CELL_SIZE); // 633
+export const SPATIAL_ROWS = Math.round((SPATIAL_MAX_Z - SPATIAL_MIN_Z) / SPATIAL_CELL_SIZE); // 600
+export const SPATIAL_TOTAL_CELLS = SPATIAL_COLS * SPATIAL_ROWS; // 379,800
 
 // Bitmask Flags for Uint8Array
 export const FLAG_BLOCKED_RIVER = 1 << 0;       // 1: < 18.0 units from river centerline
@@ -249,6 +249,17 @@ export class SpatialLookupGrid {
     this.markCircle(-250, -240, 46.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL); // Astraea
     this.markCircle(310, 115, 38.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);  // Val-Kragor
     this.markCircle(225, -35, 28.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);   // Castle Ruins
+
+    // Kepulauan Kaldera Naga [40, 840] & Satelit
+    this.markCircle(40, 840, 48.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);   // Altar & Kawah Utama Kaldera
+    this.markCircle(-75, 875, 30.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);  // Satelit Barat Daya
+    this.markCircle(-65, 775, 26.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);  // Satelit Barat Laut
+    this.markCircle(40, 750, 20.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);   // Dermaga Kayu Hangus Teluk Utara
+
+    // Kepulauan Perantara Selatan & Barat (Archipelago Phase 1)
+    this.markCircle(-220, 460, 28.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL); // Pulau Mercusuar & Karang Pelaut
+    this.markCircle(-520, 620, 34.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL); // Pulau Reruntuhan Bajak Laut
+    this.markCircle(-780, 280, 30.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL); // Pulau Karang Terjal
 
     // 6. Mark Farmyards
     this.markBox(-62, -38, 153, 168, FLAG_BLOCKED_FARMYARD | FLAG_BLOCKED_GENERAL);
