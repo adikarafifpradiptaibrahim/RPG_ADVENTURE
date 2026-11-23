@@ -3204,14 +3204,21 @@ export function buildWorldEnvironment(
 }
 
 // ============================================================================
-// SINGLE SOURCE OF TRUTH RE-EXPORT (worldData.ts)
+// SINGLE SOURCE OF TRUTH RE-EXPORT (worldData.ts & worldLayoutConfig.ts)
 // ============================================================================
 export {
   WORLD_BOUNDS,
   WORLD_LANDMARKS,
+  WORLD_LAYOUT_CONFIG,
   worldToMapPercent,
   mapPercentToWorld,
 } from './worldData';
+
+export {
+  getLandmarkLayout,
+  getBridgeLayout,
+} from './worldLayoutConfig';
+export type { WorldLandmarkLayout, WorldBridgeLayout, WorldLayoutConfig } from './worldLayoutConfig';
 
 export {
   buildMainVillage,

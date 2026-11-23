@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Zap, Gauge, ChevronUp, ChevronDown, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { Camera, Zap, Gauge, ChevronUp, ChevronDown, CheckCircle2, Eye, EyeOff, Sliders } from 'lucide-react';
 import {
   SPECTATOR_CONFIG,
   calculateSpectatorSpeed,
 } from '../CameraControls';
+import { WorldEditorPanel } from './WorldEditorPanel';
 
 export interface SpectatorHUDProps {
   isSpectatorMode?: boolean;
   spectatorSpeed?: number;
   isUIVisible?: boolean;
+  gameEngine?: any;
   onToggleUIVisibility?: () => void;
   onToggleSpectator?: () => void;
   onLandSpectator?: () => void;
@@ -32,12 +34,14 @@ export const SpectatorHUD: React.FC<SpectatorHUDProps> = ({
   isSpectatorMode = false,
   spectatorSpeed = SPECTATOR_CONFIG.DEFAULT_SPEED,
   isUIVisible = true,
+  gameEngine,
   onToggleUIVisibility,
   onToggleSpectator,
   onLandSpectator,
   onAdjustSpeed,
 }) => {
   const [isActivityActive, setIsActivityActive] = useState(true);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
   const fadeTimeoutRef = useRef<number | null>(null);
 
   // Monitor mouse movement & touch events to show the sleek restore button when UI is hidden
@@ -143,6 +147,30 @@ export const SpectatorHUD: React.FC<SpectatorHUDProps> = ({
 
         {/* Action Buttons: Hide UI / Land / Exit */}
         <div className="flex items-center gap-1.5">
+          {import.meta.env.DEV && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsEditorOpen((prev) => {
+                  const next = !prev;
+                  if (gameEngine?.toggleWorldEditor) {
+                    gameEngine.toggleWorldEditor(next);
+                  }
+                  return next;
+                });
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold border shadow transition cursor-pointer active:scale-95 ${
+                isEditorOpen
+                  ? 'bg-cyan-500 text-white border-cyan-300 shadow-cyan-900/50'
+                  : 'bg-slate-800/90 hover:bg-slate-700 text-cyan-300 border-cyan-500/40'
+              }`}
+              title="Buka / Tutup Mode Editor Peta Dunia (Dev Mode Only)"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>🛠️ Mode Editor Peta</span>
+            </button>
+          )}
+
           {onToggleUIVisibility && (
             <button
               type="button"
@@ -203,6 +231,19 @@ export const SpectatorHUD: React.FC<SpectatorHUDProps> = ({
           <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[9px] font-mono">H</kbd> Sembunyikan UI
         </span>
       </div>
+
+      {/* World Editor Inspector Panel (Dev Mode Only) */}
+      {import.meta.env.DEV && isEditorOpen && isUIVisible && (
+        <WorldEditorPanel
+          gameEngine={gameEngine}
+          onClose={() => {
+            setIsEditorOpen(false);
+            if (gameEngine?.toggleWorldEditor) {
+              gameEngine.toggleWorldEditor(false);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

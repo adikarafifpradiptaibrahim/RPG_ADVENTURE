@@ -1288,6 +1288,7 @@ export default function App() {
                 setSpectatorSpeed(engineRef.current.getSpectatorSpeed());
               }
             }}
+            gameEngine={engineRef.current}
           />
 
           {/* Multiplayer In-Game Chat Box */}

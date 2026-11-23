@@ -66,6 +66,13 @@ import {
   calculateSpectatorSpeed,
   clampSpectatorSpeed,
 } from '../CameraControls';
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
+import {
+  WORLD_LAYOUT_CONFIG,
+  WorldLandmarkLayout,
+  WorldBridgeLayout,
+  WorldLayoutConfig,
+} from './worldLayoutConfig';
 import {
   MAGE_TOWER_CONFIG,
   isInsideMageTowerInterior,
@@ -584,6 +591,19 @@ export class GameEngine {
   private spectatorSpeed = 22.0; // units/sec, adjustable 4.0 to 90.0 via scroll wheel
   private savedPlayerPos = new THREE.Vector3();
 
+  // Visual World Editor (Dev Mode Only)
+  public isWorldEditorActive = false;
+  public isDraggingGizmo = false;
+  private transformControls: TransformControls | null = null;
+  private transformHelper: THREE.Object3D | null = null;
+  private editorAnchors: Map<string, THREE.Group> = new Map();
+  public activeEditorTargetId: string | null = null;
+  public editorGizmoMode: 'translate' | 'rotate' | 'scale' = 'translate';
+  public onWorldEditorTransformChange?: (
+    targetId: string,
+    transform: { x: number; y: number; z: number; rotationY: number; scale: number }
+  ) => void;
+
   // Camera Orbit
   private cameraDistance = 7.5;
   private cameraAngleH = 0;
@@ -1096,6 +1116,11 @@ export class GameEngine {
     this.initSparksPool();
     this.initCombatVfxPools();
     this.initHunterArrowPool();
+
+    // Initialize World Editor in Dev Mode
+    if (import.meta.env.DEV) {
+      this.initWorldEditor();
+    }
 
     // 4. Create Player Mesh (initially hidden in main menu)
     this.playerMesh = createPlayerMesh(charClass);
@@ -3064,6 +3089,10 @@ export class GameEngine {
       this.callbacks.onSpectatorModeChange(this.isSpectatorMode);
     }
 
+    if (!this.isSpectatorMode && this.isWorldEditorActive) {
+      this.toggleWorldEditor(false);
+    }
+
     return this.isSpectatorMode;
   }
 
@@ -3524,6 +3553,7 @@ export class GameEngine {
     this.prevMouseY = e.clientY;
 
     if (this.isSpectatorMode) {
+      if (this.isDraggingGizmo) return;
       this.spectatorYaw = normalizeCameraYaw(
         this.spectatorYaw - deltaX * CAMERA_CONFIG.MOUSE_LOOK_SENSITIVITY_H
       );
@@ -3598,6 +3628,271 @@ export class GameEngine {
 
   public setHudHidden(hidden: boolean) {
     this.isHudHidden = hidden;
+  }
+
+  /**
+   * ============================================================================
+   * IN-GAME VISUAL WORLD EDITOR (DEV MODE ONLY)
+   * Integrasi TransformControls Three.js & Live Save ke worldLayoutConfig.ts
+   * ============================================================================
+   */
+  public initWorldEditor() {
+    if (!import.meta.env.DEV) return;
+    if (this.transformControls) return;
+
+    try {
+      const tc = new TransformControls(this.camera, this.renderer.domElement);
+      (tc as any).size = 1.0;
+      const helper = tc.getHelper();
+      helper.visible = false;
+      this.scene.add(helper);
+      this.transformControls = tc;
+      this.transformHelper = helper;
+
+      tc.addEventListener('dragging-changed', (event: any) => {
+        this.isDraggingGizmo = !!event.value;
+      });
+
+      tc.addEventListener('change', () => {
+        if (!this.activeEditorTargetId) return;
+        const targetObj = this.editorAnchors.get(this.activeEditorTargetId);
+        if (!targetObj) return;
+
+        const x = Number(targetObj.position.x.toFixed(2));
+        const y = Number(targetObj.position.y.toFixed(2));
+        const z = Number(targetObj.position.z.toFixed(2));
+        const rotationY = Number(targetObj.rotation.y.toFixed(4));
+        const scale = Number(targetObj.scale.x.toFixed(2));
+
+        if (WORLD_LAYOUT_CONFIG.landmarks[this.activeEditorTargetId]) {
+          const lm = WORLD_LAYOUT_CONFIG.landmarks[this.activeEditorTargetId];
+          lm.x = x;
+          lm.y = y;
+          lm.z = z;
+          lm.rotationY = rotationY;
+          lm.scale = scale;
+        } else if (WORLD_LAYOUT_CONFIG.bridges[this.activeEditorTargetId]) {
+          const br = WORLD_LAYOUT_CONFIG.bridges[this.activeEditorTargetId];
+          br.x = x;
+          br.y = y;
+          br.z = z;
+          br.rotationY = rotationY;
+          br.scale = scale;
+        }
+
+        if (this.onWorldEditorTransformChange) {
+          this.onWorldEditorTransformChange(this.activeEditorTargetId, {
+            x,
+            y,
+            z,
+            rotationY,
+            scale,
+          });
+        }
+      });
+
+      this.refreshWorldEditorAnchors();
+    } catch (err) {
+      console.warn('[WorldEditor] Gagal inisialisasi TransformControls:', err);
+    }
+  }
+
+  public refreshWorldEditorAnchors() {
+    if (!import.meta.env.DEV) return;
+
+    // 1. Anchors untuk seluruh Landmark
+    for (const [id, lm] of Object.entries(WORLD_LAYOUT_CONFIG.landmarks)) {
+      let anchor = this.editorAnchors.get(id);
+      if (!anchor) {
+        anchor = new THREE.Group();
+        anchor.name = `editor_anchor_${id}`;
+
+        const markerGeo = new THREE.OctahedronGeometry(1.6, 0);
+        const markerMat = new THREE.MeshStandardMaterial({
+          color: 0x06b6d4,
+          emissive: 0x0891b2,
+          emissiveIntensity: 0.8,
+          roughness: 0.1,
+          metalness: 0.2,
+          transparent: true,
+          opacity: 0.85,
+        });
+        const marker = new THREE.Mesh(markerGeo, markerMat);
+        marker.position.y = 4.0;
+        marker.name = 'editor_marker';
+        anchor.add(marker);
+
+        this.scene.add(anchor);
+        this.editorAnchors.set(id, anchor);
+      }
+      anchor.position.set(lm.x, lm.y, lm.z);
+      anchor.rotation.y = lm.rotationY;
+      anchor.scale.setScalar(lm.scale || 1.0);
+      anchor.visible = this.isWorldEditorActive;
+    }
+
+    // 2. Anchors untuk seluruh Jembatan
+    for (const [id, br] of Object.entries(WORLD_LAYOUT_CONFIG.bridges)) {
+      let anchor = this.editorAnchors.get(id);
+      if (!anchor) {
+        anchor = new THREE.Group();
+        anchor.name = `editor_anchor_${id}`;
+
+        const markerGeo = new THREE.OctahedronGeometry(1.2, 0);
+        const markerMat = new THREE.MeshStandardMaterial({
+          color: 0xf59e0b,
+          emissive: 0xd97706,
+          emissiveIntensity: 0.8,
+          roughness: 0.1,
+          metalness: 0.2,
+          transparent: true,
+          opacity: 0.85,
+        });
+        const marker = new THREE.Mesh(markerGeo, markerMat);
+        marker.position.y = 3.0;
+        marker.name = 'editor_marker';
+        anchor.add(marker);
+
+        this.scene.add(anchor);
+        this.editorAnchors.set(id, anchor);
+      }
+      anchor.position.set(br.x, br.y, br.z);
+      anchor.rotation.y = br.rotationY;
+      anchor.scale.setScalar(br.scale || 1.0);
+      anchor.visible = this.isWorldEditorActive;
+    }
+  }
+
+  public toggleWorldEditor(active?: boolean): boolean {
+    if (!import.meta.env.DEV) return false;
+    const next = active !== undefined ? active : !this.isWorldEditorActive;
+    this.isWorldEditorActive = next;
+
+    for (const anchor of this.editorAnchors.values()) {
+      anchor.visible = next;
+    }
+
+    if (next) {
+      if (!this.activeEditorTargetId) {
+        this.selectEditorTarget('village');
+      } else {
+        this.selectEditorTarget(this.activeEditorTargetId);
+      }
+    } else {
+      if (this.transformControls) {
+        this.transformControls.detach();
+      }
+      if (this.transformHelper) {
+        this.transformHelper.visible = false;
+      }
+    }
+
+    return this.isWorldEditorActive;
+  }
+
+  public selectEditorTarget(id: string): void {
+    if (!import.meta.env.DEV) return;
+    this.activeEditorTargetId = id;
+    const anchor = this.editorAnchors.get(id);
+    if (anchor && this.transformControls && this.transformHelper) {
+      this.transformControls.attach(anchor);
+      this.transformControls.setMode(this.editorGizmoMode);
+      this.transformHelper.visible = this.isWorldEditorActive;
+    }
+  }
+
+  public setEditorGizmoMode(mode: 'translate' | 'rotate' | 'scale'): void {
+    this.editorGizmoMode = mode;
+    if (this.transformControls) {
+      this.transformControls.setMode(mode);
+    }
+  }
+
+  public getEditorGizmoMode(): 'translate' | 'rotate' | 'scale' {
+    return this.editorGizmoMode;
+  }
+
+  public getEditorTargetTransform(id: string) {
+    const anchor = this.editorAnchors.get(id);
+    if (!anchor) return null;
+    return {
+      x: Number(anchor.position.x.toFixed(2)),
+      y: Number(anchor.position.y.toFixed(2)),
+      z: Number(anchor.position.z.toFixed(2)),
+      rotationY: Number(anchor.rotation.y.toFixed(4)),
+      scale: Number(anchor.scale.x.toFixed(2)),
+    };
+  }
+
+  public updateEditorTargetTransform(
+    id: string,
+    update: {
+      x?: number;
+      y?: number;
+      z?: number;
+      rotationY?: number;
+      scale?: number;
+      flattenRadius?: number;
+    }
+  ): void {
+    const anchor = this.editorAnchors.get(id);
+    if (anchor) {
+      if (update.x !== undefined) anchor.position.x = update.x;
+      if (update.y !== undefined) anchor.position.y = update.y;
+      if (update.z !== undefined) anchor.position.z = update.z;
+      if (update.rotationY !== undefined) anchor.rotation.y = update.rotationY;
+      if (update.scale !== undefined) anchor.scale.setScalar(update.scale);
+    }
+    if (WORLD_LAYOUT_CONFIG.landmarks[id]) {
+      const lm = WORLD_LAYOUT_CONFIG.landmarks[id];
+      if (update.x !== undefined) lm.x = update.x;
+      if (update.y !== undefined) lm.y = update.y;
+      if (update.z !== undefined) lm.z = update.z;
+      if (update.rotationY !== undefined) lm.rotationY = update.rotationY;
+      if (update.scale !== undefined) lm.scale = update.scale;
+      if (update.flattenRadius !== undefined) lm.flattenRadius = update.flattenRadius;
+    } else if (WORLD_LAYOUT_CONFIG.bridges[id]) {
+      const br = WORLD_LAYOUT_CONFIG.bridges[id];
+      if (update.x !== undefined) br.x = update.x;
+      if (update.y !== undefined) br.y = update.y;
+      if (update.z !== undefined) br.z = update.z;
+      if (update.rotationY !== undefined) br.rotationY = update.rotationY;
+      if (update.scale !== undefined) br.scale = update.scale;
+    }
+  }
+
+  public focusCameraOnTarget(id: string): void {
+    const anchor = this.editorAnchors.get(id);
+    if (!anchor) return;
+    const targetX = anchor.position.x;
+    const targetY = anchor.position.y;
+    const targetZ = anchor.position.z;
+
+    if (this.isSpectatorMode) {
+      this.spectatorPos.set(targetX, targetY + 16, targetZ + 26);
+      this.camera.position.copy(this.spectatorPos);
+      this.spectatorYaw = 0;
+      this.spectatorPitch = -0.52;
+      this.camera.rotation.set(this.spectatorPitch, this.spectatorYaw, 0, 'YXZ');
+    } else {
+      this.camera.position.set(targetX, targetY + 16, targetZ + 26);
+      this.camera.lookAt(targetX, targetY + 2, targetZ);
+    }
+    this.callbacks.onAddFloatingText(`Fokus Editor: ${id}`, '#38bdf8', 'info');
+  }
+
+  public async saveWorldLayoutToFile(): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const res = await fetch('/__api/save-world-layout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: WORLD_LAYOUT_CONFIG }),
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, error: err?.message || String(err) };
+    }
   }
 
   /**
@@ -3877,6 +4172,7 @@ export class GameEngine {
       return;
     }
     if (this.isSpectatorMode) {
+      if (this.isDraggingGizmo) return;
       this.spectatorYaw = normalizeCameraYaw(
         this.spectatorYaw - deltaX * CAMERA_CONFIG.TOUCH_LOOK_SENSITIVITY_H
       );
@@ -12719,6 +13015,14 @@ export class GameEngine {
 
     // Clean up remote players
     this.clearRemotePlayers();
+
+    // Clean up World Editor
+    if (this.transformControls) {
+      this.transformControls.dispose();
+      this.transformControls = null;
+    }
+    this.editorAnchors.forEach((a) => this.scene.remove(a));
+    this.editorAnchors.clear();
 
     if (dom.parentElement) {
       dom.parentElement.removeChild(dom);
