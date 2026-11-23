@@ -1029,6 +1029,7 @@ export default function App() {
         // If UI was hidden, restore it first on Escape
         if (!isUIVisible) {
           setIsUIVisible(true);
+          engineRef.current?.setHudHidden(false);
           return;
         }
 
@@ -1083,7 +1084,11 @@ export default function App() {
       } else if (key === 'h') {
         if (isSpectatorMode) {
           e.preventDefault();
-          setIsUIVisible((prev) => !prev);
+          setIsUIVisible((prev) => {
+            const next = !prev;
+            engineRef.current?.setHudHidden(!next);
+            return next;
+          });
         } else {
           setIsHelpOpen((prev) => !prev);
         }
@@ -1116,8 +1121,23 @@ export default function App() {
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-stone-950 select-none">
-      {/* 3D WebGL Canvas Viewport */}
-      <div ref={containerRef} className="absolute inset-0 w-full h-full cursor-crosshair z-0 pointer-events-auto" />
+      {/* 3D WebGL Canvas Viewport - Strictly isolated at base layer (z-index: 0) */}
+      <div
+        ref={containerRef}
+        id="webgl-canvas-container"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          opacity: 1,
+          visibility: 'visible',
+          zIndex: 0,
+          pointerEvents: 'auto',
+        }}
+        className="absolute inset-0 w-full h-full cursor-crosshair z-0 pointer-events-auto"
+      />
 
       {/* Main Menu Overlay (Single Player & Multiplayer Mode Selection) */}
       <MainMenu
@@ -1253,7 +1273,13 @@ export default function App() {
             isSpectatorMode={isSpectatorMode}
             spectatorSpeed={spectatorSpeed}
             isUIVisible={isUIVisible}
-            onToggleUIVisibility={() => setIsUIVisible((prev) => !prev)}
+            onToggleUIVisibility={() => {
+              setIsUIVisible((prev) => {
+                const next = !prev;
+                engineRef.current?.setHudHidden(!next);
+                return next;
+              });
+            }}
             onToggleSpectator={() => handleToggleSpectator(false)}
             onLandSpectator={() => handleToggleSpectator(true)}
             onAdjustSpeed={(delta) => {

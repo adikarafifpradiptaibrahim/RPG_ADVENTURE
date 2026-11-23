@@ -577,6 +577,7 @@ export class GameEngine {
 
   // Spectator / Freecam Mode (Minecraft-Style Fly Cam)
   public isSpectatorMode = false;
+  public isHudHidden = false;
   private spectatorPos = new THREE.Vector3();
   private spectatorYaw = 0;
   private spectatorPitch = 0;
@@ -1068,9 +1069,19 @@ export class GameEngine {
     this.renderer.shadowMap.enabled = this.graphicsSettings.shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
+    this.renderer.domElement.id = 'webgl-canvas-3d';
     this.renderer.domElement.style.touchAction = 'none';
     this.renderer.domElement.style.userSelect = 'none';
     (this.renderer.domElement.style as any).webkitUserSelect = 'none';
+    this.renderer.domElement.style.display = 'block';
+    this.renderer.domElement.style.position = 'absolute';
+    this.renderer.domElement.style.top = '0';
+    this.renderer.domElement.style.left = '0';
+    this.renderer.domElement.style.width = '100%';
+    this.renderer.domElement.style.height = '100%';
+    this.renderer.domElement.style.zIndex = '0';
+    this.renderer.domElement.style.opacity = '1';
+    this.renderer.domElement.style.visibility = 'visible';
     container.appendChild(this.renderer.domElement);
 
     // 3. Atmosphere & Day-Night System
@@ -2946,10 +2957,16 @@ export class GameEngine {
 
     if (this.isSpectatorMode) {
       this.savedPlayerPos.copy(this.playerPos);
-      this.spectatorPos.copy(this.camera.position);
-      this.spectatorYaw = this.cameraAngleH;
-      this.spectatorPitch = -this.cameraAngleV;
-      this.playerMesh.group.visible = false;
+      if (this.camera?.position && !isNaN(this.camera.position.x)) {
+        this.spectatorPos.copy(this.camera.position);
+      } else {
+        this.spectatorPos.set(this.playerPos.x, this.playerPos.y + 3.0, this.playerPos.z + 5.0);
+      }
+      this.spectatorYaw = !isNaN(this.cameraAngleH) ? this.cameraAngleH : 0;
+      this.spectatorPitch = !isNaN(this.cameraAngleV) ? -this.cameraAngleV : 0;
+      if (this.playerMesh?.group) {
+        this.playerMesh.group.visible = false;
+      }
 
       this.callbacks.onAddFloatingText(
         'Mode Spektator Aktif (WASD / Space / Shift / Scroll Speed)',
@@ -3510,6 +3527,10 @@ export class GameEngine {
 
   public getSpectatorSpeed(): number {
     return this.spectatorSpeed;
+  }
+
+  public setHudHidden(hidden: boolean) {
+    this.isHudHidden = hidden;
   }
 
   /**

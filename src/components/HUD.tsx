@@ -167,21 +167,6 @@ export const HUD: React.FC<HUDProps> = ({
     return () => clearInterval(timer);
   }, []);
   if (!isUIVisible) {
-    if (isSpectatorMode) {
-      return (
-        <div className="pointer-events-none fixed top-4 right-4 z-50 select-none animate-fade-in flex flex-col items-end gap-2">
-          <div className="px-3 py-1 bg-black/85 text-amber-300 border border-amber-500/70 rounded-lg text-xs font-mono font-bold tracking-tight shadow-2xl flex items-center gap-2 whitespace-nowrap pointer-events-auto backdrop-blur-md">
-            <span title={`${dayNight.phaseNameId} (${dayNight.timeString})`}>
-              {dayNight.icon} {dayNight.timeString}
-            </span>
-            <span className="text-amber-500/70">|</span>
-            <span className="text-cyan-300 font-extrabold">X: {Math.round(playerPos.x)}</span>
-            <span className="text-amber-500/70">|</span>
-            <span className="text-emerald-300 font-extrabold">Z: {Math.round(playerPos.z)}</span>
-          </div>
-        </div>
-      );
-    }
     return null;
   }
   const [dismissMobileTip, setDismissMobileTip] = useState(false);
