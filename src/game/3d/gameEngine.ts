@@ -3268,11 +3268,7 @@ export class GameEngine {
           this.glacialAimTimer = null;
         }
         this.isHoldingGlacialKey = false;
-        if (this.isAimGlacialActive) {
-          this.fireGlacialBarrage();
-        } else if (pressDuration < 180) {
-          this.quickCastGlacialBarrage();
-        }
+        this.executeGlacialCrystalBarrage();
       } else if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
         const pressDuration = performance.now() - this.arrowVolleyKeyDownTime;
         if (this.arrowVolleyAimTimer) {
@@ -3379,7 +3375,7 @@ export class GameEngine {
 
     if (e.button === 0 && !this.isSpectatorMode) {
       if (this.charClass === 'mage' && this.isAimGlacialActive) {
-        this.fireGlacialBarrage();
+        this.executeGlacialCrystalBarrage();
         return;
       }
       if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' && this.isAimingArrowVolley) {
@@ -3419,8 +3415,10 @@ export class GameEngine {
       this.cameraAngleH = normalizeCameraYaw(
         this.cameraAngleH - deltaX * CAMERA_CONFIG.MOUSE_LOOK_SENSITIVITY_H
       );
-      this.cameraAngleV = clampCameraPitch(
-        this.cameraAngleV + deltaY * CAMERA_CONFIG.MOUSE_LOOK_SENSITIVITY_V
+      this.cameraAngleV = THREE.MathUtils.clamp(
+        this.cameraAngleV + deltaY * CAMERA_CONFIG.MOUSE_LOOK_SENSITIVITY_V,
+        -0.45,
+        0.65
       );
       return;
     }
@@ -4253,23 +4251,84 @@ export class GameEngine {
     }
   }
 
-  public cancelBowAim() {
+  public resetHunterBowStance() {
     this.isHoldingBowAttack = false;
     this.isAimingBow = false;
     this.bowChargeRatio = 0;
     this.callbacks.onBowAimChange?.(false, 0);
 
-    const bowArrow = this.playerMesh?.group?.getObjectByName('BowArrow');
-    if (bowArrow) bowArrow.visible = false;
-    const vortex = this.playerMesh?.group?.getObjectByName('ArrowVortex');
-    if (vortex) vortex.visible = false;
-
     if (this.playerMesh && this.charClass === 'rogue') {
+      const bowArrow = this.playerMesh.group?.getObjectByName('BowArrow');
+      if (bowArrow) {
+        bowArrow.visible = false;
+        bowArrow.position.set(0, 0, 0.02);
+        bowArrow.rotation.set(Math.PI / 2, 0, 0);
+      }
+      const vortex = this.playerMesh.group?.getObjectByName('ArrowVortex');
+      if (vortex) vortex.visible = false;
+
       if (this.playerMesh.leftArm) this.playerMesh.leftArm.rotation.set(0, 0, 0);
       if (this.playerMesh.rightArm) this.playerMesh.rightArm.rotation.set(0, 0, 0);
+      if (this.playerMesh.body) this.playerMesh.body.rotation.set(0, 0, 0);
+      if (this.playerMesh.head) this.playerMesh.head.rotation.set(0, 0, 0);
+
+      const leftArmPose = this.playerMesh.group?.getObjectByName('LeftArmPose');
+      if (leftArmPose) {
+        leftArmPose.rotation.set(0.04, 0.02, -0.10);
+      }
+      const rightArmPose = this.playerMesh.group?.getObjectByName('RightArmPose');
+      if (rightArmPose) {
+        rightArmPose.rotation.set(0, 0, 0);
+      }
+
       const handBow = this.playerMesh.group?.getObjectByName('HandBow');
-      if (handBow) handBow.rotation.set(-Math.PI / 2, 0, 0);
+      if (handBow) {
+        handBow.visible = this.hunterWeaponMode === 'bow' && !this.isHunterSheathed;
+        handBow.rotation.set(-Math.PI / 2, 0, 0);
+      }
+
+      if (this.playerMesh.group) {
+        updateHunterWeaponStance(this.playerMesh.group, this.hunterWeaponMode, this.isHunterSheathed);
+      }
     }
+  }
+
+  public cancelBowAim() {
+    this.resetHunterBowStance();
+  }
+
+  public fireQuickBowArrow() {
+    const camFwdX = -Math.sin(this.cameraAngleH);
+    const camFwdZ = -Math.cos(this.cameraAngleH);
+    const camFwdY = -Math.sin(this.cameraAngleV);
+    const camDirXZ = Math.cos(this.cameraAngleV);
+    const aimDir = new THREE.Vector3(camFwdX * camDirXZ, camFwdY, camFwdZ * camDirXZ).normalize();
+
+    soundManager.playBowShoot(false);
+    this.spawnHunterArrow(aimDir, false, 1.0, undefined, false, 30.0, false);
+    this.resetHunterBowStance();
+  }
+
+  public fireChargedBowArrow(chargeRatio: number) {
+    const camFwdX = -Math.sin(this.cameraAngleH);
+    const camFwdZ = -Math.cos(this.cameraAngleH);
+    const camFwdY = -Math.sin(this.cameraAngleV);
+    const camDirXZ = Math.cos(this.cameraAngleV);
+    const aimDir = new THREE.Vector3(camFwdX * camDirXZ, camFwdY, camFwdZ * camDirXZ).normalize();
+
+    const isFullCharge = chargeRatio >= 0.85;
+    const speed = THREE.MathUtils.lerp(32, 54, chargeRatio);
+    const dmgMultiplier = THREE.MathUtils.lerp(1.15, 2.15, chargeRatio);
+
+    soundManager.playBowShoot(isFullCharge);
+    this.spawnHunterArrow(aimDir, isFullCharge, dmgMultiplier, undefined, false, speed, isFullCharge);
+
+    if (isFullCharge) {
+      this.callbacks.onAddFloatingText?.('🏹 PENETRATING WIND-PIERCER!', '#fef08a', 'crit');
+      this.triggerCameraShake(0.18);
+    }
+
+    this.resetHunterBowStance();
   }
 
   // Visual layered crescent slash wave (incandescent core + dynamic outer energy ribbon)
@@ -6216,7 +6275,51 @@ export class GameEngine {
   public updateAimGlacialBarrage(deltaX: number, deltaY: number) {
     if (!this.isAimGlacialActive) return;
     this.cameraAngleH = normalizeCameraYaw(this.cameraAngleH - deltaX * 0.015);
-    this.cameraAngleV = clampCameraPitch(this.cameraAngleV + deltaY * 0.015);
+    this.cameraAngleV = THREE.MathUtils.clamp(this.cameraAngleV + deltaY * 0.015, -0.45, 0.65);
+  }
+
+  public executeGlacialCrystalBarrage() {
+    if (this.isControlsLocked) return;
+    if (this.charClass !== 'mage') return;
+
+    if (this.mageGlacialBarrageCooldownTimer > 0) {
+      this.callbacks.onAddFloatingText(
+        `Glacial Barrage Cooldown (${this.mageGlacialBarrageCooldownTimer.toFixed(1)}s)!`,
+        '#94a3b8',
+        'info'
+      );
+      if (this.isAimGlacialActive) {
+        this.cancelGlacialAim();
+      }
+      return;
+    }
+
+    // Pemotongan 18 MP HANYA dilakukan di sini saat kristal es benar-benar diluncurkan!
+    let hasEnoughMp = false;
+    this.callbacks.onUpdateStats((stats) => {
+      if (stats.mp < 18) {
+        this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#ef4444', 'info');
+        return stats;
+      }
+      hasEnoughMp = true;
+      return { ...stats, mp: Math.max(0, stats.mp - 18) };
+    });
+
+    if (!hasEnoughMp) {
+      if (this.isAimGlacialActive) {
+        this.cancelGlacialAim();
+      }
+      return;
+    }
+
+    // Set cooldown (0 untuk stress-testing)
+    this.mageGlacialBarrageCooldownTimer = SKILL_COOLDOWNS.GLACIAL_BARRAGE;
+
+    if (this.isAimGlacialActive) {
+      this.releaseAimGlacialBarrage(false);
+    } else {
+      this.castGlacialCrystalBarrage();
+    }
   }
 
   public releaseAimGlacialBarrage(isCancelled = false) {
@@ -6233,23 +6336,6 @@ export class GameEngine {
       return;
     }
 
-    let fired = false;
-    this.callbacks.onUpdateStats((stats) => {
-      if (stats.mp < 18) {
-        this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#ef4444', 'info');
-        return stats;
-      }
-      fired = true;
-      return { ...stats, mp: Math.max(0, stats.mp - 18) };
-    });
-
-    if (!fired) {
-      this.cancelAimGlacialBarrage();
-      return;
-    }
-
-    // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 7.5s)
-    this.mageGlacialBarrageCooldownTimer = SKILL_COOLDOWNS.GLACIAL_BARRAGE;
     this.callbacks.onAddFloatingText('💠 GLACIAL CRYSTAL BARRAGE!', '#38bdf8', 'crit');
 
     // Sembunyikan garis bidik
@@ -6320,7 +6406,7 @@ export class GameEngine {
   }
 
   public fireGlacialBarrage = () => {
-    this.releaseAimGlacialBarrage(false);
+    this.executeGlacialCrystalBarrage();
   };
 
   public cancelGlacialAim = () => {
@@ -6328,33 +6414,7 @@ export class GameEngine {
   };
 
   public quickCastGlacialBarrage() {
-    if (this.isControlsLocked) return;
-    if (this.charClass !== 'mage') return;
-    if (this.isAimGlacialActive) return;
-
-    if (this.mageGlacialBarrageCooldownTimer > 0) {
-      this.callbacks.onAddFloatingText(
-        `Glacial Barrage Cooldown (${this.mageGlacialBarrageCooldownTimer.toFixed(1)}s)!`,
-        '#94a3b8',
-        'info'
-      );
-      return;
-    }
-
-    let hasEnoughMp = false;
-    this.callbacks.onUpdateStats((stats) => {
-      if (stats.mp < 18) {
-        this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#ef4444', 'info');
-        return stats;
-      }
-      hasEnoughMp = true;
-      return { ...stats, mp: Math.max(0, stats.mp - 18) };
-    });
-    if (!hasEnoughMp) return;
-
-    // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 7.5s)
-    this.mageGlacialBarrageCooldownTimer = SKILL_COOLDOWNS.GLACIAL_BARRAGE;
-    this.castGlacialCrystalBarrage();
+    this.executeGlacialCrystalBarrage();
   }
 
   public updateGlacialAimFrame(delta: number) {
@@ -7620,43 +7680,16 @@ export class GameEngine {
   public releaseBasicAttack() {
     // Pemburu (Hunter) Bow Release Attack Handler
     if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
-      if (!this.isHoldingBowAttack) return;
+      if (!this.isHoldingBowAttack && !this.isAimingBow) return;
       const holdDuration = (performance.now() - this.bowPressStartTime) / 1000;
-      this.isHoldingBowAttack = false;
+      const wasAiming = this.isAimingBow || holdDuration >= 0.20;
+      const ratio = this.bowChargeRatio;
 
-      const camFwdX = -Math.sin(this.cameraAngleH);
-      const camFwdZ = -Math.cos(this.cameraAngleH);
-      const camFwdY = -Math.sin(this.cameraAngleV);
-      const camDirXZ = Math.cos(this.cameraAngleV);
-      const aimDir = new THREE.Vector3(camFwdX * camDirXZ, camFwdY, camFwdZ * camDirXZ).normalize();
-
-      // Tap Cepat (< 0.20s — Quick Shot):
-      if (holdDuration < 0.20) {
-        soundManager.playBowShoot(false);
-        this.spawnHunterArrow(aimDir, false, 1.0, undefined, false, 30.0, false);
-      } else if (this.isAimingBow) {
-        // Tahan Tombol (>= 0.20s — Charged Wind-Piercer):
-        const chargeRatio = this.bowChargeRatio;
-        const isFullCharge = chargeRatio >= 0.85;
-        const speed = THREE.MathUtils.lerp(32, 54, chargeRatio);
-        const dmgMultiplier = THREE.MathUtils.lerp(1.15, 2.15, chargeRatio);
-
-        soundManager.playBowShoot(isFullCharge);
-        this.spawnHunterArrow(aimDir, isFullCharge, dmgMultiplier, undefined, false, speed, isFullCharge);
-
-        if (isFullCharge) {
-          this.callbacks.onAddFloatingText?.('🏹 PENETRATING WIND-PIERCER!', '#fef08a', 'crit');
-          this.triggerCameraShake(0.18);
-        }
-
-        this.isAimingBow = false;
-        this.bowChargeRatio = 0;
-        this.callbacks.onBowAimChange?.(false, 0);
-
-        const bowArrow = this.playerMesh?.group?.getObjectByName('BowArrow');
-        if (bowArrow) bowArrow.visible = false;
-        const vortex = this.playerMesh?.group?.getObjectByName('ArrowVortex');
-        if (vortex) vortex.visible = false;
+      // Tap Cepat (< 0.20s — Quick Shot) vs Tahan (>= 0.20s — Charged Wind-Piercer):
+      if (!wasAiming || holdDuration < 0.20) {
+        this.fireQuickBowArrow();
+      } else {
+        this.fireChargedBowArrow(ratio);
       }
       return;
     }
@@ -8170,11 +8203,7 @@ export class GameEngine {
 
       if (this.charClass === 'mage') {
         // Mage Slot 1 (Q): Glacial Crystal Barrage
-        if (!this.isAimGlacialActive) {
-          this.quickCastGlacialBarrage();
-        } else {
-          this.fireGlacialBarrage();
-        }
+        this.executeGlacialCrystalBarrage();
         return;
       }
 
@@ -11628,21 +11657,30 @@ export class GameEngine {
       this.cameraAerialZoom = THREE.MathUtils.lerp(this.cameraAerialZoom, 0, delta * 4.0);
     }
 
-    // Over-the-Shoulder Zoom Camera saat Merapal Glacial Barrage / Membidik Busur Pemburu (Bahu Kanan: right: +1.15, up: +2.15, back: -3.2)
+    // Over-the-Shoulder Zoom Camera saat Merapal Glacial Barrage / Membidik Busur Pemburu (Bahu Kanan)
     if (this.isAimGlacialActive || this.isAimingBow) {
+      // 1. Batasi sudut pitch vertikal saat mode membidik pada rentang aman: [-0.45, 0.65] radian
+      this.cameraAngleV = THREE.MathUtils.clamp(this.cameraAngleV, -0.45, 0.65);
+
+      // 2. Hitung posisi kamera berdasarkan rotasi yaw horizontal karakter terlebih dahulu
       const camFwdX = -Math.sin(this.cameraAngleH);
       const camFwdZ = -Math.cos(this.cameraAngleH);
       const horizForward = new THREE.Vector3(camFwdX, 0, camFwdZ).normalize();
       const right = new THREE.Vector3(Math.cos(this.cameraAngleH), 0, -Math.sin(this.cameraAngleH)).normalize();
 
+      // Jarak mundur horizontal minimal 2.8 unit di belakang bahu kanan (right: +1.15, back: -2.85, up: 1.95)
+      const shoulderCamPos = this.playerPos.clone()
+        .addScaledVector(right, 1.15)
+        .add(new THREE.Vector3(0, 1.95, 0))
+        .addScaledVector(horizForward, -2.85);
+
+      // Menjaga tinggi minimal kamera: camera.position.y >= player.position.y + 1.45
+      shoulderCamPos.y = Math.max(shoulderCamPos.y, this.playerPos.y + 1.45);
+
+      // 3. Terapkan pitch hanya pada arah pandangan (camera.lookAt)
       const camDirY = -Math.sin(this.cameraAngleV);
       const camDirXZ = Math.cos(this.cameraAngleV);
       const cameraForward = new THREE.Vector3(camFwdX * camDirXZ, camDirY, camFwdZ * camDirXZ).normalize();
-
-      const shoulderCamPos = this.playerPos.clone()
-        .addScaledVector(right, 1.15)
-        .add(new THREE.Vector3(0, 2.15, 0))
-        .addScaledVector(horizForward, -3.2);
 
       const targetCamLookAt = shoulderCamPos.clone().addScaledVector(cameraForward, 35.0);
 

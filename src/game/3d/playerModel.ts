@@ -83,6 +83,7 @@ function createSegmentedBow(matWood: THREE.Material, matString: THREE.Material, 
     const arrowGroup = new THREE.Group();
     arrowGroup.name = 'BowArrow';
     arrowGroup.visible = false;
+    arrowGroup.rotation.x = Math.PI / 2;
 
     const matArrowWood = new THREE.MeshLambertMaterial({ color: 0x4a3321 });
     const matArrowHead = new THREE.MeshStandardMaterial({
@@ -470,7 +471,11 @@ export function updateHunterWeaponStance(model: THREE.Group, stance: 'dagger' | 
   const leftArmPose = model.getObjectByName('LeftArmPose');
   const rightArmPose = model.getObjectByName('RightArmPose');
 
-  if (bowArrow) bowArrow.visible = false;
+  if (bowArrow) {
+    bowArrow.visible = false;
+    bowArrow.position.set(0, 0, 0.02);
+    bowArrow.rotation.set(Math.PI / 2, 0, 0);
+  }
   if (arrowVortex) arrowVortex.visible = false;
 
   if (isSheathed) {
@@ -824,11 +829,12 @@ export function animateHunterBowAim(
     );
   }
 
-  // 3. ANAK PANAH PADA BUSUR: Mundur sedikit mengikuti tarikan senar
+  // 3. ANAK PANAH PADA BUSUR: Menunjuk lurus mendatar ke depan searah crosshair +, mundur sedikit seiring tarikan senar
   const bowArrow = playerMesh.group?.getObjectByName('BowArrow');
   if (bowArrow) {
     bowArrow.visible = true;
-    bowArrow.position.z = -chargeRatio * 0.22;
+    bowArrow.rotation.set(Math.PI / 2, 0, 0);
+    bowArrow.position.set(0, chargeRatio * 0.18, 0.02);
   }
 
   // 4. PUSARAN ANGIN ZAMRUD BERCAHAYA: Muncul di ujung mata panah saat bowChargeRatio >= 0.85

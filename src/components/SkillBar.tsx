@@ -75,8 +75,8 @@ export const SkillBar: React.FC<SkillBarProps> = ({
       case 'rogue':
         if (hunterWeaponMode === 'bow') {
           return {
-            basic: { label: 'Tarik Busur', icon: '🏹', hint: 'Tahan / Tap' },
-            skill1: { name: 'Skyward Volley', icon: '🏹', cost: '15 MP', key: 'Q', color: 'border-emerald-500/70 text-emerald-300 bg-emerald-950/40' },
+            basic: { label: 'Tarik Busur', icon: '🏹', hint: 'Klik / Tahan' },
+            skill1: { name: 'Badai Panah', icon: '🏹', cost: '15 MP', key: 'Q', color: 'border-emerald-500/70 text-emerald-300 bg-emerald-950/40' },
             skill2: { name: 'Gale Vault', icon: '🦅', cost: '15 Stm', key: 'E', color: 'border-teal-500/70 text-teal-300 bg-teal-950/40' },
             skill3: { name: 'Panah Racun', icon: '💣', cost: '25 MP', key: 'R', color: 'border-green-500/70 text-green-300 bg-green-950/40' },
             skill4: { name: 'Ultimate', icon: '🦅', cost: 'TBD', key: 'F', color: 'border-emerald-500/80 text-emerald-200 bg-emerald-950/60 shadow-emerald-500/30' },
@@ -84,9 +84,9 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         } else {
           return {
             basic: { label: 'Belati 360°', icon: '🗡️', hint: 'Klik / J' },
-            skill1: { name: '1000 Belati', icon: '⚡', cost: '15 MP', key: 'Q', color: 'border-emerald-500/70 text-emerald-300 bg-emerald-950/40' },
+            skill1: { name: 'Tarian Belati', icon: '⚡', cost: '15 MP', key: 'Q', color: 'border-emerald-500/70 text-emerald-300 bg-emerald-950/40' },
             skill2: { name: 'Shadow Step', icon: '💨', cost: '15 Stm', key: 'E', color: 'border-teal-500/70 text-teal-300 bg-teal-950/40' },
-            skill3: { name: 'Bom Asap', icon: '🧪', cost: '25 MP', key: 'R', color: 'border-green-500/70 text-green-300 bg-green-950/40' },
+            skill3: { name: 'Kabut Asap', icon: '🧪', cost: '25 MP', key: 'R', color: 'border-green-500/70 text-green-300 bg-green-950/40' },
             skill4: { name: 'Ultimate', icon: '🗡️', cost: 'TBD', key: 'F', color: 'border-emerald-500/80 text-emerald-200 bg-emerald-950/60 shadow-emerald-500/30' },
           };
         }
@@ -180,7 +180,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         <span className="text-xl sm:text-2xl md:text-xl drop-shadow">{classSkills.basic.icon}</span>
         <span className="hidden md:inline text-[8px] font-bold text-stone-300 line-clamp-1">{classSkills.basic.label}</span>
         <span className="absolute -top-1 -right-1 bg-amber-600 text-stone-950 font-black text-[7px] md:text-[7px] font-mono px-1 rounded-full border border-amber-300">
-          {stats.characterClass === 'mage' ? 'Klik / J' : 'J'}
+          {stats.characterClass === 'mage' ? 'Klik / J' : (stats.characterClass === 'rogue' && hunterWeaponMode === 'bow' ? 'Klik' : 'Klik / J')}
         </span>
       </button>
 
