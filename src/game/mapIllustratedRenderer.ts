@@ -765,8 +765,28 @@ export function renderIllustratedMap(
   ctx.ellipse(swX, swY, 13, 9, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 12D. Sultan Malik Palace [430, -460] -> norm [0.858, 0.147]
-  const [sultX, sultY] = wToC(430, -460);
+  // 12C2. Solaria Desert Village & Bazaar [135, -245]
+  const [desVilX, desVilY] = wToC(135, -245);
+  ctx.fillStyle = '#b45309';
+  // Adobe mudbrick houses cluster
+  ctx.fillRect(desVilX - 12, desVilY - 8, 10, 8);
+  ctx.fillRect(desVilX + 3, desVilY - 9, 11, 9);
+  ctx.fillRect(desVilX - 8, desVilY + 3, 9, 8);
+  ctx.fillRect(desVilX + 4, desVilY + 4, 10, 7);
+  // Village Oasis Well & Date Palms
+  ctx.fillStyle = '#0284c7';
+  ctx.beginPath();
+  ctx.arc(desVilX, desVilY, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#15803d';
+  [-14, 14].forEach((px) => {
+    ctx.beginPath();
+    ctx.arc(desVilX + px, desVilY - 2, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // 12D. Sultan Malik Palace [410, -470]
+  const [sultX, sultY] = wToC(410, -470);
   ctx.fillStyle = '#f1f5f9';
   ctx.fillRect(sultX - 20, sultY - 7, 40, 18);
   // Onion dome

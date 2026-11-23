@@ -241,7 +241,9 @@ export class SpatialLookupGrid {
     this.markCircle(-20, 185, 30.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);
 
     // 5. Mark Castles, Fortresses, Craters, Ruins, Outposts
-    this.markCircle(235, -380, 48.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL); // Colosseum / Crater
+    this.markCircle(235, -380, 52.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL); // Colosseum / Crater
+    this.markCircle(135, -245, 35.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL); // Desert Village
+    this.markCircle(410, -470, 42.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL); // Sultan Palace
     this.markCircle(-250, -35, 32.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);  // Outpost
     this.markCircle(-105, 75, 26.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);   // Ruins
     this.markCircle(-250, -240, 46.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL); // Astraea

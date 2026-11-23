@@ -229,11 +229,19 @@ export const WAYPOINTS: {
     desc: 'Arena terbuka pusaran pasir habitat Cacing Raksasa Gurun di barat daya',
   },
   {
+    id: 'wp_solaria_village',
+    nameId: 'Desa Gurun & Bazaar Solaria',
+    regionId: 'gurun_solaria',
+    icon: '🏘️',
+    pos: [135, -245],
+    desc: 'Pemukiman rumah tanah liat dan pasar kafilah sutra & rempah dekat Oase Solaria',
+  },
+  {
     id: 'wp_sultan_palace',
     nameId: 'Istana Sultan Malik',
     regionId: 'gurun_solaria',
     icon: '🕌',
-    pos: [430, -460],
+    pos: [410, -470],
     desc: 'Kompleks istana kubah marmer emas megah di pojok timur laut benua',
   },
   {

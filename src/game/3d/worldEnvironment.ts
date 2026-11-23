@@ -514,6 +514,7 @@ export async function buildWorldEnvironmentAsync(
   ];
 
   fallenPillars.forEach((fp) => {
+    if (!isStrictLandForProps(fp.x, fp.z, getTerrainHeight)) return;
     const y = getTerrainHeight(fp.x, fp.z);
     const brokenCol = new THREE.Group();
     brokenCol.position.set(fp.x, y + fp.r * 0.9, fp.z);
@@ -1854,8 +1855,8 @@ export async function buildWorldEnvironmentAsync(
     const sx = mossGladeX + Math.cos(sAng) * stonehengeRadius;
     const sz = mossGladeZ + Math.sin(sAng) * stonehengeRadius;
 
-    // ROAD CLEARANCE: Minimal 4.5 unit dari garis tengah jalan batu
-    if (isPointNearRoad(sx, sz, 4.5)) continue;
+    // ROAD CLEARANCE & WATER EXCLUSION: Minimal 4.5 unit dari garis tengah jalan batu & dilarang di perairan
+    if (isPointNearRoad(sx, sz, 4.5) || !isStrictLandForProps(sx, sz, getTerrainHeight)) continue;
 
     const sy = getTerrainHeight(sx, sz);
 
@@ -2705,6 +2706,7 @@ export async function buildWorldEnvironmentAsync(
   monolithAngles.forEach((ang) => {
     const mx = -260 + Math.cos(ang) * 62;
     const mz = -450 + Math.sin(ang) * 62;
+    if (!isStrictLandForProps(mx, mz, getTerrainHeight)) return; // DILARANG SPAWN DI AIR DANAU/SUNGAI!
     const my = getTerrainHeight(mx, mz);
     const mHeight = 5.0 + Math.random() * 3.5;
     const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.6, mHeight, 1.6), matTitanStone);
@@ -2722,6 +2724,7 @@ export async function buildWorldEnvironmentAsync(
     [-290, -520], [-210, -560], [-170, -540], [-160, -470], [-275, -440],
   ];
   snowPineCoords.forEach(([spx, spz]) => {
+    if (!isStrictLandForProps(spx, spz, getTerrainHeight)) return; // DILARANG SPAWN DI AIR!
     const spy = getTerrainHeight(spx, spz);
     if (spy < -0.1) return;
 

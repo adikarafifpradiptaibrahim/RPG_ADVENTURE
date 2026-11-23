@@ -369,26 +369,24 @@ function createTerrainHeightEvaluator(
       return getProceduralHeight(x, z);
     }
 
-    // 1. Suspension bridge walkable deck corridor (Bridge 2 - South Chasm, at [15, 110])
-    if (Math.abs(z - 110) <= 2.4 && x >= 4 && x <= 26) {
-      return 1.35;
+    // 1. Walkable bridge deck corridors (BRIDGE_CONFIGS)
+    for (const b of BRIDGE_CONFIGS) {
+      const dx = x - b.x;
+      const dz = z - b.z;
+      const cos = Math.cos(-b.rotationY);
+      const sin = Math.sin(-b.rotationY);
+      const lx = cos * dx - sin * dz;
+      const lz = sin * dx + cos * dz;
+      if (Math.abs(lx) <= b.length * 0.46 && Math.abs(lz) <= b.width * 0.55) {
+        return b.y;
+      }
     }
 
-    // 1b. Bridge 1 - Astraea Highway Stone Bridge (X: -190, Z: -230, deck Y = 0.45)
-    if (Math.abs(z - -230) <= 2.5 && x >= -203 && x <= -177) {
-      return 0.45;
-    }
-
-    // 1c. Bridge 3 - Moss Valley River Bridge (X: 380, Z: 35, deck Y = 0.45)
-    if (Math.abs(z - 35) <= 2.5 && x >= 368 && x <= 392) {
-      return 0.45;
-    }
-
-    // 2. Coastal Wooden Harbor at [-20, 185..215] (Menempel di Pantai Selatan Desa Utama)
+    // 2. Coastal Wooden Harbor at [0, 162..202] (Menempel di Pantai Selatan Desa Utama)
     if (
-      (Math.abs(x - -20) <= 2.8 && z >= 185 && z <= 215) ||
-      (Math.abs(z - 200.0) <= 2.2 && Math.abs(x - -20) <= 15.0) ||
-      (Math.abs(x - -20) <= 5.2 && z >= 210 && z <= 216)
+      (Math.abs(x - 0) <= 2.8 && z >= 162 && z <= 202) ||
+      (Math.abs(z - 188.5) <= 2.2 && Math.abs(x - 0) <= 16.0) ||
+      (Math.abs(x - 0) <= 5.2 && z >= 195 && z <= 202)
     ) {
       return 1.85; // Solid continuous wooden pier deck
     }
@@ -404,8 +402,9 @@ function createTerrainHeightEvaluator(
     }
 
     // 5. Solaria Desert Village Bazaar & Grand Palace Courtyard (y = 1.80..2.00)
-    if (Math.hypot(x - 85, z - -230) <= 35) return 0.50;
-    if (Math.hypot(x - 430, z - -460) <= 35) return 2.00;
+    if (Math.hypot(x - 85, z - -230) <= 25) return 0.50; // Oase Solaria
+    if (Math.hypot(x - 135, z - -245) <= 35) return 1.80; // Desa Gurun & Bazaar
+    if (Math.hypot(x - 410, z - -470) <= 38) return 2.00; // Istana Sultan Malik
 
     // 6. Colosseum Kawah Boss Titan Kuno (Center [235, -380], radius 48 at y = 1.80)
     if (Math.hypot(x - 235, z - -380) <= 48) return 1.80;
@@ -1249,12 +1248,37 @@ export async function buildAstraeaCastle(
   scene.add(wWall);
   colliders.push({ type: 'box', minX: -276.5, maxX: -273.5, minZ: -270, maxZ: -210, label: 'Benteng Astraea Barat' });
 
-  // 5. East Wall (from [-225, -270] to [-225, -210], length 60)
-  const eWall = createImperialWallMesh(60);
-  eWall.position.set(-225, astraeaBaseY, -240);
-  eWall.rotation.y = Math.PI / 2;
-  scene.add(eWall);
-  colliders.push({ type: 'box', minX: -226.5, maxX: -223.5, minZ: -270, maxZ: -210, label: 'Benteng Astraea Timur' });
+  // 5. East Imperial Gatehouse & Split Wall (Facing EAST towards Bridge 1 at [-190, -230])
+  const imperialEastGatehouse = createImperialGatehouseMesh();
+  imperialEastGatehouse.position.set(-225, astraeaBaseY, -230);
+  imperialEastGatehouse.rotation.y = Math.PI / 2;
+  scene.add(imperialEastGatehouse);
+  colliders.push(
+    { type: 'box', minX: -227.5, maxX: -222.5, minZ: -237.5, maxZ: -233.5, label: 'Bastion Utara Gerbang Timur Astraea' },
+    { type: 'box', minX: -227.5, maxX: -222.5, minZ: -226.5, maxZ: -222.5, label: 'Bastion Selatan Gerbang Timur Astraea' }
+  );
+
+  // 5a. East Wall - North Wing (from [-225, -270] to [-225, -233.5], length 36.5)
+  const eWallNorth = createImperialWallMesh(36.5);
+  eWallNorth.position.set(-225, astraeaBaseY, -251.75);
+  eWallNorth.rotation.y = Math.PI / 2;
+  scene.add(eWallNorth);
+  colliders.push({ type: 'box', minX: -226.5, maxX: -223.5, minZ: -270, maxZ: -233.5, label: 'Benteng Astraea Timur Sayap Utara' });
+
+  // 5b. East Wall - South Wing (from [-225, -226.5] to [-225, -210], length 16.5)
+  const eWallSouth = createImperialWallMesh(16.5);
+  eWallSouth.position.set(-225, astraeaBaseY, -218.25);
+  eWallSouth.rotation.y = Math.PI / 2;
+  scene.add(eWallSouth);
+  colliders.push({ type: 'box', minX: -226.5, maxX: -223.5, minZ: -226.5, maxZ: -210, label: 'Benteng Astraea Timur Sayap Selatan' });
+
+  // 5c. Tiang Lampu Emas Gerbang Timur
+  [-234.5, -225.5].forEach((lz) => {
+    const lamp = createStreetLampMesh();
+    lamp.position.set(-220.5, astraeaBaseY, lz);
+    scene.add(lamp);
+    colliders.push({ type: 'circle', x: -220.5, z: lz, radius: 0.35, label: 'Lampu Emas Gerbang Timur' });
+  });
 
   // 6. Four Corner Bastion Towers
   const cornerTowers = [
@@ -1813,6 +1837,7 @@ export async function buildValKragorFort(
     { x: -110, z: 48 },
   ];
   ruinsPositions.forEach((pos) => {
+    if (!isStrictLandForProps(pos.x, pos.z, getTerrainHeight)) return;
     const pillar = createAncientPillarMesh();
     const py = getTerrainHeight(pos.x, pos.z);
     pillar.position.set(pos.x, py, pos.z);
@@ -2045,75 +2070,72 @@ export async function buildDesertStructures(
 
   // ------------------------------------------
   // 5C. GRAND SULTAN SOLARIA PALACE & DESA BAZAAR GURUN
-  // Palace Center: [340, -280] (Y=2.00), Village Center: [280, -280] (Y=1.80)
+  // Palace Center: [410, -470] (Y=2.00, Menghadap Barat)
+  // Desert Village Center: [135, -245] (Y=1.80, Dekat Oase [85, -230])
+  // Berjarak > 165 unit dari Colosseum Arena Boss [235, -380]
   // ------------------------------------------
   const solariaBaseY = 1.80;
   const solariaPalaceY = 2.00;
 
-  // 1. Grand Taj Mahal Palace of Sultan Solaria (East End: [340, -280])
+  // 1. Grand Taj Mahal Palace of Sultan Solaria (Northeast: [410, -470])
   const solariaPalace = createTajMahalPalaceMesh();
-  solariaPalace.position.set(360, solariaPalaceY, -440);
-  solariaPalace.rotation.y = Math.PI; // Menghadap ke Barat (ke arah avenue & bazaar)
+  solariaPalace.position.set(410, solariaPalaceY, -470);
+  solariaPalace.rotation.y = Math.PI; // Menghadap ke Barat menyambut jalan akses gerbang utama
   scene.add(solariaPalace);
   colliders.push({
     type: 'box',
-    minX: 322,
-    maxX: 358,
-    minZ: -296,
-    maxZ: -264,
+    minX: 392,
+    maxX: 428,
+    minZ: -486,
+    maxZ: -454,
     label: 'Istana Taj Mahal Sultan Solaria',
   });
-  colliders.push({ type: 'circle', x: 324, z: -296, radius: 2.2, label: 'Menara Minaret Barat Laut' });
-  colliders.push({ type: 'circle', x: 324, z: -264, radius: 2.2, label: 'Menara Minaret Barat Daya' });
-  colliders.push({ type: 'circle', x: 356, z: -296, radius: 2.2, label: 'Menara Minaret Timur Laut' });
-  colliders.push({ type: 'circle', x: 356, z: -264, radius: 2.2, label: 'Menara Minaret Tenggara' });
+  colliders.push({ type: 'circle', x: 394, z: -486, radius: 2.2, label: 'Menara Minaret Barat Laut' });
+  colliders.push({ type: 'circle', x: 394, z: -454, radius: 2.2, label: 'Menara Minaret Barat Daya' });
+  colliders.push({ type: 'circle', x: 426, z: -486, radius: 2.2, label: 'Menara Minaret Timur Laut' });
+  colliders.push({ type: 'circle', x: 426, z: -454, radius: 2.2, label: 'Menara Minaret Tenggara' });
 
-  // 2. Alur Jalan Setapak Kafilah Gurun (Grand Sandstone Desert Avenue: X: 238..330, Z: -280)
-  // Dibangun secara dinamis dan presisi oleh buildWorldRoadNetwork (RoadSystem.ts)
-  // dengan material pasir padat #d9be8b dan lempengan batu pasir bakar #bfa16a.
-
+  // 2. Alur Jalan Setapak Kafilah Gurun Menuju Gerbang Barat Istana (X: 375..408, Z: -470)
   // Grand Avenue Date Palms & Brass Desert Oil Lanterns
   const causewayItems = [
-    { type: 'lantern', x: 255, z: -284.5 },
-    { type: 'palm', x: 270, z: -284.5 },
-    { type: 'lantern', x: 285, z: -284.5 },
-    { type: 'palm', x: 300, z: -284.5 },
-    { type: 'lantern', x: 315, z: -284.5 },
-    { type: 'lantern', x: 255, z: -275.5 },
-    { type: 'palm', x: 270, z: -275.5 },
-    { type: 'lantern', x: 285, z: -275.5 },
-    { type: 'palm', x: 300, z: -275.5 },
-    { type: 'lantern', x: 315, z: -275.5 },
+    { type: 'lantern', x: 375, z: -474.5 },
+    { type: 'palm', x: 385, z: -474.5 },
+    { type: 'lantern', x: 395, z: -474.5 },
+    { type: 'palm', x: 405, z: -474.5 },
+    { type: 'lantern', x: 375, z: -465.5 },
+    { type: 'palm', x: 385, z: -465.5 },
+    { type: 'lantern', x: 395, z: -465.5 },
+    { type: 'palm', x: 405, z: -465.5 },
   ];
 
   causewayItems.forEach((item, idx) => {
-    if (!isDesertBiome(item.x, item.z)) return; // DILARANG SPAWN di padang rumput hijau!
+    if (!isDesertBiome(item.x, item.z)) return;
     if (item.type === 'palm') {
       const palm = createDesertPalmMesh();
-      palm.position.set(item.x, solariaBaseY, item.z);
+      palm.position.set(item.x, solariaPalaceY, item.z);
       palm.rotation.y = idx * 0.8;
       scene.add(palm);
       colliders.push({ type: 'circle', x: item.x, z: item.z, radius: 0.65, label: 'Pohon Palem Desert Avenue' });
     } else {
       const lantern = createDesertOilLanternMesh();
-      lantern.position.set(item.x, solariaBaseY, item.z);
+      lantern.position.set(item.x, solariaPalaceY, item.z);
       scene.add(lantern);
       colliders.push({ type: 'circle', x: item.x, z: item.z, radius: 0.45, label: 'Lampu Minyak Desert Avenue' });
     }
   });
 
-  // 3. Interior Ruang Takhta Sultan (Throne Room Interior Cell: [340, -25, -280])
+  // 3. Interior Ruang Takhta Sultan (Throne Room Interior Cell: [410, -25, -470])
   const throneInterior = createThroneRoomInteriorMesh();
-  throneInterior.position.set(340, -25, -280);
+  throneInterior.position.set(410, -25, -470);
   scene.add(throneInterior);
-  colliders.push({ type: 'box', minX: 323, maxX: 357, minZ: -292, maxZ: -290, maxY: -10, label: 'Dinding Utara Ruang Takhta' });
-  colliders.push({ type: 'box', minX: 323, maxX: 357, minZ: -270, maxZ: -268, maxY: -10, label: 'Dinding Selatan Ruang Takhta' });
-  colliders.push({ type: 'box', minX: 322, maxX: 324, minZ: -291, maxZ: -269, maxY: -10, label: 'Dinding Belakang Takhta' });
-  colliders.push({ type: 'box', minX: 325, maxX: 330, minZ: -283, maxZ: -277, maxY: -10, label: 'Singgasana Emas Sultan' });
+  colliders.push({ type: 'box', minX: 393, maxX: 427, minZ: -482, maxZ: -480, maxY: -10, label: 'Dinding Utara Ruang Takhta' });
+  colliders.push({ type: 'box', minX: 393, maxX: 427, minZ: -460, maxZ: -458, maxY: -10, label: 'Dinding Selatan Ruang Takhta' });
+  colliders.push({ type: 'box', minX: 392, maxX: 394, minZ: -481, maxZ: -459, maxY: -10, label: 'Dinding Belakang Takhta' });
+  colliders.push({ type: 'box', minX: 395, maxX: 400, minZ: -473, maxZ: -467, maxY: -10, label: 'Singgasana Emas Sultan' });
 
   // Sultan Malik al-Solaria
   const sultanGroup = createCustomNPCMesh('emperor');
-  const sultanPos: [number, number, number] = [327.5, -25 + 1.4, -280];
+  const sultanPos: [number, number, number] = [397.5, -25 + 1.4, -470];
   sultanGroup.position.set(...sultanPos);
   sultanGroup.rotation.y = Math.PI * 1.5;
   scene.add(sultanGroup);
@@ -2131,7 +2153,7 @@ export async function buildDesertStructures(
 
   // 2 Royal Elite Desert Guards flanking the Sultan's Throne
   const guard1Group = createCustomNPCMesh('guard');
-  const guard1Pos: [number, number, number] = [326, -25, -283.5];
+  const guard1Pos: [number, number, number] = [396, -25, -473.5];
   guard1Group.position.set(...guard1Pos);
   guard1Group.rotation.y = Math.PI * 1.5;
   scene.add(guard1Group);
@@ -2148,7 +2170,7 @@ export async function buildDesertStructures(
   });
 
   const guard2Group = createCustomNPCMesh('guard');
-  const guard2Pos: [number, number, number] = [326, -25, -276.5];
+  const guard2Pos: [number, number, number] = [396, -25, -466.5];
   guard2Group.position.set(...guard2Pos);
   guard2Group.rotation.y = Math.PI * 1.5;
   scene.add(guard2Group);
@@ -2165,27 +2187,27 @@ export async function buildDesertStructures(
   });
   await cooperativeYield(4);
 
-  // 4. Sumur Batu Oase di Tepi Jalan (Roadside Oasis Well Plaza: [250, -286])
+  // 4. Sumur Batu Oase di Alun-Alun Desa Gurun (Village Oasis Well Plaza: [135, -245])
   const desertWell = createDesertOasisWellMesh();
-  desertWell.position.set(250, solariaBaseY, -286);
+  desertWell.position.set(135, solariaBaseY, -245);
   scene.add(desertWell);
   colliders.push({
     type: 'circle',
-    x: 250,
-    z: -286,
+    x: 135,
+    z: -245,
     radius: 1.8,
     label: 'Sumur Oase Solaria',
   });
 
   // Pohon Kurma di Sekitar Sumur Oase
   const townPalmOffsets = [
-    { x: 246, z: -289 },
-    { x: 254, z: -289 },
-    { x: 246, z: -283 },
-    { x: 254, z: -283 },
+    { x: 131, z: -248 },
+    { x: 139, z: -248 },
+    { x: 131, z: -242 },
+    { x: 139, z: -242 },
   ];
   townPalmOffsets.forEach((tpo, idx) => {
-    if (!isDesertBiome(tpo.x, tpo.z)) return; // DILARANG SPAWN di padang rumput hijau!
+    if (!isDesertBiome(tpo.x, tpo.z)) return;
     const palm = createDesertPalmMesh();
     palm.position.set(tpo.x, solariaBaseY, tpo.z);
     palm.rotation.y = idx * 1.57;
@@ -2194,85 +2216,85 @@ export async function buildDesertStructures(
   });
 
   // 5. Rumah-Rumah Tanah Liat Khas Gurun
-  // Sisi Utara Jalan (Z = -273):
+  // Sisi Utara Jalan (Z = -238):
   const adobeHouse1 = createDesertMudBrickHouseMesh(1);
-  adobeHouse1.position.set(240, solariaBaseY, -273);
+  adobeHouse1.position.set(120, solariaBaseY, -238);
   adobeHouse1.rotation.y = 0;
   scene.add(adobeHouse1);
-  colliders.push({ type: 'box', minX: 236, maxX: 244, minZ: -277, maxZ: -269, label: 'Rumah Bertingkat Gurun 1' });
+  colliders.push({ type: 'box', minX: 116, maxX: 124, minZ: -242, maxZ: -234, label: 'Rumah Bertingkat Gurun 1' });
 
   const adobeHouse2 = createDesertMudBrickHouseMesh(2);
-  adobeHouse2.position.set(255, solariaBaseY, -273);
+  adobeHouse2.position.set(135, solariaBaseY, -238);
   adobeHouse2.rotation.y = 0;
   scene.add(adobeHouse2);
-  colliders.push({ type: 'box', minX: 251, maxX: 259, minZ: -277, maxZ: -269, label: 'Rumah Saudagar Gurun 2' });
+  colliders.push({ type: 'box', minX: 131, maxX: 139, minZ: -242, maxZ: -234, label: 'Rumah Saudagar Gurun 2' });
 
   const adobeHouse3 = createDesertMudBrickHouseMesh(1);
-  adobeHouse3.position.set(270, solariaBaseY, -273);
+  adobeHouse3.position.set(150, solariaBaseY, -238);
   adobeHouse3.rotation.y = 0;
   scene.add(adobeHouse3);
-  colliders.push({ type: 'box', minX: 266, maxX: 274, minZ: -277, maxZ: -269, label: 'Rumah Bertingkat Gurun 3' });
+  colliders.push({ type: 'box', minX: 146, maxX: 154, minZ: -242, maxZ: -234, label: 'Rumah Bertingkat Gurun 3' });
 
-  // Sisi Selatan Jalan (Z = -287):
+  // Sisi Selatan Jalan (Z = -252):
   const adobeHouse4 = createDesertMudBrickHouseMesh(0);
-  adobeHouse4.position.set(240, solariaBaseY, -287);
+  adobeHouse4.position.set(120, solariaBaseY, -252);
   adobeHouse4.rotation.y = Math.PI;
   scene.add(adobeHouse4);
-  colliders.push({ type: 'box', minX: 236, maxX: 244, minZ: -291, maxZ: -283, label: 'Rumah Tanah Liat Gurun 4' });
+  colliders.push({ type: 'box', minX: 116, maxX: 124, minZ: -256, maxZ: -248, label: 'Rumah Tanah Liat Gurun 4' });
 
   const camelRest = createCamelRestAreaMesh();
-  camelRest.position.set(255, solariaBaseY, -287);
+  camelRest.position.set(135, solariaBaseY, -252);
   scene.add(camelRest);
-  colliders.push({ type: 'box', minX: 249, maxX: 261, minZ: -292, maxZ: -282, label: 'Tempat Peristirahatan Unta Gurun' });
+  colliders.push({ type: 'box', minX: 129, maxX: 141, minZ: -257, maxZ: -247, label: 'Tempat Peristirahatan Unta Gurun' });
 
   const adobeHouse5 = createDesertMudBrickHouseMesh(0);
-  adobeHouse5.position.set(270, solariaBaseY, -287);
+  adobeHouse5.position.set(150, solariaBaseY, -252);
   adobeHouse5.rotation.y = Math.PI;
   scene.add(adobeHouse5);
-  colliders.push({ type: 'box', minX: 266, maxX: 274, minZ: -291, maxZ: -283, label: 'Rumah Tanah Liat Gurun 5' });
+  colliders.push({ type: 'box', minX: 146, maxX: 154, minZ: -256, maxZ: -248, label: 'Rumah Tanah Liat Gurun 5' });
 
   // 6. Pasar Bazaar Gurun Solaria
   const bazaarStall1 = createDesertBazaarStallMesh(0xd97706, 0xfef08a);
-  bazaarStall1.position.set(246, solariaBaseY, -275);
+  bazaarStall1.position.set(126, solariaBaseY, -240);
   bazaarStall1.rotation.y = 0;
   scene.add(bazaarStall1);
-  colliders.push({ type: 'box', minX: 244, maxX: 248, minZ: -276, maxZ: -274, label: 'Kios Rempah Solaria' });
+  colliders.push({ type: 'box', minX: 124, maxX: 128, minZ: -241, maxZ: -239, label: 'Kios Rempah Solaria' });
 
   const bazaarStall2 = createDesertBazaarStallMesh(0x9333ea, 0xfbbf24);
-  bazaarStall2.position.set(264, solariaBaseY, -275);
+  bazaarStall2.position.set(144, solariaBaseY, -240);
   bazaarStall2.rotation.y = 0;
   scene.add(bazaarStall2);
-  colliders.push({ type: 'box', minX: 262, maxX: 266, minZ: -276, maxZ: -274, label: 'Kios Karpet Solaria' });
+  colliders.push({ type: 'box', minX: 142, maxX: 146, minZ: -241, maxZ: -239, label: 'Kios Karpet Solaria' });
 
   const bazaarStall3 = createDesertBazaarStallMesh(0x059669, 0xa7f3d0);
-  bazaarStall3.position.set(246, solariaBaseY, -285);
+  bazaarStall3.position.set(126, solariaBaseY, -250);
   bazaarStall3.rotation.y = Math.PI;
   scene.add(bazaarStall3);
-  colliders.push({ type: 'box', minX: 244, maxX: 248, minZ: -286, maxZ: -284, label: 'Kios Tembikar Solaria' });
+  colliders.push({ type: 'box', minX: 124, maxX: 128, minZ: -251, maxZ: -249, label: 'Kios Tembikar Solaria' });
 
   const bazaarStall4 = createDesertBazaarStallMesh(0xb91c1c, 0xfde047);
-  bazaarStall4.position.set(264, solariaBaseY, -285);
+  bazaarStall4.position.set(144, solariaBaseY, -250);
   bazaarStall4.rotation.y = Math.PI;
   scene.add(bazaarStall4);
-  colliders.push({ type: 'box', minX: 262, maxX: 266, minZ: -286, maxZ: -284, label: 'Kios Baju Zirah Gurun' });
+  colliders.push({ type: 'box', minX: 142, maxX: 146, minZ: -251, maxZ: -249, label: 'Kios Baju Zirah Gurun' });
 
   // 7. Kemah-Kemah Sutra Bazaar
   const desertTent1 = createDesertTentMesh(0x991b1b);
-  desertTent1.position.set(278, solariaBaseY, -275);
+  desertTent1.position.set(160, solariaBaseY, -242);
   desertTent1.rotation.y = 0;
   scene.add(desertTent1);
-  colliders.push({ type: 'circle', x: 278, z: -275, radius: 2.8, label: 'Kemah Sutra Merah' });
+  colliders.push({ type: 'circle', x: 160, z: -242, radius: 2.8, label: 'Kemah Sutra Merah' });
 
   const desertTent2 = createDesertTentMesh(0x047857);
-  desertTent2.position.set(278, solariaBaseY, -285);
+  desertTent2.position.set(160, solariaBaseY, -248);
   desertTent2.rotation.y = Math.PI;
   scene.add(desertTent2);
-  colliders.push({ type: 'circle', x: 278, z: -285, radius: 2.8, label: 'Kemah Sutra Zamrud' });
+  colliders.push({ type: 'circle', x: 160, z: -248, radius: 2.8, label: 'Kemah Sutra Zamrud' });
 
   // Lampu Minyak Sepanjang Kerb Jalan
   const villageKerbLanterns = [
-    { x: 242, z: -283 }, { x: 256, z: -283 }, { x: 270, z: -283 }, { x: 284, z: -283 },
-    { x: 242, z: -277 }, { x: 256, z: -277 }, { x: 270, z: -277 }, { x: 284, z: -277 },
+    { x: 122, z: -248 }, { x: 136, z: -248 }, { x: 148, z: -248 }, { x: 158, z: -248 },
+    { x: 122, z: -242 }, { x: 136, z: -242 }, { x: 148, z: -242 }, { x: 158, z: -242 },
   ];
   villageKerbLanterns.forEach((vkl) => {
     const vLantern = createDesertOilLanternMesh();
@@ -2283,7 +2305,7 @@ export async function buildDesertStructures(
 
   // 8. Solaria Village NPCs
   const tariqGroup = createCustomNPCMesh('alchemist');
-  const tariqPos: [number, number, number] = [246, solariaBaseY, -273.5];
+  const tariqPos: [number, number, number] = [126, solariaBaseY, -238.5];
   tariqGroup.position.set(...tariqPos);
   tariqGroup.rotation.y = 0;
   scene.add(tariqGroup);
@@ -2300,7 +2322,7 @@ export async function buildDesertStructures(
   });
 
   const aminaGroup = createCustomNPCMesh('villager');
-  const aminaPos: [number, number, number] = [250, solariaBaseY, -284];
+  const aminaPos: [number, number, number] = [135, solariaBaseY, -243];
   aminaGroup.position.set(...aminaPos);
   aminaGroup.rotation.y = 0;
   scene.add(aminaGroup);
@@ -2318,7 +2340,7 @@ export async function buildDesertStructures(
   await cooperativeYield(4);
 
   const zahraGroup = createCustomNPCMesh('bard');
-  const zahraPos: [number, number, number] = [278, solariaBaseY, -274];
+  const zahraPos: [number, number, number] = [160, solariaBaseY, -241];
   zahraGroup.position.set(...zahraPos);
   zahraGroup.rotation.y = Math.PI * 1.5;
   scene.add(zahraGroup);
@@ -2335,7 +2357,7 @@ export async function buildDesertStructures(
   });
 
   const sGuardGroup = createCustomNPCMesh('guard');
-  const sGuardPos: [number, number, number] = [236, solariaBaseY, -280];
+  const sGuardPos: [number, number, number] = [116, solariaBaseY, -245];
   sGuardGroup.position.set(...sGuardPos);
   sGuardGroup.rotation.y = Math.PI * 1.5;
   scene.add(sGuardGroup);
@@ -3323,7 +3345,7 @@ async function populateWorldEntities(
       id: 'wp_harbor',
       name: 'Sanctuary Coastal Harbor',
       nameId: 'Dermaga & Pelabuhan Sanctuary',
-      pos: [-20, 185],
+      pos: [0, 180],
     },
     {
       id: 'wp_sacred_spring',
@@ -3359,13 +3381,13 @@ async function populateWorldEntities(
       id: 'wp_solaria_village',
       name: 'Solaria Desert Village & Bazaar',
       nameId: 'Desa Bazaar Gurun Solaria',
-      pos: [250, -280],
+      pos: [135, -245],
     },
     {
       id: 'wp_solaria_palace',
       name: 'Solaria Grand Sultan Palace',
       nameId: 'Istana Sultan Malik',
-      pos: [430, -460],
+      pos: [410, -470],
     },
     {
       id: 'wp_solaria',

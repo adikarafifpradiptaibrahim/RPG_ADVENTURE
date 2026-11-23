@@ -48,7 +48,7 @@ export function isRiverZone(x: number, z: number, margin = 8.5): boolean {
  * Terhubung langsung ke gerbang setiap lokasi dan tidak memotong sungai sembarangan.
  */
 export const ROAD_ROUTE_DEFS: RoadRouteDef[] = ROAD_NETWORK.map((r) => {
-  const isDesert = r.id === 'road_north_solaria' || r.id === 'desert_bazaar_palace' || r.id === 'road_desert_caravan';
+  const isDesert = r.id.includes('solaria') || r.id.includes('desert');
   return {
     id: r.id,
     name: r.name,
@@ -128,6 +128,48 @@ export const ROAD_JUNCTIONS: RoadJunctionDef[] = [
     signDirections: [
       { label: 'Dermaga Kayu & Kapal Layar ->', angle: Math.PI * 0.5 },
       { label: '<- Alun-Alun Desa Sanctuary', angle: -Math.PI * 0.5 },
+    ],
+  },
+  {
+    id: 'jct_astraea_east_gate',
+    name: 'Gerbang Timur Astraea & Jembatan 1',
+    pos: [-225, -230],
+    signPos: [-222.5, -227.5],
+    signDirections: [
+      { label: '<- Alun-Alun Istana Astraea', angle: Math.PI },
+      { label: 'Jembatan Sungai & Gurun Solaria ->', angle: 0.0 },
+    ],
+  },
+  {
+    id: 'jct_desert_village',
+    name: 'Gerbang Barat Desa Gurun',
+    pos: [110, -245],
+    signPos: [107.5, -242.5],
+    signDirections: [
+      { label: '<- Oase Solaria & Astraea', angle: Math.PI },
+      { label: 'Desa Bazaar Gurun ->', angle: 0.0 },
+    ],
+  },
+  {
+    id: 'jct_desert_crossroads',
+    name: 'Simpang Gurun Solaria',
+    pos: [200, -260],
+    signPos: [197.5, -257.5],
+    signDirections: [
+      { label: '<- Desa Gurun & Oase', angle: Math.PI },
+      { label: 'Istana Sultan Malik ->', angle: -Math.PI * 0.25 },
+      { label: 'Kawah Colosseum (World Boss) ->', angle: -Math.PI * 0.65 },
+    ],
+  },
+  {
+    id: 'jct_sultan_palace_gate',
+    name: 'Gerbang Depan Istana Sultan Malik',
+    pos: [375, -470],
+    signPos: [372.5, -467.5],
+    signDirections: [
+      { label: 'Istana Sultan Malik ->', angle: 0.0 },
+      { label: '<- Simpang Gurun & Desa', angle: Math.PI * 0.75 },
+      { label: '^ Kanyon Kuno Utara', angle: -Math.PI * 0.5 },
     ],
   },
 ];
@@ -503,9 +545,9 @@ function createSandstonePaversMesh(
     const nx = -dz / segLen;
     const nz = dx / segLen;
 
-    // Konsentrasi tinggi di dekat bazaar (X <= 280) dan dekat istana (X >= 300)
-    const isNearBazaar = cur.x <= 280;
-    const isNearPalace = cur.x >= 300;
+    // Konsentrasi tinggi di dekat bazaar Desa Gurun (X: 105..165, Z: -255..-235) dan dekat Istana Sultan (X >= 365, Z <= -440)
+    const isNearBazaar = cur.x >= 105 && cur.x <= 165 && Math.abs(cur.z - (-245)) <= 25;
+    const isNearPalace = cur.x >= 365 && cur.z <= -440;
     const paverCount = isNearBazaar || isNearPalace
       ? Math.max(2, Math.round(segLen * 2.2))
       : (i % 2 === 0 ? 1 : 0);
@@ -668,7 +710,9 @@ export function buildWorldRoadNetwork(
           const lampZ = cur.z + nz * (road.def.width * 0.5 + 1.2) * side;
 
           // Filter rintangan: Jangan spawn di jembatan, di dalam sungai, di dalam desa, atau di dalam tembok kastil
-          if (isRiverZone(lampX, lampZ, 9.5)) continue;
+          if (isRiverZone(lampX, lampZ, 11.0)) continue;
+          if (getTerrainHeight(lampX, lampZ) < 0.60) continue;
+          if (Math.hypot(lampX - (-35), lampZ - 45) < 30.0) continue; // Confluence exclusion
           if (isPointOnBridgeDeck(lampX, lampZ, 4.0)) continue;
           if (lampX > 280 && Math.abs(lampZ - 115) < 55) continue; // Val-Kragor
           if (lampZ < -206 && Math.abs(lampX - (-250)) < 65) continue; // Astraea

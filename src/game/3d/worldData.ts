@@ -217,11 +217,15 @@ export function getDistanceToRiver(px: number, pz: number): number {
   return minDist;
 }
 
+export function isRiverZone(px: number, pz: number, margin = 8.5): boolean {
+  return getDistanceToRiver(px, pz) < margin;
+}
+
 export const WATER_LEVEL = -0.25;
 
 /**
  * Validator ketat penempatan objek darat:
- * Memastikan koordinat bukan di zona laut dan berada aman di atas permukaan air.
+ * Memastikan koordinat bukan di zona laut, bukan di palung sungai/danau, dan berada aman di atas permukaan air.
  */
 export function isStrictLandForProps(
   x: number,
@@ -230,6 +234,9 @@ export function isStrictLandForProps(
 ): boolean {
   const biome = getBiomeAt(x, z);
   if (biome === 'ocean' || biome === 'lake') return false;
+  if (isRiverZone(x, z, 8.5)) return false;
+  // Perairan Danau Titan Kuno (radius 62 di [-260, -450] atau radius 65 di [-310, -480])
+  if (Math.hypot(x - -260, z - -450) < 62 || Math.hypot(x - -310, z - -480) < 65) return false;
   const h = getHeight ? getHeight(x, z) : getProceduralContinentHeight(x, z);
   return h >= WATER_LEVEL + 0.85; // h >= 0.60
 }
@@ -326,24 +333,40 @@ export const ROAD_SPLINES: RoadSplineDef[] = [
       [400, -100],  // Menembus Hutan Kabut Eldoria
     ],
   },
-  // 3. RUTE UTARA: Astraea (-250, -204) -> Gurun Solaria -> Oase -> Piramida -> Istana Sultan -> Kanyon
+  // 3. RUTE UTARA: Gerbang Timur Astraea (-225, -230) -> Jembatan 1 -> Oase -> Desa Gurun -> Simpang -> Istana Sultan Malik -> Kanyon
   {
     id: 'road_north_solaria',
-    name: 'Jalur Poros Utara: Astraea - Oase - Piramida - Istana Sultan Malik - Kanyon',
+    name: 'Jalur Poros Utara: Astraea - Oase - Desa Gurun - Simpang - Istana Sultan Malik - Kanyon',
     width: 3.8,
     points: [
-      [-250, -204], // Gerbang Selatan Astraea
-      [-215, -220],
+      [-225, -230], // Gerbang Timur Astraea (East Gate)
       [-190, -230], // Menyeberang Jembatan Batu 1 Sungai Barat Laut
-      [-165, -230],
+      [-160, -230],
       [-110, -230], // Masuk Pintu Gerbang Pasir Gurun Solaria
+      [0, -230],
       [85, -230],   // Oase Solaria
-      [30, -350],   // Piramida Emas
-      [140, -370],  // Jalur Pasir Gurun Terbuka
-      [340, -425],  // Timur Kawah Colosseum
-      [430, -460],  // Istana Sultan Malik
-      [320, -490],
+      [110, -245],  // Pintu Masuk Barat Desa Gurun
+      [135, -245],  // Alun-Alun Sumur & Bazaar Desa Gurun
+      [160, -245],  // Pintu Keluar Timur Desa Gurun
+      [200, -260],  // Simpang Gurun (Desert Crossroads)
+      [270, -290],  // Jalur Kafilah Tenggara Gurun
+      [330, -350],
+      [370, -420],
+      [375, -470],  // Pintu Depan Gerbang Barat Istana Sultan Malik
+      [330, -500],  // Menuju Kanyon Utara
       [220, -520],  // Kanyon Kuno Utara
+    ],
+  },
+  // 3B. CABANG GURUN: Simpang Gurun (200, -260) -> Gerbang Selatan Colosseum Boss (235, -324)
+  // LARANGAN KERAS: Berhenti di luar gerbang, tidak ada jalan menembus arena!
+  {
+    id: 'road_desert_boss_spur',
+    name: 'Jalan Cabang Simpang Gurun - Gerbang Selatan Colosseum Boss',
+    width: 3.2,
+    points: [
+      [200, -260],  // Simpang Gurun
+      [220, -295],
+      [235, -324],  // Berhenti tepat di luar Gerbang Selatan Arena Boss (DILARANG masuk arena!)
     ],
   },
   // 4. RUTE SELATAN: Desa Utama (-35, 135) -> Dermaga Pelabuhan Sanctuary (0, 162)
@@ -604,11 +627,27 @@ export const WORLD_LANDMARKS: LandmarkDef[] = [
     labelPosition: 'below',
   },
   {
+    id: 'desert_village',
+    name: 'Solaria Desert Village & Bazaar',
+    nameId: 'Desa Gurun & Bazaar Solaria',
+    x: 135,
+    z: -245,
+    level: 7,
+    type: 'village',
+    icon: '🏘️',
+    color: '#f59e0b',
+    description: 'The bustling mud-brick merchant crossroads and silk bazaar of Solaria near the cool waters of the Oasis.',
+    descriptionId: 'Pemukiman rumah tanah liat dan pasar kafilah sutra & rempah di selatan gurun dekat Oase Solaria.',
+    isSafeZone: true,
+    waypointId: 'wp_solaria_village',
+    labelPosition: 'below',
+  },
+  {
     id: 'sultan_palace',
     name: 'Sultan Malik Grand Palace',
     nameId: 'Istana Sultan Malik',
-    x: 430,
-    z: -460,
+    x: 410,
+    z: -470,
     level: 8,
     type: 'palace',
     icon: '🕌',
@@ -762,16 +801,28 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   // A. Palung Sungai & Area Bawah Jembatan
   const distRiver = getDistanceToRiver(x, z);
 
-  // Perataan Khusus Area Pangkal & Bawah Jembatan (Radius 14 unit di sekitar jembatan)
+  // Perataan Khusus Area Pangkal & Bawah Jembatan (Radius 18 unit di sekitar jembatan)
   for (const b of BRIDGE_CONFIGS) {
     const distB = Math.hypot(x - b.x, z - b.z);
-    if (distB <= 14) {
-      if (distRiver < 6.5) {
-        const edge = distRiver / 6.5;
-        return -2.5 * Math.cos(edge * (Math.PI / 2));
+    if (distB < 18) {
+      const dx = x - b.x;
+      const dz = z - b.z;
+      const cos = Math.cos(-b.rotationY);
+      const sin = Math.sin(-b.rotationY);
+      const lx = cos * dx - sin * dz;
+      const lz = sin * dx + cos * dz;
+
+      // Area tepat di bawah bentang jembatan: selalu gali palung sungai dalam Y = -2.50
+      if (Math.abs(lx) <= b.length * 0.42 && Math.abs(lz) <= b.width * 0.65) {
+        return -2.50;
       }
-      // Area tepi daratan di bawah jembatan dibatasi maksimal Y = 1.20 agar tidak pernah menonjol menembus papan jembatan
-      return Math.min(1.20, 0.55 + Math.sin(x * 0.012 + z * 0.01) * 0.3);
+      // Palung sungai di sekitar jembatan
+      if (distRiver < 7.0) {
+        const edge = distRiver / 7.0;
+        return -2.50 * Math.cos(edge * (Math.PI / 2));
+      }
+      // Pangkal jembatan (abutments) di kedua ujung: diratakan mulus di bawah elevasi dek (deckY - 0.05 atau max 0.40)
+      return Math.min(b.y - 0.05, 0.40);
     }
   }
 
@@ -847,8 +898,21 @@ export function getProceduralContinentHeight(x: number, z: number): number {
       return lerpVal(mesaHeight, 1.6, blendT);
     }
 
-    // Istana Sultan Malik [430, -460]
-    if (Math.hypot(x - 430, z - -460) <= 40) return 2.00;
+    // Istana Sultan Malik [410, -470] (Elevasi rata Y = 2.00)
+    const distPalace = Math.hypot(x - 410, z - -470);
+    if (distPalace <= 40) return 2.00;
+    if (distPalace <= 52) {
+      const t = smoothstepBlend(40, 52, distPalace);
+      return lerpVal(2.00, 1.80, t);
+    }
+
+    // Desa Gurun & Bazaar [135, -245] (Elevasi rata Y = 1.80)
+    const distDesertVillage = Math.hypot(x - 135, z - -245);
+    if (distDesertVillage <= 35) return 1.80;
+    if (distDesertVillage <= 45) {
+      const t = smoothstepBlend(35, 45, distDesertVillage);
+      return lerpVal(1.80, 1.60, t);
+    }
 
     // Piramida Emas Solaria [30, -350]
     if (Math.hypot(x - 30, z - -350) <= 35) return 1.50;
@@ -858,9 +922,9 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     if (distOasis < 18) return -0.4;
     if (distOasis < 28) return 0.6;
 
-    // Kawah World Boss Colosseum Titan Kuno [235, -380] (Kering dan Datar)
+    // Kawah World Boss Colosseum Titan Kuno [235, -380] (Kering dan Datar Y = 1.80, radius 50)
     const distSinkhole = Math.hypot(x - 235, z - -380);
-    if (distSinkhole <= 45) {
+    if (distSinkhole <= 50) {
       return 1.80; // Arena Colosseum datar kering
     }
 
@@ -940,14 +1004,6 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     const targetH = Math.max(1.0, Math.min(18.0, 5.0 + eastHills));
     const t = smoothstepBlend(500, 545, x);
     return lerpVal(basePlainsHeight, targetH, t);
-  }
-
-  // 9. Jembatan (Walkable Deck Height)
-  for (const b of BRIDGE_CONFIGS) {
-    if (Math.hypot(x - b.x, z - b.z) <= b.length / 2 + 1.2) {
-      if (b.type === 'suspension') return 1.35;
-      return 0.50;
-    }
   }
 
   // 10. Perataan Koridor Jalan Raya (< 5.5 unit) - Halus & Landai Bebas Tebing
