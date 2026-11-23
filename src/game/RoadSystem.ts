@@ -1,6 +1,21 @@
 import * as THREE from 'three';
-import { createInstancedStreetLamps, createDesertOilLanternMesh } from './3d/models';
+import {
+  createInstancedStreetLamps,
+  createDesertOilLanternMesh,
+  createSuspensionBridgeMesh,
+  createStoneArchBridgeMesh,
+  createStoneBridgePierMesh,
+} from './3d/models';
 import { WorldCollider } from './3d/world';
+import {
+  ROAD_NETWORK,
+  ROAD_SPLINES,
+  BRIDGE_CONFIGS,
+  BridgeDef,
+  isPointOnBridgeDeck,
+  getDistanceToRiver,
+  WATER_LEVEL,
+} from './3d/worldData';
 
 export type RoadBiomeType = 'plains' | 'desert';
 
@@ -24,160 +39,49 @@ export interface RoadJunctionDef {
   signDirections: Array<{ label: string; angle: number }>;
 }
 
+export function isRiverZone(x: number, z: number, margin = 8.5): boolean {
+  return getDistanceToRiver(x, z) < margin;
+}
+
 /**
- * 1. TATA LETAK RUTE EKSPLISIT (WAYPOINT ARRAY)
- * Sesuai panduan "ROAD & PATHWAY DESIGN GUIDE - CHRONICLES OF ELDORIA":
- * - Jalan raya antarkota TIDAK memotong ke dalam pelataran istana atau benteng.
- * - Gerbang Astraea: Kunci tepat di depan pintu luar West Gatehouse [X: -365, Z: -220].
- * - Gerbang Val-Kragor: Kunci tepat di depan pintu luar gerbang benteng slate [X: 350, Z: 80].
- * - Desa Sanctuary: Rute pelabuhan berhenti di tangga alun-alun [0, 192]. Alun-alun tengah
- *   menggunakan pelataran batu melingkar desa. Jalan luar dimulai dari gapura utara [0, 168].
- * - Jembatan Gantung: Menghubungkan lurus [136, 47] ke [154, 47] pada dek kayu Y = 1.35.
- * - Gurun Solaria: Jalur kafilah lebar 4.5 unit dari Bazaar [238, -280] ke Istana Sultan [330, -280].
+ * 1. TATA LETAK RUTE EKSPLISIT (ROAD_NETWORK)
+ * Terhubung langsung ke gerbang setiap lokasi dan tidak memotong sungai sembarangan.
  */
-export const ROAD_ROUTE_DEFS: RoadRouteDef[] = [
-  // A. JALUR BARAT (DESA UTAMA -> ASTRAEA)
-  {
-    id: 'plains_west_astraea',
-    name: 'Jalan Poros Barat: Sanctuary - Astraea',
-    biome: 'plains',
-    width: 3.2,
-    controlPoints: [
-      [-35, 135],   // Alun-Alun Air Mancur Desa Utama
-      [-75, 135],   // Gerbang Barat Desa
-      [-120, 120],
-      [-180, 120],
-      [-220, 40],
-      [-245, -60],
-      [-250, -140],
-      [-250, -210], // Tepat di Gerbang Selatan Astraea
-    ],
-    colorHex: 0x8c7a65,
-    canvasStroke: '#a3917a',
-    canvasDash: [6, 4],
-    canvasWidth: 2.8,
-  },
-
-  // B. JALUR SELATAN (DESA UTAMA -> PELABUHAN SANCTUARY)
-  {
-    id: 'plains_south_harbor',
-    name: 'Jalan Poros Selatan: Sanctuary - Pelabuhan',
-    biome: 'plains',
-    width: 3.4,
-    controlPoints: [
-      [-35, 135],   // Alun-Alun Desa Utama
-      [-25, 155],
-      [-20, 170],
-      [-20, 185],   // Menghubungkan langsung ke Dermaga Kayu Pelabuhan Sanctuary
-    ],
-    colorHex: 0x8c7a65,
-    canvasStroke: '#a3917a',
-    canvasDash: [6, 4],
-    canvasWidth: 2.8,
-  },
-
-  // C. JALUR UTARA (DESA UTAMA -> PERSIMPANGAN SUNGAI)
-  {
-    id: 'plains_north_confluence',
-    name: 'Jalan Poros Utara: Sanctuary - Titik Temu Tengah',
-    biome: 'plains',
-    width: 3.0,
-    controlPoints: [
-      [-35, 135],   // Alun-Alun Desa Utama
-      [-35, 105],   // Gerbang Utara Desa
-      [-35, 75],
-      [-35, 45],    // Titik Temu Sungai
-    ],
-    colorHex: 0x8c7a65,
-    canvasStroke: '#a3917a',
-    canvasDash: [6, 4],
-    canvasWidth: 2.8,
-  },
-
-  // D. JALUR TIMUR (DESA UTAMA -> JEMBATAN GANTUNG -> VAL-KRAGOR)
-  {
-    id: 'plains_east_valkragor',
-    name: 'Jalan Poros Timur: Sanctuary - Jembatan - Benteng Val-Kragor',
-    biome: 'plains',
-    width: 3.2,
-    controlPoints: [
-      [-35, 135],   // Desa Utama
-      [-10, 130],
-      [0, 120],
-      [15, 110],    // Menyeberang Jembatan Gantung Sungai Selatan (Bridge 2)
-      [60, 70],
-      [110, 35],    // Pertigaan Menara Puncak Halilintar
-      [180, 50],
-      [240, 70],
-      [260, 95],
-      [284, 115],   // Tepat di Gerbang Barat Benteng Val-Kragor
-    ],
-    colorHex: 0x8c7a65,
-    canvasStroke: '#a3917a',
-    canvasDash: [6, 4],
-    canvasWidth: 2.8,
-  },
-
-  // E. JALAN SETAPAK AKSES LEMBAH BATU LUMUT
-  {
-    id: 'moss_valley_access',
-    name: 'Jalan Setapak Akses Jembatan Kayu Lembah Batu Lumut',
-    biome: 'plains',
-    width: 2.6,
-    controlPoints: [
-      [336, 115],   // Keluar dari sisi timur Val-Kragor
-      [360, 75],
-      [380, 35],    // Menyeberang Jembatan Sungai Timur (Bridge 3)
-      [420, 35],
-      [465, 35],    // Glade Alami Lembah Batu Lumut
-    ],
-    colorHex: 0x78716c,
-    canvasStroke: '#78716c',
-    canvasDash: [3, 3],
-    canvasWidth: 2.0,
-  },
-
-  // D. JALUR GURUN SOLARIA (PERTIGAAN -> OASE -> PIRAMIDA -> SULTAN PALACE)
-  {
-    id: 'desert_bazaar_palace',
-    name: 'Jalur Kafilah Pasir Gurun Solaria - Oase - Piramida - Istana Sultan',
-    biome: 'desert',
-    width: 4.0,
-    controlPoints: [
-      [110, 35],    // Cabang dari Pertigaan Menara
-      [85, -230],   // Oase Solaria
-      [30, -350],   // Piramida Emas
-      [140, -370],
-      [340, -425],  // Melewati timur Kawah Boss
-      [430, -460],  // Istana Sultan Malik
-    ],
-    colorHex: 0xd9be8b,
-    canvasStroke: '#d9be8b',
-    canvasDash: [],
-    canvasWidth: 3.4,
-  },
-];
+export const ROAD_ROUTE_DEFS: RoadRouteDef[] = ROAD_NETWORK.map((r) => {
+  const isDesert = r.id === 'road_north_solaria' || r.id === 'desert_bazaar_palace' || r.id === 'road_desert_caravan';
+  return {
+    id: r.id,
+    name: r.name,
+    biome: isDesert ? 'desert' : 'plains',
+    width: r.width,
+    controlPoints: r.points,
+    colorHex: isDesert ? 0xd9be8b : 0x8c7a65,
+    canvasStroke: isDesert ? '#d9be8b' : '#a3917a',
+    canvasDash: r.id.includes('moss') ? [3, 3] : (isDesert ? [] : [6, 4]),
+    canvasWidth: isDesert ? 3.4 : 2.8,
+  };
+});
 
 /**
  * Persimpangan Jalan Utama & Papan Petunjuk Arah
  */
 export const ROAD_JUNCTIONS: RoadJunctionDef[] = [
   {
-    id: 'jct_crossroad_main',
-    name: 'Persimpangan Utama Luar Gerbang Sanctuary',
-    pos: [25, 95],
-    signPos: [27.5, 93.5],
+    id: 'jct_crossroad_east',
+    name: 'Simpang Timur Sanctuary',
+    pos: [45, 110],
+    signPos: [47.5, 107.5],
     signDirections: [
-      { label: '<- Ibukota Astraea & Danau Titan', angle: -Math.PI * 0.72 },
-      { label: 'Benteng Val-Kragor & Jembatan ->', angle: 0.18 },
-      { label: 'v Desa Sanctuary & Pelabuhan', angle: Math.PI * 0.5 },
+      { label: '<- Jembatan Utama & Sanctuary', angle: Math.PI },
+      { label: 'Benteng Val-Kragor ->', angle: 0.0 },
+      { label: '^ Puing Kastil Terbengkalai', angle: -Math.PI * 0.4 },
     ],
   },
   {
     id: 'jct_bridge_west',
-    name: 'Pangkal Jembatan Tengah',
-    pos: [-30, 55],
-    signPos: [-32.0, 52.5],
+    name: 'Pangkal Barat Jembatan Utama',
+    pos: [4, 110],
+    signPos: [2.5, 107.5],
     signDirections: [
       { label: 'Benteng Val-Kragor & Puing Kastil ->', angle: 0.0 },
       { label: '<- Desa Sanctuary & Pelabuhan', angle: Math.PI },
@@ -186,33 +90,44 @@ export const ROAD_JUNCTIONS: RoadJunctionDef[] = [
   {
     id: 'jct_valkragor_gate',
     name: 'Ambang Luar Gerbang Benteng Val-Kragor',
-    pos: [315, 95],
-    signPos: [312.5, 92.5],
+    pos: [278, 115],
+    signPos: [275.5, 112.5],
     signDirections: [
-      { label: 'Pintu Gerbang Benteng Val-Kragor ->', angle: 0.0 },
-      { label: '<- Jembatan Tengah & Sanctuary', angle: Math.PI },
-      { label: '^ Jalan Setapak Lembah Batu Lumut', angle: -Math.PI * 0.5 },
+      { label: 'Gerbang Benteng Val-Kragor ->', angle: 0.0 },
+      { label: '<- Simpang Timur & Sanctuary', angle: Math.PI },
+      { label: '^ Lembah Batu Lumut & Hutan Kabut', angle: -Math.PI * 0.5 },
     ],
   },
   {
     id: 'jct_astraea_gate',
-    name: 'Gerbang Emas Astraea',
-    pos: [-250, -210],
-    signPos: [-252.5, -213.5],
+    name: 'Gerbang Selatan Astraea',
+    pos: [-250, -204],
+    signPos: [-252.5, -201.5],
     signDirections: [
-      { label: 'Gerbang Istana Astraea ->', angle: 0.0 },
+      { label: 'Gerbang Istana Astraea ->', angle: -Math.PI * 0.5 },
       { label: '<- Desa Sanctuary & Padang Rumput', angle: Math.PI * 0.5 },
-      { label: '^ Danau Titan Kuno', angle: -Math.PI * 0.5 },
+      { label: 'Jalur Sutra Gurun Solaria ->', angle: 0.0 },
+      { label: '<- Ziarah Danau Titan Kuno', angle: Math.PI },
     ],
   },
   {
-    id: 'jct_bazaar_gate',
-    name: 'Oase Solaria Crossroads',
-    pos: [55, -250],
-    signPos: [53.0, -246.5],
+    id: 'jct_puing_kastil',
+    name: 'Pintu Masuk Puing Kastil Terbengkalai',
+    pos: [220, -35],
+    signPos: [217.0, -32.5],
     signDirections: [
-      { label: 'Istana Sultan Malik ->', angle: 0.0 },
-      { label: '<- Oase & Piramida Emas', angle: Math.PI },
+      { label: 'Puing Kastil Kuno ->', angle: 0.0 },
+      { label: '<- Simpang Timur & Val-Kragor', angle: Math.PI * 0.65 },
+    ],
+  },
+  {
+    id: 'jct_harbor_apron',
+    name: 'Pangkal Tangga Dermaga Pelabuhan',
+    pos: [0, 162],
+    signPos: [-2.5, 160.0],
+    signDirections: [
+      { label: 'Dermaga Kayu & Kapal Layar ->', angle: Math.PI * 0.5 },
+      { label: '<- Alun-Alun Desa Sanctuary', angle: -Math.PI * 0.5 },
     ],
   },
 ];
@@ -396,24 +311,31 @@ function createContinuousRibbonMesh(
     let leftY = yFunc(leftX, leftZ) + 0.05;
     let rightY = yFunc(rightX, rightZ) + 0.05;
 
-    // KONEKSI MULUS DI JEMBATAN GANTUNG:
-    // Pada bentang jembatan [136, 47] s/d [154, 47], ketinggian dikunci rata dengan dek kayu jembatan (Y = 1.35)
-    if (Math.abs(cur.z - 47) <= 2.8 && cur.x >= 135.5 && cur.x <= 154.5) {
-      leftY = 1.35 + 0.02;
-      rightY = 1.35 + 0.02;
+    // PENYELARASAN ABUTMENT KEPALA JEMBATAN:
+    for (const b of BRIDGE_CONFIGS) {
+      const distToB = Math.hypot(cur.x - b.x, cur.z - b.z);
+      if (distToB <= b.length * 0.58) {
+        leftY = Math.min(b.y + 0.04, leftY);
+        rightY = Math.min(b.y + 0.04, rightY);
+      }
     }
 
     positions.push(leftX, leftY, leftZ, rightX, rightY, rightZ);
     uvs.push(0, totalDist / 3.2, 1, totalDist / 3.2);
 
-    // Quad Strip Triangles
+    // Quad Strip Triangles: Hentikan pita jalan di bentang jembatan agar lantai jembatan bebas tembusan tanah
     if (i < points.length - 1) {
-      const v0 = i * 2;
-      const v1 = i * 2 + 1;
-      const v2 = (i + 1) * 2;
-      const v3 = (i + 1) * 2 + 1;
-      indices.push(v0, v1, v2);
-      indices.push(v2, v1, v3);
+      const next = points[i + 1];
+      const midX = (cur.x + next.x) * 0.5;
+      const midZ = (cur.z + next.z) * 0.5;
+      if (!isPointOnBridgeDeck(midX, midZ, -0.1)) {
+        const v0 = i * 2;
+        const v1 = i * 2 + 1;
+        const v2 = (i + 1) * 2;
+        const v3 = (i + 1) * 2 + 1;
+        indices.push(v0, v1, v2);
+        indices.push(v2, v1, v3);
+      }
     }
   }
 
@@ -478,8 +400,10 @@ function createCobblestoneDetailMesh(
       const cur = pts[i];
       const next = pts[i + 1];
 
-      // Jangan spawn batu di atas jembatan gantung (dek kayu murni)
+      // Jangan spawn batu di atas jembatan, di zona sungai, atau di dalam tembok benteng/istana
       if (Math.abs(cur.z - 47) <= 3.0 && cur.x >= 135.5 && cur.x <= 154.5) continue;
+      if (isPointOnBridgeDeck(cur.x, cur.z, 2.0)) continue;
+      if (isRiverZone(cur.x, cur.z, 8.5)) continue;
 
       const dx = next.x - cur.x;
       const dz = next.z - cur.z;
@@ -743,11 +667,13 @@ export function buildWorldRoadNetwork(
           const lampX = cur.x + nx * (road.def.width * 0.5 + 1.2) * side;
           const lampZ = cur.z + nz * (road.def.width * 0.5 + 1.2) * side;
 
-          // Filter rintangan: Jangan spawn di jembatan, di dalam desa, di depan gerbang istana/benteng
-          if (lampX >= 134 && lampX <= 156 && Math.abs(lampZ - 47) <= 5.0) continue;
-          if (Math.hypot(lampX, lampZ - 180) <= 25.0) continue;
-          if (Math.hypot(lampX - -365, lampZ - -220) <= 15.0) continue;
-          if (Math.hypot(lampX - 350, lampZ - 80) <= 15.0) continue;
+          // Filter rintangan: Jangan spawn di jembatan, di dalam sungai, di dalam desa, atau di dalam tembok kastil
+          if (isRiverZone(lampX, lampZ, 9.5)) continue;
+          if (isPointOnBridgeDeck(lampX, lampZ, 4.0)) continue;
+          if (lampX > 280 && Math.abs(lampZ - 115) < 55) continue; // Val-Kragor
+          if (lampZ < -206 && Math.abs(lampX - (-250)) < 65) continue; // Astraea
+          if (Math.hypot(lampX - (-35), lampZ - 135) <= 25.0) continue; // Alun-alun Desa Utama
+          if (lampZ > 160) continue; // Area Pelabuhan
           if (isPointOnRoad(lampX, lampZ)) continue;
 
           const lampY = getTerrainHeight(lampX, lampZ);
@@ -888,29 +814,22 @@ export function drawRoadsOnWorldMap(
   });
 
   // 4. JEMBATAN KAYU / STONE BRIDGES (Sesuai BRIDGE_CONFIGS Single Source of Truth)
-  const BRIDGES_2D: { x: number; z: number; angle: number; length: number }[] = [
-    { x: -190, z: -230, angle: 0, length: 26 },
-    { x: 15, z: 110, angle: 0, length: 22 },
-    { x: 400, z: 35, angle: 0, length: 24 },
-    { x: -40, z: 235, angle: Math.PI / 2, length: 100 },
-  ];
-
-  BRIDGES_2D.forEach((b) => {
+  BRIDGE_CONFIGS.forEach((b) => {
     const sx = ((b.x - minX) / (maxX - minX)) * width;
     const sy = ((b.z - minZ) / (maxZ - minZ)) * height;
     ctx.save();
     ctx.translate(sx, sy);
-    ctx.rotate(b.angle);
+    ctx.rotate(b.rotationY);
 
     // Deck kayu cokelat tebal dengan bayangan
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.fillRect(-b.length / 2 - 1, -4.5, b.length + 2, 9);
 
-    ctx.fillStyle = '#8b5a2b';
+    ctx.fillStyle = b.type === 'stone' ? '#64748b' : '#8b5a2b';
     ctx.fillRect(-b.length / 2, -3.5, b.length, 7);
 
-    // Garis balok papan melintang
-    ctx.strokeStyle = '#5c3a1e';
+    // Garis balok papan melintang / batu
+    ctx.strokeStyle = b.type === 'stone' ? '#475569' : '#5c3a1e';
     ctx.lineWidth = 1;
     for (let px = -b.length / 2 + 2; px <= b.length / 2 - 2; px += 2.5) {
       ctx.beginPath();
@@ -920,7 +839,7 @@ export function drawRoadsOnWorldMap(
     }
 
     // Pagar tepi jembatan
-    ctx.strokeStyle = '#3e2723';
+    ctx.strokeStyle = b.type === 'stone' ? '#334155' : '#3e2723';
     ctx.lineWidth = 1.4;
     ctx.beginPath();
     ctx.moveTo(-b.length / 2, -3.5);

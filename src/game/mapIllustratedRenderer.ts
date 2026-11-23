@@ -637,9 +637,8 @@ export function renderIllustratedMap(
   // ==========================================================================
   ctx.save();
   ROAD_SPLINES.forEach((road) => {
-    if (road.id === 'road_caldera_bridge') return; // rendered as pier bridge
     const pts = road.points.map((p) => wToC(p[0], p[1]));
-    const isDesert = road.id === 'road_desert_caravan';
+    const isDesert = road.id.includes('solaria') || road.id.includes('desert');
 
     ctx.strokeStyle = isDesert ? 'rgba(180, 130, 50, 0.45)' : 'rgba(74, 54, 38, 0.45)';
     ctx.lineWidth = isDesert ? 3.6 : 4.0;

@@ -7,7 +7,7 @@
  * Sized 600 x 475 cells (2 units/cell) across world bounds X: [-600, 600], Z: [-600, 350].
  */
 
-import { WORLD_BOUNDS, getBiomeAt } from './worldData';
+import { WORLD_BOUNDS, getBiomeAt, BRIDGE_CONFIGS } from './worldData';
 import {
   RIVER_NW_BRANCH,
   RIVER_DESERT_BRANCH,
@@ -229,14 +229,13 @@ export class SpatialLookupGrid {
     }
 
     // 3. Mark Bridges
-    this.markCircle(-190, -230, 20.0, FLAG_BLOCKED_BRIDGE | FLAG_BLOCKED_GENERAL); // Bridge 1
-    this.markCircle(-30, 110, 20.0, FLAG_BLOCKED_BRIDGE | FLAG_BLOCKED_GENERAL);   // Bridge 2
-    this.markCircle(290, 65, 20.0, FLAG_BLOCKED_BRIDGE | FLAG_BLOCKED_GENERAL);    // Bridge 3
-    this.markCircle(465, -30, 20.0, FLAG_BLOCKED_BRIDGE | FLAG_BLOCKED_GENERAL);   // Bridge 4
-    this.markBox(-82, -58, 220, 305, FLAG_BLOCKED_BRIDGE | FLAG_BLOCKED_GENERAL);  // Bridge 5
+    for (const b of BRIDGE_CONFIGS) {
+      this.markCircle(b.x, b.z, (b.length * 0.5) + 6.0, FLAG_BLOCKED_BRIDGE | FLAG_BLOCKED_GENERAL);
+    }
 
     // 4. Mark Village & Harbor Settlements
     this.markCircle(-40, 145, 54.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);
+    this.markCircle(0, 180, 35.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL); // Pelabuhan Sanctuary
     this.markCircle(-140, 185, 40.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);
     this.markCircle(-35, 185, 40.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);
     this.markCircle(-20, 185, 30.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);

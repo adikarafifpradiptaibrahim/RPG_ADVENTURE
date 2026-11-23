@@ -98,6 +98,7 @@ import {
 import { buildWorldRoadNetwork, isPointOnRoad } from '../RoadSystem';
 import { checkFrameBudget, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield } from './frameBudget';
 import { SpatialLookupGrid } from './spatialGrid';
+import { BRIDGE_CONFIGS, isStrictLandForProps, WATER_LEVEL } from './worldData';
 
 export interface WorldCollider {
   type: 'box' | 'circle';
@@ -623,80 +624,77 @@ export async function buildHarbor(
   scene.add(oceanMesh);
 
   // ==========================================
-  // 1b. EXTENDED CONTINUOUS COASTAL HARBOR (Sea Shoreline at Z >= 185, X: -20)
-  // Dermaga Kayu Pelabuhan Sanctuary menempel di pesisir selatan Desa Utama [-20, 185..215]
+  // 1b. EXTENDED CONTINUOUS COASTAL HARBOR (Sea Shoreline at Z >= 185, X: 0)
+  // Dermaga Kayu Pelabuhan Sanctuary menempel di ujung jalan poros selatan [0, 162..200]
   // ==========================================
   const dockY = -0.375; // Aligns top of 2.1m deck + 0.125m plank exactly at y = 1.85
-  const harborX = -20;
+  const harborX = 0;
 
-  // 0. Shoreline Boardwalk Apron (Z: 185..188)
+  // 0. Shoreline Boardwalk Apron (Z: 162..165)
   const shorelineBoardwalk = createDockShorelineBoardwalkMesh(5.6, 3.5);
-  shorelineBoardwalk.position.set(harborX, 0.22, 185.0);
+  shorelineBoardwalk.position.set(harborX, 0.22, 162.0);
   scene.add(shorelineBoardwalk);
 
-  // 1. Wooden Beach Ramp & Short Stairs (Z: 187.5..191.5)
+  // 1. Wooden Beach Ramp & Short Stairs (Z: 164.5..168.5)
   const beachRamp = createDockStairRampMesh(4.8, 4.0, 1.8);
-  beachRamp.position.set(harborX, 0.05, 188.0);
+  beachRamp.position.set(harborX, 0.05, 165.5);
   scene.add(beachRamp);
 
   // 2. Extended Main Straight Pier (Dermaga Utama Menjorok ke Samudra)
-  const pierMain1 = createPierDockMesh({ length: 12.0, width: 4.8, pileDepth: 7.0, hasMooringBollards: true });
-  pierMain1.position.set(harborX, dockY, 192.0);
+  const pierMain1 = createPierDockMesh({ length: 14.0, width: 4.8, pileDepth: 7.0, hasMooringBollards: true });
+  pierMain1.position.set(harborX, dockY, 174.5);
   scene.add(pierMain1);
 
   const pierMain2 = createPierDockMesh({ length: 14.0, width: 4.8, pileDepth: 7.5, hasMooringBollards: true });
-  pierMain2.position.set(harborX, dockY, 203.0);
+  pierMain2.position.set(harborX, dockY, 188.5);
   scene.add(pierMain2);
 
   const pierHeadPlatform = createPierDockMesh({ length: 6.0, width: 10.0, pileDepth: 8.5, hasLantern: true, lanternSide: 'both', hasMooringBollards: true });
-  pierHeadPlatform.position.set(harborX, dockY, 212.0);
+  pierHeadPlatform.position.set(harborX, dockY, 198.5);
   scene.add(pierHeadPlatform);
 
-  // 3. Symmetrical Berthing Wings (Cabang Tempat Bersandar Kapal di Z = 200)
+  // 3. Symmetrical Berthing Wings (Cabang Tempat Bersandar Kapal di Z = 188.5)
   const wingWest1 = createPierDockMesh({ length: 13.0, width: 4.0, pileDepth: 7.2, hasLantern: true, lanternSide: 'left', hasMooringBollards: true });
-  wingWest1.position.set(harborX - 2.4, dockY, 200.0);
+  wingWest1.position.set(harborX - 2.4, dockY, 188.5);
   wingWest1.rotation.y = Math.PI * 1.5;
   scene.add(wingWest1);
 
   const wingEast1 = createPierDockMesh({ length: 13.0, width: 4.0, pileDepth: 7.2, hasLantern: true, lanternSide: 'right', hasMooringBollards: true });
-  wingEast1.position.set(harborX + 2.4, dockY, 200.0);
+  wingEast1.position.set(harborX + 2.4, dockY, 188.5);
   wingEast1.rotation.y = Math.PI / 2;
   scene.add(wingEast1);
 
-  // 4. Moored Main Ships & Boarding Gangways
-  // Grand Merchant Galleon 1 (Bertambat di samping Sayap Timur)
+  // 4. Moored Main Ships & Boarding Gangways (Terapung di air samudra y = WATER_LEVEL - 0.15 = -0.40)
   const galleon1 = createMerchantGalleonMesh();
-  galleon1.position.set(harborX + 19.5, -0.25, 200.0);
+  galleon1.position.set(harborX + 19.5, WATER_LEVEL - 0.15, 188.5);
   galleon1.rotation.y = 0;
   scene.add(galleon1);
 
-  // Viking Shielded Warship 2 (Bertambat di samping Sayap Barat)
   const warship2 = createVikingWarshipMesh();
-  warship2.position.set(harborX - 19.5, -0.25, 200.0);
+  warship2.position.set(harborX - 19.5, WATER_LEVEL - 0.15, 188.5);
   warship2.rotation.y = 0;
   scene.add(warship2);
 
-  // Perahu Nelayan Pak Joko (Bertambat di ujung anjungan)
   const rowboatJoko = createRowboatMesh();
-  rowboatJoko.position.set(harborX, -0.25, 215.0);
+  rowboatJoko.position.set(harborX, WATER_LEVEL - 0.15, 202.0);
   rowboatJoko.rotation.y = Math.PI / 2;
   scene.add(rowboatJoko);
 
   // Timber boarding gangways
   const gangwayMat = new THREE.MeshLambertMaterial({ color: 0x5d4037, flatShading: true });
   const gangwayEast = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.16, 1.6), gangwayMat);
-  gangwayEast.position.set(harborX + 16.9, 1.86, 200.0);
+  gangwayEast.position.set(harborX + 16.9, 1.86, 188.5);
   scene.add(gangwayEast);
 
   const gangwayWest = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.16, 1.6), gangwayMat);
-  gangwayWest.position.set(harborX - 16.9, 1.86, 200.0);
+  gangwayWest.position.set(harborX - 16.9, 1.86, 188.5);
   scene.add(gangwayWest);
-
 
   colliders.push(
     // Ship Hull Colliders (Outer water boundaries)
-    { type: 'box', minX: harborX + 14.5, maxX: harborX + 19.5, minZ: 193, maxZ: 207, label: 'Lambung Kapal Dagang Emas 1' },
-    { type: 'box', minX: harborX - 19.5, maxX: harborX - 14.5, minZ: 193, maxZ: 207, label: 'Lambung Kapal Perang Bershield' }
+    { type: 'box', minX: harborX + 14.5, maxX: harborX + 23.5, minZ: 181, maxZ: 196, label: 'Lambung Kapal Dagang Emas 1' },
+    { type: 'box', minX: harborX - 23.5, maxX: harborX - 14.5, minZ: 181, maxZ: 196, label: 'Lambung Kapal Perang Bershield' },
+    { type: 'box', minX: harborX - 2.6, maxX: harborX + 2.6, minZ: 162, maxZ: 201, label: 'Dermaga Utama Pelabuhan' }
   );
 
   await cooperativeYield(4);
@@ -1732,46 +1730,39 @@ export async function buildValKragorFort(
   await cooperativeYield(4);
 
   // ==========================================
-  // 2.9 MISTY CHASM & SOLID SUSPENSION BRIDGE (JEMBATAN 2: JALUR HILIR SELATAN - X: 15, Z: 110)
-  // Membentang lurus di X: 4..26 pada Z = 110 di atas Cabang Sungai Hilir Selatan.
+  // 2.9 SISTEM 4 JEMBATAN PERPOTONGAN SUNGAI (BRIDGE_CONFIGS SINGLE SOURCE OF TRUTH)
+  // Menyeberangi sungai tegak lurus dengan abutment padat dan pagar pembatas kokoh
   // ==========================================
-  const bridge = createSuspensionBridgeMesh(22);
-  bridge.position.set(15, 1.35, 110);
-  scene.add(bridge);
+  for (const b of BRIDGE_CONFIGS) {
+    let bridgeMesh: THREE.Group;
+    if (b.type === 'suspension') {
+      bridgeMesh = createSuspensionBridgeMesh(b.length);
+      bridgeMesh.position.set(b.x, b.y, b.z);
+      bridgeMesh.rotation.y = b.rotationY;
+      scene.add(bridgeMesh);
 
-  const chasmStonePier = createStoneBridgePierMesh(4.4);
-  chasmStonePier.position.set(15, -2.2, 110);
-  scene.add(chasmStonePier);
+      const chasmStonePier = createStoneBridgePierMesh(4.4);
+      chasmStonePier.position.set(b.x, -2.2, b.z);
+      scene.add(chasmStonePier);
+    } else {
+      bridgeMesh = createStoneArchBridgeMesh(b.length, b.width, 2.7);
+      bridgeMesh.position.set(b.x, b.y, b.z);
+      bridgeMesh.rotation.y = b.rotationY;
+      scene.add(bridgeMesh);
+    }
 
-  colliders.push(
-    { type: 'box', minX: 4, maxX: 26, minZ: 107.8, maxZ: 108.6, label: 'Pagar Jembatan Gantung Utara' },
-    { type: 'box', minX: 4, maxX: 26, minZ: 111.4, maxZ: 112.2, label: 'Pagar Jembatan Gantung Selatan' }
-  );
-
-  // ==========================================
-  // 2.9c JEMBATAN 1: JALUR BARAT / ASTRAEA HIGHWAY (X: -190, Z: -230)
-  // ==========================================
-  const bridge1West = createStoneArchBridgeMesh(26, 4.8, 2.7);
-  bridge1West.position.set(-190, 0.45, -230);
-  bridge1West.rotation.y = 0;
-  scene.add(bridge1West);
-  colliders.push(
-    { type: 'box', minX: -203, maxX: -177, minZ: -232.5, maxZ: -232.1, label: 'Pagar Jembatan 1 Utara' },
-    { type: 'box', minX: -203, maxX: -177, minZ: -227.9, maxZ: -227.5, label: 'Pagar Jembatan 1 Selatan' }
-  );
-
-  // ==========================================
-  // 2.9d JEMBATAN 3: AKSES LEMBAH BATU LUMUT (X: 380, Z: 35)
-  // Menyeberang Sungai Timur tegak lurus menghubungkan Val-Kragor ke Lembah Batu Lumut
-  // ==========================================
-  const bridge3Moss = createStoneArchBridgeMesh(24, 4.8, 2.7);
-  bridge3Moss.position.set(380, 0.45, 35);
-  bridge3Moss.rotation.y = 0; // Membentang tegak lurus menyeberangi lebar sungai
-  scene.add(bridge3Moss);
-  colliders.push(
-    { type: 'box', minX: 368, maxX: 392, minZ: 32.5, maxZ: 32.9, label: 'Pagar Jembatan 3 Utara' },
-    { type: 'box', minX: 368, maxX: 392, minZ: 37.1, maxZ: 37.5, label: 'Pagar Jembatan 3 Selatan' }
-  );
+    if (Math.abs(b.rotationY) < 0.1) {
+      colliders.push(
+        { type: 'box', minX: b.x - b.length / 2, maxX: b.x + b.length / 2, minZ: b.z - b.width / 2 - 0.4, maxZ: b.z - b.width / 2, label: `Pagar ${b.nameId} Sisi Utara` },
+        { type: 'box', minX: b.x - b.length / 2, maxX: b.x + b.length / 2, minZ: b.z + b.width / 2, maxZ: b.z + b.width / 2 + 0.4, label: `Pagar ${b.nameId} Sisi Selatan` }
+      );
+    } else {
+      colliders.push(
+        { type: 'box', minX: b.x - b.width / 2 - 0.4, maxX: b.x - b.width / 2, minZ: b.z - b.length / 2, maxZ: b.z + b.length / 2, label: `Pagar ${b.nameId} Sisi Barat` },
+        { type: 'box', minX: b.x + b.width / 2, maxX: b.x + b.width / 2 + 0.4, minZ: b.z - b.length / 2, maxZ: b.z + b.length / 2, label: `Pagar ${b.nameId} Sisi Timur` }
+      );
+    }
+  }
 
   // 2.9b Jaringan Jalan Raya & Jalan Setapak Terstruktur Benua Eldoria (Road Network & Path System)
   // Menghubungkan Pelabuhan, Alun-Alun Sanctuary, Ibukota Astraea, Puncak Mage Tower,
@@ -1879,7 +1870,8 @@ export async function buildValKragorFort(
     const tx = Math.cos(angle) * dist;
     const tz = 180 + Math.sin(angle) * dist;
 
-    // Strict Anti-Overlap & Cross-Biome Exclusion: DILARANG SPAWN di biome gurun!
+    // Strict Anti-Overlap & Cross-Biome Exclusion: DILARANG SPAWN di biome gurun atau laut!
+    if (!isStrictLandForProps(tx, tz, getTerrainHeight)) continue;
     if (isDesertBiome(tx, tz)) continue;
     if (getDistanceToRiver(tx, tz) < 18.0) continue;
     const inSanctuaryMainland = (tx >= -70 && tx <= -10 && tz >= 115 && tz <= 175);

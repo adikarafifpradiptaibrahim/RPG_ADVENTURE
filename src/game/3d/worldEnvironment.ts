@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { WorldCollider } from './world';
 import { isPointNearRoad } from '../RoadSystem';
-import { getBiomeAt } from './worldData';
+import { getBiomeAt, BRIDGE_CONFIGS, isStrictLandForProps } from './worldData';
 import {
   isDesertBiome,
   getDistanceToRiver,
@@ -701,10 +701,16 @@ export async function buildWorldEnvironmentAsync(
     [-1, 1],
     [1, 1],
   ].forEach(([sx, sz]) => {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, towerH, 6), matWoodRustic);
-    post.position.set(sx * towerSpan * 0.5, towerH * 0.5, sz * towerSpan * 0.5);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.22, towerH + 2.5, 6), matWoodRustic);
+    post.position.set(sx * towerSpan * 0.5, (towerH * 0.5) - 1.25, sz * towerSpan * 0.5);
     tower.add(post);
   });
+
+  // Pondasi skirt menara pengawas agar menancap kokoh ke tanah
+  const towerPlinth = new THREE.Mesh(new THREE.BoxGeometry(towerSpan + 0.8, 3.0, towerSpan + 0.8), matWoodDark);
+  towerPlinth.position.y = -1.25;
+  towerPlinth.receiveShadow = true;
+  tower.add(towerPlinth);
 
   // Dek pengawas lantai atas
   const deck = new THREE.Mesh(new THREE.BoxGeometry(towerSpan + 0.8, 0.25, towerSpan + 0.8), matWoodRustic);
@@ -2243,11 +2249,9 @@ export async function buildWorldEnvironmentAsync(
   }
 
   function isNearBridge(x: number, z: number, dist = 16.0): boolean {
-    if (Math.hypot(x - -190, z - -230) < dist + 4.0) return true; // Bridge 1 (Astraea Highway)
-    if (Math.hypot(x - -30, z - 110) < dist + 4.0) return true;   // Bridge 2 (Central Suspension Bridge)
-    if (Math.hypot(x - 290, z - 65) < dist + 4.0) return true;    // Bridge 3 (Val-Kragor Access)
-    if (Math.hypot(x - 465, z - 30) < dist + 4.0) return true;    // Bridge 4 (Moss Valley Access)
-    if (Math.abs(x - -70) < 12.0 && z >= 220 && z <= 305) return true; // Bridge 5 (Caldera Pier Bridge)
+    for (const b of BRIDGE_CONFIGS) {
+      if (Math.hypot(x - b.x, z - b.z) < dist + b.length * 0.5) return true;
+    }
     return false;
   }
 
@@ -2940,14 +2944,19 @@ export async function buildWorldEnvironmentAsync(
     const wtGroup = new THREE.Group();
     wtGroup.position.set(wx, wy, wz);
 
-    // 4 Tiang
+    // 4 Tiang dengan perpanjangan tiang ke bawah (skirt 2.5 unit) agar anti-melayang
     for (let lx = -1; lx <= 1; lx += 2) {
       for (let lz = -1; lz <= 1; lz += 2) {
-        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 6.0, 5), matWoodRustic);
-        leg.position.set(lx * 0.9, 3.0, lz * 0.9);
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 8.5, 5), matWoodRustic);
+        leg.position.set(lx * 0.9, 1.75, lz * 0.9);
         wtGroup.add(leg);
       }
     }
+    // Pondasi skirt menara benteng kokoh menancap ke tanah
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(2.8, 3.0, 2.8), matWoodDark);
+    plinth.position.y = -1.25;
+    plinth.receiveShadow = true;
+    wtGroup.add(plinth);
     // Lantai Pos
     const floor = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.25, 2.6), matWoodRustic);
     floor.position.y = 5.8;

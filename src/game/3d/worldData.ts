@@ -217,8 +217,27 @@ export function getDistanceToRiver(px: number, pz: number): number {
   return minDist;
 }
 
+export const WATER_LEVEL = -0.25;
+
 /**
- * 3. JARINGAN JALAN RAYA & JEMBATAN (ROAD_SPLINES & BRIDGE_CONFIGS)
+ * Validator ketat penempatan objek darat:
+ * Memastikan koordinat bukan di zona laut dan berada aman di atas permukaan air.
+ */
+export function isStrictLandForProps(
+  x: number,
+  z: number,
+  getHeight?: (x: number, z: number) => number
+): boolean {
+  const biome = getBiomeAt(x, z);
+  if (biome === 'ocean' || biome === 'lake') return false;
+  const h = getHeight ? getHeight(x, z) : getProceduralContinentHeight(x, z);
+  return h >= WATER_LEVEL + 0.85; // h >= 0.60
+}
+
+/**
+ * 3. JARINGAN JALAN RAYA & JEMBATAN (ROAD_SPLINES, ROAD_NETWORK, & BRIDGE_CONFIGS)
+ * Dirancang lurus, logis, terhubung langsung ke gerbang setiap lokasi,
+ * dan hanya menyeberangi sungai melalui jembatan yang tegak lurus.
  */
 export interface RoadSplineDef {
   id: string;
@@ -228,92 +247,119 @@ export interface RoadSplineDef {
 }
 
 export const ROAD_SPLINES: RoadSplineDef[] = [
-  // A. Jalan Poros Barat: Desa Utama (-35, 135) -> Astraea (-250, -210)
+  // 1A. RUTE BARAT: Desa Utama (-35, 135) -> Gerbang Selatan Astraea (-250, -204)
+  // Berjalan di sisi Barat sungai utama tanpa menyeberang sungai.
   {
-    id: 'road_west',
-    name: 'Jalan Poros Barat: Desa - Astraea',
+    id: 'plains_west_astraea',
+    name: 'Jalan Poros Barat: Sanctuary - Astraea',
     width: 3.2,
     points: [
-      [-35, 135],
+      [-35, 135],   // Alun-Alun Air Mancur Desa Utama
       [-75, 135],   // Gerbang Barat Desa
       [-120, 120],
-      [-180, 120],
+      [-180, 100],
       [-220, 40],
       [-245, -60],
       [-250, -140],
-      [-250, -210], // Ujung jalan tepat di Gerbang Selatan Astraea
+      [-250, -204], // Tepat 6 unit di depan Pintu Gerbang Selatan Astraea
     ],
   },
-  // B. Jalan Poros Selatan / Pelabuhan: Desa Utama (-35, 135) -> Pelabuhan Sanctuary (-20, 185)
+  // 1B. RUTE BARAT (LANJUTAN): Gerbang Astraea (-250, -204) -> Lembah Danau Titan (-310, -430)
   {
-    id: 'road_harbor',
-    name: 'Jalan Poros Selatan: Desa - Pelabuhan Sanctuary',
-    width: 3.4,
-    points: [
-      [-35, 135],
-      [-25, 155],
-      [-20, 170],
-      [-20, 185],   // Menghubungkan langsung alun-alun desa ke dermaga kayu Pelabuhan
-    ],
-  },
-  // C. Jalan Poros Utara: Desa Utama (-35, 135) -> Persimpangan Titik Temu Tengah (-35, 45)
-  {
-    id: 'road_north',
-    name: 'Jalan Poros Utara: Desa - Persimpangan Sungai',
+    id: 'road_astraea_titan',
+    name: 'Jalan Akses Ziarah Danau Titan Kuno',
     width: 3.0,
     points: [
-      [-35, 135],
-      [-35, 105],   // Gerbang Utara Desa
-      [-35, 75],
-      [-35, 45],    // Titik Temu Confluence
+      [-250, -204], // Gerbang Selatan Astraea
+      [-275, -204],
+      [-290, -240], // Memutari sisi barat tembok luar Astraea
+      [-295, -310],
+      [-305, -380],
+      [-310, -430], // Menuju tepian Danau Titan Kuno
     ],
   },
-  // D. Jalan Poros Timur: Desa Utama (-35, 135) -> Jembatan Gantung (15, 110) -> Val-Kragor (284, 115)
+  // 2A. RUTE TIMUR: Desa Utama (-35, 135) -> Jembatan Utama Timur (15, 110) -> Gerbang Val-Kragor (278, 115)
+  // Menyeberangi sungai HANYA 1 KALI melalui Jembatan Utama Timur yang tegak lurus.
   {
-    id: 'road_east',
-    name: 'Jalan Poros Timur: Desa - Jembatan - Benteng Val-Kragor',
+    id: 'plains_east_valkragor',
+    name: 'Jalan Poros Timur: Sanctuary - Jembatan Utama - Benteng Val-Kragor',
     width: 3.2,
     points: [
-      [-35, 135],
-      [-10, 130],
-      [0, 120],
-      [15, 110],   // Menyeberang Jembatan Gantung Sungai Selatan
-      [60, 70],
-      [110, 35],   // Pertigaan Menara Puncak Halilintar
-      [180, 50],
-      [240, 70],
-      [260, 95],
-      [284, 115],  // Tepat menyambung ke Gerbang Barat Benteng Val-Kragor
+      [-35, 135],   // Alun-Alun Desa Utama
+      [-10, 125],
+      [0, 115],
+      [4, 110],     // Pangkal Barat Jembatan Utama Hilir Selatan
+      [26, 110],    // Pangkal Timur Jembatan Utama Hilir Selatan
+      [45, 110],    // Simpang Timur (Crossroads)
+      [110, 112],
+      [180, 114],
+      [240, 115],
+      [278, 115],   // Tepat 6 unit di depan Gerbang Barat Benteng Val-Kragor (Gate: [284, 115])
     ],
   },
-  // E. Akses Lembah Batu Lumut: Val-Kragor (336, 115) -> Jembatan (380, 35) -> Lembah (465, 35)
+  // 2B. CABANG TIMUR: Simpang Timur (45, 110) -> Gerbang Puing Kastil (220, -35)
   {
-    id: 'road_moss_valley',
-    name: 'Jalan Setapak Akses Lembah Batu Lumut',
-    width: 2.6,
+    id: 'road_east_puing_kastil',
+    name: 'Jalan Cabang Simpang Timur - Gerbang Puing Kastil',
+    width: 3.0,
     points: [
-      [336, 115],  // Keluar dari sisi timur Val-Kragor
-      [360, 75],
-      [380, 35],   // Titik Penyeberangan Jembatan Sungai Timur
+      [45, 110],    // Simpang Timur
+      [80, 95],
+      [120, 80],
+      [155, 54],    // Titik Penyeberangan Jembatan Batu Sungai Timur
+      [185, 20],
+      [220, -35],   // Tepat di depan Gerbang Puing Kastil Terbengkalai
+    ],
+  },
+  // 2C. CABANG TIMUR: Benteng Val-Kragor (278, 115) -> Jembatan 3 (380, 35) -> Lembah Batu Lumut & Hutan Kabut
+  {
+    id: 'road_valkragor_mist_moss',
+    name: 'Jalan Setapak Benteng Val-Kragor - Lembah Batu Lumut & Hutan Kabut',
+    width: 2.8,
+    points: [
+      [278, 115],   // Di luar Gerbang Barat Val-Kragor
+      [310, 80],    // Melintasi jalur luar utara benteng
+      [350, 65],
+      [380, 35],    // Menyeberang Jembatan Sungai Lembah Lumut
       [420, 35],
-      [465, 35],   // Glade Alami Lembah Batu Lumut
+      [465, 35],    // Glade Alami Lembah Batu Lumut
+      [400, -100],  // Menembus Hutan Kabut Eldoria
     ],
   },
-  // F. Jalur Kafilah Gurun Solaria
+  // 3. RUTE UTARA: Astraea (-250, -204) -> Gurun Solaria -> Oase -> Piramida -> Istana Sultan -> Kanyon
   {
-    id: 'road_desert_caravan',
-    name: 'Jalur Kafilah Pasir Gurun Solaria',
-    width: 4.0,
+    id: 'road_north_solaria',
+    name: 'Jalur Poros Utara: Astraea - Oase - Piramida - Istana Sultan Malik - Kanyon',
+    width: 3.8,
     points: [
-      [110, 35],    // Cabang dari Pertigaan Menara
+      [-250, -204], // Gerbang Selatan Astraea
+      [-215, -220],
+      [-190, -230], // Menyeberang Jembatan Batu 1 Sungai Barat Laut
+      [-165, -230],
+      [-110, -230], // Masuk Pintu Gerbang Pasir Gurun Solaria
       [85, -230],   // Oase Solaria
       [30, -350],   // Piramida Emas
       [140, -370],  // Jalur Pasir Gurun Terbuka
-      [340, -425],  // Timur Kawah (Bebas Halangan)
+      [340, -425],  // Timur Kawah Colosseum
       [430, -460],  // Istana Sultan Malik
+      [320, -490],
+      [220, -520],  // Kanyon Kuno Utara
+    ],
+  },
+  // 4. RUTE SELATAN: Desa Utama (-35, 135) -> Dermaga Pelabuhan Sanctuary (0, 162)
+  {
+    id: 'plains_south_harbor',
+    name: 'Jalan Poros Selatan: Desa - Pelabuhan Sanctuary',
+    width: 3.4,
+    points: [
+      [-35, 135],   // Alun-Alun Desa Utama
+      [-15, 148],
+      [0, 162],     // Menempel tepat di pangkal tangga dermaga kayu Pelabuhan
     ],
   },
 ];
+
+export const ROAD_NETWORK = ROAD_SPLINES;
 
 export function getDistanceToRoad(px: number, pz: number): number {
   let minDist = Infinity;
@@ -337,6 +383,7 @@ export interface BridgeDef {
   nameId: string;
   x: number;
   z: number;
+  y: number;
   rotationY: number;
   length: number;
   width: number;
@@ -350,6 +397,7 @@ export const BRIDGE_CONFIGS: BridgeDef[] = [
     nameId: 'Jembatan 1: Penyeberangan Astraea',
     x: -190,
     z: -230,
+    y: 0.45,
     rotationY: 0,
     length: 26,
     width: 4.8,
@@ -361,10 +409,23 @@ export const BRIDGE_CONFIGS: BridgeDef[] = [
     nameId: 'Jembatan 2: Jembatan Gantung Hilir Selatan',
     x: 15,
     z: 110,
+    y: 1.35,
     rotationY: 0,
     length: 22,
     width: 4.8,
     type: 'suspension',
+  },
+  {
+    id: 'bridge_puing_kastil',
+    name: 'Castle Ruins River Crossing',
+    nameId: 'Jembatan Penyeberangan Puing Kastil',
+    x: 155,
+    z: 54,
+    y: 0.45,
+    rotationY: Math.PI / 2,
+    length: 24,
+    width: 4.8,
+    type: 'stone',
   },
   {
     id: 'bridge_moss_valley',
@@ -372,12 +433,30 @@ export const BRIDGE_CONFIGS: BridgeDef[] = [
     nameId: 'Jembatan 3: Jembatan Sungai Lembah Lumut',
     x: 380,
     z: 35,
+    y: 0.45,
     rotationY: 0,
     length: 24,
     width: 4.8,
     type: 'wood',
   },
 ];
+
+export function isPointOnBridgeDeck(px: number, pz: number, margin = 0): boolean {
+  for (const b of BRIDGE_CONFIGS) {
+    const dx = px - b.x;
+    const dz = pz - b.z;
+    const cos = Math.cos(-b.rotationY);
+    const sin = Math.sin(-b.rotationY);
+    const lx = cos * dx - sin * dz;
+    const lz = sin * dx + cos * dz;
+    const halfLen = b.length * 0.44 + margin;
+    const halfWid = b.width * 0.55 + margin;
+    if (Math.abs(lx) <= halfLen && Math.abs(lz) <= halfWid) {
+      return true;
+    }
+  }
+  return false;
+}
 
 /**
  * 4. DAFTAR 14 WILAYAH & LANDMARK INTERAKTIF (WORLD_LANDMARKS)
@@ -634,8 +713,8 @@ export const WORLD_LANDMARKS: LandmarkDef[] = [
     id: 'harbor',
     name: 'Sanctuary Harbor',
     nameId: 'Pelabuhan Sanctuary',
-    x: -20,
-    z: 185,
+    x: 0,
+    z: 180,
     level: 1,
     type: 'harbor',
     icon: '⛵',
@@ -680,8 +759,23 @@ function lerpVal(a: number, b: number, t: number): number {
 export function getProceduralContinentHeight(x: number, z: number): number {
   const biome = getBiomeAt(x, z);
 
-  // A. Palung Sungai (Carve deep riverbed Y = -2.5 secara kontinu, tanpa urugan tanah!)
+  // A. Palung Sungai & Area Bawah Jembatan
   const distRiver = getDistanceToRiver(x, z);
+
+  // Perataan Khusus Area Pangkal & Bawah Jembatan (Radius 14 unit di sekitar jembatan)
+  for (const b of BRIDGE_CONFIGS) {
+    const distB = Math.hypot(x - b.x, z - b.z);
+    if (distB <= 14) {
+      if (distRiver < 6.5) {
+        const edge = distRiver / 6.5;
+        return -2.5 * Math.cos(edge * (Math.PI / 2));
+      }
+      // Area tepi daratan di bawah jembatan dibatasi maksimal Y = 1.20 agar tidak pernah menonjol menembus papan jembatan
+      return Math.min(1.20, 0.55 + Math.sin(x * 0.012 + z * 0.01) * 0.3);
+    }
+  }
+
+  // Palung Sungai Reguler (Carve deep riverbed Y = -2.5 secara kontinu, tanpa urugan tanah!)
   if (distRiver < 6.5) {
     const edge = distRiver / 6.5;
     return -2.5 * Math.cos(edge * (Math.PI / 2));
@@ -776,31 +870,45 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   }
 
   // G. Padang Rumput Eldoria (Grassland)
-  // 1. Desa Utama Sanctuary [-35, 135] (Dataran rata aman)
+  // 1. Desa Utama Sanctuary [-35, 135] (Dataran rata aman radius bangunan + 8 unit)
   const distVillage = Math.hypot(x - -35, z - 135);
   if (distVillage <= 40) return 0.25;
+  if (distVillage <= 48) {
+    const t = smoothstepBlend(40, 48, distVillage);
+    return lerpVal(0.25, basePlainsHeight, t);
+  }
 
-  // 2. Pelabuhan Sanctuary [-20, 185]
-  if (Math.hypot(x - -20, z - 185) <= 25) return 0.35;
+  // 2. Pelabuhan Sanctuary [0, 180]
+  const distHarbor = Math.hypot(x - 0, z - 180);
+  if (distHarbor <= 25) return 0.35;
+  if (distHarbor <= 33) {
+    const t = smoothstepBlend(25, 33, distHarbor);
+    return lerpVal(0.35, basePlainsHeight, t);
+  }
 
   // 3. Ibukota Kerajaan Emas Astraea [-250, -240] (Smoothstep blend ke luar tembok)
   const distAstraea = Math.hypot(x - -250, z - -240);
   if (distAstraea <= 50) return 2.00;
-  if (distAstraea <= 85) {
-    const t = smoothstepBlend(50, 85, distAstraea);
+  if (distAstraea <= 58) {
+    const t = smoothstepBlend(50, 58, distAstraea);
     return lerpVal(2.00, basePlainsHeight, t);
   }
 
   // 4. Desa Benteng Val-Kragor [310, 115] (Smoothstep blend ke luar benteng)
   const distValKragor = Math.hypot(x - 310, z - 115);
   if (distValKragor <= 45) return 2.00;
-  if (distValKragor <= 80) {
-    const t = smoothstepBlend(45, 80, distValKragor);
+  if (distValKragor <= 53) {
+    const t = smoothstepBlend(45, 53, distValKragor);
     return lerpVal(2.00, basePlainsHeight, t);
   }
 
   // 5. Puing Kastil Terbengkalai [220, -30]
-  if (Math.hypot(x - 220, z - -30) <= 35) return 1.40;
+  const distRuins = Math.hypot(x - 220, z - -30);
+  if (distRuins <= 35) return 1.40;
+  if (distRuins <= 43) {
+    const t = smoothstepBlend(35, 43, distRuins);
+    return lerpVal(1.40, basePlainsHeight, t);
+  }
 
   // 6. Mage Tower Puncak Halilintar [110, -10]
   if (Math.hypot(x - 110, z - -10) <= 20) return 4.50;
@@ -842,9 +950,17 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     }
   }
 
-  // 10. Jalan Raya Utama
-  if (isPointOnRoad(x, z, 2.5)) {
-    return 0.35;
+  // 10. Perataan Koridor Jalan Raya (< 5.5 unit) - Halus & Landai Bebas Tebing
+  const distRoad = getDistanceToRoad(x, z);
+  if (distRoad < 5.5) {
+    let targetRoadH = 0.35;
+    if (x < -140 && z < -130) targetRoadH = 2.00; // Koridor Astraea
+    else if (x > 200 && z > 50) targetRoadH = 2.00; // Koridor Val-Kragor
+    else if (x > 150 && z < 0) targetRoadH = 1.40; // Koridor Puing Kastil
+    else if (z < -180) targetRoadH = 1.60; // Koridor Gurun Solaria
+
+    const t = smoothstepBlend(0, 5.5, distRoad);
+    return lerpVal(targetRoadH, basePlainsHeight, t);
   }
 
   return basePlainsHeight;
