@@ -398,12 +398,18 @@ export class GameEngine {
   private arrowVolleyGroundDecal: THREE.Mesh | null = null;
   private arrowVolleyOuterRing: THREE.Mesh | null = null;
   private arrowVolleyTrajectoryLine: THREE.Line | null = null;
-  // Mage Glacial Crystal Barrage: Hold-to-Aim & Over-the-Shoulder camera state
+  // Mage Glacial Crystal Barrage: Clean Input Aim State
+  public glacialAimState = {
+    isCharging: false,
+    pressStartTime: 0,
+    cancelled: false,
+  };
   private isAimGlacialActive = false;
   public get isAimingGlacial(): boolean {
-    return this.isAimGlacialActive;
+    return this.glacialAimState.isCharging || this.isAimGlacialActive;
   }
   public set isAimingGlacial(val: boolean) {
+    this.glacialAimState.isCharging = val;
     this.isAimGlacialActive = val;
   }
   private aimGlacialCancelled = false;
@@ -432,6 +438,33 @@ export class GameEngine {
   private cameraFovPunch = 0;
   private charClass: CharacterClass = 'warrior';
   public isMoving = false;
+
+  // Player stats mirror for synchronous, zero-lag combat resource verification
+  public currentStats: PlayerStats = {
+    level: 1,
+    hp: 100,
+    maxHp: 100,
+    mp: 100,
+    maxMp: 100,
+    stamina: 100,
+    maxStamina: 100,
+    gold: 0,
+    exp: 0,
+    nextExp: 100,
+    strength: 10,
+    agility: 10,
+    intelligence: 10,
+    statPoints: 0,
+    baseAttack: 15,
+    baseDefense: 5,
+    attackSpeed: 1,
+    critRate: 5,
+    critDamage: 150,
+  };
+
+  public syncPlayerStats(stats: Partial<PlayerStats>) {
+    Object.assign(this.currentStats, stats);
+  }
 
   // Static Player Skill PointLight (Zero-Allocation & Zero Shader Invalidation)
   public skillVfxLight!: THREE.PointLight;
@@ -2961,8 +2994,10 @@ export class GameEngine {
   }
 
   private handleContextMenu = (e: MouseEvent) => {
-    if (this.isAimGlacialActive) {
+    if (this.isAimGlacialActive || this.glacialAimState.isCharging) {
       e.preventDefault();
+      this.glacialAimState.isCharging = false;
+      this.glacialAimState.cancelled = true;
       this.cancelGlacialAim();
       return;
     }
@@ -2981,7 +3016,8 @@ export class GameEngine {
   };
 
   private handleBlur = () => {
-    if (this.isAimGlacialActive) {
+    if (this.isAimGlacialActive || this.glacialAimState.isCharging) {
+      this.glacialAimState.isCharging = false;
       this.cancelGlacialAim();
     }
     if (this.isAimingArrowVolley) {
@@ -3000,7 +3036,8 @@ export class GameEngine {
 
   private handleVisibilityChange = () => {
     if (document.hidden) {
-      if (this.isAimGlacialActive) {
+      if (this.isAimGlacialActive || this.glacialAimState.isCharging) {
+        this.glacialAimState.isCharging = false;
         this.cancelGlacialAim();
       }
       if (this.isAimingArrowVolley) {
@@ -3229,7 +3266,9 @@ export class GameEngine {
     }
 
     if (key === 'escape' || code === 'escape') {
-      if (this.isAimGlacialActive) {
+      if (this.isAimGlacialActive || this.glacialAimState.isCharging) {
+        this.glacialAimState.isCharging = false;
+        this.glacialAimState.cancelled = true;
         this.cancelGlacialAim();
         return;
       }
@@ -3276,15 +3315,31 @@ export class GameEngine {
       }
       if (this.charClass === 'mage') {
         if (!e.repeat) {
+          // Abaikan event e.repeat === true pada keydown KeyQ agar menahan tombol Q tidak mereset pressStartTime terus-menerus.
+          if (this.mageGlacialBarrageCooldownTimer > 0) {
+            this.callbacks.onAddFloatingText(
+              `Glacial Barrage Cooldown (${this.mageGlacialBarrageCooldownTimer.toFixed(1)}s)!`,
+              '#94a3b8',
+              'info'
+            );
+            return;
+          }
+          if (this.currentStats.mp < 18) {
+            this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#ef4444', 'info');
+            return;
+          }
+          this.glacialAimState = {
+            isCharging: true,
+            pressStartTime: performance.now(),
+            cancelled: false,
+          };
           this.isHoldingGlacialKey = true;
-          this.glacialKeyDownTime = performance.now();
+          this.glacialKeyDownTime = this.glacialAimState.pressStartTime;
           if (this.glacialAimTimer) {
             clearTimeout(this.glacialAimTimer);
             this.glacialAimTimer = null;
           }
-          if (!this.isAimGlacialActive) {
-            this.startAimGlacialBarrage();
-          }
+          this.startAimGlacialBarrage();
         }
       } else if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
         if (!e.repeat) {
@@ -3388,9 +3443,14 @@ export class GameEngine {
           this.glacialAimTimer = null;
         }
         this.isHoldingGlacialKey = false;
-        if (this.isAimGlacialActive && !this.aimGlacialCancelled) {
-          this.releaseGlacialBarrage();
+        if (!this.glacialAimState.isCharging || this.glacialAimState.cancelled) {
+          return;
         }
+        const holdDuration = performance.now() - this.glacialAimState.pressStartTime;
+        // Baik holdDuration < 220 (Tap Cepat) MAUPUN holdDuration >= 220 (Hold & Release):
+        this.glacialAimState.isCharging = false;
+        // WAJIB PANGGIL executeGlacialBarrage() untuk langsung menembakkan seluruh gelombang kristal es ke titik bidik tengah layar (reticle +)
+        this.executeGlacialBarrage();
       } else if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
         const pressDuration = performance.now() - this.arrowVolleyKeyDownTime;
         if (this.arrowVolleyAimTimer) {
@@ -3473,8 +3533,10 @@ export class GameEngine {
     if (this.isControlsLocked || this.menuMode !== 'gameplay') return;
 
     if (e.button === 2) {
-      if (this.isAimGlacialActive) {
+      if (this.isAimGlacialActive || this.glacialAimState.isCharging) {
         e.preventDefault();
+        this.glacialAimState.isCharging = false;
+        this.glacialAimState.cancelled = true;
         this.cancelGlacialAim();
         return;
       }
@@ -3496,8 +3558,9 @@ export class GameEngine {
     this.prevMouseY = e.clientY;
 
     if (e.button === 0 && !this.isSpectatorMode) {
-      if (this.charClass === 'mage' && this.isAimGlacialActive) {
-        this.releaseGlacialBarrage();
+      if (this.charClass === 'mage' && (this.isAimGlacialActive || this.glacialAimState.isCharging)) {
+        this.glacialAimState.isCharging = false;
+        this.executeGlacialBarrage();
         return;
       }
       if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' && this.isAimingArrowVolley) {
@@ -3528,7 +3591,7 @@ export class GameEngine {
     if (this.menuMode !== 'gameplay') return;
 
     // Freely control aiming yaw & pitch while holding Q (Glacial Barrage / Arrow Volley) or aiming Bow
-    if (this.isAimGlacialActive || this.isAimingBow || this.isAimingArrowVolley) {
+    if (this.isAimGlacialActive || this.glacialAimState.isCharging || this.isAimingBow || this.isAimingArrowVolley) {
       const deltaX = e.clientX - this.prevMouseX;
       const deltaY = e.clientY - this.prevMouseY;
       this.prevMouseX = e.clientX;
@@ -3592,8 +3655,9 @@ export class GameEngine {
       this.isDraggingCamera = false;
       return;
     }
-    if (this.charClass === 'mage' && this.isAimGlacialActive && e.button === 0) {
-      this.releaseGlacialBarrage();
+    if (this.charClass === 'mage' && (this.isAimGlacialActive || this.glacialAimState.isCharging) && e.button === 0) {
+      this.glacialAimState.isCharging = false;
+      this.executeGlacialBarrage();
       this.isMouseDown = false;
       this.isDraggingCamera = false;
       return;
@@ -6569,7 +6633,7 @@ export class GameEngine {
   public startAimGlacialBarrage() {
     if (this.isControlsLocked) return;
     if (this.charClass !== 'mage') return;
-    if (this.isAimGlacialActive) return;
+    if (this.isAimGlacialActive && this.activeGlacialVfx) return;
 
     if (this.mageGlacialBarrageCooldownTimer > 0) {
       this.callbacks.onAddFloatingText(
@@ -6580,16 +6644,13 @@ export class GameEngine {
       return;
     }
 
-    let hasEnoughMp = true;
-    this.callbacks.onUpdateStats((stats) => {
-      if (stats.mp < 18) {
-        hasEnoughMp = false;
-        this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#ef4444', 'info');
-      }
-      return stats;
-    });
-    if (!hasEnoughMp) return;
+    if (this.currentStats.mp < 18) {
+      this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#ef4444', 'info');
+      return;
+    }
 
+    this.glacialAimState.isCharging = true;
+    this.glacialAimState.cancelled = false;
     this.isAimGlacialActive = true;
     this.aimGlacialCancelled = false;
     this.lastGlacialTargetId = null;
@@ -6624,6 +6685,15 @@ export class GameEngine {
     this.initAimIndicator();
     if (this.aimIndicatorGroup) {
       this.aimIndicatorGroup.visible = true;
+    }
+
+    // Hitung aimTargetPoint awal segera agar valid bahkan sebelum render frame pertama (krusial untuk Tap Cepat)
+    this.updateGlacialAimFrame(0);
+
+    // Bersihkan instance lama jika ada
+    if (this.activeGlacialVfx) {
+      this.activeGlacialVfx.cleanup();
+      this.activeGlacialVfx = null;
     }
 
     // Acquire ke-12 bilah kristal es di udara di atas & belakang Mage dalam mode Hold-to-Aim
@@ -6693,14 +6763,22 @@ export class GameEngine {
   }
 
   public updateAimGlacialBarrage(deltaX: number, deltaY: number) {
-    if (!this.isAimGlacialActive) return;
+    if (!this.isAimGlacialActive && !this.glacialAimState.isCharging) return;
     this.cameraAngleH = normalizeCameraYaw(this.cameraAngleH - deltaX * 0.015);
     this.cameraAngleV = THREE.MathUtils.clamp(this.cameraAngleV + deltaY * 0.015, -0.45, 0.65);
   }
 
+  public executeGlacialBarrage = () => {
+    this.executeGlacialCrystalBarrage();
+  };
+
   public executeGlacialCrystalBarrage() {
     if (this.isControlsLocked) return;
     if (this.charClass !== 'mage') return;
+    if (this.glacialAimState.cancelled) {
+      this.cancelGlacialAim();
+      return;
+    }
 
     if (this.mageGlacialBarrageCooldownTimer > 0) {
       this.callbacks.onAddFloatingText(
@@ -6708,34 +6786,36 @@ export class GameEngine {
         '#94a3b8',
         'info'
       );
-      if (this.isAimGlacialActive) {
-        this.cancelGlacialAim();
-      }
+      this.cancelGlacialAim();
       return;
     }
 
     // Pemotongan 18 MP HANYA dilakukan di sini saat kristal es benar-benar diluncurkan!
-    let hasEnoughMp = false;
-    this.callbacks.onUpdateStats((stats) => {
-      if (stats.mp < 18) {
-        this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#ef4444', 'info');
-        return stats;
-      }
-      hasEnoughMp = true;
-      return { ...stats, mp: Math.max(0, stats.mp - 18) };
-    });
-
-    if (!hasEnoughMp) {
-      if (this.isAimGlacialActive) {
-        this.cancelGlacialAim();
-      }
+    if (this.currentStats.mp < 18) {
+      this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#ef4444', 'info');
+      this.cancelGlacialAim();
       return;
     }
 
-    // Set cooldown
-    this.mageGlacialBarrageCooldownTimer = SKILL_COOLDOWNS.GLACIAL_BARRAGE;
+    // Kurangi MP seketika pada state internal dan notifikasi callback
+    this.currentStats.mp = Math.max(0, this.currentStats.mp - 18);
+    this.callbacks.onUpdateStats((stats) => ({
+      ...stats,
+      mp: Math.max(0, stats.mp - 18),
+    }));
 
-    if (this.isAimGlacialActive) {
+    // Set cooldown skill Q
+    this.mageGlacialBarrageCooldownTimer = SKILL_COOLDOWNS.GLACIAL_BARRAGE;
+    this.glacialAimState.isCharging = false;
+
+    // Pastikan aimTargetPoint valid sebelum penembakan
+    if (this.aimTargetPoint.lengthSq() < 0.1) {
+      const aimDir = new THREE.Vector3();
+      this.camera.getWorldDirection(aimDir);
+      this.aimTargetPoint.copy(this.camera.position).addScaledVector(aimDir, 28.0);
+    }
+
+    if (this.activeGlacialVfx) {
       this.fireAimGlacialBarrage();
     } else {
       this.castGlacialCrystalBarrage();
@@ -6743,10 +6823,7 @@ export class GameEngine {
   }
 
   public releaseGlacialBarrage = () => {
-    if (this.isControlsLocked) return;
-    if (this.charClass !== 'mage') return;
-    if (this.aimGlacialCancelled) return;
-    this.executeGlacialCrystalBarrage();
+    this.executeGlacialBarrage();
   };
 
   public releaseAimGlacialBarrage(isCancelled = false) {
@@ -6756,14 +6833,12 @@ export class GameEngine {
     }
     this.isHoldingGlacialKey = false;
 
-    if (!this.isAimGlacialActive) return;
-
     if (isCancelled) {
       this.cancelAimGlacialBarrage();
       return;
     }
 
-    this.releaseGlacialBarrage();
+    this.executeGlacialBarrage();
   }
 
   private fireAimGlacialBarrage() {
@@ -6772,14 +6847,20 @@ export class GameEngine {
       this.glacialAimTimer = null;
     }
     this.isHoldingGlacialKey = false;
-
-    if (!this.isAimGlacialActive) return;
+    this.glacialAimState.isCharging = false;
 
     this.callbacks.onAddFloatingText('💠 GLACIAL CRYSTAL BARRAGE!', '#38bdf8', 'crit');
 
-    // Sembunyikan garis bidik
+    // Sembunyikan garis bidik & reticle
     if (this.aimIndicatorGroup) {
       this.aimIndicatorGroup.visible = false;
+    }
+
+    // Pastikan aimTargetPoint valid sebelum penembakan
+    if (this.aimTargetPoint.lengthSq() < 0.1) {
+      const aimDir = new THREE.Vector3();
+      this.camera.getWorldDirection(aimDir);
+      this.aimTargetPoint.copy(this.camera.position).addScaledVector(aimDir, 28.0);
     }
 
     // Luncurkan ke-12 kristal es secara bertubi-tubi menuju target bidikan terakhir
@@ -6812,8 +6893,8 @@ export class GameEngine {
       this.glacialAimTimer = null;
     }
     this.isHoldingGlacialKey = false;
-
-    if (!this.isAimGlacialActive) return;
+    this.glacialAimState.isCharging = false;
+    this.glacialAimState.cancelled = true;
 
     this.isAimGlacialActive = false;
     this.aimGlacialCancelled = true;
@@ -6845,7 +6926,7 @@ export class GameEngine {
   }
 
   public fireGlacialBarrage = () => {
-    this.releaseGlacialBarrage();
+    this.executeGlacialBarrage();
   };
 
   public cancelGlacialAim = () => {
@@ -6853,11 +6934,11 @@ export class GameEngine {
   };
 
   public quickCastGlacialBarrage() {
-    this.releaseGlacialBarrage();
+    this.executeGlacialBarrage();
   }
 
-  public updateGlacialAimFrame(delta: number) {
-    if (!this.isAimGlacialActive) return;
+  public updateGlacialAimFrame(delta: number = 0) {
+    if (!this.isAimGlacialActive && !this.glacialAimState.isCharging) return;
 
     // Karakter SELALU menghadap searah pandangan kamera ke depan
     const camFwdX = -Math.sin(this.cameraAngleH);
@@ -10068,7 +10149,7 @@ export class GameEngine {
     }
 
     // Mage Glacial Barrage: Hold-to-Aim interactive aiming frame & strafe walk
-    if (this.isAimGlacialActive) {
+    if (this.isAimGlacialActive || this.glacialAimState.isCharging) {
       this.updateGlacialAimFrame(delta);
     }
 
@@ -10303,7 +10384,7 @@ export class GameEngine {
     }
 
     let targetSpeed = baseSpeed;
-    if (this.isAimGlacialActive) {
+    if (this.isAimGlacialActive || this.glacialAimState.isCharging) {
       targetSpeed = baseSpeed * 0.55; // 55% normal movement speed while aiming Glacial Barrage
     } else if (this.isAimingBow) {
       targetSpeed = baseSpeed * 0.65; // Strafe walk 65% speed while aiming Hunter Bow
@@ -10337,7 +10418,7 @@ export class GameEngine {
       this.playerVel.z = moveDirZ * targetSpeed;
 
       // Rotate player mesh smoothly to facing direction
-      if (this.isAimGlacialActive || this.isAimingBow || this.isAimingArrowVolley) {
+      if (this.isAimGlacialActive || this.glacialAimState.isCharging || this.isAimingBow || this.isAimingArrowVolley) {
         // Karakter menghadap searah pandangan kamera (strafe movement)
         const camFwdX = -Math.sin(this.cameraAngleH);
         const camFwdZ = -Math.cos(this.cameraAngleH);
@@ -10345,7 +10426,7 @@ export class GameEngine {
         if (this.playerMesh?.group) {
           this.playerMesh.group.rotation.y = this.playerRotationY;
         }
-        if (this.isAimGlacialActive) {
+        if (this.isAimGlacialActive || this.glacialAimState.isCharging) {
           this.mageBankingRoll = THREE.MathUtils.lerp(this.mageBankingRoll, 0, Math.min(1.0, delta * 8.0));
         }
       } else {
@@ -10381,7 +10462,7 @@ export class GameEngine {
         if (Math.abs(this.playerVel.x) < 0.04) this.playerVel.x = 0;
         if (Math.abs(this.playerVel.z) < 0.04) this.playerVel.z = 0;
       }
-      if (this.isAimGlacialActive || this.isAimingBow || this.isAimingArrowVolley) {
+      if (this.isAimGlacialActive || this.glacialAimState.isCharging || this.isAimingBow || this.isAimingArrowVolley) {
         const camFwdX = -Math.sin(this.cameraAngleH);
         const camFwdZ = -Math.cos(this.cameraAngleH);
         this.playerRotationY = Math.atan2(camFwdX, camFwdZ);
@@ -12104,7 +12185,7 @@ export class GameEngine {
     }
 
     // Over-the-Shoulder Zoom Camera saat Merapal Glacial Barrage / Membidik Busur Pemburu (Bahu Kanan)
-    if (this.isAimGlacialActive || this.isAimingBow) {
+    if (this.isAimGlacialActive || this.glacialAimState.isCharging || this.isAimingBow) {
       // 1. Batasi sudut pitch vertikal saat mode membidik pada rentang aman: [-0.45, 0.65] radian
       this.cameraAngleV = THREE.MathUtils.clamp(this.cameraAngleV, -0.45, 0.65);
 

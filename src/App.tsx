@@ -665,6 +665,7 @@ export default function App() {
       onUpdateStats: (updater) => {
         setStats((prev) => {
           const next = updater(prev);
+          engine.syncPlayerStats(next);
           if (next.level > prev.level || next.statPoints !== prev.statPoints) {
             setTimeout(() => handleSaveRoleProgress(false), 50);
           }
@@ -843,6 +844,7 @@ export default function App() {
     runStaggeredInit();
 
     engineRef.current = engine;
+    engine.syncPlayerStats(stats);
 
     return () => {
       isCancelled = true;
@@ -850,6 +852,13 @@ export default function App() {
       engineRef.current = null;
     };
   }, [addFloatingText]);
+
+  // Synchronize player stats with 3D engine mirror for zero-lag combat logic
+  useEffect(() => {
+    if (engineRef.current && stats) {
+      engineRef.current.syncPlayerStats(stats);
+    }
+  }, [stats]);
 
   // Synchronize player character class model if changed dynamically
   useEffect(() => {
