@@ -502,78 +502,73 @@ export async function buildHarbor(
   scene.add(oceanMesh);
 
   // ==========================================
-  // 1b. EXTENDED CONTINUOUS COASTAL HARBOR (Sea Shoreline at Z >= 85, X: 40)
-  // Dermaga Kayu Pelabuhan Sanctuary menempel di teluk pantai selatan [20, 110..150]
+  // 1b. EXTENDED CONTINUOUS COASTAL HARBOR (Sea Shoreline at Z = 20, X = 20)
+  // Dermaga Kayu Pelabuhan Sanctuary memanjang lurus ke arah Samudra Selatan
   // ==========================================
   const dockY = -0.375; // Aligns top of 2.1m deck + 0.125m plank exactly at y = 1.85
   const harborX = 20;
   const harborZ = 20;
 
-  // 0. Shoreline Boardwalk Apron (Z: 68..71)
-  const shorelineBoardwalk = createDockShorelineBoardwalkMesh(5.6, 3.5);
-  shorelineBoardwalk.position.set(harborX, 0.22, harborZ - 18);
-  scene.add(shorelineBoardwalk);
-
-  // 1. Wooden Beach Ramp & Short Stairs (Z: 70.5..74.5)
+  // 1. Wooden Beach Ramp tepat di garis pantai (Z = 19..21)
   const beachRamp = createDockStairRampMesh(4.8, 4.0, 1.8);
-  beachRamp.position.set(harborX, 0.05, harborZ - 15.5);
+  beachRamp.position.set(harborX, 0.05, harborZ);
   scene.add(beachRamp);
 
-  // 2. Extended Main Straight Pier (Dermaga Utama Menjorok ke Samudra)
-  const pierMain1 = createPierDockMesh({ length: 14.0, width: 4.8, pileDepth: 7.0, hasMooringBollards: true });
-  pierMain1.position.set(harborX, dockY, harborZ - 6.5);
+  // 2. Extended Main Straight Pier (Dermaga Utama Menjorok lurus ke Samudra Selatan Z: 21..49)
+  const pierMain1 = createPierDockMesh({ length: 14.0, width: 4.8, pileDepth: 7.5, hasMooringBollards: true });
+  pierMain1.position.set(harborX, dockY, harborZ + 1.0);
   scene.add(pierMain1);
 
-  const pierMain2 = createPierDockMesh({ length: 14.0, width: 4.8, pileDepth: 7.5, hasMooringBollards: true });
-  pierMain2.position.set(harborX, dockY, harborZ + 7.5);
+  const pierMain2 = createPierDockMesh({ length: 14.0, width: 4.8, pileDepth: 8.0, hasMooringBollards: true });
+  pierMain2.position.set(harborX, dockY, harborZ + 15.0);
   scene.add(pierMain2);
 
-  const pierHeadPlatform = createPierDockMesh({ length: 6.0, width: 10.0, pileDepth: 8.5, hasLantern: true, lanternSide: 'both', hasMooringBollards: true });
-  pierHeadPlatform.position.set(harborX, dockY, harborZ + 17.5);
+  const pierHeadPlatform = createPierDockMesh({ length: 12.0, width: 10.0, pileDepth: 9.0, hasLantern: true, lanternSide: 'both', hasMooringBollards: true });
+  pierHeadPlatform.position.set(harborX, dockY, harborZ + 29.0);
   scene.add(pierHeadPlatform);
 
-  // 3. Symmetrical Berthing Wings (Cabang Tempat Bersandar Kapal di Z = harborZ + 7.5)
-  const wingWest1 = createPierDockMesh({ length: 13.0, width: 4.0, pileDepth: 7.2, hasLantern: true, lanternSide: 'left', hasMooringBollards: true });
-  wingWest1.position.set(harborX - 2.4, dockY, harborZ + 7.5);
+  // 3. Symmetrical Berthing Wings (Cabang Tempat Bersandar Kapal di Z = harborZ + 24)
+  const wingWest1 = createPierDockMesh({ length: 14.0, width: 4.0, pileDepth: 7.5, hasLantern: true, lanternSide: 'left', hasMooringBollards: true });
+  wingWest1.position.set(harborX - 2.4, dockY, harborZ + 24.0);
   wingWest1.rotation.y = Math.PI * 1.5;
   scene.add(wingWest1);
 
-  const wingEast1 = createPierDockMesh({ length: 13.0, width: 4.0, pileDepth: 7.2, hasLantern: true, lanternSide: 'right', hasMooringBollards: true });
-  wingEast1.position.set(harborX + 2.4, dockY, harborZ + 7.5);
+  const wingEast1 = createPierDockMesh({ length: 14.0, width: 4.0, pileDepth: 7.5, hasLantern: true, lanternSide: 'right', hasMooringBollards: true });
+  wingEast1.position.set(harborX + 2.4, dockY, harborZ + 24.0);
   wingEast1.rotation.y = Math.PI / 2;
   scene.add(wingEast1);
 
-  // 4. Moored Main Ships & Boarding Gangways (Terapung di air samudra y = WATER_LEVEL - 0.15 = -0.40)
+  // 4. Moored Main Ships (100% Mengapung di atas Air Laut Dalam Samudra Selatan Z: 48..60)
   const galleon1 = createMerchantGalleonMesh();
-  galleon1.position.set(harborX + 19.5, WATER_LEVEL - 0.15, harborZ + 7.5);
+  galleon1.position.set(harborX + 18.0, WATER_LEVEL - 0.15, harborZ + 24.0);
   galleon1.rotation.y = 0;
   scene.add(galleon1);
 
   const warship2 = createVikingWarshipMesh();
-  warship2.position.set(harborX - 19.5, WATER_LEVEL - 0.15, harborZ + 7.5);
+  warship2.position.set(harborX - 18.0, WATER_LEVEL - 0.15, harborZ + 24.0);
   warship2.rotation.y = 0;
   scene.add(warship2);
 
   const rowboatJoko = createRowboatMesh();
-  rowboatJoko.position.set(harborX, WATER_LEVEL - 0.15, harborZ + 21.0);
+  rowboatJoko.position.set(harborX, WATER_LEVEL - 0.15, harborZ + 43.0);
   rowboatJoko.rotation.y = Math.PI / 2;
   scene.add(rowboatJoko);
 
   // Timber boarding gangways
   const gangwayMat = new THREE.MeshLambertMaterial({ color: 0x5d4037, flatShading: true });
   const gangwayEast = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.16, 1.6), gangwayMat);
-  gangwayEast.position.set(harborX + 16.9, 1.86, harborZ + 7.5);
+  gangwayEast.position.set(harborX + 15.5, 1.86, harborZ + 24.0);
   scene.add(gangwayEast);
 
   const gangwayWest = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.16, 1.6), gangwayMat);
-  gangwayWest.position.set(harborX - 16.9, 1.86, harborZ + 7.5);
+  gangwayWest.position.set(harborX - 15.5, 1.86, harborZ + 24.0);
   scene.add(gangwayWest);
 
   colliders.push(
     // Ship Hull Colliders (Outer water boundaries)
-    { type: 'box', minX: harborX + 14.5, maxX: harborX + 23.5, minZ: harborZ + 1, maxZ: harborZ + 16, label: 'Lambung Kapal Dagang Emas 1' },
-    { type: 'box', minX: harborX - 23.5, maxX: harborX - 14.5, minZ: harborZ + 1, maxZ: harborZ + 16, label: 'Lambung Kapal Perang Bershield' },
-    { type: 'box', minX: harborX - 2.6, maxX: harborX + 2.6, minZ: harborZ - 18, maxZ: harborZ + 20, label: 'Dermaga Utama Pelabuhan' }
+    { type: 'box', minX: harborX + 13.0, maxX: harborX + 23.0, minZ: harborZ + 18, maxZ: harborZ + 32, label: 'Lambung Kapal Dagang Emas 1' },
+    { type: 'box', minX: harborX - 23.0, maxX: harborX - 13.0, minZ: harborZ + 18, maxZ: harborZ + 32, label: 'Lambung Kapal Perang Bershield' },
+    { type: 'box', minX: harborX - 2.6, maxX: harborX + 2.6, minZ: harborZ, maxZ: harborZ + 42, label: 'Dermaga Utama Pelabuhan' }
   );
 
   await cooperativeYield(4);
@@ -1309,12 +1304,12 @@ export async function buildValKragorFort(
   npcs: WorldNPC[],
   floatingCrystals: THREE.Mesh[]
 ): Promise<void> {
-  const valKragorBaseY = 2.00;
+  const valKragorBaseY = 3.80;
   await cooperativeYield(4);
-  const vkBaseX = 660;
-  const vkBaseZ = 150;
-  const vkDX = vkBaseX - 380; // 280
-  const vkDZ = vkBaseZ - 80;  // 70
+  const vkBaseX = 580;
+  const vkBaseZ = 130;
+  const vkDX = vkBaseX - 380; // 200
+  const vkDZ = vkBaseZ - 80;  // 50
 
   // A. Grand Fortress Gatehouse (West Entrance at X = 289, Z = 95)
   // Menghadap lurus ke BARAT (Rotation Y = 270° / Math.PI * 1.5) menyambut jalan raya berbatu dari jembatan
@@ -2358,9 +2353,9 @@ export async function buildTitanLakeAndCanyon(
   // 6. THUNDERPEAK LIGHTNING SPIRE & MAGE TOWER SANCTUARY (East Plains Hill: [260, -180])
   // Struktur Megah 3D Mage Tower, Interior Bertingkat, Kristal Petir Bersinar, dan Dewan Penyihir
   // ==========================================
-  const mageTowerBaseY = 4.50;
-  const mtDX = 150; // 260 - 110
-  const mtDZ = -170; // -180 - (-10)
+  const mageTowerBaseY = 5.50;
+  const mtDX = 160; // 270 - 110
+  const mtDZ = -250; // -260 - (-10)
 
   // A. Struktur Eksterior 3D "Mage Tower" Puncak Halilintar (Center: [220, -110])
   const mageTowerExterior = createMageTowerExteriorMesh();

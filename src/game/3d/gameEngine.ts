@@ -77,6 +77,7 @@ import {
   WorldLandmarkLayout,
   WorldBridgeLayout,
   WorldLayoutConfig,
+  getLandmarkLayout,
 } from './worldLayoutConfig';
 import { WORLD_BOUNDS } from './worldData';
 import {
@@ -2222,10 +2223,14 @@ export class GameEngine {
       });
     });
 
-    // 8. Ancient Obsidian Titan Golem Boss in North Crater Arena (X: -220, Z: -400)
+    // 8. Ancient Obsidian Titan Golem Boss in North Crater Arena (X: 340, Z: -560)
     onProgress?.(64, 'Membangkitkan World Boss: Sang Titan Kuno Obsidian (64%)...');
     await cooperativeYield(8);
-    const bossPos: [number, number] = [SPAWN_TITAN.x, SPAWN_TITAN.z];
+    const titanLayout = getLandmarkLayout('bossGolem') || getLandmarkLayout('kawah_boss');
+    const bossPos: [number, number] = [
+      titanLayout?.x ?? SPAWN_TITAN.x,
+      titanLayout?.z ?? SPAWN_TITAN.z,
+    ];
     const { group: bossGroup, parts: bossParts } = createEnemyMesh('boss');
     const by = this.world.getTerrainHeight(bossPos[0], bossPos[1]);
     bossGroup.position.set(bossPos[0], by, bossPos[1]);

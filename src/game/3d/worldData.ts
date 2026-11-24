@@ -152,11 +152,11 @@ export function getContinentCoastRadius(angle: number, x: number, z: number): nu
   // Menghasilkan garis pantai di Z ~ 20 (jarak ~340 unit dari pusat benua [0, -320])
   const sHarbor = Math.exp(-Math.pow((angle - 1.52) / 0.24, 2)) * -140;
 
-  // 5. Tenggara: Semenanjung Benteng Val-Kragor [660, 150] (angle ~ 0.62)
-  const seCape = Math.exp(-Math.pow((angle - 0.62) / 0.35, 2)) * 340;
+  // 5. Tenggara: Semenanjung Benteng Val-Kragor [580, 130] (angle ~ 0.62)
+  const seCape = Math.exp(-Math.pow((angle - 0.62) / 0.45, 2)) * 380;
 
-  // 6. Timur: Teluk Cekung antara Val-Kragor dan Hutan Kabut (angle ~ 0.20)
-  const eastBay = Math.exp(-Math.pow((angle - 0.20) / 0.20, 2)) * -160;
+  // 6. Timur: Hubungan Daratan Halus Val-Kragor ke Hutan Kabut (tidak ada teluk cekung tajam yang menenggelamkan daratan timur)
+  const eastBay = 0;
 
   // 7. Timur: Tanjung Hutan Kabut [760, -280] (angle ~ -0.08)
   const eastMistCape = Math.exp(-Math.pow((angle - (-0.08)) / 0.22, 2)) * 330;
@@ -191,6 +191,9 @@ export function getContinentCoastRadius(angle: number, x: number, z: number): nu
  * Pemeriksaan apakah titik (x, z) berada di dalam daratan Benua Utama Eldoria.
  */
 export function isMainContinentLand(x: number, z: number): boolean {
+  // Forced landmass influence / guaranteed continent land around all eastern & main landmarks
+  if (x >= 450 && x <= 740 && z >= -220 && z <= 220) return true;
+
   const dx = x;
   const dz = z - (-320);
   const distSq = dx * dx + dz * dz;
@@ -395,61 +398,62 @@ export const ROAD_SPLINES: RoadSplineDef[] = [
     ],
   },
 
-  // 2. POROS TIMUR: Desa Utama [20, -60] -> Jembatan [95, -45] -> Mage Tower [260, -180] -> Gerbang Selatan Astraea [460, -390]
+  // 2. POROS TIMUR: Desa Utama [20, -60] -> Jembatan [95, -60] -> Mage Tower [270, -260] -> Gerbang Selatan Astraea [460, -390]
   {
     id: 'road_village_astraea',
     name: 'Jalan Poros Timur: Desa - Mage Tower - Astraea',
     width: 3.4,
     points: [
       [20, -60],   // Gerbang Timur Desa Utama
-      [95, -45],   // Menyeberang Jembatan Sungai Timur [95, -45]
+      [95, -60],   // Menyeberang Jembatan Sungai Timur [95, -60]
       [170, -130],
-      [260, -180], // Alun-Alun Mage Tower Puncak Halilintar
-      [360, -280],
-      [460, -340], // Sumbu Lurus Pendekatan dari Selatan
+      [270, -260], // Alun-Alun Bukit Kering Mage Tower Puncak Halilintar
+      [360, -320],
+      [460, -360], // Pendekatan Luar Gerbang Selatan
       [460, -390], // Masuk Tegak Lurus Tepat ke Tengah Gerbang Selatan Astraea
     ],
   },
 
-  // 3. POROS UTARA: Ibukota Astraea [460, -420] -> Arena Colosseum Titan [320, -640] -> Danau Titan [60, -820]
+  // 3. POROS UTARA: Ibukota Astraea [460, -360] -> Arena Colosseum Titan [340, -560] -> Danau Titan [60, -820]
   {
     id: 'road_astraea_titan',
     name: 'Jalan Ziarah Pegunungan Salju: Astraea - Titan - Danau Titan',
     width: 3.2,
     points: [
-      [460, -420], // Gerbang Barat Laut Astraea
-      [380, -540],
-      [320, -640], // Arena Colosseum Reruntuhan Boss Titan Kuno
+      [460, -360], // Dari Luar Gerbang Selatan Astraea (Bebas dari Menara Sudut Benteng)
+      [400, -380], // Melingkari Dinding Barat Benteng Astraea
+      [380, -460],
+      [340, -560], // Arena Colosseum Reruntuhan Boss Titan Kuno
       [200, -730],
       [60, -780],  // Menuju Tepi Danau Titan Kuno
     ],
   },
 
-  // 4. POROS TENGGARA: Mage Tower [260, -180] -> Puing Kastil [580, -60] -> Benteng Val-Kragor [660, 150]
+  // 4. POROS TENGGARA: Mage Tower [270, -260] -> Puing Kastil Courtyard [535, -45] -> Benteng Val-Kragor [580, 130]
   {
     id: 'road_mage_valkragor',
     name: 'Jalan Poros Tenggara: Mage Tower - Puing Kastil - Val-Kragor',
     width: 3.0,
     points: [
-      [260, -180], // Simpang Mage Tower
-      [360, -160],
+      [270, -260], // Simpang Mage Tower
+      [380, -190],
       [460, -120],
-      [580, -60],  // Gerbang Puing Kastil Terbengkalai
-      [580, 40],   // Jembatan Penyeberangan Benteng Val-Kragor
-      [660, 130],  // Gerbang Benteng Val-Kragor
+      [535, -45],  // Halaman Depan Puing Kastil Terbengkalai (Tidak Membelah Tembok Kastil)
+      [560, 25],
+      [580, 130],  // Gerbang Benteng Val-Kragor
     ],
   },
 
-  // 4B. CABANG HUTAN KABUT: Puing Kastil [580, -60] -> Lembah Lumut [680, -160] -> Hutan Kabut [760, -280]
+  // 4B. CABANG HUTAN KABUT: Puing Kastil [535, -45] -> Lembah Lumut [580, -120] -> Hutan Kabut [760, -280]
   {
     id: 'road_puing_mist_forest',
     name: 'Jalan Setapak Puing Kastil - Hutan Kabut',
     width: 2.8,
     points: [
-      [580, -60],  // Puing Kastil
-      [640, -110],
-      [680, -160], // Lembah Batu Lumut
-      [720, -220],
+      [535, -45],  // Halaman Depan Puing Kastil
+      [560, -80],
+      [580, -120], // Lembah Batu Lumut Kering
+      [670, -190],
       [760, -280], // Glade Hutan Kabut Eldoria
     ],
   },
@@ -1195,36 +1199,46 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return lerpVal(lm.astraea?.y ?? 2.00, basePlainsHeight, t);
   }
 
-  // 3B. Arena Colosseum Reruntuhan Boss Titan Kuno [320, -640]
-  const distTitanCrater = Math.hypot(x - (lm.kawah_boss?.x ?? 320), z - (lm.kawah_boss?.z ?? -640));
-  const titanCraterRadius = lm.kawah_boss?.flattenRadius ?? 50;
-  if (distTitanCrater <= titanCraterRadius) return lm.kawah_boss?.y ?? 3.50;
-  if (distTitanCrater <= titanCraterRadius + 12) {
-    const t = smoothstepBlend(titanCraterRadius, titanCraterRadius + 12, distTitanCrater);
-    return lerpVal(lm.kawah_boss?.y ?? 3.50, basePlainsHeight, t);
+  // 3B. Arena Colosseum Reruntuhan Boss Titan Kuno [340, -560]
+  const titanX = lm.bossGolem?.x ?? lm.kawah_boss?.x ?? 340;
+  const titanZ = lm.bossGolem?.z ?? lm.kawah_boss?.z ?? -560;
+  const distTitanCrater = Math.hypot(x - titanX, z - titanZ);
+  const titanCraterRadius = lm.bossGolem?.flattenRadius ?? lm.kawah_boss?.flattenRadius ?? 55;
+  if (distTitanCrater <= titanCraterRadius) return 4.50;
+  if (distTitanCrater <= titanCraterRadius + 15) {
+    const t = smoothstepBlend(titanCraterRadius, titanCraterRadius + 15, distTitanCrater);
+    return lerpVal(4.50, basePlainsHeight, t);
   }
 
-  // 4. Desa Benteng Val-Kragor [660, 150]
-  const distValKragor = Math.hypot(x - (lm.valkragor?.x ?? 660), z - (lm.valkragor?.z ?? 150));
-  const valkragorRadius = lm.valkragor?.flattenRadius ?? 45;
-  if (distValKragor <= valkragorRadius) return lm.valkragor?.y ?? 2.00;
-  if (distValKragor <= valkragorRadius + 8) {
-    const t = smoothstepBlend(valkragorRadius, valkragorRadius + 8, distValKragor);
-    return lerpVal(lm.valkragor?.y ?? 2.00, basePlainsHeight, t);
+  // 4. Desa Benteng Val-Kragor [580, 130] (100% Kering, >= 3.8m di atas permukaan laut)
+  const valKX = lm.valkragor?.x ?? 580;
+  const valKZ = lm.valkragor?.z ?? 130;
+  const distValKragor = Math.hypot(x - valKX, z - valKZ);
+  const valkragorRadius = lm.valkragor?.flattenRadius ?? 65;
+  if (distValKragor <= valkragorRadius) return Math.max(3.80, lm.valkragor?.y ?? 3.80);
+  if (distValKragor <= valkragorRadius + 20) {
+    const t = smoothstepBlend(valkragorRadius, valkragorRadius + 20, distValKragor);
+    return lerpVal(Math.max(3.80, lm.valkragor?.y ?? 3.80), basePlainsHeight, t);
   }
 
   // 5. Puing Kastil Terbengkalai [580, -60]
   const distRuins = Math.hypot(x - (lm.abandoned_castle?.x ?? 580), z - (lm.abandoned_castle?.z ?? -60));
-  const ruinsRadius = lm.abandoned_castle?.flattenRadius ?? 35;
-  if (distRuins <= ruinsRadius) return lm.abandoned_castle?.y ?? 1.40;
-  if (distRuins <= ruinsRadius + 8) {
-    const t = smoothstepBlend(ruinsRadius, ruinsRadius + 8, distRuins);
-    return lerpVal(lm.abandoned_castle?.y ?? 1.40, basePlainsHeight, t);
+  const ruinsRadius = lm.abandoned_castle?.flattenRadius ?? 40;
+  if (distRuins <= ruinsRadius) return Math.max(2.40, lm.abandoned_castle?.y ?? 2.40);
+  if (distRuins <= ruinsRadius + 12) {
+    const t = smoothstepBlend(ruinsRadius, ruinsRadius + 12, distRuins);
+    return lerpVal(Math.max(2.40, lm.abandoned_castle?.y ?? 2.40), basePlainsHeight, t);
   }
 
-  // 6. Mage Tower Puncak Halilintar [260, -180]
-  if (Math.hypot(x - (lm.mage_tower?.x ?? 260), z - (lm.mage_tower?.z ?? -180)) <= (lm.mage_tower?.flattenRadius ?? 20)) {
-    return lm.mage_tower?.y ?? 4.50;
+  // 6. Mage Tower Puncak Halilintar [270, -260] (Bukit Rumput Kering di Utara Sungai)
+  const mtX = lm.mage_tower?.x ?? 270;
+  const mtZ = lm.mage_tower?.z ?? -260;
+  const distMage = Math.hypot(x - mtX, z - mtZ);
+  const mageRadius = lm.mage_tower?.flattenRadius ?? 28;
+  if (distMage <= mageRadius) return lm.mage_tower?.y ?? 5.50;
+  if (distMage <= mageRadius + 15) {
+    const t = smoothstepBlend(mageRadius, mageRadius + 15, distMage);
+    return lerpVal(lm.mage_tower?.y ?? 5.50, basePlainsHeight, t);
   }
 
   // 7. Hutan Kabut Eldoria [760, -280]
@@ -1234,17 +1248,15 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return mistWave;
   }
 
-  // 8. Lembah Batu Lumut [680, -160]
-  const distMoss = Math.hypot(x - (lm.moss_valley?.x ?? 680), z - (lm.moss_valley?.z ?? -160));
-  if (distMoss <= 95) {
-    if (distMoss <= (lm.moss_valley?.flattenRadius ?? 25)) return lm.moss_valley?.y ?? 0.35;
-    const surroundingHills = Math.max(9.5, Math.min(13.5, 11.0 + Math.sin(x * 0.04) * 1.8));
-    if (distMoss <= 55) {
-      const t = smoothstepBlend(lm.moss_valley?.flattenRadius ?? 25, 55, distMoss);
-      return lerpVal(lm.moss_valley?.y ?? 0.35, surroundingHills, t);
-    }
-    const tDown = smoothstepBlend(55, 95, distMoss);
-    return lerpVal(surroundingHills, basePlainsHeight, tDown);
+  // 8. Lembah Batu Lumut [580, -120] (100% Kering, >= 3.6m di atas permukaan laut)
+  const mossX = lm.moss_valley?.x ?? 580;
+  const mossZ = lm.moss_valley?.z ?? -120;
+  const distMoss = Math.hypot(x - mossX, z - mossZ);
+  const mossRadius = lm.moss_valley?.flattenRadius ?? 55;
+  if (distMoss <= mossRadius) return Math.max(3.60, lm.moss_valley?.y ?? 3.60);
+  if (distMoss <= mossRadius + 20) {
+    const t = smoothstepBlend(mossRadius, mossRadius + 20, distMoss);
+    return lerpVal(Math.max(3.60, lm.moss_valley?.y ?? 3.60), basePlainsHeight, t);
   }
 
   // 9. Perataan Koridor Jalan Raya (< 5.5 unit)
@@ -1252,8 +1264,8 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   if (distRoad < 5.5) {
     let targetRoadH = 0.35;
     if (x > 360 && z < -300) targetRoadH = 2.00; // Koridor Astraea
-    else if (x > 580 && z > 0) targetRoadH = 2.00; // Koridor Val-Kragor
-    else if (x > 480 && z < 0 && z > -120) targetRoadH = 1.40; // Koridor Puing Kastil
+    else if (x > 500 && z > 0) targetRoadH = 3.80; // Koridor Val-Kragor di atas daratan kering
+    else if (x > 480 && z < 0 && z > -120) targetRoadH = 2.40; // Koridor Puing Kastil
     else if (x < -150) targetRoadH = 1.60; // Koridor Gurun Solaria
 
     const t = smoothstepBlend(0, 5.5, distRoad);

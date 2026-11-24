@@ -14,6 +14,7 @@ import {
 import {
   isDesertBiome,
   getDistanceToRiver,
+  getTerrainVertexColor,
   RIVER_NORTHWEST_BRANCH,
   RIVER_DESERT_BRANCH,
   RIVER_EAST_BRANCH,
@@ -22,6 +23,9 @@ import {
 import { SpatialLookupGrid } from './spatialGrid';
 import { checkFrameBudget, yieldIfBudgetExceeded, yieldToChrome, yieldIfNeeded, cooperativeYield } from './frameBudget';
 import { getDeviceProfile } from '../utils/deviceProfiler';
+import { getLandmarkLayout } from './worldLayoutConfig';
+
+export { getTerrainVertexColor };
 
 export interface WorldEnvironmentResult {
   group: THREE.Group;
@@ -1439,11 +1443,12 @@ export async function buildWorldEnvironmentAsync(
   const colosseumGroup = new THREE.Group();
   colosseumGroup.name = 'ZoneH_AncientColosseumBossArena';
 
-  const colosseumCenterX = 235;
-  const colosseumCenterZ = -380;
+  const golemLayout = getLandmarkLayout('bossGolem') || getLandmarkLayout('kawah_boss');
+  const colosseumCenterX = golemLayout?.x ?? 340;
+  const colosseumCenterZ = golemLayout?.z ?? -560;
   const craterCenterX = colosseumCenterX;
   const craterCenterZ = colosseumCenterZ;
-  const colosseumFloorY = 1.80;
+  const colosseumFloorY = golemLayout?.y ?? 4.50;
   const arenaRadius = 48.0;
   const wallRadius = 53.0;
 
@@ -2271,7 +2276,10 @@ export async function buildWorldEnvironmentAsync(
     // 1. Boss Sandworm (Kawah Gurun Barat Daya)
     if (Math.hypot(x - (-660), z - (-160)) < dist) return true;
     // 2. Boss Titan (Arena Colosseum Reruntuhan Batu)
-    if (Math.hypot(x - 320, z - (-640)) < dist) return true;
+    const titanLayout = getLandmarkLayout('bossGolem') || getLandmarkLayout('kawah_boss');
+    const tX = titanLayout?.x ?? 340;
+    const tZ = titanLayout?.z ?? -560;
+    if (Math.hypot(x - tX, z - tZ) < dist) return true;
     // 3. Boss Dragon Ignis (Kepulauan Kaldera Naga)
     if (Math.hypot(x - 40, z - 840) < dist) return true;
     return false;
@@ -2955,8 +2963,8 @@ export async function buildWorldEnvironmentAsync(
 
   // 1. Gerbang Benteng Kayu Runcing & Barikade
   const valkragorBarricades = [
-    [635, 125], [635, 135], [635, 145], [635, 155],
-    [665, 125], [665, 135], [665, 145], [665, 155],
+    [555, 115], [555, 125], [555, 135], [555, 145],
+    [595, 115], [595, 125], [595, 135], [595, 145],
   ];
   valkragorBarricades.forEach(([bx, bz]) => {
     const by = getTerrainHeight(bx, bz);
@@ -2967,7 +2975,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   // 2. Pos Jaga Kayu Benteng (Watchtower Mini)
-  const watchtowers = [[632, 120], [668, 120], [632, 160], [668, 160]];
+  const watchtowers = [[552, 110], [598, 110], [552, 150], [598, 150]];
   watchtowers.forEach(([wx, wz]) => {
     const wy = getTerrainHeight(wx, wz);
     const wtGroup = new THREE.Group();
@@ -3019,9 +3027,9 @@ export async function buildWorldEnvironmentAsync(
 
   // 1. Gugusan Batu Megalit Berlumut Besar
   const mossRocks = [
-    [665, -185, 2.8], [680, -190, 3.6], [695, -180, 2.5],
-    [670, -165, 3.2], [688, -160, 3.8], [700, -170, 2.6],
-    [678, -175, 4.2], [660, -170, 2.2], [690, -178, 3.0],
+    [565, -135, 2.8], [580, -140, 3.6], [595, -130, 2.5],
+    [570, -115, 3.2], [588, -110, 3.8], [600, -120, 2.6],
+    [578, -125, 4.2], [560, -120, 2.2], [590, -128, 3.0],
   ];
   mossRocks.forEach(([mx, mz, s]) => {
     const my = getTerrainHeight(mx, mz);
@@ -3036,8 +3044,8 @@ export async function buildWorldEnvironmentAsync(
 
   // 2. Partikel Spora Bercahaya Melayang di Lembah
   for (let sp = 0; sp < 16; sp++) {
-    const sx = 665 + Math.random() * 32;
-    const sz = -175 + Math.random() * 30;
+    const sx = 565 + Math.random() * 32;
+    const sz = -135 + Math.random() * 30;
     const sy = getTerrainHeight(sx, sz) + 0.8 + Math.random() * 2.2;
     const spore = new THREE.Mesh(new THREE.SphereGeometry(0.16, 4, 4), matGladeSpore);
     spore.position.set(sx, sy, sz);
@@ -3294,11 +3302,11 @@ export function getExactMeshGroundHeight(x: number, z: number, forVisualMesh = f
     }
   }
 
-  // 2. Coastal Wooden Harbor Pier at [40, 68..105]
+  // 2. Coastal Wooden Harbor Pier at [20, 19..56]
   if (
-    (Math.abs(x - 40) <= 2.8 && z >= 68 && z <= 105) ||
-    (Math.abs(z - 92.5) <= 2.2 && Math.abs(x - 40) <= 16.0) ||
-    (Math.abs(x - 40) <= 5.2 && z >= 95 && z <= 105)
+    (Math.abs(x - 20) <= 2.8 && z >= 19 && z <= 56) ||
+    (Math.abs(z - 44) <= 2.2 && Math.abs(x - 20) <= 12.0) ||
+    (Math.abs(x - 20) <= 5.2 && z >= 43 && z <= 56)
   ) {
     return 1.85;
   }

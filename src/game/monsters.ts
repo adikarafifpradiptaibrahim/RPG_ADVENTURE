@@ -1,4 +1,5 @@
 import { EnemyData } from '../types/game';
+import { getLandmarkLayout } from './3d/worldLayoutConfig';
 
 export interface MonsterSpawnConfig {
   id: string;
@@ -839,7 +840,10 @@ export const ANCIENT_TITAN_BOSS_CONFIG: BossConfig = {
   detectRange: 42,
   expReward: 800,
   goldReward: 550,
-  pos: [-224, -435],
+  get pos(): [number, number] {
+    const cfg = getLandmarkLayout('bossGolem') || getLandmarkLayout('kawah_boss');
+    return [cfg?.x ?? 340, cfg?.z ?? -560];
+  },
   scale: [3.5, 3.5, 3.5],
   skills: [
     {
@@ -915,11 +919,11 @@ export const SPAWN_SANDWORM = {
 };
 
 export const SPAWN_TITAN = {
-  x: 320,
-  y: 3.5,
-  z: -640,
-  homeX: 320,
-  homeZ: -640,
+  get x() { return getLandmarkLayout('bossGolem')?.x ?? 340; },
+  get y() { return getLandmarkLayout('bossGolem')?.y ?? 4.5; },
+  get z() { return getLandmarkLayout('bossGolem')?.z ?? -560; },
+  get homeX() { return getLandmarkLayout('bossGolem')?.x ?? 340; },
+  get homeZ() { return getLandmarkLayout('bossGolem')?.z ?? -560; },
   leashRadius: 50, // Terkunci di dalam arena Colosseum pegunungan batu
 };
 
