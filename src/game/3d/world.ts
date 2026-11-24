@@ -99,6 +99,11 @@ import { buildWorldRoadNetwork, isPointOnRoad } from '../RoadSystem';
 import { checkFrameBudget, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield } from './frameBudget';
 import { SpatialLookupGrid } from './spatialGrid';
 import { BRIDGE_CONFIGS, isStrictLandForProps, WATER_LEVEL, distToSegment } from './worldData';
+import {
+  TERRAIN_GRID,
+  setMeshGroundHeights,
+  getExactMeshGroundHeight,
+} from './worldEnvironment';
 
 export interface WorldCollider {
   type: 'box' | 'circle';
@@ -174,7 +179,7 @@ export interface WorldObjects {
  * Standalone terrain elevation calculator matching procedural continental heights
  */
 export function getTerrainHeight(x: number, z: number): number {
-  return getProceduralContinentHeight(x, z);
+  return getExactMeshGroundHeight(x, z);
 }
 
 export function buildWorld(scene: THREE.Scene): WorldObjects {
@@ -210,45 +215,40 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   scene.add(dirLight);
 
   // Expanded World Terrain specifications (Span: X[-1250..650], Z[-650..1150])
-  const terrainWidth = 2100;
-  const terrainDepth = 2000;
-  const segmentsX = 384;
-  const segmentsZ = 384;
-  const terrainGeo = new THREE.PlaneGeometry(terrainWidth, terrainDepth, segmentsX, segmentsZ);
+  const terrainGeo = new THREE.PlaneGeometry(
+    TERRAIN_GRID.width,
+    TERRAIN_GRID.depth,
+    TERRAIN_GRID.segmentsX,
+    TERRAIN_GRID.segmentsZ
+  );
   terrainGeo.rotateX(-Math.PI / 2);
-  terrainGeo.translate(-300, 0, 250); // Centered at x=-300, z=250 matching bounds X:[-1250,650], Z:[-650,1150]
-
-  // Unified procedural height function from mapSampler
-  const getProceduralHeight = (x: number, z: number): number => {
-    return getProceduralContinentHeight(x, z);
-  };
 
   const posAttr = terrainGeo.attributes.position;
   const vertexCount = posAttr.count;
 
   // 1. Initial procedural heights sampling
-  const rawHeights: number[] = new Array(vertexCount);
+  const rawHeights = new Float32Array(vertexCount);
   for (let i = 0; i < vertexCount; i++) {
-    const vx = posAttr.getX(i);
-    const vz = posAttr.getZ(i);
-    rawHeights[i] = getProceduralHeight(vx, vz);
+    const vx = posAttr.getX(i) + TERRAIN_GRID.centerX;
+    const vz = posAttr.getZ(i) + TERRAIN_GRID.centerZ;
+    rawHeights[i] = getProceduralContinentHeight(vx, vz);
   }
 
   // 2. Slope clamping and 3x3 smoothing filter to eliminate any vertical cliff wall spikes
-  const smoothedHeights: number[] = [...rawHeights];
-  const gridW = segmentsX + 1;
-  const gridH = segmentsZ + 1;
+  const smoothedHeights = new Float32Array(rawHeights);
+  const gridW = TERRAIN_GRID.gridW;
+  const gridH = TERRAIN_GRID.gridH;
   const maxSlopeDelta = 2.4;
 
   for (let pass = 0; pass < 2; pass++) {
     for (let gz = 1; gz < gridH - 1; gz++) {
       for (let gx = 1; gx < gridW - 1; gx++) {
         const idx = gz * gridW + gx;
-        const vx = posAttr.getX(idx);
-        const vz = posAttr.getZ(idx);
+        const vx = posAttr.getX(idx) + TERRAIN_GRID.centerX;
+        const vz = posAttr.getZ(idx) + TERRAIN_GRID.centerZ;
 
         // Never clamp inside riverbed (must stay deep at Y = -2.5)
-        if (getDistanceToRiver(vx, vz) < 6.5) continue;
+        if (getDistanceToRiver(vx, vz) < 7.0) continue;
 
         const left = smoothedHeights[gz * gridW + (gx - 1)];
         const right = smoothedHeights[gz * gridW + (gx + 1)];
@@ -269,20 +269,23 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   }
 
   // Vertex colors generated seamlessly from unified mapSampler
-  const colors: number[] = [];
+  const colors = new Float32Array(vertexCount * 3);
   for (let i = 0; i < vertexCount; i++) {
-    const vx = posAttr.getX(i);
-    const vz = posAttr.getZ(i);
+    const vx = posAttr.getX(i) + TERRAIN_GRID.centerX;
+    const vz = posAttr.getZ(i) + TERRAIN_GRID.centerZ;
     const vy = smoothedHeights[i];
     posAttr.setY(i, vy);
 
     const sample = getContinentBiomeSample(vx, vz);
-    colors.push(sample.color[0] / 255, sample.color[1] / 255, sample.color[2] / 255);
+    colors[i * 3] = sample.color[0] / 255;
+    colors[i * 3 + 1] = sample.color[1] / 255;
+    colors[i * 3 + 2] = sample.color[2] / 255;
   }
 
   posAttr.needsUpdate = true;
   terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   terrainGeo.computeVertexNormals();
+  terrainGeo.computeBoundingSphere();
 
   const terrainMat = new THREE.MeshStandardMaterial({
     vertexColors: true,
@@ -292,49 +295,12 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
   });
 
   const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
+  terrainMesh.position.set(TERRAIN_GRID.centerX, 0, TERRAIN_GRID.centerZ);
   terrainMesh.receiveShadow = true;
   scene.add(terrainMesh);
 
-  // Exact 3D rendered surface height calculation via barycentric triangle interpolation:
-  // Guarantees that physics, character foot stepping, and object grounding align 100% with the rendered terrain polygon.
-  const minTerrainX = -750; // 0 - 750
-  const maxTerrainX = 750;  // 0 + 750
-  const minTerrainZ = -725; // -125 - 600
-  const maxTerrainZ = 475;  // -125 + 600
-  const gridCellW = terrainWidth / segmentsX;
-  const gridCellD = terrainDepth / segmentsZ;
-  const gridX1 = segmentsX + 1;
-
-  const getMeshSurfaceHeight = (x: number, z: number): number => {
-    if (x <= minTerrainX || x >= maxTerrainX || z <= minTerrainZ || z >= maxTerrainZ) {
-      return getProceduralHeight(x, z);
-    }
-    const fx = (x - minTerrainX) / gridCellW;
-    const fz = (z - minTerrainZ) / gridCellD;
-    const ix = Math.min(segmentsX - 1, Math.max(0, Math.floor(fx)));
-    const iz = Math.min(segmentsZ - 1, Math.max(0, Math.floor(fz)));
-    const tx = fx - ix;
-    const tz = fz - iz;
-
-    const i00 = iz * gridX1 + ix;
-    const i10 = iz * gridX1 + (ix + 1);
-    const i01 = (iz + 1) * gridX1 + ix;
-    const i11 = (iz + 1) * gridX1 + (ix + 1);
-
-    const y00 = posAttr.getY(i00);
-    const y10 = posAttr.getY(i10);
-    const y01 = posAttr.getY(i01);
-    const y11 = posAttr.getY(i11);
-
-    // Three.js PlaneGeometry triangle split along diagonal:
-    if (tx + tz <= 1) {
-      return y00 + tx * (y10 - y00) + tz * (y01 - y00);
-    } else {
-      return y11 + (1 - tx) * (y01 - y11) + (1 - tz) * (y10 - y11);
-    }
-  };
-
-  const getTerrainHeight = createTerrainHeightEvaluator(getMeshSurfaceHeight, getProceduralHeight);
+  setMeshGroundHeights(smoothedHeights);
+  const getTerrainHeight = getExactMeshGroundHeight;
 
   let syncWorld: WorldObjects | null = null;
   populateWorldEntities(scene, terrainMesh, getTerrainHeight, dirLight, hemiLight, decorativeProps, pointLights).then((res) => {
@@ -361,73 +327,11 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
 }
 
 function createTerrainHeightEvaluator(
-  getMeshSurfaceHeight: (x: number, z: number) => number,
-  getProceduralHeight: (x: number, z: number) => number
+  _getMeshSurfaceHeight?: (x: number, z: number) => number,
+  _getProceduralHeight?: (x: number, z: number) => number
 ): (x: number, z: number, forVisualMesh?: boolean) => number {
   return (x: number, z: number, forVisualMesh = false): number => {
-    if (forVisualMesh) {
-      return getProceduralHeight(x, z);
-    }
-
-    // 1. Walkable bridge deck corridors (BRIDGE_CONFIGS)
-    for (const b of BRIDGE_CONFIGS) {
-      const dx = x - b.x;
-      const dz = z - b.z;
-      const cos = Math.cos(-b.rotationY);
-      const sin = Math.sin(-b.rotationY);
-      const lx = cos * dx - sin * dz;
-      const lz = sin * dx + cos * dz;
-      if (Math.abs(lx) <= b.length * 0.46 && Math.abs(lz) <= b.width * 0.55) {
-        return b.y;
-      }
-    }
-
-    // 2. Coastal Wooden Harbor at [0, 162..202] (Menempel di Pantai Selatan Desa Utama)
-    if (
-      (Math.abs(x - 0) <= 2.8 && z >= 162 && z <= 202) ||
-      (Math.abs(z - 188.5) <= 2.2 && Math.abs(x - 0) <= 16.0) ||
-      (Math.abs(x - 0) <= 5.2 && z >= 195 && z <= 202)
-    ) {
-      return 1.85; // Solid continuous wooden pier deck
-    }
-
-    // 3. Relocated Fortress Val-Kragor Solid Courtyard (Center [310, 115], radius 38 at y = 2.00)
-    if (Math.hypot(x - 310, z - 115) <= 38) {
-      return 2.00;
-    }
-
-    // 4. Imperial Capital Astraea Courtyard & Esplanade (Center [-250, -240], radius 46 at y = 2.00)
-    if (Math.hypot(x - -250, z - -240) <= 46) {
-      return 2.00;
-    }
-
-    // 5. Solaria Desert Village Bazaar & Grand Palace Courtyard (y = 1.80..2.00)
-    if (Math.hypot(x - 85, z - -230) <= 25) return 0.50; // Oase Solaria
-    if (Math.hypot(x - 135, z - -245) <= 35) return 1.80; // Desa Gurun & Bazaar
-    if (Math.hypot(x - 410, z - -470) <= 38) return 2.00; // Istana Sultan Malik
-
-    // 6. Colosseum Kawah Boss Titan Kuno (Center [235, -380], radius 48 at y = 1.80)
-    if (Math.hypot(x - 235, z - -380) <= 48) return 1.80;
-
-    // 7. Primal Dragonfang Caldera Archipelago (Center [40, 840], inner crater floor y = 2.50)
-    if (Math.hypot(x - 40, z - 840) <= 38) return 2.50;
-    // Jembatan Rantai Vulkanik (y = 2.40)
-    // Jembatan 1 (SW ke Main): [-38, 858] ke [-8, 848]
-    if (distToSegment(x, z, -38, 858, -8, 848) <= 3.8) return 2.40;
-    // Jembatan 2 (NW ke Main): [-34, 792] ke [-4, 808]
-    if (distToSegment(x, z, -34, 792, -4, 808) <= 3.8) return 2.40;
-    // Kepulauan Perantara (Lighthouse Hill & Pirate Cove)
-    if (Math.hypot(x - -220, z - 460) <= 22) return 6.00; // Puncak Mercusuar
-    if (Math.hypot(x - -495, z - 620) <= 22) return 0.50; // Teluk Bajak Laut
-
-    // 8. Mage Tower Puncak Halilintar (Center [110, -10], radius 20 at y = 4.50)
-    if (Math.hypot(x - 110, z - -10) <= 20) return 4.50;
-
-    // 9. Sanctuary Village Central Plains (Center [-35, 135], radius 35 at y = 0.25)
-    if (Math.hypot(x - -35, z - 135) <= 35) return 0.25;
-
-    // 10. Exact rendered polygon surface
-    return getMeshSurfaceHeight(x, z);
+    return getExactMeshGroundHeight(x, z, forVisualMesh);
   };
 }
 
@@ -467,46 +371,44 @@ export async function buildWorldAsync(
   scene.add(dirLight);
 
   // Expanded World Terrain specifications (Span: X[-1250..650], Z[-650..1150])
-  const terrainWidth = 2100;
-  const terrainDepth = 2000;
-  const segmentsX = 384;
-  const segmentsZ = 384;
-  const terrainGeo = new THREE.PlaneGeometry(terrainWidth, terrainDepth, segmentsX, segmentsZ);
+  const terrainGeo = new THREE.PlaneGeometry(
+    TERRAIN_GRID.width,
+    TERRAIN_GRID.depth,
+    TERRAIN_GRID.segmentsX,
+    TERRAIN_GRID.segmentsZ
+  );
   terrainGeo.rotateX(-Math.PI / 2);
-  terrainGeo.translate(-300, 0, 250);
-
-  const getProceduralHeight = (x: number, z: number): number => {
-    return getProceduralContinentHeight(x, z);
-  };
 
   const posAttr = terrainGeo.attributes.position;
   const vertexCount = posAttr.count;
 
   // 1. Initial procedural heights sampling (Time-sliced 8ms max macrotask budget)
   onProgress?.(15, 'Membangun Geometri & Heightmap Benua Eldoria...');
-  const rawHeights: number[] = new Array(vertexCount);
+  const rawHeights = new Float32Array(vertexCount);
   for (let i = 0; i < vertexCount; i++) {
-    rawHeights[i] = getProceduralHeight(posAttr.getX(i), posAttr.getZ(i));
-    if (i % 100 === 0) {
+    const vx = posAttr.getX(i) + TERRAIN_GRID.centerX;
+    const vz = posAttr.getZ(i) + TERRAIN_GRID.centerZ;
+    rawHeights[i] = getProceduralContinentHeight(vx, vz);
+    if (i % 2000 === 0) {
       await cooperativeYield(4);
     }
   }
 
   // 2. Slope clamping and 3x3 smoothing filter (Time-sliced 8ms max per slice)
   onProgress?.(20, 'Menghaluskan Kontur Elevasi & Palung Sungai...');
-  const smoothedHeights: number[] = [...rawHeights];
-  const gridW = segmentsX + 1;
-  const gridH = segmentsZ + 1;
+  const smoothedHeights = new Float32Array(rawHeights);
+  const gridW = TERRAIN_GRID.gridW;
+  const gridH = TERRAIN_GRID.gridH;
   const maxSlopeDelta = 2.4;
 
   for (let pass = 0; pass < 2; pass++) {
     for (let gz = 1; gz < gridH - 1; gz++) {
       for (let gx = 1; gx < gridW - 1; gx++) {
         const idx = gz * gridW + gx;
-        const vx = posAttr.getX(idx);
-        const vz = posAttr.getZ(idx);
+        const vx = posAttr.getX(idx) + TERRAIN_GRID.centerX;
+        const vz = posAttr.getZ(idx) + TERRAIN_GRID.centerZ;
 
-        if (getDistanceToRiver(vx, vz) < 6.5) continue;
+        if (getDistanceToRiver(vx, vz) < 7.0) continue;
 
         const left = smoothedHeights[gz * gridW + (gx - 1)];
         const right = smoothedHeights[gz * gridW + (gx + 1)];
@@ -523,7 +425,7 @@ export async function buildWorldAsync(
         }
         smoothedHeights[idx] = cur;
       }
-      if (gz % 5 === 0) {
+      if (gz % 20 === 0) {
         await cooperativeYield(4);
       }
     }
@@ -531,17 +433,19 @@ export async function buildWorldAsync(
 
   // 3. Vertex colors generated seamlessly (Time-sliced 8ms max per slice)
   onProgress?.(25, 'Mewarnai Biome Terrain...');
-  const colors: number[] = [];
+  const colors = new Float32Array(vertexCount * 3);
   for (let i = 0; i < vertexCount; i++) {
-    const vx = posAttr.getX(i);
-    const vz = posAttr.getZ(i);
+    const vx = posAttr.getX(i) + TERRAIN_GRID.centerX;
+    const vz = posAttr.getZ(i) + TERRAIN_GRID.centerZ;
     const vy = smoothedHeights[i];
     posAttr.setY(i, vy);
 
     const sample = getContinentBiomeSample(vx, vz);
-    colors.push(sample.color[0] / 255, sample.color[1] / 255, sample.color[2] / 255);
+    colors[i * 3] = sample.color[0] / 255;
+    colors[i * 3 + 1] = sample.color[1] / 255;
+    colors[i * 3 + 2] = sample.color[2] / 255;
 
-    if (i % 100 === 0) {
+    if (i % 2000 === 0) {
       await cooperativeYield(4);
     }
   }
@@ -549,6 +453,7 @@ export async function buildWorldAsync(
   posAttr.needsUpdate = true;
   terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   terrainGeo.computeVertexNormals();
+  terrainGeo.computeBoundingSphere();
 
   const terrainMat = new THREE.MeshStandardMaterial({
     vertexColors: true,
@@ -558,46 +463,12 @@ export async function buildWorldAsync(
   });
 
   const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
+  terrainMesh.position.set(TERRAIN_GRID.centerX, 0, TERRAIN_GRID.centerZ);
   terrainMesh.receiveShadow = true;
   scene.add(terrainMesh);
 
-  const minTerrainX = -750;
-  const maxTerrainX = 750;
-  const minTerrainZ = -725;
-  const maxTerrainZ = 475;
-  const gridCellW = terrainWidth / segmentsX;
-  const gridCellD = terrainDepth / segmentsZ;
-  const gridX1 = segmentsX + 1;
-
-  const getMeshSurfaceHeight = (x: number, z: number): number => {
-    if (x <= minTerrainX || x >= maxTerrainX || z <= minTerrainZ || z >= maxTerrainZ) {
-      return getProceduralHeight(x, z);
-    }
-    const fx = (x - minTerrainX) / gridCellW;
-    const fz = (z - minTerrainZ) / gridCellD;
-    const ix = Math.min(segmentsX - 1, Math.max(0, Math.floor(fx)));
-    const iz = Math.min(segmentsZ - 1, Math.max(0, Math.floor(fz)));
-    const tx = fx - ix;
-    const tz = fz - iz;
-
-    const i00 = iz * gridX1 + ix;
-    const i10 = iz * gridX1 + (ix + 1);
-    const i01 = (iz + 1) * gridX1 + ix;
-    const i11 = (iz + 1) * gridX1 + (ix + 1);
-
-    const y00 = posAttr.getY(i00);
-    const y10 = posAttr.getY(i10);
-    const y01 = posAttr.getY(i01);
-    const y11 = posAttr.getY(i11);
-
-    if (tx + tz <= 1) {
-      return y00 + tx * (y10 - y00) + tz * (y01 - y00);
-    } else {
-      return y11 + (1 - tx) * (y01 - y11) + (1 - tz) * (y10 - y11);
-    }
-  };
-
-  const getTerrainHeight = createTerrainHeightEvaluator(getMeshSurfaceHeight, getProceduralHeight);
+  setMeshGroundHeights(smoothedHeights);
+  const getTerrainHeight = getExactMeshGroundHeight;
 
   // 4. Build Spatial Lookup Grid (2D TypedArray Float32 & Uint8)
   onProgress?.(26, 'Membangun Spatial Lookup Grid & Heightmap (TypedArray)...');

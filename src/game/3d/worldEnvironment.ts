@@ -1,7 +1,14 @@
 import * as THREE from 'three';
 import { WorldCollider } from './world';
 import { isPointNearRoad } from '../RoadSystem';
-import { getBiomeAt, BRIDGE_CONFIGS, isStrictLandForProps } from './worldData';
+import {
+  getBiomeAt,
+  BRIDGE_CONFIGS,
+  isStrictLandForProps,
+  WORLD_BOUNDS,
+  getProceduralContinentHeight,
+  distToSegment,
+} from './worldData';
 import {
   isDesertBiome,
   getDistanceToRiver,
@@ -3213,6 +3220,113 @@ export {
   worldToMapPercent,
   mapPercentToWorld,
 } from './worldData';
+
+// ============================================================================
+// EXACT BARYCENTRIC TERRAIN MESH HEIGHT SYSTEM
+// ============================================================================
+export const TERRAIN_GRID = {
+  minX: WORLD_BOUNDS.minX,
+  maxX: WORLD_BOUNDS.maxX,
+  minZ: WORLD_BOUNDS.minZ,
+  maxZ: WORLD_BOUNDS.maxZ,
+  width: WORLD_BOUNDS.maxX - WORLD_BOUNDS.minX, // 1900
+  depth: WORLD_BOUNDS.maxZ - WORLD_BOUNDS.minZ, // 1800
+  cellSize: 2.5,
+  segmentsX: 760, // 1900 / 2.5
+  segmentsZ: 720, // 1800 / 2.5
+  gridW: 761,     // segmentsX + 1
+  gridH: 721,     // segmentsZ + 1
+  centerX: (WORLD_BOUNDS.minX + WORLD_BOUNDS.maxX) / 2, // -300
+  centerZ: (WORLD_BOUNDS.minZ + WORLD_BOUNDS.maxZ) / 2, // 250
+};
+
+let activeMeshGroundHeights: Float32Array | null = null;
+
+export function setMeshGroundHeights(heights: Float32Array | number[]): void {
+  if (heights instanceof Float32Array) {
+    activeMeshGroundHeights = heights;
+  } else {
+    activeMeshGroundHeights = new Float32Array(heights);
+  }
+}
+
+export function getMeshGroundHeights(): Float32Array | null {
+  return activeMeshGroundHeights;
+}
+
+/**
+ * Single source of truth for exact 3D rendered surface height via barycentric triangle interpolation.
+ * Exactly matches GPU triangulation of PlaneGeometry (2 triangles per quad cell).
+ */
+export function getExactMeshGroundHeight(x: number, z: number, forVisualMesh = false): number {
+  if (forVisualMesh) {
+    return getProceduralContinentHeight(x, z);
+  }
+
+  // 1. Walkable bridge deck corridors (BRIDGE_CONFIGS)
+  for (const b of BRIDGE_CONFIGS) {
+    const dx = x - b.x;
+    const dz = z - b.z;
+    const cos = Math.cos(-b.rotationY);
+    const sin = Math.sin(-b.rotationY);
+    const lx = cos * dx - sin * dz;
+    const lz = sin * dx + cos * dz;
+    if (Math.abs(lx) <= b.length * 0.46 && Math.abs(lz) <= b.width * 0.55) {
+      return b.y;
+    }
+  }
+
+  // 2. Coastal Wooden Harbor Pier at [0, 162..202]
+  if (
+    (Math.abs(x - 0) <= 2.8 && z >= 162 && z <= 202) ||
+    (Math.abs(z - 188.5) <= 2.2 && Math.abs(x - 0) <= 16.0) ||
+    (Math.abs(x - 0) <= 5.2 && z >= 195 && z <= 202)
+  ) {
+    return 1.85;
+  }
+
+  // 3. Volcanic Chain Bridges in Dragon Caldera Archipelago
+  if (distToSegment(x, z, -38, 858, -8, 848) <= 3.8) return 2.40;
+  if (distToSegment(x, z, -34, 792, -4, 808) <= 3.8) return 2.40;
+
+  // 4. Bounds check and fallback
+  if (
+    !activeMeshGroundHeights ||
+    x < TERRAIN_GRID.minX ||
+    x > TERRAIN_GRID.maxX ||
+    z < TERRAIN_GRID.minZ ||
+    z > TERRAIN_GRID.maxZ
+  ) {
+    return getProceduralContinentHeight(x, z);
+  }
+
+  // 5. Grid cell conversion
+  const u = (x - TERRAIN_GRID.minX) / TERRAIN_GRID.cellSize;
+  const v = (z - TERRAIN_GRID.minZ) / TERRAIN_GRID.cellSize;
+  const ix = Math.min(TERRAIN_GRID.segmentsX - 1, Math.max(0, Math.floor(u)));
+  const iz = Math.min(TERRAIN_GRID.segmentsZ - 1, Math.max(0, Math.floor(v)));
+  const tx = u - ix;
+  const tz = v - iz;
+
+  const i00 = iz * TERRAIN_GRID.gridW + ix;
+  const i10 = i00 + 1;
+  const i01 = (iz + 1) * TERRAIN_GRID.gridW + ix;
+  const i11 = i01 + 1;
+
+  const y00 = activeMeshGroundHeights[i00];
+  const y10 = activeMeshGroundHeights[i10];
+  const y01 = activeMeshGroundHeights[i01];
+  const y11 = activeMeshGroundHeights[i11];
+
+  // 6. Three.js PlaneGeometry triangle split along diagonal (i01 to i10)
+  if (tx + tz <= 1) {
+    // Upper-left triangle
+    return y00 + tx * (y10 - y00) + tz * (y01 - y00);
+  } else {
+    // Lower-right triangle
+    return y11 + (1 - tx) * (y01 - y11) + (1 - tz) * (y10 - y11);
+  }
+}
 
 export {
   getLandmarkLayout,

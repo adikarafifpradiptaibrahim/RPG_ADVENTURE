@@ -34,7 +34,12 @@ import {
 } from './models';
 export { USE_LEGACY_KNIGHT, USE_LEGACY_MAGE, USE_LEGACY_HUNTER };
 import { buildWorld, buildWorldAsync, WorldObjects, WorldCheckpoint, getTerrainHeight as getProceduralTerrainHeight } from './world';
-import { buildWorldEnvironment, buildWorldEnvironmentAsync, WorldEnvironmentResult } from './worldEnvironment';
+import {
+  buildWorldEnvironment,
+  buildWorldEnvironmentAsync,
+  WorldEnvironmentResult,
+  getExactMeshGroundHeight,
+} from './worldEnvironment';
 import { BossManager } from '../BossManager';
 import { BOSS_ARENA_ZONES, BossArenaZone } from '../monsterAI';
 import { RemotePlayerData } from '../multiplayer';
@@ -193,7 +198,7 @@ export interface GameEngineCallbacks {
  * Pengecualian desa (datar 0) dan padang gurun
  */
 export function getTerrainHeight(x: number, z: number): number {
-  return getProceduralContinentHeight(x, z);
+  return getExactMeshGroundHeight(x, z);
 }
 
 interface TownZoneTrigger {
@@ -1221,7 +1226,7 @@ export class GameEngine {
     this.applyGraphicsSettings(this.graphicsSettings);
 
     // 9. Position player mesh on terrain
-    const startY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+    const startY = getExactMeshGroundHeight(this.playerPos.x, this.playerPos.z);
     this.playerPos.y = startY;
     if (this.playerMesh?.group) {
       this.playerMesh.group.position.copy(this.playerPos);
@@ -1334,7 +1339,7 @@ export class GameEngine {
     );
 
     // Position player mesh on terrain
-    const startY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+    const startY = getExactMeshGroundHeight(this.playerPos.x, this.playerPos.z);
     this.playerPos.y = startY;
     if (this.playerMesh?.group) {
       this.playerMesh.group.position.copy(this.playerPos);
@@ -1467,10 +1472,7 @@ export class GameEngine {
   }
 
   public getTerrainHeight(x: number, z: number): number {
-    if (this.world && typeof this.world.getTerrainHeight === 'function') {
-      return this.world.getTerrainHeight(x, z);
-    }
-    return getProceduralTerrainHeight(x, z);
+    return getExactMeshGroundHeight(x, z);
   }
 
   public setCharacterClass(newClass: CharacterClass) {
@@ -3069,8 +3071,9 @@ export class GameEngine {
       if (landAtCamera) {
         this.playerPos.x = this.spectatorPos.x;
         this.playerPos.z = this.spectatorPos.z;
-        this.playerPos.y = this.world.getTerrainHeight(this.spectatorPos.x, this.spectatorPos.z);
+        this.playerPos.y = getExactMeshGroundHeight(this.spectatorPos.x, this.spectatorPos.z);
         this.playerVel.set(0, 0, 0);
+        this.isGrounded = true;
         this.playerMesh.group.position.copy(this.playerPos);
         this.callbacks.onAddFloatingText('Mendarat di Titik Spektator', '#38bdf8', 'info');
       } else {
@@ -10075,7 +10078,7 @@ export class GameEngine {
       this.playerVel.x = 0;
       this.playerVel.y = 0;
       this.playerVel.z = 0;
-      const groundY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+      const groundY = getExactMeshGroundHeight(this.playerPos.x, this.playerPos.z);
       this.playerPos.y = groundY;
       this.isGrounded = true;
       this.playerMesh.group.position.copy(this.playerPos);
@@ -10138,7 +10141,7 @@ export class GameEngine {
       this.playerPos.y += this.playerVel.y * delta;
       const inThroneRoomLocked = this.playerPos.y < -10 && this.playerPos.x >= -435 && this.playerPos.x <= -395 && this.playerPos.z >= 335 && this.playerPos.z <= 365;
       const inMageTowerLocked = isInsideMageTowerInterior(this.playerPos.x, this.playerPos.y, this.playerPos.z);
-      let groundY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+      let groundY = getExactMeshGroundHeight(this.playerPos.x, this.playerPos.z);
       if (inThroneRoomLocked) {
         groundY = (this.playerPos.x <= -424 && Math.abs(this.playerPos.z - 350) <= 6) ? -24.4 : -25.0;
       } else if (inMageTowerLocked) {
@@ -10482,7 +10485,7 @@ export class GameEngine {
       }
     } else {
       // Terrain ground collision and Ocean water surface
-      const groundY = this.world.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+      const groundY = getExactMeshGroundHeight(this.playerPos.x, this.playerPos.z);
       if (this.playerPos.z > 22 && this.playerPos.x >= -65 && this.playerPos.x <= 105 && groundY < -0.2) {
         const waterSurfaceY = -0.25;
         if (this.playerPos.y <= waterSurfaceY) {
@@ -10500,6 +10503,16 @@ export class GameEngine {
           this.playerPos.y = groundY;
           this.playerVel.y = 0;
         }
+      }
+    }
+
+    // Absolute ground floor clamp: prevent sinking into terrain during delta spike or steep slope descents
+    if (!inThroneRoom && !inMageTower) {
+      const minFloorY = getExactMeshGroundHeight(this.playerPos.x, this.playerPos.z);
+      if (this.playerPos.y < minFloorY) {
+        this.playerPos.y = minFloorY;
+        this.playerVel.y = 0;
+        this.isGrounded = true;
       }
     }
 
