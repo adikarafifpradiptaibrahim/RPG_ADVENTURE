@@ -498,7 +498,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                     >
                       {/* Interactive circular pin badge with biome-colored ring */}
                       <div
-                        className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all duration-200 border-2 ${
+                        className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all duration-200 border-2 ${
                           isHovered || isInspected
                             ? 'bg-amber-400 border-white shadow-[0_0_20px_rgba(251,191,36,0.9)] scale-110 z-30 ring-2 ring-white/80'
                             : 'bg-stone-900/90 shadow-md hover:scale-105'
@@ -507,7 +507,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                           borderColor: isHovered || isInspected ? '#ffffff' : spot.color,
                         }}
                       >
-                        <span className="text-base sm:text-lg select-none drop-shadow">{spot.icon}</span>
+                        <span className="text-sm sm:text-base select-none drop-shadow">{spot.icon}</span>
                       </div>
 
                       {/* Desktop Hover Floating Info Card */}

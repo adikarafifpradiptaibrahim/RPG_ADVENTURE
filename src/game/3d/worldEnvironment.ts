@@ -168,9 +168,10 @@ export async function buildWorldEnvironmentAsync(
   }
 
   function isInsideCastleOrFort(x: number, z: number): boolean {
-    if (Math.abs(x - -250) <= 26 && Math.abs(z - -240) <= 32) return true; // Astraea
-    if (x >= 284 && x <= 336 && z >= 93 && z <= 137) return true; // Val-Kragor
-    if (Math.hypot(x - 225, z - -35) <= 28) return true; // Castle Ruins
+    if (Math.abs(x - 460) <= 35 && Math.abs(z - -420) <= 35) return true; // Astraea
+    if (Math.abs(x - 660) <= 35 && Math.abs(z - 150) <= 35) return true;  // Val-Kragor
+    if (Math.hypot(x - 580, z - -60) <= 28) return true;                  // Castle Ruins
+    if (Math.abs(x - -680) <= 35 && Math.abs(z - -620) <= 35) return true; // Sultan Palace
     return false;
   }
 
@@ -2693,7 +2694,7 @@ export async function buildWorldEnvironmentAsync(
 
   // ============================================================================
   // ZONA M: LEMBAH DANAU TITAN KUNO & PINUS BERSALJU (NORTHWEST TITAN LAKE)
-  // Koordinat Pusat X: -220, Z: -500 (Danau Biru Jernih & Pegunungan Salju)
+  // Koordinat Pusat X: 60, Z: -820 (Danau Biru Jernih & Pegunungan Salju)
   // ============================================================================
   const titanLakeGroup = new THREE.Group();
   titanLakeGroup.name = 'ZoneM_TitanLakeValley';
@@ -2721,14 +2722,14 @@ export async function buildWorldEnvironmentAsync(
   const lakeGeo = new THREE.CircleGeometry(58, 48);
   lakeGeo.rotateX(-Math.PI / 2);
   const lakeMesh = new THREE.Mesh(lakeGeo, matLakeWater);
-  lakeMesh.position.set(80, -0.35, -760);
+  lakeMesh.position.set(60, -0.35, -820);
   titanLakeGroup.add(lakeMesh);
 
   // 2. Monolit Pilar Kuno Sang Titan Mengelilingi Danau
   const monolithAngles = [0, 0.7, 1.4, 2.1, 2.8, 3.5, 4.2, 4.9, 5.6];
   monolithAngles.forEach((ang) => {
-    const mx = 80 + Math.cos(ang) * 62;
-    const mz = -760 + Math.sin(ang) * 62;
+    const mx = 60 + Math.cos(ang) * 62;
+    const mz = -820 + Math.sin(ang) * 62;
     if (!isStrictLandForProps(mx, mz, getTerrainHeight)) return; // DILARANG SPAWN DI AIR DANAU/SUNGAI!
     const my = getTerrainHeight(mx, mz);
     const mHeight = 5.0 + Math.random() * 3.5;
@@ -2742,9 +2743,9 @@ export async function buildWorldEnvironmentAsync(
 
   // 3. Pohon Pinus Bersalju Mengelilingi Lereng Danau
   const snowPineCoords: [number, number][] = [
-    [70, -820], [80, -700], [90, -825], [110, -810], [140, -795],
-    [150, -745], [145, -715], [125, -700], [65, -705], [50, -735],
-    [40, -780], [100, -830], [130, -815], [140, -765], [60, -710],
+    [50, -880], [60, -760], [70, -885], [90, -870], [120, -855],
+    [130, -805], [125, -775], [105, -760], [45, -765], [30, -795],
+    [20, -840], [80, -890], [110, -875], [120, -825], [40, -770],
   ];
   snowPineCoords.forEach(([spx, spz]) => {
     if (!isStrictLandForProps(spx, spz, getTerrainHeight)) return; // DILARANG SPAWN DI AIR!
@@ -2785,7 +2786,7 @@ export async function buildWorldEnvironmentAsync(
 
   // ============================================================================
   // ZONA N: KANYON KUNO (NORTHERN RED CANYON MESAS & CANYON CLIFFS)
-  // Koordinat Pusat X: -260, Z: -780 (Tebing Cadas Merah Kanyon)
+  // Koordinat Pusat X: -280, Z: -760 (Tebing Cadas Merah Kanyon)
   // ============================================================================
   const ancientCanyonGroup = new THREE.Group();
   ancientCanyonGroup.name = 'ZoneN_AncientCanyon';
@@ -2804,9 +2805,9 @@ export async function buildWorldEnvironmentAsync(
   });
 
   const canyonMesaCoords: [number, number, number, number][] = [
-    [-290, -760, 14, 18], [-260, -780, 18, 22], [-230, -760, 15, 20],
-    [-275, -740, 10, 14], [-240, -735, 12, 16], [-305, -750, 12, 16],
-    [-215, -775, 16, 18],
+    [-310, -740, 14, 18], [-280, -760, 18, 22], [-250, -740, 15, 20],
+    [-295, -720, 10, 14], [-260, -715, 12, 16], [-325, -730, 12, 16],
+    [-235, -755, 16, 18],
   ];
   canyonMesaCoords.forEach(([cx, cz, radius, height]) => {
     const cy = getTerrainHeight(cx, cz);
@@ -2829,7 +2830,7 @@ export async function buildWorldEnvironmentAsync(
 
   // ============================================================================
   // ZONA O: HUTAN KABUT ELDORIA (MIST FOREST & FOG EFFECT)
-  // Koordinat Pusat X: 400, Z: 0 (Hutan Pinus Lebat & Kabut Melayang)
+  // Koordinat Pusat X: 760, Z: -280 (Hutan Pinus Lebat & Kabut Melayang)
   // ============================================================================
   const mistForestGroup = new THREE.Group();
   mistForestGroup.name = 'ZoneO_MistForest';
@@ -2848,8 +2849,8 @@ export async function buildWorldEnvironmentAsync(
   });
 
   // 1. Kumpulan Pohon Pinus Gelap Rapat
-  for (let px = 610; px <= 670; px += 14) {
-    for (let pz = -370; pz <= -310; pz += 14) {
+  for (let px = 730; px <= 790; px += 14) {
+    for (let pz = -310; pz <= -250; pz += 14) {
       const offsetX = px + (Math.sin(px * 1.5 + pz) * 5.0);
       const offsetZ = pz + (Math.cos(pz * 1.8 + px) * 5.0);
       if (isDesertBiome(offsetX, offsetZ)) continue;
@@ -2877,7 +2878,7 @@ export async function buildWorldEnvironmentAsync(
 
   // 2. Lembaran Kabut Tipis Melayang (Mist Planes)
   const mistCenters = [
-    [625, -355], [655, -350], [640, -325], [620, -320], [665, -335],
+    [745, -295], [775, -290], [760, -265], [740, -260], [785, -275],
   ];
   mistCenters.forEach(([mx, mz], idx) => {
     const my = getTerrainHeight(mx, mz);
@@ -2894,18 +2895,18 @@ export async function buildWorldEnvironmentAsync(
 
   // ============================================================================
   // ZONA P: PUING KASTIL TERBENGKALAI (ABANDONED CASTLE RUINS)
-  // Koordinat Pusat X: 420, Z: -140 (Pilar Runtuh & Tembok Batu Slate)
+  // Koordinat Pusat X: 580, Z: -60 (Pilar Runtuh & Tembok Batu Slate)
   // ============================================================================
   const castleRuinsGroup = new THREE.Group();
   castleRuinsGroup.name = 'ZoneP_AbandonedCastleRuins';
 
   // 1. Dinding Reruntuhan Batu Slate Berlubang
   const wallCoords = [
-    { x: 418, z: -150, w: 14, h: 4.5, rot: 0 },
-    { x: 442, z: -150, w: 12, h: 3.5, rot: 0 },
-    { x: 415, z: -135, w: 16, h: 4.0, rot: Math.PI / 2 },
-    { x: 445, z: -130, w: 12, h: 3.0, rot: Math.PI / 2 },
-    { x: 425, z: -130, w: 8, h: 2.2, rot: 0.4 },
+    { x: 578, z: -70, w: 14, h: 4.5, rot: 0 },
+    { x: 602, z: -70, w: 12, h: 3.5, rot: 0 },
+    { x: 575, z: -55, w: 16, h: 4.0, rot: Math.PI / 2 },
+    { x: 605, z: -50, w: 12, h: 3.0, rot: Math.PI / 2 },
+    { x: 585, z: -50, w: 8, h: 2.2, rot: 0.4 },
   ];
   wallCoords.forEach((wc) => {
     const wy = getTerrainHeight(wc.x, wc.z);
@@ -2918,7 +2919,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   // 2. Menara Bundar Rusak & Pilar Patah
-  const ruinedTowers = [[412, -153], [448, -153], [448, -127]];
+  const ruinedTowers = [[572, -73], [608, -73], [608, -47]];
   ruinedTowers.forEach(([tx, tz]) => {
     const ty = getTerrainHeight(tx, tz);
     const tower = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.8, 6.0, 8), matStoneDarkCrag);
@@ -2930,8 +2931,8 @@ export async function buildWorldEnvironmentAsync(
 
   // 3. Batuan Puing Berserakan di Lantai Kastil
   for (let i = 0; i < 12; i++) {
-    const rx = 420 + Math.random() * 22;
-    const rz = -150 + Math.random() * 20;
+    const rx = 580 + Math.random() * 22;
+    const rz = -70 + Math.random() * 20;
     const ry = getTerrainHeight(rx, rz);
     const debris = new THREE.Mesh(new THREE.DodecahedronGeometry(0.6 + Math.random() * 0.6, 0), matStoneRuins);
     debris.position.set(rx, ry + 0.4, rz);
@@ -2945,15 +2946,15 @@ export async function buildWorldEnvironmentAsync(
 
   // ============================================================================
   // ZONA Q: DESA BENTENG VAL-KRAGOR (EAST FORTRESS VILLAGE)
-  // Koordinat Pusat X: 520, Z: 10 (Benteng Slate, Pos Jaga & Barikade Kayu)
+  // Koordinat Pusat X: 660, Z: 150 (Benteng Slate, Pos Jaga & Barikade Kayu)
   // ============================================================================
   const valkragorGroup = new THREE.Group();
   valkragorGroup.name = 'ZoneQ_FortressValKragor';
 
   // 1. Gerbang Benteng Kayu Runcing & Barikade
   const valkragorBarricades = [
-    [495, -15], [495, -5], [495, 5], [495, 15],
-    [525, -15], [525, -5], [525, 5], [525, 15],
+    [635, 125], [635, 135], [635, 145], [635, 155],
+    [665, 125], [665, 135], [665, 145], [665, 155],
   ];
   valkragorBarricades.forEach(([bx, bz]) => {
     const by = getTerrainHeight(bx, bz);
@@ -2964,7 +2965,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   // 2. Pos Jaga Kayu Benteng (Watchtower Mini)
-  const watchtowers = [[492, -20], [528, -20], [492, 20], [528, 20]];
+  const watchtowers = [[632, 120], [668, 120], [632, 160], [668, 160]];
   watchtowers.forEach(([wx, wz]) => {
     const wy = getTerrainHeight(wx, wz);
     const wtGroup = new THREE.Group();
@@ -2997,7 +2998,7 @@ export async function buildWorldEnvironmentAsync(
 
   // ============================================================================
   // ZONA R: LEMBAH BATU LUMUT (MOSSY ROCK VALLEY & GLADE SPORES)
-  // Koordinat Pusat X: 600, Z: -120 (Megalit Berlumut & Pendar Partikel Glade)
+  // Koordinat Pusat X: 680, Z: -160 (Megalit Berlumut & Pendar Partikel Glade)
   // ============================================================================
   const mossValleyGroup = new THREE.Group();
   mossValleyGroup.name = 'ZoneR_MossRockValley';
@@ -3016,9 +3017,9 @@ export async function buildWorldEnvironmentAsync(
 
   // 1. Gugusan Batu Megalit Berlumut Besar
   const mossRocks = [
-    [585, -145, 2.8], [600, -150, 3.6], [615, -140, 2.5],
-    [590, -125, 3.2], [608, -120, 3.8], [620, -130, 2.6],
-    [598, -135, 4.2], [580, -130, 2.2], [610, -138, 3.0],
+    [665, -185, 2.8], [680, -190, 3.6], [695, -180, 2.5],
+    [670, -165, 3.2], [688, -160, 3.8], [700, -170, 2.6],
+    [678, -175, 4.2], [660, -170, 2.2], [690, -178, 3.0],
   ];
   mossRocks.forEach(([mx, mz, s]) => {
     const my = getTerrainHeight(mx, mz);
@@ -3033,8 +3034,8 @@ export async function buildWorldEnvironmentAsync(
 
   // 2. Partikel Spora Bercahaya Melayang di Lembah
   for (let sp = 0; sp < 16; sp++) {
-    const sx = 465 + Math.random() * 32;
-    const sz = 5 + Math.random() * 30;
+    const sx = 665 + Math.random() * 32;
+    const sz = -175 + Math.random() * 30;
     const sy = getTerrainHeight(sx, sz) + 0.8 + Math.random() * 2.2;
     const spore = new THREE.Mesh(new THREE.SphereGeometry(0.16, 4, 4), matGladeSpore);
     spore.position.set(sx, sy, sz);

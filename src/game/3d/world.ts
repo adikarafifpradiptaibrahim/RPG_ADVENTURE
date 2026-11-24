@@ -503,11 +503,11 @@ export async function buildHarbor(
 
   // ==========================================
   // 1b. EXTENDED CONTINUOUS COASTAL HARBOR (Sea Shoreline at Z >= 85, X: 40)
-  // Dermaga Kayu Pelabuhan Sanctuary menempel di teluk pantai selatan [40, 68..105]
+  // Dermaga Kayu Pelabuhan Sanctuary menempel di teluk pantai selatan [20, 110..150]
   // ==========================================
   const dockY = -0.375; // Aligns top of 2.1m deck + 0.125m plank exactly at y = 1.85
-  const harborX = 40;
-  const harborZ = 85;
+  const harborX = 20;
+  const harborZ = 130;
 
   // 0. Shoreline Boardwalk Apron (Z: 68..71)
   const shorelineBoardwalk = createDockShorelineBoardwalkMesh(5.6, 3.5);
@@ -592,9 +592,9 @@ export async function buildMainVillage(
   const villageMainlandY = 0.25;
   await cooperativeYield(4);
 
-  // Village Center relocated to (X: 40, Z: -40)
-  const vShiftX = 75;  // 40 - (-35)
-  const vShiftZ = -175; // -40 - 135
+  // Village Center relocated to (X: 20, Z: -60)
+  const vShiftX = 55;  // 20 - (-35)
+  const vShiftZ = -195; // -60 - 135
 
   const villageArch = createVillageArchMesh('GERBANG UTARA ELDORIA');
   const archX = -35 + vShiftX;
@@ -1026,9 +1026,9 @@ export async function buildAstraeaCastle(
   const astraeaBaseY = 2.00;
   await cooperativeYield(4);
 
-  // Relocated Astraea Imperial Capital Center to (X: 320, Z: -260)
-  const astDX = 570; // 320 - (-250)
-  const astDZ = -20; // -260 - (-240)
+  // Relocated Astraea Imperial Capital Center to (X: 460, Z: -420)
+  const astDX = 710; // 460 - (-250)
+  const astDZ = -180; // -420 - (-240)
 
   // A. Grand Imperial Sun Palace of Astraea (North End: X: 320, Z: -285)
   // Facing SOUTH (Direction: 0° / rotation.y = 0) looking over the plaza and south gate
@@ -1311,10 +1311,10 @@ export async function buildValKragorFort(
 ): Promise<void> {
   const valKragorBaseY = 2.00;
   await cooperativeYield(4);
-  const vkBaseX = 520;
-  const vkBaseZ = 10;
-  const vkDX = vkBaseX - 380; // 140
-  const vkDZ = vkBaseZ - 80;  // -70
+  const vkBaseX = 660;
+  const vkBaseZ = 150;
+  const vkDX = vkBaseX - 380; // 280
+  const vkDZ = vkBaseZ - 80;  // 70
 
   // A. Grand Fortress Gatehouse (West Entrance at X = 289, Z = 95)
   // Menghadap lurus ke BARAT (Rotation Y = 270° / Math.PI * 1.5) menyambut jalan raya berbatu dari jembatan
@@ -1877,27 +1877,27 @@ export async function buildDesertStructures(
 ): Promise<void> {
   await cooperativeYield(4);
   // ------------------------------------------
-  // 5A. ANCIENT SUNKEN PYRAMID RUINS (West: [-320, -560])
+  // 5A. ANCIENT SUNKEN PYRAMID RUINS (West: [-360, -520])
   // ------------------------------------------
   const pyramid = createDesertPyramidMesh();
   const pyY = 1.50;
-  pyramid.position.set(-320, pyY, -560);
+  pyramid.position.set(-360, pyY, -520);
   scene.add(pyramid);
   colliders.push({
     type: 'box',
-    minX: -329,
-    maxX: -311,
-    minZ: -569,
-    maxZ: -551,
+    minX: -369,
+    maxX: -351,
+    minZ: -529,
+    maxZ: -511,
     label: 'Piramida Emas Solaria',
   });
 
   // Obelisks guarding pyramid approach
   const obeliskPositions = [
-    { x: -335, z: -560 },
-    { x: -305, z: -560 },
-    { x: -320, z: -575 },
-    { x: -320, z: -545 },
+    { x: -375, z: -520 },
+    { x: -345, z: -520 },
+    { x: -360, z: -535 },
+    { x: -360, z: -505 },
   ];
   obeliskPositions.forEach((pos) => {
     if (!isDesertBiome(pos.x, pos.z)) return; // DILARANG SPAWN di luar gurun!
@@ -1909,11 +1909,11 @@ export async function buildDesertStructures(
 
   // Palms near Pyramid Oasis Spring
   const pyramidPalmPositions = [
-    { x: -302, z: -574 },
-    { x: -308, z: -570 },
-    { x: -298, z: -566 },
-    { x: -338, z: -544 },
-    { x: -342, z: -538 },
+    { x: -342, z: -534 },
+    { x: -348, z: -530 },
+    { x: -338, z: -526 },
+    { x: -378, z: -504 },
+    { x: -382, z: -498 },
   ];
   const pyramidPalmsData = pyramidPalmPositions
     .filter((pos) => isDesertBiome(pos.x, pos.z)) // DILARANG SPAWN di luar gurun!
@@ -1930,7 +1930,7 @@ export async function buildDesertStructures(
   scene.add(pyramidPalmsMesh);
 
   // ------------------------------------------
-  // 5B. HIDDEN OASIS OF SOLARIA (West: [-340, -340])
+  // 5B. HIDDEN OASIS OF SOLARIA (West: [-400, -290])
   // ------------------------------------------
   const oasisPoolGeo = new THREE.CylinderGeometry(14, 14, 0.4, 24);
   const oasisPoolMat = new THREE.MeshStandardMaterial({
@@ -1941,14 +1941,14 @@ export async function buildDesertStructures(
     opacity: 0.88,
   });
   const oasisPool = new THREE.Mesh(oasisPoolGeo, oasisPoolMat);
-  oasisPool.position.set(-340, 0.05, -340);
+  oasisPool.position.set(-400, 0.05, -290);
   scene.add(oasisPool);
 
   const oasisPalmsData: { x: number; y: number; z: number; rotationY: number }[] = [];
   for (let a = 0; a < 8; a++) {
     const angle = (a / 8) * Math.PI * 2;
-    const px = -340 + Math.cos(angle) * 17;
-    const pz = -340 + Math.sin(angle) * 17;
+    const px = -400 + Math.cos(angle) * 17;
+    const pz = -290 + Math.sin(angle) * 17;
     if (!isDesertBiome(px, pz)) continue; // DILARANG SPAWN di luar gurun!
     const py = getTerrainHeight(px, pz);
     oasisPalmsData.push({ x: px, y: py, z: pz, rotationY: angle + 0.5 });
@@ -1959,15 +1959,15 @@ export async function buildDesertStructures(
 
   // ------------------------------------------
   // 5C. GRAND SULTAN SOLARIA PALACE & DESA BAZAAR GURUN
-  // Palace Center: [-540, -640] (Y=2.00, Menghadap Barat)
-  // Desert Village Center: [-460, -260] (Y=1.80)
+  // Palace Center: [-680, -620] (Y=2.00, Menghadap Barat)
+  // Desert Village Center: [-560, -110] (Y=1.80)
   // ------------------------------------------
   const solariaBaseY = 1.80;
   const solariaPalaceY = 2.00;
-  const spDX = -950; // -540 - 410
-  const spDZ = -170; // -640 - (-470)
-  const dvDX = -595; // -460 - 135
-  const dvDZ = -15;  // -260 - (-245)
+  const spDX = -1090; // -680 - 410
+  const spDZ = -150;  // -620 - (-470)
+  const dvDX = -695;  // -560 - 135
+  const dvDZ = 135;   // -110 - (-245)
 
   // 1. Grand Taj Mahal Palace of Sultan Solaria (West: [-540, -640])
   const solariaPalace = createTajMahalPalaceMesh();
@@ -2308,7 +2308,7 @@ export async function buildTitanLakeAndCanyon(
   npcs: WorldNPC[]
 ): Promise<void> {
   await cooperativeYield(4);
-  const sinkholeCenter = { x: -420, z: -420 };
+  const sinkholeCenter = { x: -720, z: -340 };
   const sinkholeBaseY = getTerrainHeight(sinkholeCenter.x, sinkholeCenter.z);
 
   // 1. Partikel & Gelombang Pusaran Pasir Berputar di Dasar Kawah
@@ -2352,12 +2352,12 @@ export async function buildTitanLakeAndCanyon(
   // Seluruh lanskap gurun mengandalkan daratan utama terrainMesh alami yang mulus.
 
   // ==========================================
-  // 6. THUNDERPEAK LIGHTNING SPIRE & MAGE TOWER SANCTUARY (East Plains Hill: [220, -110])
+  // 6. THUNDERPEAK LIGHTNING SPIRE & MAGE TOWER SANCTUARY (East Plains Hill: [260, -180])
   // Struktur Megah 3D Mage Tower, Interior Bertingkat, Kristal Petir Bersinar, dan Dewan Penyihir
   // ==========================================
   const mageTowerBaseY = 4.50;
-  const mtDX = 110; // 220 - 110
-  const mtDZ = -100; // -110 - (-10)
+  const mtDX = 150; // 260 - 110
+  const mtDZ = -170; // -180 - (-10)
 
   // A. Struktur Eksterior 3D "Mage Tower" Puncak Halilintar (Center: [220, -110])
   const mageTowerExterior = createMageTowerExteriorMesh();
@@ -3431,49 +3431,49 @@ async function populateWorldEntities(
         id: 'wp_titan',
         name: 'Ancient Titan Lake Valley',
         nameId: 'Lembah Danau Titan Kuno',
-        pos: [80, -760],
+        pos: [60, -820],
       },
       {
         id: 'wp_astraea',
         name: 'Grand Imperial Capital Astraea',
         nameId: 'Ibukota Kerajaan Emas Astraea',
-        pos: [320, -260],
+        pos: [460, -420],
       },
       {
         id: 'wp_valkragor',
         name: 'Val-Kragor Fortress Plaza',
         nameId: 'Alun-Alun Benteng Val-Kragor',
-        pos: [520, 10],
+        pos: [660, 150],
       },
       {
         id: 'wp_thunderpeak',
         name: 'Thunderpeak Spire & Mage Tower',
         nameId: 'Mage Tower Puncak Halilintar',
-        pos: [220, -110],
+        pos: [260, -180],
       },
       {
         id: 'wp_solaria_village',
         name: 'Solaria Desert Village & Bazaar',
         nameId: 'Desa Bazaar Gurun Solaria',
-        pos: [-460, -260],
+        pos: [-560, -110],
       },
       {
         id: 'wp_solaria_palace',
         name: 'Solaria Grand Sultan Palace',
         nameId: 'Istana Sultan Malik',
-        pos: [-540, -640],
+        pos: [-680, -620],
       },
       {
         id: 'wp_solaria',
         name: 'Solaria Golden Desert Pyramid',
         nameId: 'Piramida Emas Solaria',
-        pos: [-320, -560],
+        pos: [-360, -520],
       },
       {
         id: 'wp_solaria_oasis',
         name: 'Solaria Hidden Oasis',
         nameId: 'Oase Solaria',
-        pos: [-340, -340],
+        pos: [-400, -290],
       },
       {
         id: 'wp_dragoncaldera',
@@ -3503,37 +3503,37 @@ async function populateWorldEntities(
         id: 'wp_boss_crater',
         name: 'Ancient Colosseum Ruins (Titan Kuno)',
         nameId: 'Kawah Cacat World Boss (Lv. 10)',
-        pos: [-480, -480],
+        pos: [-720, -340],
       },
       {
         id: 'wp_sandworm',
         name: 'The Great Solaria Sinkhole',
         nameId: 'Sarang Cacing Purba Gurun',
-        pos: [-420, -420],
+        pos: [-660, -370],
       },
       {
         id: 'wp_canyon',
         name: 'Ancient Canyon',
         nameId: 'Kanyon Kuno',
-        pos: [-260, -780],
+        pos: [-280, -760],
       },
       {
         id: 'wp_mist_forest',
         name: 'Eldoria Mist Forest',
         nameId: 'Hutan Kabut Eldoria',
-        pos: [640, -340],
+        pos: [760, -280],
       },
       {
         id: 'wp_abandoned_castle',
         name: 'Abandoned Castle Ruins',
         nameId: 'Puing Kastil Terbengkalai',
-        pos: [420, -140],
+        pos: [580, -60],
       },
       {
         id: 'wp_moss_valley',
         name: 'Moss Rock Valley',
         nameId: 'Lembah Batu Lumut',
-        pos: [600, -120],
+        pos: [680, -160],
       },
     ];
 
