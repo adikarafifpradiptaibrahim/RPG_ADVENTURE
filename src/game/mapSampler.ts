@@ -223,7 +223,7 @@ export function getTerrainVertexColor(worldX: number, worldZ: number, height: nu
     return [140, 122, 101]; // Eldoria dirt paved trail #8c7a65
   }
 
-  // 3. Bioma Gurun Solaria di Barat: Pasir Emas Cerah (#e2c074 s.d. #d4a955)
+  // 3. Bioma Gurun Solaria di Barat: Pasir Emas Cerah (#e2c074 s.d. #d4a955 / 100% Pasir Emas Merata)
   if (b === 'desert') {
     const duneNoise = 0.5 + 0.5 * Math.sin(worldX * 0.035 + worldZ * 0.028);
     return [
@@ -233,10 +233,10 @@ export function getTerrainVertexColor(worldX: number, worldZ: number, height: nu
     ];
   }
 
-  // 4. Bioma Salju Utara: Salju Putih Murni (#eef4f8) HANYA untuk Z < -650 dan height > 14
-  if (b === 'snow' || (worldZ < -650 && height > 14.0)) {
-    if (worldZ < -650 && height > 14.0) {
-      return [238, 244, 248]; // #eef4f8 Salju Putih Bersih
+  // 4. Bioma Salju Utara: Salju Putih Murni (#edf3f8) HANYA untuk bioma 'snow' (Z < -640 dan -180 < X < 260)
+  if (b === 'snow' && worldZ < -640 && worldX > -180 && worldX < 260) {
+    if (height > 14.0) {
+      return [237, 243, 248]; // #edf3f8 Salju Putih Murni
     }
     return [115, 125, 135]; // Tebing Batu Abu-Abu Gunung Utara
   }
@@ -249,7 +249,7 @@ export function getTerrainVertexColor(worldX: number, worldZ: number, height: nu
     return [35, 30, 28]; // Basalt hitam vulkanik
   }
 
-  // 6. Pasir Pantai (#e6d39c / [230, 211, 156]) HANYA pada pita tipis tepat di pinggir air (height <= SEA_LEVEL + 1.2)
+  // 6. Pasir Pantai (#e6d39c / [230, 211, 156]) HANYA pada pita tipis tepat di pinggir air laut/sungai
   const distRiver = getDistanceToRiver(worldX, worldZ);
   const isCoastEdge = distRiver < 4.8 || height <= SEA_LEVEL + 0.45;
   if (height <= SEA_LEVEL + 1.2 && isCoastEdge) {

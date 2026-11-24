@@ -246,13 +246,14 @@ export function renderIllustratedMap(
       CONTINENT_CENTER_Z + Math.sin(normA) * r,
     ]);
   }
-  // B. Batas timur gurun mengikuti kurva bergelombang organik dari selatan (z = 20) ke utara (z = -820)
-  const zSteps = 30;
+  // B. Batas timur gurun mengikuti kurva bergelombang organik dari pesisir selatan (z = 160) ke utara (z = -820)
+  // Perbatasan digeser ke Barat ~80 unit (dari -160 menjadi -240) memperluas padang rumput hijau di timur
+  const zSteps = 36;
   for (let i = 0; i <= zSteps; i++) {
-    const zVal = 20 - (i / zSteps) * 840;
+    const zVal = 160 - (i / zSteps) * 980;
     const wave = Math.sin(zVal * 0.006) * 110 + Math.cos(zVal * 0.015) * 35;
-    const warp = Math.sin(-160 * 0.01 + zVal * 0.012) * 45;
-    const xVal = -160 - wave - warp;
+    const warp = Math.sin(-240 * 0.01 + zVal * 0.012) * 45;
+    const xVal = -240 - wave - warp;
     desertWorldPoly.push([xVal, zVal]);
   }
   const desertCanvas = desertWorldPoly.map((p) => wToC(p[0], p[1]));
@@ -306,10 +307,10 @@ export function renderIllustratedMap(
 
   // ==========================================================================
   // 4. KANYON KUNO (NORTH-WEST RED CANYON MESAS & STRATIFIED CLIFFS)
-  // Center: [-280, -760]
+  // Center: [-320, -650] (100% di atas Daratan Pasir Kering Gurun)
   // ==========================================================================
   ctx.save();
-  const canyonCenter = wToC(-280, -760);
+  const canyonCenter = wToC(-320, -650);
   const mesaBlocks = [
     { ox: -40, oy: -15, w: 46, h: 34 },
     { ox: 0, oy: -20, w: 52, h: 38 },

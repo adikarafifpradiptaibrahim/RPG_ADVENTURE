@@ -1,5 +1,6 @@
 import { RegionInfo, MapMarker } from '../types/game';
 import { isDesertBiome } from './mapSampler';
+import { isMainContinentLand } from './3d/worldData';
 
 export const REGIONS: RegionInfo[] = [
   {
@@ -34,8 +35,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A heavily fortified stronghold with stone ramparts, corner watchtowers, garrison keep, and spiked defense barricades situated in the open eastern plains.',
     descriptionId: 'Desa benteng pertahanan mandiri di padang rumput tenggara yang lapang! Dilengkapi tembok slate kokoh, menara pengawas, barikade runcing, dan markas Komandan Brann.',
     color: '#64748b',
-    bounds: { minX: 470, maxX: 570, minZ: -30, maxZ: 50 },
-    center: [520, 10],
+    bounds: { minX: 520, maxX: 640, minZ: 70, maxZ: 190 },
+    center: [580, 130],
     recommendedLevel: 4,
   },
   {
@@ -46,20 +47,20 @@ export const REGIONS: RegionInfo[] = [
     description: 'A colossal imperial metropolis situated across the peaceful north-east plains, featuring the grand Sun Palace, towering marble colonnades, royal bazaar, and the Fountain of Immortality.',
     descriptionId: 'Ibukota kerajaan emas megah di dataran padang rumput timur laut yang damai! Gerbang Barat megah, Istana Kaisar Aurelius, dan alun-alun marmer putih berair mancur abadi.',
     color: '#fbbf24',
-    bounds: { minX: 260, maxX: 380, minZ: -320, maxZ: -200 },
-    center: [320, -260],
+    bounds: { minX: 380, maxX: 540, minZ: -480, maxZ: -360 },
+    center: [460, -420],
     recommendedLevel: 5,
   },
   {
     id: 'danau_titan',
     name: 'Ancient Titan Lake Valley',
-    nameId: 'Lembah Danau Titan Kuno',
+    nameId: 'Lembah Danau Titan Kuno & Pegunungan Salju',
     icon: '🏔️',
     description: 'A crystalline glacial mountain lake surrounded by snow-capped peaks in the far north-central highlands, headwaters of the Eldorian rivers.',
     descriptionId: 'Danau purba berair biru jernih di kaki pegunungan salju utara tengah, hulu utama aliran sungai Eldoria.',
     color: '#38bdf8',
-    bounds: { minX: 10, maxX: 150, minZ: -840, maxZ: -680 },
-    center: [80, -760],
+    bounds: { minX: -180, maxX: 260, minZ: -950, maxZ: -640 },
+    center: [60, -820],
     recommendedLevel: 8,
   },
   {
@@ -70,8 +71,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'Sheer towering terracotta canyon cliffs and sandstone mesas in the far northern reaches of the west desert.',
     descriptionId: 'Jurang bebatuan cadas merah terjal dan tebing sandstone di perbatasan gurun paling utara benua.',
     color: '#ea580c',
-    bounds: { minX: -340, maxX: -180, minZ: -860, maxZ: -700 },
-    center: [-260, -780],
+    bounds: { minX: -400, maxX: -240, minZ: -740, maxZ: -580 },
+    center: [-320, -650],
     recommendedLevel: 9,
   },
   {
@@ -82,8 +83,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'Dense dark spruce wilderness draped in perpetual mysterious fog in the eastern hills.',
     descriptionId: 'Hutan pinus lebat yang senantiasa diselimuti kabut tebal misterius di perbukitan timur.',
     color: '#15803d',
-    bounds: { minX: 580, maxX: 700, minZ: -400, maxZ: -280 },
-    center: [640, -340],
+    bounds: { minX: 680, maxX: 840, minZ: -360, maxZ: -200 },
+    center: [760, -280],
     recommendedLevel: 4,
   },
   {
@@ -94,8 +95,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'Ancient dilapidated castle walls, broken watchtowers, and weathered slate courtyards.',
     descriptionId: 'Reruntuhan kastil megah masa lalu dengan benteng runtuh dan pilar batu kuno berlumut.',
     color: '#64748b',
-    bounds: { minX: 370, maxX: 470, minZ: -190, maxZ: -90 },
-    center: [420, -140],
+    bounds: { minX: 520, maxX: 640, minZ: -110, maxZ: -10 },
+    center: [580, -60],
     recommendedLevel: 5,
   },
   {
@@ -106,8 +107,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A secluded sanctuary of giant mossy megaliths, blooming glade flora, and glowing spores.',
     descriptionId: 'Lembah tersembunyi penuh gugusan batu purba berlumut dan pendar spora mistis.',
     color: '#65a30d',
-    bounds: { minX: 540, maxX: 660, minZ: -170, maxZ: -70 },
-    center: [600, -120],
+    bounds: { minX: 520, maxX: 640, minZ: -170, maxZ: -70 },
+    center: [580, -120],
     recommendedLevel: 5,
   },
   {
@@ -118,8 +119,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'Endless rolling golden sand dunes, the bustling mud-brick Desert Village of Solaria, the Grand Palace of Sultan Malik, and the ancient pharaoh pyramid.',
     descriptionId: 'Hamparan padang pasir emas di wilayah barat benua! Menampung Piramida Emas, Oase Solaria, dan Istana Megah Sultan Malik.',
     color: '#eab308',
-    bounds: { minX: -650, maxX: -150, minZ: -750, maxZ: -120 },
-    center: [-400, -400],
+    bounds: { minX: -800, maxX: -240, minZ: -750, maxZ: 150 },
+    center: [-450, -380],
     recommendedLevel: 6,
   },
   {
@@ -136,14 +137,14 @@ export const REGIONS: RegionInfo[] = [
   },
   {
     id: 'kawah_cacing_purba',
-    name: 'Colosseum of Titan Kuno',
-    nameId: 'Kawah Cacat World Boss (Lv. 10)',
+    name: 'Ancient Titan Colosseum Arena',
+    nameId: 'Arena Colosseum Titan Kuno (Lv. 10)',
     icon: '🗿',
-    description: 'A colossal ancient colosseum arena in the western desert, domain of the legendary Boss Titan Kuno.',
-    descriptionId: 'Arena reruntuhan colosseum kuno megah di Gurun Solaria barat, arena World Boss Titan Kuno.',
+    description: 'A colossal ancient colosseum arena in the north rocky mountains, domain of the legendary Boss Titan Kuno.',
+    descriptionId: 'Arena reruntuhan colosseum kuno megah di dataran tinggi pegunungan timur-utara, arena World Boss Titan Kuno.',
     color: '#ea580c',
-    bounds: { minX: -540, maxX: -420, minZ: -540, maxZ: -420 },
-    center: [-480, -480],
+    bounds: { minX: 280, maxX: 400, minZ: -620, maxZ: -500 },
+    center: [340, -560],
     recommendedLevel: 10,
   },
 ];
@@ -327,54 +328,54 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
     return REGIONS.find((r) => r.id === 'kaldera_naga_api') || REGIONS[10];
   }
 
-  // 2. Kawah Cacat World Boss Titan Kuno [-480, -480]
-  if (Math.hypot(x - -480, z - -480) <= 55) {
+  // 2. Arena Colosseum World Boss Titan Kuno [340, -560]
+  if (Math.hypot(x - 340, z - -560) <= 65) {
     return REGIONS.find((r) => r.id === 'kawah_cacing_purba') || REGIONS[11];
   }
 
-  // 3. Danau Titan Kuno [80, -760]
-  if (Math.hypot(x - 80, z - -760) <= 85) {
-    return REGIONS.find((r) => r.id === 'danau_titan') || REGIONS[4];
-  }
-
-  // 4. Astraea [320, -260]
-  if (Math.hypot(x - 320, z - -260) <= 65) {
-    return REGIONS.find((r) => r.id === 'kerajaan_astraea') || REGIONS[3];
-  }
-
-  // 5. Kanyon Kuno [-260, -780]
-  if (Math.hypot(x - -260, z - -780) <= 80) {
+  // 3. Kanyon Batu Merah Kuno [-320, -650]
+  if (Math.hypot(x - -320, z - -650) <= 85) {
     return REGIONS.find((r) => r.id === 'ancient_canyon') || REGIONS[5];
   }
 
-  // 6. Hutan Kabut Eldoria [640, -340]
-  if (Math.hypot(x - 640, z - -340) <= 65) {
+  // 4. Lembah Danau Titan Kuno & Pegunungan Salju Utara (Z < -640 dan -180 < X < 260)
+  if ((z < -640 && x > -180 && x < 260) || Math.hypot(x - 60, z - -820) <= 120) {
+    return REGIONS.find((r) => r.id === 'danau_titan') || REGIONS[4];
+  }
+
+  // 5. Kerajaan Emas Astraea [460, -420]
+  if (Math.hypot(x - 460, z - -420) <= 75) {
+    return REGIONS.find((r) => r.id === 'kerajaan_astraea') || REGIONS[3];
+  }
+
+  // 6. Hutan Kabut Eldoria [760, -280]
+  if (Math.hypot(x - 760, z - -280) <= 85) {
     return REGIONS.find((r) => r.id === 'hutan_kabut') || REGIONS[6];
   }
 
-  // 7. Puing Kastil Terbengkalai [420, -140]
-  if (Math.hypot(x - 420, z - -140) <= 45) {
+  // 7. Puing Kastil Terbengkalai [580, -60]
+  if (Math.hypot(x - 580, z - -60) <= 60) {
     return REGIONS.find((r) => r.id === 'puing_kastil') || REGIONS[7];
   }
 
-  // 8. Benteng Val-Kragor [520, 10]
-  if (Math.hypot(x - 520, z - 10) <= 50) {
+  // 8. Benteng Val-Kragor [580, 130]
+  if (Math.hypot(x - 580, z - 130) <= 70) {
     return REGIONS.find((r) => r.id === 'desa_valkragor') || REGIONS[2];
   }
 
-  // 9. Lembah Batu Lumut [600, -120]
-  if (Math.hypot(x - 600, z - -120) <= 50) {
+  // 9. Lembah Batu Lumut [580, -120]
+  if (Math.hypot(x - 580, z - -120) <= 65) {
     return REGIONS.find((r) => r.id === 'lembah_batu_lumut') || REGIONS[8];
   }
 
-  // 10. South & Surrounding Ocean
-  if (z > 215 || x < -700 || x > 750 || z < -900) {
-    return REGIONS[1];
-  }
-
-  // 11. Solaria Golden Desert
+  // 10. Gurun Pasir Emas Solaria (Barat Benua)
   if (isDesertBiome(x, z)) {
     return REGIONS.find((r) => r.id === 'gurun_solaria') || REGIONS[9];
+  }
+
+  // 11. Samudra & Laut Lepas 360° yang mengelilingi Benua Utama
+  if (!isMainContinentLand(x, z)) {
+    return REGIONS[1]; // Azure Coast & South Ocean
   }
 
   // Default: Desa Utama & Padang Rumput Eldoria

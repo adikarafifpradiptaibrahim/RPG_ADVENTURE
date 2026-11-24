@@ -1936,7 +1936,7 @@ export async function buildDesertStructures(
     opacity: 0.88,
   });
   const oasisPool = new THREE.Mesh(oasisPoolGeo, oasisPoolMat);
-  oasisPool.position.set(-400, 0.05, -290);
+  oasisPool.position.set(-400, 0.75, -290);
   scene.add(oasisPool);
 
   const oasisPalmsData: { x: number; y: number; z: number; rotationY: number }[] = [];
@@ -3527,7 +3527,7 @@ async function populateWorldEntities(
         id: 'wp_canyon',
         name: 'Ancient Canyon',
         nameId: 'Kanyon Kuno',
-        pos: [-280, -760],
+        pos: [-320, -650],
       },
       {
         id: 'wp_mist_forest',

@@ -2796,7 +2796,7 @@ export async function buildWorldEnvironmentAsync(
 
   // ============================================================================
   // ZONA N: KANYON KUNO (NORTHERN RED CANYON MESAS & CANYON CLIFFS)
-  // Koordinat Pusat X: -280, Z: -760 (Tebing Cadas Merah Kanyon)
+  // Koordinat Pusat X: -320, Z: -650 (100% di atas Daratan Pasir Kering Gurun)
   // ============================================================================
   const ancientCanyonGroup = new THREE.Group();
   ancientCanyonGroup.name = 'ZoneN_AncientCanyon';
@@ -2814,13 +2814,25 @@ export async function buildWorldEnvironmentAsync(
     flatShading: true,
   });
 
-  const canyonMesaCoords: [number, number, number, number][] = [
-    [-310, -740, 14, 18], [-280, -760, 18, 22], [-250, -740, 15, 20],
-    [-295, -720, 10, 14], [-260, -715, 12, 16], [-325, -730, 12, 16],
-    [-235, -755, 16, 18],
+  const canyonCenterX = -320;
+  const canyonCenterZ = -650;
+  const canyonMesaOffsets: [number, number, number, number][] = [
+    [0, 0, 16, 20],
+    [-26, -18, 13, 17],
+    [24, 16, 14, 18],
+    [-18, 24, 11, 15],
+    [22, -22, 12, 16],
+    [-30, 8, 10, 14],
+    [28, -8, 11, 15],
   ];
-  canyonMesaCoords.forEach(([cx, cz, radius, height]) => {
+  canyonMesaOffsets.forEach(([dx, dz, radius, height]) => {
+    const cx = canyonCenterX + dx;
+    const cz = canyonCenterZ + dz;
+    // Pastikan setiap pilar batu hanya di-spawn jika isStrictLandForProps(cx, cz) === true dan tanah kering!
+    if (!isStrictLandForProps(cx, cz, getTerrainHeight)) return;
     const cy = getTerrainHeight(cx, cz);
+    if (cy < 1.5) return; // Garansi berdiri di atas tanah kering
+
     const mesa = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.7, radius, height, 7), matCanyonRock);
     mesa.position.set(cx, cy + height / 2, cz);
     mesa.rotation.y = Math.random() * Math.PI;

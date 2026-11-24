@@ -211,9 +211,13 @@ export function isMainContinentLand(x: number, z: number): boolean {
  */
 export function isDesertBiome(x: number, z: number): boolean {
   if (!isMainContinentLand(x, z)) return false;
+  // Dilarang mengklaim wilayah pegunungan salju utara
+  if (x > -180 && x < 260 && z < -640) return false;
+  // Perbatasan digeser ke Barat sebesar ~80 unit (dari -160 menjadi -240)
   const wave = Math.sin(z * 0.006) * 110 + Math.cos(z * 0.015) * 35;
   const warp = Math.sin(x * 0.01 + z * 0.012) * 45;
-  return (x + wave + warp < -160) && (z < 20);
+  // 100% seluruh daratan benua di barat perbatasan ini (sampai pesisir barat daya) adalah Gurun Solaria
+  return (x + wave + warp < -240) && (z < 180);
 }
 
 /**
@@ -258,12 +262,12 @@ export function getBiomeAt(x: number, z: number): BiomeType {
     return 'lake';
   }
 
-  // E. Pegunungan Salju Utara di Sekitar Danau Titan
-  if (x > -50 && x < 260 && z < -720) {
+  // E. Pegunungan Salju Utara di Sekitar Danau Titan (Hanya Z < -640 dan -180 < X < 260)
+  if (x > -180 && x < 260 && z < -640) {
     return 'snow';
   }
 
-  // F. Bioma Gurun Emas Solaria di Sisi Barat (Kiri) Benua Utama
+  // F. Bioma Gurun Emas Solaria di Sisi Barat (Kiri) Benua Utama (100% Pasir Emas tanpa Hijau Nyempil)
   if (isDesertBiome(x, z)) {
     return 'desert';
   }
@@ -414,18 +418,21 @@ export const ROAD_SPLINES: RoadSplineDef[] = [
     ],
   },
 
-  // 3. POROS UTARA: Ibukota Astraea [460, -360] -> Arena Colosseum Titan [340, -560] -> Danau Titan [60, -820]
+  // 3. POROS UTARA: Ibukota Astraea -> Arena Colosseum Titan [340, -560] -> Danau Titan [60, -820]
   {
     id: 'road_astraea_titan',
     name: 'Jalan Ziarah Pegunungan Salju: Astraea - Titan - Danau Titan',
     width: 3.2,
     points: [
-      [460, -360], // Dari Luar Gerbang Selatan Astraea (Bebas dari Menara Sudut Benteng)
-      [400, -380], // Melingkari Dinding Barat Benteng Astraea
-      [380, -460],
+      [460, -360], // Dari Luar Gerbang Selatan Astraea
+      [370, -360], // Mengarah lurus ke barat bebas dari menara sudut benteng
+      [350, -460], // Menyusuri dataran terbuka di sebelah barat benteng
       [340, -560], // Arena Colosseum Reruntuhan Boss Titan Kuno
-      [200, -730],
-      [60, -780],  // Menuju Tepi Danau Titan Kuno
+      [280, -620], // Mengikuti lembah landai ke arah barat laut
+      [220, -670],
+      [160, -720],
+      [120, -760],
+      [90, -800],  // Teras daratan kering di tepi tenggara Danau Titan Kuno (bebas air)
     ],
   },
 
@@ -488,7 +495,7 @@ export const ROAD_SPLINES: RoadSplineDef[] = [
     ],
   },
 
-  // 7. POROS UTARA GURUN: Desa Gurun [-540, -420] -> Gerbang Istana Sultan [-540, -515] -> Piramida [-360, -520] -> Kanyon [-280, -760]
+  // 7. POROS UTARA GURUN: Desa Gurun [-540, -420] -> Gerbang Istana Sultan [-540, -515] -> Piramida [-360, -520] -> Kanyon [-320, -650]
   {
     id: 'road_desert_north',
     name: 'Jalan Kafilah Pasir Emas: Istana Sultan - Piramida - Kanyon',
@@ -499,7 +506,8 @@ export const ROAD_SPLINES: RoadSplineDef[] = [
       [-540, -515], // Masuk Tegak Lurus Tepat ke Tengah Gerbang Istana Sultan
       [-540, -540], // Istana Sultan Malik
       [-360, -520], // Piramida Emas Solaria
-      [-280, -760], // Kanyon Kuno
+      [-340, -590], // Jalur Gurun Utara Menuju Kanyon
+      [-320, -650], // Kanyon Batu Merah Baru (100% Daratan Pasir Kering)
     ],
   },
 ];
@@ -621,8 +629,8 @@ const RAW_WORLD_LANDMARKS: LandmarkDef[] = [
     id: 'canyon',
     name: 'Ancient Canyon',
     nameId: 'Kanyon Kuno',
-    x: -280,
-    z: -760,
+    x: -320,
+    z: -650,
     level: 8,
     type: 'canyon',
     icon: '🏜️',
@@ -645,7 +653,7 @@ const RAW_WORLD_LANDMARKS: LandmarkDef[] = [
     description: 'The opulent white marble and golden domed desert palace of Sultan Malik al-Solaria in the west dunes.',
     descriptionId: 'Kompleks istana megah kubah marmer emas penguasa Gurun Pasir Solaria di barat benua.',
     waypointId: 'wp_sultan_palace',
-    labelPosition: 'below',
+    labelPosition: 'above',
   },
   {
     id: 'pyramid',
@@ -799,14 +807,14 @@ const RAW_WORLD_LANDMARKS: LandmarkDef[] = [
     description: 'Ancient dark spruce and oak wilderness draped in thick atmospheric low ground mist on the eastern cape.',
     descriptionId: 'Hutan pinus & oak raksasa lebat yang senantiasa diselimuti kabut misterius di semenanjung timur.',
     waypointId: 'wp_mist_forest',
-    labelPosition: 'below',
+    labelPosition: 'above',
   },
   {
     id: 'moss_valley',
     name: 'Moss Rock Valley',
     nameId: 'Lembah Batu Lumut',
-    x: 680,
-    z: -160,
+    x: 580,
+    z: -120,
     level: 5,
     type: 'valley',
     icon: '🪨',
@@ -814,7 +822,7 @@ const RAW_WORLD_LANDMARKS: LandmarkDef[] = [
     description: 'A serene secluded valley enclosed by smooth green cliffs, home to giant ancient mossy megaliths.',
     descriptionId: 'Lembah hijau terisolasi di timur, dipagari tebing hijau halus, penuh batu megalit berlumut.',
     waypointId: 'wp_moss_valley',
-    labelPosition: 'above',
+    labelPosition: 'below',
   },
   {
     id: 'village',
@@ -830,7 +838,7 @@ const RAW_WORLD_LANDMARKS: LandmarkDef[] = [
     descriptionId: 'Pemukiman sentral awal para petualang di padang rumput hijau Eldoria.',
     isSafeZone: true,
     waypointId: 'wp_village',
-    labelPosition: 'below',
+    labelPosition: 'above',
   },
   {
     id: 'harbor',
@@ -1102,34 +1110,64 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return lerpVal(0.35, basePlainsHeight, tBeach);
   }
 
-  // D. Danau Air Tawar Titan Kuno [80, -760]
+  // D. Danau Air Tawar Titan Kuno [60, -820]
   if (biome === 'lake') {
-    const distLake = Math.hypot(x - (lm.danau_titan?.x ?? 80), z - (lm.danau_titan?.z ?? -760));
-    if (distLake <= 40) return lm.danau_titan?.y ?? -2.50;
-    const t = (distLake - 40) / 15;
-    return (lm.danau_titan?.y ?? -2.50) + t * 3.5;
+    const distLake = Math.hypot(x - (lm.danau_titan?.x ?? 60), z - (lm.danau_titan?.z ?? -820));
+    if (distLake <= 42) return lm.danau_titan?.y ?? -2.50;
+    const t = smoothstepBlend(42, 55, distLake);
+    return lerpVal(lm.danau_titan?.y ?? -2.50, 0.80, t);
   }
 
-  // E. Pegunungan Salju Utara (Sekitar Danau Titan)
-  if (biome === 'snow') {
+  // E. Pegunungan Salju & Lembah Titan Utara (Lereng Halus Bergradasi Alami)
+  // Menghilangkan dinding balok vertikal 90°: lereng naik secara bertahap dari selatan (Z = -580 s.d. -780)
+  if (z < -580 && x > -220 && x < 280) {
     const distLake = Math.hypot(x - (lm.danau_titan?.x ?? 60), z - (lm.danau_titan?.z ?? -820));
-    const mountainWave = Math.sin(x * 0.02) * Math.cos(z * 0.02) * 8.5 + Math.sin((x + z) * 0.035) * 4.0;
-    const targetMountainH = distLake > 52 ? Math.max(10.0, Math.min(28.0, 16.0 + mountainWave)) : (3.5 + mountainWave * 0.5);
-    const snowDist = Math.hypot(x - (lm.danau_titan?.x ?? 60), z - (lm.danau_titan?.z ?? -820));
-    const blendT = smoothstepBlend(45, 110, snowDist);
-    return lerpVal(targetMountainH, basePlainsHeight, 1 - blendT);
+
+    // Falloff lereng dasar dari selatan ke utara (z = -580 s.d. -780)
+    const slopeZ = smoothstepBlend(-580, -780, -z);
+    // Falloff batas barat dan timur
+    const slopeW = smoothstepBlend(-220, -140, x);
+    const slopeE = smoothstepBlend(280, 200, x);
+    const massifEnvelope = slopeZ * slopeW * slopeE;
+
+    // Multi-octave organic mountain wave (ketinggian proporsional 22 - 30 unit)
+    const mWave1 = Math.sin(x * 0.016) * Math.cos(z * 0.015) * 7.5;
+    const mWave2 = Math.sin((x + z) * 0.03) * 4.2;
+    const mWave3 = Math.cos(x * 0.045 - z * 0.04) * 2.5;
+    const peakElevation = Math.max(14.0, Math.min(29.0, 19.5 + mWave1 + mWave2 + mWave3));
+
+    // Di sekitar cekungan danau Titan, turunkan elevasi membentuk lembah danau yang landai
+    let mountainTargetH = peakElevation;
+    if (distLake < 110) {
+      const lakeValleyT = smoothstepBlend(50, 110, distLake);
+      mountainTargetH = lerpVal(1.20, peakElevation, lakeValleyT);
+    }
+
+    // Blend secara bertahap dari padang rumput landai ke punggung pegunungan
+    let resultH = lerpVal(basePlainsHeight, mountainTargetH, massifEnvelope);
+
+    // Perataan Koridor Jalan Raya Menuju Danau Titan agar landai & tidak bergerigi
+    const distRoad = getDistanceToRoad(x, z);
+    if (distRoad <= 4.0 && z <= -560 && x >= 80 && x <= 350) {
+      const roadT = smoothstepBlend(-560, -800, z);
+      const roadPathH = lerpVal(4.50, 1.20, roadT);
+      const blendRoad = smoothstepBlend(4.0, 1.0, distRoad);
+      resultH = lerpVal(resultH, roadPathH, blendRoad);
+    }
+
+    return resultH;
   }
 
   // F. Gurun Pasir Emas Solaria (Sisi Barat Benua)
   if (biome === 'desert') {
-    // 1. Kanyon Kuno [-280, -760]
-    const distCanyon = Math.hypot(x - (lm.canyon?.x ?? -280), z - (lm.canyon?.z ?? -760));
-    if (distCanyon <= 95) {
-      const canyonNoise = Math.sin(x * 0.04) * Math.cos(z * 0.035) * 4.5;
-      const mesaHeight = Math.max(8.5, Math.min(19.0, (lm.canyon?.y ?? 13.0) + canyonNoise));
-      if (distCanyon <= (lm.canyon?.flattenRadius ?? 50)) return mesaHeight;
-      const blendT = smoothstepBlend(lm.canyon?.flattenRadius ?? 50, 95, distCanyon);
-      return lerpVal(mesaHeight, 1.6, blendT);
+    // 1. Kanyon Batu Merah Kuno [-320, -650] (100% di atas Pasir Kering Gurun)
+    const distCanyon = Math.hypot(x - (lm.canyon?.x ?? -320), z - (lm.canyon?.z ?? -650));
+    if (distCanyon <= 85) {
+      const canyonNoise = Math.sin(x * 0.04) * Math.cos(z * 0.035) * 3.5;
+      const mesaHeight = Math.max(3.5, Math.min(12.0, (lm.canyon?.y ?? 3.5) + canyonNoise));
+      if (distCanyon <= (lm.canyon?.flattenRadius ?? 40)) return mesaHeight;
+      const blendT = smoothstepBlend(lm.canyon?.flattenRadius ?? 40, 85, distCanyon);
+      return lerpVal(mesaHeight, 2.0, blendT);
     }
 
     // 2. Istana Sultan Malik [-540, -540]
@@ -1152,9 +1190,13 @@ export function getProceduralContinentHeight(x: number, z: number): number {
       return lm.desert_sandworm?.y ?? 0.50;
     }
 
-    // 5. Oase Solaria [-400, -290]
+    // 5. Oase Solaria [-400, -290] (100% Daratan Pasir Kering dengan Kolam Mata Air Tawar)
     const distOasis = Math.hypot(x - (lm.oasis?.x ?? -400), z - (lm.oasis?.z ?? -290));
-    if (distOasis < 18) return -0.4;
+    if (distOasis < 14) return 0.70;
+    if (distOasis < 26) {
+      const t = smoothstepBlend(14, 26, distOasis);
+      return lerpVal(0.70, 1.60, t);
+    }
     if (distOasis < 28) return 0.6;
 
     // 6. Desa Gurun & Bazaar [-540, -420]
