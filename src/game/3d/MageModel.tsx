@@ -24,7 +24,7 @@ export { createLegacyMageMesh } from './MageModel_v1_backup';
  * - Lis Emas, Gesper, Cincin Tongkat & Bordir Bintang: Rich Royal Gold (#D4AF37)
  * - Mata, Rune, Permata Pauldron, & Kristal Tongkat: Arcane Cyan Glow (#00F0FF / Emissive 2.0)
  * - Kulit Wajah & Tangan: Peach Natural (#FFD180)
- * - Rambut, Alis & Janggut: Dark Warm Brown (#3D2314)
+ * - Rambut, Alis & Janggut: Silver-White Flowing Wizard Hair (#E8EDF2 / Shadow #CBD5E1)
  * - Sabuk & Tali: Kulit Gelap (#1F1610)
  * - Sepatu Bot: Polished Dark Leather (#2C1B12) & Sol (#170E0A)
  * - Batang Tongkat: Dark Twisted Astral Wood (#221436)
@@ -44,7 +44,8 @@ interface BlockyMageMaterialPalette {
   pauldronIndigoMat: THREE.MeshStandardMaterial; // #241445 with subtle metallic sheen
   pauldronGrayMat: THREE.MeshStandardMaterial; // alias
   skinPeachMat: THREE.MeshLambertMaterial; // #FFD180
-  beardHairMat: THREE.MeshLambertMaterial; // #3D2314
+  beardHairMat: THREE.MeshLambertMaterial; // #E8EDF2 Silver-White
+  hairShadowMat: THREE.MeshLambertMaterial; // #CBD5E1 Silver-White Shadow
   eyesCyanGlowMat: THREE.MeshBasicMaterial; // #00F0FF
   runeCyanGlowMat: THREE.MeshBasicMaterial; // #00F0FF pure emissive
   staffWoodMat: THREE.MeshLambertMaterial; // #221436
@@ -120,8 +121,18 @@ function getMageMaterials(tier: number): BlockyMageMaterialPalette {
       flatShading: true,
     });
 
-    const beardHairMat = new THREE.MeshLambertMaterial({
+    const vestBrownMat = new THREE.MeshLambertMaterial({
       color: 0x3D2314,
+      flatShading: true,
+    });
+
+    const beardHairMat = new THREE.MeshLambertMaterial({
+      color: 0xE8EDF2, // Silver-White Wizard Hair & Beard
+      flatShading: true,
+    });
+
+    const hairShadowMat = new THREE.MeshLambertMaterial({
+      color: 0xCBD5E1, // Silver-White Shadow / Depth
       flatShading: true,
     });
 
@@ -180,6 +191,7 @@ function getMageMaterials(tier: number): BlockyMageMaterialPalette {
       pauldronGrayMat: pauldronIndigoMat,
       skinPeachMat,
       beardHairMat,
+      hairShadowMat,
       eyesCyanGlowMat,
       runeCyanGlowMat,
       staffWoodMat,
@@ -211,6 +223,7 @@ interface BlockyMageGeometryPalette {
   headGeo: THREE.BufferGeometry;
   eyeGeo: THREE.BufferGeometry;
   eyebrowGeo: THREE.BufferGeometry;
+  eyebrowTipGeo: THREE.BufferGeometry;
   // Arcane Pointed Hat
   hatBrimGeo: THREE.BufferGeometry;
   hatBrimTrimGeo: THREE.BufferGeometry;
@@ -222,13 +235,19 @@ interface BlockyMageGeometryPalette {
   coneTier3Geo: THREE.BufferGeometry;
   // Facial Hair & Back/Side Hair
   mustacheGeo: THREE.BufferGeometry;
+  mustacheTipGeo: THREE.BufferGeometry;
   beardTopGeo: THREE.BufferGeometry;
   beardMidGeo: THREE.BufferGeometry;
+  beardLowerGeo: THREE.BufferGeometry;
   beardTipGeo: THREE.BufferGeometry;
+  beardCoreGeo: THREE.BufferGeometry;
   hairBackGeo: THREE.BufferGeometry;
   hairNapeGeo: THREE.BufferGeometry;
+  hairLowerBackGeo: THREE.BufferGeometry;
+  hairLowerBackSideGeo: THREE.BufferGeometry;
   hairSideGeo: THREE.BufferGeometry;
   hairFrontLockGeo: THREE.BufferGeometry;
+  hairFrontLockLowerGeo: THREE.BufferGeometry;
   // High Collar & Mantle
   collarBackGeo: THREE.BufferGeometry;
   collarSideGeo: THREE.BufferGeometry;
@@ -415,7 +434,8 @@ function getMageGeometries(): BlockyMageGeometryPalette {
     cachedGeometries = {
       headGeo: new THREE.BoxGeometry(0.38, 0.38, 0.38),
       eyeGeo: new THREE.BoxGeometry(0.065, 0.035, 0.02),
-      eyebrowGeo: new THREE.BoxGeometry(0.11, 0.024, 0.025),
+      eyebrowGeo: new THREE.BoxGeometry(0.12, 0.038, 0.035),
+      eyebrowTipGeo: new THREE.BoxGeometry(0.065, 0.03, 0.03),
       hatBrimGeo,
       hatBrimTrimGeo,
       hatBandGeo,
@@ -424,14 +444,20 @@ function getMageGeometries(): BlockyMageGeometryPalette {
       coneTier1Geo,
       coneTier2Geo,
       coneTier3Geo,
-      mustacheGeo: new THREE.BoxGeometry(0.11, 0.035, 0.03),
-      beardTopGeo: new THREE.BoxGeometry(0.20, 0.09, 0.06),
-      beardMidGeo: new THREE.BoxGeometry(0.15, 0.09, 0.055),
-      beardTipGeo: new THREE.ConeGeometry(0.06, 0.12, 4),
-      hairBackGeo: new THREE.BoxGeometry(0.40, 0.36, 0.07),
-      hairNapeGeo: new THREE.BoxGeometry(0.34, 0.16, 0.06),
-      hairSideGeo: new THREE.BoxGeometry(0.045, 0.32, 0.22),
-      hairFrontLockGeo: new THREE.BoxGeometry(0.045, 0.20, 0.05),
+      mustacheGeo: new THREE.BoxGeometry(0.12, 0.045, 0.04),
+      mustacheTipGeo: new THREE.BoxGeometry(0.075, 0.035, 0.035),
+      beardTopGeo: new THREE.BoxGeometry(0.24, 0.11, 0.085),
+      beardMidGeo: new THREE.BoxGeometry(0.19, 0.13, 0.075),
+      beardLowerGeo: new THREE.BoxGeometry(0.14, 0.13, 0.065),
+      beardTipGeo: new THREE.ConeGeometry(0.055, 0.14, 4),
+      beardCoreGeo: new THREE.BoxGeometry(0.16, 0.32, 0.05),
+      hairBackGeo: new THREE.BoxGeometry(0.40, 0.22, 0.075),
+      hairNapeGeo: new THREE.BoxGeometry(0.38, 0.20, 0.07),
+      hairLowerBackGeo: new THREE.BoxGeometry(0.22, 0.22, 0.055),
+      hairLowerBackSideGeo: new THREE.BoxGeometry(0.13, 0.20, 0.05),
+      hairSideGeo: new THREE.BoxGeometry(0.05, 0.32, 0.22),
+      hairFrontLockGeo: new THREE.BoxGeometry(0.05, 0.18, 0.06),
+      hairFrontLockLowerGeo: new THREE.BoxGeometry(0.045, 0.18, 0.05),
       collarBackGeo,
       collarSideGeo,
       collarTrimGeo,
@@ -647,65 +673,154 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
   rightEye.position.set(-0.09, 0.035, 0.192);
   headGroup.add(leftEye, rightEye);
 
-  // Alis Tajam di Atas Mata (Sharp Angled Eyebrows)
+  // Alis Tebal Putih Perak Lebat & Berwibawa (Bushy Silver-White Eyebrows)
   const leftEyebrow = new THREE.Mesh(geos.eyebrowGeo, mats.beardHairMat);
-  leftEyebrow.position.set(0.09, 0.075, 0.195);
-  leftEyebrow.rotation.z = -0.18;
+  leftEyebrow.position.set(0.095, 0.08, 0.20);
+  leftEyebrow.rotation.z = -0.15;
+  leftEyebrow.rotation.x = -0.05;
+  const leftEyebrowTip = new THREE.Mesh(geos.eyebrowTipGeo, mats.beardHairMat);
+  leftEyebrowTip.position.set(0.15, 0.068, 0.198);
+  leftEyebrowTip.rotation.z = -0.32;
+
   const rightEyebrow = new THREE.Mesh(geos.eyebrowGeo, mats.beardHairMat);
-  rightEyebrow.position.set(-0.09, 0.075, 0.195);
-  rightEyebrow.rotation.z = 0.18;
-  headGroup.add(leftEyebrow, rightEyebrow);
+  rightEyebrow.position.set(-0.095, 0.08, 0.20);
+  rightEyebrow.rotation.z = 0.15;
+  rightEyebrow.rotation.x = -0.05;
+  const rightEyebrowTip = new THREE.Mesh(geos.eyebrowTipGeo, mats.beardHairMat);
+  rightEyebrowTip.position.set(-0.15, 0.068, 0.198);
+  rightEyebrowTip.rotation.z = 0.32;
 
-  // Janggut Runcing Bergaya Low-Poly Rapi (Pointed Low-Poly Beard)
-  // Kumis rapi melengkung
+  headGroup.add(leftEyebrow, leftEyebrowTip, rightEyebrow, rightEyebrowTip);
+
+  // Kumis & Jenggot Putih Panjang Menjuntai (Long Flowing Wizard Beard)
+  const beardGroup = new THREE.Group();
+  beardGroup.name = 'ElderWizardBeard';
+
+  // Kumis Putih Lebat Melengkung
   const mustacheL = new THREE.Mesh(geos.mustacheGeo, mats.beardHairMat);
-  mustacheL.position.set(0.055, -0.05, 0.20);
-  mustacheL.rotation.z = -0.15;
-  const mustacheR = new THREE.Mesh(geos.mustacheGeo, mats.beardHairMat);
-  mustacheR.position.set(-0.055, -0.05, 0.20);
-  mustacheR.rotation.z = 0.15;
-  headGroup.add(mustacheL, mustacheR);
+  mustacheL.position.set(0.06, -0.045, 0.215);
+  mustacheL.rotation.z = -0.18;
+  mustacheL.rotation.y = -0.12;
 
-  // Tingkat atas janggut dagu
+  const mustacheLTip = new THREE.Mesh(geos.mustacheTipGeo, mats.beardHairMat);
+  mustacheLTip.position.set(0.115, -0.075, 0.21);
+  mustacheLTip.rotation.z = -0.45;
+
+  const mustacheR = new THREE.Mesh(geos.mustacheGeo, mats.beardHairMat);
+  mustacheR.position.set(-0.06, -0.045, 0.215);
+  mustacheR.rotation.z = 0.18;
+  mustacheR.rotation.y = 0.12;
+
+  const mustacheRTip = new THREE.Mesh(geos.mustacheTipGeo, mats.beardHairMat);
+  mustacheRTip.position.set(-0.115, -0.075, 0.21);
+  mustacheRTip.rotation.z = 0.45;
+
+  beardGroup.add(mustacheL, mustacheLTip, mustacheR, mustacheRTip);
+
+  // Lapisan bayangan dalam jenggot (Inner Shadow Core)
+  const beardCore = new THREE.Mesh(geos.beardCoreGeo, mats.hairShadowMat);
+  beardCore.position.set(0, -0.26, 0.195);
+  beardGroup.add(beardCore);
+
+  // Tingkat 1: Jenggot Atas (Pipi bawah & dagu)
   const beardTop = new THREE.Mesh(geos.beardTopGeo, mats.beardHairMat);
-  beardTop.position.set(0, -0.12, 0.195);
+  beardTop.position.set(0, -0.12, 0.21);
   beardTop.castShadow = true;
 
-  // Tingkat tengah janggut meruncing
+  // Tingkat 2: Jenggot Tengah (Menjuntai di depan leher/kerah)
   const beardMid = new THREE.Mesh(geos.beardMidGeo, mats.beardHairMat);
-  beardMid.position.set(0, -0.18, 0.185);
+  beardMid.position.set(0, -0.24, 0.222);
+  beardMid.rotation.x = 0.06; // Miring tipis ke depan agar tidak z-fighting dengan jubah
   beardMid.castShadow = true;
 
-  // Ujung janggut runcing kerucut (pointed tip)
-  const beardTip = new THREE.Mesh(geos.beardTipGeo, mats.beardHairMat);
-  beardTip.position.set(0, -0.24, 0.17);
-  beardTip.rotation.x = 0.20; // Meruncing anggun ke depan
-  beardTip.castShadow = true;
-  headGroup.add(beardTop, beardMid, beardTip);
+  // Tingkat 3: Jenggot Bawah (Menjuntai di depan dada atas)
+  const beardLower = new THREE.Mesh(geos.beardLowerGeo, mats.beardHairMat);
+  beardLower.position.set(0, -0.36, 0.235);
+  beardLower.rotation.x = 0.08;
+  beardLower.castShadow = true;
 
-  // Rambut Panjang Tergerai Rapi dari Bawah Topi Menyentuh Kerah Bahu
+  // Ujung Jenggot Runcing Kerucut (Pointed Tip) - Berada tepat di atas kristal/bintang emas dada
+  const beardTip = new THREE.Mesh(geos.beardTipGeo, mats.beardHairMat);
+  beardTip.position.set(0, -0.46, 0.242);
+  beardTip.rotation.x = 0.18; // Meruncing anggun ke depan
+  beardTip.castShadow = true;
+
+  beardGroup.add(beardTop, beardMid, beardLower, beardTip);
+  headGroup.add(beardGroup);
+
+  // Rambut Putih Perak Panjang Menjuntai (Silver-White Flowing Wizard Hair)
+  const hairGroup = new THREE.Group();
+  hairGroup.name = 'ElderWizardHair';
+
+  // A. Rambut Belakang Berlapis (3-Tier Back Hair)
+  // Tingkat 1: Punggung kepala atas di bawah topi
   const hairBack = new THREE.Mesh(geos.hairBackGeo, mats.beardHairMat);
-  hairBack.position.set(0, 0.02, -0.195);
+  hairBack.position.set(0, 0.04, -0.20);
   hairBack.castShadow = true;
 
+  // Tingkat 2: Tengkuk leher menutupi kerah
   const hairNape = new THREE.Mesh(geos.hairNapeGeo, mats.beardHairMat);
-  hairNape.position.set(0, -0.18, -0.19);
+  hairNape.position.set(0, -0.15, -0.22);
+  hairNape.rotation.x = -0.10;
   hairNape.castShadow = true;
 
+  // Lapisan bayangan tengah belakang
+  const hairShadowBack = new THREE.Mesh(geos.hairNapeGeo, mats.hairShadowMat);
+  hairShadowBack.position.set(0, -0.17, -0.21);
+  hairShadowBack.scale.set(0.92, 0.95, 0.9);
+
+  // Tingkat 3: Untaian rambut menjuntai melewati kerah hingga punggung atas (3 helai bertingkat)
+  const hairLowerMid = new THREE.Mesh(geos.hairLowerBackGeo, mats.beardHairMat);
+  hairLowerMid.position.set(0, -0.32, -0.238);
+  hairLowerMid.rotation.x = -0.08;
+  hairLowerMid.castShadow = true;
+
+  const hairLowerL = new THREE.Mesh(geos.hairLowerBackSideGeo, mats.beardHairMat);
+  hairLowerL.position.set(0.14, -0.30, -0.232);
+  hairLowerL.rotation.set(-0.06, 0.08, -0.12);
+  hairLowerL.castShadow = true;
+
+  const hairLowerR = new THREE.Mesh(geos.hairLowerBackSideGeo, mats.beardHairMat);
+  hairLowerR.position.set(-0.14, -0.30, -0.232);
+  hairLowerR.rotation.set(-0.06, -0.08, 0.12);
+  hairLowerR.castShadow = true;
+
+  hairGroup.add(hairBack, hairNape, hairShadowBack, hairLowerMid, hairLowerL, hairLowerR);
+
+  // B. Rambut Samping (Side Hair covering ears)
   const hairSideL = new THREE.Mesh(geos.hairSideGeo, mats.beardHairMat);
-  hairSideL.position.set(0.195, 0.01, 0.02);
+  hairSideL.position.set(0.198, 0.01, 0.01);
   hairSideL.castShadow = true;
 
   const hairSideR = new THREE.Mesh(geos.hairSideGeo, mats.beardHairMat);
-  hairSideR.position.set(-0.195, 0.01, 0.02);
+  hairSideR.position.set(-0.198, 0.01, 0.01);
   hairSideR.castShadow = true;
 
-  const hairLockL = new THREE.Mesh(geos.hairFrontLockGeo, mats.beardHairMat);
-  hairLockL.position.set(0.175, -0.09, 0.14);
-  const hairLockR = new THREE.Mesh(geos.hairFrontLockGeo, mats.beardHairMat);
-  hairLockR.position.set(-0.175, -0.09, 0.14);
+  // C. Untaian Pelipis Menjuntai ke Depan Bahu (Front Side Locks)
+  // Pelipis kiri
+  const hairLockLUpper = new THREE.Mesh(geos.hairFrontLockGeo, mats.beardHairMat);
+  hairLockLUpper.position.set(0.185, -0.08, 0.14);
+  hairLockLUpper.rotation.set(0.04, 0, -0.08);
+  hairLockLUpper.castShadow = true;
 
-  headGroup.add(hairBack, hairNape, hairSideL, hairSideR, hairLockL, hairLockR);
+  const hairLockLLower = new THREE.Mesh(geos.hairFrontLockLowerGeo, mats.beardHairMat);
+  hairLockLLower.position.set(0.178, -0.24, 0.165);
+  hairLockLLower.rotation.set(0.08, 0, -0.05);
+  hairLockLLower.castShadow = true;
+
+  // Pelipis kanan
+  const hairLockRUpper = new THREE.Mesh(geos.hairFrontLockGeo, mats.beardHairMat);
+  hairLockRUpper.position.set(-0.185, -0.08, 0.14);
+  hairLockRUpper.rotation.set(0.04, 0, 0.08);
+  hairLockRUpper.castShadow = true;
+
+  const hairLockRLower = new THREE.Mesh(geos.hairFrontLockLowerGeo, mats.beardHairMat);
+  hairLockRLower.position.set(-0.178, -0.24, 0.165);
+  hairLockRLower.rotation.set(0.08, 0, 0.05);
+  hairLockRLower.castShadow = true;
+
+  hairGroup.add(hairSideL, hairSideR, hairLockLUpper, hairLockLLower, hairLockRUpper, hairLockRLower);
+  headGroup.add(hairGroup);
 
   // Topi Penyihir Agung Berlekuk (Arcane Pointed Hat with Crooked Wizard Tip)
   const hatGroup = new THREE.Group();
