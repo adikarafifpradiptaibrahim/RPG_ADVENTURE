@@ -726,8 +726,8 @@ export function renderIllustratedMap(
     }
   });
 
-  // 12C. World Boss Colosseum Titan Kuno [-720, -340]
-  const [cratX, cratY] = wToC(-720, -340);
+  // 12C. World Boss Colosseum Titan Kuno [320, -640]
+  const [cratX, cratY] = wToC(320, -640);
   ctx.fillStyle = '#9a3412';
   ctx.beginPath();
   ctx.ellipse(cratX, cratY, 34, 23, 0, 0, Math.PI * 2);
@@ -754,8 +754,8 @@ export function renderIllustratedMap(
     ctx.stroke();
   }
 
-  // 12C2. Sandworm Sinkhole Vortex [-660, -370]
-  const [swX, swY] = wToC(-660, -370);
+  // 12C2. Sandworm Sinkhole Vortex [-660, -160]
+  const [swX, swY] = wToC(-660, -160);
   ctx.fillStyle = '#b45309';
   ctx.beginPath();
   ctx.ellipse(swX, swY, 22, 15, 0, 0, Math.PI * 2);
@@ -765,8 +765,8 @@ export function renderIllustratedMap(
   ctx.ellipse(swX, swY, 13, 9, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 12C2. Solaria Desert Village & Bazaar [-560, -110]
-  const [desVilX, desVilY] = wToC(-560, -110);
+  // 12C2. Solaria Desert Village & Bazaar [-540, -420]
+  const [desVilX, desVilY] = wToC(-540, -420);
   ctx.fillStyle = '#b45309';
   // Adobe mudbrick houses cluster
   ctx.fillRect(desVilX - 12, desVilY - 8, 10, 8);
@@ -785,8 +785,8 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12D. Sultan Malik Palace [-680, -620]
-  const [sultX, sultY] = wToC(-680, -620);
+  // 12D. Sultan Malik Palace [-540, -540]
+  const [sultX, sultY] = wToC(-540, -540);
   ctx.fillStyle = '#f1f5f9';
   ctx.fillRect(sultX - 20, sultY - 7, 40, 18);
   // Onion dome
@@ -941,8 +941,8 @@ export function renderIllustratedMap(
   ctx.lineTo(vilX + 29, vilY - 4);
   ctx.stroke();
 
-  // 12J. Pelabuhan Sanctuary [20, 130]
-  const [harbX, harbY] = wToC(20, 130);
+  // 12J. Pelabuhan Sanctuary [20, 20]
+  const [harbX, harbY] = wToC(20, 20);
   ctx.fillStyle = '#78350f';
   ctx.fillRect(harbX - 18, harbY, 36, 5);
   ctx.fillRect(harbX - 9, harbY + 5, 6, 15);
@@ -973,9 +973,9 @@ export function renderIllustratedMap(
   ctx.lineWidth = 2.2;
   ctx.setLineDash([7, 5]);
 
-  // Rute 1: Pelabuhan Sanctuary [20, 130] -> Pulau Mercusuar [-220, 460]
+  // Rute 1: Pelabuhan Sanctuary [20, 20] -> Pulau Mercusuar [-220, 460]
   const routeHarborToLighthouse: [number, number][] = [
-    wToC(20, 130),
+    wToC(20, 20),
     wToC(-70, 270),
     wToC(-150, 360),
     wToC(-220, 460),

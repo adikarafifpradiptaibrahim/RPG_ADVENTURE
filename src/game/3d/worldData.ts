@@ -139,7 +139,7 @@ export function isFarOcean(x: number, z: number): boolean {
 export function getContinentCoastRadius(angle: number, x: number, z: number): number {
   let r = 480;
 
-  // 1. Barat Laut: Semenanjung Menjorok Melengkung ke Barat-Utara (Istana Sultan [-680, -620] & Kanyon [-280, -760])
+  // 1. Barat Laut: Semenanjung Menjorok Melengkung ke Barat-Utara (Istana Sultan [-540, -540] & Kanyon [-280, -760])
   const nwCape = Math.exp(-Math.pow((angle - (-2.60)) / 0.38, 2)) * 320;
 
   // 2. Barat Daya: Tanjung Gurun Meruncing ke Laut Selatan (Desa Gurun [-560, -110])
@@ -148,8 +148,9 @@ export function getContinentCoastRadius(angle: number, x: number, z: number): nu
   // 3. Barat Daya: Teluk Melengkung Dalam antara semenanjung gurun dan pelabuhan (angle ~ 2.15, inward delta -220)
   const swDeepBay = Math.exp(-Math.pow((angle - 2.15) / 0.28, 2)) * -220;
 
-  // 4. Selatan: Teluk & Semenanjung Pelabuhan Sanctuary [20, 130] (angle ~ 1.52)
-  const sHarbor = Math.exp(-Math.pow((angle - 1.52) / 0.22, 2)) * 60;
+  // 4. Selatan: Teluk & Garis Pantai Pelabuhan Sanctuary [20, 20] (angle ~ 1.52)
+  // Menghasilkan garis pantai di Z ~ 20 (jarak ~340 unit dari pusat benua [0, -320])
+  const sHarbor = Math.exp(-Math.pow((angle - 1.52) / 0.24, 2)) * -140;
 
   // 5. Tenggara: Semenanjung Benteng Val-Kragor [660, 150] (angle ~ 0.62)
   const seCape = Math.exp(-Math.pow((angle - 0.62) / 0.35, 2)) * 340;
@@ -306,12 +307,12 @@ export const RIVER_EAST_BRANCH: [number, number][] = [
 ];
 
 export const RIVER_SOUTH_BRANCH: [number, number][] = [
-  [25, -110],   // Titik Temu Tengah
-  [20, -40],    // Dekat Desa Utama [20, -60]
-  [15, 0],
-  [15, 45],     // Lokasi Jembatan 2 Muara Pelabuhan
-  [18, 90],
-  [20, 130],    // Muara Teluk Samudra Pelabuhan Sanctuary [20, 130]
+  [25, -110],   // Titik Temu Tengah (Confluence)
+  [75, -90],    // Belok ke timur menjauhi Desa Utama [20, -60]
+  [95, -60],    // Di luar radius desa (jarak 75 unit >= 65 unit)
+  [90, -30],    // Mengalir ke selatan (jarak 76 unit >= 65 unit)
+  [85, 0],      // Menuju muara pantai selatan
+  [75, 30],     // Muara Samudra Selatan
 ];
 
 export const RIVER_SPLINES: RiverSplineDef[] = [
@@ -380,46 +381,46 @@ export interface RoadSplineDef {
 }
 
 export const ROAD_SPLINES: RoadSplineDef[] = [
-  // 1. POROS SELATAN: Desa Utama [20, -60] -> Pelabuhan Sanctuary [20, 130]
+  // 1. POROS SELATAN: Desa Utama [20, -60] -> Pelabuhan Sanctuary [20, 20]
   {
     id: 'road_village_harbor',
     name: 'Jalan Poros Selatan: Desa - Pelabuhan',
     width: 3.4,
     points: [
       [20, -60],   // Alun-Alun Air Mancur Desa Utama
+      [20, -40],
       [20, -20],
-      [15, 20],
-      [15, 45],    // Jembatan Muara Pelabuhan
-      [20, 85],
-      [20, 120],   // Menuju Pelataran Dermaga Pelabuhan
+      [20, 0],
+      [20, 20],    // Menuju Dermaga Pelabuhan Pantai Selatan
     ],
   },
 
-  // 2. POROS TIMUR: Desa Utama [20, -60] -> Mage Tower [260, -180] -> Ibukota Astraea [460, -420]
+  // 2. POROS TIMUR: Desa Utama [20, -60] -> Jembatan [95, -45] -> Mage Tower [260, -180] -> Gerbang Selatan Astraea [460, -390]
   {
     id: 'road_village_astraea',
     name: 'Jalan Poros Timur: Desa - Mage Tower - Astraea',
     width: 3.4,
     points: [
       [20, -60],   // Gerbang Timur Desa Utama
-      [90, -90],
+      [95, -45],   // Menyeberang Jembatan Sungai Timur [95, -45]
       [170, -130],
       [260, -180], // Alun-Alun Mage Tower Puncak Halilintar
-      [360, -300],
-      [460, -400], // Gerbang Selatan Ibukota Astraea
+      [360, -280],
+      [460, -340], // Sumbu Lurus Pendekatan dari Selatan
+      [460, -390], // Masuk Tegak Lurus Tepat ke Tengah Gerbang Selatan Astraea
     ],
   },
 
-  // 3. POROS UTARA: Ibukota Astraea [460, -420] -> Danau Titan [60, -820]
+  // 3. POROS UTARA: Ibukota Astraea [460, -420] -> Arena Colosseum Titan [320, -640] -> Danau Titan [60, -820]
   {
     id: 'road_astraea_titan',
-    name: 'Jalan Ziarah Pegunungan Salju: Astraea - Danau Titan',
+    name: 'Jalan Ziarah Pegunungan Salju: Astraea - Titan - Danau Titan',
     width: 3.2,
     points: [
       [460, -420], // Gerbang Barat Laut Astraea
-      [360, -520],
-      [260, -620],
-      [160, -720],
+      [380, -540],
+      [320, -640], // Arena Colosseum Reruntuhan Boss Titan Kuno
+      [200, -730],
       [60, -780],  // Menuju Tepi Danau Titan Kuno
     ],
   },
@@ -453,7 +454,7 @@ export const ROAD_SPLINES: RoadSplineDef[] = [
     ],
   },
 
-  // 5. POROS BARAT: Desa Utama [20, -60] -> Jembatan 1 [-120, -170] -> Oase [-400, -290] -> Desa Gurun [-560, -110]
+  // 5. POROS BARAT: Desa Utama [20, -60] -> Jembatan 1 [-120, -170] -> Oase [-400, -290] -> Desa Gurun [-540, -420]
   {
     id: 'road_plains_desert',
     name: 'Jalan Poros Kafilah: Desa Utama - Oase - Desa Gurun Solaria',
@@ -465,36 +466,35 @@ export const ROAD_SPLINES: RoadSplineDef[] = [
       [-220, -220],
       [-310, -260],
       [-400, -290], // Oase Solaria
-      [-480, -200],
-      [-560, -110], // Bazaar Desa Gurun Solaria
+      [-480, -360],
+      [-540, -420], // Alun-Alun Desa Gurun Solaria
     ],
   },
 
-  // 6. CABANG ARENA BOSS: Oase [-400, -290] -> Kawah Boss Titan [-720, -340]
+  // 6. CABANG ARENA BOSS SANDWORM: Oase [-400, -290] -> Kawah Sandworm [-660, -160]
   {
     id: 'road_desert_boss',
-    name: 'Jalan Akses Kawah Colosseum Boss',
+    name: 'Jalan Akses Sarang Cacing Sandworm Purba',
     width: 3.0,
     points: [
       [-400, -290], // Oase
-      [-520, -310],
-      [-620, -330],
-      [-720, -340], // Berhenti di Gerbang Kawah Boss
+      [-500, -240],
+      [-580, -200],
+      [-660, -160], // Kawah Sarang Sandworm Gurun
     ],
   },
 
-  // 7. POROS UTARA GURUN: Oase [-400, -290] -> Piramida [-360, -520] -> Istana Sultan [-680, -620] -> Kanyon [-280, -760]
+  // 7. POROS UTARA GURUN: Desa Gurun [-540, -420] -> Gerbang Istana Sultan [-540, -515] -> Piramida [-360, -520] -> Kanyon [-280, -760]
   {
     id: 'road_desert_north',
-    name: 'Jalan Kafilah Pasir Emas: Piramida - Istana Sultan - Kanyon',
+    name: 'Jalan Kafilah Pasir Emas: Istana Sultan - Piramida - Kanyon',
     width: 3.4,
     points: [
-      [-400, -290], // Oase
-      [-380, -400],
+      [-540, -420], // Desa Gurun Solaria
+      [-540, -470], // Sumbu Lurus Pendekatan dari Selatan
+      [-540, -515], // Masuk Tegak Lurus Tepat ke Tengah Gerbang Istana Sultan
+      [-540, -540], // Istana Sultan Malik
       [-360, -520], // Piramida Emas Solaria
-      [-520, -570],
-      [-680, -620], // Gerbang Utama Istana Sultan Malik
-      [-480, -690],
       [-280, -760], // Kanyon Kuno
     ],
   },
@@ -632,8 +632,8 @@ const RAW_WORLD_LANDMARKS: LandmarkDef[] = [
     id: 'sultan_palace',
     name: 'Sultan Malik Grand Palace',
     nameId: 'Istana Sultan Malik',
-    x: -680,
-    z: -620,
+    x: -540,
+    z: -540,
     level: 8,
     type: 'palace',
     icon: '🕌',
@@ -661,15 +661,15 @@ const RAW_WORLD_LANDMARKS: LandmarkDef[] = [
   {
     id: 'kawah_boss',
     name: 'Ancient Titan Colosseum Arena',
-    nameId: 'Kawah Cacat World Boss (Lv. 10)',
-    x: -720,
-    z: -340,
+    nameId: 'Arena Colosseum Titan Kuno (Lv. 10)',
+    x: 320,
+    z: -640,
     level: 10,
     type: 'boss',
     icon: '🗿',
     color: '#ea580c',
-    description: 'A colossal ancient colosseum ruins arena in the dry crater, domain of World Boss Titan Kuno.',
-    descriptionId: 'Arena reruntuhan Colosseum Kuno megah berpagar tebing batu di kawah kering gurun barat, arena pertempuran World Boss Titan Kuno.',
+    description: 'A colossal ancient colosseum ruins arena in the rocky mountain plateau, domain of World Boss Titan Kuno.',
+    descriptionId: 'Arena reruntuhan Colosseum Kuno megah berpagar tebing batu di pegunungan timur-utara, arena pertempuran World Boss Titan Kuno.',
     isBoss: true,
     waypointId: 'wp_boss_crater',
     labelPosition: 'below',
@@ -693,14 +693,14 @@ const RAW_WORLD_LANDMARKS: LandmarkDef[] = [
     id: 'desert_village',
     name: 'Solaria Desert Village & Bazaar',
     nameId: 'Desa Gurun & Bazaar Solaria',
-    x: -560,
-    z: -110,
+    x: -540,
+    z: -420,
     level: 7,
     type: 'village',
     icon: '🏘️',
     color: '#f59e0b',
     description: 'The bustling mud-brick merchant crossroads and silk bazaar of Solaria in the western desert.',
-    descriptionId: 'Pemukiman rumah tanah liat dan pasar kafilah sutra & rempah di selatan gurun barat.',
+    descriptionId: 'Pemukiman rumah tanah liat dan pasar kafilah sutra & rempah di tengah gurun barat.',
     isSafeZone: true,
     waypointId: 'wp_solaria_village',
     labelPosition: 'below',
@@ -710,7 +710,7 @@ const RAW_WORLD_LANDMARKS: LandmarkDef[] = [
     name: 'Ancient Sandworm Lair',
     nameId: 'Sarang Sandworm Gurun',
     x: -660,
-    z: -370,
+    z: -160,
     level: 9,
     type: 'boss',
     icon: '🪱',
@@ -833,7 +833,7 @@ const RAW_WORLD_LANDMARKS: LandmarkDef[] = [
     name: 'Sanctuary Harbor',
     nameId: 'Pelabuhan Sanctuary',
     x: 20,
-    z: 130,
+    z: 20,
     level: 1,
     type: 'harbor',
     icon: '⛵',
@@ -1128,8 +1128,8 @@ export function getProceduralContinentHeight(x: number, z: number): number {
       return lerpVal(mesaHeight, 1.6, blendT);
     }
 
-    // 2. Istana Sultan Malik [-680, -620]
-    const distPalace = Math.hypot(x - (lm.sultan_palace?.x ?? -680), z - (lm.sultan_palace?.z ?? -620));
+    // 2. Istana Sultan Malik [-540, -540]
+    const distPalace = Math.hypot(x - (lm.sultan_palace?.x ?? -540), z - (lm.sultan_palace?.z ?? -540));
     const palaceRadius = lm.sultan_palace?.flattenRadius ?? 40;
     if (distPalace <= palaceRadius) return lm.sultan_palace?.y ?? 2.00;
     if (distPalace <= palaceRadius + 12) {
@@ -1142,10 +1142,10 @@ export function getProceduralContinentHeight(x: number, z: number): number {
       return lm.pyramid?.y ?? 1.50;
     }
 
-    // 4. Kawah Colosseum World Boss Titan [-720, -340]
-    const distCrater = Math.hypot(x - (lm.kawah_boss?.x ?? -720), z - (lm.kawah_boss?.z ?? -340));
-    if (distCrater <= (lm.kawah_boss?.flattenRadius ?? 50)) {
-      return lm.kawah_boss?.y ?? 1.80;
+    // 4. Kawah Sarang Sandworm Gurun [-660, -160]
+    const distSandworm = Math.hypot(x - (lm.desert_sandworm?.x ?? -660), z - (lm.desert_sandworm?.z ?? -160));
+    if (distSandworm <= (lm.desert_sandworm?.flattenRadius ?? 50)) {
+      return lm.desert_sandworm?.y ?? 0.50;
     }
 
     // 5. Oase Solaria [-400, -290]
@@ -1153,8 +1153,8 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     if (distOasis < 18) return -0.4;
     if (distOasis < 28) return 0.6;
 
-    // 6. Desa Gurun & Bazaar [-560, -110]
-    const distDesertVillage = Math.hypot(x - (lm.desert_village?.x ?? -560), z - (lm.desert_village?.z ?? -110));
+    // 6. Desa Gurun & Bazaar [-540, -420]
+    const distDesertVillage = Math.hypot(x - (lm.desert_village?.x ?? -540), z - (lm.desert_village?.z ?? -420));
     const desertVillageRadius = lm.desert_village?.flattenRadius ?? 35;
     if (distDesertVillage <= desertVillageRadius) return lm.desert_village?.y ?? 1.80;
     if (distDesertVillage <= desertVillageRadius + 10) {
@@ -1177,13 +1177,13 @@ export function getProceduralContinentHeight(x: number, z: number): number {
     return lerpVal(lm.village?.y ?? 0.25, basePlainsHeight, t);
   }
 
-  // 2. Pelabuhan Sanctuary [20, 130]
-  const distHarbor = Math.hypot(x - (lm.harbor?.x ?? 20), z - (lm.harbor?.z ?? 130));
+  // 2. Pelabuhan Sanctuary [20, 20]
+  const distHarbor = Math.hypot(x - (lm.harbor?.x ?? 20), z - (lm.harbor?.z ?? 20));
   const harborRadius = lm.harbor?.flattenRadius ?? 25;
-  if (distHarbor <= harborRadius) return lm.harbor?.y ?? 0.35;
+  if (distHarbor <= harborRadius) return lm.harbor?.y ?? 0.25;
   if (distHarbor <= harborRadius + 8) {
     const t = smoothstepBlend(harborRadius, harborRadius + 8, distHarbor);
-    return lerpVal(lm.harbor?.y ?? 0.35, basePlainsHeight, t);
+    return lerpVal(lm.harbor?.y ?? 0.25, basePlainsHeight, t);
   }
 
   // 3. Ibukota Kerajaan Emas Astraea [460, -420]
@@ -1193,6 +1193,15 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   if (distAstraea <= astraeaRadius + 8) {
     const t = smoothstepBlend(astraeaRadius, astraeaRadius + 8, distAstraea);
     return lerpVal(lm.astraea?.y ?? 2.00, basePlainsHeight, t);
+  }
+
+  // 3B. Arena Colosseum Reruntuhan Boss Titan Kuno [320, -640]
+  const distTitanCrater = Math.hypot(x - (lm.kawah_boss?.x ?? 320), z - (lm.kawah_boss?.z ?? -640));
+  const titanCraterRadius = lm.kawah_boss?.flattenRadius ?? 50;
+  if (distTitanCrater <= titanCraterRadius) return lm.kawah_boss?.y ?? 3.50;
+  if (distTitanCrater <= titanCraterRadius + 12) {
+    const t = smoothstepBlend(titanCraterRadius, titanCraterRadius + 12, distTitanCrater);
+    return lerpVal(lm.kawah_boss?.y ?? 3.50, basePlainsHeight, t);
   }
 
   // 4. Desa Benteng Val-Kragor [660, 150]

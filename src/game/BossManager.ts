@@ -355,8 +355,8 @@ export class BossManager {
     if (distToPlayer > enemy.data.detectRange) {
       return false; // Out of detection range, do not cast boss skills
     }
-    const homeX = enemy.spawnPos ? enemy.spawnPos.x : (isWorm ? -30 : (isTitan ? 235 : -40));
-    const homeZ = enemy.spawnPos ? enemy.spawnPos.z : (isWorm ? -220 : (isTitan ? -380 : 340));
+    const homeX = enemy.spawnPos ? enemy.spawnPos.x : (isWorm ? -660 : (isTitan ? 320 : 40));
+    const homeZ = enemy.spawnPos ? enemy.spawnPos.z : (isWorm ? -160 : (isTitan ? -640 : 840));
     const distFromHome = Math.hypot(ePos.x - homeX, ePos.z - homeZ);
     const maxLeash = enemy.leashRadius || 48;
     if (distFromHome > maxLeash) {

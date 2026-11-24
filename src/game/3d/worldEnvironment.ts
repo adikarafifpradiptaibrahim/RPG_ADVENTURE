@@ -2280,6 +2280,16 @@ export async function buildWorldEnvironmentAsync(
     return false;
   }
 
+  function isNearBossArena(x: number, z: number, dist = 55.0): boolean {
+    // 1. Boss Sandworm (Kawah Gurun Barat Daya)
+    if (Math.hypot(x - (-660), z - (-160)) < dist) return true;
+    // 2. Boss Titan (Arena Colosseum Reruntuhan Batu)
+    if (Math.hypot(x - 320, z - (-640)) < dist) return true;
+    // 3. Boss Dragon Ignis (Kepulauan Kaldera Naga)
+    if (Math.hypot(x - 40, z - 840) < dist) return true;
+    return false;
+  }
+
   // 1. SUB-TAHAP 70%: POHON OAK RINDANG / PINUS HIJAU (MAX 1.100 INSTANCE)
   onProgress?.(70, 'Menanam Pohon Oak Rindang (InstancedMesh)...');
   const OAK_COUNT = 1100;
@@ -2303,7 +2313,7 @@ export async function buildWorldEnvironmentAsync(
       const ox = x + (0.15 + Math.random() * 0.7) * oakStep;
       const oz = z + (0.15 + Math.random() * 0.7) * oakStep;
 
-      if (isFarOcean(ox, oz) || spatialGrid.isBlocked(ox, oz) || spatialGrid.isDesert(ox, oz) || spatialGrid.isOcean(ox, oz) || isNearBridge(ox, oz)) continue;
+      if (isFarOcean(ox, oz) || spatialGrid.isBlocked(ox, oz) || spatialGrid.isDesert(ox, oz) || spatialGrid.isOcean(ox, oz) || isNearBridge(ox, oz) || isNearBossArena(ox, oz)) continue;
       const oy = spatialGrid.getHeight(ox, oz);
       if (oy < 0.25 || oy > 4.5) continue;
 
@@ -2356,7 +2366,7 @@ export async function buildWorldEnvironmentAsync(
       const px = x + (0.15 + Math.random() * 0.7) * pineStep;
       const pz = z + (0.15 + Math.random() * 0.7) * pineStep;
 
-      if (isFarOcean(px, pz) || spatialGrid.isBlocked(px, pz) || spatialGrid.isDesert(px, pz) || spatialGrid.isOcean(px, pz) || isNearBridge(px, pz)) continue;
+      if (isFarOcean(px, pz) || spatialGrid.isBlocked(px, pz) || spatialGrid.isDesert(px, pz) || spatialGrid.isOcean(px, pz) || isNearBridge(px, pz) || isNearBossArena(px, pz)) continue;
       const py = spatialGrid.getHeight(px, pz);
       if (py < 0.25 || py > 5.0) continue;
 
@@ -2405,7 +2415,7 @@ export async function buildWorldEnvironmentAsync(
       const bx = x + (0.15 + Math.random() * 0.7) * boulderStep;
       const bz = z + (0.15 + Math.random() * 0.7) * boulderStep;
 
-      if (isFarOcean(bx, bz) || spatialGrid.isBlocked(bx, bz) || spatialGrid.isDesert(bx, bz) || spatialGrid.isOcean(bx, bz) || isNearBridge(bx, bz)) continue;
+      if (isFarOcean(bx, bz) || spatialGrid.isBlocked(bx, bz) || spatialGrid.isDesert(bx, bz) || spatialGrid.isOcean(bx, bz) || isNearBridge(bx, bz) || isNearBossArena(bx, bz)) continue;
       const by = spatialGrid.getHeight(bx, bz);
       if (by < 0.2) continue;
 
@@ -2449,7 +2459,7 @@ export async function buildWorldEnvironmentAsync(
       const gx = x + (0.15 + Math.random() * 0.7) * grassStep;
       const gz = z + (0.15 + Math.random() * 0.7) * grassStep;
 
-      if (isFarOcean(gx, gz) || spatialGrid.isBlocked(gx, gz) || spatialGrid.isDesert(gx, gz) || spatialGrid.isOcean(gx, gz) || isNearBridge(gx, gz)) continue;
+      if (isFarOcean(gx, gz) || spatialGrid.isBlocked(gx, gz) || spatialGrid.isDesert(gx, gz) || spatialGrid.isOcean(gx, gz) || isNearBridge(gx, gz) || isNearBossArena(gx, gz)) continue;
       const gy = spatialGrid.getHeight(gx, gz);
       if (gy < 0.25 || gy > 4.5) continue;
 
@@ -2486,7 +2496,7 @@ export async function buildWorldEnvironmentAsync(
       const sx = x + (0.15 + Math.random() * 0.7) * shrubStep;
       const sz = z + (0.15 + Math.random() * 0.7) * shrubStep;
 
-      if (isFarOcean(sx, sz) || spatialGrid.isBlocked(sx, sz) || spatialGrid.isDesert(sx, sz) || spatialGrid.isOcean(sx, sz) || isNearBridge(sx, sz)) continue;
+      if (isFarOcean(sx, sz) || spatialGrid.isBlocked(sx, sz) || spatialGrid.isDesert(sx, sz) || spatialGrid.isOcean(sx, sz) || isNearBridge(sx, sz) || isNearBossArena(sx, sz)) continue;
       const sy = spatialGrid.getHeight(sx, sz);
       if (sy < 0.2) continue;
 

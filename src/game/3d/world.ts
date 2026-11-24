@@ -507,7 +507,7 @@ export async function buildHarbor(
   // ==========================================
   const dockY = -0.375; // Aligns top of 2.1m deck + 0.125m plank exactly at y = 1.85
   const harborX = 20;
-  const harborZ = 130;
+  const harborZ = 20;
 
   // 0. Shoreline Boardwalk Apron (Z: 68..71)
   const shorelineBoardwalk = createDockShorelineBoardwalkMesh(5.6, 3.5);
@@ -1959,20 +1959,20 @@ export async function buildDesertStructures(
 
   // ------------------------------------------
   // 5C. GRAND SULTAN SOLARIA PALACE & DESA BAZAAR GURUN
-  // Palace Center: [-680, -620] (Y=2.00, Menghadap Barat)
+  // Palace Center: [-540, -540] (Y=2.00, Menghadap Selatan)
   // Desert Village Center: [-560, -110] (Y=1.80)
   // ------------------------------------------
   const solariaBaseY = 1.80;
   const solariaPalaceY = 2.00;
-  const spDX = -1090; // -680 - 410
-  const spDZ = -150;  // -620 - (-470)
-  const dvDX = -695;  // -560 - 135
-  const dvDZ = 135;   // -110 - (-245)
+  const spDX = -950; // -540 - 410 -> Istana Sultan di [-540, -540]
+  const spDZ = -70;  // -540 - (-470)
+  const dvDX = -675; // -540 - 135 -> Desa Gurun di [-540, -420]
+  const dvDZ = -175; // -420 - (-245)
 
-  // 1. Grand Taj Mahal Palace of Sultan Solaria (West: [-540, -640])
+  // 1. Grand Taj Mahal Palace of Sultan Solaria (West: [-540, -540])
   const solariaPalace = createTajMahalPalaceMesh();
   solariaPalace.position.set(410 + spDX, solariaPalaceY, -470 + spDZ);
-  solariaPalace.rotation.y = Math.PI; // Menghadap ke Barat menyambut jalan akses gerbang utama
+  solariaPalace.rotation.y = -Math.PI / 2; // Menghadap ke Selatan menyambut jalan akses lurus dari Desa Gurun
   scene.add(solariaPalace);
   colliders.push({
     type: 'box',
@@ -1987,16 +1987,16 @@ export async function buildDesertStructures(
   colliders.push({ type: 'circle', x: 426 + spDX, z: -486 + spDZ, radius: 2.2, label: 'Menara Minaret Timur Laut' });
   colliders.push({ type: 'circle', x: 426 + spDX, z: -454 + spDZ, radius: 2.2, label: 'Menara Minaret Tenggara' });
 
-  // 2. Alur Jalan Setapak Kafilah Gurun Menuju Gerbang Barat Istana
+  // 2. Alur Jalan Setapak Kafilah Gurun Menuju Gerbang Selatan Istana [-540, -515]
   const causewayItems = [
-    { type: 'lantern', x: 375 + spDX, z: -474.5 + spDZ },
-    { type: 'palm', x: 385 + spDX, z: -474.5 + spDZ },
-    { type: 'lantern', x: 395 + spDX, z: -474.5 + spDZ },
-    { type: 'palm', x: 405 + spDX, z: -474.5 + spDZ },
-    { type: 'lantern', x: 375 + spDX, z: -465.5 + spDZ },
-    { type: 'palm', x: 385 + spDX, z: -465.5 + spDZ },
-    { type: 'lantern', x: 395 + spDX, z: -465.5 + spDZ },
-    { type: 'palm', x: 405 + spDX, z: -465.5 + spDZ },
+    { type: 'lantern', x: -545.5, z: -505 },
+    { type: 'palm', x: -545.5, z: -490 },
+    { type: 'lantern', x: -545.5, z: -475 },
+    { type: 'palm', x: -545.5, z: -460 },
+    { type: 'lantern', x: -534.5, z: -505 },
+    { type: 'palm', x: -534.5, z: -490 },
+    { type: 'lantern', x: -534.5, z: -475 },
+    { type: 'palm', x: -534.5, z: -460 },
   ];
 
   causewayItems.forEach((item, idx) => {
@@ -2308,7 +2308,7 @@ export async function buildTitanLakeAndCanyon(
   npcs: WorldNPC[]
 ): Promise<void> {
   await cooperativeYield(4);
-  const sinkholeCenter = { x: -720, z: -340 };
+  const sinkholeCenter = { x: -660, z: -160 };
   const sinkholeBaseY = getTerrainHeight(sinkholeCenter.x, sinkholeCenter.z);
 
   // 1. Partikel & Gelombang Pusaran Pasir Berputar di Dasar Kawah
@@ -3419,7 +3419,7 @@ async function populateWorldEntities(
         id: 'wp_harbor',
         name: 'Sanctuary Coastal Harbor',
         nameId: 'Dermaga & Pelabuhan Sanctuary',
-        pos: [40, 85],
+        pos: [20, 20],
       },
       {
         id: 'wp_sacred_spring',
@@ -3455,13 +3455,13 @@ async function populateWorldEntities(
         id: 'wp_solaria_village',
         name: 'Solaria Desert Village & Bazaar',
         nameId: 'Desa Bazaar Gurun Solaria',
-        pos: [-560, -110],
+        pos: [-540, -420],
       },
       {
         id: 'wp_solaria_palace',
         name: 'Solaria Grand Sultan Palace',
         nameId: 'Istana Sultan Malik',
-        pos: [-680, -620],
+        pos: [-540, -540],
       },
       {
         id: 'wp_solaria',
@@ -3502,14 +3502,14 @@ async function populateWorldEntities(
       {
         id: 'wp_boss_crater',
         name: 'Ancient Colosseum Ruins (Titan Kuno)',
-        nameId: 'Kawah Cacat World Boss (Lv. 10)',
-        pos: [-720, -340],
+        nameId: 'Arena Colosseum World Boss (Lv. 10)',
+        pos: [320, -640],
       },
       {
         id: 'wp_sandworm',
         name: 'The Great Solaria Sinkhole',
         nameId: 'Sarang Cacing Purba Gurun',
-        pos: [-660, -370],
+        pos: [-660, -160],
       },
       {
         id: 'wp_canyon',
