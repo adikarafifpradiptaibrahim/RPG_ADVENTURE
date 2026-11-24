@@ -307,10 +307,10 @@ export function renderIllustratedMap(
 
   // ==========================================================================
   // 4. KANYON KUNO (NORTH-WEST RED CANYON MESAS & STRATIFIED CLIFFS)
-  // Center: [-320, -650] (100% di atas Daratan Pasir Kering Gurun)
+  // Center: [-380, -640] (100% di atas Daratan Pasir Kering Gurun)
   // ==========================================================================
   ctx.save();
-  const canyonCenter = wToC(-320, -650);
+  const canyonCenter = wToC(-380, -640);
   const mesaBlocks = [
     { ox: -40, oy: -15, w: 46, h: 34 },
     { ox: 0, oy: -20, w: 52, h: 38 },
@@ -517,10 +517,10 @@ export function renderIllustratedMap(
 
   // ==========================================================================
   // 8. ELDORIA MIST FOREST (EAST CANOPY & CLOUD COVER)
-  // Center: [640, -340]
+  // Center: [760, -280]
   // ==========================================================================
   ctx.save();
-  const [mfx, mfy] = wToC(640, -340);
+  const [mfx, mfy] = wToC(760, -280);
   const mfr = width * 0.045;
 
   const mistForestClusters = [
@@ -694,8 +694,8 @@ export function renderIllustratedMap(
   ctx.fillStyle = '#b45309';
   ctx.fill();
 
-  // 12B. Solaria Oasis Pool & Palms [-400, -290]
-  const [oasX, oasY] = wToC(-400, -290);
+  // 12B. Solaria Oasis Pool & Palms [-420, -350]
+  const [oasX, oasY] = wToC(-420, -350);
   ctx.fillStyle = '#06b6d4';
   ctx.beginPath();
   ctx.ellipse(oasX, oasY, 15, 10, 0, 0, Math.PI * 2);
@@ -727,8 +727,8 @@ export function renderIllustratedMap(
     }
   });
 
-  // 12C. World Boss Colosseum Titan Kuno [320, -640]
-  const [cratX, cratY] = wToC(320, -640);
+  // 12C. World Boss Colosseum Titan Kuno [180, -560]
+  const [cratX, cratY] = wToC(180, -560);
   ctx.fillStyle = '#9a3412';
   ctx.beginPath();
   ctx.ellipse(cratX, cratY, 34, 23, 0, 0, Math.PI * 2);
@@ -755,8 +755,8 @@ export function renderIllustratedMap(
     ctx.stroke();
   }
 
-  // 12C2. Sandworm Sinkhole Vortex [-660, -160]
-  const [swX, swY] = wToC(-660, -160);
+  // 12C2. Sandworm Sinkhole Vortex [-580, -220]
+  const [swX, swY] = wToC(-580, -220);
   ctx.fillStyle = '#b45309';
   ctx.beginPath();
   ctx.ellipse(swX, swY, 22, 15, 0, 0, Math.PI * 2);
@@ -859,8 +859,8 @@ export function renderIllustratedMap(
   ctx.fillStyle = '#334155';
   ctx.fillRect(ruinX - 14, ruinY - 14, 7, 21);
 
-  // 12F2. Mage Tower Puncak Halilintar [260, -180]
-  const [mtX, mtY] = wToC(260, -180);
+  // 12F2. Mage Tower Puncak Halilintar [270, -260]
+  const [mtX, mtY] = wToC(270, -260);
   ctx.fillStyle = '#475569';
   ctx.fillRect(mtX - 8, mtY - 14, 16, 28);
   ctx.fillStyle = '#7c3aed';
@@ -871,8 +871,8 @@ export function renderIllustratedMap(
   ctx.closePath();
   ctx.fill();
 
-  // 12G. Desa Benteng Val-Kragor [660, 150]
-  const [valX, valY] = wToC(660, 150);
+  // 12G. Desa Benteng Val-Kragor [580, 130]
+  const [valX, valY] = wToC(580, 130);
   ctx.strokeStyle = '#78350f';
   ctx.lineWidth = 3.6;
   ctx.strokeRect(valX - 24, valY - 15, 48, 30);
@@ -895,8 +895,8 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12H. Lembah Batu Lumut [680, -160]
-  const [mosX, mosY] = wToC(680, -160);
+  // 12H. Lembah Batu Lumut [580, -120]
+  const [mosX, mosY] = wToC(580, -120);
   ctx.fillStyle = '#65a30d';
   ctx.beginPath();
   ctx.ellipse(mosX, mosY, 22, 15, 0, 0, Math.PI * 2);

@@ -129,15 +129,15 @@ const KEYFRAMES: DayNightKeyframe[] = [
   // 7. Sore Hangat (Golden Afternoon - 15:30)
   {
     time: 0.646,
-    skyColor: 0xfef08a,
-    groundColor: 0x65a30d,
+    skyColor: 0x93c5fd,
+    groundColor: 0x4a5d46,
     ambientIntensity: 0.74,
-    dirColor: 0xfde047,
-    dirIntensity: 1.25,
+    dirColor: 0xfef08a,
+    dirIntensity: 1.15,
     dirPosition: [-30, 85, 45],
-    fogColor: 0xa3e635,
+    fogColor: 0xfef3c7,
     fogDensity: 0.0118,
-    backgroundColor: 0xbbf7d0,
+    backgroundColor: 0xfde68a,
     phase: 'day',
     phaseNameId: 'Sore Hangat',
     icon: '⛅',
@@ -145,15 +145,15 @@ const KEYFRAMES: DayNightKeyframe[] = [
   // 8. Senja Emas (Golden Hour Sunset - 18:00)
   {
     time: 0.75,
-    skyColor: 0xf97316,
-    groundColor: 0x451a03,
-    ambientIntensity: 0.58,
-    dirColor: 0xe11d48,
-    dirIntensity: 0.9,
+    skyColor: 0x3b5b8a, // Biru senja lembut zenith
+    groundColor: 0x4a5d46, // Pantulan tanah alami
+    ambientIntensity: 0.65,
+    dirColor: 0xffbe76, // Emas hangat matahari sore
+    dirIntensity: 0.95,
     dirPosition: [-95, 28, 30],
-    fogColor: 0xf43f5e,
-    fogDensity: 0.012,
-    backgroundColor: 0xe11d48,
+    fogColor: 0xf29e5a, // Oranye persik keemasan hangat
+    fogDensity: 0.0115,
+    backgroundColor: 0xf29e5a,
     phase: 'sunset',
     phaseNameId: 'Senja Emas',
     icon: '🌇',

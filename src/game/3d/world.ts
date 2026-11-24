@@ -509,7 +509,12 @@ export async function buildHarbor(
   const harborX = 20;
   const harborZ = 20;
 
-  // 1. Wooden Beach Ramp tepat di garis pantai (Z = 19..21)
+  // 1. Wooden Beach Ramp & Shoreline Boardwalk tepat di garis pantai (Z = 16..21)
+  // Menghubungkan ujung jalan batu dari Desa Utama ke dermaga kayu tanpa celah
+  const shorelineBoardwalk = createDockShorelineBoardwalkMesh(5.4, 6.0);
+  shorelineBoardwalk.position.set(harborX, 0.15, harborZ - 2.0);
+  scene.add(shorelineBoardwalk);
+
   const beachRamp = createDockStairRampMesh(4.8, 4.0, 1.8);
   beachRamp.position.set(harborX, 0.05, harborZ);
   scene.add(beachRamp);

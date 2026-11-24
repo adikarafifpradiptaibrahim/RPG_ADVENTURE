@@ -120,12 +120,12 @@ export const WORLD_LAYOUT_CONFIG: WorldLayoutConfig = {
       id: 'oasis',
       name: 'Hidden Solaria Oasis',
       nameId: 'Oase Solaria',
-      x: -400,
+      x: -420,
       y: 0.85,
-      z: -290,
+      z: -350,
       rotationY: 0,
       scale: 1.0,
-      flattenRadius: 28,
+      flattenRadius: 30,
       category: 'desert',
     },
     pyramid: {
@@ -156,7 +156,7 @@ export const WORLD_LAYOUT_CONFIG: WorldLayoutConfig = {
       id: 'bossGolem',
       name: 'Ancient Titan Colosseum Arena',
       nameId: 'Arena Colosseum Titan Kuno (Lv. 10)',
-      x: 340,
+      x: 180,
       y: 4.50,
       z: -560,
       rotationY: 0,
@@ -168,7 +168,7 @@ export const WORLD_LAYOUT_CONFIG: WorldLayoutConfig = {
       id: 'kawah_boss',
       name: 'Ancient Titan Colosseum Arena',
       nameId: 'Arena Colosseum Titan Kuno (Lv. 10)',
-      x: 340,
+      x: 180,
       y: 4.50,
       z: -560,
       rotationY: 0,
@@ -180,9 +180,9 @@ export const WORLD_LAYOUT_CONFIG: WorldLayoutConfig = {
       id: 'desert_sandworm',
       name: 'Ancient Sandworm Lair',
       nameId: 'Sarang Sandworm Gurun',
-      x: -660,
+      x: -580,
       y: 0.50,
-      z: -160,
+      z: -220,
       rotationY: 0,
       scale: 1.0,
       flattenRadius: 50,
@@ -204,9 +204,9 @@ export const WORLD_LAYOUT_CONFIG: WorldLayoutConfig = {
       id: 'canyon',
       name: 'Ancient Canyon',
       nameId: 'Kanyon Kuno',
-      x: -320,
+      x: -380,
       y: 3.50,
-      z: -650,
+      z: -640,
       rotationY: 0,
       scale: 1.0,
       flattenRadius: 50,
@@ -402,3 +402,129 @@ export function getLandmarkLayout(id: string): WorldLandmarkLayout | undefined {
 export function getBridgeLayout(id: string): WorldBridgeLayout | undefined {
   return WORLD_LAYOUT_CONFIG.bridges[id];
 }
+
+/**
+ * 5. DEFINISI ZONA AMAN PEMUKIMAN (SAFE_ZONES) & TITIK RESPAWN CHECKPOINT
+ * Radius perlindungan 95-130 unit di seluruh 6 pemukiman utama Eldoria:
+ * 1. Desa Utama Eldoria [20, -60] - radius 120
+ * 2. Pelabuhan Sanctuary [20, 20] - radius 95
+ * 3. Desa Gurun Solaria [-540, -420] - radius 110
+ * 4. Ibukota Kerajaan Astraea [460, -420] - radius 130
+ * 5. Benteng Val-Kragor [580, 130] - radius 110
+ * 6. Istana Sultan Taj Mahal [-540, -540] - radius 110
+ */
+export interface SafeZoneDef {
+  id: string;
+  waypointId: string;
+  name: string;
+  nameId: string;
+  x: number;
+  z: number;
+  radius: number;
+  respawnX: number;
+  respawnZ: number;
+}
+
+export const SAFE_ZONES: SafeZoneDef[] = [
+  {
+    id: 'town_sanctuary',
+    waypointId: 'wp_village',
+    name: 'Sanctuary Village',
+    nameId: 'Desa Utama Eldoria',
+    x: 20,
+    z: -60,
+    radius: 120,
+    respawnX: 20,
+    respawnZ: -55,
+  },
+  {
+    id: 'town_harbor',
+    waypointId: 'wp_harbor',
+    name: 'Sanctuary Coastal Harbor',
+    nameId: 'Pelabuhan Sanctuary',
+    x: 20,
+    z: 20,
+    radius: 95,
+    respawnX: 20,
+    respawnZ: 10,
+  },
+  {
+    id: 'town_solaria',
+    waypointId: 'wp_solaria_village',
+    name: 'Solaria Desert Village',
+    nameId: 'Desa Gurun Solaria',
+    x: -540,
+    z: -420,
+    radius: 110,
+    respawnX: -540,
+    respawnZ: -415,
+  },
+  {
+    id: 'town_astraea',
+    waypointId: 'wp_astraea',
+    name: 'Grand Imperial Capital Astraea',
+    nameId: 'Ibukota Kerajaan Astraea',
+    x: 460,
+    z: -420,
+    radius: 130,
+    respawnX: 460,
+    respawnZ: -370,
+  },
+  {
+    id: 'town_valkragor',
+    waypointId: 'wp_valkragor',
+    name: 'Fortress Val-Kragor',
+    nameId: 'Benteng Val-Kragor',
+    x: 580,
+    z: 130,
+    radius: 110,
+    respawnX: 580,
+    respawnZ: 115,
+  },
+  {
+    id: 'town_sultan_palace',
+    waypointId: 'wp_sultan_palace',
+    name: 'Sultan Malik Grand Palace',
+    nameId: 'Istana Sultan Taj Mahal',
+    x: -540,
+    z: -540,
+    radius: 110,
+    respawnX: -540,
+    respawnZ: -505,
+  },
+];
+
+/**
+ * Cek apakah sebuah koordinat berada di dalam salah satu SAFE_ZONE pemukiman.
+ */
+export function isInsideSafeZone(x: number, z: number): boolean {
+  for (let i = 0; i < SAFE_ZONES.length; i++) {
+    const sz = SAFE_ZONES[i];
+    const dx = x - sz.x;
+    const dz = z - sz.z;
+    if (dx * dx + dz * dz <= sz.radius * sz.radius) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Cari Safe Zone terdekat untuk fallback checkpoint/respawn
+ */
+export function getClosestSafeZone(x: number, z: number): SafeZoneDef {
+  let closest = SAFE_ZONES[0];
+  let minDistSq = Infinity;
+  for (let i = 0; i < SAFE_ZONES.length; i++) {
+    const sz = SAFE_ZONES[i];
+    const dx = x - sz.x;
+    const dz = z - sz.z;
+    const dSq = dx * dx + dz * dz;
+    if (dSq < minDistSq) {
+      minDistSq = dSq;
+      closest = sz;
+    }
+  }
+  return closest;
+}
+

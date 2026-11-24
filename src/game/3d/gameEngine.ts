@@ -78,6 +78,8 @@ import {
   WorldBridgeLayout,
   WorldLayoutConfig,
   getLandmarkLayout,
+  SAFE_ZONES,
+  isInsideSafeZone,
 } from './worldLayoutConfig';
 import { WORLD_BOUNDS } from './worldData';
 import {
@@ -216,58 +218,16 @@ interface TownZoneTrigger {
   respawnZ: number;
 }
 
-const TOWN_ZONES: TownZoneTrigger[] = [
-  {
-    id: 'town_sanctuary',
-    waypointId: 'wp_village',
-    name: 'Desa Utama Sanctuary',
-    x: 40,
-    z: -40,
-    radius: 45,
-    respawnX: 40,
-    respawnZ: -35,
-  },
-  {
-    id: 'town_valkragor',
-    waypointId: 'wp_valkragor',
-    name: 'Benteng Val-Kragor',
-    x: 520,
-    z: 10,
-    radius: 45,
-    respawnX: 520,
-    respawnZ: 10,
-  },
-  {
-    id: 'town_astraea',
-    waypointId: 'wp_astraea',
-    name: 'Ibukota Kerajaan Emas Astraea',
-    x: 320,
-    z: -260,
-    radius: 60,
-    respawnX: 320,
-    respawnZ: -255,
-  },
-  {
-    id: 'town_solaria',
-    waypointId: 'wp_solaria_village',
-    name: 'Desa & Istana Gurun Solaria',
-    x: -460,
-    z: -260,
-    radius: 65,
-    respawnX: -460,
-    respawnZ: -255,
-  },
-  {
-    id: 'town_thunderpeak',
-    waypointId: 'wp_thunderpeak',
-    name: 'Mage Tower Puncak Halilintar',
-    x: 220,
-    z: -110,
-    radius: 45,
-    respawnX: 220,
-    respawnZ: -105,
-  },
-];
+const TOWN_ZONES: TownZoneTrigger[] = SAFE_ZONES.map((sz) => ({
+  id: sz.id,
+  waypointId: sz.waypointId,
+  name: sz.nameId,
+  x: sz.x,
+  z: sz.z,
+  radius: sz.radius,
+  respawnX: sz.respawnX,
+  respawnZ: sz.respawnZ,
+}));
 
 interface PooledHunterArrow {
   root: THREE.Group;
@@ -306,7 +266,7 @@ export class GameEngine {
         if (parsed && typeof parsed.x === 'number') return parsed;
       }
     } catch { }
-    return { id: 'wp_village', x: 40, y: 0.5, z: -35, name: 'Desa Utama Sanctuary' };
+    return { id: 'town_sanctuary', x: 20, y: 0.5, z: -50, name: 'Desa Utama Eldoria' };
   })();
   private scenePointLights: THREE.PointLight[] = [];
   private frameCount: number = 0;
@@ -319,7 +279,7 @@ export class GameEngine {
   private worldEnvironment?: WorldEnvironmentResult;
   private characterSelectStudioGroup: THREE.Group | null = null;
   private playerMesh: PlayerMeshObjects;
-  private playerPos = new THREE.Vector3(40, 0, -30);
+  private playerPos = new THREE.Vector3(20, 0, -50);
   private playerVel = new THREE.Vector3();
   private playerRotationY = 0;
   private isGrounded = true;
@@ -851,9 +811,9 @@ export class GameEngine {
     const isSunset = dnState.phase === 'sunset';
     const isDawn = dnState.phase === 'dawn';
 
-    const ambColor = isNight ? 0x64748b : isSunset ? 0xfdba74 : isDawn ? 0xfbcfe8 : 0xe2e8f0;
-    const keyColor = isNight ? 0xe0e7ff : isSunset ? 0xf97316 : isDawn ? 0xfdba74 : 0xfff7ed;
-    const fillCol = isNight ? 0x818cf8 : isSunset ? 0xa855f7 : isDawn ? 0xc084fc : 0x93c5fd;
+    const ambColor = isNight ? 0x64748b : isSunset ? 0xfdba74 : isDawn ? 0xfed7aa : 0xe2e8f0;
+    const keyColor = isNight ? 0xe0e7ff : isSunset ? 0xffbe76 : isDawn ? 0xfdba74 : 0xfff7ed;
+    const fillCol = isNight ? 0x818cf8 : isSunset ? 0xf29e5a : isDawn ? 0xfed7aa : 0x93c5fd;
     const rimCol = isNight ? 0x38bdf8 : isSunset ? 0xfbbf24 : isDawn ? 0xf472b6 : 0xfef08a;
 
     const ambientLight = new THREE.AmbientLight(ambColor, 0.85);
@@ -11723,8 +11683,11 @@ export class GameEngine {
       const enemyInSafeZone = isInsideSafeZone(ePos.x, ePos.z);
 
       if (playerInSafeZone || enemyInSafeZone) {
+        enemy.isAttacking = false;
         if (distFromSpawn > 1.2) {
           enemy.isReturning = true;
+          return;
+        } else {
           return;
         }
       }

@@ -18,26 +18,27 @@ export interface MonsterSpawnConfig {
   aggroRange: number;
 }
 
+import { SAFE_ZONES, isInsideSafeZone as isInsideConfigSafeZone, getLandmarkLayout } from './3d/worldLayoutConfig';
+export { SAFE_ZONES };
+
 /**
  * Checks if a world coordinate (x, z) is inside the Sanctuary Village & Harbor Safe Zone.
- * Radius: 55 units around village plaza + coastal harbor dock corridor (x: -45..45, z: 15..65).
+ * Radius: 120 units around village plaza + 95 units around coastal harbor.
  */
 export function isInsideSanctuarySafeZone(x: number, z: number): boolean {
-  if (Math.hypot(x - 40, z - -40) < 55) return true;
-  if (Math.abs(x - 40) <= 45 && z >= -40 && z <= 95) return true;
-  return false;
+  return Math.hypot(x - 20, z - -60) < 120 || Math.hypot(x - 20, z - 20) < 95;
 }
 
 export function isInsideValKragorSafeZone(x: number, z: number): boolean {
-  return Math.hypot(x - 520, z - 10) < 50;
+  return Math.hypot(x - 580, z - 130) < 110;
 }
 
 export function isInsideAstraeaSafeZone(x: number, z: number): boolean {
-  return Math.hypot(x - 320, z - -260) < 60;
+  return Math.hypot(x - 460, z - -420) < 130;
 }
 
 export function isInsideSolariaSafeZone(x: number, z: number): boolean {
-  return Math.hypot(x - -460, z - -260) < 50 || Math.hypot(x - -540, z - -640) < 50;
+  return Math.hypot(x - -540, z - -420) < 110 || Math.hypot(x - -540, z - -540) < 110;
 }
 
 /**
@@ -45,13 +46,13 @@ export function isInsideSolariaSafeZone(x: number, z: number): boolean {
  * Ensures monsters do not harass players inside Sanctuary, Val-Kragor, Solaria, or Astraea Capital.
  */
 export function isInsideSafeZone(x: number, z: number): boolean {
-  return isInsideSanctuarySafeZone(x, z) || isInsideValKragorSafeZone(x, z) || isInsideAstraeaSafeZone(x, z) || isInsideSolariaSafeZone(x, z);
+  return isInsideConfigSafeZone(x, z);
 }
 
 
 /**
  * 1. Meadow Slimes (Lv. 1)
- * Relocated to the Eastern Plains & Outer Meadows (> 85 units east from Sanctuary)
+ * Relocated to the Eastern Plains & Outer Meadows (> 140 units from Sanctuary Village and Harbor)
  */
 export const MEADOW_SLIME_SPAWNS: MonsterSpawnConfig[] = [
   {
@@ -66,7 +67,7 @@ export const MEADOW_SLIME_SPAWNS: MonsterSpawnConfig[] = [
     defense: 2,
     expReward: 25,
     goldReward: 12,
-    pos: [85, 24],
+    pos: [165, 15],
     patrolRadius: 8,
     aggroRange: 12,
   },
@@ -82,7 +83,7 @@ export const MEADOW_SLIME_SPAWNS: MonsterSpawnConfig[] = [
     defense: 2,
     expReward: 25,
     goldReward: 12,
-    pos: [92, 32],
+    pos: [175, 25],
     patrolRadius: 9,
     aggroRange: 12,
   },
@@ -98,7 +99,7 @@ export const MEADOW_SLIME_SPAWNS: MonsterSpawnConfig[] = [
     defense: 2,
     expReward: 25,
     goldReward: 12,
-    pos: [88, 16],
+    pos: [180, 8],
     patrolRadius: 8,
     aggroRange: 12,
   },
@@ -114,7 +115,7 @@ export const MEADOW_SLIME_SPAWNS: MonsterSpawnConfig[] = [
     defense: 2,
     expReward: 25,
     goldReward: 12,
-    pos: [98, 28],
+    pos: [168, -5],
     patrolRadius: 10,
     aggroRange: 12,
   },
@@ -130,7 +131,7 @@ export const MEADOW_SLIME_SPAWNS: MonsterSpawnConfig[] = [
     defense: 2,
     expReward: 25,
     goldReward: 12,
-    pos: [104, 38],
+    pos: [185, 30],
     patrolRadius: 10,
     aggroRange: 12,
   },
@@ -153,7 +154,7 @@ export const MAGMA_SLIME_SPAWNS: MonsterSpawnConfig[] = [
     defense: 6,
     expReward: 65,
     goldReward: 35,
-    pos: [-14, -86],
+    pos: [140, -410],
     patrolRadius: 8,
     aggroRange: 14,
   },
@@ -169,7 +170,7 @@ export const MAGMA_SLIME_SPAWNS: MonsterSpawnConfig[] = [
     defense: 6,
     expReward: 65,
     goldReward: 35,
-    pos: [16, -88],
+    pos: [150, -420],
     patrolRadius: 8,
     aggroRange: 14,
   },
@@ -185,7 +186,7 @@ export const MAGMA_SLIME_SPAWNS: MonsterSpawnConfig[] = [
     defense: 6,
     expReward: 65,
     goldReward: 35,
-    pos: [-8, -98],
+    pos: [135, -430],
     patrolRadius: 9,
     aggroRange: 14,
   },
@@ -201,7 +202,7 @@ export const MAGMA_SLIME_SPAWNS: MonsterSpawnConfig[] = [
     defense: 6,
     expReward: 65,
     goldReward: 35,
-    pos: [12, -104],
+    pos: [145, -440],
     patrolRadius: 9,
     aggroRange: 14,
   },
@@ -910,21 +911,21 @@ export const ANCIENT_TITAN_BOSS_CONFIG: BossConfig = {
 };
 
 export const SPAWN_SANDWORM = {
-  x: -660,
-  y: 0.5,
-  z: -160,
-  homeX: -660,
-  homeZ: -160,
-  leashRadius: 55, // Bebas di kawah gurun barat daya terbuka
+  get x() { return getLandmarkLayout('desert_sandworm')?.x ?? -580; },
+  get y() { return getLandmarkLayout('desert_sandworm')?.y ?? 0.5; },
+  get z() { return getLandmarkLayout('desert_sandworm')?.z ?? -220; },
+  get homeX() { return getLandmarkLayout('desert_sandworm')?.x ?? -580; },
+  get homeZ() { return getLandmarkLayout('desert_sandworm')?.z ?? -220; },
+  leashRadius: 55, // Bebas di bagian tengah daratan gurun luas terbuka
 };
 
 export const SPAWN_TITAN = {
-  get x() { return getLandmarkLayout('bossGolem')?.x ?? 340; },
+  get x() { return getLandmarkLayout('bossGolem')?.x ?? 180; },
   get y() { return getLandmarkLayout('bossGolem')?.y ?? 4.5; },
   get z() { return getLandmarkLayout('bossGolem')?.z ?? -560; },
-  get homeX() { return getLandmarkLayout('bossGolem')?.x ?? 340; },
+  get homeX() { return getLandmarkLayout('bossGolem')?.x ?? 180; },
   get homeZ() { return getLandmarkLayout('bossGolem')?.z ?? -560; },
-  leashRadius: 50, // Terkunci di dalam arena Colosseum pegunungan batu
+  leashRadius: 50, // Terkunci di dalam arena Colosseum dataran terisolasi
 };
 
 export const SPAWN_DRAGON = {
@@ -1309,7 +1310,7 @@ export const PLAINS_WOLF_SPAWNS: MonsterSpawnConfig[] = [
     defense: 8,
     expReward: 52,
     goldReward: 26,
-    pos: [-95, -65],
+    pos: [-170, -55],
     patrolRadius: 14,
     aggroRange: 15,
   },
@@ -1325,7 +1326,7 @@ export const PLAINS_WOLF_SPAWNS: MonsterSpawnConfig[] = [
     defense: 6,
     expReward: 38,
     goldReward: 18,
-    pos: [-88, -55],
+    pos: [-162, -45],
     patrolRadius: 10,
     aggroRange: 13,
   },
@@ -1341,7 +1342,7 @@ export const PLAINS_WOLF_SPAWNS: MonsterSpawnConfig[] = [
     defense: 6,
     expReward: 38,
     goldReward: 18,
-    pos: [-105, -72],
+    pos: [-178, -65],
     patrolRadius: 11,
     aggroRange: 13,
   },
@@ -1357,7 +1358,7 @@ export const PLAINS_WOLF_SPAWNS: MonsterSpawnConfig[] = [
     defense: 6,
     expReward: 35,
     goldReward: 16,
-    pos: [-82, -72],
+    pos: [-155, -62],
     patrolRadius: 9,
     aggroRange: 12,
   },

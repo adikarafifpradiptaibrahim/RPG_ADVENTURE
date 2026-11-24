@@ -690,18 +690,19 @@ export async function buildWorldEnvironmentAsync(
   envGroup.add(beastGroup);
 
   // ============================================================================
-  // 4. ZONA D: KOMPLEKS PERKEMAHAN BANDIT / OUTPOST PADAT (X: -220 s.d -280, Z: -10 s.d -60)
+  // 4. ZONA D: KOMPLEKS PERKEMAHAN BANDIT / OUTPOST PADAT (X: -260, Z: -95)
+  // Berdiri kokoh di atas daratan kering tinggi (height >= 3.5m, jarak dari air >= 40, dari jalan >= 25)
   // ============================================================================
   const outpostGroup = new THREE.Group();
   outpostGroup.name = 'ZoneD_EnemyOutpost';
 
-  const outpostCenterX = -250;
-  const outpostCenterZ = -35;
+  const outpostCenterX = -260;
+  const outpostCenterZ = -95;
   const outpostBaseY = getTerrainHeight(outpostCenterX, outpostCenterZ);
 
   // Menara Pantau (Watchtower) Menyatu di Dalam Kamp
-  const towerX = -266;
-  const towerZ = -42;
+  const towerX = -276;
+  const towerZ = -102;
   const towerY = getTerrainHeight(towerX, towerZ);
   const tower = new THREE.Group();
   tower.position.set(towerX, towerY, towerZ);
@@ -761,9 +762,9 @@ export async function buildWorldEnvironmentAsync(
 
   // 3 Tenda Kain Lusuh Menghadap Api Unggun Sentral
   const tents = [
-    { x: -262, z: -26, rotY: 2.35, scale: 1.15 }, // Tenda Barat Laut
-    { x: -238, z: -34, rotY: -1.55, scale: 1.05 }, // Tenda Timur
-    { x: -252, z: -48, rotY: 0.15, scale: 1.25 }, // Tenda Selatan
+    { x: -272, z: -86, rotY: 2.35, scale: 1.15 }, // Tenda Barat Laut
+    { x: -248, z: -94, rotY: -1.55, scale: 1.05 }, // Tenda Timur
+    { x: -262, z: -108, rotY: 0.15, scale: 1.25 }, // Tenda Selatan
   ];
 
   tents.forEach((td) => {
@@ -791,12 +792,12 @@ export async function buildWorldEnvironmentAsync(
 
   // Barikade Kayu Runcing Mengelilingi Kamp (Perimeter Barricades)
   const barricades = [
-    { x: -268, z: -18, rotY: -0.4, len: 7.0 },
-    { x: -248, z: -16, rotY: 0.05, len: 7.0 },
-    { x: -276, z: -35, rotY: 1.57, len: 7.5 },
-    { x: -266, z: -54, rotY: 2.6, len: 7.0 },
-    { x: -246, z: -56, rotY: 3.14, len: 7.0 },
-    { x: -232, z: -48, rotY: -2.4, len: 6.5 },
+    { x: -278, z: -78, rotY: -0.4, len: 7.0 },
+    { x: -258, z: -76, rotY: 0.05, len: 7.0 },
+    { x: -286, z: -95, rotY: 1.57, len: 7.5 },
+    { x: -276, z: -114, rotY: 2.6, len: 7.0 },
+    { x: -256, z: -116, rotY: 3.14, len: 7.0 },
+    { x: -242, z: -108, rotY: -2.4, len: 6.5 },
   ];
 
   barricades.forEach((bc) => {
@@ -884,21 +885,21 @@ export async function buildWorldEnvironmentAsync(
   // Peti Kayu Rampasan (Loot Crates)
   const lootStacks = [
     {
-      x: -264, z: -28, crates: [
+      x: -274, z: -88, crates: [
         { dx: 0, dz: 0, w: 0.8, h: 0.65, dy: 0 },
         { dx: 0.7, dz: 0.1, w: 0.65, h: 0.6, dy: 0 },
         { dx: 0.3, dz: 0.05, w: 0.6, h: 0.55, dy: 0.65 },
       ]
     },
     {
-      x: -248, z: -44, crates: [
+      x: -258, z: -104, crates: [
         { dx: 0, dz: 0, w: 0.9, h: 0.75, dy: 0 },
         { dx: 0.8, dz: -0.15, w: 0.7, h: 0.65, dy: 0 },
         { dx: 0.35, dz: 0.0, w: 0.65, h: 0.6, dy: 0.75 },
       ]
     },
     {
-      x: -263, z: -46, crates: [
+      x: -273, z: -106, crates: [
         { dx: 0, dz: 0, w: 0.75, h: 0.6, dy: 0 },
         { dx: 0.65, dz: 0.1, w: 0.65, h: 0.55, dy: 0 },
       ]
@@ -922,9 +923,9 @@ export async function buildWorldEnvironmentAsync(
 
   // Tong Anggur Kayu Rusak (Broken Wine Barrels)
   const wineBarrels = [
-    { x: -247, z: -31, rotX: 0, rotY: 0.2, rotZ: 0 }, // Tegak
-    { x: -255, z: -38, rotX: 0.2, rotY: 0.8, rotZ: 1.45 }, // Tergeletak miring
-    { x: -242, z: -39, rotX: -0.15, rotY: 1.2, rotZ: 0.2 }, // Sedikit miring pecah
+    { x: -257, z: -91, rotX: 0, rotY: 0.2, rotZ: 0 }, // Tegak
+    { x: -265, z: -98, rotX: 0.2, rotY: 0.8, rotZ: 1.45 }, // Tergeletak miring
+    { x: -252, z: -99, rotX: -0.15, rotY: 1.2, rotZ: 0.2 }, // Sedikit miring pecah
   ];
 
   wineBarrels.forEach((wb) => {
@@ -947,10 +948,10 @@ export async function buildWorldEnvironmentAsync(
 
   // Obor Tiang Kayu Berkobar (Standing Wooden Torches)
   const campTorches = [
-    { x: -234, z: -24 }, // Gerbang kamp sisi utara
-    { x: -234, z: -32 }, // Gerbang kamp sisi selatan
-    { x: -264, z: -38 }, // Dekat menara pengawas
-    { x: -258, z: -22 }, // Dekat tenda 1
+    { x: -244, z: -84 }, // Gerbang kamp sisi utara
+    { x: -244, z: -92 }, // Gerbang kamp sisi selatan
+    { x: -274, z: -98 }, // Dekat menara pengawas
+    { x: -268, z: -82 }, // Dekat tenda 1
   ];
 
   campTorches.forEach((ct, tIdx) => {
@@ -1341,21 +1342,11 @@ export async function buildWorldEnvironmentAsync(
   meadowGroup.add(mossyLog);
   colliders.push({ type: 'circle', x: logX, z: logZ, radius: 1.2, label: 'Batang Kayu Berlumut' });
 
-  // 2. CEKUNGAN MONSTER SERIGALA RIMBA / WILD WOLF HOLLOW (Pusat [ -95, -65 ])
-  // Terletak di cekungan bukit, berjarak > 195 unit dari pusat desa
-  const wolfLairX = -95;
-  const wolfLairZ = -65;
+  // 2. CEKUNGAN MONSTER SERIGALA RIMBA / WILD WOLF HOLLOW (Pusat [ -170, -55 ])
+  // Terletak di dataran terbuka barat, berjarak > 190 unit dari pusat desa
+  const wolfLairX = -170;
+  const wolfLairZ = -55;
   const wolfLairY = getTerrainHeight(wolfLairX, wolfLairZ);
-
-  // Penanda Lingkungan: Bercak Tanah Gelap / Dark Scorched Soil Decal
-  const darkSoilPatch = new THREE.Mesh(
-    new THREE.CircleGeometry(16, 24),
-    matDarkSoil
-  );
-  darkSoilPatch.rotation.x = -Math.PI / 2;
-  darkSoilPatch.position.set(wolfLairX, wolfLairY + 0.03, wolfLairZ);
-  darkSoilPatch.receiveShadow = true;
-  meadowGroup.add(darkSoilPatch);
 
   // Formasi 9 Batu Runcing Mengelilingi Cekungan Tapal Kuda (Sharp Dark Crags - strictly outside river & road)
   const sharpCragCount = 9;
@@ -2791,12 +2782,68 @@ export async function buildWorldEnvironmentAsync(
     colliders.push({ type: 'circle', x: spx, z: spz, radius: 0.9 * s, label: 'Pinus Salju Titan' });
   });
 
+  // 4. Bongkahan Batu Es & Pinus Bersalju di Lereng Pegunungan Salju Utara
+  const matIceBoulder = new THREE.MeshStandardMaterial({
+    color: 0xcfe8f7,
+    roughness: 0.35,
+    metalness: 0.25,
+    flatShading: true,
+  });
+  const alpineSlopeProps: { x: number; z: number; type: 'pine' | 'boulder'; scale: number }[] = [
+    { x: -140, z: -860, type: 'boulder', scale: 2.2 },
+    { x: -110, z: -920, type: 'pine', scale: 1.3 },
+    { x: -60, z: -950, type: 'boulder', scale: 2.8 },
+    { x: -20, z: -910, type: 'pine', scale: 1.4 },
+    { x: 30, z: -960, type: 'boulder', scale: 3.0 },
+    { x: 100, z: -920, type: 'pine', scale: 1.25 },
+    { x: 140, z: -880, type: 'boulder', scale: 2.5 },
+    { x: 180, z: -840, type: 'pine', scale: 1.35 },
+    { x: 210, z: -800, type: 'boulder', scale: 2.0 },
+    { x: -80, z: -780, type: 'pine', scale: 1.2 },
+    { x: -40, z: -740, type: 'boulder', scale: 1.8 },
+    { x: 150, z: -750, type: 'pine', scale: 1.2 },
+    { x: 190, z: -720, type: 'boulder', scale: 2.2 },
+  ];
+  alpineSlopeProps.forEach((asp) => {
+    if (!isStrictLandForProps(asp.x, asp.z, getTerrainHeight)) return;
+    const aspy = getTerrainHeight(asp.x, asp.z);
+    if (aspy < 4.0) return;
+
+    if (asp.type === 'boulder') {
+      const bMesh = new THREE.Mesh(new THREE.DodecahedronGeometry(asp.scale, 1), matIceBoulder);
+      bMesh.position.set(asp.x, aspy + asp.scale * 0.7, asp.z);
+      bMesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      bMesh.castShadow = true;
+      titanLakeGroup.add(bMesh);
+      colliders.push({ type: 'circle', x: asp.x, z: asp.z, radius: asp.scale * 0.9, label: 'Bongkahan Batu Es' });
+    } else {
+      const spGroup = new THREE.Group();
+      spGroup.position.set(asp.x, aspy, asp.z);
+      spGroup.scale.setScalar(asp.scale);
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.45, 3.2, 5), matWoodDark);
+      trunk.position.y = 1.6;
+      trunk.castShadow = true;
+      const c1 = new THREE.Mesh(new THREE.ConeGeometry(2.3, 3.0, 5), matSnowPine);
+      c1.position.y = 3.6;
+      c1.castShadow = true;
+      const c2 = new THREE.Mesh(new THREE.ConeGeometry(1.7, 2.5, 5), matSnowPine);
+      c2.position.y = 5.2;
+      c2.castShadow = true;
+      const c3 = new THREE.Mesh(new THREE.ConeGeometry(1.1, 2.0, 5), matSnowPine);
+      c3.position.y = 6.6;
+      c3.castShadow = true;
+      spGroup.add(trunk, c1, c2, c3);
+      titanLakeGroup.add(spGroup);
+      colliders.push({ type: 'circle', x: asp.x, z: asp.z, radius: 1.0 * asp.scale, label: 'Pinus Salju Pegunungan' });
+    }
+  });
+
   envGroup.add(titanLakeGroup);
   await yieldToChrome(5);
 
   // ============================================================================
   // ZONA N: KANYON KUNO (NORTHERN RED CANYON MESAS & CANYON CLIFFS)
-  // Koordinat Pusat X: -320, Z: -650 (100% di atas Daratan Pasir Kering Gurun)
+  // Koordinat Pusat X: -380, Z: -640 (100% di atas Daratan Pasir Kering Gurun)
   // ============================================================================
   const ancientCanyonGroup = new THREE.Group();
   ancientCanyonGroup.name = 'ZoneN_AncientCanyon';
@@ -2814,8 +2861,8 @@ export async function buildWorldEnvironmentAsync(
     flatShading: true,
   });
 
-  const canyonCenterX = -320;
-  const canyonCenterZ = -650;
+  const canyonCenterX = -380;
+  const canyonCenterZ = -640;
   const canyonMesaOffsets: [number, number, number, number][] = [
     [0, 0, 16, 20],
     [-26, -18, 13, 17],

@@ -11,8 +11,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A thriving coastal settlement with wooden cottages, busy harbor docks, merchant galleons, and wide open grassland plains.',
     descriptionId: 'Pusat desa damai dan padang rumput hijau luas Eldoria dengan rumah panggung kayu, pelabuhan kapal dagang, bengkel tempa, serta perbukitan landai terbuka di pesisir selatan.',
     color: '#65a30d',
-    bounds: { minX: -20, maxX: 100, minZ: -80, maxZ: 10 },
-    center: [40, -40],
+    bounds: { minX: -40, maxX: 80, minZ: -100, maxZ: 60 },
+    center: [20, -50],
     recommendedLevel: 1,
   },
   {
@@ -71,8 +71,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'Sheer towering terracotta canyon cliffs and sandstone mesas in the far northern reaches of the west desert.',
     descriptionId: 'Jurang bebatuan cadas merah terjal dan tebing sandstone di perbatasan gurun paling utara benua.',
     color: '#ea580c',
-    bounds: { minX: -400, maxX: -240, minZ: -740, maxZ: -580 },
-    center: [-320, -650],
+    bounds: { minX: -460, maxX: -300, minZ: -720, maxZ: -560 },
+    center: [-380, -640],
     recommendedLevel: 9,
   },
   {
@@ -120,7 +120,7 @@ export const REGIONS: RegionInfo[] = [
     descriptionId: 'Hamparan padang pasir emas di wilayah barat benua! Menampung Piramida Emas, Oase Solaria, dan Istana Megah Sultan Malik.',
     color: '#eab308',
     bounds: { minX: -800, maxX: -240, minZ: -750, maxZ: 150 },
-    center: [-450, -380],
+    center: [-500, -420],
     recommendedLevel: 6,
   },
   {
@@ -143,8 +143,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A colossal ancient colosseum arena in the north rocky mountains, domain of the legendary Boss Titan Kuno.',
     descriptionId: 'Arena reruntuhan colosseum kuno megah di dataran tinggi pegunungan timur-utara, arena World Boss Titan Kuno.',
     color: '#ea580c',
-    bounds: { minX: 280, maxX: 400, minZ: -620, maxZ: -500 },
-    center: [340, -560],
+    bounds: { minX: 120, maxX: 240, minZ: -620, maxZ: -500 },
+    center: [180, -560],
     recommendedLevel: 10,
   },
 ];
@@ -162,7 +162,7 @@ export const WAYPOINTS: {
     nameId: 'Desa Utama & Padang Rumput Eldoria',
     regionId: 'desa_eldoria',
     icon: '🏡',
-    pos: [40, -40],
+    pos: [20, -60],
     desc: 'Pusat pemukiman awal di pesisir selatan padang rumput Eldoria',
   },
   {
@@ -170,7 +170,7 @@ export const WAYPOINTS: {
     nameId: 'Pelabuhan Sanctuary',
     regionId: 'desa_eldoria',
     icon: '⛵',
-    pos: [40, 85],
+    pos: [20, 20],
     desc: 'Pelabuhan pesisir selatan menghadap langsung ke Samudra Azure terbuka',
   },
   {
@@ -178,7 +178,7 @@ export const WAYPOINTS: {
     nameId: 'Lembah Danau Titan Kuno',
     regionId: 'danau_titan',
     icon: '🏔️',
-    pos: [80, -760],
+    pos: [60, -820],
     desc: 'Danau purba berair jernih di ketinggian pegunungan salju utara tengah',
   },
   {
@@ -186,7 +186,7 @@ export const WAYPOINTS: {
     nameId: 'Ibukota Kerajaan Emas Astraea & Istana Kaisar',
     regionId: 'kerajaan_astraea',
     icon: '👑',
-    pos: [320, -260],
+    pos: [460, -420],
     desc: 'Ibukota megah berdinding marmer emas dan tahta Kaisar Aurelius',
   },
   {
@@ -194,7 +194,7 @@ export const WAYPOINTS: {
     nameId: 'Kanyon Kuno',
     regionId: 'ancient_canyon',
     icon: '🏜️',
-    pos: [-260, -780],
+    pos: [-380, -640],
     desc: 'Tebing bebatuan cadas merah terjal bertingkat di perbatasan utara gurun barat',
   },
   {
@@ -202,7 +202,7 @@ export const WAYPOINTS: {
     nameId: 'Piramida Emas Solaria',
     regionId: 'gurun_solaria',
     icon: '🏛️',
-    pos: [-320, -560],
+    pos: [-360, -520],
     desc: 'Monumen piramida emas kuno di tengah bukit pasir emas Solaria barat',
   },
   {
@@ -210,23 +210,23 @@ export const WAYPOINTS: {
     nameId: 'Oase Solaria',
     regionId: 'gurun_solaria',
     icon: '🌴',
-    pos: [-340, -340],
+    pos: [-420, -350],
     desc: 'Sumber mata air tawar pirus segar dinaungi pohon kurma di gurun barat',
   },
   {
     id: 'wp_boss_crater',
-    nameId: 'Kawah Cacat World Boss (Lv. 10)',
+    nameId: 'Arena Colosseum Titan Kuno (Lv. 10)',
     regionId: 'kawah_cacing_purba',
     icon: '🗿',
-    pos: [-480, -480],
-    desc: 'Arena reruntuhan colosseum kuno megah kediaman World Boss Titan Kuno di gurun barat',
+    pos: [180, -560],
+    desc: 'Arena reruntuhan colosseum kuno megah kediaman World Boss Titan Kuno di dataran terbuka utara',
   },
   {
     id: 'wp_sandworm',
     nameId: 'Sarang Cacing Purba Gurun',
     regionId: 'gurun_solaria',
     icon: '🪱',
-    pos: [-420, -420],
+    pos: [-580, -220],
     desc: 'Arena terbuka pusaran pasir habitat Cacing Raksasa Gurun di gurun barat',
   },
   {
@@ -234,7 +234,7 @@ export const WAYPOINTS: {
     nameId: 'Desa Gurun & Bazaar Solaria',
     regionId: 'gurun_solaria',
     icon: '🏘️',
-    pos: [-460, -260],
+    pos: [-540, -420],
     desc: 'Pemukiman rumah tanah liat dan pasar kafilah sutra & rempah di Gurun Solaria barat',
   },
   {
@@ -242,7 +242,7 @@ export const WAYPOINTS: {
     nameId: 'Istana Sultan Malik',
     regionId: 'gurun_solaria',
     icon: '🕌',
-    pos: [-540, -640],
+    pos: [-540, -540],
     desc: 'Kompleks istana kubah marmer emas megah di barat laut gurun',
   },
   {
@@ -250,7 +250,7 @@ export const WAYPOINTS: {
     nameId: 'Hutan Kabut Eldoria',
     regionId: 'hutan_kabut',
     icon: '🌲',
-    pos: [640, -340],
+    pos: [760, -280],
     desc: 'Hutan pinus lebat berkabut tebal misterius di perbukitan timur',
   },
   {
@@ -258,7 +258,7 @@ export const WAYPOINTS: {
     nameId: 'Puing Kastil Terbengkalai',
     regionId: 'puing_kastil',
     icon: '🏰',
-    pos: [420, -140],
+    pos: [580, -60],
     desc: 'Reruntuhan benteng kastil masa lalu dengan pilar batu slate runtuh',
   },
   {
@@ -266,7 +266,7 @@ export const WAYPOINTS: {
     nameId: 'Desa Benteng Val-Kragor',
     regionId: 'desa_valkragor',
     icon: '🛡️',
-    pos: [520, 10],
+    pos: [580, 130],
     desc: 'Benteng pertahanan tangguh di perbatasan padang rumput tenggara',
   },
   {
@@ -274,7 +274,7 @@ export const WAYPOINTS: {
     nameId: 'Lembah Batu Lumut',
     regionId: 'lembah_batu_lumut',
     icon: '🪨',
-    pos: [600, -120],
+    pos: [580, -120],
     desc: 'Lembah tersembunyi penuh gugusan batu purba berlumut di timur dekat sungai',
   },
   {
@@ -282,7 +282,7 @@ export const WAYPOINTS: {
     nameId: 'Mage Tower Puncak Halilintar',
     regionId: 'desa_eldoria',
     icon: '⚡',
-    pos: [220, -110],
+    pos: [270, -260],
     desc: 'Menara penyihir megah di perbukitan padang rumput dekat persimpangan jalan',
   },
   {
@@ -328,13 +328,13 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
     return REGIONS.find((r) => r.id === 'kaldera_naga_api') || REGIONS[10];
   }
 
-  // 2. Arena Colosseum World Boss Titan Kuno [340, -560]
-  if (Math.hypot(x - 340, z - -560) <= 65) {
+  // 2. Arena Colosseum World Boss Titan Kuno [180, -560]
+  if (Math.hypot(x - 180, z - -560) <= 65) {
     return REGIONS.find((r) => r.id === 'kawah_cacing_purba') || REGIONS[11];
   }
 
-  // 3. Kanyon Batu Merah Kuno [-320, -650]
-  if (Math.hypot(x - -320, z - -650) <= 85) {
+  // 3. Kanyon Batu Merah Kuno [-380, -640]
+  if (Math.hypot(x - -380, z - -640) <= 85) {
     return REGIONS.find((r) => r.id === 'ancient_canyon') || REGIONS[5];
   }
 
