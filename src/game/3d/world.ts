@@ -2041,6 +2041,7 @@ export async function buildDesertStructures(
     dialogueId: 'sultan_malik',
     icon: '👑',
   });
+  await cooperativeYield(4);
 
   // 2 Royal Elite Desert Guards flanking the Sultan's Throne
   const guard1Group = createCustomNPCMesh('guard');
@@ -2076,6 +2077,7 @@ export async function buildDesertStructures(
     dialogueId: 'guard_solaria',
     icon: '🛡️',
   });
+  await cooperativeYield(4);
   await cooperativeYield(4);
 
   // 4. Sumur Batu Oase di Alun-Alun Desa Gurun (Village Oasis Well Plaza: [-460, -260])
@@ -2263,6 +2265,7 @@ export async function buildDesertStructures(
     dialogueId: 'guard_solaria',
     icon: '🛡️',
   });
+  await cooperativeYield(4);
   await cooperativeYield(4);
 
   // Cacti in West Solaria Dunes
@@ -2956,12 +2959,12 @@ async function populateWorldEntities(
   const { chests } = await buildDragonCaldera(scene, getTerrainHeight, colliders, decorativeProps, pointLights);
 
   // ==========================================
-  // 7. SACRED SPRING, CHECKPOINTS & BOSS NPCS (54% - 58%)
+  // 7. SACRED SPRING, REGIONAL LANDMARKS & CHECKPOINTS (54% - 58%)
   // ==========================================
-  onProgress?.(54, 'Menempatkan NPC, Pedagang, & Penjaga Wilayah (54%)...');
-  await cooperativeYield(8);
+  onProgress?.(54, 'Menata Mata Air Suci & Kolam Teratai (54%)...');
+  await cooperativeYield(4);
   // 10. MATA AIR SUCI & TAMAN BUNGA ELDORIA (Plains Spring: [-144, -270])
-  // Ganti bekas wilayah raksasa lama: kolam air tawar melingkar kecil, tepian batu kali halus berlumut,
+  // Kolam air tawar melingkar kecil, tepian batu kali halus berlumut,
   // tumbuhan teratai air terapung, hamparan rumpun bunga liar (lavender, kamomil), dan 2 pohon willow rindang.
   // ==========================================
   const springCenter = { x: -144, z: -270 };
@@ -2990,7 +2993,7 @@ async function populateWorldEntities(
   });
   const stoneCount = 28;
   for (let i = 0; i < stoneCount; i++) {
-    if (i > 0 && i % 6 === 0) await cooperativeYield(4);
+    if (i > 0 && i % 4 === 0) await cooperativeYield(4);
     const angle = (i / stoneCount) * Math.PI * 2;
     const r = 5.4 + (i % 3) * 0.25;
     const sx = springCenter.x + Math.cos(angle) * r;
@@ -3035,7 +3038,8 @@ async function populateWorldEntities(
     { dx: 1.8, dz: 2.1, r: 0.62, hasLotus: true },
   ];
 
-  lilyOffsets.forEach((l) => {
+  for (let li = 0; li < lilyOffsets.length; li++) {
+    const l = lilyOffsets[li];
     const pad = new THREE.Mesh(new THREE.CircleGeometry(l.r, 14), lilyPadMat);
     pad.rotateX(-Math.PI / 2);
     pad.position.set(springCenter.x + l.dx, -0.28, springCenter.z + l.dz);
@@ -3061,15 +3065,19 @@ async function populateWorldEntities(
 
       springGroup.add(flowerGroup);
     }
-  });
+    if (li % 3 === 0) await cooperativeYield(4);
+  }
 
   // D. Hamparan Rumpun Bunga Liar Warna-Warni (Lavender Ungu & Kamomil Putih)
+  onProgress?.(55, 'Menanam Hamparan Rumpun Bunga & Willow Rindang (55%)...');
+  await cooperativeYield(4);
+
   const lavenderMat = new THREE.MeshStandardMaterial({ color: 0x8b5cf6, roughness: 0.6 });
   const chamomileMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 });
   const flowerStemMat = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.8 });
 
   for (let f = 0; f < 36; f++) {
-    if (f > 0 && f % 8 === 0) await cooperativeYield(4);
+    if (f > 0 && f % 6 === 0) await cooperativeYield(4);
     const fAng = (f / 36) * Math.PI * 2 + (f % 5) * 0.3;
     const fDist = 6.8 + (f % 7) * 1.5;
     const fx = springCenter.x + Math.cos(fAng) * fDist;
@@ -3112,7 +3120,8 @@ async function populateWorldEntities(
   const willowWoodMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.9, flatShading: true });
   const willowFoliageMat = new THREE.MeshStandardMaterial({ color: 0x65a30d, roughness: 0.8, flatShading: true });
 
-  willowTreePositions.forEach(([wx, wz], widx) => {
+  for (let widx = 0; widx < willowTreePositions.length; widx++) {
+    const [wx, wz] = willowTreePositions[widx];
     const wy = getTerrainHeight(wx, wz);
     const willow = new THREE.Group();
     willow.position.set(wx, wy, wz);
@@ -3143,7 +3152,8 @@ async function populateWorldEntities(
 
     springGroup.add(willow);
     colliders.push({ type: 'circle', x: wx, z: wz, radius: 1.3, label: `Pohon Willow Mata Air ${widx + 1}` });
-  });
+    await cooperativeYield(4);
+  }
 
   // F. Cahaya Suci Lembut Mata Air (Soft Cyan Sacred Light)
   const springLight = new THREE.PointLight(0x38bdf8, 1.8, 30);
@@ -3156,6 +3166,9 @@ async function populateWorldEntities(
   // 10B. REGIONAL LANDMARK: LEMBAH BATU LUMUT (X: 600, Z: -120)
   // Formasi bongkahan granit alami berlumut, pohon rindang teduh, semak bunga, air terjun timur
   // ==========================================
+  onProgress?.(56, 'Membentuk Lembah Batu Lumut Granit & Air Terjun (56%)...');
+  await cooperativeYield(4);
+
   const mossValleyGroup = new THREE.Group();
   mossValleyGroup.name = 'Region_MossValley';
   const mvDX = 135; // 600 - 465
@@ -3174,7 +3187,7 @@ async function populateWorldEntities(
   });
 
   for (let m = 0; m < 32; m++) {
-    if (m > 0 && m % 8 === 0) await cooperativeYield(4);
+    if (m > 0 && m % 6 === 0) await cooperativeYield(4);
     const angle = (m / 32) * Math.PI * 2 + ((m * 17) % 7) * 0.15;
     const r = 8.0 + ((m * 19) % 24);
     const mx = 465 + mvDX + Math.cos(angle) * r;
@@ -3213,6 +3226,7 @@ async function populateWorldEntities(
 
   // Shady trees and peaceful glade in Moss Rock Valley
   for (let tr = 0; tr < 12; tr++) {
+    if (tr > 0 && tr % 4 === 0) await cooperativeYield(4);
     const angle = (tr / 12) * Math.PI * 2 + 0.3;
     const dist = 14 + (tr % 3) * 6;
     const tx = 465 + mvDX + Math.cos(angle) * dist;
@@ -3232,7 +3246,7 @@ async function populateWorldEntities(
   const shrubMat = new THREE.MeshStandardMaterial({ color: 0x4d7c0f, roughness: 0.8, flatShading: true });
   const flowerColors = [0xe879f9, 0x38bdf8, 0xfacc15, 0xf43f5e];
   for (let s = 0; s < 18; s++) {
-    if (s > 0 && s % 20 === 0) await cooperativeYield(4);
+    if (s > 0 && s % 6 === 0) await cooperativeYield(4);
     const sAngle = (s / 18) * Math.PI * 2 + 0.5;
     const sDist = 6 + (s % 5) * 4.5;
     const sx = 465 + mvDX + Math.cos(sAngle) * sDist;
@@ -3276,19 +3290,20 @@ async function populateWorldEntities(
   mossValleyGroup.add(basinPool);
 
   scene.add(mossValleyGroup);
+  await cooperativeYield(4);
 
   // ==========================================
   // 10C. REGIONAL LANDMARK: HUTAN KABUT ELDORIA (X: 640, Z: -340)
   // 150+ pohon pinus/oak lebat via InstancedMesh & lapisan kabut rendah
   // ==========================================
+  onProgress?.(57, 'Menumbuhkan Hutan Kabut Eldoria & Puing Kastil (57%)...');
+  await cooperativeYield(4);
+
   const mfDX = 305; // 640 - 335
   const mfDZ = -200; // -340 - (-140)
   const mistForestTreesData: { x: number; y: number; z: number; scale: number; rotationY: number }[] = [];
   for (let t = 0; t < 160; t++) {
     if (t > 0 && t % 20 === 0) await cooperativeYield(4);
-    if (t % 50 === 0) {
-      await yieldIfBudgetExceeded(8);
-    }
     const angle = (t / 160) * Math.PI * 2 * 11;
     const r = Math.sqrt((t + 1) / 160) * 58;
     const tx = 335 + mfDX + Math.cos(angle) * r;
@@ -3308,6 +3323,7 @@ async function populateWorldEntities(
   }
   const mistForestTreesMesh = createInstancedVillageTrees(mistForestTreesData);
   scene.add(mistForestTreesMesh);
+  await cooperativeYield(4);
 
   const mistPlanesGroup = new THREE.Group();
   for (let mp = 0; mp < 12; mp++) {
@@ -3323,6 +3339,7 @@ async function populateWorldEntities(
     mistPlanesGroup.add(mist);
   }
   scene.add(mistPlanesGroup);
+  await cooperativeYield(4);
 
   // ==========================================
   // 10D. REGIONAL LANDMARK: PUING KASTIL TERBENGKALAI (X: 420, Z: -140)

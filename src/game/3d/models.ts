@@ -789,60 +789,155 @@ export function createArrowMesh(): THREE.Group {
   return arrow;
 }
 
-// NPC Elder Vaelen
+// ==========================================
+// SHARED GEOMETRY & MATERIAL CACHE FOR NPCS
+// ==========================================
+const npcGeoCache = new Map<string, THREE.BufferGeometry>();
+const npcMatCache = new Map<string, THREE.Material>();
+
+export function getCachedNPCBox(w: number, h: number, d: number): THREE.BoxGeometry {
+  const key = `box_${w}_${h}_${d}`;
+  let geo = npcGeoCache.get(key) as THREE.BoxGeometry | undefined;
+  if (!geo) {
+    geo = new THREE.BoxGeometry(w, h, d);
+    npcGeoCache.set(key, geo);
+  }
+  return geo;
+}
+
+export function getCachedNPCCylinder(rt: number, rb: number, h: number, s = 8): THREE.CylinderGeometry {
+  const key = `cyl_${rt}_${rb}_${h}_${s}`;
+  let geo = npcGeoCache.get(key) as THREE.CylinderGeometry | undefined;
+  if (!geo) {
+    geo = new THREE.CylinderGeometry(rt, rb, h, s);
+    npcGeoCache.set(key, geo);
+  }
+  return geo;
+}
+
+export function getCachedNPCCone(r: number, h: number, s = 6): THREE.ConeGeometry {
+  const key = `cone_${r}_${h}_${s}`;
+  let geo = npcGeoCache.get(key) as THREE.ConeGeometry | undefined;
+  if (!geo) {
+    geo = new THREE.ConeGeometry(r, h, s);
+    npcGeoCache.set(key, geo);
+  }
+  return geo;
+}
+
+export function getCachedNPCSphere(r: number, ws = 8, hs = 8): THREE.SphereGeometry {
+  const key = `sphere_${r}_${ws}_${hs}`;
+  let geo = npcGeoCache.get(key) as THREE.SphereGeometry | undefined;
+  if (!geo) {
+    geo = new THREE.SphereGeometry(r, ws, hs);
+    npcGeoCache.set(key, geo);
+  }
+  return geo;
+}
+
+export function getCachedNPCTorus(r: number, tube: number, rs = 6, ts = 16): THREE.TorusGeometry {
+  const key = `torus_${r}_${tube}_${rs}_${ts}`;
+  let geo = npcGeoCache.get(key) as THREE.TorusGeometry | undefined;
+  if (!geo) {
+    geo = new THREE.TorusGeometry(r, tube, rs, ts);
+    npcGeoCache.set(key, geo);
+  }
+  return geo;
+}
+
+export function getCachedNPCOctahedron(r: number, d = 0): THREE.OctahedronGeometry {
+  const key = `octa_${r}_${d}`;
+  let geo = npcGeoCache.get(key) as THREE.OctahedronGeometry | undefined;
+  if (!geo) {
+    geo = new THREE.OctahedronGeometry(r, d);
+    npcGeoCache.set(key, geo);
+  }
+  return geo;
+}
+
+export function getCachedNPCLambert(color: number, flatShading = true): THREE.MeshLambertMaterial {
+  const key = `lambert_${color.toString(16)}_${flatShading}`;
+  let mat = npcMatCache.get(key) as THREE.MeshLambertMaterial | undefined;
+  if (!mat) {
+    mat = new THREE.MeshLambertMaterial({ color, flatShading });
+    npcMatCache.set(key, mat);
+  }
+  return mat;
+}
+
+export function getCachedNPCStandard(
+  color: number,
+  roughness = 0.5,
+  metalness = 0.0,
+  emissive = 0x000000,
+  emissiveIntensity = 0.0
+): THREE.MeshStandardMaterial {
+  const key = `standard_${color.toString(16)}_${roughness}_${metalness}_${emissive.toString(16)}_${emissiveIntensity}`;
+  let mat = npcMatCache.get(key) as THREE.MeshStandardMaterial | undefined;
+  if (!mat) {
+    mat = new THREE.MeshStandardMaterial({ color, roughness, metalness, emissive, emissiveIntensity });
+    npcMatCache.set(key, mat);
+  }
+  return mat;
+}
+
+export function getCachedNPCBasic(color: number): THREE.MeshBasicMaterial {
+  const key = `basic_${color.toString(16)}`;
+  let mat = npcMatCache.get(key) as THREE.MeshBasicMaterial | undefined;
+  if (!mat) {
+    mat = new THREE.MeshBasicMaterial({ color });
+    npcMatCache.set(key, mat);
+  }
+  return mat;
+}
+
+// NPC Elder Vaelen with Shared Cache
 export function createNPCMesh(): THREE.Group {
   const group = new THREE.Group();
 
   // Robe
-  const robeMat = new THREE.MeshLambertMaterial({ color: 0x311b92, flatShading: true });
-  const trimMat = new THREE.MeshLambertMaterial({ color: 0xffd54f, flatShading: true });
-  const skinMat = new THREE.MeshLambertMaterial({ color: 0xffd180, flatShading: true });
-  const beardMat = new THREE.MeshLambertMaterial({ color: 0xeeeeee, flatShading: true });
+  const robeMat = getCachedNPCLambert(0x311b92, true);
+  const skinMat = getCachedNPCLambert(0xffd180, true);
+  const beardMat = getCachedNPCLambert(0xeeeeee, true);
 
-  const robeGeo = new THREE.CylinderGeometry(0.35, 0.6, 1.5, 8);
+  const robeGeo = getCachedNPCCylinder(0.35, 0.6, 1.5, 8);
   const robe = new THREE.Mesh(robeGeo, robeMat);
   robe.position.y = 0.75;
   robe.castShadow = true;
   group.add(robe);
 
   // Head
-  const headGeo = new THREE.SphereGeometry(0.25, 8, 8);
+  const headGeo = getCachedNPCSphere(0.25, 8, 8);
   const head = new THREE.Mesh(headGeo, skinMat);
   head.position.y = 1.65;
   group.add(head);
 
   // Beard
-  const beardGeo = new THREE.ConeGeometry(0.2, 0.6, 6);
+  const beardGeo = getCachedNPCCone(0.2, 0.6, 6);
   const beard = new THREE.Mesh(beardGeo, beardMat);
   beard.position.set(0, 1.4, 0.15);
   beard.rotation.x = -0.2;
   group.add(beard);
 
   // Wizard Hat
-  const brimGeo = new THREE.CylinderGeometry(0.65, 0.65, 0.05, 8);
+  const brimGeo = getCachedNPCCylinder(0.65, 0.65, 0.05, 8);
   const brim = new THREE.Mesh(brimGeo, robeMat);
   brim.position.y = 1.85;
   group.add(brim);
 
-  const hatConeGeo = new THREE.ConeGeometry(0.4, 0.9, 8);
+  const hatConeGeo = getCachedNPCCone(0.4, 0.9, 8);
   const hatCone = new THREE.Mesh(hatConeGeo, robeMat);
   hatCone.position.set(0, 2.3, -0.1);
   hatCone.rotation.x = -0.2;
   group.add(hatCone);
 
   // Glowing Crystal Staff
-  const staffShaftGeo = new THREE.CylinderGeometry(0.04, 0.04, 2.1, 6);
-  staffShaftGeo.translate(0, 1.05, 0);
-  const staffShaft = new THREE.Mesh(staffShaftGeo, new THREE.MeshLambertMaterial({ color: 0x4e342e }));
-  staffShaft.position.set(0.5, 0, 0.2);
+  const staffShaftGeo = getCachedNPCCylinder(0.04, 0.04, 2.1, 6);
+  const staffShaft = new THREE.Mesh(staffShaftGeo, getCachedNPCLambert(0x4e342e));
+  staffShaft.position.set(0.5, 1.05, 0.2);
 
-  const crystalGeo = new THREE.OctahedronGeometry(0.22, 0);
-  const crystalMat = new THREE.MeshStandardMaterial({
-    color: 0x00e5ff,
-    emissive: 0x00e5ff,
-    emissiveIntensity: 0.9,
-    roughness: 0.1,
-  });
+  const crystalGeo = getCachedNPCOctahedron(0.22, 0);
+  const crystalMat = getCachedNPCStandard(0x00e5ff, 0.1, 0.0, 0x00e5ff, 0.9);
   const crystal = new THREE.Mesh(crystalGeo, crystalMat);
   crystal.position.set(0.5, 2.15, 0.2);
   group.add(staffShaft, crystal);
@@ -850,9 +945,9 @@ export function createNPCMesh(): THREE.Group {
   // Floating quest exclamation icon
   const iconGroup = new THREE.Group();
   iconGroup.name = 'questIcon';
-  const iconGeo = new THREE.BoxGeometry(0.12, 0.5, 0.12);
-  const dotGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
-  const iconMat = new THREE.MeshBasicMaterial({ color: 0xffeb3b });
+  const iconGeo = getCachedNPCBox(0.12, 0.5, 0.12);
+  const dotGeo = getCachedNPCBox(0.12, 0.12, 0.12);
+  const iconMat = getCachedNPCBasic(0xffeb3b);
   const iconBar = new THREE.Mesh(iconGeo, iconMat);
   iconBar.position.y = 0.2;
   const iconDot = new THREE.Mesh(dotGeo, iconMat);
@@ -2906,198 +3001,194 @@ export function createVillageArchMesh(title: string = 'GERBANG ELDORIA'): THREE.
   return arch;
 }
 
-// Custom NPC Models with distinctive roles
+// Custom NPC Models with distinctive roles using Shared Geometry & Material Cache
 export function createCustomNPCMesh(role: 'elder' | 'guard' | 'alchemist' | 'blacksmith' | 'bard' | 'fisherman' | 'villager' | 'commander' | 'seer' | 'frostsmith' | 'emperor' | 'marshal'): THREE.Group {
   const group = new THREE.Group();
-  const skinMat = new THREE.MeshLambertMaterial({ color: 0xffd180, flatShading: true });
+  const skinMat = getCachedNPCLambert(0xffd180, true);
 
   if (role === 'guard') {
     // Kapten Ronald - Village Guard Captain in steel plate & halberd
-    const armorMat = new THREE.MeshStandardMaterial({ color: 0x90a4ae, metalness: 0.8, roughness: 0.3 });
-    const redMat = new THREE.MeshLambertMaterial({ color: 0xd32f2f });
+    const armorMat = getCachedNPCStandard(0x90a4ae, 0.3, 0.8);
+    const redMat = getCachedNPCLambert(0xd32f2f, true);
 
     // Armor Torso
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.9, 0.5), armorMat);
+    const body = new THREE.Mesh(getCachedNPCBox(0.75, 0.9, 0.5), armorMat);
     body.position.y = 1.35;
     body.castShadow = true;
     group.add(body);
 
     // Helmet with red crest
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), armorMat);
+    const head = new THREE.Mesh(getCachedNPCBox(0.5, 0.5, 0.5), armorMat);
     head.position.y = 2.05;
-    const crest = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.3, 0.6), redMat);
+    const crest = new THREE.Mesh(getCachedNPCBox(0.12, 0.3, 0.6), redMat);
     crest.position.y = 2.45;
     group.add(head, crest);
 
     // Pauldrons
-    const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, 0.35), armorMat);
+    const p1 = new THREE.Mesh(getCachedNPCBox(0.3, 0.25, 0.35), armorMat);
     p1.position.set(0.5, 1.8, 0);
-    const p2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, 0.35), armorMat);
+    const p2 = new THREE.Mesh(getCachedNPCBox(0.3, 0.25, 0.35), armorMat);
     p2.position.set(-0.5, 1.8, 0);
     group.add(p1, p2);
 
     // Legs
-    const l1 = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.85, 0.28), armorMat);
+    const l1 = new THREE.Mesh(getCachedNPCBox(0.28, 0.85, 0.28), armorMat);
     l1.position.set(0.2, 0.45, 0);
-    const l2 = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.85, 0.28), armorMat);
+    const l2 = new THREE.Mesh(getCachedNPCBox(0.28, 0.85, 0.28), armorMat);
     l2.position.set(-0.2, 0.45, 0);
     group.add(l1, l2);
 
     // Royal Spear / Halberd
-    const spearShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.6, 6), new THREE.MeshLambertMaterial({ color: 0x4e342e }));
+    const spearShaft = new THREE.Mesh(getCachedNPCCylinder(0.04, 0.04, 2.6, 6), getCachedNPCLambert(0x4e342e));
     spearShaft.position.set(0.55, 1.3, 0.2);
-    const spearHead = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.5, 4), armorMat);
+    const spearHead = new THREE.Mesh(getCachedNPCCone(0.14, 0.5, 4), armorMat);
     spearHead.position.set(0.55, 2.7, 0.2);
     group.add(spearShaft, spearHead);
   } else if (role === 'alchemist') {
     // Anya - Herbalist & Alchemist
-    const robeMat = new THREE.MeshLambertMaterial({ color: 0x1b5e20 });
-    const apronMat = new THREE.MeshLambertMaterial({ color: 0xf5f5f5 });
+    const robeMat = getCachedNPCLambert(0x1b5e20);
+    const apronMat = getCachedNPCLambert(0xf5f5f5);
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.85, 0.4), robeMat);
+    const body = new THREE.Mesh(getCachedNPCBox(0.65, 0.85, 0.4), robeMat);
     body.position.y = 1.3;
-    const apron = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.65, 0.05), apronMat);
+    const apron = new THREE.Mesh(getCachedNPCBox(0.5, 0.65, 0.05), apronMat);
     apron.position.set(0, 1.25, 0.22);
     group.add(body, apron);
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.45), skinMat);
+    const head = new THREE.Mesh(getCachedNPCBox(0.45, 0.45, 0.45), skinMat);
     head.position.y = 1.95;
-    const hair = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.5), new THREE.MeshLambertMaterial({ color: 0xd97706 }));
+    const hair = new THREE.Mesh(getCachedNPCBox(0.5, 0.35, 0.5), getCachedNPCLambert(0xd97706));
     hair.position.y = 2.15;
     group.add(head, hair);
 
     // Belt with potion vials
-    const v1 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 6), new THREE.MeshBasicMaterial({ color: 0x10b981 }));
+    const v1 = new THREE.Mesh(getCachedNPCCylinder(0.05, 0.05, 0.2, 6), getCachedNPCBasic(0x10b981));
     v1.position.set(0.35, 0.95, 0.15);
-    const v2 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 6), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+    const v2 = new THREE.Mesh(getCachedNPCCylinder(0.05, 0.05, 0.2, 6), getCachedNPCBasic(0x38bdf8));
     v2.position.set(-0.35, 0.95, 0.15);
     group.add(v1, v2);
   } else if (role === 'blacksmith') {
     // Master Torvald - Heavy Blacksmith
-    const skinTanned = new THREE.MeshLambertMaterial({ color: 0xd7a15c });
-    const leatherMat = new THREE.MeshLambertMaterial({ color: 0x4e342e });
+    const skinTanned = getCachedNPCLambert(0xd7a15c);
+    const leatherMat = getCachedNPCLambert(0x4e342e);
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.9, 0.55), leatherMat);
+    const body = new THREE.Mesh(getCachedNPCBox(0.85, 0.9, 0.55), leatherMat);
     body.position.y = 1.35;
     group.add(body);
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinTanned);
+    const head = new THREE.Mesh(getCachedNPCBox(0.5, 0.5, 0.5), skinTanned);
     head.position.y = 2.05;
-    const beard = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.35, 0.2), new THREE.MeshLambertMaterial({ color: 0x374151 }));
+    const beard = new THREE.Mesh(getCachedNPCBox(0.42, 0.35, 0.2), getCachedNPCLambert(0x374151));
     beard.position.set(0, 1.85, 0.22);
     group.add(head, beard);
 
     // Heavy Smithing Hammer in hand
-    const hammerShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.9, 6), new THREE.MeshLambertMaterial({ color: 0x5d4037 }));
+    const hammerShaft = new THREE.Mesh(getCachedNPCCylinder(0.04, 0.04, 0.9, 6), getCachedNPCLambert(0x5d4037));
     hammerShaft.position.set(0.55, 0.9, 0.2);
-    const hammerHead = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 0.4), new THREE.MeshStandardMaterial({ color: 0x37474f, metalness: 0.8 }));
+    const hammerHead = new THREE.Mesh(getCachedNPCBox(0.25, 0.25, 0.4), getCachedNPCStandard(0x37474f, 0.5, 0.8));
     hammerHead.position.set(0.55, 1.3, 0.2);
     group.add(hammerShaft, hammerHead);
   } else if (role === 'bard') {
     // Lyra the Wandering Bard
-    const bardMat = new THREE.MeshLambertMaterial({ color: 0x7c3aed });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.85, 0.4), bardMat);
+    const bardMat = getCachedNPCLambert(0x7c3aed);
+    const body = new THREE.Mesh(getCachedNPCBox(0.65, 0.85, 0.4), bardMat);
     body.position.y = 1.3;
     group.add(body);
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.45), skinMat);
+    const head = new THREE.Mesh(getCachedNPCBox(0.45, 0.45, 0.45), skinMat);
     head.position.y = 1.95;
-    const featherHat = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.4, 5), bardMat);
+    const featherHat = new THREE.Mesh(getCachedNPCCone(0.35, 0.4, 5), bardMat);
     featherHat.position.set(0, 2.3, 0);
-    const feather = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.45, 0.05), new THREE.MeshBasicMaterial({ color: 0xf59e0b }));
+    const feather = new THREE.Mesh(getCachedNPCBox(0.05, 0.45, 0.05), getCachedNPCBasic(0xf59e0b));
     feather.position.set(0.2, 2.45, 0);
     feather.rotation.z = -0.4;
     group.add(head, featherHat, feather);
 
     // Lute on back
-    const luteBody = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), new THREE.MeshLambertMaterial({ color: 0xb45309 }));
+    const luteBody = new THREE.Mesh(getCachedNPCSphere(0.25, 8, 8), getCachedNPCLambert(0xb45309));
     luteBody.scale.set(0.8, 1.1, 0.4);
     luteBody.position.set(0, 1.4, -0.3);
-    const luteNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.6, 6), new THREE.MeshLambertMaterial({ color: 0x78350f }));
+    const luteNeck = new THREE.Mesh(getCachedNPCCylinder(0.03, 0.03, 0.6, 6), getCachedNPCLambert(0x78350f));
     luteNeck.position.set(0, 1.8, -0.3);
     group.add(luteBody, luteNeck);
   } else if (role === 'fisherman') {
     // Pak Joko - Coastal Fisherman
-    const vestMat = new THREE.MeshLambertMaterial({ color: 0x0284c7 });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.85, 0.42), vestMat);
+    const vestMat = getCachedNPCLambert(0x0284c7);
+    const body = new THREE.Mesh(getCachedNPCBox(0.65, 0.85, 0.42), vestMat);
     body.position.y = 1.3;
     group.add(body);
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.45), skinMat);
+    const head = new THREE.Mesh(getCachedNPCBox(0.45, 0.45, 0.45), skinMat);
     head.position.y = 1.95;
     // Straw sun hat
-    const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.06, 8), new THREE.MeshLambertMaterial({ color: 0xfef08a }));
+    const hatBrim = new THREE.Mesh(getCachedNPCCylinder(0.65, 0.65, 0.06, 8), getCachedNPCLambert(0xfef08a));
     hatBrim.position.y = 2.18;
-    const hatTop = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.3, 8), new THREE.MeshLambertMaterial({ color: 0xfde047 }));
+    const hatTop = new THREE.Mesh(getCachedNPCCone(0.35, 0.3, 8), getCachedNPCLambert(0xfde047));
     hatTop.position.y = 2.35;
     group.add(head, hatBrim, hatTop);
 
     // Bamboo Fishing Rod
-    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.04, 2.8, 6), new THREE.MeshLambertMaterial({ color: 0xa16207 }));
+    const rod = new THREE.Mesh(getCachedNPCCylinder(0.025, 0.04, 2.8, 6), getCachedNPCLambert(0xa16207));
     rod.position.set(0.45, 1.5, 0.3);
     rod.rotation.x = -0.35;
     group.add(rod);
   } else if (role === 'commander') {
     // Komandan Brann - Highland Fortress Commander
-    const heavySteel = new THREE.MeshStandardMaterial({ color: 0x1f2937, metalness: 0.9, roughness: 0.25 });
-    const goldTrim = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.8, roughness: 0.3 });
-    const peltMat = new THREE.MeshLambertMaterial({ color: 0xd6d3d1 }); // White wolf pelt mantle
+    const heavySteel = getCachedNPCStandard(0x1f2937, 0.25, 0.9);
+    const goldTrim = getCachedNPCStandard(0xd97706, 0.3, 0.8);
+    const peltMat = getCachedNPCLambert(0xd6d3d1);
 
     // Heavy Plated Body
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.95, 0.52), heavySteel);
+    const body = new THREE.Mesh(getCachedNPCBox(0.82, 0.95, 0.52), heavySteel);
     body.position.y = 1.35;
     body.castShadow = true;
     group.add(body);
 
     // Wolf pelt mantle / fur collar
-    const mantle = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.35, 0.65), peltMat);
+    const mantle = new THREE.Mesh(getCachedNPCBox(1.05, 0.35, 0.65), peltMat);
     mantle.position.y = 1.85;
     group.add(mantle);
 
     // Horned War Helm
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.52, 0.52), heavySteel);
+    const head = new THREE.Mesh(getCachedNPCBox(0.52, 0.52, 0.52), heavySteel);
     head.position.y = 2.15;
-    const hornL = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.35, 4), goldTrim);
+    const hornL = new THREE.Mesh(getCachedNPCCone(0.08, 0.35, 4), goldTrim);
     hornL.position.set(0.35, 2.45, 0);
     hornL.rotation.z = -0.6;
-    const hornR = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.35, 4), goldTrim);
+    const hornR = new THREE.Mesh(getCachedNPCCone(0.08, 0.35, 4), goldTrim);
     hornR.position.set(-0.35, 2.45, 0);
     hornR.rotation.z = 0.6;
     group.add(head, hornL, hornR);
 
     // Giant Bastard Greatsword strapped on back
-    const swordShaft = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.2, 0.05), heavySteel);
+    const swordShaft = new THREE.Mesh(getCachedNPCBox(0.18, 2.2, 0.05), heavySteel);
     swordShaft.position.set(0, 1.6, -0.32);
     swordShaft.rotation.z = 0.25;
-    const swordHilt = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.1, 0.1), goldTrim);
+    const swordHilt = new THREE.Mesh(getCachedNPCBox(0.65, 0.1, 0.1), goldTrim);
     swordHilt.position.set(-0.15, 2.5, -0.32);
     group.add(swordShaft, swordHilt);
   } else if (role === 'seer') {
     // Elora - Astrologer & Mystic Seer
-    const seerRobe = new THREE.MeshLambertMaterial({ color: 0x312e81 }); // Midnight indigo
-    const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8 });
-    const orbGlow = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.9,
-    });
+    const seerRobe = getCachedNPCLambert(0x312e81);
+    const goldMat = getCachedNPCStandard(0xf59e0b, 0.5, 0.8);
+    const orbGlow = getCachedNPCStandard(0x38bdf8, 0.5, 0.0, 0x0284c7, 0.9);
 
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 1.5, 8), seerRobe);
+    const body = new THREE.Mesh(getCachedNPCCylinder(0.35, 0.55, 1.5, 8), seerRobe);
     body.position.y = 1.0;
     group.add(body);
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), skinMat);
+    const head = new THREE.Mesh(getCachedNPCBox(0.42, 0.42, 0.42), skinMat);
     head.position.y = 1.95;
     // Golden Astrolabe Circlet
-    const circlet = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.035, 6, 16), goldMat);
+    const circlet = new THREE.Mesh(getCachedNPCTorus(0.28, 0.035, 6, 16), goldMat);
     circlet.position.set(0, 2.05, 0);
     circlet.rotation.x = Math.PI / 2;
     group.add(head, circlet);
 
     // Floating Astrolabe Orb
-    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), orbGlow);
+    const orb = new THREE.Mesh(getCachedNPCSphere(0.2, 12, 12), orbGlow);
     orb.position.set(0.45, 1.7, 0.35);
-    const orbRing = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.02, 6, 16), goldMat);
+    const orbRing = new THREE.Mesh(getCachedNPCTorus(0.28, 0.02, 6, 16), goldMat);
     orbRing.position.copy(orb.position);
     group.add(orb, orbRing);
 
@@ -3106,110 +3197,105 @@ export function createCustomNPCMesh(role: 'elder' | 'guard' | 'alchemist' | 'bla
     group.add(orbLight);
   } else if (role === 'frostsmith') {
     // Goran - Highland Frost-Smith
-    const smithApron = new THREE.MeshLambertMaterial({ color: 0x374151 });
-    const frostSteel = new THREE.MeshStandardMaterial({
-      color: 0x93c5fd,
-      emissive: 0x3b82f6,
-      emissiveIntensity: 0.4,
-      metalness: 0.85,
-    });
+    const smithApron = getCachedNPCLambert(0x374151);
+    const frostSteel = getCachedNPCStandard(0x93c5fd, 0.5, 0.85, 0x3b82f6, 0.4);
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.9, 0.52), smithApron);
+    const body = new THREE.Mesh(getCachedNPCBox(0.85, 0.9, 0.52), smithApron);
     body.position.y = 1.35;
     group.add(body);
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.48, 0.48), skinMat);
+    const head = new THREE.Mesh(getCachedNPCBox(0.48, 0.48, 0.48), skinMat);
     head.position.y = 2.05;
-    const beard = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.4, 0.25), new THREE.MeshLambertMaterial({ color: 0x94a3b8 }));
+    const beard = new THREE.Mesh(getCachedNPCBox(0.44, 0.4, 0.25), getCachedNPCLambert(0x94a3b8));
     beard.position.set(0, 1.85, 0.25);
     group.add(head, beard);
 
     // Frost Hammer
-    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.1, 6), new THREE.MeshLambertMaterial({ color: 0x475569 }));
+    const handle = new THREE.Mesh(getCachedNPCCylinder(0.04, 0.04, 1.1, 6), getCachedNPCLambert(0x475569));
     handle.position.set(0.55, 1.1, 0.2);
-    const sledge = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.55), frostSteel);
+    const sledge = new THREE.Mesh(getCachedNPCBox(0.3, 0.3, 0.55), frostSteel);
     sledge.position.set(0.55, 1.55, 0.2);
     group.add(handle, sledge);
   } else if (role === 'emperor') {
     // Kaisar Aurelius Astraea - Grand Emperor in White & Golden Regalia
-    const royalWhiteMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
-    const goldArmorMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85, roughness: 0.2 });
-    const capeMat = new THREE.MeshLambertMaterial({ color: 0x991b1b });
+    const royalWhiteMat = getCachedNPCStandard(0xf8fafc, 0.3, 0.0);
+    const goldArmorMat = getCachedNPCStandard(0xf59e0b, 0.2, 0.85);
+    const capeMat = getCachedNPCLambert(0x991b1b);
 
     // Imperial Robe Torso
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.75, 1.0, 0.5), royalWhiteMat);
+    const body = new THREE.Mesh(getCachedNPCBox(0.75, 1.0, 0.5), royalWhiteMat);
     body.position.y = 1.35;
-    const breastplate = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.6, 0.12), goldArmorMat);
+    const breastplate = new THREE.Mesh(getCachedNPCBox(0.7, 0.6, 0.12), goldArmorMat);
     breastplate.position.set(0, 1.45, 0.22);
     group.add(body, breastplate);
 
     // Flowing Royal Crimson Velvet Cape
-    const cape = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.3, 0.08), capeMat);
+    const cape = new THREE.Mesh(getCachedNPCBox(0.85, 1.3, 0.08), capeMat);
     cape.position.set(0, 1.25, -0.28);
     cape.rotation.x = 0.08;
     group.add(cape);
 
     // Head
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.48, 0.48), skinMat);
+    const head = new THREE.Mesh(getCachedNPCBox(0.48, 0.48, 0.48), skinMat);
     head.position.y = 2.05;
     // Golden Imperial Crown with Gem
-    const crownBase = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.28, 0.18, 8), goldArmorMat);
+    const crownBase = new THREE.Mesh(getCachedNPCCylinder(0.3, 0.28, 0.18, 8), goldArmorMat);
     crownBase.position.y = 2.38;
-    const crownSpikes = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.25, 6), goldArmorMat);
+    const crownSpikes = new THREE.Mesh(getCachedNPCCone(0.35, 0.25, 6), goldArmorMat);
     crownSpikes.position.y = 2.52;
     crownSpikes.rotation.x = Math.PI;
-    const ruby = new THREE.Mesh(new THREE.OctahedronGeometry(0.08, 0), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+    const ruby = new THREE.Mesh(getCachedNPCOctahedron(0.08, 0), getCachedNPCBasic(0xef4444));
     ruby.position.set(0, 2.45, 0.3);
     group.add(head, crownBase, crownSpikes, ruby);
 
     // Imperial Golden Sceptre of Astraea
-    const sceptreShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.8, 8), goldArmorMat);
+    const sceptreShaft = new THREE.Mesh(getCachedNPCCylinder(0.03, 0.03, 1.8, 8), goldArmorMat);
     sceptreShaft.position.set(0.55, 1.3, 0.25);
-    const sceptreOrb = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+    const sceptreOrb = new THREE.Mesh(getCachedNPCSphere(0.14, 8, 8), getCachedNPCBasic(0x38bdf8));
     sceptreOrb.position.set(0.55, 2.2, 0.25);
     group.add(sceptreShaft, sceptreOrb);
   } else if (role === 'marshal') {
     // Panglima Vane - Grand Marshal of the Imperial Legion
-    const goldArmorMat = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.85, roughness: 0.25 });
-    const royalBlueMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.4 });
+    const goldArmorMat = getCachedNPCStandard(0xd97706, 0.25, 0.85);
+    const royalBlueMat = getCachedNPCStandard(0x1e3a8a, 0.4, 0.0);
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.0, 0.52), goldArmorMat);
+    const body = new THREE.Mesh(getCachedNPCBox(0.8, 1.0, 0.52), goldArmorMat);
     body.position.y = 1.35;
-    const surcoat = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.8, 0.1), royalBlueMat);
+    const surcoat = new THREE.Mesh(getCachedNPCBox(0.65, 0.8, 0.1), royalBlueMat);
     surcoat.position.set(0, 1.3, 0.24);
     group.add(body, surcoat);
 
     // Heavy Pauldrons
-    const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.3, 0.4), goldArmorMat);
+    const p1 = new THREE.Mesh(getCachedNPCBox(0.35, 0.3, 0.4), goldArmorMat);
     p1.position.set(0.55, 1.85, 0);
-    const p2 = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.3, 0.4), goldArmorMat);
+    const p2 = new THREE.Mesh(getCachedNPCBox(0.35, 0.3, 0.4), goldArmorMat);
     p2.position.set(-0.55, 1.85, 0);
     group.add(p1, p2);
 
     // Winged Knight Helmet
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.52, 0.5), goldArmorMat);
+    const head = new THREE.Mesh(getCachedNPCBox(0.5, 0.52, 0.5), goldArmorMat);
     head.position.y = 2.05;
-    const wingL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.35, 0.25), royalBlueMat);
+    const wingL = new THREE.Mesh(getCachedNPCBox(0.06, 0.35, 0.25), royalBlueMat);
     wingL.position.set(0.3, 2.3, 0);
     wingL.rotation.z = 0.3;
-    const wingR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.35, 0.25), royalBlueMat);
+    const wingR = new THREE.Mesh(getCachedNPCBox(0.06, 0.35, 0.25), royalBlueMat);
     wingR.position.set(-0.3, 2.3, 0);
     wingR.rotation.z = -0.3;
     group.add(head, wingL, wingR);
 
     // Massive Imperial Greatsword in hand
-    const swordBlade = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.8, 0.04), goldArmorMat);
+    const swordBlade = new THREE.Mesh(getCachedNPCBox(0.12, 1.8, 0.04), goldArmorMat);
     swordBlade.position.set(0.6, 1.2, 0.2);
     swordBlade.rotation.z = -0.1;
     group.add(swordBlade);
   } else {
     // Villager Kael / Maya
-    const clothesMat = new THREE.MeshLambertMaterial({ color: 0x0d9488 });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.85, 0.4), clothesMat);
+    const clothesMat = getCachedNPCLambert(0x0d9488);
+    const body = new THREE.Mesh(getCachedNPCBox(0.65, 0.85, 0.4), clothesMat);
     body.position.y = 1.3;
     group.add(body);
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.45), skinMat);
+    const head = new THREE.Mesh(getCachedNPCBox(0.45, 0.45, 0.45), skinMat);
     head.position.y = 1.95;
     group.add(head);
   }
@@ -3217,9 +3303,9 @@ export function createCustomNPCMesh(role: 'elder' | 'guard' | 'alchemist' | 'bla
   // Floating interaction icon
   const iconGroup = new THREE.Group();
   iconGroup.name = 'questIcon';
-  const iconGeo = new THREE.BoxGeometry(0.12, 0.45, 0.12);
-  const dotGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
-  const iconMat = new THREE.MeshBasicMaterial({ color: 0xffeb3b });
+  const iconGeo = getCachedNPCBox(0.12, 0.45, 0.12);
+  const dotGeo = getCachedNPCBox(0.12, 0.12, 0.12);
+  const iconMat = getCachedNPCBasic(0xffeb3b);
   const iconBar = new THREE.Mesh(iconGeo, iconMat);
   iconBar.position.y = 0.2;
   const iconDot = new THREE.Mesh(dotGeo, iconMat);

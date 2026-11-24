@@ -114,8 +114,9 @@ import {
   SKILL_COOLDOWNS,
 } from '../skills';
 import { DayNightSystem, getSharedDayNightSystem } from './dayNightSystem';
-import { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield } from './frameBudget';
-export { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield };
+import { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield, yieldIfNeeded } from './frameBudget';
+import { getDeviceProfile } from '../utils/deviceProfiler';
+export { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield, yieldIfNeeded };
 
 export interface LootPickup {
   mesh: THREE.Group;
@@ -748,10 +749,8 @@ export class GameEngine {
         this.playerMesh.group.visible = true;
       }
       if (this.renderer) {
-        const isMobileOrLowEnd = typeof navigator !== 'undefined' && (
-          navigator.hardwareConcurrency <= 4 || /Android|iPhone|iPad/i.test(navigator.userAgent)
-        );
-        this.renderer.setPixelRatio(this.graphicsSettings.renderScale * Math.min(window.devicePixelRatio, isMobileOrLowEnd ? 1.0 : 1.5));
+        const profile = getDeviceProfile();
+        this.renderer.setPixelRatio(this.graphicsSettings.renderScale * Math.min(window.devicePixelRatio, profile.maxPixelRatio));
         this.renderer.shadowMap.enabled = this.graphicsSettings.shadows;
         this.renderer.shadowMap.autoUpdate = false;
         if (this.graphicsSettings.shadows) {
@@ -1124,11 +1123,9 @@ export class GameEngine {
       precision: 'mediump',
     });
     this.renderer.setSize(container.clientWidth, container.clientHeight);
-    const isMobileOrLowEnd = typeof navigator !== 'undefined' && (
-      navigator.hardwareConcurrency <= 4 || /Android|iPhone|iPad/i.test(navigator.userAgent)
-    );
+    const profile = getDeviceProfile();
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1;
-    this.renderer.setPixelRatio(this.graphicsSettings.renderScale * Math.min(dpr, isMobileOrLowEnd ? 1.0 : 1.5));
+    this.renderer.setPixelRatio(this.graphicsSettings.renderScale * Math.min(dpr, profile.maxPixelRatio));
     this.renderer.shadowMap.enabled = this.graphicsSettings.shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
@@ -1403,7 +1400,7 @@ export class GameEngine {
 
     // Tahap 6: 86% Mengompilasi Shader GPU Global (renderer.compile / compileAsync)
     onProgress?.(86, 'Mengompilasi Shader GPU Global (86%)...');
-    await cooperativeYield(8);
+    await yieldIfNeeded(true);
 
     if (this.renderer && this.scene && this.camera) {
       try {
@@ -1416,7 +1413,7 @@ export class GameEngine {
         console.warn('[Engine] Shader compilation warning:', e);
       }
     }
-    await cooperativeYield(8);
+    await yieldIfNeeded(true);
 
     // Tahap 7a: 90% In-Frustum GPU Shader Warm-Up Khusus Mage
     onProgress?.(90, 'Kompilasi Shader Pool Sihir Mage (90%)...');
@@ -1521,12 +1518,10 @@ export class GameEngine {
   public applyGraphicsSettings(settings: GraphicsSettings) {
     this.graphicsSettings = settings;
 
-    // 1. Resolution / Pixel ratio scaling (Great for Potato PCs)
-    const isMobileOrLowEnd = typeof navigator !== 'undefined' && (
-      navigator.hardwareConcurrency <= 4 || /Android|iPhone|iPad/i.test(navigator.userAgent)
-    );
+    // 1. Resolution / Pixel ratio scaling (Adapted to device profile)
+    const profile = getDeviceProfile();
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1;
-    this.renderer.setPixelRatio(settings.renderScale * Math.min(dpr, isMobileOrLowEnd ? 1.0 : 1.5));
+    this.renderer.setPixelRatio(settings.renderScale * Math.min(dpr, profile.maxPixelRatio));
 
     // 2. Shadows on/off (halves draw calls on low spec)
     this.renderer.shadowMap.enabled = settings.shadows;
@@ -1544,12 +1539,13 @@ export class GameEngine {
     }
 
     // 3. Render Distance / Camera Far & Fog Culling
-    this.camera.far = Math.max(50, settings.renderDistance);
+    this.camera.far = Math.max(50, settings.renderDistance * profile.drawDistanceScale);
     this.camera.updateProjectionMatrix();
 
     if (this.scene.fog && this.scene.fog instanceof THREE.Fog) {
-      this.scene.fog.far = settings.renderDistance;
-      this.scene.fog.near = settings.renderDistance * 0.35;
+      const farDist = settings.renderDistance * profile.drawDistanceScale;
+      this.scene.fog.far = farDist;
+      this.scene.fog.near = farDist * 0.35;
     }
   }
 
@@ -1941,7 +1937,7 @@ export class GameEngine {
       }
     };
 
-    onProgress?.(66, 'Menempatkan Populasi Monster & Peti Harta Karun (66%)...');
+    onProgress?.(62, 'Menempatkan Populasi Monster & Peti Harta Karun (62%)...');
     await cooperativeYield(8);
 
     // 1. Meadow Slimes (Lv. 1) - Relocated to Eastern Plains (> 85 units east from Sanctuary)
@@ -2220,7 +2216,7 @@ export class GameEngine {
     });
 
     // 8. Ancient Obsidian Titan Golem Boss in North Crater Arena (X: -220, Z: -400)
-    onProgress?.(62, 'Membangkitkan World Boss: Sang Titan Kuno Obsidian (62%)...');
+    onProgress?.(64, 'Membangkitkan World Boss: Sang Titan Kuno Obsidian (64%)...');
     await cooperativeYield(8);
     const bossPos: [number, number] = [SPAWN_TITAN.x, SPAWN_TITAN.z];
     const { group: bossGroup, parts: bossParts } = createEnemyMesh('boss');
@@ -2483,6 +2479,8 @@ export class GameEngine {
     });
 
     // 14. Kaldera Naga Api: Magma Drakes & Ancient Dragon Titan Guardian (Dragonfang Caldera Archipelago [40, 840])
+    onProgress?.(66, 'Membangkitkan Penguasa Kaldera & Pasukan Monster Gurun (66%)...');
+    await cooperativeYield(4);
     const dragonPositions: [number, number][] = [
       [22, 825],  // Pulau Utama (Dekat celah masuk utara)
       [58, 832],  // Pulau Utama (Lereng timur kawah)

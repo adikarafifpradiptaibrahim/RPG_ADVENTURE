@@ -20,7 +20,8 @@ import {
   RIVER_MAIN_DOWNSTREAM,
 } from '../mapSampler';
 import { SpatialLookupGrid } from './spatialGrid';
-import { checkFrameBudget, yieldIfBudgetExceeded, yieldToChrome } from './frameBudget';
+import { checkFrameBudget, yieldIfBudgetExceeded, yieldToChrome, yieldIfNeeded, cooperativeYield } from './frameBudget';
+import { getDeviceProfile } from '../utils/deviceProfiler';
 
 export interface WorldEnvironmentResult {
   group: THREE.Group;
@@ -29,24 +30,7 @@ export interface WorldEnvironmentResult {
   setVegetationVisible: (visible: boolean) => void;
 }
 
-let lastYieldTime = performance.now();
-
-/**
- * Time-Budgeted Yield: Ensures browser UI thread and loading spinner animation
- * render at 60 FPS without ever triggering "Page Unresponsive" dialog.
- */
-export async function yieldIfNeeded(budgetMs = 8): Promise<void> {
-  if (performance.now() - lastYieldTime >= budgetMs) {
-    await new Promise<void>((resolve) => {
-      if (typeof requestAnimationFrame !== 'undefined') {
-        requestAnimationFrame(() => resolve());
-      } else {
-        setTimeout(resolve, 0);
-      }
-    });
-    lastYieldTime = performance.now();
-  }
-}
+export { yieldIfNeeded };
 
 export async function cooperativeYield(budgetMs = 8): Promise<void> {
   return yieldIfNeeded(budgetMs);
@@ -2263,8 +2247,11 @@ export async function buildWorldEnvironmentAsync(
   // 8. DISTRIBUSI VEGETASI ALAMI MASIF MENGGUNAKAN THREE.InstancedMesh (60 FPS)
   // Jittered Grid Sampling O(N) 1x Lewat Saja - Anti-Lag & Bebas Page Unresponsive
   // Sub-tahap: 50% Oak -> 53% Cemara -> 56% Bebatuan -> 60% Rumput -> 64% Semak & Pantai
+  // Otomatis berskala dengan spesifikasi perangkat (Low / Medium / High Tier)
   // ============================================================================
   const dummy = new THREE.Object3D();
+  const deviceProfile = getDeviceProfile();
+  const propScale = deviceProfile.propDensityScale;
 
   const spatialGrid = SpatialLookupGrid.get();
   if (!spatialGrid.isBuilt) {
@@ -2290,9 +2277,9 @@ export async function buildWorldEnvironmentAsync(
     return false;
   }
 
-  // 1. SUB-TAHAP 70%: POHON OAK RINDANG / PINUS HIJAU (MAX 1.100 INSTANCE)
+  // 1. SUB-TAHAP 70%: POHON OAK RINDANG / PINUS HIJAU (BERSKALA PERANGKAT)
   onProgress?.(70, 'Menanam Pohon Oak Rindang (InstancedMesh)...');
-  const OAK_COUNT = 1100;
+  const OAK_COUNT = Math.max(100, Math.round(1100 * propScale));
   const oakTrunkGeo = new THREE.CylinderGeometry(0.32, 0.46, 2.6, 6);
   oakTrunkGeo.translate(0, 1.3, 0);
   const oakCrownGeo = new THREE.DodecahedronGeometry(2.1, 0);
@@ -2307,8 +2294,8 @@ export async function buildWorldEnvironmentAsync(
   for (let x = -600; x < 680 && oakAssigned < OAK_COUNT; x += oakStep) {
     for (let z = -800; z < 100 && oakAssigned < OAK_COUNT; z += oakStep) {
       oakIter++;
-      if (oakIter % 40 === 0) {
-        await yieldIfNeeded(8);
+      if (oakIter % 25 === 0) {
+        await yieldIfNeeded();
       }
       const ox = x + (0.15 + Math.random() * 0.7) * oakStep;
       const oz = z + (0.15 + Math.random() * 0.7) * oakStep;
@@ -2335,10 +2322,11 @@ export async function buildWorldEnvironmentAsync(
   oakTrunkMesh.computeBoundingSphere();
   oakCrownMesh.computeBoundingSphere();
   envGroup.add(oakTrunkMesh, oakCrownMesh);
+  await yieldIfNeeded(true);
 
-  // 2. SUB-TAHAP 72%: POHON CEMARA SEGITIGA (MAX 900 INSTANCE)
+  // 2. SUB-TAHAP 72%: POHON CEMARA SEGITIGA (BERSKALA PERANGKAT)
   onProgress?.(72, 'Menempatkan Rumpun Pohon Cemara (InstancedMesh)...');
-  const PINE_COUNT = 900;
+  const PINE_COUNT = Math.max(100, Math.round(900 * propScale));
   const pineTrunkGeo = new THREE.CylinderGeometry(0.22, 0.34, 2.2, 5);
   pineTrunkGeo.translate(0, 1.1, 0);
 
@@ -2360,8 +2348,8 @@ export async function buildWorldEnvironmentAsync(
   for (let x = -607; x < 675 && pineAssigned < PINE_COUNT; x += pineStep) {
     for (let z = -807; z < 105 && pineAssigned < PINE_COUNT; z += pineStep) {
       pineIter++;
-      if (pineIter % 40 === 0) {
-        await yieldIfNeeded(8);
+      if (pineIter % 25 === 0) {
+        await yieldIfNeeded();
       }
       const px = x + (0.15 + Math.random() * 0.7) * pineStep;
       const pz = z + (0.15 + Math.random() * 0.7) * pineStep;
@@ -2396,10 +2384,11 @@ export async function buildWorldEnvironmentAsync(
   pineFoliageMesh2.computeBoundingSphere();
   pineFoliageMesh3.computeBoundingSphere();
   envGroup.add(pineTrunkMesh, pineFoliageMesh1, pineFoliageMesh2, pineFoliageMesh3);
+  await yieldIfNeeded(true);
 
-  // 3. SUB-TAHAP 74%: FORMASI BEBATUAN GRANIT & KRISTAL (MAX 800 INSTANCE)
+  // 3. SUB-TAHAP 74%: FORMASI BEBATUAN GRANIT & KRISTAL (BERSKALA PERANGKAT)
   onProgress?.(74, 'Membentuk Formasi Bebatuan & Kristal (InstancedMesh)...');
-  const BOULDER_COUNT = 800;
+  const BOULDER_COUNT = Math.max(100, Math.round(800 * propScale));
   const boulderGeo = new THREE.DodecahedronGeometry(1.0, 0);
   const boulderMesh = new THREE.InstancedMesh(boulderGeo, matBoulder, BOULDER_COUNT);
 
@@ -2409,8 +2398,8 @@ export async function buildWorldEnvironmentAsync(
   for (let x = -454; x < 400 && boulderAssigned < BOULDER_COUNT; x += boulderStep) {
     for (let z = -404; z < 180 && boulderAssigned < BOULDER_COUNT; z += boulderStep) {
       boulderIter++;
-      if (boulderIter % 40 === 0) {
-        await yieldIfNeeded(8);
+      if (boulderIter % 25 === 0) {
+        await yieldIfNeeded();
       }
       const bx = x + (0.15 + Math.random() * 0.7) * boulderStep;
       const bz = z + (0.15 + Math.random() * 0.7) * boulderStep;
@@ -2434,10 +2423,11 @@ export async function buildWorldEnvironmentAsync(
   boulderMesh.instanceMatrix.needsUpdate = true;
   boulderMesh.computeBoundingSphere();
   envGroup.add(boulderMesh);
+  await yieldIfNeeded(true);
 
-  // 4. SUB-TAHAP 76%: RUMPUN RUMPUT HIJAU PADANG RUMPUT (MAX 3.500 INSTANCE)
+  // 4. SUB-TAHAP 76%: RUMPUN RUMPUT HIJAU PADANG RUMPUT (BERSKALA PERANGKAT)
   onProgress?.(76, 'Menumbuhkan Padang Rumput Hijau (InstancedMesh)...');
-  const PLAINS_GRASS_COUNT = 3500;
+  const PLAINS_GRASS_COUNT = Math.max(200, Math.round(3500 * propScale));
   const plainsGrassGeo = new THREE.ConeGeometry(0.35, 0.75, 4);
   const matPlainsGrass = new THREE.MeshStandardMaterial({
     color: 0x5da84e,
@@ -2453,8 +2443,8 @@ export async function buildWorldEnvironmentAsync(
   for (let x = -600; x < 680 && pgAssigned < PLAINS_GRASS_COUNT; x += grassStep) {
     for (let z = -800; z < 100 && pgAssigned < PLAINS_GRASS_COUNT; z += grassStep) {
       pgIter++;
-      if (pgIter % 40 === 0) {
-        await yieldIfNeeded(8);
+      if (pgIter % 25 === 0) {
+        await yieldIfNeeded();
       }
       const gx = x + (0.15 + Math.random() * 0.7) * grassStep;
       const gz = z + (0.15 + Math.random() * 0.7) * grassStep;
@@ -2477,10 +2467,11 @@ export async function buildWorldEnvironmentAsync(
   plainsGrassMesh.instanceMatrix.needsUpdate = true;
   plainsGrassMesh.computeBoundingSphere();
   envGroup.add(plainsGrassMesh);
+  await yieldIfNeeded(true);
 
-  // 5. SUB-TAHAP 78%: SEMAK LIAR, BATU KARANG & VEGETASI PANTAI (MAX 750 + 60 + 80)
+  // 5. SUB-TAHAP 78%: SEMAK LIAR, BATU KARANG & VEGETASI PANTAI (BERSKALA PERANGKAT)
   onProgress?.(78, 'Menyebarkan Semak Liar & Vegetasi Pantai (InstancedMesh)...');
-  const SHRUB_COUNT = 750;
+  const SHRUB_COUNT = Math.max(80, Math.round(750 * propScale));
   const shrubGeo = new THREE.DodecahedronGeometry(0.65, 0);
   const shrubMesh = new THREE.InstancedMesh(shrubGeo, matShrub, SHRUB_COUNT);
 
@@ -2490,8 +2481,8 @@ export async function buildWorldEnvironmentAsync(
   for (let x = -600; x < 680 && shrubAssigned < SHRUB_COUNT; x += shrubStep) {
     for (let z = -800; z < 100 && shrubAssigned < SHRUB_COUNT; z += shrubStep) {
       shrubIter++;
-      if (shrubIter % 40 === 0) {
-        await yieldIfNeeded(8);
+      if (shrubIter % 25 === 0) {
+        await yieldIfNeeded();
       }
       const sx = x + (0.15 + Math.random() * 0.7) * shrubStep;
       const sz = z + (0.15 + Math.random() * 0.7) * shrubStep;
@@ -2514,9 +2505,10 @@ export async function buildWorldEnvironmentAsync(
   shrubMesh.instanceMatrix.needsUpdate = true;
   shrubMesh.computeBoundingSphere();
   envGroup.add(shrubMesh);
+  await yieldIfNeeded(true);
 
   // Batu Karang Laut Pesisir (Coastal Reef Stones): 60 Instances
-  const REEF_STONE_COUNT = 60;
+  const REEF_STONE_COUNT = Math.max(20, Math.round(60 * propScale));
   const reefStoneGeo = new THREE.DodecahedronGeometry(0.85, 0);
   const reefStoneMesh = new THREE.InstancedMesh(reefStoneGeo, matWetSeaRock, REEF_STONE_COUNT);
   let reefAssigned = 0;
@@ -2524,7 +2516,7 @@ export async function buildWorldEnvironmentAsync(
   for (let rx = -448; rx <= -410 && reefAssigned < REEF_STONE_COUNT; rx += 7) {
     for (let rz = -240; rz <= -50 && reefAssigned < REEF_STONE_COUNT; rz += 15) {
       reefIter++;
-      if (reefIter % 40 === 0) await yieldToChrome(5);
+      if (reefIter % 20 === 0) await yieldIfNeeded();
       if (spatialGrid.isDesert(rx, rz)) continue;
       const ry = spatialGrid.getHeight(rx, rz);
 
@@ -2546,7 +2538,7 @@ export async function buildWorldEnvironmentAsync(
   envGroup.add(reefStoneMesh);
 
   // Rumput Gumuk Pantai (Beach Dune Grass): 80 Instances
-  const BEACH_GRASS_COUNT = 80;
+  const BEACH_GRASS_COUNT = Math.max(25, Math.round(80 * propScale));
   const beachGrassGeo = new THREE.ConeGeometry(0.45, 0.9, 4);
   const beachGrassMesh = new THREE.InstancedMesh(beachGrassGeo, matBeachGrass, BEACH_GRASS_COUNT);
   let bgAssigned = 0;
@@ -2554,7 +2546,7 @@ export async function buildWorldEnvironmentAsync(
   for (let gx = -428; gx <= -402 && bgAssigned < BEACH_GRASS_COUNT; gx += 5) {
     for (let gz = -235; gz <= -55 && bgAssigned < BEACH_GRASS_COUNT; gz += 10) {
       bgIter++;
-      if (bgIter % 40 === 0) await yieldToChrome(5);
+      if (bgIter % 20 === 0) await yieldIfNeeded();
       if (spatialGrid.isDesert(gx, gz)) continue;
       const gy = spatialGrid.getHeight(gx, gz);
       if (gy < 0.25) continue;
