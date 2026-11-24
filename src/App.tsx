@@ -32,6 +32,15 @@ import {
 import { DIALOGUES, INITIAL_ITEMS, INITIAL_QUESTS } from './game/data';
 import { REGIONS } from './game/mapData';
 import { ShopId } from './game/shopData';
+import {
+  getGuestSaveData,
+  saveRoleProgress,
+  getRoleSave,
+  getDeviceSettings,
+  applyDeviceSettings,
+  resetAllGuestData,
+  RoleSaveData,
+} from './game/storage/guestSaveManager';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -119,6 +128,15 @@ export default function App() {
   // World Map & Minimap Live Position State
   const [playerPos, setPlayerPos] = useState({ x: 0, z: 4, rotationY: 0 });
   const [currentRegion, setCurrentRegion] = useState<RegionInfo>(REGIONS[0]);
+  const inventoryRef = useRef(inventory);
+  inventoryRef.current = inventory;
+  const questsRef = useRef(quests);
+  questsRef.current = quests;
+  const playerPosRef = useRef(playerPos);
+  playerPosRef.current = playerPos;
+  const currentRegionRef = useRef(currentRegion);
+  currentRegionRef.current = currentRegion;
+  const playTimeRef = useRef(0);
   const [mapMarkers, setMapMarkers] = useState<MapMarker[]>([]);
   const [hunterWeaponMode, setHunterWeaponMode] = useState<'dagger' | 'bow'>('dagger');
   const [castingState, setCastingState] = useState<{ isCasting: boolean; progress: number; text: string } | null>(null);
@@ -169,6 +187,18 @@ export default function App() {
       return next;
     });
   };
+
+  // Apply saved device settings automatically on initial launch
+  useEffect(() => {
+    const devSettings = getDeviceSettings();
+    applyDeviceSettings(devSettings);
+    if (devSettings.graphics) {
+      setGraphicsSettings(devSettings.graphics);
+    }
+    if (typeof devSettings.controls?.showTouchControls === 'boolean') {
+      setShowTouchControls(devSettings.controls.showTouchControls);
+    }
+  }, []);
 
   // Helper: Request Landscape Screen Orientation Lock (Paksa Landscape pada HP)
   const lockLandscapeOrientation = useCallback(async () => {
@@ -387,23 +417,114 @@ export default function App() {
     }
   };
 
+  // Play time tracker for active gameplay
+  useEffect(() => {
+    if (!hasStarted || gameMode !== 'singleplayer') return;
+    const timer = setInterval(() => {
+      playTimeRef.current += 1;
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [hasStarted, gameMode]);
+
+  // Centralized save function for the current active role
+  const handleSaveRoleProgress = useCallback(
+    (isManual = false) => {
+      if (!hasStarted || gameModeRef.current !== 'singleplayer') return;
+      const currentStats = statsRef.current;
+      const role = currentStats.characterClass || characterClass;
+      const pos = playerPosRef.current;
+      const regionName = currentRegionRef.current?.nameId || currentRegionRef.current?.name || 'Desa Sanctuary';
+
+      const roleData: RoleSaveData = {
+        stats: { ...currentStats },
+        inventory: [...inventoryRef.current],
+        quests: [...questsRef.current],
+        lastPosition: { x: pos.x, y: 0, z: pos.z },
+        lastRegion: regionName,
+        savedAt: Date.now(),
+        playTimeSeconds: playTimeRef.current,
+      };
+
+      const success = saveRoleProgress(role, roleData);
+      if (isManual) {
+        if (success) {
+          addFloatingText('💾 Game Berhasil Disimpan!', '#38bdf8', 'info');
+          soundManager.playLevelUp();
+        } else {
+          addFloatingText('Gagal menyimpan game!', '#ef4444', 'crit');
+        }
+      }
+    },
+    [hasStarted, characterClass, addFloatingText]
+  );
+
+  // Background auto-save every 10 seconds in single player
+  useEffect(() => {
+    if (!hasStarted || gameMode !== 'singleplayer') return;
+    const timer = setInterval(() => {
+      handleSaveRoleProgress(false);
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [hasStarted, gameMode, handleSaveRoleProgress]);
+
+  // Auto-save on page refresh / tab close
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (hasStarted && gameModeRef.current === 'singleplayer') {
+        handleSaveRoleProgress(false);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleBeforeUnload);
+    };
+  }, [hasStarted, handleSaveRoleProgress]);
+
   // Start Single Player Mode (100% Client-Side offline, no server/WebSocket connection)
-  const handleStartSinglePlayer = async (selectedClass: CharacterClass, slotData?: SaveSlotData) => {
+  const handleStartSinglePlayer = async (
+    selectedClass: CharacterClass,
+    slotData?: SaveSlotData,
+    continueRole = false
+  ) => {
     setIsPauseMenuOpen(false);
     setGameMode('singleplayer');
     multiplayerClient.disconnect();
-    applyClassStats(selectedClass);
 
-    if (slotData && !slotData.isEmpty && slotData.level) {
-      setStats((prev) => ({
-        ...prev,
-        level: slotData.level || 1,
-        hp: slotData.hp || prev.hp,
-        maxHp: slotData.maxHp || prev.maxHp,
-        mp: slotData.mp || prev.mp,
-        maxMp: slotData.maxMp || prev.maxMp,
-        gold: slotData.gold || prev.gold,
-      }));
+    const savedRole = getRoleSave(selectedClass);
+    if (continueRole && savedRole && savedRole.stats) {
+      setCharacterClass(selectedClass);
+      setStats(savedRole.stats);
+      statsRef.current = savedRole.stats;
+      if (Array.isArray(savedRole.inventory) && savedRole.inventory.length > 0) {
+        setInventory(savedRole.inventory);
+        inventoryRef.current = savedRole.inventory;
+      }
+      if (Array.isArray(savedRole.quests) && savedRole.quests.length > 0) {
+        setQuests(savedRole.quests);
+        questsRef.current = savedRole.quests;
+      }
+      playTimeRef.current = savedRole.playTimeSeconds || 0;
+    } else {
+      applyClassStats(selectedClass);
+      setInventory(INITIAL_ITEMS);
+      inventoryRef.current = INITIAL_ITEMS;
+      setQuests(INITIAL_QUESTS);
+      questsRef.current = INITIAL_QUESTS;
+      playTimeRef.current = 0;
+
+      if (slotData && !slotData.isEmpty && slotData.level) {
+        setStats((prev) => ({
+          ...prev,
+          level: slotData.level || 1,
+          hp: slotData.hp || prev.hp,
+          maxHp: slotData.maxHp || prev.maxHp,
+          mp: slotData.mp || prev.mp,
+          maxMp: slotData.maxMp || prev.maxMp,
+          gold: slotData.gold || prev.gold,
+        }));
+      }
     }
 
     setHasStarted(true);
@@ -424,6 +545,17 @@ export default function App() {
       engineRef.current.setCharacterClass(selectedClass);
       engineRef.current.clearRemotePlayers();
       engineRef.current.setMenuMode('gameplay');
+
+      // Teleport to saved position if continuing
+      if (continueRole && savedRole?.lastPosition) {
+        const { x, z } = savedRole.lastPosition;
+        if (typeof x === 'number' && typeof z === 'number' && !isNaN(x) && !isNaN(z)) {
+          engineRef.current.teleportTo(x, z);
+          setTimeout(() => {
+            addFloatingText(`Melanjutkan petualangan Lv. ${savedRole.stats.level}!`, '#38bdf8', 'info');
+          }, 300);
+        }
+      }
     }
 
     soundManager.playOverworldBGM(1.5);
@@ -477,6 +609,9 @@ export default function App() {
 
   // Return to Main Menu from Single Player
   const handleReturnToMainMenu = () => {
+    if (hasStarted && gameMode === 'singleplayer') {
+      handleSaveRoleProgress(false);
+    }
     setIsPauseMenuOpen(false);
     setHasStarted(false);
     soundManager.playMenuBGM(1.5);
@@ -527,10 +662,28 @@ export default function App() {
     if (!containerRef.current || engineRef.current) return;
 
     const engine = new GameEngine(containerRef.current, characterClass, {
-      onUpdateStats: (updater) => setStats(updater),
-      onUpdateQuests: (updater) => setQuests(updater),
+      onUpdateStats: (updater) => {
+        setStats((prev) => {
+          const next = updater(prev);
+          if (next.level > prev.level || next.statPoints !== prev.statPoints) {
+            setTimeout(() => handleSaveRoleProgress(false), 50);
+          }
+          return next;
+        });
+      },
+      onUpdateQuests: (updater) => {
+        setQuests((prev) => {
+          const next = updater(prev);
+          setTimeout(() => handleSaveRoleProgress(false), 50);
+          return next;
+        });
+      },
       onAddItem: (item) => {
-        setInventory((prev) => [...prev, item]);
+        setInventory((prev) => {
+          const next = [...prev, item];
+          setTimeout(() => handleSaveRoleProgress(false), 50);
+          return next;
+        });
       },
       onAddFloatingText: addFloatingText,
       onInteractNPC: (dialogueIdOrNpcId) => {
@@ -906,6 +1059,7 @@ export default function App() {
 
           addFloatingText(`+${q.rewardExp} EXP!`, '#42a5f5', 'exp');
           addFloatingText(`+${q.rewardGold} Gold!`, '#ffca28', 'exp');
+          setTimeout(() => handleSaveRoleProgress(false), 50);
 
           return { ...q, claimed: true };
         }
@@ -933,6 +1087,7 @@ export default function App() {
     });
     soundManager.playChestOpen();
     addFloatingText(`Beli: ${item.nameId} (${quantity}x)`, '#ffd700', 'info');
+    setTimeout(() => handleSaveRoleProgress(false), 50);
   };
 
   const handleSellItem = (item: Item, sellPrice: number) => {
@@ -949,6 +1104,7 @@ export default function App() {
     });
     soundManager.playLevelUp();
     addFloatingText(`+${sellPrice} Gold (Terjual: ${item.nameId})`, '#4caf50', 'exp');
+    setTimeout(() => handleSaveRoleProgress(false), 50);
   };
 
   const handleEnhanceItem = (item: Item, cost: number, upgradedItem: Item) => {
@@ -970,6 +1126,7 @@ export default function App() {
       '#f59e0b',
       'crit'
     );
+    setTimeout(() => handleSaveRoleProgress(false), 50);
   };
 
   const handleDialogueOption = (option: DialogueNode['options'][0]) => {
@@ -1262,6 +1419,7 @@ export default function App() {
             unreadChatCount={unreadChatCount}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenMenu={() => setIsPauseMenuOpen(true)}
+            onSaveGame={() => handleSaveRoleProgress(true)}
             showTouchControls={showTouchControls}
             onToggleTouchControls={handleToggleTouchControls}
             isFullscreen={isFullscreen}
@@ -1402,6 +1560,7 @@ export default function App() {
         onResume={handleResumeGame}
         onReturnToMainMenu={handleReturnToMainMenu}
         onDisconnectAndReturnToMainMenu={handleDisconnectAndReturnToMainMenu}
+        onSaveGame={() => handleSaveRoleProgress(true)}
       />
 
       {/* Graphics & Performance Settings Modal (Optimization for Low-End PCs) */}
@@ -1414,6 +1573,10 @@ export default function App() {
           addFloatingText('Pengaturan Grafis Diterapkan! âš™ï¸', '#38bdf8', 'info');
         }}
         onClose={() => setIsSettingsOpen(false)}
+        onResetGuest={() => {
+          handleReturnToMainMenu();
+          addFloatingText('Data Guest Lokal Direset!', '#ef4444', 'crit');
+        }}
       />
 
       {/* ============================================================== */}

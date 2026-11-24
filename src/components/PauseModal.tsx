@@ -21,6 +21,7 @@ import {
   Keyboard,
   Settings,
   ArrowLeft,
+  Save,
 } from 'lucide-react';
 import { soundManager } from '../game/audio';
 import {
@@ -51,6 +52,7 @@ interface PauseModalProps {
   onResume: () => void;
   onReturnToMainMenu: () => void;
   onDisconnectAndReturnToMainMenu: () => void;
+  onSaveGame?: () => void;
 }
 
 export const PauseModal: React.FC<PauseModalProps> = ({
@@ -65,9 +67,11 @@ export const PauseModal: React.FC<PauseModalProps> = ({
   onResume,
   onReturnToMainMenu,
   onDisconnectAndReturnToMainMenu,
+  onSaveGame,
 }) => {
   const [activeTab, setActiveTab] = useState<'grafik' | 'suara' | 'kontrol'>('grafik');
   const [pauseView, setPauseView] = useState<'menu' | 'settings'>('menu');
+  const [saveSuccessNotice, setSaveSuccessNotice] = useState<boolean>(false);
 
   // Reset to concise menu view every time pause modal opens
   useEffect(() => {
@@ -217,7 +221,26 @@ export const PauseModal: React.FC<PauseModalProps> = ({
               </span>
             </button>
 
-            {/* Tombol 2: PENGATURAN (SETTINGS) */}
+            {/* Tombol 2: SIMPAN GAME (Hanya Single Player) */}
+            {isSingle && (
+              <button
+                onClick={() => {
+                  onSaveGame?.();
+                  setSaveSuccessNotice(true);
+                  setTimeout(() => setSaveSuccessNotice(false), 2200);
+                }}
+                className={`flex w-full items-center justify-center gap-2.5 rounded-xl border px-4 py-3 font-bold text-sm tracking-wide transition active:scale-95 cursor-pointer shadow-md ${
+                  saveSuccessNotice
+                    ? 'border-emerald-400 bg-emerald-950/80 text-emerald-200'
+                    : 'border-blue-500/50 bg-blue-950/60 hover:bg-blue-900/60 hover:border-blue-400 text-blue-100'
+                }`}
+              >
+                <Save className="w-4 h-4 text-blue-400" />
+                <span>{saveSuccessNotice ? '✓ PROGRES TERSIMPAN KE BROWSER!' : '💾 SIMPAN GAME (SAVE GAME)'}</span>
+              </button>
+            )}
+
+            {/* Tombol 3: PENGATURAN (SETTINGS) */}
             <button
               onClick={() => setPauseView('settings')}
               className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-stone-700 bg-stone-900/90 hover:bg-stone-800 hover:border-amber-500/50 px-4 py-3 font-bold text-amber-100 text-sm tracking-wide transition active:scale-95 cursor-pointer shadow-md"
@@ -226,7 +249,7 @@ export const PauseModal: React.FC<PauseModalProps> = ({
               <span>PENGATURAN (SETTINGS)</span>
             </button>
 
-            {/* Tombol 3: KELUAR KE MENU UTAMA (EXIT) */}
+            {/* Tombol 4: KELUAR KE MENU UTAMA (EXIT) */}
             <button
               onClick={isSingle ? onReturnToMainMenu : onDisconnectAndReturnToMainMenu}
               className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-red-900/50 bg-stone-950/80 hover:bg-red-950/60 hover:border-red-500/60 px-4 py-2.5 font-bold text-red-300 text-xs tracking-wide transition active:scale-95 cursor-pointer mt-1"

@@ -32,6 +32,7 @@ import {
   Minimize2,
   Camera,
   Smartphone,
+  Save,
 } from 'lucide-react';
 import { MiniMap } from './MiniMap';
 import { getSharedDayNightSystem } from '../game/3d/dayNightSystem';
@@ -102,6 +103,7 @@ interface HUDProps {
   onLandSpectator?: () => void;
   castingState?: { isCasting: boolean; progress: number; text: string } | null;
   isUIVisible?: boolean;
+  onSaveGame?: () => void;
 }
 
 export const HUD: React.FC<HUDProps> = ({
@@ -158,10 +160,12 @@ export const HUD: React.FC<HUDProps> = ({
   onLandSpectator,
   castingState,
   isUIVisible = true,
+  onSaveGame,
 }) => {
   const [dayNight, setDayNight] = useState(() => getSharedDayNightSystem().getState());
   const [dismissMobileTip, setDismissMobileTip] = useState(false);
   const [isMobileSystemMenuOpen, setIsMobileSystemMenuOpen] = useState(false);
+  const [saveNotice, setSaveNotice] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -346,6 +350,26 @@ export const HUD: React.FC<HUDProps> = ({
                 )}
               </div>
             )
+          )}
+
+          {/* Manual Save Game Quick Button (Single Player) */}
+          {onSaveGame && gameMode === 'singleplayer' && (
+            <button
+              onClick={() => {
+                onSaveGame();
+                setSaveNotice(true);
+                setTimeout(() => setSaveNotice(false), 2200);
+              }}
+              title="Simpan Game (Save Game ke Cache Browser)"
+              className={`pointer-events-auto px-2.5 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow active:scale-95 ${
+                saveNotice
+                  ? 'bg-emerald-950/90 border-emerald-500/60 text-emerald-300'
+                  : 'bg-stone-900/90 hover:bg-stone-800 border-stone-700 text-stone-300 hover:text-white'
+              }`}
+            >
+              <Save className={`w-3.5 h-3.5 ${saveNotice ? 'text-emerald-400' : 'text-blue-400'}`} />
+              <span className="hidden sm:inline">{saveNotice ? 'Tersimpan!' : 'Simpan'}</span>
+            </button>
           )}
 
           {/* Pause / Menu Button (Esc) */}

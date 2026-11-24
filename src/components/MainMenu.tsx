@@ -18,6 +18,13 @@ import {
 import { CharacterClass, PlayerStats } from '../types/game';
 import { soundManager } from '../game/audio';
 import { getSharedDayNightSystem } from '../game/3d/dayNightSystem';
+import {
+  getGuestProfile,
+  getRoleSave,
+  resetRoleSave,
+  GuestProfile,
+  RoleSaveData,
+} from '../game/storage/guestSaveManager';
 
 export interface MultiplayerStartOptions {
   playerName: string;
@@ -222,7 +229,7 @@ export const ASSASSIN_SKILLS: SkillInfo[] = [
 
 interface MainMenuProps {
   isOpen: boolean;
-  onStartSinglePlayer: (charClass: CharacterClass, slotData?: SaveSlotData) => void;
+  onStartSinglePlayer: (charClass: CharacterClass, slotData?: SaveSlotData, continueRole?: boolean) => void;
   onStartMultiplayer: (options: MultiplayerStartOptions) => void;
   onOpenSettings: () => void;
   onMenuModeChange?: (mode: 'main_menu' | 'character_select' | 'gameplay') => void;
@@ -288,6 +295,32 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const [activeTooltip, setActiveTooltip] = useState<SkillInfo | null>(null);
   const [isFadingOut, setIsFadingOut] = useState<boolean>(false);
 
+  // Guest Account & Role Saves State
+  const [guestProfile, setGuestProfile] = useState<GuestProfile>(() => getGuestProfile());
+  const [roleSaves, setRoleSaves] = useState(() => ({
+    warrior: getRoleSave('warrior'),
+    mage: getRoleSave('mage'),
+    rogue: getRoleSave('rogue'),
+  }));
+  const [confirmResetRole, setConfirmResetRole] = useState<CharacterClass | null>(null);
+
+  // Sync Guest Data whenever opened or changed
+  useEffect(() => {
+    const syncData = () => {
+      setGuestProfile(getGuestProfile());
+      setRoleSaves({
+        warrior: getRoleSave('warrior'),
+        mage: getRoleSave('mage'),
+        rogue: getRoleSave('rogue'),
+      });
+    };
+    if (isOpen) {
+      syncData();
+    }
+    window.addEventListener('eldoria_guest_save_changed', syncData);
+    return () => window.removeEventListener('eldoria_guest_save_changed', syncData);
+  }, [isOpen]);
+
   // Synchronize 24-hour Day-Night world time with Main Menu & Character Select
   const [dayNight, setDayNight] = useState(() => getSharedDayNightSystem().getState());
   useEffect(() => {
@@ -333,7 +366,24 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
   const handleOpenSinglePlayer = () => {
     soundManager.playChestOpen();
-    setView('singleplayer_slots');
+    setView('character_select');
+  };
+
+  const handleContinueRole = (role: CharacterClass) => {
+    onPlayRoleAction?.(role);
+    soundManager.playLevelUp();
+    setIsFadingOut(true);
+    setTimeout(() => {
+      onStartSinglePlayer(role, undefined, true);
+      setIsFadingOut(false);
+    }, 1000);
+  };
+
+  const handleResetRoleSave = (role: CharacterClass) => {
+    resetRoleSave(role);
+    setRoleSaves((prev) => ({ ...prev, [role]: null }));
+    setConfirmResetRole(null);
+    soundManager.playDash();
   };
 
   const handleOpenMultiplayer = () => {
@@ -406,7 +456,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     // 4. Fade to black for 1 second, then launch gameplay
     setIsFadingOut(true);
     setTimeout(() => {
-      onStartSinglePlayer(role, newSlotData);
+      onStartSinglePlayer(role, newSlotData, false);
       setIsFadingOut(false);
     }, 1000);
   };
@@ -644,6 +694,14 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <span className="text-stone-500">•</span>
                 <span className="text-amber-200/90 font-sans text-[10px]">{dayNight.phaseNameId}</span>
               </div>
+
+              {/* Badge Status Akun Guest */}
+              <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-[10.5px] font-sans text-emerald-300 shadow">
+                <span>👤</span>
+                <span className="font-bold">Akun Guest ({guestProfile.displayName})</span>
+                <span className="text-emerald-500">•</span>
+                <span className="text-emerald-200/90 text-[10px]">Tersimpan di Browser</span>
+              </div>
             </div>
 
             {/* Stacked Vertical Interactive Buttons */}
@@ -846,21 +904,30 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <div className="w-full flex items-center justify-between pointer-events-auto">
             <button
               type="button"
-              onClick={() => setView('singleplayer_slots')}
+              onClick={() => setView('main')}
               className="px-5 py-2 rounded-xl bg-stone-950/90 hover:bg-stone-900 border-2 border-stone-300 text-white font-black text-xs sm:text-sm tracking-widest shadow-xl active:scale-95 transition cursor-pointer"
             >
               KEMBALI
             </button>
 
-            <h1
-              className="text-xl sm:text-3xl font-black text-white tracking-widest uppercase drop-shadow-[0_4px_8px_rgba(0,0,0,0.95)]"
-              style={{
-                fontFamily: 'serif',
-                textShadow: '0 2px 4px #000, 0 4px 12px rgba(0,0,0,0.9)',
-              }}
-            >
-              PILIH ROLE KARAKTER
-            </h1>
+            <div className="flex flex-col items-center">
+              <h1
+                className="text-xl sm:text-3xl font-black text-white tracking-widest uppercase drop-shadow-[0_4px_8px_rgba(0,0,0,0.95)]"
+                style={{
+                  fontFamily: 'serif',
+                  textShadow: '0 2px 4px #000, 0 4px 12px rgba(0,0,0,0.9)',
+                }}
+              >
+                PILIH ROLE KARAKTER
+              </h1>
+              {/* Badge Status Akun Guest */}
+              <div className="mt-1 inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-950/90 border border-emerald-500/50 text-[10.5px] font-sans text-emerald-300 shadow">
+                <span>👤</span>
+                <span className="font-bold">Akun Guest ({guestProfile.displayName})</span>
+                <span className="text-emerald-500">•</span>
+                <span className="text-emerald-200/90 text-[10px]">Tersimpan di Browser</span>
+              </div>
+            </div>
 
             <div className="w-24 hidden sm:block" />
           </div>
@@ -909,73 +976,256 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 
             {/* Action Buttons: PILIH KNIGHT / MAGE / ASSASSIN (Shifted down so they do not obstruct characters' bodies) */}
             <div className="w-full max-w-4xl mx-auto grid grid-cols-3 gap-3 sm:gap-6 px-4 pointer-events-none">
-              {/* 1. Knight Button (Left) */}
-              <div className="flex justify-center pointer-events-none">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedRole('warrior');
-                    onSelectPreviewRole?.('warrior');
-                    handleConfirmRole('warrior');
-                  }}
-                  onMouseEnter={() => {
-                    setSelectedRole('warrior');
-                    onSelectPreviewRole?.('warrior');
-                  }}
-                  className={`pointer-events-auto w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl active:scale-95 transition cursor-pointer text-center ${
-                    selectedRole === 'warrior'
-                      ? 'bg-amber-500/90 border-amber-200 text-stone-950 shadow-amber-500/40 ring-2 ring-amber-400/60 scale-105'
-                      : 'bg-stone-950/85 hover:bg-stone-900 border-stone-400/60 text-white'
-                  }`}
-                >
-                  PILIH KNIGHT
-                </button>
+              {/* 1. Knight Column (Left) */}
+              <div className="flex justify-center pointer-events-auto">
+                {roleSaves.warrior ? (
+                  <div className="w-full max-w-[215px] flex flex-col gap-1.5 animate-fade-in">
+                    <div className="px-2 py-1 rounded-lg bg-stone-950/90 border border-amber-500/50 text-center shadow">
+                      <div className="text-[11px] font-black text-amber-300">
+                        Knight • Lv. {roleSaves.warrior.stats.level} • 💰 {roleSaves.warrior.stats.gold}
+                      </div>
+                      <div className="text-[10px] text-stone-300 truncate">
+                        📍 {roleSaves.warrior.lastRegion || 'Desa Sanctuary'}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRole('warrior');
+                        onSelectPreviewRole?.('warrior');
+                        handleContinueRole('warrior');
+                      }}
+                      onMouseEnter={() => {
+                        setSelectedRole('warrior');
+                        onSelectPreviewRole?.('warrior');
+                      }}
+                      className="w-full py-2 px-2 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-xl active:scale-95 transition cursor-pointer text-center bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 border-amber-200 text-stone-950 hover:brightness-110"
+                    >
+                      ▶ LANJUTKAN
+                    </button>
+
+                    {confirmResetRole === 'warrior' ? (
+                      <div className="flex items-center gap-1 animate-fade-in">
+                        <button
+                          type="button"
+                          onClick={() => handleResetRoleSave('warrior')}
+                          className="flex-1 py-1 px-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold uppercase transition"
+                        >
+                          Yakin Reset?
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmResetRole(null)}
+                          className="py-1 px-1.5 rounded-lg bg-stone-800 text-stone-300 text-[10px] font-bold uppercase transition"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmResetRole('warrior')}
+                        className="w-full py-1 px-1.5 rounded-lg border border-red-900/60 bg-stone-950/80 hover:bg-red-950/80 text-red-300 text-[10px] font-bold tracking-wide uppercase transition active:scale-95 cursor-pointer text-center"
+                      >
+                        ↺ MULAI ULANG ROLE
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-full max-w-[215px] flex flex-col gap-1.5">
+                    <div className="px-2 py-0.5 rounded-lg bg-stone-950/60 border border-stone-800 text-center text-[10px] text-stone-400 italic">
+                      Belum Ada Progres
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRole('warrior');
+                        onSelectPreviewRole?.('warrior');
+                        handleConfirmRole('warrior');
+                      }}
+                      onMouseEnter={() => {
+                        setSelectedRole('warrior');
+                        onSelectPreviewRole?.('warrior');
+                      }}
+                      className={`w-full py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl active:scale-95 transition cursor-pointer text-center ${
+                        selectedRole === 'warrior'
+                          ? 'bg-amber-500/90 border-amber-200 text-stone-950 shadow-amber-500/40 ring-2 ring-amber-400/60 scale-105'
+                          : 'bg-stone-950/85 hover:bg-stone-900 border-stone-400/60 text-white'
+                      }`}
+                    >
+                      PILIH KNIGHT
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* 2. Mage Button (Center) */}
-              <div className="flex justify-center pointer-events-none">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedRole('mage');
-                    onSelectPreviewRole?.('mage');
-                    handleConfirmRole('mage');
-                  }}
-                  onMouseEnter={() => {
-                    setSelectedRole('mage');
-                    onSelectPreviewRole?.('mage');
-                  }}
-                  className={`pointer-events-auto w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl active:scale-95 transition cursor-pointer text-center ${
-                    selectedRole === 'mage'
-                      ? 'bg-purple-500/90 border-purple-200 text-stone-950 shadow-purple-500/40 ring-2 ring-purple-400/60 scale-105'
-                      : 'bg-stone-950/85 hover:bg-stone-900 border-stone-400/60 text-white'
-                  }`}
-                >
-                  PILIH MAGE
-                </button>
+              {/* 2. Mage Column (Center) */}
+              <div className="flex justify-center pointer-events-auto">
+                {roleSaves.mage ? (
+                  <div className="w-full max-w-[215px] flex flex-col gap-1.5 animate-fade-in">
+                    <div className="px-2 py-1 rounded-lg bg-stone-950/90 border border-purple-500/50 text-center shadow">
+                      <div className="text-[11px] font-black text-purple-300">
+                        Mage • Lv. {roleSaves.mage.stats.level} • 💰 {roleSaves.mage.stats.gold}
+                      </div>
+                      <div className="text-[10px] text-stone-300 truncate">
+                        📍 {roleSaves.mage.lastRegion || 'Desa Sanctuary'}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRole('mage');
+                        onSelectPreviewRole?.('mage');
+                        handleContinueRole('mage');
+                      }}
+                      onMouseEnter={() => {
+                        setSelectedRole('mage');
+                        onSelectPreviewRole?.('mage');
+                      }}
+                      className="w-full py-2 px-2 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-xl active:scale-95 transition cursor-pointer text-center bg-gradient-to-r from-purple-500 via-purple-400 to-indigo-500 border-purple-200 text-stone-950 hover:brightness-110"
+                    >
+                      ▶ LANJUTKAN
+                    </button>
+
+                    {confirmResetRole === 'mage' ? (
+                      <div className="flex items-center gap-1 animate-fade-in">
+                        <button
+                          type="button"
+                          onClick={() => handleResetRoleSave('mage')}
+                          className="flex-1 py-1 px-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold uppercase transition"
+                        >
+                          Yakin Reset?
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmResetRole(null)}
+                          className="py-1 px-1.5 rounded-lg bg-stone-800 text-stone-300 text-[10px] font-bold uppercase transition"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmResetRole('mage')}
+                        className="w-full py-1 px-1.5 rounded-lg border border-red-900/60 bg-stone-950/80 hover:bg-red-950/80 text-red-300 text-[10px] font-bold tracking-wide uppercase transition active:scale-95 cursor-pointer text-center"
+                      >
+                        ↺ MULAI ULANG ROLE
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-full max-w-[215px] flex flex-col gap-1.5">
+                    <div className="px-2 py-0.5 rounded-lg bg-stone-950/60 border border-stone-800 text-center text-[10px] text-stone-400 italic">
+                      Belum Ada Progres
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRole('mage');
+                        onSelectPreviewRole?.('mage');
+                        handleConfirmRole('mage');
+                      }}
+                      onMouseEnter={() => {
+                        setSelectedRole('mage');
+                        onSelectPreviewRole?.('mage');
+                      }}
+                      className={`w-full py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl active:scale-95 transition cursor-pointer text-center ${
+                        selectedRole === 'mage'
+                          ? 'bg-purple-500/90 border-purple-200 text-stone-950 shadow-purple-500/40 ring-2 ring-purple-400/60 scale-105'
+                          : 'bg-stone-950/85 hover:bg-stone-900 border-stone-400/60 text-white'
+                      }`}
+                    >
+                      PILIH MAGE
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* 3. Assassin Button (Right) */}
-              <div className="flex justify-center pointer-events-none">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedRole('rogue');
-                    onSelectPreviewRole?.('rogue');
-                    handleConfirmRole('rogue');
-                  }}
-                  onMouseEnter={() => {
-                    setSelectedRole('rogue');
-                    onSelectPreviewRole?.('rogue');
-                  }}
-                  className={`pointer-events-auto w-full max-w-[210px] py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl active:scale-95 transition cursor-pointer text-center ${
-                    selectedRole === 'rogue'
-                      ? 'bg-emerald-500/90 border-emerald-200 text-stone-950 shadow-emerald-500/40 ring-2 ring-emerald-400/60 scale-105'
-                      : 'bg-stone-950/85 hover:bg-stone-900 border-stone-400/60 text-white'
-                  }`}
-                >
-                  PILIH ASSASSIN
-                </button>
+              {/* 3. Assassin Column (Right) */}
+              <div className="flex justify-center pointer-events-auto">
+                {roleSaves.rogue ? (
+                  <div className="w-full max-w-[215px] flex flex-col gap-1.5 animate-fade-in">
+                    <div className="px-2 py-1 rounded-lg bg-stone-950/90 border border-emerald-500/50 text-center shadow">
+                      <div className="text-[11px] font-black text-emerald-300">
+                        Assassin • Lv. {roleSaves.rogue.stats.level} • 💰 {roleSaves.rogue.stats.gold}
+                      </div>
+                      <div className="text-[10px] text-stone-300 truncate">
+                        📍 {roleSaves.rogue.lastRegion || 'Desa Sanctuary'}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRole('rogue');
+                        onSelectPreviewRole?.('rogue');
+                        handleContinueRole('rogue');
+                      }}
+                      onMouseEnter={() => {
+                        setSelectedRole('rogue');
+                        onSelectPreviewRole?.('rogue');
+                      }}
+                      className="w-full py-2 px-2 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-xl active:scale-95 transition cursor-pointer text-center bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-500 border-emerald-200 text-stone-950 hover:brightness-110"
+                    >
+                      ▶ LANJUTKAN
+                    </button>
+
+                    {confirmResetRole === 'rogue' ? (
+                      <div className="flex items-center gap-1 animate-fade-in">
+                        <button
+                          type="button"
+                          onClick={() => handleResetRoleSave('rogue')}
+                          className="flex-1 py-1 px-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold uppercase transition"
+                        >
+                          Yakin Reset?
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmResetRole(null)}
+                          className="py-1 px-1.5 rounded-lg bg-stone-800 text-stone-300 text-[10px] font-bold uppercase transition"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmResetRole('rogue')}
+                        className="w-full py-1 px-1.5 rounded-lg border border-red-900/60 bg-stone-950/80 hover:bg-red-950/80 text-red-300 text-[10px] font-bold tracking-wide uppercase transition active:scale-95 cursor-pointer text-center"
+                      >
+                        ↺ MULAI ULANG ROLE
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-full max-w-[215px] flex flex-col gap-1.5">
+                    <div className="px-2 py-0.5 rounded-lg bg-stone-950/60 border border-stone-800 text-center text-[10px] text-stone-400 italic">
+                      Belum Ada Progres
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRole('rogue');
+                        onSelectPreviewRole?.('rogue');
+                        handleConfirmRole('rogue');
+                      }}
+                      onMouseEnter={() => {
+                        setSelectedRole('rogue');
+                        onSelectPreviewRole?.('rogue');
+                      }}
+                      className={`w-full py-2.5 px-3 rounded-xl border-2 font-black text-xs sm:text-sm tracking-wider uppercase shadow-2xl active:scale-95 transition cursor-pointer text-center ${
+                        selectedRole === 'rogue'
+                          ? 'bg-emerald-500/90 border-emerald-200 text-stone-950 shadow-emerald-500/40 ring-2 ring-emerald-400/60 scale-105'
+                          : 'bg-stone-950/85 hover:bg-stone-900 border-stone-400/60 text-white'
+                      }`}
+                    >
+                      PILIH ASSASSIN
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
