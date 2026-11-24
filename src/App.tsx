@@ -40,11 +40,21 @@ import {
   applyDeviceSettings,
   resetAllGuestData,
   RoleSaveData,
+  EldoriaGuestSaveData,
 } from './game/storage/guestSaveManager';
+import { AuthModal } from './components/AuthModal';
+import {
+  cloudSyncManager,
+  MigrationDialogData,
+} from './game/storage/cloudSyncManager';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
+
+  // Cloud Auth & Migration State
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [migrationDialogData, setMigrationDialogData] = useState<MigrationDialogData | null>(null);
 
   // Game Start & Mode State
   const [hasStarted, setHasStarted] = useState(false);
@@ -426,9 +436,34 @@ export default function App() {
     return () => clearInterval(timer);
   }, [hasStarted, gameMode]);
 
+  // Register Cloud Migration Handler & Cloud Save Listener
+  useEffect(() => {
+    cloudSyncManager.setMigrationHandler((data) => {
+      setMigrationDialogData(data);
+      setIsAuthModalOpen(true);
+    });
+
+    const handleCloudSaveLoaded = (e: Event) => {
+      const customEvt = e as CustomEvent<EldoriaGuestSaveData>;
+      const cloudData = customEvt.detail;
+      if (!cloudData) return;
+      const currentRole = statsRef.current.characterClass;
+      if (cloudData.roleSaves && cloudData.roleSaves[currentRole]) {
+        const rData = cloudData.roleSaves[currentRole]!;
+        if (rData.stats) setStats({ ...rData.stats });
+        if (rData.inventory) setInventory([...rData.inventory]);
+        if (rData.quests) setQuests([...rData.quests]);
+      }
+      addFloatingText('☁️ Save Data Cloud Berhasil Dimuat!', '#38bdf8', 'info');
+    };
+
+    window.addEventListener('eldoria_cloud_save_loaded', handleCloudSaveLoaded);
+    return () => window.removeEventListener('eldoria_cloud_save_loaded', handleCloudSaveLoaded);
+  }, [addFloatingText]);
+
   // Centralized save function for the current active role
   const handleSaveRoleProgress = useCallback(
-    (isManual = false) => {
+    (isManual = false, milestoneReason?: string) => {
       if (!hasStarted || gameModeRef.current !== 'singleplayer') return;
       const currentStats = statsRef.current;
       const role = currentStats.characterClass || characterClass;
@@ -450,9 +485,14 @@ export default function App() {
         if (success) {
           addFloatingText('💾 Game Berhasil Disimpan!', '#38bdf8', 'info');
           soundManager.playLevelUp();
+          cloudSyncManager.syncLocalToCloud(true);
         } else {
           addFloatingText('Gagal menyimpan game!', '#ef4444', 'crit');
         }
+      } else if (milestoneReason) {
+        cloudSyncManager.triggerMilestoneSync(milestoneReason);
+      } else {
+        cloudSyncManager.markDirty();
       }
     },
     [hasStarted, characterClass, addFloatingText]
@@ -667,7 +707,7 @@ export default function App() {
           const next = updater(prev);
           engine.syncPlayerStats(next);
           if (next.level > prev.level || next.statPoints !== prev.statPoints) {
-            setTimeout(() => handleSaveRoleProgress(false), 50);
+            setTimeout(() => handleSaveRoleProgress(false, 'level_up'), 50);
           }
           return next;
         });
@@ -675,14 +715,14 @@ export default function App() {
       onUpdateQuests: (updater) => {
         setQuests((prev) => {
           const next = updater(prev);
-          setTimeout(() => handleSaveRoleProgress(false), 50);
+          setTimeout(() => handleSaveRoleProgress(false, 'quest_update'), 50);
           return next;
         });
       },
       onAddItem: (item) => {
         setInventory((prev) => {
           const next = [...prev, item];
-          setTimeout(() => handleSaveRoleProgress(false), 50);
+          setTimeout(() => handleSaveRoleProgress(false, 'item_added'), 50);
           return next;
         });
       },
@@ -1068,7 +1108,7 @@ export default function App() {
 
           addFloatingText(`+${q.rewardExp} EXP!`, '#42a5f5', 'exp');
           addFloatingText(`+${q.rewardGold} Gold!`, '#ffca28', 'exp');
-          setTimeout(() => handleSaveRoleProgress(false), 50);
+          setTimeout(() => handleSaveRoleProgress(false, 'quest_claimed'), 50);
 
           return { ...q, claimed: true };
         }
@@ -1096,7 +1136,7 @@ export default function App() {
     });
     soundManager.playChestOpen();
     addFloatingText(`Beli: ${item.nameId} (${quantity}x)`, '#ffd700', 'info');
-    setTimeout(() => handleSaveRoleProgress(false), 50);
+    setTimeout(() => handleSaveRoleProgress(false, 'shop_purchase'), 50);
   };
 
   const handleSellItem = (item: Item, sellPrice: number) => {
@@ -1113,7 +1153,7 @@ export default function App() {
     });
     soundManager.playLevelUp();
     addFloatingText(`+${sellPrice} Gold (Terjual: ${item.nameId})`, '#4caf50', 'exp');
-    setTimeout(() => handleSaveRoleProgress(false), 50);
+    setTimeout(() => handleSaveRoleProgress(false, 'shop_sell'), 50);
   };
 
   const handleEnhanceItem = (item: Item, cost: number, upgradedItem: Item) => {
@@ -1135,7 +1175,7 @@ export default function App() {
       '#f59e0b',
       'crit'
     );
-    setTimeout(() => handleSaveRoleProgress(false), 50);
+    setTimeout(() => handleSaveRoleProgress(false, 'item_enhanced'), 50);
   };
 
   const handleDialogueOption = (option: DialogueNode['options'][0]) => {
@@ -1311,6 +1351,7 @@ export default function App() {
         onStartSinglePlayer={handleStartSinglePlayer}
         onStartMultiplayer={handleStartMultiplayer}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
         onMenuModeChange={(mode) => engineRef.current?.setMenuMode(mode)}
         onPlayRoleAction={(role) => engineRef.current?.playRoleSelectAction(role)}
         onSelectPreviewRole={(role) => {
@@ -1582,9 +1623,24 @@ export default function App() {
           addFloatingText('Pengaturan Grafis Diterapkan! âš™ï¸', '#38bdf8', 'info');
         }}
         onClose={() => setIsSettingsOpen(false)}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
         onResetGuest={() => {
           handleReturnToMainMenu();
           addFloatingText('Data Guest Lokal Direset!', '#ef4444', 'crit');
+        }}
+      />
+
+      {/* Cloud Authentication & Cross-Device Account Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => {
+          setIsAuthModalOpen(false);
+          setMigrationDialogData(null);
+        }}
+        migrationData={migrationDialogData}
+        onResolveMigration={() => setMigrationDialogData(null)}
+        onSuccess={() => {
+          addFloatingText('☁️ Terhubung ke Akun Cloud!', '#38bdf8', 'info');
         }}
       />
 

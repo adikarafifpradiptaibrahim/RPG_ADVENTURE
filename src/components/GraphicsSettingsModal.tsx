@@ -19,6 +19,10 @@ import {
   ShieldCheck,
   Edit2,
   Save,
+  Cloud,
+  LogOut,
+  RefreshCw,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   GraphicsSettings,
@@ -43,6 +47,11 @@ import {
   getRoleSave,
   GuestProfile,
 } from '../game/storage/guestSaveManager';
+import {
+  cloudSyncManager,
+  CloudSyncStatus,
+  CloudUser,
+} from '../game/storage/cloudSyncManager';
 
 interface GraphicsSettingsModalProps {
   isOpen: boolean;
@@ -50,6 +59,7 @@ interface GraphicsSettingsModalProps {
   onApply: (settings: GraphicsSettings) => void;
   onClose: () => void;
   onResetGuest?: () => void;
+  onOpenAuth?: () => void;
 }
 
 export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
@@ -58,9 +68,16 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
   onApply,
   onClose,
   onResetGuest,
+  onOpenAuth,
 }) => {
   const [activeTab, setActiveTab] = useState<'grafik' | 'suara' | 'kontrol' | 'akun'>('grafik');
   const [settings, setSettings] = useState<GraphicsSettings>(currentSettings);
+
+  // Cloud Account State
+  const [cloudUser, setCloudUser] = useState<CloudUser | null>(() => cloudSyncManager.getUser());
+  const [syncStatus, setSyncStatus] = useState<CloudSyncStatus>(() => cloudSyncManager.getStatus());
+  const [isManualSyncing, setIsManualSyncing] = useState<boolean>(false);
+  const [manualSyncMsg, setManualSyncMsg] = useState<string | null>(null);
 
   // Audio State
   const [isMuted, setIsMuted] = useState<boolean>(() => soundManager.getMuted());
@@ -81,6 +98,16 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
   const [resetConfirmStep, setResetConfirmStep] = useState<'none' | 'step1' | 'step2'>('none');
   const [resetSuccessNotice, setResetSuccessNotice] = useState<boolean>(false);
 
+  // Subscribe to Cloud Sync Manager
+  useEffect(() => {
+    const unsubUser = cloudSyncManager.subscribeUser(setCloudUser);
+    const unsubStatus = cloudSyncManager.subscribeStatus(setSyncStatus);
+    return () => {
+      unsubUser();
+      unsubStatus();
+    };
+  }, []);
+
   // Sync profile when opened
   useEffect(() => {
     if (isOpen) {
@@ -89,6 +116,7 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
       setDisplayNameInput(data.guestProfile.displayName);
       setResetConfirmStep('none');
       setResetSuccessNotice(false);
+      setManualSyncMsg(null);
     }
   }, [isOpen]);
 
@@ -591,61 +619,182 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
             </div>
           )}
 
-          {/* TAB 4: AKUN GUEST & STORAGE BROWSER */}
+          {/* TAB 4: AKUN GUEST & CLOUD STORAGE */}
           {activeTab === 'akun' && (
             <div className="space-y-4 animate-in fade-in duration-150">
-              {/* Profile Card */}
-              <div className="rounded-xl border border-purple-500/40 bg-purple-950/30 p-3.5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-purple-600/30 border border-purple-400 flex items-center justify-center text-purple-300 font-bold text-sm">
-                      👤
+              {/* Profile Card: Cloud Account or Guest */}
+              {cloudUser ? (
+                <div className="rounded-xl border border-indigo-500/40 bg-indigo-950/40 p-3.5 space-y-3 shadow-md">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-full bg-indigo-600/30 border border-indigo-400 flex items-center justify-center text-indigo-200 font-bold text-sm shadow-inner">
+                        ☁️
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-stone-100 flex items-center gap-2">
+                          <span>{cloudUser.displayName || 'Pahlawan Eldoria'}</span>
+                          <span className="text-[10px] text-indigo-300 font-mono bg-indigo-900/60 px-1.5 py-0.5 rounded">
+                            Akun Cloud
+                          </span>
+                        </h4>
+                        <p className="text-[10.5px] text-stone-300">
+                          {cloudUser.email}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-stone-100 flex items-center gap-2">
-                        <span>Profil Guest</span>
-                        <span className="text-[10px] text-purple-300 font-mono bg-purple-900/60 px-1.5 py-0.5 rounded">
-                          {guestProfile.guestId}
-                        </span>
-                      </h4>
-                      <p className="text-[10px] text-emerald-400 flex items-center gap-1">
-                        <ShieldCheck className="w-3 h-3" />
-                        Tersimpan Lokal di Browser Perangkat Ini
-                      </p>
-                    </div>
-                  </div>
-                </div>
 
-                {/* Edit Display Name */}
-                <div className="pt-1">
-                  <label className="text-[11px] font-semibold text-stone-300 block mb-1">
-                    Nama Tampilan Karakter:
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      maxLength={20}
-                      value={displayNameInput}
-                      onChange={(e) => setDisplayNameInput(e.target.value)}
-                      placeholder="Nama Hero..."
-                      className="flex-1 bg-stone-900/90 border border-stone-700 focus:border-purple-400 px-3 py-1.5 rounded-lg text-xs font-bold text-stone-100 outline-none"
-                    />
                     <button
                       type="button"
-                      onClick={handleSaveDisplayName}
-                      className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1 transition active:scale-95 cursor-pointer shadow"
+                      onClick={async () => {
+                        soundManager.playChestOpen();
+                        await cloudSyncManager.logout();
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-stone-900/90 hover:bg-red-950/90 border border-stone-700 hover:border-red-600/60 text-stone-300 hover:text-red-200 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer active:scale-95 shadow"
                     >
-                      <Save className="w-3.5 h-3.5" />
-                      <span>Simpan</span>
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Logout</span>
                     </button>
                   </div>
-                  {nameSaveFeedback && (
-                    <p className="text-[11px] text-emerald-400 mt-1 font-semibold animate-fade-in">
-                      {nameSaveFeedback}
+
+                  {/* Real-time Cloud Sync Status */}
+                  <div className="p-2.5 rounded-lg bg-stone-950/70 border border-stone-800/80 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      {syncStatus === 'syncing' || isManualSyncing ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 text-cyan-400 animate-spin" />
+                          <span className="text-cyan-300 font-semibold">Sedang Menyinkronkan ke Cloud...</span>
+                        </>
+                      ) : syncStatus === 'synced' ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          <div>
+                            <span className="text-emerald-300 font-bold block leading-tight">Tersimpan di Cloud</span>
+                            <span className="text-[10px] text-stone-400">
+                              Terakhir sinkron: {cloudSyncManager.getLastSyncedTimeString()}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <AlertTriangle className="w-4 h-4 text-amber-400" />
+                          <div>
+                            <span className="text-amber-300 font-bold block leading-tight">Offline - Tersimpan Lokal</span>
+                            <span className="text-[10px] text-stone-400">Data aman di cache lokal perangkat</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isManualSyncing}
+                      onClick={async () => {
+                        setIsManualSyncing(true);
+                        soundManager.playChestOpen();
+                        const ok = await cloudSyncManager.syncLocalToCloud(true);
+                        setIsManualSyncing(false);
+                        if (ok) {
+                          soundManager.playLevelUp();
+                          setManualSyncMsg('Sinkronisasi cloud berhasil!');
+                          setTimeout(() => setManualSyncMsg(null), 3000);
+                        } else {
+                          setManualSyncMsg('Gagal menyinkronkan ke cloud.');
+                          setTimeout(() => setManualSyncMsg(null), 3000);
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer active:scale-95 shadow"
+                    >
+                      <Cloud className="w-3.5 h-3.5" />
+                      <span>Simpan Cloud</span>
+                    </button>
+                  </div>
+
+                  {manualSyncMsg && (
+                    <p className="text-[11px] text-emerald-400 font-semibold animate-fade-in text-center">
+                      {manualSyncMsg}
                     </p>
                   )}
                 </div>
-              </div>
+              ) : (
+                /* Mode Guest Card with Prominent Cloud Login Banner */
+                <div className="rounded-xl border border-purple-500/40 bg-purple-950/30 p-3.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-purple-600/30 border border-purple-400 flex items-center justify-center text-purple-300 font-bold text-sm">
+                        👤
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-stone-100 flex items-center gap-2">
+                          <span>Profil Guest</span>
+                          <span className="text-[10px] text-purple-300 font-mono bg-purple-900/60 px-1.5 py-0.5 rounded">
+                            {guestProfile.guestId}
+                          </span>
+                        </h4>
+                        <p className="text-[10px] text-emerald-400 flex items-center gap-1">
+                          <ShieldCheck className="w-3 h-3" />
+                          Tersimpan Lokal di Browser Perangkat Ini
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Banner Hubungkan ke Cloud */}
+                  <div className="p-3 rounded-lg bg-indigo-950/70 border border-indigo-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="text-xs">
+                      <span className="font-bold text-indigo-300 flex items-center gap-1.5">
+                        <Cloud className="w-3.5 h-3.5 text-indigo-400" />
+                        Ingin Main di HP atau Komputer Lain?
+                      </span>
+                      <p className="text-[10.5px] text-stone-300 pt-0.5">
+                        Daftar atau login akun Cloud untuk menyinkronkan progres Anda lintas perangkat.
+                      </p>
+                    </div>
+                    {onOpenAuth && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          soundManager.playChestOpen();
+                          onOpenAuth();
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow shrink-0"
+                      >
+                        <Cloud className="w-3.5 h-3.5" />
+                        <span>Login Akun Cloud</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Edit Display Name */}
+                  <div className="pt-1">
+                    <label className="text-[11px] font-semibold text-stone-300 block mb-1">
+                      Nama Tampilan Karakter:
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        maxLength={20}
+                        value={displayNameInput}
+                        onChange={(e) => setDisplayNameInput(e.target.value)}
+                        placeholder="Nama Hero..."
+                        className="flex-1 bg-stone-900/90 border border-stone-700 focus:border-purple-400 px-3 py-1.5 rounded-lg text-xs font-bold text-stone-100 outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveDisplayName}
+                        className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1 transition active:scale-95 cursor-pointer shadow"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Simpan</span>
+                      </button>
+                    </div>
+                    {nameSaveFeedback && (
+                      <p className="text-[11px] text-emerald-400 mt-1 font-semibold animate-fade-in">
+                        {nameSaveFeedback}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Status Progres Save Game Per-Role */}
               <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3.5 space-y-2.5">

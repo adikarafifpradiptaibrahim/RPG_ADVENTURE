@@ -14,6 +14,11 @@ import {
   Server,
   Globe,
   Plus,
+  Cloud,
+  LogOut,
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import { CharacterClass, PlayerStats } from '../types/game';
 import { soundManager } from '../game/audio';
@@ -25,6 +30,11 @@ import {
   GuestProfile,
   RoleSaveData,
 } from '../game/storage/guestSaveManager';
+import {
+  cloudSyncManager,
+  CloudSyncStatus,
+  CloudUser,
+} from '../game/storage/cloudSyncManager';
 
 export interface MultiplayerStartOptions {
   playerName: string;
@@ -232,6 +242,7 @@ interface MainMenuProps {
   onStartSinglePlayer: (charClass: CharacterClass, slotData?: SaveSlotData, continueRole?: boolean) => void;
   onStartMultiplayer: (options: MultiplayerStartOptions) => void;
   onOpenSettings: () => void;
+  onOpenAuth?: () => void;
   onMenuModeChange?: (mode: 'main_menu' | 'character_select' | 'gameplay') => void;
   onPlayRoleAction?: (role: 'warrior' | 'mage' | 'rogue') => void;
   onSelectPreviewRole?: (role: 'warrior' | 'mage' | 'rogue') => void;
@@ -283,6 +294,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onStartSinglePlayer,
   onStartMultiplayer,
   onOpenSettings,
+  onOpenAuth,
   onMenuModeChange,
   onPlayRoleAction,
   onSelectPreviewRole,
@@ -295,6 +307,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   const [activeTooltip, setActiveTooltip] = useState<SkillInfo | null>(null);
   const [isFadingOut, setIsFadingOut] = useState<boolean>(false);
 
+  // Cloud Account & Sync State
+  const [cloudUser, setCloudUser] = useState<CloudUser | null>(() => cloudSyncManager.getUser());
+  const [syncStatus, setSyncStatus] = useState<CloudSyncStatus>(() => cloudSyncManager.getStatus());
+
   // Guest Account & Role Saves State
   const [guestProfile, setGuestProfile] = useState<GuestProfile>(() => getGuestProfile());
   const [roleSaves, setRoleSaves] = useState(() => ({
@@ -303,6 +319,16 @@ export const MainMenu: React.FC<MainMenuProps> = ({
     rogue: getRoleSave('rogue'),
   }));
   const [confirmResetRole, setConfirmResetRole] = useState<CharacterClass | null>(null);
+
+  // Subscribe to Cloud Sync Manager
+  useEffect(() => {
+    const unsubUser = cloudSyncManager.subscribeUser(setCloudUser);
+    const unsubStatus = cloudSyncManager.subscribeStatus(setSyncStatus);
+    return () => {
+      unsubUser();
+      unsubStatus();
+    };
+  }, []);
 
   // Sync Guest Data whenever opened or changed
   useEffect(() => {
@@ -695,13 +721,63 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 <span className="text-amber-200/90 font-sans text-[10px]">{dayNight.phaseNameId}</span>
               </div>
 
-              {/* Badge Status Akun Guest */}
-              <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-[10.5px] font-sans text-emerald-300 shadow">
-                <span>👤</span>
-                <span className="font-bold">Akun Guest ({guestProfile.displayName})</span>
-                <span className="text-emerald-500">•</span>
-                <span className="text-emerald-200/90 text-[10px]">Tersimpan di Browser</span>
-              </div>
+              {/* Badge Status Akun & Cloud Sync Header Indicator */}
+              {!cloudUser ? (
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-[10.5px] font-sans text-emerald-300 shadow">
+                    <span>👤</span>
+                    <span className="font-bold">Mode Guest ({guestProfile.displayName})</span>
+                    <span className="text-emerald-500">•</span>
+                    <span className="text-emerald-200/90 text-[10px]">Lokal Browser</span>
+                  </div>
+                  {onOpenAuth && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        soundManager.playChestOpen();
+                        onOpenAuth();
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-950/90 hover:bg-indigo-900 border border-indigo-400/50 hover:border-indigo-300 text-[10.5px] font-sans font-bold text-indigo-200 hover:text-white transition cursor-pointer shadow active:scale-95"
+                    >
+                      <Cloud className="w-3 h-3 text-indigo-400" />
+                      <span>☁️ Login untuk Simpan Lintas Perangkat</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-950/90 border border-indigo-500/50 text-[10.5px] font-sans text-indigo-200 shadow">
+                    <Cloud className="w-3.5 h-3.5 text-indigo-400" />
+                    <span className="font-bold">{cloudUser.displayName || cloudUser.email.split('@')[0]}</span>
+                    <span className="text-indigo-400">•</span>
+                    {syncStatus === 'syncing' ? (
+                      <span className="text-cyan-300 flex items-center gap-1 font-semibold">
+                        <RefreshCw className="w-3 h-3 animate-spin" /> Menyinkronkan...
+                      </span>
+                    ) : syncStatus === 'synced' ? (
+                      <span className="text-emerald-300 flex items-center gap-1 font-semibold">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Tersimpan di Cloud
+                      </span>
+                    ) : (
+                      <span className="text-amber-300 flex items-center gap-1 font-semibold">
+                        <AlertTriangle className="w-3 h-3 text-amber-400" /> Offline - Tersimpan Lokal
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      soundManager.playChestOpen();
+                      await cloudSyncManager.logout();
+                    }}
+                    title="Keluar dari akun Cloud"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-900/90 hover:bg-red-950/80 border border-stone-700 hover:border-red-600/50 text-[10px] font-sans text-stone-300 hover:text-red-200 transition cursor-pointer active:scale-95"
+                  >
+                    <LogOut className="w-3 h-3" />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Stacked Vertical Interactive Buttons */}
@@ -920,13 +996,63 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               >
                 PILIH ROLE KARAKTER
               </h1>
-              {/* Badge Status Akun Guest */}
-              <div className="mt-1 inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-950/90 border border-emerald-500/50 text-[10.5px] font-sans text-emerald-300 shadow">
-                <span>👤</span>
-                <span className="font-bold">Akun Guest ({guestProfile.displayName})</span>
-                <span className="text-emerald-500">•</span>
-                <span className="text-emerald-200/90 text-[10px]">Tersimpan di Browser</span>
-              </div>
+              {/* Badge Status Akun & Cloud Sync Header Indicator */}
+              {!cloudUser ? (
+                <div className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-950/90 border border-emerald-500/50 text-[10.5px] font-sans text-emerald-300 shadow">
+                    <span>👤</span>
+                    <span className="font-bold">Mode Guest ({guestProfile.displayName})</span>
+                    <span className="text-emerald-500">•</span>
+                    <span className="text-emerald-200/90 text-[10px]">Lokal Browser</span>
+                  </div>
+                  {onOpenAuth && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        soundManager.playChestOpen();
+                        onOpenAuth();
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-950/90 hover:bg-indigo-900 border border-indigo-400/50 text-[10px] font-sans font-bold text-indigo-200 hover:text-white transition cursor-pointer shadow active:scale-95"
+                    >
+                      <Cloud className="w-3 h-3 text-indigo-400" />
+                      <span>☁️ Login Cloud</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-indigo-950/90 border border-indigo-500/50 text-[10.5px] font-sans text-indigo-200 shadow">
+                    <Cloud className="w-3 h-3 text-indigo-400" />
+                    <span className="font-bold">{cloudUser.displayName || cloudUser.email.split('@')[0]}</span>
+                    <span className="text-indigo-400">•</span>
+                    {syncStatus === 'syncing' ? (
+                      <span className="text-cyan-300 flex items-center gap-1 font-semibold text-[10px]">
+                        <RefreshCw className="w-2.5 h-2.5 animate-spin" /> Menyinkronkan...
+                      </span>
+                    ) : syncStatus === 'synced' ? (
+                      <span className="text-emerald-300 flex items-center gap-1 font-semibold text-[10px]">
+                        <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" /> Tersimpan di Cloud
+                      </span>
+                    ) : (
+                      <span className="text-amber-300 flex items-center gap-1 font-semibold text-[10px]">
+                        <AlertTriangle className="w-2.5 h-2.5 text-amber-400" /> Offline - Tersimpan Lokal
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      soundManager.playChestOpen();
+                      await cloudSyncManager.logout();
+                    }}
+                    title="Keluar dari akun Cloud"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-900/90 hover:bg-red-950/80 border border-stone-700 hover:border-red-600/50 text-[9.5px] font-sans text-stone-300 hover:text-red-200 transition cursor-pointer active:scale-95"
+                  >
+                    <LogOut className="w-2.5 h-2.5" />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="w-24 hidden sm:block" />

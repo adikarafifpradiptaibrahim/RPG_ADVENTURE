@@ -33,11 +33,18 @@ import {
   Camera,
   Smartphone,
   Save,
+  Cloud,
+  RefreshCw,
 } from 'lucide-react';
 import { MiniMap } from './MiniMap';
 import { getSharedDayNightSystem } from '../game/3d/dayNightSystem';
 import { SkillBar } from './SkillBar';
 import { QuestTracker } from './QuestTracker';
+import {
+  cloudSyncManager,
+  CloudUser,
+  CloudSyncStatus,
+} from '../game/storage/cloudSyncManager';
 
 interface HUDProps {
   stats: PlayerStats;
@@ -166,6 +173,19 @@ export const HUD: React.FC<HUDProps> = ({
   const [dismissMobileTip, setDismissMobileTip] = useState(false);
   const [isMobileSystemMenuOpen, setIsMobileSystemMenuOpen] = useState(false);
   const [saveNotice, setSaveNotice] = useState(false);
+
+  // Cloud Account State
+  const [cloudUser, setCloudUser] = useState<CloudUser | null>(() => cloudSyncManager.getUser());
+  const [syncStatus, setSyncStatus] = useState<CloudSyncStatus>(() => cloudSyncManager.getStatus());
+
+  useEffect(() => {
+    const unsubUser = cloudSyncManager.subscribeUser(setCloudUser);
+    const unsubStatus = cloudSyncManager.subscribeStatus(setSyncStatus);
+    return () => {
+      unsubUser();
+      unsubStatus();
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -360,15 +380,39 @@ export const HUD: React.FC<HUDProps> = ({
                 setSaveNotice(true);
                 setTimeout(() => setSaveNotice(false), 2200);
               }}
-              title="Simpan Game (Save Game ke Cache Browser)"
+              title={
+                cloudUser
+                  ? 'Simpan Game (Otomatis Sinkron ke Cloud & Cache Lokal)'
+                  : 'Simpan Game (Save Game ke Cache Browser)'
+              }
               className={`pointer-events-auto px-2.5 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow active:scale-95 ${
                 saveNotice
                   ? 'bg-emerald-950/90 border-emerald-500/60 text-emerald-300'
+                  : cloudUser
+                  ? 'bg-indigo-950/90 hover:bg-indigo-900 border-indigo-500/50 text-indigo-200 hover:text-white'
                   : 'bg-stone-900/90 hover:bg-stone-800 border-stone-700 text-stone-300 hover:text-white'
               }`}
             >
-              <Save className={`w-3.5 h-3.5 ${saveNotice ? 'text-emerald-400' : 'text-blue-400'}`} />
-              <span className="hidden sm:inline">{saveNotice ? 'Tersimpan!' : 'Simpan'}</span>
+              {cloudUser ? (
+                syncStatus === 'syncing' ? (
+                  <RefreshCw className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
+                ) : (
+                  <Cloud className={`w-3.5 h-3.5 ${saveNotice ? 'text-emerald-400' : 'text-indigo-400'}`} />
+                )
+              ) : (
+                <Save className={`w-3.5 h-3.5 ${saveNotice ? 'text-emerald-400' : 'text-blue-400'}`} />
+              )}
+              <span className="hidden sm:inline">
+                {saveNotice
+                  ? cloudUser
+                    ? 'Cloud Tersimpan!'
+                    : 'Tersimpan!'
+                  : syncStatus === 'syncing'
+                  ? 'Menyinkronkan...'
+                  : cloudUser
+                  ? 'Simpan Cloud'
+                  : 'Simpan'}
+              </span>
             </button>
           )}
 

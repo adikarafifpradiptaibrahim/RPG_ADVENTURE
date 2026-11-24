@@ -324,6 +324,29 @@ export function hasRoleSave(role: CharacterClass): boolean {
 }
 
 /**
+ * Check if the browser has meaningful local guest progress that can be migrated to cloud
+ */
+export function hasLocalGuestProgress(): boolean {
+  const data = getGuestSaveData();
+  if (!data || !data.roleSaves) return false;
+  const roles = Object.keys(data.roleSaves) as CharacterClass[];
+  if (roles.length === 0) return false;
+
+  return roles.some((roleKey) => {
+    const r = data.roleSaves[roleKey];
+    if (!r || !r.stats) return false;
+    return (
+      r.stats.level > 1 ||
+      r.stats.exp > 0 ||
+      (r.stats.gold && r.stats.gold > 50) ||
+      (r.inventory && r.inventory.length > 0) ||
+      (r.quests && r.quests.length > 0) ||
+      (r.playTimeSeconds && r.playTimeSeconds > 5)
+    );
+  });
+}
+
+/**
  * Save progress for a specific role
  */
 export function saveRoleProgress(role: CharacterClass, roleData: RoleSaveData): boolean {
