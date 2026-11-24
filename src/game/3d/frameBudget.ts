@@ -81,7 +81,7 @@ export async function checkFrameBudget(budgetMs = 5): Promise<void> {
  * Resets the frame budget timer to now.
  */
 export function resetFrameBudget(): void {
-  sliceStart = performance.now();
+  lastSliceTimestamp = performance.now();
 }
 
 /**

@@ -451,16 +451,14 @@ export class GameEngine {
     maxStamina: 100,
     gold: 0,
     exp: 0,
-    nextExp: 100,
+    maxExp: 100,
     strength: 10,
     agility: 10,
     intelligence: 10,
     statPoints: 0,
     baseAttack: 15,
     baseDefense: 5,
-    attackSpeed: 1,
-    critRate: 5,
-    critDamage: 150,
+    characterClass: 'warrior',
   };
 
   public syncPlayerStats(stats: Partial<PlayerStats>) {

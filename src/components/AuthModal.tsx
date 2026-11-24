@@ -84,7 +84,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         onClose();
       }, 700);
     } else {
-      soundManager.playPlayerHurt();
+      soundManager.playHit();
       setErrorMsg(res.error || 'Gagal masuk. Periksa kembali email dan kata sandi Anda.');
     }
   };
@@ -127,7 +127,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }, 800);
       }
     } else {
-      soundManager.playPlayerHurt();
+      soundManager.playHit();
       setErrorMsg(res.error || 'Pendaftaran gagal. Silakan coba lagi.');
     }
   };
