@@ -1082,7 +1082,7 @@ export default function App() {
       } else if (key === 'l') {
         setIsQuestsOpen((prev) => !prev);
       } else if (key === 'h') {
-        if (isSpectatorMode) {
+        if (isSpectatorMode || !isUIVisible) {
           e.preventDefault();
           setIsUIVisible((prev) => {
             const next = !prev;
@@ -1292,30 +1292,34 @@ export default function App() {
           />
 
           {/* Multiplayer In-Game Chat Box */}
-          {gameMode === 'multiplayer' && isUIVisible && (
-            <MultiplayerChat
-              isOpen={isChatOpen}
-              onClose={() => setIsChatOpen(false)}
-              messages={multiplayerMessages}
-              onSendMessage={(text) => {
-                multiplayerClient.sendChat(text);
-              }}
-              localPlayerName={multiplayerConfig?.playerName || 'Pahlawan'}
-              roomName={multiplayerConfig?.roomName || 'World-1'}
-              onlineCount={Object.keys(multiplayerPlayers).length + 1}
-            />
+          {gameMode === 'multiplayer' && (
+            <div className={`transition-opacity duration-200 ${isUIVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+              <MultiplayerChat
+                isOpen={isChatOpen}
+                onClose={() => setIsChatOpen(false)}
+                messages={multiplayerMessages}
+                onSendMessage={(text) => {
+                  multiplayerClient.sendChat(text);
+                }}
+                localPlayerName={multiplayerConfig?.playerName || 'Pahlawan'}
+                roomName={multiplayerConfig?.roomName || 'World-1'}
+                onlineCount={Object.keys(multiplayerPlayers).length + 1}
+              />
+            </div>
           )}
 
           {/* Virtual Joystick for Touch / Mobile devices (Hidden in spectator mode or when UI is hidden) */}
-          {!isAnyModalOpen && !isSpectatorMode && isUIVisible && showTouchControls && (
-            <VirtualJoystick
-              onMove={(vec) => {
-                if (engineRef.current) {
-                  engineRef.current.joystickVector = vec;
-                }
-              }}
-              onHide={handleToggleTouchControls}
-            />
+          {!isAnyModalOpen && !isSpectatorMode && showTouchControls && (
+            <div className={`transition-opacity duration-200 ${isUIVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+              <VirtualJoystick
+                onMove={(vec) => {
+                  if (engineRef.current) {
+                    engineRef.current.joystickVector = vec;
+                  }
+                }}
+                onHide={handleToggleTouchControls}
+              />
+            </div>
           )}
         </>
       )}

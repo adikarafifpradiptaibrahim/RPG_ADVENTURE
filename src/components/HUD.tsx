@@ -160,17 +160,15 @@ export const HUD: React.FC<HUDProps> = ({
   isUIVisible = true,
 }) => {
   const [dayNight, setDayNight] = useState(() => getSharedDayNightSystem().getState());
+  const [dismissMobileTip, setDismissMobileTip] = useState(false);
+  const [isMobileSystemMenuOpen, setIsMobileSystemMenuOpen] = useState(false);
+
   useEffect(() => {
     const timer = setInterval(() => {
       setDayNight(getSharedDayNightSystem().getState());
     }, 1000);
     return () => clearInterval(timer);
   }, []);
-  if (!isUIVisible) {
-    return null;
-  }
-  const [dismissMobileTip, setDismissMobileTip] = useState(false);
-  const [isMobileSystemMenuOpen, setIsMobileSystemMenuOpen] = useState(false);
 
   const activeQuest = quests.find((q) => !q.completed) || quests[quests.length - 1];
 
@@ -197,7 +195,12 @@ export const HUD: React.FC<HUDProps> = ({
   const classBadge = getClassBadge();
 
   return (
-    <div id="ui-root" className="hud-container pointer-events-none absolute inset-0 select-none overflow-hidden font-sans">
+    <div
+      id="ui-root"
+      className={`hud-container pointer-events-none absolute inset-0 select-none overflow-hidden font-sans transition-opacity duration-200 ${
+        isUIVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+      }`}
+    >
       {/* 3D Floating Numbers / Combat Text (Clean & Compact) */}
       {!isSpectatorMode && (
         <div className="absolute inset-0 pointer-events-none">
