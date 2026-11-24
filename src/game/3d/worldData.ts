@@ -91,6 +91,51 @@ export const BIOMES: Record<BiomeType, BiomeInfo> = {
  * Pusat: (X: 0, Z: -320). Dikelilingi lautan luas 360°.
  * Menghasilkan teluk melengkung dalam & tanjung/semenanjung runcing alami.
  */
+export const SEA_BED_HEIGHT = -6.0;
+
+/**
+ * Fast O(1) bounding check to detect deep ocean waters far from any landmass.
+ * Skips all expensive Domain-Warped FBM noise, spline evaluation, and road checks.
+ */
+export function isFarOcean(x: number, z: number): boolean {
+  // 1. Fast check for main continent (center [0, -320], max radius 800)
+  const cdx = x;
+  const cdz = z - (-320);
+  if (cdx * cdx + cdz * cdz <= 640000) {
+    return false;
+  }
+
+  // 2. Dragon Caldera Archipelago [40, 840] (radius 165)
+  const ddx = x - 40;
+  const ddz = z - 840;
+  if (ddx * ddx + ddz * ddz <= 27225) {
+    return false;
+  }
+
+  // 3. Lighthouse Island [-220, 460] (radius 75)
+  const lhx = x - (-220);
+  const lhz = z - 460;
+  if (lhx * lhx + lhz * lhz <= 5625) {
+    return false;
+  }
+
+  // 4. Pirate Island [-520, 620] (radius 85)
+  const pix = x - (-520);
+  const piz = z - 620;
+  if (pix * pix + piz * piz <= 7225) {
+    return false;
+  }
+
+  // 5. Rocky Reef [-780, 280] (radius 80)
+  const rrx = x - (-780);
+  const rrz = z - 280;
+  if (rrx * rrx + rrz * rrz <= 6400) {
+    return false;
+  }
+
+  return true;
+}
+
 export function getContinentCoastRadius(angle: number, x: number, z: number): number {
   let r = 450;
 
@@ -131,9 +176,12 @@ export function getContinentCoastRadius(angle: number, x: number, z: number): nu
  * Pemeriksaan apakah titik (x, z) berada di dalam daratan Benua Utama Eldoria.
  */
 export function isMainContinentLand(x: number, z: number): boolean {
-  const dx = x - 0;
+  const dx = x;
   const dz = z - (-320);
-  const dist = Math.hypot(dx, dz);
+  const distSq = dx * dx + dz * dz;
+  if (distSq > 577600) return false; // > 760 units: definitely ocean
+  if (distSq < 90000) return true;   // < 300 units: definitely continent core
+  const dist = Math.sqrt(distSq);
   const angle = Math.atan2(dz, dx);
   const coastR = getContinentCoastRadius(angle, x, z);
   return dist < coastR;
@@ -144,6 +192,11 @@ export function isMainContinentLand(x: number, z: number): boolean {
  * 100% Organik, Benua Utama dikelilingi lautan 360°, Gurun Solaria di sisi Barat!
  */
 export function getBiomeAt(x: number, z: number): BiomeType {
+  // Fast ocean check: skip all checks if point is in far ocean
+  if (isFarOcean(x, z)) {
+    return 'ocean';
+  }
+
   // A. Gugusan 3 Pulau Vulkanik Kaldera Naga di Laut Selatan Jauh [Pusat: 40, 840]
   const distDragonMain = Math.hypot(x - 40, z - 840);
   const distDragonSW = Math.hypot(x - -75, z - 875);
@@ -286,6 +339,7 @@ export function isStrictLandForProps(
   z: number,
   getHeight?: (x: number, z: number) => number
 ): boolean {
+  if (isFarOcean(x, z)) return false;
   const biome = getBiomeAt(x, z);
   if (biome === 'ocean' || biome === 'lake') return false;
   if (isRiverZone(x, z, 8.5)) return false;
@@ -858,6 +912,9 @@ function lerpVal(a: number, b: number, t: number): number {
  * Menghasilkan tinggi Y fisik terrain 3D untuk Three.js vertex deformation dan pergerakan karakter.
  */
 export function getProceduralContinentHeight(x: number, z: number): number {
+  if (isFarOcean(x, z)) {
+    return SEA_BED_HEIGHT;
+  }
   const biome = getBiomeAt(x, z);
   const lm = WORLD_LAYOUT_CONFIG.landmarks;
 

@@ -8,51 +8,66 @@
  * tab switching, and window events are processed smoothly with 0% freeze and 0 dialogs "Page Unresponsive".
  */
 
-let sliceStart = performance.now();
 let lastSliceTimestamp = performance.now();
 
 /**
- * Principal WebGL Performance Engineer & Browser Runtime Optimization Architect
- * Global cooperativeYield (4ms budget default)
- * Uses setTimeout(16) when the 4ms budget is exceeded so Chrome UI and tabs get a full 16ms frame to breathe.
+ * Time-Budgeted Yield: Ensures browser UI thread and loading spinner animation
+ * render at 60 FPS without ever triggering "Page Unresponsive" dialog.
  */
-export async function cooperativeYield(budgetMs = 4): Promise<void> {
+export async function yieldIfNeeded(budgetMs = 8): Promise<void> {
   if (performance.now() - lastSliceTimestamp >= budgetMs) {
-    // Gunakan setTimeout(16) agar browser UI & tab lain mendapat 1 frame penuh untuk bernapas
-    await new Promise<void>((resolve) => setTimeout(resolve, 16));
+    await new Promise<void>((resolve) => {
+      if (typeof requestAnimationFrame !== 'undefined') {
+        requestAnimationFrame(() => resolve());
+      } else {
+        setTimeout(resolve, 0);
+      }
+    });
     lastSliceTimestamp = performance.now();
   }
 }
 
 /**
- * Yields control to Chrome with a 16ms pause if CPU work exceeds maxWorkMs (default 5ms).
- * Allows Chrome to process tab clicks, input events, and window management with 0 lag.
+ * Principal WebGL Performance Engineer & Browser Runtime Optimization Architect
+ * Global cooperativeYield (8ms budget default)
+ * Uses requestAnimationFrame time-slicing when the 8ms budget is exceeded so Chrome UI,
+ * loading animations, and tabs render smoothly at 60 FPS.
  */
-export async function yieldToChrome(maxWorkMs = 5): Promise<void> {
-  if (performance.now() - sliceStart >= maxWorkMs) {
-    // Beri jeda 16ms (1 frame penuh) agar Chrome UI & perpindahan tab 100% lancar tanpa lag
-    await new Promise<void>((resolve) => setTimeout(resolve, 16));
-    sliceStart = performance.now();
-  }
+export async function cooperativeYield(budgetMs = 8): Promise<void> {
+  return yieldIfNeeded(budgetMs);
 }
 
 /**
- * Yields control to the browser macrotask queue via setTimeout(16).
+ * Yields control to Chrome with RAF time-slicing if CPU work exceeds maxWorkMs (default 8ms).
+ * Allows Chrome to process tab clicks, input events, and CSS spinner animations with 0 lag.
  */
-export function yieldToMainThread(ms = 16): Promise<void> {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+export async function yieldToChrome(maxWorkMs = 8): Promise<void> {
+  return yieldIfNeeded(maxWorkMs);
+}
+
+/**
+ * Yields control to the browser macrotask queue via requestAnimationFrame.
+ */
+export function yieldToMainThread(ms = 0): Promise<void> {
+  return new Promise<void>((resolve) => {
+    if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(() => resolve());
+    } else {
+      setTimeout(resolve, ms);
+    }
+  });
 }
 
 export function yieldToBrowserFrame(): Promise<void> {
-  return yieldToChrome(5);
+  return yieldIfNeeded(8);
 }
 
 /**
- * Strictly checks if execution has exceeded the 5ms CPU budget.
- * If exceeded, yields 16ms to Chrome and resets the slice timer.
+ * Strictly checks if execution has exceeded the 8ms CPU budget.
+ * If exceeded, yields to browser frame and resets the slice timer.
  */
-export async function yieldIfBudgetExceeded(maxMs = 5): Promise<void> {
-  return yieldToChrome(maxMs);
+export async function yieldIfBudgetExceeded(maxMs = 8): Promise<void> {
+  return yieldIfNeeded(maxMs);
 }
 
 /**

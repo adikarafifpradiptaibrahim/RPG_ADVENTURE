@@ -2501,7 +2501,7 @@ export async function buildTitanLakeAndCanyon(
     colliders.push({ type: 'circle', x: pos.x, z: pos.z, radius: 1.2, label: 'Pilar Petir Melayang' });
   });
 
-  await cooperativeYield(4);
+await cooperativeYield(4);
 }
 
 
@@ -2626,7 +2626,7 @@ export async function buildDragonCaldera(
     label: 'Fosil Tengkorak Naga Purba',
   });
 
-  // D. Formasi Kolom Basalt Heksagonal Alami & Runcing (Anti-Kotak / Anti-Voksel)
+  // D. Formasi Kolom Basalt Heksagonal Alami & Runcing (InstancedMesh untuk performa maksimal)
   // Menghiasi lereng tebing kawah bertingkat (Radius 46 s.d. 78 unit) dengan tinggi & kemiringan acak
   const basaltMat = new THREE.MeshStandardMaterial({
     color: 0x18181b,
@@ -2634,8 +2634,14 @@ export async function buildDragonCaldera(
     metalness: 0.35,
     flatShading: true,
   });
+  const basaltBaseGeo = new THREE.CylinderGeometry(0.8, 1.0, 1.0, 6);
+  basaltBaseGeo.translate(0, 0.5, 0);
+  const basaltInstMesh = new THREE.InstancedMesh(basaltBaseGeo, basaltMat, 28);
+  let basaltCount = 0;
+  const basaltDummy = new THREE.Object3D();
+
   for (let i = 0; i < 28; i++) {
-    if (i % 8 === 0) await cooperativeYield(4);
+    if (i % 8 === 0) await cooperativeYield(8);
     const angle = (i / 28) * Math.PI * 2;
     // Hindari jalur celah ngarai masuk utara (sudut sekitar -Math.PI / 2)
     if (angle > -Math.PI * 0.65 && angle < -Math.PI * 0.35) continue;
@@ -2647,13 +2653,19 @@ export async function buildDragonCaldera(
 
     const colH = 6.0 + (i % 4) * 3.5;
     const colR = 1.4 + (i % 3) * 0.4;
-    const colMesh = new THREE.Mesh(new THREE.CylinderGeometry(colR * 0.8, colR, colH, 6), basaltMat);
-    colMesh.position.set(bx, by + colH * 0.45, bz);
-    colMesh.rotation.x = ((i % 3) - 1) * 0.08;
-    colMesh.rotation.z = (((i + 1) % 3) - 1) * 0.08;
-    scene.add(colMesh);
+
+    basaltDummy.position.set(bx, by, bz);
+    basaltDummy.scale.set(colR, colH, colR);
+    basaltDummy.rotation.set(((i % 3) - 1) * 0.08, 0, (((i + 1) % 3) - 1) * 0.08);
+    basaltDummy.updateMatrix();
+    basaltInstMesh.setMatrixAt(basaltCount++, basaltDummy.matrix);
+
     colliders.push({ type: 'circle', x: bx, z: bz, radius: colR, label: 'Formasi Basalt Kawah' });
   }
+  basaltInstMesh.count = basaltCount;
+  basaltInstMesh.instanceMatrix.needsUpdate = true;
+  basaltInstMesh.computeBoundingSphere();
+  scene.add(basaltInstMesh);
 
   // E. Kolam & Retakan Lahar Merah Menyala di Seputar Kaldera
   const lavaRingGeo = new THREE.RingGeometry(24.0, 32.0, 36);
@@ -2696,15 +2708,24 @@ export async function buildDragonCaldera(
   const dockPier = new THREE.Mesh(new THREE.BoxGeometry(5.0, 0.45, 18.0), charredDockMat);
   dockPier.position.set(40, 0.45, 750);
   scene.add(dockPier);
-  // Tiang pancang dermaga hangus
+  // Tiang pancang dermaga hangus (InstancedMesh)
+  const dockPileGeo = new THREE.CylinderGeometry(0.25, 0.25, 3.5, 6);
+  const dockPileMesh = new THREE.InstancedMesh(dockPileGeo, charredDockMat, 8);
+  let pileIdx = 0;
+  const pileDummy = new THREE.Object3D();
   for (let pz = 743; pz <= 757; pz += 4.5) {
-    const pile1 = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 3.5, 6), charredDockMat);
-    pile1.position.set(37.3, 0.2, pz);
-    scene.add(pile1);
-    const pile2 = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 3.5, 6), charredDockMat);
-    pile2.position.set(42.7, 0.2, pz);
-    scene.add(pile2);
+    pileDummy.position.set(37.3, 0.2, pz);
+    pileDummy.updateMatrix();
+    dockPileMesh.setMatrixAt(pileIdx++, pileDummy.matrix);
+
+    pileDummy.position.set(42.7, 0.2, pz);
+    pileDummy.updateMatrix();
+    dockPileMesh.setMatrixAt(pileIdx++, pileDummy.matrix);
   }
+  dockPileMesh.count = pileIdx;
+  dockPileMesh.instanceMatrix.needsUpdate = true;
+  dockPileMesh.computeBoundingSphere();
+  scene.add(dockPileMesh);
   colliders.push({ type: 'box', minX: 37.0, maxX: 43.0, minZ: 741, maxZ: 759, label: 'Dermaga Kayu Hangus' });
 
   // G. 2 Jembatan Batu Rantai Vulkanik Penghubung ke Pulau Satelit
@@ -2916,23 +2937,29 @@ async function populateWorldEntities(
   // ==========================================
   // 4. SOLARIA GOLDEN DESERT: VILLAGE, GRAND PALACE & SUNKEN PYRAMID (42%)
   // ==========================================
-  onProgress?.(42, 'Membangun Piramida, Oase, & Istana Sultan Malik...');
-  await cooperativeYield(4);
+  onProgress?.(42, 'Membangun Piramida, Oase, & Istana Sultan Malik (42%)...');
+  await cooperativeYield(8);
   await buildDesertStructures(scene, getTerrainHeight, colliders, decorativeProps, pointLights, npcs);
 
   // ==========================================
-  // 5. TITAN LAKE, CANYON & DRAGON CALDERA (45%)
+  // 5. TITAN LAKE & CANYON (46%)
   // ==========================================
-  onProgress?.(45, 'Membangun Lembah Danau Titan, Kanyon Kuno, & Kaldera Naga...');
-  await cooperativeYield(4);
+  onProgress?.(46, 'Membangun Lembah Danau Titan & Kawah Cacing Purba (46%)...');
+  await cooperativeYield(8);
   await buildTitanLakeAndCanyon(scene, getTerrainHeight, colliders, decorativeProps, pointLights, npcs);
+
+  // ==========================================
+  // 6. DRAGON CALDERA ARCHIPELAGO (50% - 54%)
+  // ==========================================
+  onProgress?.(50, 'Membangun Gugusan Kepulauan Kaldera Naga (50%)...');
+  await cooperativeYield(8);
   const { chests } = await buildDragonCaldera(scene, getTerrainHeight, colliders, decorativeProps, pointLights);
 
   // ==========================================
-  // 6. SACRED SPRING, CHECKPOINTS & BOSS NPCS (47% - 48.5%)
+  // 7. SACRED SPRING, CHECKPOINTS & BOSS NPCS (54% - 58%)
   // ==========================================
-  onProgress?.(47, 'Menempatkan NPC, Pedagang, & Penjaga Wilayah (47%)...');
-  await cooperativeYield(4);
+  onProgress?.(54, 'Menempatkan NPC, Pedagang, & Penjaga Wilayah (54%)...');
+  await cooperativeYield(8);
   // 10. MATA AIR SUCI & TAMAN BUNGA ELDORIA (Plains Spring: [-144, -270])
   // Ganti bekas wilayah raksasa lama: kolam air tawar melingkar kecil, tepian batu kali halus berlumut,
   // tumbuhan teratai air terapung, hamparan rumpun bunga liar (lavender, kamomil), dan 2 pohon willow rindang.
@@ -3369,10 +3396,10 @@ async function populateWorldEntities(
   scene.add(castleRuinsGroup);
 
   // ==========================================
-  // 11. REGIONAL CHECKPOINT & WAYPOINT TELEPORTATION MONUMENTS (48.5%)
+  // 11. REGIONAL CHECKPOINT & WAYPOINT TELEPORTATION MONUMENTS (58%)
   // ==========================================
-  onProgress?.(48.5, 'Menyiapkan Pos Penjaga & Monumen Checkpoint (48.5%)...');
-  await cooperativeYield(4);
+  onProgress?.(58, 'Menyiapkan Pos Penjaga & Monumen Checkpoint (58%)...');
+  await cooperativeYield(8);
 
   const checkpoints: WorldCheckpoint[] = [];
 
@@ -3382,133 +3409,133 @@ async function populateWorldEntities(
     nameId: string;
     pos: [number, number];
   }[] = [
-    {
-      id: 'wp_village',
-      name: 'Sanctuary Village Plaza',
-      nameId: 'Alun-Alun Desa Sanctuary Eldoria',
-      pos: [40, -40],
-    },
-    {
-      id: 'wp_harbor',
-      name: 'Sanctuary Coastal Harbor',
-      nameId: 'Dermaga & Pelabuhan Sanctuary',
-      pos: [40, 85],
-    },
-    {
-      id: 'wp_sacred_spring',
-      name: 'Sacred Spring & Eldoria Flower Gardens',
-      nameId: 'Mata Air Suci & Taman Bunga Eldoria',
-      pos: [140, -520],
-    },
-    {
-      id: 'wp_titan',
-      name: 'Ancient Titan Lake Valley',
-      nameId: 'Lembah Danau Titan Kuno',
-      pos: [80, -760],
-    },
-    {
-      id: 'wp_astraea',
-      name: 'Grand Imperial Capital Astraea',
-      nameId: 'Ibukota Kerajaan Emas Astraea',
-      pos: [320, -260],
-    },
-    {
-      id: 'wp_valkragor',
-      name: 'Val-Kragor Fortress Plaza',
-      nameId: 'Alun-Alun Benteng Val-Kragor',
-      pos: [520, 10],
-    },
-    {
-      id: 'wp_thunderpeak',
-      name: 'Thunderpeak Spire & Mage Tower',
-      nameId: 'Mage Tower Puncak Halilintar',
-      pos: [220, -110],
-    },
-    {
-      id: 'wp_solaria_village',
-      name: 'Solaria Desert Village & Bazaar',
-      nameId: 'Desa Bazaar Gurun Solaria',
-      pos: [-460, -260],
-    },
-    {
-      id: 'wp_solaria_palace',
-      name: 'Solaria Grand Sultan Palace',
-      nameId: 'Istana Sultan Malik',
-      pos: [-540, -640],
-    },
-    {
-      id: 'wp_solaria',
-      name: 'Solaria Golden Desert Pyramid',
-      nameId: 'Piramida Emas Solaria',
-      pos: [-320, -560],
-    },
-    {
-      id: 'wp_solaria_oasis',
-      name: 'Solaria Hidden Oasis',
-      nameId: 'Oase Solaria',
-      pos: [-340, -340],
-    },
-    {
-      id: 'wp_dragoncaldera',
-      name: 'Dragonfang Caldera Archipelago',
-      nameId: 'Kepulauan Kaldera Naga (Lv. 12)',
-      pos: [40, 840],
-    },
-    {
-      id: 'wp_lighthouse_island',
-      name: 'Sailor Reef & Lighthouse Island',
-      nameId: 'Pulau Mercusuar & Karang Pelaut',
-      pos: [-220, 460],
-    },
-    {
-      id: 'wp_pirate_island',
-      name: 'Pirate Ruins Island',
-      nameId: 'Pulau Reruntuhan Bajak Laut',
-      pos: [-520, 620],
-    },
-    {
-      id: 'wp_rocky_reef',
-      name: 'Craggy Reef Stacks',
-      nameId: 'Pulau Karang Terjal',
-      pos: [-780, 280],
-    },
-    {
-      id: 'wp_boss_crater',
-      name: 'Ancient Colosseum Ruins (Titan Kuno)',
-      nameId: 'Kawah Cacat World Boss (Lv. 10)',
-      pos: [-480, -480],
-    },
-    {
-      id: 'wp_sandworm',
-      name: 'The Great Solaria Sinkhole',
-      nameId: 'Sarang Cacing Purba Gurun',
-      pos: [-420, -420],
-    },
-    {
-      id: 'wp_canyon',
-      name: 'Ancient Canyon',
-      nameId: 'Kanyon Kuno',
-      pos: [-260, -780],
-    },
-    {
-      id: 'wp_mist_forest',
-      name: 'Eldoria Mist Forest',
-      nameId: 'Hutan Kabut Eldoria',
-      pos: [640, -340],
-    },
-    {
-      id: 'wp_abandoned_castle',
-      name: 'Abandoned Castle Ruins',
-      nameId: 'Puing Kastil Terbengkalai',
-      pos: [420, -140],
-    },
-    {
-      id: 'wp_moss_valley',
-      name: 'Moss Rock Valley',
-      nameId: 'Lembah Batu Lumut',
-      pos: [600, -120],
-    },
-  ];
+      {
+        id: 'wp_village',
+        name: 'Sanctuary Village Plaza',
+        nameId: 'Alun-Alun Desa Sanctuary Eldoria',
+        pos: [40, -40],
+      },
+      {
+        id: 'wp_harbor',
+        name: 'Sanctuary Coastal Harbor',
+        nameId: 'Dermaga & Pelabuhan Sanctuary',
+        pos: [40, 85],
+      },
+      {
+        id: 'wp_sacred_spring',
+        name: 'Sacred Spring & Eldoria Flower Gardens',
+        nameId: 'Mata Air Suci & Taman Bunga Eldoria',
+        pos: [140, -520],
+      },
+      {
+        id: 'wp_titan',
+        name: 'Ancient Titan Lake Valley',
+        nameId: 'Lembah Danau Titan Kuno',
+        pos: [80, -760],
+      },
+      {
+        id: 'wp_astraea',
+        name: 'Grand Imperial Capital Astraea',
+        nameId: 'Ibukota Kerajaan Emas Astraea',
+        pos: [320, -260],
+      },
+      {
+        id: 'wp_valkragor',
+        name: 'Val-Kragor Fortress Plaza',
+        nameId: 'Alun-Alun Benteng Val-Kragor',
+        pos: [520, 10],
+      },
+      {
+        id: 'wp_thunderpeak',
+        name: 'Thunderpeak Spire & Mage Tower',
+        nameId: 'Mage Tower Puncak Halilintar',
+        pos: [220, -110],
+      },
+      {
+        id: 'wp_solaria_village',
+        name: 'Solaria Desert Village & Bazaar',
+        nameId: 'Desa Bazaar Gurun Solaria',
+        pos: [-460, -260],
+      },
+      {
+        id: 'wp_solaria_palace',
+        name: 'Solaria Grand Sultan Palace',
+        nameId: 'Istana Sultan Malik',
+        pos: [-540, -640],
+      },
+      {
+        id: 'wp_solaria',
+        name: 'Solaria Golden Desert Pyramid',
+        nameId: 'Piramida Emas Solaria',
+        pos: [-320, -560],
+      },
+      {
+        id: 'wp_solaria_oasis',
+        name: 'Solaria Hidden Oasis',
+        nameId: 'Oase Solaria',
+        pos: [-340, -340],
+      },
+      {
+        id: 'wp_dragoncaldera',
+        name: 'Dragonfang Caldera Archipelago',
+        nameId: 'Kepulauan Kaldera Naga (Lv. 12)',
+        pos: [40, 840],
+      },
+      {
+        id: 'wp_lighthouse_island',
+        name: 'Sailor Reef & Lighthouse Island',
+        nameId: 'Pulau Mercusuar & Karang Pelaut',
+        pos: [-220, 460],
+      },
+      {
+        id: 'wp_pirate_island',
+        name: 'Pirate Ruins Island',
+        nameId: 'Pulau Reruntuhan Bajak Laut',
+        pos: [-520, 620],
+      },
+      {
+        id: 'wp_rocky_reef',
+        name: 'Craggy Reef Stacks',
+        nameId: 'Pulau Karang Terjal',
+        pos: [-780, 280],
+      },
+      {
+        id: 'wp_boss_crater',
+        name: 'Ancient Colosseum Ruins (Titan Kuno)',
+        nameId: 'Kawah Cacat World Boss (Lv. 10)',
+        pos: [-480, -480],
+      },
+      {
+        id: 'wp_sandworm',
+        name: 'The Great Solaria Sinkhole',
+        nameId: 'Sarang Cacing Purba Gurun',
+        pos: [-420, -420],
+      },
+      {
+        id: 'wp_canyon',
+        name: 'Ancient Canyon',
+        nameId: 'Kanyon Kuno',
+        pos: [-260, -780],
+      },
+      {
+        id: 'wp_mist_forest',
+        name: 'Eldoria Mist Forest',
+        nameId: 'Hutan Kabut Eldoria',
+        pos: [640, -340],
+      },
+      {
+        id: 'wp_abandoned_castle',
+        name: 'Abandoned Castle Ruins',
+        nameId: 'Puing Kastil Terbengkalai',
+        pos: [420, -140],
+      },
+      {
+        id: 'wp_moss_valley',
+        name: 'Moss Rock Valley',
+        nameId: 'Lembah Batu Lumut',
+        pos: [600, -120],
+      },
+    ];
 
   // Invisible Checkpoint & Fast Travel Destination Metadata (No 3D Meshes Spawned)
   CHECKPOINT_DEFINITIONS.forEach((cpDef) => {

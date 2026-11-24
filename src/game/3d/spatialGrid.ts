@@ -7,7 +7,7 @@
  * Sized 600 x 475 cells (2 units/cell) across world bounds X: [-600, 600], Z: [-600, 350].
  */
 
-import { WORLD_BOUNDS, getBiomeAt, BRIDGE_CONFIGS, WORLD_LANDMARKS } from './worldData';
+import { WORLD_BOUNDS, getBiomeAt, BRIDGE_CONFIGS, WORLD_LANDMARKS, isFarOcean, SEA_BED_HEIGHT } from './worldData';
 import {
   RIVER_NW_BRANCH,
   RIVER_DESERT_BRANCH,
@@ -16,7 +16,7 @@ import {
   isDesertBiome,
 } from '../mapSampler';
 import { getSampledRoads } from '../RoadSystem';
-import { checkFrameBudget, yieldIfBudgetExceeded } from './frameBudget';
+import { checkFrameBudget, yieldIfBudgetExceeded, yieldIfNeeded } from './frameBudget';
 
 export const SPATIAL_CELL_SIZE = 4.0;
 export const SPATIAL_MIN_X = WORLD_BOUNDS.minX; // -1650
@@ -252,6 +252,13 @@ export class SpatialLookupGrid {
         const px = SPATIAL_MIN_X + (col + 0.5) * SPATIAL_CELL_SIZE;
         const idx = rowOff + col;
 
+        // Fast O(1) far ocean check: skips 70%+ of cells across the 3100x2650 map
+        if (isFarOcean(px, pz)) {
+          this.heightGrid[idx] = SEA_BED_HEIGHT;
+          this.flagsGrid[idx] |= (FLAG_IS_OCEAN | FLAG_BLOCKED_GENERAL);
+          continue;
+        }
+
         // Desert biome
         if (isDesertBiome(px, pz)) {
           this.flagsGrid[idx] |= FLAG_IS_DESERT;
@@ -269,9 +276,9 @@ export class SpatialLookupGrid {
 
       // Check frame budget every 2 rows (~1,200 cells) with strict 8ms macrotask budget
       if (row % 2 === 0) {
-        await yieldIfBudgetExceeded(8);
+        await yieldIfNeeded(8);
         if (onProgress) {
-          const pct = 26 + Math.round((row / SPATIAL_ROWS) * 4);
+          const pct = 26 + Math.round((row / SPATIAL_ROWS) * 6);
           onProgress(pct, 'Membangun Spatial Lookup Grid & Heightmap (TypedArray)...');
         }
       }

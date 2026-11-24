@@ -1306,9 +1306,9 @@ export class GameEngine {
     }
     this.scenePointLights = this.world.pointLights || [];
 
-    // Tahap 3b: 48.5% Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya
-    onProgress?.(48.5, 'Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya...');
-    await cooperativeYield(4);
+    // Tahap 3b: 60% Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya
+    onProgress?.(60, 'Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya (60%)...');
+    await cooperativeYield(8);
 
     // Initialize Boss Manager
     this.bossManager = new BossManager(
@@ -1366,9 +1366,9 @@ export class GameEngine {
     // Tahap 3c: 48.5% - 50% Membangkitkan World Boss & Menempatkan Populasi Monster Time-Sliced
     await this.spawnEnemiesAsync(onProgress);
 
-    // Tahap 4: 51% - 72% Populasi Vegetasi & Bebatuan (InstancedMesh) Time-Sliced
-    onProgress?.(51, 'Populasi Vegetasi & Bebatuan (InstancedMesh)...');
-    await cooperativeYield(4);
+    // Tahap 4: 68% - 80% Populasi Vegetasi & Bebatuan (InstancedMesh) Time-Sliced
+    onProgress?.(68, 'Populasi Vegetasi & Bebatuan (InstancedMesh)...');
+    await cooperativeYield(8);
 
     // 2. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation with TypedArray spatial lookup
     this.worldEnvironment = await buildWorldEnvironmentAsync(
@@ -1385,9 +1385,9 @@ export class GameEngine {
       this.playerMesh.group.position.copy(this.playerPos);
     }
 
-    // Tahap 5: 75% Pre-Alokasi Pool VFX Karakter & Skill Mage
-    onProgress?.(75, 'Pre-Alokasi Pool VFX Karakter & Skill Mage (75%)...');
-    await cooperativeYield(4);
+    // Tahap 5: 82% Pre-Alokasi Pool VFX Karakter & Skill Mage
+    onProgress?.(82, 'Pre-Alokasi Pool VFX Karakter & Skill Mage (82%)...');
+    await cooperativeYield(8);
 
     // Pre-decode audio buffers
     await soundManager.preloadMageAudioBuffers();
@@ -1401,11 +1401,11 @@ export class GameEngine {
 
     // Apply shadow & distance culling settings
     this.applyGraphicsSettings(this.graphicsSettings);
-    await cooperativeYield(4);
+    await cooperativeYield(8);
 
-    // Tahap 6: 85% Mengompilasi Shader GPU Global (renderer.compile / compileAsync)
-    onProgress?.(85, 'Mengompilasi Shader GPU Global (85%)...');
-    await cooperativeYield(4);
+    // Tahap 6: 86% Mengompilasi Shader GPU Global (renderer.compile / compileAsync)
+    onProgress?.(86, 'Mengompilasi Shader GPU Global (86%)...');
+    await cooperativeYield(8);
 
     if (this.renderer && this.scene && this.camera) {
       try {
@@ -1418,31 +1418,31 @@ export class GameEngine {
         console.warn('[Engine] Shader compilation warning:', e);
       }
     }
-    await cooperativeYield(4);
+    await cooperativeYield(8);
 
     // Tahap 7a: 90% In-Frustum GPU Shader Warm-Up Khusus Mage
     onProgress?.(90, 'Kompilasi Shader Pool Sihir Mage (90%)...');
-    await cooperativeYield(4);
+    await cooperativeYield(8);
 
     if (this.scene && this.renderer && this.camera) {
       await preloadMageVfxPoolAsync(this.scene, this.renderer, this.camera, async () => {
-        await cooperativeYield(4);
+        await cooperativeYield(8);
       });
     }
-    await cooperativeYield(4);
+    await cooperativeYield(8);
 
-    // Tahap 7b: 95% In-Frustum GPU Shader Warm-Up Khusus Pemburu & Assassin
-    onProgress?.(95, 'Kompilasi Shader Pool Panah & Bayangan Pemburu (95%)...');
-    await cooperativeYield(4);
+    // Tahap 7b: 94% In-Frustum GPU Shader Warm-Up Khusus Pemburu & Assassin
+    onProgress?.(94, 'Kompilasi Shader Pool Panah & Bayangan Pemburu (94%)...');
+    await cooperativeYield(8);
 
     if (this.scene && this.renderer && this.camera) {
       await this.prewarmHunterShadersInFrustumAsync();
     }
-    await cooperativeYield(4);
+    await cooperativeYield(8);
 
     // Tahap 7c: 98% Warm-Up Shader Boss Telegraph & Efek Tempur
     onProgress?.(98, 'Kompilasi Shader Boss Telegraph & Efek Tempur (98%)...');
-    await cooperativeYield(4);
+    await cooperativeYield(8);
     if (this.bossManager && this.renderer && this.scene && this.camera) {
       try {
         if (typeof (this.renderer as any).compileAsync === 'function') {
@@ -1452,13 +1452,13 @@ export class GameEngine {
         console.warn('[Engine] Boss shader warm-up compile warning:', e);
       }
     }
-    await cooperativeYield(4);
+    await cooperativeYield(8);
 
     this.isWorldLoaded = true;
 
     // Tahap 8: 100% Membuka tirai loading secara halus
     onProgress?.(100, 'Dunia Eldoria Siap! Menyerahkan Kontrol...');
-    await cooperativeYield(4);
+    await cooperativeYield(8);
   }
 
   public clearCombatState(): void {
@@ -1943,8 +1943,8 @@ export class GameEngine {
       }
     };
 
-    onProgress?.(50, 'Menempatkan Populasi Monster & Peti Harta Karun (50%)...');
-    await cooperativeYield(4);
+    onProgress?.(66, 'Menempatkan Populasi Monster & Peti Harta Karun (66%)...');
+    await cooperativeYield(8);
 
     // 1. Meadow Slimes (Lv. 1) - Relocated to Eastern Plains (> 85 units east from Sanctuary)
     await spawnGroupAsync(MEADOW_SLIME_SPAWNS, (sp) => {
@@ -2222,7 +2222,8 @@ export class GameEngine {
     });
 
     // 8. Ancient Obsidian Titan Golem Boss in North Crater Arena (X: -220, Z: -400)
-    onProgress?.(48.5, 'Membangkitkan World Boss: Sang Titan Kuno Obsidian (48.5%)...');
+    onProgress?.(62, 'Membangkitkan World Boss: Sang Titan Kuno Obsidian (62%)...');
+    await cooperativeYield(8);
     const bossPos: [number, number] = [SPAWN_TITAN.x, SPAWN_TITAN.z];
     const { group: bossGroup, parts: bossParts } = createEnemyMesh('boss');
     const by = this.world.getTerrainHeight(bossPos[0], bossPos[1]);
@@ -2575,7 +2576,8 @@ export class GameEngine {
     });
 
     // Dragonfang Super Boss: Ignis, Sang Naga Purba (Colossal Winged Dragon: [40, 840] - Pusat Altar Kaldera Naga)
-    onProgress?.(48.5, 'Membangkitkan World Boss: Ignis, Sang Naga Purba (48.5%)...');
+    onProgress?.(63, 'Membangkitkan World Boss: Ignis, Sang Naga Purba (63%)...');
+    await cooperativeYield(8);
     const wyrmPos: [number, number] = [40, 840];
     const { group: wyrmGroup, parts: wyrmParts } = createEnemyMesh('dragon');
     const wyrmY = this.world.getTerrainHeight(wyrmPos[0], wyrmPos[1]);
@@ -2613,10 +2615,11 @@ export class GameEngine {
       attackCooldown: 0,
       walkCycle: 0,
     });
-    await cooperativeYield(4);
+    await cooperativeYield(8);
 
     // Solaria Desert Colossal Super Boss: Jarrus, Sang Cacing Purba (Segmented Burrowing Sandworm: [495, -362])
-    onProgress?.(48.5, 'Membangkitkan World Boss: Jarrus, Sang Cacing Purba (48.5%)...');
+    onProgress?.(64, 'Membangkitkan World Boss: Jarrus, Sang Cacing Purba (64%)...');
+    await cooperativeYield(8);
     const wormY = this.world.getTerrainHeight(SPAWN_SANDWORM.x, SPAWN_SANDWORM.z);
     const { group: wormGroup, parts: wormParts } = createEnemyMesh('worm');
     wormGroup.position.set(SPAWN_SANDWORM.x, wormY, SPAWN_SANDWORM.z);
