@@ -161,6 +161,7 @@ export interface GameEngineCallbacks {
   onPreviewRoleSelected?: (role: 'warrior' | 'mage' | 'rogue') => void;
   onPlayerPositionUpdate?: (data: {
     x: number;
+    y?: number;
     z: number;
     rotationY: number;
     region: RegionInfo;
@@ -629,7 +630,13 @@ export class GameEngine {
   // Spectator / Freecam Mode (Minecraft-Style Fly Cam)
   public isSpectatorMode = false;
   public isHudHidden = false;
-  private spectatorPos = new THREE.Vector3();
+  public spectatorPos = new THREE.Vector3();
+  public getSpectatorPos(): THREE.Vector3 {
+    return this.spectatorPos;
+  }
+  private savedCameraFar?: number;
+  private savedFogFar?: number;
+  private savedFogNear?: number;
   private spectatorYaw = 0;
   private spectatorPitch = 0;
   private spectatorSpeed = 22.0; // units/sec, adjustable 4.0 to 90.0 via scroll wheel
@@ -3105,12 +3112,35 @@ export class GameEngine {
         this.playerMesh.group.visible = false;
       }
 
+      // Dynamic High-Altitude Visibility: Extend camera.far and fog distance so whole continent is visible
+      this.savedCameraFar = this.camera.far;
+      if (this.scene.fog instanceof THREE.Fog) {
+        this.savedFogFar = this.scene.fog.far;
+        this.savedFogNear = this.scene.fog.near;
+        this.scene.fog.far = Math.max(this.scene.fog.far, 2500);
+        this.scene.fog.near = Math.max(this.scene.fog.near, 900);
+      }
+      this.camera.far = Math.max(this.camera.far, 2600);
+      this.camera.updateProjectionMatrix();
+
       this.callbacks.onAddFloatingText(
         'Mode Spektator Aktif (WASD / Space / Shift / Scroll Speed)',
         '#38bdf8',
         'info'
       );
     } else {
+      // Restore camera.far and fog distance
+      if (this.savedCameraFar !== undefined) {
+        this.camera.far = this.savedCameraFar;
+        this.camera.updateProjectionMatrix();
+      }
+      if (this.scene.fog instanceof THREE.Fog && this.savedFogFar !== undefined) {
+        this.scene.fog.far = this.savedFogFar;
+        if (this.savedFogNear !== undefined) {
+          this.scene.fog.near = this.savedFogNear;
+        }
+      }
+
       if (landAtCamera) {
         this.playerPos.x = this.spectatorPos.x;
         this.playerPos.z = this.spectatorPos.z;
@@ -3218,16 +3248,33 @@ export class GameEngine {
       this.spectatorPos.z += (moveZ / len) * moveDist;
     }
 
-    // Clamp spectator camera to calibrated world scale (1200 x 950)
-    this.spectatorPos.x = Math.max(-600, Math.min(600, this.spectatorPos.x));
-    this.spectatorPos.z = Math.max(-600, Math.min(350, this.spectatorPos.z));
-    this.spectatorPos.y = Math.max(-5, Math.min(300, this.spectatorPos.y));
+    // Dynamic Absolute Boundaries for Spectator Freecam (True Noclip across continent & oceans):
+    // 1. Horizontal Bounds: Synchronized with latest WORLD_BOUNDS with +/- 20 padding
+    const minX = WORLD_BOUNDS.minX - 20;
+    const maxX = WORLD_BOUNDS.maxX + 20;
+    const minZ = WORLD_BOUNDS.minZ - 20;
+    const maxZ = WORLD_BOUNDS.maxZ + 20;
+
+    this.spectatorPos.x = Math.max(minX, Math.min(maxX, this.spectatorPos.x));
+    this.spectatorPos.z = Math.max(minZ, Math.min(maxZ, this.spectatorPos.z));
+
+    // 2. Deep Underground Bound: allow subterranean/underwater inspection, clamped to prevent infinite void fall
+    const groundY = getExactMeshGroundHeight(this.spectatorPos.x, this.spectatorPos.z);
+    const minY = Math.min(-45, groundY - 40);
+
+    // 3. Dynamic Maximum Altitude based on camera far plane
+    const cameraFar = this.camera?.far ?? 2600;
+    const maxY = Math.min(480, cameraFar * 0.42);
+
+    this.spectatorPos.y = Math.max(minY, Math.min(maxY, this.spectatorPos.y));
 
     this.camera.position.copy(this.spectatorPos);
     const lookTarget = this.spectatorPos.clone().add(new THREE.Vector3(fwdX, fwdY, fwdZ));
     this.camera.lookAt(lookTarget);
+  }
 
-
+  public updateSpectatorCamera(delta: number) {
+    this.updateSpectatorMovement(delta);
   }
 
   private handleKeyDown = (e: KeyboardEvent) => {
@@ -13024,10 +13071,12 @@ export class GameEngine {
 
       const targetPosX = this.isSpectatorMode ? this.spectatorPos.x : this.playerPos.x;
       const targetPosZ = this.isSpectatorMode ? this.spectatorPos.z : this.playerPos.z;
+      const targetPosY = this.isSpectatorMode ? this.spectatorPos.y : this.playerPos.y;
       const targetRotY = this.isSpectatorMode ? this.spectatorYaw : this.playerRotationY;
       const currentReg = getCurrentRegion(targetPosX, targetPosZ);
       this.callbacks.onPlayerPositionUpdate({
         x: targetPosX,
+        y: targetPosY,
         z: targetPosZ,
         rotationY: targetRotY,
         region: currentReg,

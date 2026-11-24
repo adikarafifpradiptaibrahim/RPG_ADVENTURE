@@ -4,12 +4,15 @@ import {
   SPECTATOR_CONFIG,
   calculateSpectatorSpeed,
 } from '../CameraControls';
+import { getCurrentRegion } from '../mapData';
 import { WorldEditorPanel } from './WorldEditorPanel';
 
 export interface SpectatorHUDProps {
   isSpectatorMode?: boolean;
   spectatorSpeed?: number;
   isUIVisible?: boolean;
+  playerPos?: { x: number; y?: number; z: number; rotationY?: number };
+  currentRegion?: any;
   gameEngine?: any;
   onToggleUIVisibility?: () => void;
   onToggleSpectator?: () => void;
@@ -34,6 +37,8 @@ export const SpectatorHUD: React.FC<SpectatorHUDProps> = ({
   isSpectatorMode = false,
   spectatorSpeed = SPECTATOR_CONFIG.DEFAULT_SPEED,
   isUIVisible = true,
+  playerPos,
+  currentRegion,
   gameEngine,
   onToggleUIVisibility,
   onToggleSpectator,
@@ -43,6 +48,67 @@ export const SpectatorHUD: React.FC<SpectatorHUDProps> = ({
   const [isActivityActive, setIsActivityActive] = useState(true);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const fadeTimeoutRef = useRef<number | null>(null);
+
+  // Real-time coordinates and current region tracking for minimalist coordinate pill
+  const [realtimePos, setRealtimePos] = useState({
+    x: playerPos?.x ?? 0,
+    y: playerPos?.y ?? 0,
+    z: playerPos?.z ?? 0,
+  });
+  const [realtimeZone, setRealtimeZone] = useState<string>(
+    currentRegion?.nameId || currentRegion?.name || ''
+  );
+
+  useEffect(() => {
+    if (!isSpectatorMode) return;
+
+    let animId: number;
+    let lastTime = 0;
+
+    const updateSpectatorCoords = (time: number) => {
+      // Throttle update to ~25fps (every 40ms) to ensure smooth display without CPU overhead
+      if (time - lastTime > 40) {
+        lastTime = time;
+
+        let posX = 0;
+        let posY = 0;
+        let posZ = 0;
+
+        if (gameEngine?.spectatorPos) {
+          posX = gameEngine.spectatorPos.x;
+          posY = gameEngine.spectatorPos.y;
+          posZ = gameEngine.spectatorPos.z;
+        } else if (gameEngine?.getSpectatorPos) {
+          const sp = gameEngine.getSpectatorPos();
+          posX = sp.x;
+          posY = sp.y;
+          posZ = sp.z;
+        } else if (playerPos) {
+          posX = playerPos.x;
+          posY = playerPos.y ?? 0;
+          posZ = playerPos.z;
+        }
+
+        setRealtimePos({ x: posX, y: posY, z: posZ });
+
+        try {
+          const reg = getCurrentRegion(posX, posZ);
+          if (reg) {
+            setRealtimeZone(reg.nameId || reg.name || '');
+          }
+        } catch {
+          if (currentRegion?.nameId || currentRegion?.name) {
+            setRealtimeZone(currentRegion.nameId || currentRegion.name);
+          }
+        }
+      }
+
+      animId = requestAnimationFrame(updateSpectatorCoords);
+    };
+
+    animId = requestAnimationFrame(updateSpectatorCoords);
+    return () => cancelAnimationFrame(animId);
+  }, [isSpectatorMode, gameEngine, playerPos, currentRegion]);
 
   // Monitor mouse movement & touch events to show the sleek restore button when UI is hidden
   useEffect(() => {
@@ -267,6 +333,25 @@ export const SpectatorHUD: React.FC<SpectatorHUDProps> = ({
           <span>atau klik tombol mata di pojok untuk menampilkan UI</span>
         </div>
       </div>
+
+      {/* 4. Minimalist Real-Time Coordinate Pill on Hide UI (H) in Spectator Mode */}
+      {!isUIVisible && (
+        <div className="fixed bottom-4 left-4 z-50 pointer-events-none select-none">
+          <div className="bg-black/45 backdrop-blur-sm text-white/85 text-xs font-mono px-2.5 py-1 rounded-md pointer-events-none flex items-center gap-2 border border-white/10 shadow-lg">
+            <span>
+              X: {Math.round(realtimePos.x)}&nbsp;&nbsp;Y: {Math.round(realtimePos.y)}&nbsp;&nbsp;Z: {Math.round(realtimePos.z)}
+            </span>
+            {realtimeZone && (
+              <>
+                <span className="text-white/35">•</span>
+                <span className="text-cyan-300/90 font-sans font-medium text-[11px] truncate max-w-[240px]">
+                  {realtimeZone}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 };

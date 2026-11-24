@@ -136,7 +136,7 @@ export default function App() {
   const [isUIVisible, setIsUIVisible] = useState(true);
 
   // World Map & Minimap Live Position State
-  const [playerPos, setPlayerPos] = useState({ x: 0, z: 4, rotationY: 0 });
+  const [playerPos, setPlayerPos] = useState({ x: 0, y: 0, z: 4, rotationY: 0 });
   const [currentRegion, setCurrentRegion] = useState<RegionInfo>(REGIONS[0]);
   const inventoryRef = useRef(inventory);
   inventoryRef.current = inventory;
@@ -773,11 +773,12 @@ export default function App() {
           if (
             Math.abs(prev.x - posData.x) < 0.08 &&
             Math.abs(prev.z - posData.z) < 0.08 &&
+            Math.abs((prev.y ?? 0) - (posData.y ?? 0)) < 0.08 &&
             Math.abs(prev.rotationY - posData.rotationY) < 0.05
           ) {
             return prev;
           }
-          return { x: posData.x, z: posData.z, rotationY: posData.rotationY };
+          return { x: posData.x, y: posData.y ?? 0, z: posData.z, rotationY: posData.rotationY };
         });
         setCurrentRegion((prev) => (prev.id === posData.region.id ? prev : posData.region));
         setMapMarkers((prev) => (prev.length === posData.markers.length ? prev : posData.markers));
@@ -1481,6 +1482,8 @@ export default function App() {
             isSpectatorMode={isSpectatorMode}
             spectatorSpeed={spectatorSpeed}
             isUIVisible={isUIVisible}
+            playerPos={playerPos}
+            currentRegion={currentRegion}
             onToggleUIVisibility={() => {
               setIsUIVisible((prev) => {
                 const next = !prev;
