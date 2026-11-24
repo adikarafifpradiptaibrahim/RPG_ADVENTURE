@@ -8,7 +8,8 @@
  * tab switching, and window events are processed smoothly with 0% freeze and 0 dialogs "Page Unresponsive".
  */
 
-import { getLoadingScheduler, SmoothLoadScheduler } from '../utils/asyncLoader';
+import { getLoadingScheduler, SmoothLoadScheduler, hardYield } from '../utils/asyncLoader';
+export { hardYield };
 
 let lastSliceTimestamp = performance.now();
 
@@ -20,13 +21,7 @@ export async function yieldIfNeeded(budgetMs?: number): Promise<void> {
   const scheduler = getLoadingScheduler();
   const targetBudget = budgetMs ?? scheduler.getBudget();
   if (performance.now() - lastSliceTimestamp >= targetBudget) {
-    await new Promise<void>((resolve) => {
-      if (typeof requestAnimationFrame !== 'undefined') {
-        requestAnimationFrame(() => setTimeout(resolve, 0));
-      } else {
-        setTimeout(resolve, 0);
-      }
-    });
+    await hardYield();
     lastSliceTimestamp = performance.now();
     scheduler.reset();
   }

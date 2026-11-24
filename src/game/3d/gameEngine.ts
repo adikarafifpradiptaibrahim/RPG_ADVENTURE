@@ -117,9 +117,9 @@ import {
   SKILL_COOLDOWNS,
 } from '../skills';
 import { DayNightSystem, getSharedDayNightSystem } from './dayNightSystem';
-import { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield, yieldIfNeeded } from './frameBudget';
+import { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield, yieldIfNeeded, hardYield } from './frameBudget';
 import { getDeviceProfile } from '../utils/deviceProfiler';
-export { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield, yieldIfNeeded };
+export { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield, yieldIfNeeded, hardYield };
 
 export interface LootPickup {
   mesh: THREE.Group;
@@ -1269,9 +1269,9 @@ export class GameEngine {
     }
     this.scenePointLights = this.world.pointLights || [];
 
-    // Tahap 3b: 60% Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya
-    onProgress?.(60, 'Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya (60%)...');
-    await cooperativeYield(8);
+    // Tahap 3b: 61% Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya
+    onProgress?.(61, 'Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya (61%)...');
+    await hardYield();
 
     // Initialize Boss Manager
     this.bossManager = new BossManager(
@@ -1329,9 +1329,9 @@ export class GameEngine {
     // Tahap 3c: 48.5% - 50% Membangkitkan World Boss & Menempatkan Populasi Monster Time-Sliced
     await this.spawnEnemiesAsync(onProgress);
 
-    // Tahap 4: 68% - 80% Populasi Vegetasi & Bebatuan (InstancedMesh) Time-Sliced
-    onProgress?.(68, 'Populasi Vegetasi & Bebatuan (InstancedMesh)...');
-    await cooperativeYield(8);
+    // Tahap 4: 64% - 80% Populasi Vegetasi & Bebatuan (InstancedMesh) Time-Sliced
+    onProgress?.(64, 'Populasi Vegetasi & Tata Ruang Wilayah (64%)...');
+    await hardYield();
 
     // 2. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation with TypedArray spatial lookup
     this.worldEnvironment = await buildWorldEnvironmentAsync(
@@ -1893,20 +1893,22 @@ export class GameEngine {
   }
 
   private async spawnEnemiesAsync(onProgress?: (percent: number, statusText: string) => void): Promise<void> {
+    let tLastSpawnYield = performance.now();
     const spawnGroupAsync = async <T>(
       list: T[],
       spawner: (item: T, index: number) => void
     ) => {
       for (let i = 0; i < list.length; i++) {
         spawner(list[i], i);
-        if (i % 2 === 1) {
-          await cooperativeYield(4);
+        if (performance.now() - tLastSpawnYield > 6) {
+          await hardYield();
+          tLastSpawnYield = performance.now();
         }
       }
     };
 
-    onProgress?.(62, 'Menempatkan Populasi Monster & Peti Harta Karun (62%)...');
-    await cooperativeYield(8);
+    onProgress?.(62, 'Menempatkan Populasi Monster & Penjaga Wilayah (62%)...');
+    await hardYield();
 
     // 1. Meadow Slimes (Lv. 1) - Relocated to Eastern Plains (> 85 units east from Sanctuary)
     await spawnGroupAsync(MEADOW_SLIME_SPAWNS, (sp) => {

@@ -9,6 +9,16 @@
 
 import { getDeviceProfile } from './deviceProfiler';
 
+/**
+ * Hard Time-Slicing & Real Browser Yielding
+ * Uses setTimeout(..., 16) to release control to Chrome for a full frame,
+ * allowing CSS spinner animation, tab events, and compositor to render smoothly
+ * without ever triggering "Page Unresponsive".
+ */
+export async function hardYield(): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, 16));
+}
+
 export class SmoothLoadScheduler {
   private lastYield = performance.now();
   private budgetMs: number;
@@ -35,17 +45,7 @@ export class SmoothLoadScheduler {
 
   async yieldIfNeeded(force = false): Promise<void> {
     if (force || performance.now() - this.lastYield >= this.budgetMs) {
-      // Combination of rAF + setTimeout(0) guarantees:
-      // 1. Browser executes layout, paint, and CSS spinner animations smoothly.
-      // 2. Macrotask queue runs: tab switching, window events, and user clicks are processed.
-      // 3. Completely eliminates "Page Unresponsive" dialogs.
-      await new Promise<void>((resolve) => {
-        if (typeof requestAnimationFrame !== 'undefined') {
-          requestAnimationFrame(() => setTimeout(resolve, 0));
-        } else {
-          setTimeout(resolve, 0);
-        }
-      });
+      await hardYield();
       this.lastYield = performance.now();
     }
   }

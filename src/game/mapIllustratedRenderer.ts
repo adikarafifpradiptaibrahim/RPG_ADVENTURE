@@ -36,8 +36,84 @@ import {
   BRIDGE_CONFIGS,
   worldToMapPercent,
   LandmarkDef,
-  getContinentCoastRadius,
+  getBiomeAt,
+  getProceduralContinentHeight,
 } from './3d/worldData';
+
+let cachedTerrainRasterCanvas: HTMLCanvasElement | null = null;
+
+export function getOrCreateTerrainRasterCanvas(): HTMLCanvasElement | null {
+  if (cachedTerrainRasterCanvas) return cachedTerrainRasterCanvas;
+  if (typeof document === 'undefined') return null;
+
+  const rasterW = 320;
+  const rasterH = Math.round(rasterW * (WORLD_HEIGHT / WORLD_WIDTH)); // 274
+  const canvas = document.createElement('canvas');
+  canvas.width = rasterW;
+  canvas.height = rasterH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const imgData = ctx.createImageData(rasterW, rasterH);
+  const data = imgData.data;
+
+  for (let gy = 0; gy < rasterH; gy++) {
+    const normZ = gy / rasterH;
+    const wz = WORLD_BOUNDS.minZ + normZ * WORLD_HEIGHT;
+
+    for (let gx = 0; gx < rasterW; gx++) {
+      const normX = gx / rasterW;
+      const wx = WORLD_BOUNDS.minX + normX * WORLD_WIDTH;
+      const idx = (gy * rasterW + gx) * 4;
+
+      const biome = getBiomeAt(wx, wz);
+      let r = 2, g = 132, b = 199; // Azure Ocean #0284c7
+
+      if (biome === 'ocean') {
+        r = 2; g = 132; b = 199;
+      } else if (biome === 'lake') {
+        r = 56; g = 189; b = 248; // #38bdf8 Titan Lake
+      } else if (biome === 'volcano') {
+        const distDragon = Math.hypot(wx - 40, wz - 840);
+        if (distDragon < 24) {
+          r = 220; g = 38; b = 38; // Molten lava core #dc2626
+        } else {
+          r = 39; g = 39; b = 42; // Volcanic dark rock #27272a
+        }
+      } else {
+        const h = getProceduralContinentHeight(wx, wz);
+        if (h <= 0.0) {
+          r = 2; g = 132; b = 199; // Azure ocean
+        } else if (h <= 1.2 && biome !== 'snow') {
+          // Warm sandy beach fringe along water
+          r = 253; g = 224; b = 71; // #fde047
+        } else if (biome === 'desert') {
+          // Golden desert sand
+          r = 234; g = 179; b = 8; // #eab308
+        } else if (biome === 'snow') {
+          // Pure snow white
+          r = 241; g = 245; b = 249; // #f1f5f9
+        } else {
+          // Grassland / Forest
+          if (wx > 340 && wz < -80 && wz > -200) {
+            r = 21; g = 128; b = 61; // #15803d Dark forest green
+          } else {
+            r = 101; g = 163; b = 13; // #65a30d Lush grassland green
+          }
+        }
+      }
+
+      data[idx] = r;
+      data[idx + 1] = g;
+      data[idx + 2] = b;
+      data[idx + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  cachedTerrainRasterCanvas = canvas;
+  return canvas;
+}
 
 export function worldToCanvas(wx: number, wz: number, width: number, height: number): [number, number] {
   const normX = (wx - WORLD_BOUNDS.minX) / WORLD_WIDTH;
@@ -163,115 +239,18 @@ export function renderIllustratedMap(
   });
 
   // ==========================================================================
-  // 2. CONTINENTAL LANDMASS SILHOUETTE & NATURAL COASTLINE (BENUA UTAMA ELDORIA)
-  // Bentuk Pulau Benua Utuh 360 Derajat Dikelilingi Samudra Azure
+  // 2. CONTINENTAL LANDMASS & BIOMES RASTERIZED BASE (SINGLE SOURCE OF TRUTH)
+  // Direct sampling from 3D world: getProceduralContinentHeight & getBiomeAt
+  // Eliminates all overflowing desert splines, sharp triangles, and mismatched coastlines.
   // ==========================================================================
-  const CONTINENT_CENTER_X = 0;
-  const CONTINENT_CENTER_Z = -320;
-  const coastSteps = 120;
-  const worldCoastline: [number, number][] = [];
-  for (let i = 0; i < coastSteps; i++) {
-    const angle = (i / coastSteps) * Math.PI * 2;
-    const approxX = CONTINENT_CENTER_X + Math.cos(angle) * 520;
-    const approxZ = CONTINENT_CENTER_Z + Math.sin(angle) * 520;
-    const r = getContinentCoastRadius(angle, approxX, approxZ);
-    worldCoastline.push([
-      CONTINENT_CENTER_X + Math.cos(angle) * r,
-      CONTINENT_CENTER_Z + Math.sin(angle) * r,
-    ]);
+  const terrainRaster = getOrCreateTerrainRasterCanvas();
+  if (terrainRaster) {
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(terrainRaster, 0, 0, width, height);
+    ctx.restore();
   }
-
-  const coastCanvas = worldCoastline.map((p) => wToC(p[0], p[1]));
-  const continentCanvas = coastCanvas;
-
-  // 2A. Warm Sandy Beach Fringe (Along Coastline)
-  ctx.save();
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  ctx.strokeStyle = '#fef08a';
-  ctx.lineWidth = Math.max(9, width * 0.018);
-  drawSmoothSpline(ctx, coastCanvas, true);
-  ctx.stroke();
-
-  ctx.strokeStyle = '#fde047';
-  ctx.lineWidth = Math.max(4.5, width * 0.009);
-  drawSmoothSpline(ctx, coastCanvas, true);
-  ctx.stroke();
-  ctx.restore();
-
-  // 2B. Continent Base Fill (Vibrant Eldoria Grass Green)
-  ctx.save();
-  drawSmoothSpline(ctx, continentCanvas, true);
-  const grassGrad = ctx.createLinearGradient(0, height * 0.25, 0, height);
-  grassGrad.addColorStop(0, '#7cb342');
-  grassGrad.addColorStop(0.5, '#70a827');
-  grassGrad.addColorStop(1, '#65a30d');
-  ctx.fillStyle = grassGrad;
-  ctx.fill();
-  ctx.restore();
-
-  // Gentle green topographical contour lines across plains
-  ctx.save();
-  ctx.strokeStyle = 'rgba(85, 139, 47, 0.32)';
-  ctx.lineWidth = 1.6;
-  const hillContours: [number, number][][] = [
-    [[100, -200], [180, -180], [240, -210]],
-    [[220, -100], [300, -80], [380, -110]],
-    [[350, 40], [420, 20], [480, 50]],
-    [[0, -40], [80, -20], [140, -50]],
-    [[120, 20], [190, 40], [260, 20]],
-  ];
-  hillContours.forEach((c) => {
-    drawSmoothSpline(ctx, c.map((p) => wToC(p[0], p[1])));
-    ctx.stroke();
-  });
-  ctx.restore();
-
-  // ==========================================================================
-  // 3. SOLARIA DESERT (WEST REGION GOLDEN SAND BIOME & ROLLING DUNES)
-  // Procedural 100% Organic Desert Boundary with Wavy Sinusoidal & FBM Curve
-  // ==========================================================================
-  const desertWorldPoly: [number, number][] = [];
-  // A. Pesisir barat gurun mengikuti garis pantai benua dari angle -1.60 ke 2.75
-  const dSteps = 40;
-  for (let i = 0; i <= dSteps; i++) {
-    const t = i / dSteps;
-    // Sweeps from angle -1.60 (North) through West to +2.75 (South-West)
-    const a = -1.60 - t * (Math.PI * 2 - (2.75 - (-1.60)));
-    const normA = Math.atan2(Math.sin(a), Math.cos(a));
-    const r = getContinentCoastRadius(normA, CONTINENT_CENTER_X + Math.cos(normA) * 500, CONTINENT_CENTER_Z + Math.sin(normA) * 500);
-    desertWorldPoly.push([
-      CONTINENT_CENTER_X + Math.cos(normA) * r,
-      CONTINENT_CENTER_Z + Math.sin(normA) * r,
-    ]);
-  }
-  // B. Batas timur gurun mengikuti kurva bergelombang organik dari pesisir selatan (z = 160) ke utara (z = -820)
-  // Perbatasan digeser ke Barat ~80 unit (dari -160 menjadi -240) memperluas padang rumput hijau di timur
-  const zSteps = 36;
-  for (let i = 0; i <= zSteps; i++) {
-    const zVal = 160 - (i / zSteps) * 980;
-    const wave = Math.sin(zVal * 0.006) * 110 + Math.cos(zVal * 0.015) * 35;
-    const warp = Math.sin(-240 * 0.01 + zVal * 0.012) * 45;
-    const xVal = -240 - wave - warp;
-    desertWorldPoly.push([xVal, zVal]);
-  }
-  const desertCanvas = desertWorldPoly.map((p) => wToC(p[0], p[1]));
-
-  ctx.save();
-  drawSmoothSpline(ctx, desertCanvas, true);
-  const desertGrad = ctx.createLinearGradient(0, 0, 0, height * 0.5);
-  desertGrad.addColorStop(0, '#f59e0b');
-  desertGrad.addColorStop(0.4, '#eab308');
-  desertGrad.addColorStop(1, '#facc15');
-  ctx.fillStyle = desertGrad;
-  ctx.fill();
-
-  // Soft dune boundary stroke
-  ctx.strokeStyle = '#d97706';
-  ctx.lineWidth = 2.4;
-  ctx.stroke();
-  ctx.restore();
 
   // Rolling Sand Dune Curves in West Desert
   ctx.save();

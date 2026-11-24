@@ -21,7 +21,7 @@ import {
   RIVER_MAIN_DOWNSTREAM,
 } from '../mapSampler';
 import { SpatialLookupGrid } from './spatialGrid';
-import { checkFrameBudget, yieldIfBudgetExceeded, yieldToChrome, yieldIfNeeded, cooperativeYield } from './frameBudget';
+import { checkFrameBudget, yieldIfBudgetExceeded, yieldToChrome, yieldIfNeeded, cooperativeYield, hardYield } from './frameBudget';
 import { getDeviceProfile } from '../utils/deviceProfiler';
 import { getLandmarkLayout } from './worldLayoutConfig';
 
@@ -34,7 +34,7 @@ export interface WorldEnvironmentResult {
   setVegetationVisible: (visible: boolean) => void;
 }
 
-export { yieldIfNeeded };
+export { yieldIfNeeded, hardYield };
 
 export async function cooperativeYield(budgetMs = 8): Promise<void> {
   return yieldIfNeeded(budgetMs);
@@ -89,6 +89,17 @@ export async function buildWorldEnvironmentAsync(
   const animatedMistPlanes: { mesh: THREE.Mesh; baseY: number; speed: number }[] = [];
   const animatedSpores: { mesh: THREE.Mesh; basePos: THREE.Vector3; speed: number; phase: number }[] = [];
   let windmillBladesGroup: THREE.Group | null = null;
+
+  let tLastEnvYield = performance.now();
+  const checkEnvYield = async (pct?: number, text?: string) => {
+    if (performance.now() - tLastEnvYield > 6) {
+      if (pct !== undefined && text) {
+        onProgress?.(pct, text);
+      }
+      await hardYield();
+      tLastEnvYield = performance.now();
+    }
+  };
 
   // ============================================================================
   // PALET MATERIAL BERSAMA (LOW-POLY FLAT SHADING & OPTIMIZED PERFORMANCE)
@@ -166,6 +177,7 @@ export async function buildWorldEnvironmentAsync(
   // ============================================================================
   // 1. ZONA A: DESA & PERTANIAN PINGGIRAN (X: 10 s.d. 80, Z: 100 s.d. 160)
   // ============================================================================
+  await checkEnvYield(64, 'Membangun Tata Ruang Zona Pedesaan & Pertanian (64%)...');
   const farmGroup = new THREE.Group();
   farmGroup.name = 'ZoneA_VillageFarmlands';
 
@@ -485,6 +497,7 @@ export async function buildWorldEnvironmentAsync(
   // ============================================================================
   // 2. ZONA B: RERUNTUHAN PILAR KUNO / ANCIENT RUINS (X: -80 s.d. -130, Z: 50 s.d. 100)
   // ============================================================================
+  await checkEnvYield(65, 'Membangun Reruntuhan Pilar Kuno & Sarang Monster (65%)...');
   const ruinsGroup = new THREE.Group();
   ruinsGroup.name = 'ZoneB_AncientRuins';
 
@@ -589,6 +602,7 @@ export async function buildWorldEnvironmentAsync(
   // ============================================================================
   // 3. ZONA C: SARANG MONSTER LIAR / BEAST LAIR (X: -170 s.d. -230, Z: 70 s.d. 130)
   // ============================================================================
+  await checkEnvYield(65, 'Membangun Reruntuhan Pilar Kuno & Sarang Monster (65%)...');
   const beastGroup = new THREE.Group();
   beastGroup.name = 'ZoneC_BeastLair';
 
@@ -693,6 +707,7 @@ export async function buildWorldEnvironmentAsync(
   // 4. ZONA D: KOMPLEKS PERKEMAHAN BANDIT / OUTPOST PADAT (X: -260, Z: -95)
   // Berdiri kokoh di atas daratan kering tinggi (height >= 3.5m, jarak dari air >= 40, dari jalan >= 25)
   // ============================================================================
+  await checkEnvYield(66, 'Membangun Kompleks Perkemahan Bandit (66%)...');
   const outpostGroup = new THREE.Group();
   outpostGroup.name = 'ZoneD_EnemyOutpost';
 
@@ -984,6 +999,7 @@ export async function buildWorldEnvironmentAsync(
   // ============================================================================
   // 5. ZONA E: SABANA & LERENG BUKIT PADANG RUMPUT (X: -290 s.d -350, Z: 80 s.d 150)
   // ============================================================================
+  await checkEnvYield(67, 'Membangun Wilayah Sabana & Pesisir Barat (67%)...');
   const savannaGroup = new THREE.Group();
   savannaGroup.name = 'ZoneE_SavannaHills';
 
@@ -1104,6 +1120,7 @@ export async function buildWorldEnvironmentAsync(
   // ============================================================================
   // 6. ZONA F: WILAYAH PESISIR BARAT & TEBING PANTAI (X: -400 s.d -450, Z: -50 s.d -240)
   // ============================================================================
+  await checkEnvYield(67, 'Membangun Wilayah Sabana & Pesisir Barat (67%)...');
   const coastGroup = new THREE.Group();
   coastGroup.name = 'ZoneF_WesternCoast';
 
@@ -1305,6 +1322,7 @@ export async function buildWorldEnvironmentAsync(
   // Menghidupkan wilayah koordinat X: -77, Z: -45 dan bukit landai sekitarnya
   // Serta menata cekungan sarang monster buas berjarak > 190 unit dari pusat desa
   // ============================================================================
+  await checkEnvYield(68, 'Membangun Padang Rumput Utara & Arena Colosseum (68%)...');
   const meadowGroup = new THREE.Group();
   meadowGroup.name = 'ZoneG_NorthernMeadows';
 
@@ -1431,6 +1449,7 @@ export async function buildWorldEnvironmentAsync(
   // - Gapura masuk raksasa (Grand South Entrance Arch) di sisi selatan.
   // - Tata pencahayaan: 6 obor cawan perunggu berkobar di sekeliling arena.
   // ============================================================================
+  await checkEnvYield(68, 'Membangun Padang Rumput Utara & Arena Colosseum (68%)...');
   const colosseumGroup = new THREE.Group();
   colosseumGroup.name = 'ZoneH_AncientColosseumBossArena';
 
@@ -1697,6 +1716,7 @@ export async function buildWorldEnvironmentAsync(
   // 6. ZONA I: SISTEM ALIRAN SUNGAI BERCABANG (NORTHWEST, EAST -> CONFLUENCE -> SOUTH OCEAN)
   // Palung meliuk natural sedalam Y: -2.2 unit, pita air jernih Y: -0.35 unit dengan animasi UV scroll.
   // ============================================================================
+  await checkEnvYield(69, 'Menata Aliran Sungai Bercabang & Dataran Barat (69%)...');
   const canyonGroup = new THREE.Group();
   canyonGroup.name = 'ZoneI_RiverNetworkAndRavine';
 
@@ -1840,6 +1860,7 @@ export async function buildWorldEnvironmentAsync(
   // 7. ZONA J: TITIK MINAT BARU DATARAN BARAT (WESTERN POINTS OF INTEREST)
   // Menghidupkan wilayah luas X: -270 s.d -496, Z: -326 s.d 177 yang sebelumnya sepi
   // ============================================================================
+  await checkEnvYield(69, 'Menata Aliran Sungai Bercabang & Dataran Barat (69%)...');
   const westPOIGroup = new THREE.Group();
   westPOIGroup.name = 'ZoneJ_WesternPOIs';
 
@@ -1990,6 +2011,7 @@ export async function buildWorldEnvironmentAsync(
   // - Pondok kayu kecil dengan tumpukan jerami dan pagar ternak kayu luas
   // - Kelompok pohon oak rindang di lereng bukit
   // ============================================================================
+  await checkEnvYield(70, 'Membangun Perbukitan Kincir Angin (70%)...');
   const windmillHillGroup = new THREE.Group();
   windmillHillGroup.name = 'ZoneK_WindmillHillAndShepherdCot';
 
@@ -2276,8 +2298,8 @@ export async function buildWorldEnvironmentAsync(
     return false;
   }
 
-  // 1. SUB-TAHAP 70%: POHON OAK RINDANG / PINUS HIJAU (BERSKALA PERANGKAT)
-  onProgress?.(70, 'Menanam Pohon Oak Rindang (InstancedMesh)...');
+  // 1. SUB-TAHAP 71%: POHON OAK RINDANG / PINUS HIJAU (BERSKALA PERANGKAT)
+  onProgress?.(71, 'Menanam Pohon Oak Rindang (InstancedMesh 71%)...');
   const OAK_COUNT = Math.max(100, Math.round(1100 * propScale));
   const oakTrunkGeo = new THREE.CylinderGeometry(0.32, 0.46, 2.6, 6);
   oakTrunkGeo.translate(0, 1.3, 0);
@@ -2293,8 +2315,9 @@ export async function buildWorldEnvironmentAsync(
   for (let x = -600; x < 680 && oakAssigned < OAK_COUNT; x += oakStep) {
     for (let z = -800; z < 100 && oakAssigned < OAK_COUNT; z += oakStep) {
       oakIter++;
-      if (oakIter % 25 === 0) {
-        await yieldIfNeeded();
+      if (oakIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
+        await hardYield();
+        tLastEnvYield = performance.now();
       }
       const ox = x + (0.15 + Math.random() * 0.7) * oakStep;
       const oz = z + (0.15 + Math.random() * 0.7) * oakStep;
@@ -2321,10 +2344,10 @@ export async function buildWorldEnvironmentAsync(
   oakTrunkMesh.computeBoundingSphere();
   oakCrownMesh.computeBoundingSphere();
   envGroup.add(oakTrunkMesh, oakCrownMesh);
-  await yieldIfNeeded(true);
+  await hardYield();
 
   // 2. SUB-TAHAP 72%: POHON CEMARA SEGITIGA (BERSKALA PERANGKAT)
-  onProgress?.(72, 'Menempatkan Rumpun Pohon Cemara (InstancedMesh)...');
+  onProgress?.(72, 'Menempatkan Rumpun Pohon Cemara (InstancedMesh 72%)...');
   const PINE_COUNT = Math.max(100, Math.round(900 * propScale));
   const pineTrunkGeo = new THREE.CylinderGeometry(0.22, 0.34, 2.2, 5);
   pineTrunkGeo.translate(0, 1.1, 0);
@@ -2347,8 +2370,9 @@ export async function buildWorldEnvironmentAsync(
   for (let x = -607; x < 675 && pineAssigned < PINE_COUNT; x += pineStep) {
     for (let z = -807; z < 105 && pineAssigned < PINE_COUNT; z += pineStep) {
       pineIter++;
-      if (pineIter % 25 === 0) {
-        await yieldIfNeeded();
+      if (pineIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
+        await hardYield();
+        tLastEnvYield = performance.now();
       }
       const px = x + (0.15 + Math.random() * 0.7) * pineStep;
       const pz = z + (0.15 + Math.random() * 0.7) * pineStep;
@@ -2383,10 +2407,10 @@ export async function buildWorldEnvironmentAsync(
   pineFoliageMesh2.computeBoundingSphere();
   pineFoliageMesh3.computeBoundingSphere();
   envGroup.add(pineTrunkMesh, pineFoliageMesh1, pineFoliageMesh2, pineFoliageMesh3);
-  await yieldIfNeeded(true);
+  await hardYield();
 
-  // 3. SUB-TAHAP 74%: FORMASI BEBATUAN GRANIT & KRISTAL (BERSKALA PERANGKAT)
-  onProgress?.(74, 'Membentuk Formasi Bebatuan & Kristal (InstancedMesh)...');
+  // 3. SUB-TAHAP 73%: FORMASI BEBATUAN GRANIT & KRISTAL (BERSKALA PERANGKAT)
+  onProgress?.(73, 'Membentuk Formasi Bebatuan & Kristal (InstancedMesh 73%)...');
   const BOULDER_COUNT = Math.max(100, Math.round(800 * propScale));
   const boulderGeo = new THREE.DodecahedronGeometry(1.0, 0);
   const boulderMesh = new THREE.InstancedMesh(boulderGeo, matBoulder, BOULDER_COUNT);
@@ -2397,8 +2421,9 @@ export async function buildWorldEnvironmentAsync(
   for (let x = -454; x < 400 && boulderAssigned < BOULDER_COUNT; x += boulderStep) {
     for (let z = -404; z < 180 && boulderAssigned < BOULDER_COUNT; z += boulderStep) {
       boulderIter++;
-      if (boulderIter % 25 === 0) {
-        await yieldIfNeeded();
+      if (boulderIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
+        await hardYield();
+        tLastEnvYield = performance.now();
       }
       const bx = x + (0.15 + Math.random() * 0.7) * boulderStep;
       const bz = z + (0.15 + Math.random() * 0.7) * boulderStep;
@@ -2422,10 +2447,10 @@ export async function buildWorldEnvironmentAsync(
   boulderMesh.instanceMatrix.needsUpdate = true;
   boulderMesh.computeBoundingSphere();
   envGroup.add(boulderMesh);
-  await yieldIfNeeded(true);
+  await hardYield();
 
-  // 4. SUB-TAHAP 76%: RUMPUN RUMPUT HIJAU PADANG RUMPUT (BERSKALA PERANGKAT)
-  onProgress?.(76, 'Menumbuhkan Padang Rumput Hijau (InstancedMesh)...');
+  // 4. SUB-TAHAP 74%: RUMPUN RUMPUT HIJAU PADANG RUMPUT (BERSKALA PERANGKAT)
+  onProgress?.(74, 'Menumbuhkan Padang Rumput Hijau (InstancedMesh 74%)...');
   const PLAINS_GRASS_COUNT = Math.max(200, Math.round(3500 * propScale));
   const plainsGrassGeo = new THREE.ConeGeometry(0.35, 0.75, 4);
   const matPlainsGrass = new THREE.MeshStandardMaterial({
@@ -2442,8 +2467,9 @@ export async function buildWorldEnvironmentAsync(
   for (let x = -600; x < 680 && pgAssigned < PLAINS_GRASS_COUNT; x += grassStep) {
     for (let z = -800; z < 100 && pgAssigned < PLAINS_GRASS_COUNT; z += grassStep) {
       pgIter++;
-      if (pgIter % 25 === 0) {
-        await yieldIfNeeded();
+      if (pgIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
+        await hardYield();
+        tLastEnvYield = performance.now();
       }
       const gx = x + (0.15 + Math.random() * 0.7) * grassStep;
       const gz = z + (0.15 + Math.random() * 0.7) * grassStep;
@@ -2466,10 +2492,10 @@ export async function buildWorldEnvironmentAsync(
   plainsGrassMesh.instanceMatrix.needsUpdate = true;
   plainsGrassMesh.computeBoundingSphere();
   envGroup.add(plainsGrassMesh);
-  await yieldIfNeeded(true);
+  await hardYield();
 
-  // 5. SUB-TAHAP 78%: SEMAK LIAR, BATU KARANG & VEGETASI PANTAI (BERSKALA PERANGKAT)
-  onProgress?.(78, 'Menyebarkan Semak Liar & Vegetasi Pantai (InstancedMesh)...');
+  // 5. SUB-TAHAP 75%: SEMAK LIAR, BATU KARANG & VEGETASI PANTAI (BERSKALA PERANGKAT)
+  onProgress?.(75, 'Menyebarkan Semak Liar & Vegetasi Pantai (InstancedMesh 75%)...');
   const SHRUB_COUNT = Math.max(80, Math.round(750 * propScale));
   const shrubGeo = new THREE.DodecahedronGeometry(0.65, 0);
   const shrubMesh = new THREE.InstancedMesh(shrubGeo, matShrub, SHRUB_COUNT);
@@ -2480,8 +2506,9 @@ export async function buildWorldEnvironmentAsync(
   for (let x = -600; x < 680 && shrubAssigned < SHRUB_COUNT; x += shrubStep) {
     for (let z = -800; z < 100 && shrubAssigned < SHRUB_COUNT; z += shrubStep) {
       shrubIter++;
-      if (shrubIter % 25 === 0) {
-        await yieldIfNeeded();
+      if (shrubIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
+        await hardYield();
+        tLastEnvYield = performance.now();
       }
       const sx = x + (0.15 + Math.random() * 0.7) * shrubStep;
       const sz = z + (0.15 + Math.random() * 0.7) * shrubStep;
@@ -2504,7 +2531,7 @@ export async function buildWorldEnvironmentAsync(
   shrubMesh.instanceMatrix.needsUpdate = true;
   shrubMesh.computeBoundingSphere();
   envGroup.add(shrubMesh);
-  await yieldIfNeeded(true);
+  await hardYield();
 
   // Batu Karang Laut Pesisir (Coastal Reef Stones): 60 Instances
   const REEF_STONE_COUNT = Math.max(20, Math.round(60 * propScale));
@@ -2515,7 +2542,10 @@ export async function buildWorldEnvironmentAsync(
   for (let rx = -448; rx <= -410 && reefAssigned < REEF_STONE_COUNT; rx += 7) {
     for (let rz = -240; rz <= -50 && reefAssigned < REEF_STONE_COUNT; rz += 15) {
       reefIter++;
-      if (reefIter % 20 === 0) await yieldIfNeeded();
+      if (reefIter % 20 === 0 || performance.now() - tLastEnvYield > 6) {
+        await hardYield();
+        tLastEnvYield = performance.now();
+      }
       if (spatialGrid.isDesert(rx, rz)) continue;
       const ry = spatialGrid.getHeight(rx, rz);
 
@@ -2545,7 +2575,10 @@ export async function buildWorldEnvironmentAsync(
   for (let gx = -428; gx <= -402 && bgAssigned < BEACH_GRASS_COUNT; gx += 5) {
     for (let gz = -235; gz <= -55 && bgAssigned < BEACH_GRASS_COUNT; gz += 10) {
       bgIter++;
-      if (bgIter % 20 === 0) await yieldIfNeeded();
+      if (bgIter % 20 === 0 || performance.now() - tLastEnvYield > 6) {
+        await hardYield();
+        tLastEnvYield = performance.now();
+      }
       if (spatialGrid.isDesert(gx, gz)) continue;
       const gy = spatialGrid.getHeight(gx, gz);
       if (gy < 0.25) continue;
@@ -2565,13 +2598,11 @@ export async function buildWorldEnvironmentAsync(
   beachGrassMesh.computeBoundingSphere();
   envGroup.add(beachGrassMesh);
 
-  onProgress?.(80, 'Membangun Ekosistem Gurun, Danau Titan & Hutan Kabut (80%)...');
-  await yieldIfNeeded(8);
-
   // ============================================================================
   // ZONA L: VEGETASI & BEBATUAN GURUN SOLARIA (SAGUARO CACTI, SANDSTONE CRAGS & DRY TREES)
   // Mengisi wilayah gurun luas di utara garis kuning dengan flora & geologi khas gurun
   // ============================================================================
+  await checkEnvYield(76, 'Menanam Vegetasi Gurun Solaria & Kaktus Saguaro (76%)...');
   const desertFloraGroup = new THREE.Group();
   desertFloraGroup.name = 'ZoneL_SolariaDesertFlora';
 
@@ -2691,12 +2722,13 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(desertFloraGroup);
-  await yieldToChrome(5);
+  await hardYield();
 
   // ============================================================================
   // ZONA M: LEMBAH DANAU TITAN KUNO & PINUS BERSALJU (NORTHWEST TITAN LAKE)
   // Koordinat Pusat X: 60, Z: -820 (Danau Biru Jernih & Pegunungan Salju)
   // ============================================================================
+  await checkEnvYield(77, 'Membangun Danau Titan Kuno & Pinus Bersalju (77%)...');
   const titanLakeGroup = new THREE.Group();
   titanLakeGroup.name = 'ZoneM_TitanLakeValley';
 
@@ -2839,12 +2871,13 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(titanLakeGroup);
-  await yieldToChrome(5);
+  await hardYield();
 
   // ============================================================================
   // ZONA N: KANYON KUNO (NORTHERN RED CANYON MESAS & CANYON CLIFFS)
   // Koordinat Pusat X: -380, Z: -640 (100% di atas Daratan Pasir Kering Gurun)
   // ============================================================================
+  await checkEnvYield(78, 'Menata Tebing Kanyon Kuno & Hutan Kabut (78%)...');
   const ancientCanyonGroup = new THREE.Group();
   ancientCanyonGroup.name = 'ZoneN_AncientCanyon';
 
@@ -2895,7 +2928,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(ancientCanyonGroup);
-  await yieldToChrome(5);
+  await hardYield();
 
   // ============================================================================
   // ZONA O: HUTAN KABUT ELDORIA (MIST FOREST & FOG EFFECT)
@@ -2960,12 +2993,13 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(mistForestGroup);
-  await yieldToChrome(5);
+  await hardYield();
 
   // ============================================================================
   // ZONA P: PUING KASTIL TERBENGKALAI (ABANDONED CASTLE RUINS)
   // Koordinat Pusat X: 580, Z: -60 (Pilar Runtuh & Tembok Batu Slate)
   // ============================================================================
+  await checkEnvYield(79, 'Membangun Puing Kastil & Benteng Val-Kragor (79%)...');
   const castleRuinsGroup = new THREE.Group();
   castleRuinsGroup.name = 'ZoneP_AbandonedCastleRuins';
 
@@ -3011,7 +3045,7 @@ export async function buildWorldEnvironmentAsync(
   }
 
   envGroup.add(castleRuinsGroup);
-  await yieldToChrome(5);
+  await hardYield();
 
   // ============================================================================
   // ZONA Q: DESA BENTENG VAL-KRAGOR (EAST FORTRESS VILLAGE)
@@ -3063,12 +3097,13 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(valkragorGroup);
-  await yieldToChrome(5);
+  await hardYield();
 
   // ============================================================================
   // ZONA R: LEMBAH BATU LUMUT (MOSSY ROCK VALLEY & GLADE SPORES)
   // Koordinat Pusat X: 680, Z: -160 (Megalit Berlumut & Pendar Partikel Glade)
   // ============================================================================
+  await checkEnvYield(80, 'Membentuk Lembah Batu Lumut & Hutan Lindung (80%)...');
   const mossValleyGroup = new THREE.Group();
   mossValleyGroup.name = 'ZoneR_MossRockValley';
 
@@ -3118,7 +3153,7 @@ export async function buildWorldEnvironmentAsync(
   }
 
   envGroup.add(mossValleyGroup);
-  await yieldToChrome(5);
+  await hardYield();
 
   // ============================================================================
   // ZONA S: HUTAN LINDUNG BARAT DAYA (SOUTHWEST LUSH OAK FOREST)
@@ -3183,6 +3218,7 @@ export async function buildWorldEnvironmentAsync(
     }
   }
   envGroup.add(swForestGroup);
+  await hardYield();
 
   // ============================================================================
   // ANIMASI UPDATE CALLBACK (FLICKERING TORCHES & CAMPFIRE)

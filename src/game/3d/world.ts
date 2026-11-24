@@ -96,7 +96,7 @@ import {
   createSandVortexSwirlMesh,
 } from './models';
 import { buildWorldRoadNetwork, isPointOnRoad } from '../RoadSystem';
-import { checkFrameBudget, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield } from './frameBudget';
+import { checkFrameBudget, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield, hardYield } from './frameBudget';
 import { SpatialLookupGrid } from './spatialGrid';
 import { BRIDGE_CONFIGS, isStrictLandForProps, WATER_LEVEL, distToSegment } from './worldData';
 import {
@@ -382,24 +382,33 @@ export async function buildWorldAsync(
   const posAttr = terrainGeo.attributes.position;
   const vertexCount = posAttr.count;
 
-  // 1. Initial procedural heights sampling (Time-sliced 8ms max macrotask budget)
-  onProgress?.(15, 'Membangun Geometri & Heightmap Benua Eldoria...');
+  // 1. Initial procedural heights sampling (Time-sliced max 20 rows per chunk / 6ms budget)
+  onProgress?.(15, 'Membangun Geometri & Heightmap Benua Eldoria (15%)...');
   const rawHeights = new Float32Array(vertexCount);
-  for (let i = 0; i < vertexCount; i++) {
-    const vx = posAttr.getX(i) + TERRAIN_GRID.centerX;
-    const vz = posAttr.getZ(i) + TERRAIN_GRID.centerZ;
-    rawHeights[i] = getProceduralContinentHeight(vx, vz);
-    if (i % 2000 === 0) {
-      await cooperativeYield(4);
+  const gridW = TERRAIN_GRID.gridW;
+  const gridH = TERRAIN_GRID.gridH;
+  let tLast = performance.now();
+
+  for (let gz = 0; gz < gridH; gz++) {
+    for (let gx = 0; gx < gridW; gx++) {
+      const idx = gz * gridW + gx;
+      const vx = posAttr.getX(idx) + TERRAIN_GRID.centerX;
+      const vz = posAttr.getZ(idx) + TERRAIN_GRID.centerZ;
+      rawHeights[idx] = getProceduralContinentHeight(vx, vz);
+    }
+    if (gz % 20 === 0 || performance.now() - tLast > 6) {
+      const pct = Math.round(15 + (gz / gridH) * 5);
+      onProgress?.(pct, `Membangun Geometri & Heightmap (${pct}%)...`);
+      await hardYield();
+      tLast = performance.now();
     }
   }
 
-  // 2. Slope clamping and 3x3 smoothing filter (Time-sliced 8ms max per slice)
-  onProgress?.(20, 'Menghaluskan Kontur Elevasi & Palung Sungai...');
+  // 2. Slope clamping and 3x3 smoothing filter (Time-sliced max 20 rows per chunk / 6ms budget)
+  onProgress?.(20, 'Menghaluskan Kontur Elevasi & Palung Sungai (20%)...');
   const smoothedHeights = new Float32Array(rawHeights);
-  const gridW = TERRAIN_GRID.gridW;
-  const gridH = TERRAIN_GRID.gridH;
   const maxSlopeDelta = 2.4;
+  tLast = performance.now();
 
   for (let pass = 0; pass < 2; pass++) {
     for (let gz = 1; gz < gridH - 1; gz++) {
@@ -425,28 +434,38 @@ export async function buildWorldAsync(
         }
         smoothedHeights[idx] = cur;
       }
-      if (gz % 20 === 0) {
-        await cooperativeYield(4);
+      if (gz % 20 === 0 || performance.now() - tLast > 6) {
+        const pct = Math.round(20 + ((pass * gridH + gz) / (2 * gridH)) * 5);
+        onProgress?.(pct, `Menghaluskan Kontur Elevasi (${pct}%)...`);
+        await hardYield();
+        tLast = performance.now();
       }
     }
   }
 
-  // 3. Vertex colors generated seamlessly (Time-sliced 8ms max per slice)
-  onProgress?.(25, 'Mewarnai Biome Terrain...');
+  // 3. Vertex colors generated seamlessly (Time-sliced max 20 rows per chunk / 6ms budget)
+  onProgress?.(25, 'Mewarnai Biome Terrain (25%)...');
   const colors = new Float32Array(vertexCount * 3);
-  for (let i = 0; i < vertexCount; i++) {
-    const vx = posAttr.getX(i) + TERRAIN_GRID.centerX;
-    const vz = posAttr.getZ(i) + TERRAIN_GRID.centerZ;
-    const vy = smoothedHeights[i];
-    posAttr.setY(i, vy);
+  tLast = performance.now();
 
-    const sample = getContinentBiomeSample(vx, vz);
-    colors[i * 3] = sample.color[0] / 255;
-    colors[i * 3 + 1] = sample.color[1] / 255;
-    colors[i * 3 + 2] = sample.color[2] / 255;
+  for (let gz = 0; gz < gridH; gz++) {
+    for (let gx = 0; gx < gridW; gx++) {
+      const idx = gz * gridW + gx;
+      const vx = posAttr.getX(idx) + TERRAIN_GRID.centerX;
+      const vz = posAttr.getZ(idx) + TERRAIN_GRID.centerZ;
+      const vy = smoothedHeights[idx];
+      posAttr.setY(idx, vy);
 
-    if (i % 2000 === 0) {
-      await cooperativeYield(4);
+      const sample = getContinentBiomeSample(vx, vz);
+      colors[idx * 3] = sample.color[0] / 255;
+      colors[idx * 3 + 1] = sample.color[1] / 255;
+      colors[idx * 3 + 2] = sample.color[2] / 255;
+    }
+    if (gz % 20 === 0 || performance.now() - tLast > 6) {
+      const pct = Math.round(25 + (gz / gridH) * 5);
+      onProgress?.(pct, `Mewarnai Biome Terrain (${pct}%)...`);
+      await hardYield();
+      tLast = performance.now();
     }
   }
 
@@ -2513,9 +2532,19 @@ export async function buildDragonCaldera(
   getTerrainHeight: (x: number, z: number, forVisualMesh?: boolean) => number,
   colliders: WorldCollider[],
   decorativeProps: THREE.Object3D[],
-  pointLights: THREE.PointLight[]
+  pointLights: THREE.PointLight[],
+  onProgress?: (percent: number, statusText: string) => void
 ): Promise<{ chests: WorldObjects['chests'] }> {
-  await cooperativeYield(4);
+  let tLast = performance.now();
+  const checkCalderaYield = async (pct?: number, text?: string) => {
+    if (performance.now() - tLast > 6) {
+      if (pct && text) onProgress?.(pct, text);
+      await hardYield();
+      tLast = performance.now();
+    }
+  };
+
+  await hardYield();
   const dragonArenaCenter = { x: 40, z: 840 };
   const dragonArenaBaseY = 2.50;
 
@@ -2524,6 +2553,7 @@ export async function buildDragonCaldera(
   // ============================================================================
 
   // A. Altar Batu Rune Naga (Pusat Kawah [40, 840])
+  onProgress?.(52, 'Membangun Altar Rune Naga (52%)...');
   const altarGroup = new THREE.Group();
   altarGroup.name = 'DragonRuneAltar';
 
@@ -2592,7 +2622,9 @@ export async function buildDragonCaldera(
     { x: dragonArenaCenter.x + 14.5, z: dragonArenaCenter.z, label: 'Pilar Rune Naga Timur' },
     { x: dragonArenaCenter.x - 14.5, z: dragonArenaCenter.z, label: 'Pilar Rune Naga Barat' },
   ];
-  altarPillars.forEach((dp) => {
+  for (let p = 0; p < altarPillars.length; p++) {
+    await checkCalderaYield(52, 'Membangun Pilar Rune Naga Obsidian (52%)...');
+    const dp = altarPillars[p];
     const pY = getTerrainHeight(dp.x, dp.z);
     const pGroup = new THREE.Group();
 
@@ -2614,7 +2646,7 @@ export async function buildDragonCaldera(
     pGroup.position.set(dp.x, pY, dp.z);
     scene.add(pGroup);
     colliders.push({ type: 'circle', x: dp.x, z: dp.z, radius: 1.6, label: dp.label });
-  });
+  }
 
   // C. Fosil Tengkorak Naga Purba Raksasa & Tulang Rusuk (Tertimbun Abu di Sisi Utara Altar)
   const dragonFossil = createDragonSkullBonesMesh();
@@ -2644,7 +2676,7 @@ export async function buildDragonCaldera(
   const basaltDummy = new THREE.Object3D();
 
   for (let i = 0; i < 28; i++) {
-    if (i % 8 === 0) await cooperativeYield(8);
+    await checkCalderaYield(53, 'Membangun Formasi Basalt Kaldera (53%)...');
     const angle = (i / 28) * Math.PI * 2;
     // Hindari jalur celah ngarai masuk utara (sudut sekitar -Math.PI / 2)
     if (angle > -Math.PI * 0.65 && angle < -Math.PI * 0.35) continue;
@@ -2694,12 +2726,14 @@ export async function buildDragonCaldera(
     { x: dragonArenaCenter.x - 18, z: dragonArenaCenter.z + 12, r: 4.6 },
     { x: dragonArenaCenter.x, z: dragonArenaCenter.z + 18, r: 5.0 },
   ];
-  lavaCrackCoords.forEach((lc) => {
+  for (let i = 0; i < lavaCrackCoords.length; i++) {
+    const lc = lavaCrackCoords[i];
+    await checkCalderaYield(54, 'Menata Retakan Lahar Aktif Kaldera (54%)...');
     const crack = createLavaCrackMesh(lc.r);
     const cy = getTerrainHeight(lc.x, lc.z);
     crack.position.set(lc.x, cy + 0.02, lc.z);
     scene.add(crack);
-  });
+  }
 
   // F. Dermaga Kayu Hangus di Teluk Utara Pulau [40, 750] (Titik Labuh Kapal)
   const charredDockMat = new THREE.MeshStandardMaterial({
@@ -2717,6 +2751,7 @@ export async function buildDragonCaldera(
   let pileIdx = 0;
   const pileDummy = new THREE.Object3D();
   for (let pz = 743; pz <= 757; pz += 4.5) {
+    await checkCalderaYield();
     pileDummy.position.set(37.3, 0.2, pz);
     pileDummy.updateMatrix();
     dockPileMesh.setMatrixAt(pileIdx++, pileDummy.matrix);
@@ -2892,11 +2927,11 @@ export async function buildDragonCaldera(
       position: [cd.pos[0], cy, cd.pos[2]],
     });
     if (c % 2 === 1) {
-      await cooperativeYield(4);
+      await checkCalderaYield(55, `Menempatkan Peti Harta Karun (${c + 1}/${chestData.length})...`);
     }
   }
 
-  await cooperativeYield(4);
+  await hardYield();
   return { chests };
 }
 
@@ -2916,53 +2951,55 @@ async function populateWorldEntities(
   const floatingCrystals: THREE.Mesh[] = [];
 
   // ==========================================
-  // 1. VAST AZURE OCEAN WATER PLANE & COASTAL HARBOR & SANCTUARY VILLAGE (33%)
+  // 1. VAST AZURE OCEAN WATER PLANE & COASTAL HARBOR & SANCTUARY VILLAGE (31% - 34%)
   // ==========================================
-  onProgress?.(33, 'Membangun Desa Utama & Pelabuhan Sanctuary...');
-  await cooperativeYield(4);
+  onProgress?.(31, 'Membangun Desa Utama & Pelabuhan Sanctuary (31%)...');
+  await hardYield();
   const { oceanMesh } = await buildHarbor(scene, getTerrainHeight, colliders, decorativeProps);
+  onProgress?.(34, 'Membangun Alun-Alun & Rumah Desa Sanctuary (34%)...');
+  await hardYield();
   const { elderGroup, elderPos } = await buildMainVillage(scene, getTerrainHeight, colliders, decorativeProps, pointLights, npcs);
 
   // ==========================================
-  // 2. GRAND IMPERIAL KINGDOM OF ASTRAEA (36%)
+  // 2. GRAND IMPERIAL KINGDOM OF ASTRAEA (38%)
   // ==========================================
-  onProgress?.(36, 'Membangun Ibukota Kerajaan Emas Astraea...');
-  await cooperativeYield(4);
+  onProgress?.(38, 'Membangun Ibukota Kerajaan Emas Astraea (38%)...');
+  await hardYield();
   await buildAstraeaCastle(scene, getTerrainHeight, colliders, decorativeProps, pointLights, npcs);
 
   // ==========================================
-  // 3. FORTRESS VAL-KRAGOR & CASTLE RUINS (39%)
+  // 3. FORTRESS VAL-KRAGOR & CASTLE RUINS (42%)
   // ==========================================
-  onProgress?.(39, 'Membangun Desa Benteng Val-Kragor & Puing Kastil...');
-  await cooperativeYield(4);
+  onProgress?.(42, 'Membangun Desa Benteng Val-Kragor & Puing Kastil (42%)...');
+  await hardYield();
   await buildValKragorFort(scene, getTerrainHeight, colliders, decorativeProps, pointLights, npcs, floatingCrystals);
 
   // ==========================================
-  // 4. SOLARIA GOLDEN DESERT: VILLAGE, GRAND PALACE & SUNKEN PYRAMID (42%)
+  // 4. SOLARIA GOLDEN DESERT: VILLAGE, GRAND PALACE & SUNKEN PYRAMID (46%)
   // ==========================================
-  onProgress?.(42, 'Membangun Piramida, Oase, & Istana Sultan Malik (42%)...');
-  await cooperativeYield(8);
+  onProgress?.(46, 'Membangun Piramida, Oase, & Istana Sultan Malik (46%)...');
+  await hardYield();
   await buildDesertStructures(scene, getTerrainHeight, colliders, decorativeProps, pointLights, npcs);
 
   // ==========================================
-  // 5. TITAN LAKE & CANYON (46%)
+  // 5. TITAN LAKE & CANYON (49%)
   // ==========================================
-  onProgress?.(46, 'Membangun Lembah Danau Titan & Kawah Cacing Purba (46%)...');
-  await cooperativeYield(8);
+  onProgress?.(49, 'Membangun Lembah Danau Titan & Kawah Cacing Purba (49%)...');
+  await hardYield();
   await buildTitanLakeAndCanyon(scene, getTerrainHeight, colliders, decorativeProps, pointLights, npcs);
 
   // ==========================================
-  // 6. DRAGON CALDERA ARCHIPELAGO (50% - 54%)
+  // 6. DRAGON CALDERA ARCHIPELAGO (52% - 56%)
   // ==========================================
-  onProgress?.(50, 'Membangun Gugusan Kepulauan Kaldera Naga (50%)...');
-  await cooperativeYield(8);
-  const { chests } = await buildDragonCaldera(scene, getTerrainHeight, colliders, decorativeProps, pointLights);
+  onProgress?.(52, 'Membangun Gugusan Kepulauan Kaldera Naga (52%)...');
+  await hardYield();
+  const { chests } = await buildDragonCaldera(scene, getTerrainHeight, colliders, decorativeProps, pointLights, onProgress);
 
   // ==========================================
-  // 7. SACRED SPRING, REGIONAL LANDMARKS & CHECKPOINTS (54% - 58%)
+  // 7. SACRED SPRING, REGIONAL LANDMARKS & CHECKPOINTS (57% - 61%)
   // ==========================================
-  onProgress?.(54, 'Menata Mata Air Suci & Kolam Teratai (54%)...');
-  await cooperativeYield(4);
+  onProgress?.(57, 'Menata Mata Air Suci & Kolam Teratai (57%)...');
+  await hardYield();
   // 10. MATA AIR SUCI & TAMAN BUNGA ELDORIA (Plains Spring: [-144, -270])
   // Kolam air tawar melingkar kecil, tepian batu kali halus berlumut,
   // tumbuhan teratai air terapung, hamparan rumpun bunga liar (lavender, kamomil), dan 2 pohon willow rindang.
@@ -3166,8 +3203,8 @@ async function populateWorldEntities(
   // 10B. REGIONAL LANDMARK: LEMBAH BATU LUMUT (X: 600, Z: -120)
   // Formasi bongkahan granit alami berlumut, pohon rindang teduh, semak bunga, air terjun timur
   // ==========================================
-  onProgress?.(56, 'Membentuk Lembah Batu Lumut Granit & Air Terjun (56%)...');
-  await cooperativeYield(4);
+  onProgress?.(58, 'Membentuk Lembah Batu Lumut Granit & Air Terjun (58%)...');
+  await hardYield();
 
   const mossValleyGroup = new THREE.Group();
   mossValleyGroup.name = 'Region_MossValley';
@@ -3296,8 +3333,8 @@ async function populateWorldEntities(
   // 10C. REGIONAL LANDMARK: HUTAN KABUT ELDORIA (X: 640, Z: -340)
   // 150+ pohon pinus/oak lebat via InstancedMesh & lapisan kabut rendah
   // ==========================================
-  onProgress?.(57, 'Menumbuhkan Hutan Kabut Eldoria & Puing Kastil (57%)...');
-  await cooperativeYield(4);
+  onProgress?.(59, 'Menumbuhkan Hutan Kabut Eldoria & Puing Kastil (59%)...');
+  await hardYield();
 
   const mfDX = 305; // 640 - 335
   const mfDZ = -200; // -340 - (-140)
@@ -3413,10 +3450,10 @@ async function populateWorldEntities(
   scene.add(castleRuinsGroup);
 
   // ==========================================
-  // 11. REGIONAL CHECKPOINT & WAYPOINT TELEPORTATION MONUMENTS (58%)
+  // 11. REGIONAL CHECKPOINT & WAYPOINT TELEPORTATION MONUMENTS (60%)
   // ==========================================
-  onProgress?.(58, 'Menyiapkan Pos Penjaga & Monumen Checkpoint (58%)...');
-  await cooperativeYield(8);
+  onProgress?.(60, 'Menyiapkan Pos Penjaga & Monumen Checkpoint (60%)...');
+  await hardYield();
 
   const checkpoints: WorldCheckpoint[] = [];
 

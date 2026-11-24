@@ -135,25 +135,24 @@ export const MiniMap: React.FC<MiniMapProps> = ({
           const idx = (gy * gridSize + gx) * 4;
 
           const zone = getBiomeAt(wx, wz);
-          let r = 101, g = 163, b = 13; // default lush plains green #65a30d
+          const h = getProceduralContinentHeight(wx, wz);
+          let r = 2, g = 132, b = 199; // #0284c7 ocean azure
 
-          if (zone.id === 'ocean') {
-            r = 2; g = 132; b = 199; // #0284c7 ocean azure
+          if (zone.id === 'ocean' || h <= 0.0) {
+            r = 2; g = 132; b = 199; // ocean azure / lake
           } else if (zone.id === 'volcano') {
             r = 35; g = 31; b = 30; // dark obsidian basalt
+          } else if (h <= 1.2 && !(wx > -180 && wx < 260 && wz < -640)) {
+            // Warm sandy beach fringe along coastline
+            r = 253; g = 224; b = 71; // #fde047
           } else if (zone.id === 'desert') {
             r = 234; g = 179; b = 8; // golden desert sand #eab308
+          } else if (h > 10.0 || (wx > -180 && wx < 260 && wz < -640)) {
+            r = 241; g = 245; b = 249; // snowy mountain / snow biome
+          } else if (wx > 340 && wz < -80 && wz > -200) {
+            r = 21; g = 128; b = 61; // mist forest green
           } else {
-            const h = getProceduralContinentHeight(wx, wz);
-            if (h <= 0.0) {
-              r = 2; g = 132; b = 199; // water / lake
-            } else if (h > 10.0) {
-              r = 241; g = 245; b = 249; // snowy mountain
-            } else if (wx > 340 && wz < -80 && wz > -200) {
-              r = 21; g = 128; b = 61; // mist forest green
-            } else {
-              r = 101; g = 163; b = 13; // plains green
-            }
+            r = 101; g = 163; b = 13; // plains green
           }
 
           data[idx] = r;
