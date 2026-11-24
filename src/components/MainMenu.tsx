@@ -815,7 +815,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               {/* 3. SETTINGS (Dark Wood Button with Gear) */}
               <button
                 type="button"
-                onClick={onOpenSettings}
+                onClick={() => {
+                  soundManager.initContext();
+                  soundManager.playMenuClick();
+                  onOpenSettings();
+                }}
                 className="group relative w-full py-3 px-4 rounded-xl font-bold text-sm sm:text-base tracking-wider uppercase transition-all duration-200 transform active:scale-95 cursor-pointer flex items-center justify-center gap-2.5 text-amber-100 shadow-md"
                 style={{
                   background: 'linear-gradient(180deg, #3d2a1d 0%, #291a11 60%, #190f09 100%)',

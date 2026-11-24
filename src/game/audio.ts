@@ -37,7 +37,9 @@ export class SoundManager {
   private sfxGain: GainNode | null = null;
   private isMusicPlaying: boolean = true; // Auto-play enabled by default
   private currentBossMusic: 'titan' | 'dragon' | 'worm' | null = null;
-  private masterMusicVolume = 1.0; // High-fidelity comfortable volume level
+  private masterMusicVolume = 0.8;
+  private bgmVolume = 0.8;
+  private sfxVolume = 0.85;
   private userGestureAttached = false;
 
   // --- Overworld & Menu BGM Audio Elements ---
@@ -105,7 +107,33 @@ export class SoundManager {
   private meteorBoomPoolIndex = 0;
 
   constructor() {
+    this.loadSavedSettings();
     this.setupUserGestureAutoplay();
+  }
+
+  public loadSavedSettings() {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+    try {
+      const savedMuted = localStorage.getItem('eldoria_muted');
+      if (savedMuted !== null) {
+        this.isMuted = savedMuted === 'true';
+      }
+      const savedBgm = localStorage.getItem('eldoria_bgm_vol');
+      if (savedBgm !== null) {
+        const val = parseFloat(savedBgm);
+        if (!isNaN(val)) {
+          this.bgmVolume = Math.max(0, Math.min(1, val));
+          this.masterMusicVolume = this.bgmVolume;
+        }
+      }
+      const savedSfx = localStorage.getItem('eldoria_sfx_vol');
+      if (savedSfx !== null) {
+        const val = parseFloat(savedSfx);
+        if (!isNaN(val)) {
+          this.sfxVolume = Math.max(0, Math.min(1, val));
+        }
+      }
+    } catch {}
   }
 
   public get overworldAudioEl(): HTMLAudioElement | null {
@@ -142,13 +170,13 @@ export class SoundManager {
       this.menuAudio = new Audio(whereTheRiverBendsUrl);
       this.menuAudio.loop = true;
       this.menuAudio.preload = 'auto';
-      this.menuAudio.volume = 0;
+      this.menuAudio.volume = this.isMuted ? 0 : this.bgmVolume * 0.6;
 
       // 2. Overworld Gameplay BGM: The Quiet Archive (Eldoria Open World, looping, default volume 0.5)
       this.overworldAudio = new Audio(theQuietArchiveUrl);
       this.overworldAudio.loop = true;
       this.overworldAudio.preload = 'auto';
-      this.overworldAudio.volume = 0;
+      this.overworldAudio.volume = this.isMuted ? 0 : this.bgmVolume * 0.5;
 
       this.chillTracks = [this.overworldAudio, this.menuAudio];
       this.currentChillIndex = 0;
@@ -174,7 +202,7 @@ export class SoundManager {
       for (let i = 0; i < 4; i++) {
         const beam = new Audio(arcaneBeamSfxUrl);
         beam.preload = 'auto';
-        beam.volume = this.isMuted ? 0 : 0.9;
+        beam.volume = this.isMuted ? 0 : 0.9 * this.sfxVolume;
         this.arcaneBeamAudioPool.push(beam);
       }
       this.loadArcaneBeamBuffer();
@@ -185,12 +213,12 @@ export class SoundManager {
       for (let i = 0; i < 3; i++) {
         const castAudio = new Audio(starfallCastingSfxUrl);
         castAudio.preload = 'auto';
-        castAudio.volume = this.isMuted ? 0 : 0.9;
+        castAudio.volume = this.isMuted ? 0 : 0.9 * this.sfxVolume;
         this.starfallCastingAudioPool.push(castAudio);
 
         const impactAudio = new Audio(starfallImpactSfxUrl);
         impactAudio.preload = 'auto';
-        impactAudio.volume = this.isMuted ? 0 : 0.95;
+        impactAudio.volume = this.isMuted ? 0 : 0.95 * this.sfxVolume;
         this.starfallImpactAudioPool.push(impactAudio);
       }
       this.loadStarfallAudioBuffers();
@@ -200,7 +228,7 @@ export class SoundManager {
       for (let i = 0; i < 3; i++) {
         const spell = new Audio(cahayaSpellSfxUrl);
         spell.preload = 'auto';
-        spell.volume = this.isMuted ? 0 : 0.9;
+        spell.volume = this.isMuted ? 0 : 0.9 * this.sfxVolume;
         this.cahayaSpellAudioPool.push(spell);
       }
       this.loadCahayaSpellBuffer();
@@ -210,7 +238,7 @@ export class SoundManager {
       for (let i = 0; i < 3; i++) {
         const blink = new Audio(blinkMagicSfxUrl);
         blink.preload = 'auto';
-        blink.volume = this.isMuted ? 0 : 0.9;
+        blink.volume = this.isMuted ? 0 : 0.9 * this.sfxVolume;
         this.blinkMagicAudioPool.push(blink);
       }
       this.loadBlinkMagicBuffer();
@@ -220,7 +248,7 @@ export class SoundManager {
       for (let i = 0; i < 3; i++) {
         const boom = new Audio(meteorBoomSfxUrl);
         boom.preload = 'auto';
-        boom.volume = this.isMuted ? 0 : 1.0;
+        boom.volume = this.isMuted ? 0 : 1.0 * this.sfxVolume;
         this.meteorBoomAudioPool.push(boom);
       }
       this.loadMeteorBoomAudioBuffer();
@@ -675,8 +703,8 @@ export class SoundManager {
     const startBossVols = new Map<HTMLAudioElement, number>();
     allBossAudios.forEach((b) => startBossVols.set(b, b.volume));
 
-    const targetMenuVol = targetMode === 'menu' ? 0.6 * this.masterMusicVolume : 0;
-    const targetOverworldVol = targetMode === 'overworld' ? 0.5 * this.masterMusicVolume : 0;
+    const targetMenuVol = targetMode === 'menu' ? 0.6 * this.bgmVolume : 0;
+    const targetOverworldVol = targetMode === 'overworld' ? 0.5 * this.bgmVolume : 0;
 
     if (targetMode === 'menu' && this.menuAudio) {
       if (this.menuAudio.paused) {
@@ -716,7 +744,7 @@ export class SoundManager {
 
       allBossAudios.forEach((b) => {
         const startB = startBossVols.get(b) || 0;
-        const targetB = b === targetBossAudio ? this.masterMusicVolume : 0;
+        const targetB = b === targetBossAudio ? 0.85 * this.bgmVolume : 0;
         b.volume = Math.max(0, Math.min(1, startB + (targetB - startB) * ease));
       });
 
@@ -738,7 +766,7 @@ export class SoundManager {
           allBossAudios.forEach((b) => {
             if (b !== targetBossAudio) b.pause();
           });
-          targetBossAudio.volume = this.masterMusicVolume;
+          targetBossAudio.volume = 0.85 * this.bgmVolume;
         } else {
           if (this.menuAudio) this.menuAudio.pause();
           if (this.overworldAudio) this.overworldAudio.pause();
@@ -751,7 +779,7 @@ export class SoundManager {
     this.crossfadeAnimId = requestAnimationFrame(step);
   }
 
-  private initContext() {
+  public initContext() {
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
@@ -759,8 +787,8 @@ export class SoundManager {
         this.musicGain = this.ctx.createGain();
         this.sfxGain = this.ctx.createGain();
 
-        this.musicGain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-        this.sfxGain.gain.setValueAtTime(0.42, this.ctx.currentTime);
+        this.musicGain.gain.setValueAtTime(this.isMuted ? 0 : this.bgmVolume * 0.25, this.ctx.currentTime);
+        this.sfxGain.gain.setValueAtTime(this.isMuted ? 0 : this.sfxVolume * 0.45, this.ctx.currentTime);
 
         this.musicGain.connect(this.ctx.destination);
         this.sfxGain.connect(this.ctx.destination);
@@ -944,9 +972,6 @@ export class SoundManager {
     source.stop(now + options.duration + 0.02);
   }
 
-  private bgmVolume = 0.8;
-  private sfxVolume = 0.85;
-
   public getBgmVolume(): number {
     return this.bgmVolume;
   }
@@ -957,16 +982,22 @@ export class SoundManager {
 
   public setBgmVolume(val: number) {
     this.bgmVolume = Math.max(0, Math.min(1, val));
+    this.masterMusicVolume = this.bgmVolume;
     try {
       localStorage.setItem('eldoria_bgm_vol', this.bgmVolume.toString());
     } catch {}
     if (this.musicGain && this.ctx) {
       this.musicGain.gain.setValueAtTime(this.isMuted ? 0 : this.bgmVolume * 0.25, this.ctx.currentTime);
     }
-    const currentChill = this.getCurrentChillAudio();
-    if (currentChill && !this.isMuted) {
-      currentChill.volume = this.bgmVolume * 0.7;
+    // Main Menu BGM
+    if (this.menuAudio) {
+      this.menuAudio.volume = this.isMuted ? 0 : this.bgmVolume * 0.6;
     }
+    // Overworld BGM
+    if (this.overworldAudio) {
+      this.overworldAudio.volume = this.isMuted ? 0 : this.bgmVolume * 0.5;
+    }
+    // Boss BGM
     const currentBoss = this.getCurrentBossAudio();
     if (currentBoss && !this.isMuted) {
       currentBoss.volume = this.bgmVolume * 0.85;
@@ -981,19 +1012,30 @@ export class SoundManager {
     if (this.sfxGain && this.ctx) {
       this.sfxGain.gain.setValueAtTime(this.isMuted ? 0 : this.sfxVolume * 0.45, this.ctx.currentTime);
     }
+    if (!this.isMuted) {
+      this.arcaneBeamAudioPool.forEach((a) => (a.volume = 0.9 * this.sfxVolume));
+      this.starfallCastingAudioPool.forEach((a) => (a.volume = 0.9 * this.sfxVolume));
+      this.starfallImpactAudioPool.forEach((a) => (a.volume = 0.95 * this.sfxVolume));
+      this.cahayaSpellAudioPool.forEach((a) => (a.volume = 0.9 * this.sfxVolume));
+      this.blinkMagicAudioPool.forEach((a) => (a.volume = 0.9 * this.sfxVolume));
+      this.meteorBoomAudioPool.forEach((a) => (a.volume = 1.0 * this.sfxVolume));
+    }
   }
 
   public setMuted(muted: boolean) {
     this.isMuted = muted;
+    try {
+      localStorage.setItem('eldoria_muted', muted ? 'true' : 'false');
+    } catch {}
     if (this.musicGain && this.sfxGain && this.ctx) {
       this.musicGain.gain.setValueAtTime(muted ? 0 : this.bgmVolume * 0.25, this.ctx.currentTime);
       this.sfxGain.gain.setValueAtTime(muted ? 0 : this.sfxVolume * 0.45, this.ctx.currentTime);
     }
-    const currentChill = this.getCurrentChillAudio();
     const currentBoss = this.getCurrentBossAudio();
 
     if (muted) {
-      if (currentChill) currentChill.volume = 0;
+      if (this.menuAudio) this.menuAudio.volume = 0;
+      if (this.overworldAudio) this.overworldAudio.volume = 0;
       if (this.titanAudio) this.titanAudio.volume = 0;
       if (this.wormAudio) this.wormAudio.volume = 0;
       if (this.dragonAudio) this.dragonAudio.volume = 0;
@@ -1004,7 +1046,8 @@ export class SoundManager {
       this.blinkMagicAudioPool.forEach((a) => (a.volume = 0));
       this.meteorBoomAudioPool.forEach((a) => (a.volume = 0));
     } else {
-      if (currentChill) currentChill.volume = this.bgmVolume * 0.7;
+      if (this.menuAudio) this.menuAudio.volume = this.bgmVolume * 0.6;
+      if (this.overworldAudio) this.overworldAudio.volume = this.bgmVolume * 0.5;
       if (this.titanAudio) this.titanAudio.volume = this.bgmVolume * 0.85;
       if (this.wormAudio) this.wormAudio.volume = this.bgmVolume * 0.85;
       if (this.dragonAudio) this.dragonAudio.volume = this.bgmVolume * 0.85;
@@ -1014,20 +1057,46 @@ export class SoundManager {
       this.cahayaSpellAudioPool.forEach((a) => (a.volume = 0.9 * this.sfxVolume));
       this.blinkMagicAudioPool.forEach((a) => (a.volume = 0.9 * this.sfxVolume));
       this.meteorBoomAudioPool.forEach((a) => (a.volume = 1.0 * this.sfxVolume));
+
       if (this.isMusicPlaying && !this.isVictoryPlaying) {
         if (this.currentBossMusic && currentBoss) {
           currentBoss.volume = this.bgmVolume * 0.85;
           if (currentBoss.paused) currentBoss.play().catch(() => {});
-          if (currentChill) currentChill.volume = 0;
-        } else if (currentChill) {
-          currentChill.volume = this.bgmVolume * 0.7;
-          if (currentChill.paused) currentChill.play().catch(() => {});
-          if (this.titanAudio) this.titanAudio.volume = 0;
-          if (this.wormAudio) this.wormAudio.volume = 0;
-          if (this.dragonAudio) this.dragonAudio.volume = 0;
+          if (this.overworldAudio) this.overworldAudio.volume = 0;
+          if (this.menuAudio) this.menuAudio.volume = 0;
+        } else if (this.currentBgmMode === 'menu' || !this.isGameplayActive) {
+          if (this.menuAudio) {
+            this.menuAudio.volume = this.bgmVolume * 0.6;
+            if (this.menuAudio.paused) this.menuAudio.play().catch(() => {});
+          }
+          if (this.overworldAudio) this.overworldAudio.volume = 0;
+        } else {
+          if (this.overworldAudio) {
+            this.overworldAudio.volume = this.bgmVolume * 0.5;
+            if (this.overworldAudio.paused) this.overworldAudio.play().catch(() => {});
+          }
+          if (this.menuAudio) this.menuAudio.volume = 0;
         }
       }
     }
+  }
+
+  public playMenuClick() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(750, now);
+    osc.frequency.exponentialRampToValueAtTime(350, now + 0.05);
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.06);
   }
 
   public getMuted() {

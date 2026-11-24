@@ -108,7 +108,7 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
     };
   }, []);
 
-  // Sync profile when opened
+  // Sync profile & audio settings when opened
   useEffect(() => {
     if (isOpen) {
       const data = getGuestSaveData();
@@ -117,6 +117,9 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
       setResetConfirmStep('none');
       setResetSuccessNotice(false);
       setManualSyncMsg(null);
+      setIsMuted(soundManager.getMuted());
+      setBgmVolumeState(soundManager.getBgmVolume());
+      setSfxVolumeState(soundManager.getSfxVolume());
     }
   }, [isOpen]);
 
@@ -124,6 +127,7 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
 
   // Graphics Handlers
   const handleSelectPreset = (preset: 'low' | 'medium' | 'high') => {
+    soundManager.playMenuClick();
     const next = { ...GRAPHICS_PRESETS[preset] };
     setSettings(next);
     saveGraphicsSettings(next);
@@ -132,6 +136,7 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
   };
 
   const handleUpdateGraphics = (partial: Partial<GraphicsSettings>) => {
+    soundManager.playMenuClick();
     const next: GraphicsSettings = { ...settings, ...partial, preset: 'custom' };
     setSettings(next);
     saveGraphicsSettings(next);
@@ -144,6 +149,9 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
     const next = !isMuted;
     soundManager.setMuted(next);
     setIsMuted(next);
+    if (!next) {
+      soundManager.playMenuClick();
+    }
     updateDeviceSettings({
       audio: {
         isMuted: next,
@@ -168,6 +176,9 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
   const handleSfxChange = (val: number) => {
     setSfxVolumeState(val);
     soundManager.setSfxVolume(val);
+    if (!isMuted) {
+      soundManager.playChestOpen();
+    }
     updateDeviceSettings({
       audio: {
         isMuted,
@@ -235,7 +246,7 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Pengaturan Game"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200 font-sans"
+      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200 font-sans"
     >
       <div
         style={{
@@ -268,7 +279,10 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => {
+              soundManager.playMenuClick();
+              onClose();
+            }}
             className="flex items-center justify-center p-2 rounded-xl bg-stone-900/90 hover:bg-red-950/80 text-stone-300 hover:text-red-300 border border-stone-700 hover:border-red-500/50 text-xs font-bold transition cursor-pointer active:scale-95 shadow-lg"
             title="Tutup (Esc)"
           >
@@ -279,7 +293,10 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
         {/* 4 Sub-Tabs Navigation */}
         <div className="sticky top-[61px] z-15 shrink-0 flex items-center border-b border-stone-800 bg-stone-900/90 backdrop-blur-md px-3 sm:px-6 py-1.5 gap-1.5 overflow-x-auto">
           <button
-            onClick={() => setActiveTab('grafik')}
+            onClick={() => {
+              soundManager.playMenuClick();
+              setActiveTab('grafik');
+            }}
             className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
               activeTab === 'grafik'
                 ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/60 shadow'
@@ -291,7 +308,10 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
           </button>
 
           <button
-            onClick={() => setActiveTab('suara')}
+            onClick={() => {
+              soundManager.playMenuClick();
+              setActiveTab('suara');
+            }}
             className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
               activeTab === 'suara'
                 ? 'bg-amber-600/30 text-amber-300 border border-amber-500/60 shadow'
@@ -303,7 +323,10 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
           </button>
 
           <button
-            onClick={() => setActiveTab('kontrol')}
+            onClick={() => {
+              soundManager.playMenuClick();
+              setActiveTab('kontrol');
+            }}
             className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
               activeTab === 'kontrol'
                 ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/60 shadow'
@@ -315,7 +338,10 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
           </button>
 
           <button
-            onClick={() => setActiveTab('akun')}
+            onClick={() => {
+              soundManager.playMenuClick();
+              setActiveTab('akun');
+            }}
             className={`flex-1 min-w-[78px] py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
               activeTab === 'akun'
                 ? 'bg-purple-600/30 text-purple-300 border border-purple-500/60 shadow'
@@ -527,6 +553,40 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
                   onChange={(e) => handleSfxChange(parseFloat(e.target.value))}
                   className="w-full accent-cyan-500 cursor-pointer"
                 />
+              </div>
+
+              {/* Uji Coba Audio SFX */}
+              <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3.5 space-y-2">
+                <span className="text-xs font-semibold text-stone-300 flex items-center gap-2">
+                  <Volume2 className="w-4 h-4 text-emerald-400" />
+                  Uji Coba Efek Suara (SFX Preview):
+                </span>
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => soundManager.playChestOpen()}
+                    disabled={isMuted}
+                    className="py-1.5 px-2 rounded-lg bg-stone-900 border border-stone-700 hover:border-amber-500/60 text-stone-300 hover:text-amber-300 text-xs font-bold transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                  >
+                    🎵 Peti / Chime
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => soundManager.playLevelUp()}
+                    disabled={isMuted}
+                    className="py-1.5 px-2 rounded-lg bg-stone-900 border border-stone-700 hover:border-cyan-500/60 text-stone-300 hover:text-cyan-300 text-xs font-bold transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                  >
+                    ⚡ Level Up
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => soundManager.playDash()}
+                    disabled={isMuted}
+                    className="py-1.5 px-2 rounded-lg bg-stone-900 border border-stone-700 hover:border-emerald-500/60 text-stone-300 hover:text-emerald-300 text-xs font-bold transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                  >
+                    💨 Dash
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -943,7 +1003,10 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
 
           <div className="pt-2">
             <button
-              onClick={onClose}
+              onClick={() => {
+                soundManager.playMenuClick();
+                onClose();
+              }}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-500 hover:to-cyan-600 px-4 py-3 font-bold text-white shadow-lg transition active:scale-98 cursor-pointer"
             >
               <span>Simpan & Tutup Pengaturan</span>

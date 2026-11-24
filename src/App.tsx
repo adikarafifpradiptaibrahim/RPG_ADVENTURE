@@ -37,6 +37,7 @@ import {
   saveRoleProgress,
   getRoleSave,
   getDeviceSettings,
+  updateDeviceSettings,
   applyDeviceSettings,
   resetAllGuestData,
   RoleSaveData,
@@ -207,6 +208,11 @@ export default function App() {
     }
     if (typeof devSettings.controls?.showTouchControls === 'boolean') {
       setShowTouchControls(devSettings.controls.showTouchControls);
+    }
+    if (devSettings.audio) {
+      if (typeof devSettings.audio.isMuted === 'boolean') {
+        setIsMuted(devSettings.audio.isMuted);
+      }
     }
   }, []);
 
@@ -1436,6 +1442,13 @@ export default function App() {
               const nextMuted = !isMuted;
               setIsMuted(nextMuted);
               soundManager.setMuted(nextMuted);
+              updateDeviceSettings({
+                audio: {
+                  isMuted: nextMuted,
+                  bgmVolume: soundManager.getBgmVolume(),
+                  sfxVolume: soundManager.getSfxVolume(),
+                },
+              });
             }}
             isMusicPlaying={isMusicPlaying}
             onToggleMusic={() => {
