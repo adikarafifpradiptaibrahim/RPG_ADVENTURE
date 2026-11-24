@@ -168,6 +168,13 @@ interface BlockyMageGeometryPalette {
   hatBrimTrimGeo: THREE.BufferGeometry;
   hatBandGeo: THREE.BufferGeometry;
   hatConeGeo: THREE.BufferGeometry;
+  // Facial Hair & Back/Side Hair
+  mustacheGeo: THREE.BufferGeometry;
+  beardGoateeGeo: THREE.BufferGeometry;
+  beardTipGeo: THREE.BufferGeometry;
+  hairBackGeo: THREE.BufferGeometry;
+  hairNeckGeo: THREE.BufferGeometry;
+  hairSideGeo: THREE.BufferGeometry;
   // Torso & Armor
   torsoChestGeo: THREE.BufferGeometry;
   torsoVestGeo: THREE.BufferGeometry;
@@ -207,13 +214,13 @@ let cachedGeometries: BlockyMageGeometryPalette | null = null;
 function getMageGeometries(): BlockyMageGeometryPalette {
   if (!cachedGeometries) {
     // 1. Topi Penyihir: Brim silinder datar berlis emas keliling & kerucut piramida bersih
-    const hatBrimGeo = new THREE.CylinderGeometry(0.55, 0.58, 0.06, 6);
-    const hatBrimTrimGeo = new THREE.CylinderGeometry(0.585, 0.595, 0.02, 6);
-    const hatBandGeo = new THREE.CylinderGeometry(0.382, 0.39, 0.06, 6);
+    const hatBrimGeo = new THREE.CylinderGeometry(0.44, 0.46, 0.035, 8);
+    const hatBrimTrimGeo = new THREE.CylinderGeometry(0.465, 0.475, 0.015, 8);
+    const hatBandGeo = new THREE.CylinderGeometry(0.28, 0.29, 0.05, 8);
 
-    // Kerucut Piramida Bersih (Clean 4-sided Pyramid Cone: radius 0.38, height 0.75, radialSegments 4)
-    const hatConeGeo = new THREE.ConeGeometry(0.38, 0.75, 4);
-    hatConeGeo.translate(0, 0.375, 0); // Base at y=0, peak at y=0.75
+    // Kerucut Piramida Bersih (Clean 4-sided Pyramid Cone: radius 0.28, height 0.65, radialSegments 4)
+    const hatConeGeo = new THREE.ConeGeometry(0.28, 0.65, 4);
+    hatConeGeo.translate(0, 0.325, 0); // Base at y=0, peak at y=0.65
 
     // 2. Pauldrons: Balok prisma abu-abu metalik berlis emas kaku (identik dengan Knight)
     const pauldronDomeGeo = new THREE.BoxGeometry(0.28, 0.16, 0.28);
@@ -266,12 +273,18 @@ function getMageGeometries(): BlockyMageGeometryPalette {
     const grimoireGoldRuneGeo = new THREE.BoxGeometry(0.088, 0.12, 0.12);
 
     cachedGeometries = {
-      headGeo: new THREE.BoxGeometry(0.46, 0.46, 0.46),
-      eyeGeo: new THREE.BoxGeometry(0.08, 0.045, 0.03),
+      headGeo: new THREE.BoxGeometry(0.42, 0.42, 0.42),
+      eyeGeo: new THREE.BoxGeometry(0.07, 0.04, 0.02),
       hatBrimGeo,
       hatBrimTrimGeo,
       hatBandGeo,
       hatConeGeo,
+      mustacheGeo: new THREE.BoxGeometry(0.20, 0.035, 0.03),
+      beardGoateeGeo: new THREE.BoxGeometry(0.24, 0.11, 0.035),
+      beardTipGeo: new THREE.BoxGeometry(0.18, 0.05, 0.04),
+      hairBackGeo: new THREE.BoxGeometry(0.43, 0.36, 0.06),
+      hairNeckGeo: new THREE.BoxGeometry(0.38, 0.14, 0.05),
+      hairSideGeo: new THREE.BoxGeometry(0.04, 0.30, 0.22),
       torsoChestGeo: new THREE.BoxGeometry(0.66, 0.78, 0.42),
       torsoVestGeo,
       beltGeo: new THREE.BoxGeometry(0.72, 0.12, 0.46),
@@ -372,26 +385,66 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
   const rightPauldron = buildPauldron(false);
   group.add(leftPauldron, rightPauldron);
 
-  // 4. Head & Hat Group (Kepala Kubus & Topi Runcing Wizard Hat)
+  // 4. Head & Hat Group (Kepala Kubus Proporsional & Topi Runcing Wizard Hat)
+  const headGroup = new THREE.Group();
+  headGroup.name = 'MageHeadGroup';
+  headGroup.position.set(0, 2.08, 0); // Di atas leher & bahu torso (tidak menembus bahu atau jubah)
+  group.add(headGroup);
+
   const head = new THREE.Mesh(geos.headGeo, mats.skinPeachMat);
-  head.position.y = 2.02;
+  head.name = 'MageHead';
   head.castShadow = true;
-  group.add(head);
+  headGroup.add(head);
 
-  // Dua Balok Mata Kecil Bersinar Biru Neon (#00F0FF, tanpa pupil)
+  // Dua Celah Mata Bersinar Biru Neon (#00F0FF, tanpa pupil)
   const leftEye = new THREE.Mesh(geos.eyeGeo, mats.eyesCyanGlowMat);
-  leftEye.position.set(0.12, 0.02, 0.235);
+  leftEye.position.set(0.10, 0.04, 0.215);
   const rightEye = new THREE.Mesh(geos.eyeGeo, mats.eyesCyanGlowMat);
-  rightEye.position.set(-0.12, 0.02, 0.235);
-  head.add(leftEye, rightEye);
+  rightEye.position.set(-0.10, 0.04, 0.215);
+  headGroup.add(leftEye, rightEye);
 
-  // Topi Runcing (Wizard Hat Group)
+  // Kumis & Jenggot Rapi di Bagian Dagu Bawah (tidak menutupi mata atau menembus topi)
+  const mustache = new THREE.Mesh(geos.mustacheGeo, mats.vestBrownMat);
+  mustache.position.set(0, -0.06, 0.22);
+  mustache.castShadow = true;
+
+  const beardGoatee = new THREE.Mesh(geos.beardGoateeGeo, mats.vestBrownMat);
+  beardGoatee.position.set(0, -0.14, 0.22);
+  beardGoatee.castShadow = true;
+
+  const beardTip = new THREE.Mesh(geos.beardTipGeo, mats.vestBrownMat);
+  beardTip.position.set(0, -0.19, 0.215);
+  beardTip.castShadow = true;
+
+  headGroup.add(mustache, beardGoatee, beardTip);
+
+  // Rambut Belakang & Samping (agar tampak rapi dan tidak bolong dari sudut kamera belakang)
+  const hairBack = new THREE.Mesh(geos.hairBackGeo, mats.vestBrownMat);
+  hairBack.position.set(0, 0.01, -0.215);
+  hairBack.castShadow = true;
+
+  const hairNeck = new THREE.Mesh(geos.hairNeckGeo, mats.vestBrownMat);
+  hairNeck.position.set(0, -0.18, -0.205);
+  hairNeck.castShadow = true;
+
+  const hairSideL = new THREE.Mesh(geos.hairSideGeo, mats.vestBrownMat);
+  hairSideL.position.set(0.215, 0.01, 0.02);
+  hairSideL.castShadow = true;
+
+  const hairSideR = new THREE.Mesh(geos.hairSideGeo, mats.vestBrownMat);
+  hairSideR.position.set(-0.215, 0.01, 0.02);
+  hairSideR.castShadow = true;
+
+  headGroup.add(hairBack, hairNeck, hairSideL, hairSideR);
+
+  // Topi Penyihir (Wizard Hat Group): Tepat di atas bagian atas kepala (headTopY = 0.21)
   const hatGroup = new THREE.Group();
-  hatGroup.position.set(0, 0.23, 0); // Menempel rapat di atas kepala (head top y=0.23)
+  hatGroup.name = 'MageWizardHat';
+  hatGroup.position.set(0, 0.21, 0); // headTopY = 0.21 (tinggi kepala 0.42 / 2)
 
-  // Brim Datar dari CylinderGeometry berlis emas (#eab308)
+  // Brim Datar Melingkar Rapi di Atas Dahi (tidak turun menutupi mata atau menembus wajah)
   const hatBrim = new THREE.Mesh(geos.hatBrimGeo, mats.tunicPurpleMat);
-  hatBrim.position.y = 0.03;
+  hatBrim.position.y = 0.02;
   hatBrim.castShadow = true;
 
   const hatBrimTrim = new THREE.Mesh(geos.hatBrimTrimGeo, mats.goldTrimMat);
@@ -400,17 +453,17 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
 
   // Hatband Emas
   const hatBand = new THREE.Mesh(geos.hatBandGeo, mats.goldTrimMat);
-  hatBand.position.y = 0.07;
+  hatBand.position.y = 0.055;
   hatGroup.add(hatBand);
 
-  // Satu Kerucut Piramida Bersih (Tegak Lurus Meruncing ke Atas, Tanpa Lekukan/Tumpukan Aneh)
+  // Kerucut Piramida Bersih
   const hatCone = new THREE.Mesh(geos.hatConeGeo, mats.tunicPurpleMat);
-  hatCone.position.set(0, 0.06, 0);
+  hatCone.position.set(0, 0.05, 0);
   hatCone.rotation.y = Math.PI / 4;
   hatCone.castShadow = true;
   hatGroup.add(hatCone);
 
-  head.add(hatGroup);
+  headGroup.add(hatGroup);
 
   // 5. Tangan Kanan & Staff (Tongkat Sihir)
   const rightArm = new THREE.Group();
@@ -713,7 +766,7 @@ export function createHeroicMageMesh(tier: number = 1): PlayerMeshObjects {
     weapon,
     cape,
     body,
-    head,
+    head: headGroup as unknown as THREE.Mesh,
     charClass,
     tier,
     orbMesh,
@@ -767,6 +820,7 @@ export function animateMageWalk(
 
       // Balas kemiringan pada head.rotation.x dengan tanda berlawanan (-body.rotation.x * 0.75) agar wajah dan mata tetap menatap lurus ke depan
       const targetHeadPitch = -targetBodyPitch * 0.75; // -0.315 rad
+      playerMesh.head.position.set(0, 2.08, 0);
       playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, targetHeadPitch, lerpSpeed);
       playerMesh.head.rotation.y = THREE.MathUtils.lerp(playerMesh.head.rotation.y, 0, lerpSpeed);
       playerMesh.head.rotation.z = THREE.MathUtils.lerp(playerMesh.head.rotation.z, 0, lerpSpeed);
@@ -825,7 +879,8 @@ export function animateMageWalk(
         );
       }
     } else {
-      // Reset head tilt saat jalan biasa
+      // Reset head tilt & maintain height saat jalan biasa
+      playerMesh.head.position.set(0, 2.08, 0);
       playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, 0, lerpSpeed);
 
       // Reset knee bend saat jalan biasa
@@ -900,6 +955,7 @@ export function animateMageWalk(
     }
   } else {
     // 2. Idle State: Pernapasan halus & pose santai
+    playerMesh.head.position.set(0, 2.08, 0);
     playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, 0, lerpSpeed);
     playerMesh.leftLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.z, 0, lerpSpeed);
     playerMesh.rightLeg.rotation.z = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.z, 0, lerpSpeed);
@@ -1247,4 +1303,5 @@ export const MageModel: React.FC<MageModelProps> = ({
   );
 };
 
+export const buildMageModel = createHeroicMageMesh;
 export default MageModel;

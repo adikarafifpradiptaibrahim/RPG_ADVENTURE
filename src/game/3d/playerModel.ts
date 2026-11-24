@@ -6,6 +6,7 @@ import { createLegacyHunterMesh } from './HunterModelLegacy';
 export type { PlayerMeshObjects };
 export const USE_LEGACY_HUNTER = false;
 export { createLegacyHunterMesh };
+export { createHeroicMageMesh, buildMageModel } from './MageModel';
 
 // 1. TEKSTUR WAJAH KANVAS DETERMINISTIK (CACHED SINGLETON - 0% MEMORY OVERHEAD)
 let cachedRogueFaceTexture: THREE.CanvasTexture | null = null;

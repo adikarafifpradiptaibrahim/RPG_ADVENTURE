@@ -400,6 +400,12 @@ export class GameEngine {
   private arrowVolleyTrajectoryLine: THREE.Line | null = null;
   // Mage Glacial Crystal Barrage: Hold-to-Aim & Over-the-Shoulder camera state
   private isAimGlacialActive = false;
+  public get isAimingGlacial(): boolean {
+    return this.isAimGlacialActive;
+  }
+  public set isAimingGlacial(val: boolean) {
+    this.isAimGlacialActive = val;
+  }
   private aimGlacialCancelled = false;
   private isHoldingGlacialKey = false;
   private glacialKeyDownTime = 0;
@@ -3274,12 +3280,11 @@ export class GameEngine {
           this.glacialKeyDownTime = performance.now();
           if (this.glacialAimTimer) {
             clearTimeout(this.glacialAimTimer);
+            this.glacialAimTimer = null;
           }
-          this.glacialAimTimer = window.setTimeout(() => {
-            if (this.isHoldingGlacialKey && !this.isAimGlacialActive) {
-              this.startAimGlacialBarrage();
-            }
-          }, 180);
+          if (!this.isAimGlacialActive) {
+            this.startAimGlacialBarrage();
+          }
         }
       } else if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
         if (!e.repeat) {
@@ -3378,13 +3383,14 @@ export class GameEngine {
     }
     if (key === 'q' || code === 'keyq') {
       if (this.charClass === 'mage') {
-        const pressDuration = performance.now() - this.glacialKeyDownTime;
         if (this.glacialAimTimer) {
           clearTimeout(this.glacialAimTimer);
           this.glacialAimTimer = null;
         }
         this.isHoldingGlacialKey = false;
-        this.executeGlacialCrystalBarrage();
+        if (this.isAimGlacialActive && !this.aimGlacialCancelled) {
+          this.releaseGlacialBarrage();
+        }
       } else if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
         const pressDuration = performance.now() - this.arrowVolleyKeyDownTime;
         if (this.arrowVolleyAimTimer) {
@@ -3491,7 +3497,7 @@ export class GameEngine {
 
     if (e.button === 0 && !this.isSpectatorMode) {
       if (this.charClass === 'mage' && this.isAimGlacialActive) {
-        this.executeGlacialCrystalBarrage();
+        this.releaseGlacialBarrage();
         return;
       }
       if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' && this.isAimingArrowVolley) {
@@ -3582,6 +3588,12 @@ export class GameEngine {
     }
 
     if (this.isSpectatorMode) {
+      this.isMouseDown = false;
+      this.isDraggingCamera = false;
+      return;
+    }
+    if (this.charClass === 'mage' && this.isAimGlacialActive && e.button === 0) {
+      this.releaseGlacialBarrage();
       this.isMouseDown = false;
       this.isDraggingCamera = false;
       return;
@@ -6720,15 +6732,22 @@ export class GameEngine {
       return;
     }
 
-    // Set cooldown (0 untuk stress-testing)
+    // Set cooldown
     this.mageGlacialBarrageCooldownTimer = SKILL_COOLDOWNS.GLACIAL_BARRAGE;
 
     if (this.isAimGlacialActive) {
-      this.releaseAimGlacialBarrage(false);
+      this.fireAimGlacialBarrage();
     } else {
       this.castGlacialCrystalBarrage();
     }
   }
+
+  public releaseGlacialBarrage = () => {
+    if (this.isControlsLocked) return;
+    if (this.charClass !== 'mage') return;
+    if (this.aimGlacialCancelled) return;
+    this.executeGlacialCrystalBarrage();
+  };
 
   public releaseAimGlacialBarrage(isCancelled = false) {
     if (this.glacialAimTimer) {
@@ -6743,6 +6762,18 @@ export class GameEngine {
       this.cancelAimGlacialBarrage();
       return;
     }
+
+    this.releaseGlacialBarrage();
+  }
+
+  private fireAimGlacialBarrage() {
+    if (this.glacialAimTimer) {
+      clearTimeout(this.glacialAimTimer);
+      this.glacialAimTimer = null;
+    }
+    this.isHoldingGlacialKey = false;
+
+    if (!this.isAimGlacialActive) return;
 
     this.callbacks.onAddFloatingText('💠 GLACIAL CRYSTAL BARRAGE!', '#38bdf8', 'crit');
 
@@ -6814,7 +6845,7 @@ export class GameEngine {
   }
 
   public fireGlacialBarrage = () => {
-    this.executeGlacialCrystalBarrage();
+    this.releaseGlacialBarrage();
   };
 
   public cancelGlacialAim = () => {
@@ -6822,7 +6853,7 @@ export class GameEngine {
   };
 
   public quickCastGlacialBarrage() {
-    this.executeGlacialCrystalBarrage();
+    this.releaseGlacialBarrage();
   }
 
   public updateGlacialAimFrame(delta: number) {
@@ -6845,39 +6876,36 @@ export class GameEngine {
       if (this.playerMesh.head) this.playerMesh.head.rotation.set(0, 0, 0);
     }
 
-    // Arah bidikan 3D (pitch & yaw)
-    const camFwdY = -Math.sin(this.cameraAngleV);
-    const camDirXZ = Math.cos(this.cameraAngleV);
-    const aimDir = new THREE.Vector3(camFwdX * camDirXZ, camFwdY, camFwdZ * camDirXZ).normalize();
+    // Arah bidikan 3D dari tengah kamera (reticle +)
+    const aimDir = new THREE.Vector3();
+    this.camera.getWorldDirection(aimDir);
 
-    // Raycast / step against terrain ground
+    // Raycast dari tengah kamera menembus tanah 3D
     let foundGround = false;
-    for (let d = 4.0; d <= 36.0; d += 1.0) {
-      const tx = this.playerPos.x + aimDir.x * d;
-      const tz = this.playerPos.z + aimDir.z * d;
-      const ty = this.playerPos.y + 1.5 + aimDir.y * d;
-      const gy = this.world.getTerrainHeight(tx, tz);
-      if (ty <= gy + 0.35) {
-        this.aimTargetPoint.set(tx, gy, tz);
+    for (let d = 2.0; d <= 42.0; d += 0.8) {
+      const rayPos = this.camera.position.clone().addScaledVector(aimDir, d);
+      const gy = this.world.getTerrainHeight(rayPos.x, rayPos.z);
+      if (rayPos.y <= gy + 0.35) {
+        this.aimTargetPoint.set(rayPos.x, gy, rayPos.z);
         foundGround = true;
         break;
       }
     }
     if (!foundGround) {
-      this.aimTargetPoint.copy(this.playerPos).add(new THREE.Vector3(0, 1.4, 0)).addScaledVector(aimDir, 28.0);
+      this.aimTargetPoint.copy(this.camera.position).addScaledVector(aimDir, 30.0);
       const gy = this.world.getTerrainHeight(this.aimTargetPoint.x, this.aimTargetPoint.z);
       this.aimTargetPoint.y = Math.max(this.aimTargetPoint.y, gy);
     }
 
-    // Soft-lock terdekat di jalur bidik kursor
+    // Soft-lock terdekat di jalur bidik kursor reticle +
     let bestEnemy: (typeof this.enemies)[0] | null = null;
-    let bestDot = 0.65;
+    let bestDot = 0.70;
     for (let e = 0; e < this.enemies.length; e++) {
       const enemy = this.enemies[e];
       if (enemy.data?.isDead) continue;
-      const toE = enemy.mesh.position.clone().sub(this.playerPos);
+      const toE = enemy.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)).sub(this.camera.position);
       const dist = toE.length();
-      if (dist > 32.0) continue;
+      if (dist > 38.0) continue;
       toE.normalize();
       const dot = aimDir.dot(toE);
       if (dot > bestDot) {
@@ -10041,11 +10069,7 @@ export class GameEngine {
 
     // Mage Glacial Barrage: Hold-to-Aim interactive aiming frame & strafe walk
     if (this.isAimGlacialActive) {
-      if (!this.isHoldingGlacialKey && !this.isMouseDown && !this.activeGlacialVfx) {
-        this.cancelGlacialAim();
-      } else {
-        this.updateGlacialAimFrame(delta);
-      }
+      this.updateGlacialAimFrame(delta);
     }
 
     // Hunter Bow: Hold-to-Aim progressive bow charge (>= 0.20s)
@@ -10900,8 +10924,12 @@ export class GameEngine {
           }
         });
         if (this.playerMesh.head) {
-          this.playerMesh.head.rotation.x = isHunterSprint ? -0.476 : 0;
-          this.playerMesh.head.position.set(0, isHunterSprint ? 1.45 : 1.50, isHunterSprint ? 0.16 : 0);
+          if (this.charClass === 'rogue') {
+            this.playerMesh.head.rotation.x = isHunterSprint ? -0.476 : 0;
+            this.playerMesh.head.position.set(0, isHunterSprint ? 1.45 : 1.50, isHunterSprint ? 0.16 : 0);
+          } else if (this.charClass === 'mage') {
+            this.playerMesh.head.position.set(0, 2.08, 0);
+          }
         }
       }
       if (!this.isAttacking) {

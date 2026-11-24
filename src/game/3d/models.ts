@@ -12,6 +12,7 @@ import {
 import { createLegacyKnightMesh } from './KnightModelLegacy';
 import {
   createHeroicMageMesh,
+  buildMageModel,
   createLegacyMageMesh,
   USE_LEGACY_MAGE,
   animateMageWalk,
@@ -36,6 +37,7 @@ export {
   setKnightBladeGlow,
   resetKnightBladeGlow,
   createHeroicMageMesh,
+  buildMageModel,
   createLegacyMageMesh,
   USE_LEGACY_MAGE,
   animateMageWalk,
