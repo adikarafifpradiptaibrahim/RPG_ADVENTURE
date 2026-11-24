@@ -14,6 +14,8 @@ import { MapMarker, RegionInfo } from '../types/game';
 import { REGIONS, WAYPOINTS } from '../game/mapData';
 import {
   WORLD_BOUNDS,
+  WORLD_WIDTH,
+  WORLD_HEIGHT,
   WORLD_LANDMARKS,
   worldToMapPercent,
   mapPercentToWorld,
@@ -237,10 +239,10 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // High resolution render buffer matching 1200x950 aspect ratio
+    // High resolution render buffer matching 3100x2650 aspect ratio
     canvas.width = 1600;
-    canvas.height = 1267;
-    renderIllustratedMap(ctx, 1600, 1267);
+    canvas.height = Math.round(1600 * (WORLD_HEIGHT / WORLD_WIDTH));
+    renderIllustratedMap(ctx, canvas.width, canvas.height);
   }, [isOpen]);
 
   // Optimized Event Listeners for smooth drag/zoom
@@ -442,7 +444,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                 cursor: hudScale > 1.0 ? 'grab' : 'default',
               } as React.CSSProperties}
               onClick={() => setInspectedHotspot(null)}
-              className="relative w-full max-w-[860px] aspect-[1200/950] max-h-[82vh] rounded-2xl overflow-hidden border border-stone-700/60 shadow-2xl bg-[#0284c7]"
+              className="relative w-full max-w-[860px] aspect-[3100/2650] max-h-[82vh] rounded-2xl overflow-hidden border border-stone-700/60 shadow-2xl bg-[#0284c7]"
             >
               {/* GPU Hardware Accelerated Continent Map Plane (translate3d + will-change: transform) */}
               <div

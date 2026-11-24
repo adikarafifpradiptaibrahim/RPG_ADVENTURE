@@ -22,21 +22,21 @@ export interface MonsterSpawnConfig {
  * Radius: 55 units around village plaza + coastal harbor dock corridor (x: -45..45, z: 15..65).
  */
 export function isInsideSanctuarySafeZone(x: number, z: number): boolean {
-  if (Math.hypot(x - 0, z - 180) < 55) return true;
-  if (Math.abs(x) <= 45 && z >= 170 && z <= 230) return true;
+  if (Math.hypot(x - 40, z - -40) < 55) return true;
+  if (Math.abs(x - 40) <= 45 && z >= -40 && z <= 95) return true;
   return false;
 }
 
 export function isInsideValKragorSafeZone(x: number, z: number): boolean {
-  return Math.hypot(x - 380, z - 80) < 50;
+  return Math.hypot(x - 520, z - 10) < 50;
 }
 
 export function isInsideAstraeaSafeZone(x: number, z: number): boolean {
-  return Math.hypot(x - -340, z - -220) < 55;
+  return Math.hypot(x - 320, z - -260) < 60;
 }
 
 export function isInsideSolariaSafeZone(x: number, z: number): boolean {
-  return Math.hypot(x - 250, z - -280) < 45 || Math.hypot(x - 340, z - -280) < 45;
+  return Math.hypot(x - -460, z - -260) < 50 || Math.hypot(x - -540, z - -640) < 50;
 }
 
 /**
@@ -906,29 +906,29 @@ export const ANCIENT_TITAN_BOSS_CONFIG: BossConfig = {
 };
 
 export const SPAWN_SANDWORM = {
-  x: -30,
+  x: -420,
   y: 0,
-  z: -220,
-  homeX: -30,
-  homeZ: -220,
-  leashRadius: 55, // Bebas di padang pasir gurun barat daya
+  z: -420,
+  homeX: -420,
+  homeZ: -420,
+  leashRadius: 55, // Bebas di padang pasir gurun barat
 };
 
 export const SPAWN_TITAN = {
-  x: 235,
+  x: -480,
   y: 1.8,
-  z: -380,
-  homeX: 235,
-  homeZ: -380,
-  leashRadius: 50, // Terkunci di dalam arena Colosseum kuno
+  z: -480,
+  homeX: -480,
+  homeZ: -480,
+  leashRadius: 50, // Terkunci di dalam arena Colosseum barat
 };
 
 export const SPAWN_DRAGON = {
-  x: -40,
+  x: 40,
   y: 2.5,
-  z: 340,
-  homeX: -40,
-  homeZ: 340,
+  z: 840,
+  homeX: 40,
+  homeZ: 840,
   leashRadius: 55,
 };
 

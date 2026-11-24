@@ -2276,9 +2276,9 @@ export async function buildWorldEnvironmentAsync(
 
   let oakAssigned = 0;
   let oakIter = 0;
-  const oakStep = 14;
-  for (let x = -450; x < 400 && oakAssigned < OAK_COUNT; x += oakStep) {
-    for (let z = -400; z < 180 && oakAssigned < OAK_COUNT; z += oakStep) {
+  const oakStep = 18;
+  for (let x = -600; x < 680 && oakAssigned < OAK_COUNT; x += oakStep) {
+    for (let z = -800; z < 100 && oakAssigned < OAK_COUNT; z += oakStep) {
       oakIter++;
       if (oakIter % 40 === 0) {
         await yieldToChrome(5);
@@ -2329,9 +2329,9 @@ export async function buildWorldEnvironmentAsync(
 
   let pineAssigned = 0;
   let pineIter = 0;
-  const pineStep = 14;
-  for (let x = -457; x < 395 && pineAssigned < PINE_COUNT; x += pineStep) {
-    for (let z = -407; z < 185 && pineAssigned < PINE_COUNT; z += pineStep) {
+  const pineStep = 18;
+  for (let x = -607; x < 675 && pineAssigned < PINE_COUNT; x += pineStep) {
+    for (let z = -807; z < 105 && pineAssigned < PINE_COUNT; z += pineStep) {
       pineIter++;
       if (pineIter % 40 === 0) {
         await yieldToChrome(5);
@@ -2422,9 +2422,9 @@ export async function buildWorldEnvironmentAsync(
 
   let pgAssigned = 0;
   let pgIter = 0;
-  const grassStep = 6.0;
-  for (let x = -450; x < 400 && pgAssigned < PLAINS_GRASS_COUNT; x += grassStep) {
-    for (let z = -400; z < 180 && pgAssigned < PLAINS_GRASS_COUNT; z += grassStep) {
+  const grassStep = 8.0;
+  for (let x = -600; x < 680 && pgAssigned < PLAINS_GRASS_COUNT; x += grassStep) {
+    for (let z = -800; z < 100 && pgAssigned < PLAINS_GRASS_COUNT; z += grassStep) {
       pgIter++;
       if (pgIter % 40 === 0) {
         await yieldToChrome(5);
@@ -2459,9 +2459,9 @@ export async function buildWorldEnvironmentAsync(
 
   let shrubAssigned = 0;
   let shrubIter = 0;
-  const shrubStep = 16;
-  for (let x = -450; x < 400 && shrubAssigned < SHRUB_COUNT; x += shrubStep) {
-    for (let z = -400; z < 180 && shrubAssigned < SHRUB_COUNT; z += shrubStep) {
+  const shrubStep = 18;
+  for (let x = -600; x < 680 && shrubAssigned < SHRUB_COUNT; x += shrubStep) {
+    for (let z = -800; z < 100 && shrubAssigned < SHRUB_COUNT; z += shrubStep) {
       shrubIter++;
       if (shrubIter % 40 === 0) {
         await yieldToChrome(5);
@@ -2578,10 +2578,10 @@ export async function buildWorldEnvironmentAsync(
 
   // 1. Saguaro Cacti (Cylinder batang utama + cabang L)
   const cactusCoords: [number, number][] = [
-    [10, -260], [35, -240], [70, -210], [120, -160], [160, -110], [210, -130],
-    [-20, -310], [50, -320], [140, -250], [190, -220], [250, -200], [290, -210],
-    [320, -240], [360, -270], [420, -310], [460, -330], [230, -340], [270, -360],
-    [90, -280], [130, -310], [175, -290], [310, -330], [380, -340], [430, -260],
+    [-200, -260], [-240, -240], [-280, -210], [-320, -180], [-360, -220], [-410, -200],
+    [-220, -310], [-260, -320], [-300, -280], [-350, -380], [-390, -340], [-430, -310],
+    [-460, -360], [-500, -320], [-520, -280], [-550, -340], [-280, -420], [-340, -460],
+    [-380, -500], [-420, -530], [-460, -570], [-510, -540], [-540, -490], [-480, -620],
   ];
   cactusCoords.forEach(([cx, cz]) => {
     if (!isDesertBiome(cx, cz)) return;
@@ -2626,9 +2626,9 @@ export async function buildWorldEnvironmentAsync(
 
   // 2. Sandstone Crags (Bebatuan Pasir Cadas Runcing)
   const cragCoords: [number, number][] = [
-    [-10, -290], [25, -270], [80, -250], [150, -200], [200, -170], [260, -180],
-    [110, -220], [170, -150], [230, -160], [300, -250], [350, -230], [400, -290],
-    [450, -310], [480, -320], [330, -350], [280, -320], [60, -340], [130, -370],
+    [-210, -290], [-250, -270], [-290, -250], [-330, -200], [-380, -170], [-420, -180],
+    [-270, -220], [-310, -150], [-360, -160], [-440, -250], [-480, -230], [-530, -290],
+    [-560, -310], [-580, -320], [-490, -350], [-450, -320], [-310, -340], [-370, -370],
   ];
   cragCoords.forEach(([rx, rz]) => {
     if (!isDesertBiome(rx, rz)) return;
@@ -2647,8 +2647,8 @@ export async function buildWorldEnvironmentAsync(
 
   // 3. Dry Desert Trees (Pohon Kering Gurun)
   const dryTreeCoords: [number, number][] = [
-    [5, -240], [45, -220], [95, -180], [145, -130], [185, -100], [240, -140],
-    [85, -310], [165, -270], [220, -240], [340, -220], [390, -260], [440, -280],
+    [-220, -240], [-260, -220], [-310, -180], [-350, -130], [-400, -140], [-450, -170],
+    [-280, -310], [-330, -270], [-390, -240], [-470, -220], [-520, -260], [-560, -280],
   ];
   dryTreeCoords.forEach(([tx, tz]) => {
     if (!isDesertBiome(tx, tz)) return;
@@ -2705,14 +2705,14 @@ export async function buildWorldEnvironmentAsync(
   const lakeGeo = new THREE.CircleGeometry(58, 48);
   lakeGeo.rotateX(-Math.PI / 2);
   const lakeMesh = new THREE.Mesh(lakeGeo, matLakeWater);
-  lakeMesh.position.set(-260, -0.35, -450);
+  lakeMesh.position.set(80, -0.35, -760);
   titanLakeGroup.add(lakeMesh);
 
   // 2. Monolit Pilar Kuno Sang Titan Mengelilingi Danau
   const monolithAngles = [0, 0.7, 1.4, 2.1, 2.8, 3.5, 4.2, 4.9, 5.6];
   monolithAngles.forEach((ang) => {
-    const mx = -260 + Math.cos(ang) * 62;
-    const mz = -450 + Math.sin(ang) * 62;
+    const mx = 80 + Math.cos(ang) * 62;
+    const mz = -760 + Math.sin(ang) * 62;
     if (!isStrictLandForProps(mx, mz, getTerrainHeight)) return; // DILARANG SPAWN DI AIR DANAU/SUNGAI!
     const my = getTerrainHeight(mx, mz);
     const mHeight = 5.0 + Math.random() * 3.5;
@@ -2726,9 +2726,9 @@ export async function buildWorldEnvironmentAsync(
 
   // 3. Pohon Pinus Bersalju Mengelilingi Lereng Danau
   const snowPineCoords: [number, number][] = [
-    [-270, -510], [-260, -470], [-250, -535], [-230, -550], [-200, -545],
-    [-180, -525], [-175, -485], [-185, -460], [-255, -450], [-280, -480],
-    [-290, -520], [-210, -560], [-170, -540], [-160, -470], [-275, -440],
+    [70, -820], [80, -700], [90, -825], [110, -810], [140, -795],
+    [150, -745], [145, -715], [125, -700], [65, -705], [50, -735],
+    [40, -780], [100, -830], [130, -815], [140, -765], [60, -710],
   ];
   snowPineCoords.forEach(([spx, spz]) => {
     if (!isStrictLandForProps(spx, spz, getTerrainHeight)) return; // DILARANG SPAWN DI AIR!
@@ -2769,7 +2769,7 @@ export async function buildWorldEnvironmentAsync(
 
   // ============================================================================
   // ZONA N: KANYON KUNO (NORTHERN RED CANYON MESAS & CANYON CLIFFS)
-  // Koordinat Pusat X: 50, Z: -550 (Tebing Cadas Merah Kanyon)
+  // Koordinat Pusat X: -260, Z: -780 (Tebing Cadas Merah Kanyon)
   // ============================================================================
   const ancientCanyonGroup = new THREE.Group();
   ancientCanyonGroup.name = 'ZoneN_AncientCanyon';
@@ -2788,9 +2788,9 @@ export async function buildWorldEnvironmentAsync(
   });
 
   const canyonMesaCoords: [number, number, number, number][] = [
-    [20, -530, 14, 18], [50, -540, 18, 22], [80, -520, 15, 20],
-    [35, -500, 10, 14], [70, -495, 12, 16], [5, -515, 12, 16],
-    [95, -535, 16, 18],
+    [-290, -760, 14, 18], [-260, -780, 18, 22], [-230, -760, 15, 20],
+    [-275, -740, 10, 14], [-240, -735, 12, 16], [-305, -750, 12, 16],
+    [-215, -775, 16, 18],
   ];
   canyonMesaCoords.forEach(([cx, cz, radius, height]) => {
     const cy = getTerrainHeight(cx, cz);
@@ -2832,8 +2832,8 @@ export async function buildWorldEnvironmentAsync(
   });
 
   // 1. Kumpulan Pohon Pinus Gelap Rapat
-  for (let px = 350; px <= 410; px += 14) {
-    for (let pz = -170; pz <= -110; pz += 14) {
+  for (let px = 610; px <= 670; px += 14) {
+    for (let pz = -370; pz <= -310; pz += 14) {
       const offsetX = px + (Math.sin(px * 1.5 + pz) * 5.0);
       const offsetZ = pz + (Math.cos(pz * 1.8 + px) * 5.0);
       if (isDesertBiome(offsetX, offsetZ)) continue;
@@ -2861,7 +2861,7 @@ export async function buildWorldEnvironmentAsync(
 
   // 2. Lembaran Kabut Tipis Melayang (Mist Planes)
   const mistCenters = [
-    [365, -155], [395, -150], [380, -125], [360, -120], [405, -135],
+    [625, -355], [655, -350], [640, -325], [620, -320], [665, -335],
   ];
   mistCenters.forEach(([mx, mz], idx) => {
     const my = getTerrainHeight(mx, mz);
@@ -2878,18 +2878,18 @@ export async function buildWorldEnvironmentAsync(
 
   // ============================================================================
   // ZONA P: PUING KASTIL TERBENGKALAI (ABANDONED CASTLE RUINS)
-  // Koordinat Pusat X: 350, Z: -15 (Pilar Runtuh & Tembok Batu Slate)
+  // Koordinat Pusat X: 420, Z: -140 (Pilar Runtuh & Tembok Batu Slate)
   // ============================================================================
   const castleRuinsGroup = new THREE.Group();
   castleRuinsGroup.name = 'ZoneP_AbandonedCastleRuins';
 
   // 1. Dinding Reruntuhan Batu Slate Berlubang
   const wallCoords = [
-    { x: 218, z: -70, w: 14, h: 4.5, rot: 0 },
-    { x: 242, z: -70, w: 12, h: 3.5, rot: 0 },
-    { x: 215, z: -55, w: 16, h: 4.0, rot: Math.PI / 2 },
-    { x: 245, z: -50, w: 12, h: 3.0, rot: Math.PI / 2 },
-    { x: 225, z: -50, w: 8, h: 2.2, rot: 0.4 },
+    { x: 418, z: -150, w: 14, h: 4.5, rot: 0 },
+    { x: 442, z: -150, w: 12, h: 3.5, rot: 0 },
+    { x: 415, z: -135, w: 16, h: 4.0, rot: Math.PI / 2 },
+    { x: 445, z: -130, w: 12, h: 3.0, rot: Math.PI / 2 },
+    { x: 425, z: -130, w: 8, h: 2.2, rot: 0.4 },
   ];
   wallCoords.forEach((wc) => {
     const wy = getTerrainHeight(wc.x, wc.z);
@@ -2902,7 +2902,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   // 2. Menara Bundar Rusak & Pilar Patah
-  const ruinedTowers = [[212, -73], [248, -73], [248, -47]];
+  const ruinedTowers = [[412, -153], [448, -153], [448, -127]];
   ruinedTowers.forEach(([tx, tz]) => {
     const ty = getTerrainHeight(tx, tz);
     const tower = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.8, 6.0, 8), matStoneDarkCrag);
@@ -2914,8 +2914,8 @@ export async function buildWorldEnvironmentAsync(
 
   // 3. Batuan Puing Berserakan di Lantai Kastil
   for (let i = 0; i < 12; i++) {
-    const rx = 220 + Math.random() * 22;
-    const rz = -70 + Math.random() * 20;
+    const rx = 420 + Math.random() * 22;
+    const rz = -150 + Math.random() * 20;
     const ry = getTerrainHeight(rx, rz);
     const debris = new THREE.Mesh(new THREE.DodecahedronGeometry(0.6 + Math.random() * 0.6, 0), matStoneRuins);
     debris.position.set(rx, ry + 0.4, rz);
@@ -2929,15 +2929,15 @@ export async function buildWorldEnvironmentAsync(
 
   // ============================================================================
   // ZONA Q: DESA BENTENG VAL-KRAGOR (EAST FORTRESS VILLAGE)
-  // Koordinat Pusat X: 390, Z: 100 (Benteng Slate, Pos Jaga & Barikade Kayu)
+  // Koordinat Pusat X: 520, Z: 10 (Benteng Slate, Pos Jaga & Barikade Kayu)
   // ============================================================================
   const valkragorGroup = new THREE.Group();
   valkragorGroup.name = 'ZoneQ_FortressValKragor';
 
   // 1. Gerbang Benteng Kayu Runcing & Barikade
   const valkragorBarricades = [
-    [315, 75], [315, 85], [315, 95], [315, 105],
-    [345, 75], [345, 85], [345, 95], [345, 105],
+    [495, -15], [495, -5], [495, 5], [495, 15],
+    [525, -15], [525, -5], [525, 5], [525, 15],
   ];
   valkragorBarricades.forEach(([bx, bz]) => {
     const by = getTerrainHeight(bx, bz);
@@ -2948,13 +2948,12 @@ export async function buildWorldEnvironmentAsync(
   });
 
   // 2. Pos Jaga Kayu Benteng (Watchtower Mini)
-  const watchtowers = [[312, 70], [348, 70], [312, 110], [348, 110]];
+  const watchtowers = [[492, -20], [528, -20], [492, 20], [528, 20]];
   watchtowers.forEach(([wx, wz]) => {
     const wy = getTerrainHeight(wx, wz);
     const wtGroup = new THREE.Group();
     wtGroup.position.set(wx, wy, wz);
 
-    // 4 Tiang dengan perpanjangan tiang ke bawah (skirt 2.5 unit) agar anti-melayang
     for (let lx = -1; lx <= 1; lx += 2) {
       for (let lz = -1; lz <= 1; lz += 2) {
         const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 8.5, 5), matWoodRustic);
@@ -2962,16 +2961,13 @@ export async function buildWorldEnvironmentAsync(
         wtGroup.add(leg);
       }
     }
-    // Pondasi skirt menara benteng kokoh menancap ke tanah
     const plinth = new THREE.Mesh(new THREE.BoxGeometry(2.8, 3.0, 2.8), matWoodDark);
     plinth.position.y = -1.25;
     plinth.receiveShadow = true;
     wtGroup.add(plinth);
-    // Lantai Pos
     const floor = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.25, 2.6), matWoodRustic);
     floor.position.y = 5.8;
     wtGroup.add(floor);
-    // Atap Kerucut
     const roof = new THREE.Mesh(new THREE.ConeGeometry(2.0, 1.8, 4), matTentFabric);
     roof.position.y = 7.2;
     wtGroup.add(roof);
@@ -2985,7 +2981,7 @@ export async function buildWorldEnvironmentAsync(
 
   // ============================================================================
   // ZONA R: LEMBAH BATU LUMUT (MOSSY ROCK VALLEY & GLADE SPORES)
-  // Koordinat Pusat X: 540, Z: 0 (Megalit Berlumut & Pendar Partikel Glade)
+  // Koordinat Pusat X: 600, Z: -120 (Megalit Berlumut & Pendar Partikel Glade)
   // ============================================================================
   const mossValleyGroup = new THREE.Group();
   mossValleyGroup.name = 'ZoneR_MossRockValley';
@@ -3004,9 +3000,9 @@ export async function buildWorldEnvironmentAsync(
 
   // 1. Gugusan Batu Megalit Berlumut Besar
   const mossRocks = [
-    [465, 8, 2.8], [480, 2, 3.6], [495, 12, 2.5],
-    [470, 28, 3.2], [488, 34, 3.8], [500, 25, 2.6],
-    [478, 18, 4.2], [460, 22, 2.2], [490, 15, 3.0],
+    [585, -145, 2.8], [600, -150, 3.6], [615, -140, 2.5],
+    [590, -125, 3.2], [608, -120, 3.8], [620, -130, 2.6],
+    [598, -135, 4.2], [580, -130, 2.2], [610, -138, 3.0],
   ];
   mossRocks.forEach(([mx, mz, s]) => {
     const my = getTerrainHeight(mx, mz);
@@ -3229,15 +3225,15 @@ export const TERRAIN_GRID = {
   maxX: WORLD_BOUNDS.maxX,
   minZ: WORLD_BOUNDS.minZ,
   maxZ: WORLD_BOUNDS.maxZ,
-  width: WORLD_BOUNDS.maxX - WORLD_BOUNDS.minX, // 1900
-  depth: WORLD_BOUNDS.maxZ - WORLD_BOUNDS.minZ, // 1800
+  width: WORLD_BOUNDS.maxX - WORLD_BOUNDS.minX, // 3100
+  depth: WORLD_BOUNDS.maxZ - WORLD_BOUNDS.minZ, // 2650
   cellSize: 2.5,
-  segmentsX: 760, // 1900 / 2.5
-  segmentsZ: 720, // 1800 / 2.5
-  gridW: 761,     // segmentsX + 1
-  gridH: 721,     // segmentsZ + 1
-  centerX: (WORLD_BOUNDS.minX + WORLD_BOUNDS.maxX) / 2, // -300
-  centerZ: (WORLD_BOUNDS.minZ + WORLD_BOUNDS.maxZ) / 2, // 250
+  segmentsX: 1240, // 3100 / 2.5
+  segmentsZ: 1060, // 2650 / 2.5
+  gridW: 1241,     // segmentsX + 1
+  gridH: 1061,     // segmentsZ + 1
+  centerX: (WORLD_BOUNDS.minX + WORLD_BOUNDS.maxX) / 2, // -100
+  centerZ: (WORLD_BOUNDS.minZ + WORLD_BOUNDS.maxZ) / 2, // -125
 };
 
 let activeMeshGroundHeights: Float32Array | null = null;
@@ -3276,11 +3272,11 @@ export function getExactMeshGroundHeight(x: number, z: number, forVisualMesh = f
     }
   }
 
-  // 2. Coastal Wooden Harbor Pier at [0, 162..202]
+  // 2. Coastal Wooden Harbor Pier at [40, 68..105]
   if (
-    (Math.abs(x - 0) <= 2.8 && z >= 162 && z <= 202) ||
-    (Math.abs(z - 188.5) <= 2.2 && Math.abs(x - 0) <= 16.0) ||
-    (Math.abs(x - 0) <= 5.2 && z >= 195 && z <= 202)
+    (Math.abs(x - 40) <= 2.8 && z >= 68 && z <= 105) ||
+    (Math.abs(z - 92.5) <= 2.2 && Math.abs(x - 40) <= 16.0) ||
+    (Math.abs(x - 40) <= 5.2 && z >= 95 && z <= 105)
   ) {
     return 1.85;
   }

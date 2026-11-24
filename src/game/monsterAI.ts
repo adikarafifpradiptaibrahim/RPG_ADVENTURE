@@ -11,7 +11,7 @@ export interface BossArenaZone {
   aggroRange: number;
 }
 
-export const SPAWN_NAGA: [number, number] = [-40, 340];
+export const SPAWN_NAGA: [number, number] = [40, 840];
 export const NAGA_CALDERA_RADIUS = 48;
 export const STATE_FLYING_PURSUIT = 'STATE_FLYING_PURSUIT';
 
@@ -20,7 +20,7 @@ export const BOSS_ARENA_ZONES: Record<string, BossArenaZone> = {
     id: 'boss_titan',
     nameId: 'Sang Titan Kuno Obsidian',
     bossType: 'titan',
-    center: { x: 235, z: -380 },
+    center: { x: -480, z: -480 },
     radius: 50,
     aggroRange: 50,
   },
@@ -28,7 +28,7 @@ export const BOSS_ARENA_ZONES: Record<string, BossArenaZone> = {
     id: 'boss_dragonfang',
     nameId: 'Ignis, Sang Naga Purba',
     bossType: 'dragon',
-    center: { x: -40, z: 340 },
+    center: { x: 40, z: 840 },
     radius: 55,
     aggroRange: 55,
   },
@@ -36,7 +36,7 @@ export const BOSS_ARENA_ZONES: Record<string, BossArenaZone> = {
     id: 'boss_jarrus',
     nameId: 'Jarrus, Sang Cacing Purba Solaria',
     bossType: 'worm',
-    center: { x: -30, z: -220 },
+    center: { x: -420, z: -420 },
     radius: 55,
     aggroRange: 55,
   },

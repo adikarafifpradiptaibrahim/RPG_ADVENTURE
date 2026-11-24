@@ -36,6 +36,7 @@ import {
   BRIDGE_CONFIGS,
   worldToMapPercent,
   LandmarkDef,
+  getContinentCoastRadius,
 } from './3d/worldData';
 
 export function worldToCanvas(wx: number, wz: number, width: number, height: number): [number, number] {
@@ -163,42 +164,25 @@ export function renderIllustratedMap(
 
   // ==========================================================================
   // 2. CONTINENTAL LANDMASS SILHOUETTE & NATURAL COASTLINE (BENUA UTAMA ELDORIA)
-  // Menjaga Benua Utama tetap utuh dan presisi di area Utara-Timur
+  // Bentuk Pulau Benua Utuh 360 Derajat Dikelilingi Samudra Azure
   // ==========================================================================
-  const normCoastline: [number, number][] = [
-    [0.13, 0.36],
-    [0.11, 0.44],
-    [0.10, 0.55],
-    [0.12, 0.64],
-    [0.14, 0.72],
-    [0.18, 0.76],
-    [0.26, 0.76],
-    [0.38, 0.78], // Sanctuary Harbor Bay
-    [0.46, 0.78],
-    [0.52, 0.79], // Cape South of Village
-    [0.60, 0.78],
-    [0.70, 0.76],
-    [0.78, 0.79], // Curves towards Val-Kragor peninsula
-    [0.88, 0.88], // Southeast Cape
-    [0.86, 0.74], // Curves NNE into Southeast Bay
-    [0.91, 0.62],
-    [0.96, 0.58],
-    [1.00, 0.55], // Exits right screen border
-  ];
-
-  const worldCoastline: [number, number][] = normCoastline.map((p) => oldNormToWorld(p[0], p[1]));
-  worldCoastline[worldCoastline.length - 1] = [WORLD_BOUNDS.maxX, -78];
-
-  const continentPoly: [number, number][] = [
-    [worldCoastline[0][0], WORLD_BOUNDS.minZ], // Batas utara barat laut
-    ...worldCoastline,
-    [WORLD_BOUNDS.maxX, -78],
-    [WORLD_BOUNDS.maxX, WORLD_BOUNDS.minZ],    // Batas pojok timur laut
-    [worldCoastline[0][0], WORLD_BOUNDS.minZ],
-  ];
+  const CONTINENT_CENTER_X = 0;
+  const CONTINENT_CENTER_Z = -320;
+  const coastSteps = 120;
+  const worldCoastline: [number, number][] = [];
+  for (let i = 0; i < coastSteps; i++) {
+    const angle = (i / coastSteps) * Math.PI * 2;
+    const approxX = CONTINENT_CENTER_X + Math.cos(angle) * 520;
+    const approxZ = CONTINENT_CENTER_Z + Math.sin(angle) * 520;
+    const r = getContinentCoastRadius(angle, approxX, approxZ);
+    worldCoastline.push([
+      CONTINENT_CENTER_X + Math.cos(angle) * r,
+      CONTINENT_CENTER_Z + Math.sin(angle) * r,
+    ]);
+  }
 
   const coastCanvas = worldCoastline.map((p) => wToC(p[0], p[1]));
-  const continentCanvas = continentPoly.map((p) => wToC(p[0], p[1]));
+  const continentCanvas = coastCanvas;
 
   // 2A. Warm Sandy Beach Fringe (Along Coastline)
   ctx.save();
@@ -207,12 +191,12 @@ export function renderIllustratedMap(
 
   ctx.strokeStyle = '#fef08a';
   ctx.lineWidth = Math.max(9, width * 0.018);
-  drawSmoothSpline(ctx, coastCanvas);
+  drawSmoothSpline(ctx, coastCanvas, true);
   ctx.stroke();
 
   ctx.strokeStyle = '#fde047';
   ctx.lineWidth = Math.max(4.5, width * 0.009);
-  drawSmoothSpline(ctx, coastCanvas);
+  drawSmoothSpline(ctx, coastCanvas, true);
   ctx.stroke();
   ctx.restore();
 
@@ -232,37 +216,37 @@ export function renderIllustratedMap(
   ctx.strokeStyle = 'rgba(85, 139, 47, 0.32)';
   ctx.lineWidth = 1.6;
   const hillContours: [number, number][][] = [
-    [[0.18, 0.45], [0.24, 0.48], [0.32, 0.46], [0.38, 0.50]],
-    [[0.52, 0.62], [0.58, 0.65], [0.65, 0.63]],
-    [[0.62, 0.54], [0.70, 0.52], [0.76, 0.56]],
-    [[0.22, 0.68], [0.29, 0.70], [0.35, 0.68]],
-    [[0.65, 0.60], [0.72, 0.58], [0.78, 0.62]],
+    [[100, -200], [180, -180], [240, -210]],
+    [[220, -100], [300, -80], [380, -110]],
+    [[350, 40], [420, 20], [480, 50]],
+    [[0, -40], [80, -20], [140, -50]],
+    [[120, 20], [190, 40], [260, 20]],
   ];
   hillContours.forEach((c) => {
-    drawSmoothSpline(ctx, c.map((p) => toC(p[0], p[1])));
+    drawSmoothSpline(ctx, c.map((p) => wToC(p[0], p[1])));
     ctx.stroke();
   });
   ctx.restore();
 
   // ==========================================================================
-  // 3. SOLARIA DESERT (GOLDEN SAND BIOME & ROLLING DUNES)
-  // Bound by worldData formula (z < -130 + sin(x*0.009)*45 && x > -140)
+  // 3. SOLARIA DESERT (WEST REGION GOLDEN SAND BIOME & ROLLING DUNES)
+  // Bioma Gurun di Sisi Barat Benua: X[-650..-150], Z[-750..-120]
   // ==========================================================================
-  const normDesertPoly: [number, number][] = [
-    [0.38, 0.00],
-    [0.38, 0.14],
-    [0.39, 0.26],
-    [0.42, 0.40], // West of Pyramid & Oasis
-    [0.48, 0.46], // Below Oasis
-    [0.57, 0.46],
-    [0.72, 0.43], // South of World Boss Crater
-    [0.82, 0.36], // North of Hutan Kabut Eldoria
-    [0.92, 0.32],
-    [1.00, 0.28], // Exits right border
-    [1.00, 0.00], // Top-Right corner
-    [0.38, 0.00], // Top border
+  const desertWorldPoly: [number, number][] = [
+    [-150, -780],
+    [-140, -480],
+    [-140, -320],
+    [-150, -130],
+    [-260, -110],
+    [-460, -120],
+    [-600, -200],
+    [-650, -340],
+    [-660, -560],
+    [-580, -750],
+    [-380, -800],
+    [-150, -780],
   ];
-  const desertCanvas = normDesertPoly.map((p) => toC(p[0], p[1]));
+  const desertCanvas = desertWorldPoly.map((p) => wToC(p[0], p[1]));
 
   ctx.save();
   drawSmoothSpline(ctx, desertCanvas, true);
@@ -279,20 +263,22 @@ export function renderIllustratedMap(
   ctx.stroke();
   ctx.restore();
 
-  // Rolling Sand Dune Curves
+  // Rolling Sand Dune Curves in West Desert
   ctx.save();
   const duneCurves: [number, number][][] = [
-    [[0.42, 0.18], [0.48, 0.16], [0.54, 0.19]],
-    [[0.50, 0.28], [0.56, 0.26], [0.62, 0.29]],
-    [[0.60, 0.35], [0.66, 0.33], [0.72, 0.36]],
-    [[0.68, 0.12], [0.74, 0.10], [0.80, 0.13]],
-    [[0.54, 0.20], [0.60, 0.18], [0.66, 0.21]],
-    [[0.43, 0.30], [0.48, 0.28], [0.53, 0.31]],
-    [[0.72, 0.28], [0.78, 0.26], [0.84, 0.29]],
-    [[0.82, 0.20], [0.88, 0.18], [0.94, 0.22]],
+    [[-200, -700], [-260, -720], [-320, -700]],
+    [[-220, -580], [-280, -600], [-340, -580]],
+    [[-360, -640], [-420, -660], [-480, -640]],
+    [[-200, -440], [-260, -460], [-320, -440]],
+    [[-360, -500], [-420, -520], [-480, -500]],
+    [[-220, -300], [-280, -320], [-340, -300]],
+    [[-380, -360], [-440, -380], [-500, -360]],
+    [[-480, -240], [-540, -260], [-600, -240]],
+    [[-260, -180], [-320, -200], [-380, -180]],
+    [[-400, -180], [-460, -200], [-520, -180]],
   ];
   duneCurves.forEach((d) => {
-    const pts = d.map((p) => toC(p[0], p[1]));
+    const pts = d.map((p) => wToC(p[0], p[1]));
     ctx.strokeStyle = '#d97706';
     ctx.lineWidth = 1.8;
     drawSmoothSpline(ctx, pts);
@@ -310,11 +296,11 @@ export function renderIllustratedMap(
   ctx.restore();
 
   // ==========================================================================
-  // 4. KANYON KUNO (NORTHERN RED CANYON MESAS & STRATIFIED CLIFFS)
-  // Center: [160, -540] -> norm [0.633, 0.063]
+  // 4. KANYON KUNO (NORTH-WEST RED CANYON MESAS & STRATIFIED CLIFFS)
+  // Center: [-260, -780]
   // ==========================================================================
   ctx.save();
-  const canyonCenter = toC(0.633, 0.063);
+  const canyonCenter = wToC(-260, -780);
   const mesaBlocks = [
     { ox: -40, oy: -15, w: 46, h: 34 },
     { ox: 0, oy: -20, w: 52, h: 38 },
@@ -361,28 +347,26 @@ export function renderIllustratedMap(
   ctx.restore();
 
   // ==========================================================================
-  // 5. NORTHWEST SNOWY MOUNTAINS & TITAN LAKE
-  // Titan Lake center: [-310, -480] -> norm [0.242, 0.126]
+  // 5. NORTH HIGHLANDS SNOWY MOUNTAINS & TITAN LAKE
+  // Titan Lake center: [80, -760]
   // Rangkaian puncak salju melingkari penuh sisi barat, utara, dan timur Danau Titan
   // ==========================================================================
   ctx.save();
-  const snowPeaks = [
-    { nx: 0.06, ny: 0.06, nw: 0.055, nh: 0.058 },
-    { nx: 0.12, ny: 0.04, nw: 0.060, nh: 0.065 },
-    { nx: 0.18, ny: 0.03, nw: 0.065, nh: 0.070 },
-    { nx: 0.25, ny: 0.03, nw: 0.062, nh: 0.068 },
-    { nx: 0.32, ny: 0.04, nw: 0.060, nh: 0.066 },
-    { nx: 0.36, ny: 0.07, nw: 0.055, nh: 0.060 },
-    { nx: 0.08, ny: 0.14, nw: 0.052, nh: 0.055 },
-    { nx: 0.10, ny: 0.22, nw: 0.050, nh: 0.052 },
-    { nx: 0.33, ny: 0.14, nw: 0.052, nh: 0.056 },
-    { nx: 0.36, ny: 0.22, nw: 0.048, nh: 0.052 },
-    { nx: 0.17, ny: 0.21, nw: 0.045, nh: 0.048 },
+  const snowPeakWorldCoords: [number, number, number, number][] = [
+    [-120, -820, 70, 55],
+    [-60, -850, 75, 60],
+    [10, -870, 80, 65],
+    [80, -880, 85, 68],
+    [150, -870, 80, 65],
+    [220, -850, 75, 60],
+    [280, -820, 70, 55],
+    [-110, -740, 65, 50],
+    [-90, -670, 60, 48],
+    [260, -740, 65, 50],
+    [270, -670, 60, 48],
   ];
-  snowPeaks.forEach((p) => {
-    const [px, py] = toC(p.nx, p.ny);
-    const pw = p.nw * width;
-    const ph = p.nh * height;
+  snowPeakWorldCoords.forEach(([wx, wz, pw, ph]) => {
+    const [px, py] = wToC(wx, wz);
 
     // Mountain body
     ctx.beginPath();
@@ -417,10 +401,10 @@ export function renderIllustratedMap(
     ctx.stroke();
   });
 
-  // Ancient Titan Alpine Lake [0.242, 0.126]
-  const [tlx, tly] = toC(0.242, 0.126);
-  const tlrX = width * 0.072;
-  const tlrY = height * 0.050;
+  // Ancient Titan Alpine Lake [80, -760]
+  const [tlx, tly] = wToC(80, -760);
+  const tlrX = width * 0.045;
+  const tlrY = height * 0.038;
 
   // Shore rim
   ctx.beginPath();
@@ -442,7 +426,7 @@ export function renderIllustratedMap(
 
   // Center islet in Titan Lake
   ctx.beginPath();
-  ctx.ellipse(tlx, tly, tlrX * 0.18, tlrY * 0.18, 0, 0, Math.PI * 2);
+  ctx.ellipse(tlx, tly, tlrX * 0.22, tlrY * 0.22, 0, 0, Math.PI * 2);
   ctx.fillStyle = '#15803d';
   ctx.fill();
   ctx.strokeStyle = '#fef08a';
@@ -451,22 +435,20 @@ export function renderIllustratedMap(
   ctx.restore();
 
   // ==========================================================================
-  // 6. EASTERN GREEN MOUNTAIN RIDGES (X: 500..600, norm: 0.91..1.0)
-  // Mengapit Lembah Batu Lumut [510, 20]
+  // 6. EASTERN GREEN MOUNTAIN RIDGES
+  // Mengapit Lembah Batu Lumut [600, -120] dan Pesisir Timur
   // ==========================================================================
   ctx.save();
-  const greenPeaks = [
-    { nx: 0.93, ny: 0.16, nw: 0.052, nh: 0.046 },
-    { nx: 0.96, ny: 0.24, nw: 0.048, nh: 0.042 },
-    { nx: 0.93, ny: 0.34, nw: 0.050, nh: 0.044 },
-    { nx: 0.95, ny: 0.44, nw: 0.048, nh: 0.042 },
-    { nx: 0.93, ny: 0.54, nw: 0.052, nh: 0.045 },
-    { nx: 0.96, ny: 0.64, nw: 0.046, nh: 0.040 },
+  const greenPeaks: [number, number, number, number][] = [
+    [690, -260, 60, 48],
+    [720, -190, 56, 44],
+    [690, -120, 58, 46],
+    [710, -50, 54, 42],
+    [680, 20, 56, 44],
+    [650, 80, 52, 40],
   ];
-  greenPeaks.forEach((p) => {
-    const [px, py] = toC(p.nx, p.ny);
-    const pw = p.nw * width;
-    const ph = p.nh * height;
+  greenPeaks.forEach(([wx, wz, pw, ph]) => {
+    const [px, py] = wToC(wx, wz);
 
     ctx.beginPath();
     ctx.moveTo(px, py - ph);
@@ -491,14 +473,13 @@ export function renderIllustratedMap(
   // 7. SOUTHWEST LUSH FOREST (OAK TREE CLUSTERS)
   // ==========================================================================
   ctx.save();
-  const swTrees = [
-    [0.15, 0.60, 0.016], [0.18, 0.58, 0.018], [0.21, 0.62, 0.020], [0.24, 0.59, 0.017],
-    [0.16, 0.65, 0.018], [0.19, 0.64, 0.022], [0.22, 0.67, 0.019], [0.25, 0.63, 0.017],
-    [0.17, 0.70, 0.017], [0.20, 0.69, 0.021], [0.23, 0.71, 0.018], [0.26, 0.68, 0.016],
+  const swTrees: [number, number, number][] = [
+    [0, 10, 12], [30, 20, 14], [60, 15, 13], [80, 25, 15],
+    [-20, 30, 14], [10, 40, 16], [50, 45, 14], [70, 50, 13],
+    [-10, 60, 13], [20, 65, 15], [40, 70, 14], [60, 75, 12],
   ];
-  swTrees.forEach(([tx, ty, rad]) => {
-    const [cx, cy] = toC(tx, ty);
-    const r = rad * width;
+  swTrees.forEach(([wx, wz, r]) => {
+    const [cx, cy] = wToC(wx, wz);
 
     // Drop shadow
     ctx.fillStyle = 'rgba(20, 40, 15, 0.35)';
@@ -526,11 +507,11 @@ export function renderIllustratedMap(
 
   // ==========================================================================
   // 8. ELDORIA MIST FOREST (EAST CANOPY & CLOUD COVER)
-  // Center: [380, -160] -> norm [0.817, 0.463]
+  // Center: [640, -340]
   // ==========================================================================
   ctx.save();
-  const [mfx, mfy] = toC(0.817, 0.463);
-  const mfr = width * 0.065;
+  const [mfx, mfy] = wToC(640, -340);
+  const mfr = width * 0.045;
 
   const mistForestClusters = [
     [mfx - mfr * 0.40, mfy - mfr * 0.30, mfr * 0.50],
@@ -669,8 +650,8 @@ export function renderIllustratedMap(
   // ==========================================================================
   ctx.save();
 
-  // 12A. Golden Pyramids [30, -350] -> norm [0.525, 0.263]
-  const [pyrX, pyrY] = wToC(30, -350);
+  // 12A. Golden Pyramids [-320, -560]
+  const [pyrX, pyrY] = wToC(-320, -560);
   ctx.beginPath();
   ctx.moveTo(pyrX, pyrY - 16);
   ctx.lineTo(pyrX + 18, pyrY + 7);
@@ -703,8 +684,8 @@ export function renderIllustratedMap(
   ctx.fillStyle = '#b45309';
   ctx.fill();
 
-  // 12B. Solaria Oasis Pool & Palms [85, -230] -> norm [0.571, 0.389]
-  const [oasX, oasY] = wToC(85, -230);
+  // 12B. Solaria Oasis Pool & Palms [-340, -340]
+  const [oasX, oasY] = wToC(-340, -340);
   ctx.fillStyle = '#06b6d4';
   ctx.beginPath();
   ctx.ellipse(oasX, oasY, 15, 10, 0, 0, Math.PI * 2);
@@ -736,8 +717,8 @@ export function renderIllustratedMap(
     }
   });
 
-  // 12C. World Boss Colosseum Titan Kuno [235, -380]
-  const [cratX, cratY] = wToC(235, -380);
+  // 12C. World Boss Colosseum Titan Kuno [-480, -480]
+  const [cratX, cratY] = wToC(-480, -480);
   ctx.fillStyle = '#9a3412';
   ctx.beginPath();
   ctx.ellipse(cratX, cratY, 34, 23, 0, 0, Math.PI * 2);
@@ -764,8 +745,8 @@ export function renderIllustratedMap(
     ctx.stroke();
   }
 
-  // 12C2. Sandworm Sinkhole Vortex [-30, -220]
-  const [swX, swY] = wToC(-30, -220);
+  // 12C2. Sandworm Sinkhole Vortex [-420, -420]
+  const [swX, swY] = wToC(-420, -420);
   ctx.fillStyle = '#b45309';
   ctx.beginPath();
   ctx.ellipse(swX, swY, 22, 15, 0, 0, Math.PI * 2);
@@ -775,8 +756,8 @@ export function renderIllustratedMap(
   ctx.ellipse(swX, swY, 13, 9, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 12C2. Solaria Desert Village & Bazaar [135, -245]
-  const [desVilX, desVilY] = wToC(135, -245);
+  // 12C2. Solaria Desert Village & Bazaar [-460, -260]
+  const [desVilX, desVilY] = wToC(-460, -260);
   ctx.fillStyle = '#b45309';
   // Adobe mudbrick houses cluster
   ctx.fillRect(desVilX - 12, desVilY - 8, 10, 8);
@@ -795,8 +776,8 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12D. Sultan Malik Palace [410, -470]
-  const [sultX, sultY] = wToC(410, -470);
+  // 12D. Sultan Malik Palace [-540, -640]
+  const [sultX, sultY] = wToC(-540, -640);
   ctx.fillStyle = '#f1f5f9';
   ctx.fillRect(sultX - 20, sultY - 7, 40, 18);
   // Onion dome
@@ -826,8 +807,8 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12E. Astraea Imperial Castle & Sun Palace [-250, -240] -> norm [0.292, 0.379]
-  const [astX, astY] = wToC(-250, -240);
+  // 12E. Astraea Imperial Castle & Sun Palace [320, -260]
+  const [astX, astY] = wToC(320, -260);
   ctx.fillStyle = '#64748b';
   ctx.fillRect(astX - 28, astY - 15, 56, 30);
   ctx.fillStyle = '#94a3b8';
@@ -860,16 +841,16 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12F. Puing Kastil Terbengkalai [220, -30] -> norm [0.683, 0.600]
-  const [ruinX, ruinY] = wToC(220, -30);
+  // 12F. Puing Kastil Terbengkalai [420, -140]
+  const [ruinX, ruinY] = wToC(420, -140);
   ctx.fillStyle = '#475569';
   ctx.fillRect(ruinX - 12, ruinY - 7, 24, 14);
   ctx.clearRect(ruinX - 5, ruinY - 7, 10, 5);
   ctx.fillStyle = '#334155';
   ctx.fillRect(ruinX - 14, ruinY - 14, 7, 21);
 
-  // 12F2. Mage Tower Puncak Halilintar [110, -10]
-  const [mtX, mtY] = wToC(110, -10);
+  // 12F2. Mage Tower Puncak Halilintar [220, -110]
+  const [mtX, mtY] = wToC(220, -110);
   ctx.fillStyle = '#475569';
   ctx.fillRect(mtX - 8, mtY - 14, 16, 28);
   ctx.fillStyle = '#7c3aed';
@@ -880,8 +861,8 @@ export function renderIllustratedMap(
   ctx.closePath();
   ctx.fill();
 
-  // 12G. Desa Benteng Val-Kragor [310, 115]
-  const [valX, valY] = wToC(310, 115);
+  // 12G. Desa Benteng Val-Kragor [520, 10]
+  const [valX, valY] = wToC(520, 10);
   ctx.strokeStyle = '#78350f';
   ctx.lineWidth = 3.6;
   ctx.strokeRect(valX - 24, valY - 15, 48, 30);
@@ -904,8 +885,8 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12H. Lembah Batu Lumut [465, 35]
-  const [mosX, mosY] = wToC(465, 35);
+  // 12H. Lembah Batu Lumut [600, -120]
+  const [mosX, mosY] = wToC(600, -120);
   ctx.fillStyle = '#65a30d';
   ctx.beginPath();
   ctx.ellipse(mosX, mosY, 22, 15, 0, 0, Math.PI * 2);
@@ -926,8 +907,8 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12I. Desa Utama & Sanctuary [-35, 135]
-  const [vilX, vilY] = wToC(-35, 135);
+  // 12I. Desa Utama Sanctuary [40, -40]
+  const [vilX, vilY] = wToC(40, -40);
   [-14, 8].forEach((hx) => {
     ctx.fillStyle = '#e5e7eb';
     ctx.fillRect(vilX + hx - 5, vilY - 2, 10, 8);
@@ -951,8 +932,8 @@ export function renderIllustratedMap(
   ctx.lineTo(vilX + 29, vilY - 4);
   ctx.stroke();
 
-  // 12J. Pelabuhan Sanctuary [-20, 185]
-  const [harbX, harbY] = wToC(-20, 185);
+  // 12J. Pelabuhan Sanctuary [40, 85]
+  const [harbX, harbY] = wToC(40, 85);
   ctx.fillStyle = '#78350f';
   ctx.fillRect(harbX - 18, harbY, 36, 5);
   ctx.fillRect(harbX - 9, harbY + 5, 6, 15);
@@ -983,9 +964,9 @@ export function renderIllustratedMap(
   ctx.lineWidth = 2.2;
   ctx.setLineDash([7, 5]);
 
-  // Rute 1: Pelabuhan Sanctuary [0, 180] -> Pulau Mercusuar [-220, 460]
+  // Rute 1: Pelabuhan Sanctuary [40, 85] -> Pulau Mercusuar [-220, 460]
   const routeHarborToLighthouse: [number, number][] = [
-    wToC(0, 180),
+    wToC(40, 85),
     wToC(-70, 270),
     wToC(-150, 360),
     wToC(-220, 460),

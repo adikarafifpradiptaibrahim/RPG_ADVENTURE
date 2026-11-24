@@ -78,6 +78,7 @@ import {
   WorldBridgeLayout,
   WorldLayoutConfig,
 } from './worldLayoutConfig';
+import { WORLD_BOUNDS } from './worldData';
 import {
   MAGE_TOWER_CONFIG,
   isInsideMageTowerInterior,
@@ -217,51 +218,51 @@ const TOWN_ZONES: TownZoneTrigger[] = [
     id: 'town_sanctuary',
     waypointId: 'wp_village',
     name: 'Desa Utama Sanctuary',
-    x: 25,
-    z: 135,
+    x: 40,
+    z: -40,
     radius: 45,
-    respawnX: 25,
-    respawnZ: 138,
+    respawnX: 40,
+    respawnZ: -35,
   },
   {
     id: 'town_valkragor',
     waypointId: 'wp_valkragor',
     name: 'Benteng Val-Kragor',
-    x: 315,
-    z: 95,
+    x: 520,
+    z: 10,
     radius: 45,
-    respawnX: 315,
-    respawnZ: 95,
+    respawnX: 520,
+    respawnZ: 10,
   },
   {
     id: 'town_astraea',
     waypointId: 'wp_astraea',
     name: 'Ibukota Kerajaan Emas Astraea',
-    x: -250,
-    z: -210,
-    radius: 50,
-    respawnX: -248,
-    respawnZ: -210,
+    x: 320,
+    z: -260,
+    radius: 60,
+    respawnX: 320,
+    respawnZ: -255,
   },
   {
     id: 'town_solaria',
     waypointId: 'wp_solaria_village',
     name: 'Desa & Istana Gurun Solaria',
-    x: 355,
-    z: -440,
+    x: -460,
+    z: -260,
     radius: 65,
-    respawnX: 355,
-    respawnZ: -435,
+    respawnX: -460,
+    respawnZ: -255,
   },
   {
     id: 'town_thunderpeak',
     waypointId: 'wp_thunderpeak',
     name: 'Mage Tower Puncak Halilintar',
-    x: 180,
-    z: 60,
+    x: 220,
+    z: -110,
     radius: 45,
-    respawnX: 180,
-    respawnZ: 68,
+    respawnX: 220,
+    respawnZ: -105,
   },
 ];
 
@@ -302,7 +303,7 @@ export class GameEngine {
         if (parsed && typeof parsed.x === 'number') return parsed;
       }
     } catch { }
-    return { id: 'wp_village', x: 0, y: 0.5, z: 184, name: 'Desa Utama Sanctuary' };
+    return { id: 'wp_village', x: 40, y: 0.5, z: -35, name: 'Desa Utama Sanctuary' };
   })();
   private scenePointLights: THREE.PointLight[] = [];
   private frameCount: number = 0;
@@ -315,7 +316,7 @@ export class GameEngine {
   private worldEnvironment?: WorldEnvironmentResult;
   private characterSelectStudioGroup: THREE.Group | null = null;
   private playerMesh: PlayerMeshObjects;
-  private playerPos = new THREE.Vector3(-40, 0, 148);
+  private playerPos = new THREE.Vector3(40, 0, -30);
   private playerVel = new THREE.Vector3();
   private playerRotationY = 0;
   private isGrounded = true;
@@ -9271,8 +9272,8 @@ export class GameEngine {
 
     let targetX = startPos.x + dashDir.x * maxDist;
     let targetZ = startPos.z + dashDir.z * maxDist;
-    targetX = Math.max(-595, Math.min(595, targetX));
-    targetZ = Math.max(-595, Math.min(345, targetZ));
+    targetX = Math.max(WORLD_BOUNDS.minX + 5, Math.min(WORLD_BOUNDS.maxX - 5, targetX));
+    targetZ = Math.max(WORLD_BOUNDS.minZ + 5, Math.min(WORLD_BOUNDS.maxZ - 5, targetZ));
 
     const resolved = this.resolveCollisions(targetX, targetZ);
     const targetPos = new THREE.Vector3(
@@ -9363,11 +9364,11 @@ export class GameEngine {
       }
     }
 
-    // Clamp to expanded world boundaries (-595..595, -595..345)
+    // Clamp to expanded world boundaries
     let targetX = startPos.x + blinkDir.x * maxDist;
     let targetZ = startPos.z + blinkDir.z * maxDist;
-    targetX = Math.max(-595, Math.min(595, targetX));
-    targetZ = Math.max(-595, Math.min(345, targetZ));
+    targetX = Math.max(WORLD_BOUNDS.minX + 5, Math.min(WORLD_BOUNDS.maxX - 5, targetX));
+    targetZ = Math.max(WORLD_BOUNDS.minZ + 5, Math.min(WORLD_BOUNDS.maxZ - 5, targetZ));
 
     // Resolve collisions so player never blinks inside walls or buildings
     const resolved = this.resolveCollisions(targetX, targetZ);
@@ -10525,17 +10526,17 @@ export class GameEngine {
       this.playerVel.z *= 0.96;
     }
 
-    // Expanded World boundary constraints (Spans all biomes from X[-600..600] and Z[-600..350])
-    if (nextX < -595) nextX = -595;
-    if (nextX > 595) nextX = 595;
-    if (nextZ < -595) nextZ = -595;
-    if (nextZ > 345) nextZ = 345;
+    // Expanded World boundary constraints
+    if (nextX < WORLD_BOUNDS.minX + 5) nextX = WORLD_BOUNDS.minX + 5;
+    if (nextX > WORLD_BOUNDS.maxX - 5) nextX = WORLD_BOUNDS.maxX - 5;
+    if (nextZ < WORLD_BOUNDS.minZ + 5) nextZ = WORLD_BOUNDS.minZ + 5;
+    if (nextZ > WORLD_BOUNDS.maxZ - 5) nextZ = WORLD_BOUNDS.maxZ - 5;
 
     this.playerPos.x = nextX;
     this.playerPos.z = nextZ;
 
     // Check quest discovery for Fortress Village Val-Kragor
-    if (nextX >= 135 && Math.abs(nextZ - -16) <= 22) {
+    if (Math.hypot(nextX - 520, nextZ - 10) <= 50) {
       this.callbacks.onUpdateQuests((quests) => {
         return quests.map((q) => {
           if (q.id === 'quest_discover_valkragor' && !q.completed) {
@@ -10551,8 +10552,8 @@ export class GameEngine {
     // Automatic Invisible Town Zone Trigger (Sanctuary, Val-Kragor, Astraea auto-respawn and map waypoint unlock)
     this.checkInvisibleTownZones();
 
-    // Check quest discovery for Grand Imperial Kingdom of Astraea (Northwest Plains)
-    if (Math.hypot(nextX - -250, nextZ - -210) <= 65) {
+    // Check quest discovery for Grand Imperial Kingdom of Astraea
+    if (Math.hypot(nextX - 320, nextZ - -260) <= 65) {
       this.callbacks.onUpdateQuests((quests) => {
         return quests.map((q) => {
           if (q.id === 'quest_discover_astraea' && !q.completed) {
