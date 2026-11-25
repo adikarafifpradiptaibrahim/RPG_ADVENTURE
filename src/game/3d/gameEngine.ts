@@ -551,6 +551,21 @@ export class GameEngine {
     baseRadius: number;
   }> = [];
   private bladeSpin360NextIndex = 0;
+
+  // Sleek Thin Wind Streaks Pool for Agile Assassin Sprint (Zero Torso Clipping & Zero GC)
+  private sprintWindStreakPool: Array<{
+    mesh: THREE.Mesh;
+    mat: THREE.MeshBasicMaterial;
+    active: boolean;
+    elapsed: number;
+    duration: number;
+    baseOpacity: number;
+    vx: number;
+    vy: number;
+    vz: number;
+  }> = [];
+  private sprintWindStreakNextIndex = 0;
+  private sprintStreakTimer = 0;
   public get currentRole(): string {
     return this.charClass === 'rogue' ? 'assassin' : this.charClass;
   }
@@ -4832,6 +4847,32 @@ export class GameEngine {
         baseRadius: 3.4,
       });
     }
+
+    // 7. Sleek Sprint Wind Streaks Pool (32 ultra-thin tapered streaks behind Assassin)
+    const sharedStreakGeom = new THREE.BoxGeometry(0.016, 0.016, 0.78);
+    for (let i = 0; i < 32; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: i % 3 === 0 ? 0xa5f3fc : 0xe2e8f0,
+        transparent: true,
+        opacity: 0.30,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+      const mesh = new THREE.Mesh(sharedStreakGeom, mat);
+      mesh.visible = false;
+      this.scene.add(mesh);
+      this.sprintWindStreakPool.push({
+        mesh,
+        mat,
+        active: false,
+        elapsed: 0,
+        duration: 0.22,
+        baseOpacity: 0.30,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+      });
+    }
   }
 
   private updateCombatVfxPools(delta: number) {
@@ -4939,6 +4980,24 @@ export class GameEngine {
       item.matOuter.opacity = lifeRatio * 0.9;
       item.matInner.opacity = lifeRatio * 0.95;
       item.spokeMat.opacity = lifeRatio * 0.85;
+    }
+
+    // Update active thin sprint wind streaks
+    for (let i = 0; i < this.sprintWindStreakPool.length; i++) {
+      const item = this.sprintWindStreakPool[i];
+      if (!item.active) continue;
+      item.elapsed += delta;
+      if (item.elapsed >= item.duration) {
+        item.active = false;
+        item.mesh.visible = false;
+        continue;
+      }
+      const lifeRatio = 1 - item.elapsed / item.duration;
+      item.mesh.position.x += item.vx * delta;
+      item.mesh.position.y += item.vy * delta;
+      item.mesh.position.z += item.vz * delta;
+      item.mesh.scale.z = 0.65 + lifeRatio * 0.65;
+      item.mat.opacity = lifeRatio * item.baseOpacity;
     }
   }
 
@@ -5184,6 +5243,7 @@ export class GameEngine {
     const sampleSpin = this.bladeSpin360Pool[0];
     const sampleStep = this.shadowStepPool[0];
     const sampleSmoke = this.smokePuffPool[0];
+    const sampleStreak = this.sprintWindStreakPool[0];
     if (sampleCrescent) {
       sampleCrescent.group.position.copy(this.camera.position).addScaledVector(fwd, 3.0);
       sampleCrescent.group.visible = true;
@@ -5200,6 +5260,10 @@ export class GameEngine {
       sampleSmoke.mesh.position.copy(this.camera.position).addScaledVector(fwd, 3.5);
       sampleSmoke.mesh.visible = true;
     }
+    if (sampleStreak) {
+      sampleStreak.mesh.position.copy(this.camera.position).addScaledVector(fwd, 3.5);
+      sampleStreak.mesh.visible = true;
+    }
     if (this.arrowVolleyIndicatorGroup) {
       this.arrowVolleyIndicatorGroup.position.copy(this.camera.position).addScaledVector(fwd, 5.0);
       this.arrowVolleyIndicatorGroup.visible = true;
@@ -5209,6 +5273,7 @@ export class GameEngine {
     if (sampleSpin) sampleSpin.group.visible = false;
     if (sampleStep) sampleStep.group.visible = false;
     if (sampleSmoke) sampleSmoke.mesh.visible = false;
+    if (sampleStreak) sampleStreak.mesh.visible = false;
     if (this.arrowVolleyIndicatorGroup) {
       this.arrowVolleyIndicatorGroup.position.set(0, 0, 0);
       this.arrowVolleyIndicatorGroup.visible = false;
@@ -5507,15 +5572,65 @@ export class GameEngine {
       if (this.smokePuffPool.length === 0) return;
       const item = this.smokePuffPool[this.smokePuffNextIndex];
       this.smokePuffNextIndex = (this.smokePuffNextIndex + 1) % this.smokePuffPool.length;
-      item.mesh.position.copy(footPos);
-      item.mesh.scale.set(0.24, 0.24, 0.24);
-      item.mat.color.setHex(Math.random() > 0.5 ? 0x052e16 : 0x18181b);
-      item.baseOpacity = 0.65;
-      item.mat.opacity = 0.65;
-      item.riseSpeed = 0.8;
-      item.growRate = 1.5;
+      const backX = -Math.sin(this.playerRotationY);
+      const backZ = -Math.cos(this.playerRotationY);
+      item.mesh.position.set(footPos.x + backX * 0.36, footPos.y + 0.04, footPos.z + backZ * 0.36);
+      item.mesh.scale.set(0.11, 0.09, 0.11);
+      item.mat.color.setHex(Math.random() > 0.5 ? 0x1e293b : 0x334155);
+      item.baseOpacity = 0.28;
+      item.mat.opacity = 0.28;
+      item.riseSpeed = 0.35;
+      item.growRate = 0.8;
       item.elapsed = 0;
-      item.duration = 0.35;
+      item.duration = 0.25;
+      item.active = true;
+      item.mesh.visible = true;
+    }
+  }
+
+  // Sleek thin wind streaks ONLY behind shoulders, back, and heels along -velocity
+  private spawnSprintWindStreaks() {
+    if (this.sprintWindStreakPool.length === 0) return;
+    const speedLen = Math.hypot(this.playerVel.x, this.playerVel.z);
+    let fwdX = Math.sin(this.playerRotationY);
+    let fwdZ = Math.cos(this.playerRotationY);
+    if (speedLen > 0.25) {
+      fwdX = this.playerVel.x / speedLen;
+      fwdZ = this.playerVel.z / speedLen;
+    }
+    const backX = -fwdX;
+    const backZ = -fwdZ;
+    const rightX = -backZ;
+    const rightZ = backX;
+    const yaw = Math.atan2(fwdX, fwdZ);
+
+    // Spawn 2 streaks per pulse: 1 behind shoulders/back, 1 near heels/feet (never obscuring torso/head!)
+    for (let s = 0; s < 2; s++) {
+      const item = this.sprintWindStreakPool[this.sprintWindStreakNextIndex];
+      this.sprintWindStreakNextIndex = (this.sprintWindStreakNextIndex + 1) % this.sprintWindStreakPool.length;
+
+      const isUpper = s === 0;
+      const backOffset = isUpper ? 0.62 + Math.random() * 0.32 : 0.48 + Math.random() * 0.28;
+      const sideSign = Math.random() > 0.5 ? 1 : -1;
+      const sideOffset = sideSign * (isUpper ? 0.26 + Math.random() * 0.22 : 0.16 + Math.random() * 0.16);
+      const heightY = isUpper ? 1.05 + Math.random() * 0.32 : 0.10 + Math.random() * 0.16;
+
+      item.mesh.position.set(
+        this.playerPos.x + backX * backOffset + rightX * sideOffset,
+        this.playerPos.y + heightY,
+        this.playerPos.z + backZ * backOffset + rightZ * sideOffset
+      );
+      item.mesh.rotation.set(0, yaw, 0);
+      item.mesh.scale.set(1, 1, 0.8 + Math.random() * 0.6);
+      item.baseOpacity = 0.26 + Math.random() * 0.12;
+      item.mat.opacity = item.baseOpacity;
+      item.mat.color.setHex(isUpper ? 0xa5f3fc : 0xcbd5e1);
+      const trailSpeed = 3.2 + Math.random() * 1.6;
+      item.vx = backX * trailSpeed;
+      item.vy = isUpper ? (Math.random() - 0.5) * 0.2 : 0.18;
+      item.vz = backZ * trailSpeed;
+      item.elapsed = 0;
+      item.duration = 0.18 + Math.random() * 0.08;
       item.active = true;
       item.mesh.visible = true;
     }
@@ -9060,46 +9175,46 @@ export class GameEngine {
       soundManager.playArcaneBeam();
       this.spawnMageArcaneLaserBeam();
     } else if (this.charClass === 'rogue') {
-        // Hunter Daggers Melee Combat
-        const isAmbushCrit = this.phantomAmbushReady;
-        if (isAmbushCrit) {
-          this.phantomAmbushReady = false;
-          this.phantomAmbushTimer = 0;
-          soundManager.playRogueShadowFlurry();
-          this.spawnSparks(this.playerPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0x064e3b, 22, 5.0);
-          this.spawnHitStarburst(this.playerPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0x10b981, 1.8);
-          this.callbacks.onAddFloatingText('Phantom Ambush Critical! 🗡️💥', '#10b981', 'crit');
-        }
+      // Hunter Daggers Melee Combat
+      const isAmbushCrit = this.phantomAmbushReady;
+      if (isAmbushCrit) {
+        this.phantomAmbushReady = false;
+        this.phantomAmbushTimer = 0;
+        soundManager.playRogueShadowFlurry();
+        this.spawnSparks(this.playerPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0x064e3b, 22, 5.0);
+        this.spawnHitStarburst(this.playerPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0x10b981, 1.8);
+        this.callbacks.onAddFloatingText('Phantom Ambush Critical! 🗡️💥', '#10b981', 'crit');
+      }
 
-        if (currentCombo === 2) {
-          // Combo 3 Finisher: 360° Shadow Blade Whirlwind Cutter (Depan, Belakang, Kiri, Kanan!)
-          this.attackType = 'basic_spin_360';
-          this.attackDuration = 0.32;
-          this.attackTimer = 0.32;
-          soundManager.playRogueDoubleSlash();
-          this.spawn360BladeSpinVfx(0x00f5ff, 3.4);
-          this.executeMeleeAttack({
-            range: 3.4,
-            is360: true,
-            dmgMultiplier: 1.75,
-            critBonus: isAmbushCrit ? 2.0 : 0.45,
-            knockback: 0.5,
-          });
-        } else {
-          // Rapid dual dagger slashes (covers front, flanks, and close 360°)
-          this.attackType = currentCombo === 0 ? 'basic_slash_1' : 'basic_slash_2';
-          this.attackDuration = 0.22;
-          this.attackTimer = 0.22;
-          soundManager.playRogueDoubleSlash();
-          this.spawnRogueXSlashVfx();
-          this.executeMeleeAttack({
-            range: 3.0,
-            coneAngle: -0.35,
-            dmgMultiplier: 1.35,
-            critBonus: isAmbushCrit ? 2.0 : 0.35,
-            knockback: 0.25,
-          });
-        }
+      if (currentCombo === 2) {
+        // Combo 3 Finisher: 360° Shadow Blade Whirlwind Cutter (Depan, Belakang, Kiri, Kanan!)
+        this.attackType = 'basic_spin_360';
+        this.attackDuration = 0.32;
+        this.attackTimer = 0.32;
+        soundManager.playRogueDoubleSlash();
+        this.spawn360BladeSpinVfx(0x00f5ff, 3.4);
+        this.executeMeleeAttack({
+          range: 3.4,
+          is360: true,
+          dmgMultiplier: 1.75,
+          critBonus: isAmbushCrit ? 2.0 : 0.45,
+          knockback: 0.5,
+        });
+      } else {
+        // Rapid dual dagger slashes (covers front, flanks, and close 360°)
+        this.attackType = currentCombo === 0 ? 'basic_slash_1' : 'basic_slash_2';
+        this.attackDuration = 0.22;
+        this.attackTimer = 0.22;
+        soundManager.playRogueDoubleSlash();
+        this.spawnRogueXSlashVfx();
+        this.executeMeleeAttack({
+          range: 3.0,
+          coneAngle: -0.35,
+          dmgMultiplier: 1.35,
+          critBonus: isAmbushCrit ? 2.0 : 0.35,
+          knockback: 0.25,
+        });
+      }
     }
   }
 
@@ -11161,66 +11276,69 @@ export class GameEngine {
           const legSwing = Math.sin(this.walkCycle);
           const armSwing = Math.cos(this.walkCycle);
 
+          const lerpFactor = Math.min(1, delta * 12.0);
           if (isHunterSprint) {
             // ========================================================================
-            // POSTUR & ANIMASI LARI ALA NINJA (SHINOBI RUN POSE)
+            // POSTUR & ANIMASI LARI CEPAT AGILE ASSASSIN (DYNAMIC LEAN & WIND STREAKS)
             // ========================================================================
-            // 1. Langkah Kaki Cepat & Dinamis: tekukan lutut lebih tinggi
-            this.playerMesh.leftLeg.rotation.x = legSwing * 0.95;
-            this.playerMesh.rightLeg.rotation.x = -legSwing * 0.95;
+            // 1. Stride cepat lebar dengan tekukan lutut atletis & pantulan vertikal halus
+            this.playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftLeg.rotation.x, legSwing * 0.96, 0.35);
+            this.playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightLeg.rotation.x, -legSwing * 0.96, 0.35);
             if (this.playerMesh.leftKnee) {
-              this.playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.85 : 0.15;
+              this.playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.78 : 0.14;
             }
             if (this.playerMesh.rightKnee) {
-              this.playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.85 : 0.15;
+              this.playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.78 : 0.14;
             }
+            const sprintBob = Math.abs(Math.sin(this.walkCycle)) * 0.06;
+            this.playerMesh.group.position.y = this.playerPos.y + sprintBob;
 
-            // 2. Kedua Lengan Terbentang ke Belakang (Shinobi Arm Sweep)
+            // 2. Ayunan lengan atletis natural berlawanan langkah kaki (siku tertekuk & belati reverse-grip serong)
             if (!this.isAttacking) {
-              const armWindSway = Math.sin(this.walkCycle * 2.0) * 0.06;
-              const backSweep = 1.05; // 60 derajat ke belakang tubuh melewati pinggul
-              this.playerMesh.leftArm.rotation.set(backSweep + armWindSway, 0.05, -0.14);
-              this.playerMesh.rightArm.rotation.set(backSweep - armWindSway, -0.05, 0.14);
-              this.playerMesh.leftArm.position.set(-0.325, 1.39, 0.08);
-              this.playerMesh.rightArm.position.set(0.325, 1.39, 0.08);
+              this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, 0.34 - armSwing * 0.56, 0.32);
+              this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, 0.14, lerpFactor);
+              this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, -0.12, lerpFactor);
+              this.playerMesh.leftArm.position.set(-0.325, 1.40, 0.04);
+
+              this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0.34 + armSwing * 0.56, 0.32);
+              this.playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.y, -0.14, lerpFactor);
+              this.playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.z, 0.12, lerpFactor);
+              this.playerMesh.rightArm.position.set(0.325, 1.40, 0.04);
             }
 
-            // 3. Kemiringan Tubuh Rendah 32 derajat (0.56 rad)
+            // 3. Condong ke depan dinamis ~19.5° (0.34 rad) & kepala mendongak ringan (-0.18 rad)
             if (this.playerMesh.body) {
               this.playerMesh.body.rotation.reorder('YXZ');
-              this.playerMesh.body.rotation.x = 0.56;
+              this.playerMesh.body.rotation.x = THREE.MathUtils.lerp(this.playerMesh.body.rotation.x, 0.34, lerpFactor);
             }
-            // 4. Balas sudut pada kepala agar mata tetap menatap lurus ke depan
             if (this.playerMesh.head) {
-              this.playerMesh.head.rotation.x = -0.476; // -0.56 * 0.85
-              this.playerMesh.head.position.set(0, 1.45, 0.16);
-            }
-
-            if (this.playerMesh.cape) {
-              this.playerMesh.cape.rotation.x = 0.55 + Math.abs(Math.sin(this.walkCycle * 0.5)) * 0.15;
-            }
-
-            // Efek Jejak Bayangan (Shadow Afterimage Pool) setiap 0.09s & Hembusan Angin Zamrud
-            this.hunterAfterimageSpawnTimer -= delta;
-            if (this.hunterAfterimageSpawnTimer <= 0) {
-              this.hunterAfterimageSpawnTimer = 0.09;
-              this.spawnHunterAfterimage();
-            }
-            if (Math.random() < 0.50) {
-              this.spawnSparks(
-                this.playerPos.clone().add(
-                  new THREE.Vector3((Math.random() - 0.5) * 0.4, 0.08, (Math.random() - 0.5) * 0.4)
-                ),
-                0x10b981,
-                2,
-                1.2
+              this.playerMesh.head.rotation.x = THREE.MathUtils.lerp(this.playerMesh.head.rotation.x, -0.18, lerpFactor);
+              this.playerMesh.head.position.set(
+                0,
+                THREE.MathUtils.lerp(this.playerMesh.head.position.y, 1.48, lerpFactor),
+                THREE.MathUtils.lerp(this.playerMesh.head.position.z, 0.09, lerpFactor)
               );
             }
-          } else {
-            // Normal Walking
+
+            // 4. Kibaran ekor jubah mengikuti kecepatan
+            if (this.playerMesh.cape) {
+              const targetCape = 0.44 + Math.abs(Math.sin(this.walkCycle * 0.5)) * 0.14;
+              this.playerMesh.cape.rotation.x = THREE.MathUtils.lerp(this.playerMesh.cape.rotation.x, targetCape, lerpFactor);
+            }
+
+            // 5. Speed lines angin tipis di belakang bahu, punggung & tumit (bebas kotak partikel pekat!)
             this.hunterAfterimageSpawnTimer = 0;
-            this.playerMesh.leftLeg.rotation.x = legSwing * 0.75;
-            this.playerMesh.rightLeg.rotation.x = -legSwing * 0.75;
+            this.sprintStreakTimer -= delta;
+            if (this.sprintStreakTimer <= 0) {
+              this.sprintStreakTimer = 0.045;
+              this.spawnSprintWindStreaks();
+            }
+          } else {
+            // Normal Walking (transisi lerp mulus walk <-> sprint <-> idle)
+            this.hunterAfterimageSpawnTimer = 0;
+            this.sprintStreakTimer = 0;
+            this.playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftLeg.rotation.x, legSwing * 0.75, 0.35);
+            this.playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightLeg.rotation.x, -legSwing * 0.75, 0.35);
             if (this.playerMesh.leftKnee) {
               this.playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.4 : 0;
             }
@@ -11231,19 +11349,31 @@ export class GameEngine {
             if (!this.isAttacking) {
               this.playerMesh.leftArm.position.set(-0.325, 1.42, 0.02);
               this.playerMesh.rightArm.position.set(0.325, 1.42, 0.02);
-              this.playerMesh.leftArm.rotation.x = -0.32 + armSwing * 0.42;
-              this.playerMesh.rightArm.rotation.x = -0.32 - armSwing * 0.42;
+              this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, -0.32 + armSwing * 0.42, 0.3);
+              this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, 0, lerpFactor);
+              this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, 0, lerpFactor);
+              this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, -0.32 - armSwing * 0.42, 0.3);
+              this.playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.y, 0, lerpFactor);
+              this.playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.z, 0, lerpFactor);
             }
 
             if (this.playerMesh.body) {
-              this.playerMesh.body.rotation.x = 0;
+              this.playerMesh.body.rotation.x = THREE.MathUtils.lerp(this.playerMesh.body.rotation.x, 0, lerpFactor);
             }
             if (this.playerMesh.head) {
-              this.playerMesh.head.rotation.set(0, 0, 0);
-              this.playerMesh.head.position.set(0, 1.50, 0);
+              this.playerMesh.head.rotation.set(THREE.MathUtils.lerp(this.playerMesh.head.rotation.x, 0, lerpFactor), 0, 0);
+              this.playerMesh.head.position.set(
+                0,
+                THREE.MathUtils.lerp(this.playerMesh.head.position.y, 1.50, lerpFactor),
+                THREE.MathUtils.lerp(this.playerMesh.head.position.z, 0, lerpFactor)
+              );
             }
             if (this.playerMesh.cape) {
-              this.playerMesh.cape.rotation.x = 0.10 + Math.abs(Math.sin(this.walkCycle * 0.5)) * 0.08;
+              this.playerMesh.cape.rotation.x = THREE.MathUtils.lerp(
+                this.playerMesh.cape.rotation.x,
+                0.12 + Math.abs(Math.sin(this.walkCycle * 0.5)) * 0.08,
+                lerpFactor
+              );
             }
           }
 
@@ -11328,6 +11458,8 @@ export class GameEngine {
           // Reset atau jeda walkCycle agar langkah tidak berhenti di pose kaki terbelah canggung.
           this.walkCycle = 0;
           this.hunterAfterimageSpawnTimer = 0;
+          this.sprintStreakTimer = 0;
+          const idleLerp = Math.min(1, delta * 12.0);
           if (this.playerMesh.leftArm) {
             this.playerMesh.leftArm.position.set(-0.325, 1.42, 0.02);
           }
@@ -11335,11 +11467,15 @@ export class GameEngine {
             this.playerMesh.rightArm.position.set(0.325, 1.42, 0.02);
           }
           if (this.playerMesh.head) {
-            this.playerMesh.head.rotation.set(0, 0, 0);
-            this.playerMesh.head.position.set(0, 1.50, 0);
+            this.playerMesh.head.rotation.set(THREE.MathUtils.lerp(this.playerMesh.head.rotation.x, 0, idleLerp), 0, 0);
+            this.playerMesh.head.position.set(
+              0,
+              THREE.MathUtils.lerp(this.playerMesh.head.position.y, 1.50, idleLerp),
+              THREE.MathUtils.lerp(this.playerMesh.head.position.z, 0, idleLerp)
+            );
           }
           if (this.playerMesh.body) {
-            this.playerMesh.body.rotation.set(0, 0, 0);
+            this.playerMesh.body.rotation.set(THREE.MathUtils.lerp(this.playerMesh.body.rotation.x, 0, idleLerp), 0, 0);
           }
 
           if (this.playerMesh.leftLeg) {
@@ -11407,9 +11543,11 @@ export class GameEngine {
           this.playerMesh.rotation.z = 0;
         }
         const isHunterSprint = this.charClass === 'rogue' && this.isSprinting && isMoving && this.playerStamina > 0;
+        const lockLerp = Math.min(1, delta * 12.0);
+        const targetBodyLeanX = isHunterSprint ? 0.34 : 0;
         if (this.playerMesh.body) {
           this.playerMesh.body.rotation.reorder('YXZ');
-          this.playerMesh.body.rotation.x = isHunterSprint ? 0.56 : 0;
+          this.playerMesh.body.rotation.x = THREE.MathUtils.lerp(this.playerMesh.body.rotation.x, targetBodyLeanX, lockLerp);
           this.playerMesh.body.rotation.z = 0; // KUNCI MUTLAK: DILARANG MIRING
         }
         this.playerMesh.group.traverse((child) => {
@@ -11420,15 +11558,23 @@ export class GameEngine {
               child.name.toLowerCase().includes('chest') ||
               child === (this.playerMesh as any).body
             ) {
-              child.rotation.x = isHunterSprint ? 0.56 : 0;
+              child.rotation.x = THREE.MathUtils.lerp(child.rotation.x, targetBodyLeanX, lockLerp);
               child.rotation.z = 0;
             }
           }
         });
         if (this.playerMesh.head) {
           if (this.charClass === 'rogue') {
-            this.playerMesh.head.rotation.x = isHunterSprint ? -0.476 : 0;
-            this.playerMesh.head.position.set(0, isHunterSprint ? 1.45 : 1.50, isHunterSprint ? 0.16 : 0);
+            this.playerMesh.head.rotation.x = THREE.MathUtils.lerp(
+              this.playerMesh.head.rotation.x,
+              isHunterSprint ? -0.18 : 0,
+              lockLerp
+            );
+            this.playerMesh.head.position.set(
+              0,
+              THREE.MathUtils.lerp(this.playerMesh.head.position.y, isHunterSprint ? 1.48 : 1.50, lockLerp),
+              THREE.MathUtils.lerp(this.playerMesh.head.position.z, isHunterSprint ? 0.09 : 0, lockLerp)
+            );
           } else if (this.charClass === 'mage') {
             this.playerMesh.head.position.set(0, 2.08, 0);
           }

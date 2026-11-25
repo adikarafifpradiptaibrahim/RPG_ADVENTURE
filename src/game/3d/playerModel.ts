@@ -298,9 +298,9 @@ export function createHunterModel(): THREE.Group {
   root.name = 'Hunter_ShadowRogue';
 
   // --- PALET MASTER ASSASSIN ---
-  const matHood = new THREE.MeshStandardMaterial({ color: 0x1e2530, roughness: 0.90, metalness: 0.02, side: THREE.DoubleSide });
-  const matHoodFold = new THREE.MeshStandardMaterial({ color: 0x161b24, roughness: 0.92, metalness: 0.02, side: THREE.DoubleSide });
-  const matCowl = new THREE.MeshStandardMaterial({ color: 0x222a36, roughness: 0.88, side: THREE.DoubleSide });
+  const matHood = new THREE.MeshStandardMaterial({ color: 0x232a36, roughness: 0.92, metalness: 0.02, side: THREE.DoubleSide });
+  const matHoodFold = new THREE.MeshStandardMaterial({ color: 0x181d26, roughness: 0.94, metalness: 0.02, side: THREE.DoubleSide });
+  const matCowl = new THREE.MeshStandardMaterial({ color: 0x262e3c, roughness: 0.90, metalness: 0.02, side: THREE.DoubleSide });
   const matHoodShadow = new THREE.MeshStandardMaterial({ color: 0x0f1217, roughness: 0.96 });
   const matCloakCloth = new THREE.MeshStandardMaterial({ color: 0x181c22, roughness: 0.86, side: THREE.DoubleSide });
   const matTunic = new THREE.MeshStandardMaterial({ color: 0x1c222b, roughness: 0.82 });
@@ -480,39 +480,31 @@ export function createHunterModel(): THREE.Group {
   });
   torsoGroup.add(bandolierGroup);
 
-  // Pengikat sabuk punggung + Busur Recurve & Tabung Quiver sejajar rapi 100% di luar punggung (0% clipping!)
-  const backMountStrap = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.06, 0.04), matLeather);
-  backMountStrap.position.set(0.01, 0.04, -0.195);
-  backMountStrap.rotation.z = -0.66;
+  // Pengikat sabuk punggung + Tabung Quiver & Busur Recurve pipih sejajar punggung (Zero Clipping!)
+  const backMountStrap = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.06, 0.036), matLeather);
+  backMountStrap.position.set(0.01, 0.04, -0.184);
+  backMountStrap.rotation.z = 0.65;
   torsoGroup.add(backMountStrap);
 
-  // Busur Recurve Assassin diagonal (tali cyan & seluruh lengkungan berada bersih di luar permukaan rompi z <= -0.177)
-  const backBow = createSegmentedBow(matWood, matString);
-  backBow.name = 'BackBow';
-  backBow.scale.set(0.78, 0.78, 0.78);
-  backBow.position.set(-0.04, 0.03, -0.285);
-  backBow.rotation.set(0, 0, -0.66);
-  torsoGroup.add(backBow);
-
-  // Tabung anak panah (Quiver) kulit cokelat tua menyamping di samping busur dengan 4 ekor panah merah/putih di bahu kanan
+  // 1) Tabung anak panah (Quiver) kulit cokelat tua menempel rapat di punggung atas (depan lapisan busur)
   const quiverGroup = new THREE.Group();
   quiverGroup.name = 'Quiver';
-  quiverGroup.position.set(0.09, 0.05, -0.242);
+  quiverGroup.position.set(0.085, 0.045, -0.228);
   quiverGroup.rotation.set(0.02, 0, -0.52);
 
-  const quiverBody = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.038, 0.48, 8), matLeather);
-  const quiverCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.054, 0.055, 8), matDarkMetal);
+  const quiverBody = new THREE.Mesh(new THREE.CylinderGeometry(0.050, 0.036, 0.48, 8), matLeather);
+  const quiverCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.052, 0.055, 8), matDarkMetal);
   quiverCollar.position.set(0, 0.22, 0);
-  const quiverBand = new THREE.Mesh(new THREE.CylinderGeometry(0.050, 0.047, 0.045, 8), matCrimson);
+  const quiverBand = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.045, 0.045, 8), matCrimson);
   quiverBand.position.set(0, 0.07, 0);
   quiverGroup.add(quiverBody, quiverCollar, quiverBand);
 
-  // 4 Ekor Anak Panah (fletching merah & putih kecil) menyembul rapi di atas bahu kanan
+  // 4 Ekor Anak Panah (fletching merah & putih) menyembul rapi di atas bahu kanan
   const fletchSpecs: [number, number, boolean][] = [
-    [-0.022, 0.014, true],
-    [0.0, -0.016, false],
+    [-0.020, 0.014, true],
+    [0.0, -0.015, false],
     [0.020, 0.012, true],
-    [0.008, 0.024, false],
+    [0.008, 0.022, false],
   ];
   fletchSpecs.forEach(([fx, fz, isRed], idx) => {
     const arrowStick = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.14, 5), matWood);
@@ -527,6 +519,19 @@ export function createHunterModel(): THREE.Group {
     quiverGroup.add(arrowStick, fletchFinA, fletchFinB);
   });
   torsoGroup.add(quiverGroup);
+
+  // 2) Busur Recurve pipih sejajar bidang XY punggung (rotation.y = Math.PI/2 di dalam holder diagonal z = +0.65 rad)
+  // Diposisikan lebih luar di belakang Quiver (offset Z ekstra) sehingga 100% tipis dari samping & bebas tembus
+  const backBowHolder = new THREE.Group();
+  backBowHolder.name = 'BackBow';
+  backBowHolder.position.set(-0.02, 0.03, -0.312);
+  backBowHolder.rotation.set(0, 0, 0.65);
+
+  const backBowMesh = createSegmentedBow(matWood, matString);
+  backBowMesh.scale.set(0.80, 0.80, 0.80);
+  backBowMesh.rotation.set(0, Math.PI / 2, 0); // Putar bidang kurva busur 90° agar rata pipih sejajar punggung!
+  backBowHolder.add(backBowMesh);
+  torsoGroup.add(backBowHolder);
 
   root.add(torsoGroup);
 
@@ -578,23 +583,33 @@ export function createHunterModel(): THREE.Group {
   root.add(cloakGroup);
 
   // ==========================================
-  // 5. KEPALA & TUDUNG KAIN LENTUR MENGERUCUT (TAPERED CLOTH HOOD - NON-BOXY)
+  // 5. KEPALA & TUDUNG KAIN BERONGGA GAYA ASSASSIN'S CREED (ALTAIIR PEAKED HOOD - ZERO SPHERE)
   // ==========================================
   const headGroup = new THREE.Group();
   headGroup.name = 'HunterHeadGroup';
   headGroup.position.set(0, 1.50, 0);
 
-  // Lipatan kerah kain melingkar (cowl folds) menyambung lembut ke bahu
-  const cowlBase = new THREE.Mesh(new THREE.CylinderGeometry(0.225, 0.295, 0.14, 10), matHoodFold);
-  cowlBase.position.set(0, -0.01, -0.01);
-  cowlBase.scale.set(1.06, 1, 0.96);
+  // Kerah kain berlapis melingkari bahu & leher (draped cowl)
+  const cowlBase = new THREE.Mesh(new THREE.CylinderGeometry(0.242, 0.325, 0.135, 10), matHoodFold);
+  cowlBase.position.set(0, -0.005, -0.015);
+  cowlBase.scale.set(1.08, 1, 0.98);
 
-  const cowlScarf = new THREE.Mesh(new THREE.CylinderGeometry(0.215, 0.255, 0.11, 10), matCowl);
-  cowlScarf.position.set(0, 0.055, 0.005);
-  cowlScarf.scale.set(1.05, 1, 0.98);
+  const cowlScarf = new THREE.Mesh(new THREE.CylinderGeometry(0.215, 0.268, 0.115, 10), matCowl);
+  cowlScarf.position.set(0, 0.068, -0.002);
+  cowlScarf.rotation.x = 0.10;
+  cowlScarf.scale.set(1.06, 1, 1.00);
   headGroup.add(cowlBase, cowlScarf);
 
-  // Wajah bermasker abu-abu gelap (#2c333d) & bayangan (#0f1217) + mata cyan di dalam tudung
+  // Lipatan kerah selendang menyilang depan di atas dada (draped front cowl folds)
+  [-1, 1].forEach((sideSign) => {
+    const cowlLapel = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.085, 0.16), sideSign < 0 ? matCowl : matHoodFold);
+    cowlLapel.position.set(sideSign * 0.105, 0.005, 0.105);
+    cowlLapel.rotation.set(0.26, sideSign * -0.25, sideSign * -0.34);
+    headGroup.add(cowlLapel);
+  });
+
+  // Wajah bermasker gelap & bayangan tudung + kedua mata cyan (#00e5ff) di dalam rongga tudung
+  // Dimensi kotak kepala: X in [-0.145, 0.145], Y in [0.07, 0.39], Z in [-0.14, 0.16]
   const matFace = getRogueFaceMaterial();
   const headMaterials = [matHoodShadow, matHoodShadow, matHoodShadow, matHoodShadow, matFace, matHoodShadow];
 
@@ -603,59 +618,137 @@ export function createHunterModel(): THREE.Group {
   headMesh.position.set(0, 0.23, 0.01);
   headGroup.add(headMesh);
 
-  // Kubah puncak kepala tudung melengkung & miring landai ke belakang (bukan kotak kaku!)
-  const hoodDome = new THREE.Mesh(new THREE.SphereGeometry(0.245, 12, 9), matHood);
-  hoodDome.position.set(0, 0.28, -0.06);
-  hoodDome.rotation.x = 0.20;
-  hoodDome.scale.set(0.94, 1.05, 1.08);
-  headGroup.add(hoodDome);
+  // Bangun Cangkang Tudung Kain Berongga di Depan (BufferGeometry terstruktur: bingkai V terbalik + paruh elang + ekor kain landai)
+  // Koordinat tepi depan dijaga 100% di luar kotak wajah agar 0% clipping & mata cyan terlihat tajam
+  const createDrapedHoodShellGeometry = (inset: number): THREE.BufferGeometry => {
+    // Setiap cross-section memiliki 9 simpul simetris dari kiri bawah -> kiri pipi -> pelipis -> puncak -> pelipis kanan -> kanan bawah:
+    // Urutan simpul ring: [0:BL, 1:ML, 2:TL, 3:AL, 4:C(Center Ridge), 5:AR, 6:TR, 7:MR, 8:BR]
+    const lerpInset = (v: [number, number, number], target: [number, number, number], k: number): [number, number, number] => [
+      v[0] + (target[0] - v[0]) * k,
+      v[1] + (target[1] - v[1]) * k,
+      v[2] + (target[2] - v[2]) * k,
+    ];
+    const centerAnchor: [number, number, number] = [0, 0.22, -0.02];
 
-  // Ujung belakang tudung kain meruncing lembut ke arah belakang-bawah (soft hood tail)
-  const hoodTailCone = new THREE.Mesh(new THREE.ConeGeometry(0.205, 0.35, 7), matHood);
-  hoodTailCone.position.set(0, 0.29, -0.19);
-  hoodTailCone.rotation.x = -Math.PI * 0.64;
-  hoodTailCone.scale.set(0.95, 1.0, 0.68);
-  headGroup.add(hoodTailCone);
+    const rawRing1: [number, number, number][] = [
+      [-0.215, 0.058, 0.130], // 0 BL: leher-pipi kiri
+      [-0.190, 0.195, 0.168], // 1 ML: dinding pipi luar kiri (Z=0.168, |X|=0.190 > 0.145)
+      [-0.172, 0.325, 0.188], // 2 TL: pelipis kiri atas
+      [-0.088, 0.388, 0.225], // 3 AL: bahu kubah V kiri
+      [0.0, 0.314, 0.262],    // 4 C:  ujung PARUH ELANG (menjorok depan Z=0.262, Y=0.314 di atas alis!)
+      [0.088, 0.388, 0.225],  // 5 AR: bahu kubah V kanan
+      [0.172, 0.325, 0.188],  // 6 TR: pelipis kanan atas
+      [0.190, 0.195, 0.168],  // 7 MR: dinding pipi luar kanan
+      [0.215, 0.058, 0.130],  // 8 BR: leher-pipi kanan
+    ];
 
-  // Lipatan kain tengkuk melandai halus masuk ke kerah leher (menghilangkan sudut siku belakang)
-  const hoodNapeDrape = new THREE.Mesh(new THREE.ConeGeometry(0.215, 0.29, 8), matHoodFold);
-  hoodNapeDrape.position.set(0, 0.16, -0.15);
-  hoodNapeDrape.rotation.x = -Math.PI * 0.78;
-  hoodNapeDrape.scale.set(0.98, 1.0, 0.72);
-  headGroup.add(hoodNapeDrape);
+    const rawRing2: [number, number, number][] = [
+      [-0.228, 0.068, 0.025], // 0 BL
+      [-0.205, 0.225, 0.035], // 1 ML
+      [-0.176, 0.382, 0.045], // 2 TL
+      [-0.095, 0.438, 0.065], // 3 AL
+      [0.0, 0.478, 0.055],    // 4 C: Puncak atap kain tajam (bukan bola bulat)
+      [0.095, 0.438, 0.065],  // 5 AR
+      [0.176, 0.382, 0.045],  // 6 TR
+      [0.205, 0.225, 0.035],  // 7 MR
+      [0.228, 0.068, 0.025],  // 8 BR
+    ];
 
-  // Dinding kain samping tipis menyusuri pipi ke arah kerah (tidak menggembung seperti helm)
+    const rawRing3: [number, number, number][] = [
+      [-0.238, 0.065, -0.145], // 0 BL
+      [-0.210, 0.215, -0.165], // 1 ML
+      [-0.170, 0.342, -0.170], // 2 TL
+      [-0.085, 0.398, -0.178], // 3 AL
+      [0.0, 0.422, -0.178],    // 4 C: Lipatan punggung atas landai ke belakang
+      [0.085, 0.398, -0.178],  // 5 AR
+      [0.170, 0.342, -0.170],  // 6 TR
+      [0.210, 0.215, -0.165],  // 7 MR
+      [0.238, 0.065, -0.145],  // 8 BR
+    ];
+
+    // Ring 4: Ujung kain belakang tengkuk menyudut meruncing (draped hood tail) lalu turun ke kerah
+    const rawRing4: [number, number, number][] = [
+      [-0.185, 0.060, -0.205], // 0 BL
+      [-0.155, 0.145, -0.235], // 1 ML
+      [-0.115, 0.225, -0.255], // 2 TL
+      [-0.055, 0.268, -0.272], // 3 AL
+      [0.0, 0.285, -0.282],    // 4 C: Ujung lancip ekor tudung di tengkuk
+      [0.055, 0.268, -0.272],  // 5 AR
+      [0.115, 0.225, -0.255],  // 6 TR
+      [0.155, 0.145, -0.235],  // 7 MR
+      [0.185, 0.060, -0.205],  // 8 BR
+    ];
+
+    const rings = [rawRing1, rawRing2, rawRing3, rawRing4].map((ring, rIdx) =>
+      ring.map((v) => {
+        if (inset === 0) return v;
+        // Untuk ring belakang, sedikit lebih pendek ke depan agar ketebalan tidak menembus belakang
+        const p = lerpInset(v, centerAnchor, inset);
+        if (rIdx === 0) p[2] -= 0.008;
+        return p;
+      })
+    );
+
+    const positions: number[] = [];
+    const indices: number[] = [];
+    const ringLen = 9;
+
+    rings.forEach((ring) => {
+      ring.forEach((v) => positions.push(v[0], v[1], v[2]));
+    });
+
+    // Hubungkan Ring r -> Ring r+1 (outward winding agar pencahayaan lipatan kain tepat)
+    for (let r = 0; r < rings.length - 1; r++) {
+      for (let i = 0; i < ringLen - 1; i++) {
+        const a = r * ringLen + i;
+        const b = r * ringLen + i + 1;
+        const c = (r + 1) * ringLen + i;
+        const d = (r + 1) * ringLen + i + 1;
+        indices.push(a, b, c, b, d, c);
+      }
+    }
+
+    // Tutup lembut bagian paling bawah-belakang tudung masuk ke kerah leher
+    const napeAnchorIdx = positions.length / 3;
+    const napeZ = inset === 0 ? -0.205 : -0.185;
+    positions.push(0, 0.055, napeZ);
+    const lastRingStart = 3 * ringLen;
+    for (let i = 0; i < ringLen - 1; i++) {
+      indices.push(lastRingStart + i, lastRingStart + i + 1, napeAnchorIdx);
+    }
+
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geom.setIndex(indices);
+    // Pisahkan vertex per segitiga agar lipatan kain arang tampil bersudut tegas bergaya Altaïr
+    const nonIndexed = geom.toNonIndexed();
+    geom.dispose();
+    nonIndexed.computeVertexNormals();
+    return nonIndexed;
+  };
+
+  const outerHoodMesh = new THREE.Mesh(createDrapedHoodShellGeometry(0), matHood);
+  outerHoodMesh.name = 'DrapedHoodOuter';
+  const innerHoodMesh = new THREE.Mesh(createDrapedHoodShellGeometry(0.085), matHoodFold);
+  innerHoodMesh.name = 'DrapedHoodInner';
+  headGroup.add(outerHoodMesh, innerHoodMesh);
+
+  // Jahitan lipatan paruh tengah (dorsal crest + beak bridge ridge) agar tepi V & paruh elang tajam di puncak kepala
+  const beakCrestGeo = new THREE.ConeGeometry(0.068, 0.19, 4);
+  beakCrestGeo.rotateY(Math.PI / 4);
+  const beakCrest = new THREE.Mesh(beakCrestGeo, matHood);
+  beakCrest.position.set(0, 0.392, 0.215);
+  beakCrest.rotation.x = Math.PI * 0.72;
+  beakCrest.scale.set(1.15, 1.0, 0.48);
+  headGroup.add(beakCrest);
+
+  // Garis tepi kain depan tipis di kiri-kanan bukaan wajah untuk ketebalan ekstra (frame huruf V terbalik)
   [-1, 1].forEach((sideSign) => {
-    const cheekCloth = new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.072, 0.40, 6), matHood);
-    cheekCloth.position.set(sideSign * 0.172, 0.235, 0.045);
-    cheekCloth.rotation.x = 0.14;
-    cheekCloth.rotation.z = sideSign * -0.06;
-    cheekCloth.scale.set(0.58, 1.0, 1.55);
-
-    const sideFoldInner = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.058, 0.36, 6), matHoodFold);
-    sideFoldInner.position.set(sideSign * 0.155, 0.23, 0.085);
-    sideFoldInner.rotation.x = 0.16;
-    sideFoldInner.rotation.z = sideSign * -0.05;
-    sideFoldInner.scale.set(0.45, 1.0, 1.15);
-
-    headGroup.add(cheekCloth, sideFoldInner);
+    const cheekTrim = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.29, 0.042), matHoodFold);
+    cheekTrim.position.set(sideSign * 0.184, 0.205, 0.168);
+    cheekTrim.rotation.set(0.11, sideSign * 0.14, sideSign * -0.09);
+    headGroup.add(cheekTrim);
   });
-
-  // Lengkung kain dahi halus menghubungkan puncak kepala ke paruh elang depan
-  const browArch = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.20, 0.09, 10), matHood);
-  browArch.position.set(0, 0.41, 0.08);
-  browArch.rotation.x = 0.34;
-  browArch.scale.set(0.98, 1.0, 0.85);
-  headGroup.add(browArch);
-
-  // Puncak paruh elang simetris & tajam di tengah dahi menaungi mata
-  const beakGeo = new THREE.ConeGeometry(0.145, 0.23, 4);
-  beakGeo.rotateY(Math.PI / 4);
-  const hoodBeak = new THREE.Mesh(beakGeo, matHood);
-  hoodBeak.position.set(0, 0.415, 0.19);
-  hoodBeak.rotation.x = Math.PI * 0.67;
-  hoodBeak.scale.set(1.22, 1.0, 0.38);
-  headGroup.add(hoodBeak);
 
   root.add(headGroup);
 
@@ -1003,88 +1096,107 @@ export function animateHunterWalk(
   if (isMoving) {
     if (isSprinting) {
       // ========================================================================
-      // POSTUR & ANIMASI LARI ALA NINJA (SHINOBI RUN POSE)
+      // POSTUR & ANIMASI LARI CEPAT AGILE ASSASSIN (DYNAMIC LEAN & ATHLETIC PUMP)
       // ========================================================================
-      // 1. Kemiringan Tubuh Rendah 32 derajat (0.56 rad)
+      // 1. Condong ke depan dinamis ~19.5° (0.34 rad) dengan transisi lerp halus
       if (playerMesh.body) {
         playerMesh.body.rotation.reorder('YXZ');
-        playerMesh.body.rotation.set(0.56, 0, 0);
+        playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0.34, 0.25);
+        playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, 0.25);
       }
-      // 2. Balas sudut pada kepala agar tatapan mata tetap lurus ke depan
+      // 2. Kepala mengompensasi sedikit mendongak agar pandangan tetap lurus tajam
       if (playerMesh.head) {
-        playerMesh.head.rotation.set(-0.476, 0, 0); // -0.56 * 0.85
-        playerMesh.head.position.set(0, 1.45, 0.16);
+        playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, -0.18, 0.25);
+        playerMesh.head.position.x = 0;
+        playerMesh.head.position.y = THREE.MathUtils.lerp(playerMesh.head.position.y, 1.48, 0.25);
+        playerMesh.head.position.z = THREE.MathUtils.lerp(playerMesh.head.position.z, 0.09, 0.25);
       }
-      // 3. Langkah Kaki Cepat & Dinamis (tekukan lutut lebih tinggi)
+      // 3. Stride langkah lebar cepat dengan tekukan lutut atletis & pantulan vertikal (bobbing) halus
       const legSwing = Math.sin(walkTime);
-      if (playerMesh.leftLeg) playerMesh.leftLeg.rotation.set(legSwing * 0.95, 0, 0);
-      if (playerMesh.rightLeg) playerMesh.rightLeg.rotation.set(-legSwing * 0.95, 0, 0);
-      if (playerMesh.leftKnee) playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.85 : 0.15;
-      if (playerMesh.rightKnee) playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.85 : 0.15;
+      const sprintBob = Math.abs(Math.sin(walkTime)) * 0.06;
+      if (playerMesh.leftLeg) playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, legSwing * 0.96, 0.35);
+      if (playerMesh.rightLeg) playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, -legSwing * 0.96, 0.35);
+      if (playerMesh.leftKnee) playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.78 : 0.14;
+      if (playerMesh.rightKnee) playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.78 : 0.14;
 
-      // 4. Kedua Lengan Terbentang ke Belakang (Shinobi Arm Sweep)
+      // 4. Ayunan lengan atletis berlawanan dengan kaki (siku ditekuk & belati mengarah belakang-bawah)
       if (!isAttacking) {
-        const armWindSway = Math.sin(walkTime * 2.0) * 0.06;
+        const armSwing = Math.cos(walkTime);
         if (playerMesh.leftArm) {
-          playerMesh.leftArm.rotation.set(1.05 + armWindSway, 0.05, -0.14);
-          playerMesh.leftArm.position.set(-0.325, 1.39, 0.08);
+          playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0.34 - armSwing * 0.56, 0.32);
+          playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.14, 0.25);
+          playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, -0.12, 0.25);
+          playerMesh.leftArm.position.set(-0.325, 1.40, 0.04);
         }
         if (playerMesh.rightArm) {
-          playerMesh.rightArm.rotation.set(1.05 - armWindSway, -0.05, 0.14);
-          playerMesh.rightArm.position.set(0.325, 1.39, 0.08);
+          playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, 0.34 + armSwing * 0.56, 0.32);
+          playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, -0.14, 0.25);
+          playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0.12, 0.25);
+          playerMesh.rightArm.position.set(0.325, 1.40, 0.04);
         }
       }
 
-      // 5. Ekor jubah menyapu ke belakang saat berlari cepat
+      // 5. Kibaran ekor jubah belakang mengikuti kecepatan lari
       if (playerMesh.cape) {
-        playerMesh.cape.rotation.set(0.55 + Math.abs(Math.sin(walkTime * 0.5)) * 0.15, 0, 0);
+        const targetCape = 0.44 + Math.abs(Math.sin(walkTime * 0.5)) * 0.14;
+        playerMesh.cape.rotation.x = THREE.MathUtils.lerp(playerMesh.cape.rotation.x, targetCape, 0.28);
       }
-      playerMesh.group.position.y = playerPosY;
+      playerMesh.group.position.y = playerPosY + sprintBob;
     } else {
-      // Normal moving walk
+      // Normal moving walk (transisi mulus dengan lerp)
       if (playerMesh.body) {
-        playerMesh.body.rotation.set(0, 0, 0);
+        playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, 0.25);
+        playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, 0.25);
       }
       if (playerMesh.head) {
-        playerMesh.head.rotation.set(0, 0, 0);
-        playerMesh.head.position.set(0, 1.50, 0);
+        playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, 0, 0.25);
+        playerMesh.head.rotation.y = THREE.MathUtils.lerp(playerMesh.head.rotation.y, 0, 0.25);
+        playerMesh.head.rotation.z = THREE.MathUtils.lerp(playerMesh.head.rotation.z, 0, 0.25);
+        playerMesh.head.position.x = 0;
+        playerMesh.head.position.y = THREE.MathUtils.lerp(playerMesh.head.position.y, 1.50, 0.25);
+        playerMesh.head.position.z = THREE.MathUtils.lerp(playerMesh.head.position.z, 0, 0.25);
       }
       const legSwing = Math.sin(walkTime);
       const armSwing = Math.cos(walkTime);
 
-      if (playerMesh.leftLeg) playerMesh.leftLeg.rotation.set(legSwing * 0.75, 0, 0);
-      if (playerMesh.rightLeg) playerMesh.rightLeg.rotation.set(-legSwing * 0.75, 0, 0);
+      if (playerMesh.leftLeg) playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, legSwing * 0.75, 0.35);
+      if (playerMesh.rightLeg) playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, -legSwing * 0.75, 0.35);
       if (playerMesh.leftKnee) playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.4 : 0;
       if (playerMesh.rightKnee) playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.4 : 0;
 
       if (!isAttacking) {
         if (playerMesh.leftArm) {
           playerMesh.leftArm.position.set(-0.325, 1.42, 0.02);
-          if (hunterWeaponMode === 'bow') {
-            playerMesh.leftArm.rotation.set(0.04, 0.02, -0.08);
-          } else {
-            playerMesh.leftArm.rotation.set(-0.32 + armSwing * 0.42, 0, 0);
-          }
+          playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, -0.32 + armSwing * 0.42, 0.3);
+          playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0, 0.25);
+          playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0, 0.25);
         }
         if (playerMesh.rightArm) {
           playerMesh.rightArm.position.set(0.325, 1.42, 0.02);
-          playerMesh.rightArm.rotation.set(-0.32 - armSwing * 0.42, 0, 0);
+          playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, -0.32 - armSwing * 0.42, 0.3);
+          playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, 0.25);
+          playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0, 0.25);
         }
       }
 
       if (playerMesh.cape) {
-        playerMesh.cape.rotation.set(0.10 + Math.abs(Math.sin(walkTime * 0.5)) * 0.08, 0, 0);
+        playerMesh.cape.rotation.x = THREE.MathUtils.lerp(playerMesh.cape.rotation.x, 0.12 + Math.abs(Math.sin(walkTime * 0.5)) * 0.08, 0.25);
       }
       playerMesh.group.position.y = playerPosY;
     }
   } else {
-    // Mode Diam (Idle Stance)
+    // Mode Diam (Idle Stance dengan transisi lerp halus)
     if (playerMesh.body) {
-      playerMesh.body.rotation.set(0, 0, 0);
+      playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, 0.25);
+      playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, 0.25);
     }
     if (playerMesh.head) {
-      playerMesh.head.rotation.set(0, 0, 0);
-      playerMesh.head.position.set(0, 1.50, 0);
+      playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, 0, 0.25);
+      playerMesh.head.rotation.y = THREE.MathUtils.lerp(playerMesh.head.rotation.y, 0, 0.25);
+      playerMesh.head.rotation.z = THREE.MathUtils.lerp(playerMesh.head.rotation.z, 0, 0.25);
+      playerMesh.head.position.x = 0;
+      playerMesh.head.position.y = THREE.MathUtils.lerp(playerMesh.head.position.y, 1.50, 0.25);
+      playerMesh.head.position.z = THREE.MathUtils.lerp(playerMesh.head.position.z, 0, 0.25);
     }
     if (playerMesh.leftLeg) {
       playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0, 0.25);
@@ -1106,24 +1218,23 @@ export function animateHunterWalk(
     if (!isAttacking) {
       if (playerMesh.leftArm) {
         playerMesh.leftArm.position.set(-0.325, 1.42, 0.02);
-        if (hunterWeaponMode === 'bow') {
-          playerMesh.leftArm.rotation.set(0.04, 0.02, -0.08);
-        } else {
-          playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0, 0.25);
-          playerMesh.leftArm.rotation.y = 0;
-          playerMesh.leftArm.rotation.z = 0;
-        }
+        playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0, 0.25);
+        playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0, 0.25);
+        playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, 0, 0.25);
       }
       if (playerMesh.rightArm) {
         playerMesh.rightArm.position.set(0.325, 1.42, 0.02);
         playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, 0, 0.25);
-        playerMesh.rightArm.rotation.y = 0;
-        playerMesh.rightArm.rotation.z = 0;
+        playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, 0, 0.25);
+        playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0, 0.25);
       }
     }
-
     if (playerMesh.cape) {
-      playerMesh.cape.rotation.set(0.09 + Math.sin(walkTime * 2.0) * 0.015, 0, 0);
+      playerMesh.cape.rotation.x = THREE.MathUtils.lerp(
+        playerMesh.cape.rotation.x,
+        0.09 + Math.sin(walkTime * 2.0) * 0.015,
+        0.25
+      );
     }
 
     playerMesh.group.position.y = playerPosY;
