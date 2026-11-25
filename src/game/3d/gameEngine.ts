@@ -10761,10 +10761,10 @@ export class GameEngine {
             if (!this.isAttacking) {
               const armWindSway = Math.sin(this.walkCycle * 2.0) * 0.06;
               const backSweep = 1.05; // 60 derajat ke belakang tubuh melewati pinggul
-              this.playerMesh.leftArm.rotation.set(backSweep + armWindSway, 0.05, -0.22);
-              this.playerMesh.rightArm.rotation.set(backSweep - armWindSway, -0.05, 0.22);
-              this.playerMesh.leftArm.position.set(-0.44, 1.40, 0.10);
-              this.playerMesh.rightArm.position.set(0.44, 1.40, 0.10);
+              this.playerMesh.leftArm.rotation.set(backSweep + armWindSway, 0.05, -0.14);
+              this.playerMesh.rightArm.rotation.set(backSweep - armWindSway, -0.05, 0.14);
+              this.playerMesh.leftArm.position.set(-0.325, 1.39, 0.08);
+              this.playerMesh.rightArm.position.set(0.325, 1.39, 0.08);
             }
 
             // 3. Kemiringan Tubuh Rendah 32 derajat (0.56 rad)
@@ -10779,7 +10779,7 @@ export class GameEngine {
             }
 
             if (this.playerMesh.cape) {
-              this.playerMesh.cape.rotation.x = 0.78 + Math.abs(Math.sin(this.walkCycle * 0.5)) * 0.25;
+              this.playerMesh.cape.rotation.x = 0.55 + Math.abs(Math.sin(this.walkCycle * 0.5)) * 0.15;
             }
 
             // Efek Jejak Bayangan (Shadow Afterimage Pool) setiap 0.09s & Hembusan Angin Zamrud
@@ -10811,14 +10811,14 @@ export class GameEngine {
             }
 
             if (!this.isAttacking) {
-              this.playerMesh.leftArm.position.set(-0.44, 1.44, 0.02);
-              this.playerMesh.rightArm.position.set(0.44, 1.44, 0.02);
+              this.playerMesh.leftArm.position.set(-0.325, 1.42, 0.02);
+              this.playerMesh.rightArm.position.set(0.325, 1.42, 0.02);
               if (this.hunterWeaponMode === 'bow') {
-                this.playerMesh.leftArm.rotation.set(0.04, 0.02, -0.10);
-                this.playerMesh.rightArm.rotation.x = -0.4 - armSwing * 0.45;
+                this.playerMesh.leftArm.rotation.set(0.04, 0.02, -0.08);
+                this.playerMesh.rightArm.rotation.x = -0.32 - armSwing * 0.42;
               } else {
-                this.playerMesh.leftArm.rotation.x = -0.4 + armSwing * 0.45;
-                this.playerMesh.rightArm.rotation.x = -0.4 - armSwing * 0.45;
+                this.playerMesh.leftArm.rotation.x = -0.32 + armSwing * 0.42;
+                this.playerMesh.rightArm.rotation.x = -0.32 - armSwing * 0.42;
               }
             }
 
@@ -10830,7 +10830,7 @@ export class GameEngine {
               this.playerMesh.head.position.set(0, 1.50, 0);
             }
             if (this.playerMesh.cape) {
-              this.playerMesh.cape.rotation.x = 0.15 + Math.abs(Math.sin(this.walkCycle * 0.5)) * 0.25;
+              this.playerMesh.cape.rotation.x = 0.10 + Math.abs(Math.sin(this.walkCycle * 0.5)) * 0.08;
             }
           }
 
@@ -10911,10 +10911,10 @@ export class GameEngine {
           this.walkCycle = 0;
           this.hunterAfterimageSpawnTimer = 0;
           if (this.playerMesh.leftArm) {
-            this.playerMesh.leftArm.position.set(-0.44, 1.44, 0.02);
+            this.playerMesh.leftArm.position.set(-0.325, 1.42, 0.02);
           }
           if (this.playerMesh.rightArm) {
-            this.playerMesh.rightArm.position.set(0.44, 1.44, 0.02);
+            this.playerMesh.rightArm.position.set(0.325, 1.42, 0.02);
           }
           if (this.playerMesh.head) {
             this.playerMesh.head.rotation.set(0, 0, 0);
@@ -10966,7 +10966,7 @@ export class GameEngine {
           }
 
           if (this.playerMesh.cape) {
-            this.playerMesh.cape.rotation.x = THREE.MathUtils.lerp(this.playerMesh.cape.rotation.x, 0.12, 0.25);
+            this.playerMesh.cape.rotation.x = THREE.MathUtils.lerp(this.playerMesh.cape.rotation.x, 0.09, 0.25);
           }
 
           if (!this.isGaleVaulting) {
