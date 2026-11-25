@@ -298,12 +298,16 @@ export function createHunterModel(): THREE.Group {
   root.name = 'Hunter_ShadowRogue';
 
   // --- PALET MASTER ASSASSIN ---
-  const matHood = new THREE.MeshStandardMaterial({ color: 0x181c22, roughness: 0.86, side: THREE.DoubleSide });
-  const matCowl = new THREE.MeshStandardMaterial({ color: 0x222831, roughness: 0.84 });
+  const matHood = new THREE.MeshStandardMaterial({ color: 0x1e2530, roughness: 0.90, metalness: 0.02, side: THREE.DoubleSide });
+  const matHoodFold = new THREE.MeshStandardMaterial({ color: 0x161b24, roughness: 0.92, metalness: 0.02, side: THREE.DoubleSide });
+  const matCowl = new THREE.MeshStandardMaterial({ color: 0x222a36, roughness: 0.88, side: THREE.DoubleSide });
   const matHoodShadow = new THREE.MeshStandardMaterial({ color: 0x0f1217, roughness: 0.96 });
+  const matCloakCloth = new THREE.MeshStandardMaterial({ color: 0x181c22, roughness: 0.86, side: THREE.DoubleSide });
   const matTunic = new THREE.MeshStandardMaterial({ color: 0x1c222b, roughness: 0.82 });
   const matLeatherVest = new THREE.MeshStandardMaterial({ color: 0x2a221f, roughness: 0.76 });
   const matCrimson = new THREE.MeshStandardMaterial({ color: 0x8b1a1a, roughness: 0.76, side: THREE.DoubleSide });
+  const matFletchWhite = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.75, side: THREE.DoubleSide });
+  const matFletchRed = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.72, side: THREE.DoubleSide });
   const matPants = new THREE.MeshStandardMaterial({ color: 0x15181e, roughness: 0.90 });
   const matLeather = new THREE.MeshStandardMaterial({ color: 0x3b261e, roughness: 0.74 });
   const matDarkMetal = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.36, metalness: 0.65 });
@@ -476,13 +480,53 @@ export function createHunterModel(): THREE.Group {
   });
   torsoGroup.add(bandolierGroup);
 
-  // 1 Busur punggung ramping menempel rapat di punggung (tanpa tumpukan quiver berlebih)
+  // Pengikat sabuk punggung + Busur Recurve & Tabung Quiver sejajar rapi 100% di luar punggung (0% clipping!)
+  const backMountStrap = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.06, 0.04), matLeather);
+  backMountStrap.position.set(0.01, 0.04, -0.195);
+  backMountStrap.rotation.z = -0.66;
+  torsoGroup.add(backMountStrap);
+
+  // Busur Recurve Assassin diagonal (tali cyan & seluruh lengkungan berada bersih di luar permukaan rompi z <= -0.177)
   const backBow = createSegmentedBow(matWood, matString);
   backBow.name = 'BackBow';
-  backBow.scale.set(0.76, 0.76, 0.76);
-  backBow.position.set(-0.01, 0.03, -0.222);
-  backBow.rotation.set(0, 0, -0.58);
+  backBow.scale.set(0.78, 0.78, 0.78);
+  backBow.position.set(-0.04, 0.03, -0.285);
+  backBow.rotation.set(0, 0, -0.66);
   torsoGroup.add(backBow);
+
+  // Tabung anak panah (Quiver) kulit cokelat tua menyamping di samping busur dengan 4 ekor panah merah/putih di bahu kanan
+  const quiverGroup = new THREE.Group();
+  quiverGroup.name = 'Quiver';
+  quiverGroup.position.set(0.09, 0.05, -0.242);
+  quiverGroup.rotation.set(0.02, 0, -0.52);
+
+  const quiverBody = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.038, 0.48, 8), matLeather);
+  const quiverCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.054, 0.055, 8), matDarkMetal);
+  quiverCollar.position.set(0, 0.22, 0);
+  const quiverBand = new THREE.Mesh(new THREE.CylinderGeometry(0.050, 0.047, 0.045, 8), matCrimson);
+  quiverBand.position.set(0, 0.07, 0);
+  quiverGroup.add(quiverBody, quiverCollar, quiverBand);
+
+  // 4 Ekor Anak Panah (fletching merah & putih kecil) menyembul rapi di atas bahu kanan
+  const fletchSpecs: [number, number, boolean][] = [
+    [-0.022, 0.014, true],
+    [0.0, -0.016, false],
+    [0.020, 0.012, true],
+    [0.008, 0.024, false],
+  ];
+  fletchSpecs.forEach(([fx, fz, isRed], idx) => {
+    const arrowStick = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.14, 5), matWood);
+    arrowStick.position.set(fx, 0.30, fz);
+    const fletchMat = isRed ? matFletchRed : matFletchWhite;
+    const fletchFinA = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.075, 0.006), fletchMat);
+    fletchFinA.position.set(fx, 0.34, fz);
+    fletchFinA.rotation.y = idx * 0.55;
+    const fletchFinB = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.075, 0.034), fletchMat);
+    fletchFinB.position.set(fx, 0.34, fz);
+    fletchFinB.rotation.y = idx * 0.55;
+    quiverGroup.add(arrowStick, fletchFinA, fletchFinB);
+  });
+  torsoGroup.add(quiverGroup);
 
   root.add(torsoGroup);
 
@@ -500,10 +544,10 @@ export function createHunterModel(): THREE.Group {
     tail.position.set(sideSign * 0.13, 0, 0);
     tail.rotation.z = sideSign * 0.04; // Terbelah rapi di tengah (~2.3 deg)
 
-    const upperPanel = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.34, 0.026), matHood);
+    const upperPanel = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.34, 0.026), matCloakCloth);
     upperPanel.position.set(0, -0.17, 0);
 
-    const lowerPanel = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.25, 0.024), matHood);
+    const lowerPanel = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.25, 0.024), matCloakCloth);
     lowerPanel.position.set(sideSign * 0.015, -0.45, 0);
 
     // Garis tepi (trim) tipis merah tua (#8b1a1a) di sisi dalam & bawah ekor
@@ -520,7 +564,7 @@ export function createHunterModel(): THREE.Group {
     cloakGroup.add(tail);
 
     // Panel mantel samping paha membungkus pinggul ke bawah hampir vertikal
-    const flankPanel = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.42, 0.18), matHood);
+    const flankPanel = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.42, 0.18), matCloakCloth);
     flankPanel.position.set(sideSign * 0.245, -0.21, 0.075);
     flankPanel.rotation.z = sideSign * 0.045;
 
@@ -534,76 +578,83 @@ export function createHunterModel(): THREE.Group {
   root.add(cloakGroup);
 
   // ==========================================
-  // 5. KEPALA & TUDUNG SOLID SIMETRIS (#181c22) TERTUTUP PENUH 360°
+  // 5. KEPALA & TUDUNG KAIN LENTUR MENGERUCUT (TAPERED CLOTH HOOD - NON-BOXY)
   // ==========================================
   const headGroup = new THREE.Group();
   headGroup.name = 'HunterHeadGroup';
   headGroup.position.set(0, 1.50, 0);
 
-  // Syal & kerah tudung melingkar tebal di sekitar leher menyatu mulus ke bahu
-  const cowlBase = new THREE.Mesh(new THREE.CylinderGeometry(0.245, 0.30, 0.14, 10), matHood);
-  cowlBase.position.set(0, -0.01, 0);
+  // Lipatan kerah kain melingkar (cowl folds) menyambung lembut ke bahu
+  const cowlBase = new THREE.Mesh(new THREE.CylinderGeometry(0.225, 0.295, 0.14, 10), matHoodFold);
+  cowlBase.position.set(0, -0.01, -0.01);
   cowlBase.scale.set(1.06, 1, 0.96);
 
-  const cowlScarf = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.275, 0.11, 10), matCowl);
-  cowlScarf.position.set(0, 0.05, 0.005);
-  cowlScarf.scale.set(1.08, 1, 0.98);
+  const cowlScarf = new THREE.Mesh(new THREE.CylinderGeometry(0.215, 0.255, 0.11, 10), matCowl);
+  cowlScarf.position.set(0, 0.055, 0.005);
+  cowlScarf.scale.set(1.05, 1, 0.98);
   headGroup.add(cowlBase, cowlScarf);
 
-  // Wajah bermasker gelap (#2c333d) & bayangan (#0f1217) menjorok di dalam tudung
+  // Wajah bermasker abu-abu gelap (#2c333d) & bayangan (#0f1217) + mata cyan di dalam tudung
   const matFace = getRogueFaceMaterial();
   const headMaterials = [matHoodShadow, matHoodShadow, matHoodShadow, matHoodShadow, matFace, matHoodShadow];
 
-  const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.36, 0.36), headMaterials);
+  const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.32, 0.30), headMaterials);
   headMesh.name = 'HunterHead';
-  headMesh.position.set(0, 0.24, -0.01);
+  headMesh.position.set(0, 0.23, 0.01);
   headGroup.add(headMesh);
 
-  // Cangkang belakang tudung SOLID penuh selebar kepala (100% tertutup di belakang, nol bolong segitiga!)
-  const hoodBackShell = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.44, 0.26), matHood);
-  hoodBackShell.position.set(0, 0.25, -0.12);
-  headGroup.add(hoodBackShell);
+  // Kubah puncak kepala tudung melengkung & miring landai ke belakang (bukan kotak kaku!)
+  const hoodDome = new THREE.Mesh(new THREE.SphereGeometry(0.245, 12, 9), matHood);
+  hoodDome.position.set(0, 0.28, -0.06);
+  hoodDome.rotation.x = 0.20;
+  hoodDome.scale.set(0.94, 1.05, 1.08);
+  headGroup.add(hoodDome);
 
-  // Lipatan kain tudung di bagian punggung kepala yang menyatu mulus ke kerah leher
-  const hoodBackFold = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.34, 0.14), matHood);
-  hoodBackFold.position.set(0, 0.20, -0.21);
-  hoodBackFold.rotation.x = -0.16;
+  // Ujung belakang tudung kain meruncing lembut ke arah belakang-bawah (soft hood tail)
+  const hoodTailCone = new THREE.Mesh(new THREE.ConeGeometry(0.205, 0.35, 7), matHood);
+  hoodTailCone.position.set(0, 0.29, -0.19);
+  hoodTailCone.rotation.x = -Math.PI * 0.64;
+  hoodTailCone.scale.set(0.95, 1.0, 0.68);
+  headGroup.add(hoodTailCone);
 
-  const hoodNeckDrape = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.22, 0.10), matHood);
-  hoodNeckDrape.position.set(0, 0.11, -0.225);
-  hoodNeckDrape.rotation.x = -0.10;
-  headGroup.add(hoodBackFold, hoodNeckDrape);
+  // Lipatan kain tengkuk melandai halus masuk ke kerah leher (menghilangkan sudut siku belakang)
+  const hoodNapeDrape = new THREE.Mesh(new THREE.ConeGeometry(0.215, 0.29, 8), matHoodFold);
+  hoodNapeDrape.position.set(0, 0.16, -0.15);
+  hoodNapeDrape.rotation.x = -Math.PI * 0.78;
+  hoodNapeDrape.scale.set(0.98, 1.0, 0.72);
+  headGroup.add(hoodNapeDrape);
 
-  // Dinding samping kiri & kanan tudung simetris rapat (tidak miring, tanpa celah putih pipi)
+  // Dinding kain samping tipis menyusuri pipi ke arah kerah (tidak menggembung seperti helm)
   [-1, 1].forEach((sideSign) => {
-    const sideWall = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.42, 0.28), matHood);
-    sideWall.position.set(sideSign * 0.20, 0.25, 0.085);
-    headGroup.add(sideWall);
+    const cheekCloth = new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.072, 0.40, 6), matHood);
+    cheekCloth.position.set(sideSign * 0.172, 0.235, 0.045);
+    cheekCloth.rotation.x = 0.14;
+    cheekCloth.rotation.z = sideSign * -0.06;
+    cheekCloth.scale.set(0.58, 1.0, 1.55);
+
+    const sideFoldInner = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.058, 0.36, 6), matHoodFold);
+    sideFoldInner.position.set(sideSign * 0.155, 0.23, 0.085);
+    sideFoldInner.rotation.x = 0.16;
+    sideFoldInner.rotation.z = sideSign * -0.05;
+    sideFoldInner.scale.set(0.45, 1.0, 1.15);
+
+    headGroup.add(cheekCloth, sideFoldInner);
   });
 
-  // Atap tudung simetris menutup penuh atas kepala hingga belakang
-  const hoodCrown = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.14, 0.44), matHood);
-  hoodCrown.position.set(0, 0.45, -0.03);
-  hoodCrown.rotation.x = 0.12;
+  // Lengkung kain dahi halus menghubungkan puncak kepala ke paruh elang depan
+  const browArch = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.20, 0.09, 10), matHood);
+  browArch.position.set(0, 0.41, 0.08);
+  browArch.rotation.x = 0.34;
+  browArch.scale.set(0.98, 1.0, 0.85);
+  headGroup.add(browArch);
 
-  const hoodUpperArch = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.255, 0.11, 8), matHood);
-  hoodUpperArch.position.set(0, 0.495, -0.04);
-  hoodUpperArch.rotation.x = 0.10;
-  hoodUpperArch.scale.set(1.06, 1, 1.12);
-
-  // Tepi dahi datar simetris menghubungkan kedua sisi tudung ke paruh tengah
-  const browFrame = new THREE.Mesh(new THREE.BoxGeometry(0.47, 0.065, 0.13), matHood);
-  browFrame.position.set(0, 0.435, 0.175);
-  browFrame.rotation.x = 0.20;
-  headGroup.add(hoodCrown, hoodUpperArch, browFrame);
-
-  // Paruh tudung elang SIMETRIS & TAJAM tepat di tengah dahi menaungi mata
-  const beakGeo = new THREE.ConeGeometry(0.155, 0.23, 4);
+  // Puncak paruh elang simetris & tajam di tengah dahi menaungi mata
+  const beakGeo = new THREE.ConeGeometry(0.145, 0.23, 4);
   beakGeo.rotateY(Math.PI / 4);
   const hoodBeak = new THREE.Mesh(beakGeo, matHood);
-  hoodBeak.position.set(0, 0.435, 0.215);
-  hoodBeak.rotation.x = Math.PI * 0.66;
-  hoodBeak.scale.set(1.32, 1.0, 0.42);
+  hoodBeak.position.set(0, 0.415, 0.19);
+  hoodBeak.rotation.x = Math.PI * 0.67;
+  hoodBeak.scale.set(1.22, 1.0, 0.38);
   headGroup.add(hoodBeak);
 
   root.add(headGroup);
