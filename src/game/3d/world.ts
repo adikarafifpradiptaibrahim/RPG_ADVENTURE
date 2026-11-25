@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { getProceduralContinentHeight, getContinentBiomeSample, isDesertBiome, getDistanceToRiver } from '../mapSampler';
+import { getProceduralContinentHeight, getContinentBiomeSample, getTerrainVertexColor, isDesertBiome, getDistanceToRiver } from '../mapSampler';
 import {
   createTreeMesh,
   createAncientPillarMesh,
@@ -244,11 +244,13 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     for (let gz = 1; gz < gridH - 1; gz++) {
       for (let gx = 1; gx < gridW - 1; gx++) {
         const idx = gz * gridW + gx;
+        if (rawHeights[idx] <= -5.8) continue;
         const vx = posAttr.getX(idx) + TERRAIN_GRID.centerX;
         const vz = posAttr.getZ(idx) + TERRAIN_GRID.centerZ;
 
-        // Never clamp inside riverbed (must stay deep at Y = -2.5)
-        if (getDistanceToRiver(vx, vz) < 7.0) continue;
+        // Jangan haluskan pusat dasar palung sungai terdalam (< 3.2), tetapi haluskan tepian sungainya
+        const dRiv = getDistanceToRiver(vx, vz);
+        if (dRiv < 3.2) continue;
 
         const left = smoothedHeights[gz * gridW + (gx - 1)];
         const right = smoothedHeights[gz * gridW + (gx + 1)];
@@ -258,6 +260,9 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
         const avg = (left + right + top + bottom) * 0.25;
         let cur = smoothedHeights[idx];
 
+        if (dRiv < 13.5) {
+          cur = cur * 0.45 + avg * 0.55;
+        }
         if (cur - avg > maxSlopeDelta) {
           cur = avg + maxSlopeDelta;
         } else if (avg - cur > maxSlopeDelta) {
@@ -276,10 +281,10 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     const vy = smoothedHeights[i];
     posAttr.setY(i, vy);
 
-    const sample = getContinentBiomeSample(vx, vz);
-    colors[i * 3] = sample.color[0] / 255;
-    colors[i * 3 + 1] = sample.color[1] / 255;
-    colors[i * 3 + 2] = sample.color[2] / 255;
+    const col = getTerrainVertexColor(vx, vz, vy);
+    colors[i * 3] = col[0] / 255;
+    colors[i * 3 + 1] = col[1] / 255;
+    colors[i * 3 + 2] = col[2] / 255;
   }
 
   posAttr.needsUpdate = true;
@@ -414,10 +419,12 @@ export async function buildWorldAsync(
     for (let gz = 1; gz < gridH - 1; gz++) {
       for (let gx = 1; gx < gridW - 1; gx++) {
         const idx = gz * gridW + gx;
+        if (rawHeights[idx] <= -5.8) continue;
         const vx = posAttr.getX(idx) + TERRAIN_GRID.centerX;
         const vz = posAttr.getZ(idx) + TERRAIN_GRID.centerZ;
 
-        if (getDistanceToRiver(vx, vz) < 7.0) continue;
+        const dRiv = getDistanceToRiver(vx, vz);
+        if (dRiv < 3.2) continue;
 
         const left = smoothedHeights[gz * gridW + (gx - 1)];
         const right = smoothedHeights[gz * gridW + (gx + 1)];
@@ -427,6 +434,9 @@ export async function buildWorldAsync(
         const avg = (left + right + top + bottom) * 0.25;
         let cur = smoothedHeights[idx];
 
+        if (dRiv < 13.5) {
+          cur = cur * 0.45 + avg * 0.55;
+        }
         if (cur - avg > maxSlopeDelta) {
           cur = avg + maxSlopeDelta;
         } else if (avg - cur > maxSlopeDelta) {
@@ -456,10 +466,10 @@ export async function buildWorldAsync(
       const vy = smoothedHeights[idx];
       posAttr.setY(idx, vy);
 
-      const sample = getContinentBiomeSample(vx, vz);
-      colors[idx * 3] = sample.color[0] / 255;
-      colors[idx * 3 + 1] = sample.color[1] / 255;
-      colors[idx * 3 + 2] = sample.color[2] / 255;
+      const col = getTerrainVertexColor(vx, vz, vy);
+      colors[idx * 3] = col[0] / 255;
+      colors[idx * 3 + 1] = col[1] / 255;
+      colors[idx * 3 + 2] = col[2] / 255;
     }
     if (gz % 20 === 0 || performance.now() - tLast > 6) {
       const pct = Math.round(25 + (gz / gridH) * 5);
@@ -608,37 +618,58 @@ export async function buildMainVillage(
   pointLights: THREE.PointLight[],
   npcs: WorldNPC[]
 ): Promise<{ elderGroup: THREE.Group; elderPos: [number, number, number] }> {
-  const villageMainlandY = 0.25;
-  await cooperativeYield(4);
+  const villageMainlandY = 2.00;
+  await hardYield();
 
-  // Village Center relocated to (X: 20, Z: -60)
-  const vShiftX = 55;  // 20 - (-35)
-  const vShiftZ = -195; // -60 - 135
+  // Village Center at (X: 20, Z: -60)
+  const fountainX = 20;
+  const fountainZ = -60;
 
-  const villageArch = createVillageArchMesh('GERBANG UTARA ELDORIA');
-  const archX = -35 + vShiftX;
-  const archZ = 105 + vShiftZ;
-  villageArch.position.set(archX, villageMainlandY, archZ);
-  scene.add(villageArch);
-  colliders.push(
-    { type: 'circle', x: archX - 3.5, z: archZ, radius: 0.6, label: 'Gerbang Utara Pilar Kiri' },
-    { type: 'circle', x: archX + 3.5, z: archZ, radius: 0.6, label: 'Gerbang Utara Pilar Kanan' }
-  );
+  // 2.1 Entrance Gates straddling actual main highways perpendicularly
+  // A. North-West Solaria Desert Highway Gate (Road: [20, -60] -> [-40, -100], t = 0.55 => [-13, -82])
+  const nwArchX = -13;
+  const nwArchZ = -82;
+  const nwRotY = Math.atan2(60, 40); // Aligns local Z with road vector (-60, -40) so pillars flank road perpendicularly
+  const nwCos = Math.cos(nwRotY);
+  const nwSin = Math.sin(nwRotY);
+  const nwArchY = getTerrainHeight(nwArchX, nwArchZ);
 
-  // 2.1b Western Village Gateway Arch (Start of Astraea Highway at X = 0, Z = -40)
-  const villageWestArch = createVillageArchMesh('GERBANG BARAT ASTRAEA');
-  villageWestArch.position.set(-75 + vShiftX, villageMainlandY, 135 + vShiftZ);
-  villageWestArch.rotation.y = Math.PI / 2;
+  const villageWestArch = createVillageArchMesh('GERBANG BARAT SOLARIA');
+  villageWestArch.position.set(nwArchX, nwArchY, nwArchZ);
+  villageWestArch.rotation.y = nwRotY;
   scene.add(villageWestArch);
   colliders.push(
-    { type: 'circle', x: -75 + vShiftX, z: 131.5 + vShiftZ, radius: 0.6, label: 'Gerbang Barat Pilar Utara' },
-    { type: 'circle', x: -75 + vShiftX, z: 138.5 + vShiftZ, radius: 0.6, label: 'Gerbang Barat Pilar Selatan' }
+    { type: 'circle', x: nwArchX - 3.5 * nwCos, z: nwArchZ + 3.5 * nwSin, radius: 0.6, label: 'Gerbang Barat Solaria Pilar Kiri' },
+    { type: 'circle', x: nwArchX + 3.5 * nwCos, z: nwArchZ - 3.5 * nwSin, radius: 0.6, label: 'Gerbang Barat Solaria Pilar Kanan' }
   );
 
-  // 2.2 Sanctuary Grand Fountain in Central Town Plaza (X: 40, Z: -40)
-  // Perfectly centered on plaza, leaving pedestrian circulation open and unobstructed
-  const fountainX = -35 + vShiftX;
-  const fountainZ = 135 + vShiftZ;
+  // B. East Astraea Imperial Highway Gate (Road: [20, -60] -> [95, -60], at X = 64, Z = -60)
+  const eastArchX = 64;
+  const eastArchZ = -60;
+  const eastArchY = getTerrainHeight(eastArchX, eastArchZ);
+  const villageEastArch = createVillageArchMesh('GERBANG TIMUR ASTRAEA');
+  villageEastArch.position.set(eastArchX, eastArchY, eastArchZ);
+  villageEastArch.rotation.y = Math.PI / 2;
+  scene.add(villageEastArch);
+  colliders.push(
+    { type: 'circle', x: eastArchX, z: eastArchZ - 3.5, radius: 0.6, label: 'Gerbang Timur Pilar Utara' },
+    { type: 'circle', x: eastArchX, z: eastArchZ + 3.5, radius: 0.6, label: 'Gerbang Timur Pilar Selatan' }
+  );
+
+  // C. South Harbor Promenade Gate (Road: [20, -60] -> [20, 20], at X = 20, Z = -16)
+  const southArchX = 20;
+  const southArchZ = -16;
+  const southArchY = getTerrainHeight(southArchX, southArchZ);
+  const villageArch = createVillageArchMesh('GERBANG SELATAN PELABUHAN');
+  villageArch.position.set(southArchX, southArchY, southArchZ);
+  villageArch.rotation.y = 0;
+  scene.add(villageArch);
+  colliders.push(
+    { type: 'circle', x: southArchX - 3.5, z: southArchZ, radius: 0.6, label: 'Gerbang Selatan Pilar Barat' },
+    { type: 'circle', x: southArchX + 3.5, z: southArchZ, radius: 0.6, label: 'Gerbang Selatan Pilar Timur' }
+  );
+
+  // 2.2 Sanctuary Grand Fountain in Central Town Plaza (X: 20, Z: -60)
   const waterGeo = new THREE.CylinderGeometry(3.6, 3.6, 0.4, 16);
   const waterMat = new THREE.MeshStandardMaterial({
     color: 0x00b4d8,
@@ -683,11 +714,15 @@ export async function buildMainVillage(
   sanctuaryPlazaRim.receiveShadow = true;
   scene.add(sanctuaryPlazaRim);
 
-  // 2.3 Balai Tetua Vaelen & Pusat Komunitas (North-West Plaza: X: 25, Z: -55 - safely >8 units from roads)
+  // ==========================================
+  // ALL VILLAGE HOUSES & BUILDINGS (>= 15 units clearance from all road centerlines & river)
+  // ==========================================
+  // 2.3 Balai Tetua Vaelen (North Plaza: X: 22, Z: -88, dist >= 22 from all roads & river)
   const house1 = createVillageHouseMesh();
-  const h1Pos = { x: -50 + vShiftX, z: 120 + vShiftZ };
-  house1.position.set(h1Pos.x, villageMainlandY, h1Pos.z);
-  house1.rotation.y = Math.PI / 4;
+  const h1Pos = { x: 22, z: -88 };
+  const h1Y = getTerrainHeight(h1Pos.x, h1Pos.z);
+  house1.position.set(h1Pos.x, h1Y, h1Pos.z);
+  house1.rotation.y = 0; // Facing South towards fountain plaza
   scene.add(house1);
   colliders.push({
     type: 'box',
@@ -698,10 +733,11 @@ export async function buildMainVillage(
     label: 'Kediaman Tetua Vaelen',
   });
 
-  // 2.4 Village Tavern & Resting Inn: "Penginapan Eldoria" (North-East Plaza: X: 55, Z: -55)
+  // 2.4 Village Tavern & Resting Inn: "Penginapan Eldoria" (North-East Plaza: X: 38, Z: -78)
   const tavern = createTavernMesh();
-  const tavernPos = { x: -20 + vShiftX, z: 120 + vShiftZ };
-  tavern.position.set(tavernPos.x, villageMainlandY, tavernPos.z);
+  const tavernPos = { x: 38, z: -78 };
+  const tavernY = getTerrainHeight(tavernPos.x, tavernPos.z);
+  tavern.position.set(tavernPos.x, tavernY, tavernPos.z);
   tavern.rotation.y = -Math.PI / 4;
   scene.add(tavern);
   colliders.push({
@@ -713,10 +749,11 @@ export async function buildMainVillage(
     label: 'Penginapan Eldoria',
   });
 
-  // 2.5 Master Torvald's Blacksmith Forge (South-West: X: 25, Z: -25)
+  // 2.5 Master Torvald's Blacksmith Forge (West of Harbor Road: X: 2, Z: -45, dist = 18 from road)
   const blacksmith = createBlacksmithMesh();
-  const forgePos = { x: -50 + vShiftX, z: 150 + vShiftZ };
-  blacksmith.position.set(forgePos.x, villageMainlandY, forgePos.z);
+  const forgePos = { x: 2, z: -45 };
+  const forgeY = getTerrainHeight(forgePos.x, forgePos.z);
+  blacksmith.position.set(forgePos.x, forgeY, forgePos.z);
   blacksmith.rotation.y = Math.PI / 2;
   scene.add(blacksmith);
   colliders.push({
@@ -728,10 +765,11 @@ export async function buildMainVillage(
     label: 'Bengkel Pandai Besi',
   });
 
-  // 2.6 Anya's Alchemy & Potion Stall (East Commercial Avenue: X: 65, Z: -30)
+  // 2.6 Anya's Alchemy & Potion Stall (South-East Plaza Market: X: 38, Z: -42, dist = 18 from roads)
   const anyaStall = createMarketStallMesh(0x15803d);
-  const anyaPos = { x: -10 + vShiftX, z: 145 + vShiftZ };
-  anyaStall.position.set(anyaPos.x, villageMainlandY, anyaPos.z);
+  const anyaPos = { x: 38, z: -42 };
+  const anyaY = getTerrainHeight(anyaPos.x, anyaPos.z);
+  anyaStall.position.set(anyaPos.x, anyaY, anyaPos.z);
   anyaStall.rotation.y = -Math.PI / 2;
   scene.add(anyaStall);
   colliders.push({
@@ -743,10 +781,11 @@ export async function buildMainVillage(
     label: 'Kios Alkemis Anya',
   });
 
-  // 2.7 Maya's Armor & Weapon Outfitter Stall (East Commercial Avenue: X: 67, Z: -20)
+  // 2.7 Maya's Armor & Weapon Outfitter Stall (South-East Plaza Market: X: 38, Z: -32, dist = 18 from roads)
   const marketStall2 = createArmorStallMesh(0x1e3a8a);
-  const m2Pos = { x: -8 + vShiftX, z: 155 + vShiftZ };
-  marketStall2.position.set(m2Pos.x, villageMainlandY, m2Pos.z);
+  const m2Pos = { x: 38, z: -32 };
+  const m2Y = getTerrainHeight(m2Pos.x, m2Pos.z);
+  marketStall2.position.set(m2Pos.x, m2Y, m2Pos.z);
   marketStall2.rotation.y = -Math.PI / 2;
   scene.add(marketStall2);
   colliders.push({
@@ -759,14 +798,13 @@ export async function buildMainVillage(
   });
 
   // ==========================================
-  // 2.8 SYMMETRICAL RESIDENTIAL WARDS (West and East Streets)
-  // Perfectly aligned, spacious grid on dry elevated ground (≥8 units from road center)
+  // 2.8 SYMMETRICAL RESIDENTIAL WARDS (All >= 15 units from all road centerlines)
   // ==========================================
-  // West Residential Street (along X = 10)
+  // West Quarter
   const house2 = createVillageHouseMesh();
-  const h2Pos = { x: -65 + vShiftX, z: 120 + vShiftZ };
-  house2.position.set(h2Pos.x, villageMainlandY, h2Pos.z);
-  house2.rotation.y = 0;
+  const h2Pos = { x: -16, z: -54 };
+  house2.position.set(h2Pos.x, getTerrainHeight(h2Pos.x, h2Pos.z), h2Pos.z);
+  house2.rotation.y = Math.PI / 3;
   scene.add(house2);
   colliders.push({
     type: 'box',
@@ -775,9 +813,9 @@ export async function buildMainVillage(
   });
 
   const house6 = createVillageHouseMesh();
-  const h6Pos = { x: -65 + vShiftX, z: 150 + vShiftZ };
-  house6.position.set(h6Pos.x, villageMainlandY, h6Pos.z);
-  house6.rotation.y = 0;
+  const h6Pos = { x: -16, z: -34 };
+  house6.position.set(h6Pos.x, getTerrainHeight(h6Pos.x, h6Pos.z), h6Pos.z);
+  house6.rotation.y = Math.PI / 2;
   scene.add(house6);
   colliders.push({
     type: 'box',
@@ -786,9 +824,9 @@ export async function buildMainVillage(
   });
 
   const house7 = createVillageHouseMesh();
-  const h7Pos = { x: -50 + vShiftX, z: 165 + vShiftZ };
-  house7.position.set(h7Pos.x, villageMainlandY, h7Pos.z);
-  house7.rotation.y = 0;
+  const h7Pos = { x: 2, z: -26 };
+  house7.position.set(h7Pos.x, getTerrainHeight(h7Pos.x, h7Pos.z), h7Pos.z);
+  house7.rotation.y = Math.PI / 2;
   scene.add(house7);
   colliders.push({
     type: 'box',
@@ -796,11 +834,11 @@ export async function buildMainVillage(
     label: 'Pondok Herbalis Barat',
   });
 
-  // East Residential Street (along X = 70)
+  // East Quarter
   const house3 = createVillageHouseMesh();
-  const h3Pos = { x: -5 + vShiftX, z: 120 + vShiftZ };
-  house3.position.set(h3Pos.x, villageMainlandY, h3Pos.z);
-  house3.rotation.y = Math.PI;
+  const h3Pos = { x: 56, z: -78 };
+  house3.position.set(h3Pos.x, getTerrainHeight(h3Pos.x, h3Pos.z), h3Pos.z);
+  house3.rotation.y = 0;
   scene.add(house3);
   colliders.push({
     type: 'box',
@@ -809,8 +847,8 @@ export async function buildMainVillage(
   });
 
   const house4 = createVillageHouseMesh();
-  const h4Pos = { x: -5 + vShiftX, z: 145 + vShiftZ };
-  house4.position.set(h4Pos.x, villageMainlandY, h4Pos.z);
+  const h4Pos = { x: 54, z: -40 };
+  house4.position.set(h4Pos.x, getTerrainHeight(h4Pos.x, h4Pos.z), h4Pos.z);
   house4.rotation.y = Math.PI;
   scene.add(house4);
   colliders.push({
@@ -820,9 +858,9 @@ export async function buildMainVillage(
   });
 
   const house5 = createVillageHouseMesh();
-  const h5Pos = { x: -5 + vShiftX, z: 165 + vShiftZ };
-  house5.position.set(h5Pos.x, villageMainlandY, h5Pos.z);
-  house5.rotation.y = Math.PI;
+  const h5Pos = { x: 54, z: -22 };
+  house5.position.set(h5Pos.x, getTerrainHeight(h5Pos.x, h5Pos.z), h5Pos.z);
+  house5.rotation.y = -Math.PI / 2;
   scene.add(house5);
   colliders.push({
     type: 'box',
@@ -830,11 +868,11 @@ export async function buildMainVillage(
     label: 'Pondok Penjaga Padang Timur',
   });
 
-  // Coastal Lookout Cottage (Situated safely on dry mainland at Z = 0, X = 39, overlooking the harbor)
+  // Coastal Lookout Cottage (Moved off Harbor road to dry elevated lawn at X: 38, Z: -18, 18 units east of road)
   const house8 = createVillageHouseMesh();
-  const h8Pos = { x: -36 + vShiftX, z: 175 + vShiftZ };
-  house8.position.set(h8Pos.x, villageMainlandY, h8Pos.z);
-  house8.rotation.y = 0;
+  const h8Pos = { x: 38, z: -18 };
+  house8.position.set(h8Pos.x, getTerrainHeight(h8Pos.x, h8Pos.z), h8Pos.z);
+  house8.rotation.y = -Math.PI / 2;
   scene.add(house8);
   colliders.push({
     type: 'box',
@@ -842,47 +880,46 @@ export async function buildMainVillage(
     label: 'Pondok Nelayan Pesisir',
   });
 
-  // 2.9 Street Lamps along Promenade & Sidewalks (InstancedMesh - High Performance 60 FPS)
-  const lampPositions = [
-    // North Avenue
-    [-39 + vShiftX, 115 + vShiftZ],
-    [-31 + vShiftX, 115 + vShiftZ],
-    [-39 + vShiftX, 125 + vShiftZ],
-    [-31 + vShiftX, 125 + vShiftZ],
-    // Central Plaza Corners
-    [-43 + vShiftX, 127 + vShiftZ],
-    [-27 + vShiftX, 127 + vShiftZ],
-    [-43 + vShiftX, 143 + vShiftZ],
-    [-27 + vShiftX, 143 + vShiftZ],
-    // South Promenade leading to Harbor
-    [-31 + vShiftX, 150 + vShiftZ],
-    [-21 + vShiftX, 150 + vShiftZ],
-    [-26 + vShiftX, 165 + vShiftZ],
-    [-16 + vShiftX, 165 + vShiftZ],
-    [-25 + vShiftX, 180 + vShiftZ],
-    [-15 + vShiftX, 180 + vShiftZ],
-    // West Avenue
-    [-52 + vShiftX, 131 + vShiftZ],
-    [-52 + vShiftX, 139 + vShiftZ],
-    [-68 + vShiftX, 131 + vShiftZ],
-    [-68 + vShiftX, 139 + vShiftZ],
+  // 2.9 Street Lamps flanking Plaza, Harbor South, East Highway, & NW Solaria Highway
+  const nwL1x = 20 - 15;
+  const nwL1z = -60 - 10;
+  const nwL2x = 20 - 27;
+  const nwL2z = -60 - 18;
+  const rawLampPositions: [number, number][] = [
+    // Central Fountain Plaza Rim
+    [13, -53], [27, -53], [13, -67], [27, -67],
+    // South Promenade to Harbor
+    [16.5, -44], [23.5, -44],
+    [16.5, -30], [23.5, -30],
+    [16.5, -20], [23.5, -20],
+    [16.5, -4],  [23.5, -4],
+    // East Astraea Highway
+    [34, -63.5], [34, -56.5],
+    [48, -63.5], [48, -56.5],
+    // NW Solaria Highway
+    [nwL1x - 3.4 * nwCos, nwL1z + 3.4 * nwSin], [nwL1x + 3.4 * nwCos, nwL1z - 3.4 * nwSin],
+    [nwL2x - 3.4 * nwCos, nwL2z + 3.4 * nwSin], [nwL2x + 3.4 * nwCos, nwL2z - 3.4 * nwSin],
   ];
-  const villageLampTransforms = lampPositions.map(([lx, lz]) => {
-    colliders.push({ type: 'circle', x: lx, z: lz, radius: 0.35, label: 'Lampu Jalan' });
-    return { x: lx, y: villageMainlandY, z: lz };
-  });
+  const villageLampTransforms = rawLampPositions
+    .filter(([lx, lz]) => !isPointOnRoad(lx, lz))
+    .map(([lx, lz]) => {
+      const ly = getTerrainHeight(lx, lz);
+      colliders.push({ type: 'circle', x: lx, z: lz, radius: 0.35, label: 'Lampu Jalan' });
+      return { x: lx, y: ly, z: lz };
+    });
   const villageLampsMesh = createInstancedStreetLamps(villageLampTransforms);
   scene.add(villageLampsMesh);
 
-  // Village barrels placed neatly against walls in alleyways (Cleaned up: zero clutter)
-  const barrelPositions = [
-    [-53.5 + vShiftX, 150 + vShiftZ],
-    [-17.0 + vShiftX, 120 + vShiftZ],
-    [-7.0 + vShiftX, 145 + vShiftZ],
+  // Village barrels placed neatly beside buildings
+  const barrelPositions: [number, number][] = [
+    [forgePos.x - 3.5, forgePos.z - 2.0],
+    [tavernPos.x - 4.0, tavernPos.z - 2.0],
+    [anyaPos.x + 2.0, anyaPos.z],
   ];
   barrelPositions.forEach(([bx, bz]) => {
+    const by = getTerrainHeight(bx, bz);
     const barrel = createBarrelMesh();
-    barrel.position.set(bx, villageMainlandY, bz);
+    barrel.position.set(bx, by, bz);
     scene.add(barrel);
     colliders.push({ type: 'circle', x: bx, z: bz, radius: 0.45, label: 'Tong Kayu' });
   });
@@ -890,11 +927,13 @@ export async function buildMainVillage(
   // ==========================================
   // SANCTUARY NPCS (Organized, Dry, & Accessible Positions)
   // ==========================================
-  // NPC 1: Tetua Vaelen (Penjaga Kuil & Tetua Desa) - Porch of Elder Lodge
+  // NPC 1: Tetua Vaelen (Porch of Elder Lodge)
   const elderGroup = createNPCMesh();
-  const elderPos: [number, number, number] = [-47.5 + vShiftX, villageMainlandY, 123.5 + vShiftZ];
+  const elderX = 22;
+  const elderZ = -84.2;
+  const elderPos: [number, number, number] = [elderX, getTerrainHeight(elderX, elderZ), elderZ];
   elderGroup.position.set(...elderPos);
-  elderGroup.rotation.y = -Math.PI / 4; // Facing South-East towards fountain plaza
+  elderGroup.rotation.y = 0; // Facing South towards fountain plaza
   scene.add(elderGroup);
   npcs.push({
     id: 'elder_vaelen',
@@ -907,10 +946,13 @@ export async function buildMainVillage(
     dialogueId: 'elder_quest_titan',
   });
 
-  // NPC 2: Kapten Ronald (Panglima Penjaga Gerbang Utara)
+  // NPC 2: Kapten Ronald (Beside NW Entrance Gate Pillar)
   const guardGroup = createCustomNPCMesh('guard');
-  const guardPos: [number, number, number] = [-35 + vShiftX, villageMainlandY, 107.0 + vShiftZ];
+  const guardX = nwArchX + 4.4 * nwCos;
+  const guardZ = nwArchZ - 4.4 * nwSin;
+  const guardPos: [number, number, number] = [guardX, getTerrainHeight(guardX, guardZ), guardZ];
   guardGroup.position.set(...guardPos);
+  guardGroup.rotation.y = nwRotY;
   scene.add(guardGroup);
   npcs.push({
     id: 'guard_ronald',
@@ -922,11 +964,11 @@ export async function buildMainVillage(
     position: guardPos,
     dialogueId: 'guard_intro',
   });
-  await cooperativeYield(4);
+  await hardYield();
 
   // NPC 3: Anya (Alkemis & Herbalis) - At her potion counter
   const anyaGroup = createCustomNPCMesh('alchemist');
-  const anyaNPCPos: [number, number, number] = [-12.5 + vShiftX, villageMainlandY, 145 + vShiftZ];
+  const anyaNPCPos: [number, number, number] = [anyaPos.x - 2.2, getTerrainHeight(anyaPos.x - 2.2, anyaPos.z), anyaPos.z];
   anyaGroup.position.set(...anyaNPCPos);
   anyaGroup.rotation.y = -Math.PI / 2;
   scene.add(anyaGroup);
@@ -943,7 +985,7 @@ export async function buildMainVillage(
 
   // NPC 4: Master Torvald (Pandai Besi Kuat) - At his forge
   const torvaldGroup = createCustomNPCMesh('blacksmith');
-  const torvaldPos: [number, number, number] = [-47.5 + vShiftX, villageMainlandY, 150 + vShiftZ];
+  const torvaldPos: [number, number, number] = [forgePos.x + 3.0, getTerrainHeight(forgePos.x + 3.0, forgePos.z), forgePos.z];
   torvaldGroup.position.set(...torvaldPos);
   torvaldGroup.rotation.y = Math.PI / 2;
   scene.add(torvaldGroup);
@@ -957,11 +999,13 @@ export async function buildMainVillage(
     position: torvaldPos,
     dialogueId: 'blacksmith_torvald',
   });
-  await cooperativeYield(4);
+  await hardYield();
 
   // NPC 5: Lyra the Wandering Bard - Outside tavern terrace
   const bardGroup = createCustomNPCMesh('bard');
-  const bardPos: [number, number, number] = [-22 + vShiftX, villageMainlandY, 122 + vShiftZ];
+  const bardX = 35;
+  const bardZ = -73.5;
+  const bardPos: [number, number, number] = [bardX, getTerrainHeight(bardX, bardZ), bardZ];
   bardGroup.position.set(...bardPos);
   bardGroup.rotation.y = -Math.PI / 4;
   scene.add(bardGroup);
@@ -992,13 +1036,15 @@ export async function buildMainVillage(
     position: jokoPos,
     dialogueId: 'fisherman_joko',
   });
-  await cooperativeYield(4);
+  await hardYield();
 
   // NPC 7: Kael (Warga Desa Muda) - By coastal alleyway
   const kaelGroup = createCustomNPCMesh('villager');
-  const kaelPos: [number, number, number] = [-38 + vShiftX, villageMainlandY, 162 + vShiftZ];
+  const kaelX = 27;
+  const kaelZ = -38;
+  const kaelPos: [number, number, number] = [kaelX, getTerrainHeight(kaelX, kaelZ), kaelZ];
   kaelGroup.position.set(...kaelPos);
-  kaelGroup.rotation.y = Math.PI / 4;
+  kaelGroup.rotation.y = -Math.PI / 4;
   scene.add(kaelGroup);
   npcs.push({
     id: 'villager_kael',
@@ -1013,7 +1059,7 @@ export async function buildMainVillage(
 
   // NPC 8: Maya (Toko Zirah & Perlengkapan Tempur) - At her armor counter
   const mayaGroup = createCustomNPCMesh('villager');
-  const mayaPos: [number, number, number] = [-30.5 + vShiftX, villageMainlandY, 157 + vShiftZ];
+  const mayaPos: [number, number, number] = [m2Pos.x - 2.2, getTerrainHeight(m2Pos.x - 2.2, m2Pos.z), m2Pos.z];
   mayaGroup.position.set(...mayaPos);
   mayaGroup.rotation.y = -Math.PI / 2;
   scene.add(mayaGroup);
@@ -1027,9 +1073,8 @@ export async function buildMainVillage(
     position: mayaPos,
     dialogueId: 'villager_maya',
   });
-  await cooperativeYield(4);
+  await hardYield();
 
-  await cooperativeYield(4);
   return { elderGroup, elderPos };
 }
 
@@ -1677,7 +1722,7 @@ export async function buildValKragorFort(
       chasmStonePier.position.set(b.x, -2.2, b.z);
       scene.add(chasmStonePier);
     } else {
-      bridgeMesh = createStoneArchBridgeMesh(b.length, b.width, 2.7);
+      bridgeMesh = createStoneArchBridgeMesh(b.length, b.width, Math.max(2.7, b.y + 2.6));
       bridgeMesh.position.set(b.x, b.y, b.z);
       bridgeMesh.rotation.y = b.rotationY;
       scene.add(bridgeMesh);

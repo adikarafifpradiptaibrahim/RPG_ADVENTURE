@@ -200,23 +200,23 @@ export function getProceduralContinentHeight(x: number, z: number): number {
 /**
  * Single Source of Truth untuk Pewarnaan Vertex Terrain 3D:
  * 1. Wilayah Pegunungan & Danau Utara (biome === 'snow'):
- *    - Putih salju cerah bersih (#f3f8fc s.d. #e2edf5 / [243, 248, 252] s.d. [226, 237, 245]).
+ *    - Putih salju cerah bersih (#f2f7fb / [242, 247, 251] s.d. [230, 239, 246]).
  *    - HANYA di Z < -640 dan -180 < X < 260. 0% abu-abu kusam!
  * 2. Wilayah Gurun Solaria (biome === 'desert'):
- *    - 100% Pasir Emas Gurun (#e3be6f s.d. #d4a64c / [227, 190, 111] s.d. [212, 166, 76]).
+ *    - 100% Pasir Kuning Emas (#e2be6e s.d. #d4a64c / [226, 190, 110] s.d. [212, 166, 76]).
  *    - 0% rumput hijau nyempil di seluruh daratan gurun barat.
  * 3. Wilayah Padang Rumput & Hutan (biome === 'grassland' | 'forest'):
- *    - Rumput Hijau Segar Alami (#58a048 s.d. #428238 / [88, 160, 72] s.d. [66, 130, 56]).
+ *    - Rumput Hijau Segar Alami (#569e46 s.d. #438537 / [86, 158, 70] s.d. [67, 133, 55]).
  * 4. Pasir Pantai Tipis (#e6d296 / [230, 210, 150]):
- *    - HANYA muncul tepat di garis pesisir tepi laut (height <= SEA_LEVEL + 1.0 dan distRiver < 4.8 || height <= SEA_LEVEL + 0.45).
- * 5. Transisi Perbatasan Bioma Halus (smoothstep 25-35 unit) hanya antara 2 bioma bertetangga.
+ *    - HANYA muncul jika height > SEA_LEVEL && height <= SEA_LEVEL + 0.45 (tepat di bibir air laut).
+ * 5. Transisi Perbatasan Bioma Halus (smoothstep 30 unit) antara Gurun & Padang Rumput.
  */
 export function getTerrainVertexColor(worldX: number, worldZ: number, height: number): [number, number, number] {
   const b = getWorldBiomeAt(worldX, worldZ);
   const SEA_LEVEL = 0.0;
 
   // 1. Sungai & Air Samudra / Danau
-  if (height < SEA_LEVEL) {
+  if (height <= SEA_LEVEL) {
     const depth = clamp(-height / 4.0, 0, 1);
     return [
       Math.round(2 + (1 - depth) * 15),
@@ -232,14 +232,13 @@ export function getTerrainVertexColor(worldX: number, worldZ: number, height: nu
   }
 
   // 3. Bioma Salju Pegunungan & Danau Titan Utara (Z < -640 dan -180 < X < 260)
-  // Putih salju cerah bersih (#f3f8fc s.d. #e2edf5) — 0% abu-abu kusam!
+  // Putih salju cerah (#f2f7fb s.d. #e6eff6)
   if (b === 'snow' && worldZ < -640 && worldX > -180 && worldX < 260) {
     const snowNoise = 0.5 + 0.5 * Math.sin(worldX * 0.04 + worldZ * 0.035);
-    // Lerp antara #f3f8fc [243, 248, 252] dan #e2edf5 [226, 237, 245]
     return [
-      Math.round(226 + (243 - 226) * snowNoise),
-      Math.round(237 + (248 - 237) * snowNoise),
-      Math.round(245 + (252 - 245) * snowNoise),
+      Math.round(230 + (242 - 230) * snowNoise),
+      Math.round(239 + (247 - 239) * snowNoise),
+      Math.round(246 + (251 - 246) * snowNoise),
     ];
   }
 
@@ -251,30 +250,29 @@ export function getTerrainVertexColor(worldX: number, worldZ: number, height: nu
     return [35, 30, 28]; // Basalt hitam vulkanik
   }
 
-  // 5. Pasir Pantai (#e6d296 / [230, 210, 150]) HANYA pada pita tipis tepat di pinggir air laut/sungai
-  const distRiver = getDistanceToRiver(worldX, worldZ);
-  const isCoastEdge = distRiver < 4.8 || height <= SEA_LEVEL + 0.45;
-  if (height <= SEA_LEVEL + 1.0 && isCoastEdge) {
-    return [230, 210, 150]; // #e6d296 Pasir Pantai Keemasan
+  // 5. Pita Pasir Pantai Tipis (#e6d296 / [230, 210, 150])
+  // STRICT: Hanya jika height > SEA_LEVEL && height <= SEA_LEVEL + 0.45 tepat di pinggir air!
+  if (height > SEA_LEVEL && height <= SEA_LEVEL + 0.45) {
+    return [230, 210, 150]; // #e6d296 Pasir Pantai Tipis
   }
 
-  // Warna Dasar Bioma Gurun: Pasir Emas Gurun (#e3be6f s.d. #d4a64c / [227, 190, 111] s.d. [212, 166, 76])
+  // Warna Dasar Bioma Gurun: Pasir Kuning Emas (#e2be6e s.d. #d4a64c / [226, 190, 110] s.d. [212, 166, 76])
   const duneNoise = 0.5 + 0.5 * Math.sin(worldX * 0.035 + worldZ * 0.028);
   const desertColor: [number, number, number] = [
-    Math.round(212 + (227 - 212) * duneNoise),
+    Math.round(212 + (226 - 212) * duneNoise),
     Math.round(166 + (190 - 166) * duneNoise),
-    Math.round(76 + (111 - 76) * duneNoise),
+    Math.round(76 + (110 - 76) * duneNoise),
   ];
 
-  // Warna Dasar Bioma Padang Rumput: Rumput Hijau Segar Alami (#58a048 s.d. #428238 / [88, 160, 72] s.d. [66, 130, 56])
+  // Warna Dasar Bioma Padang Rumput: Rumput Hijau Segar Alami (#569e46 s.d. #438537 / [86, 158, 70] s.d. [67, 133, 55])
   const grassNoise = 0.5 + 0.5 * Math.sin(worldX * 0.025 - worldZ * 0.03);
   const grassColor: [number, number, number] = [
-    Math.round(66 + (88 - 66) * grassNoise),
-    Math.round(130 + (160 - 130) * grassNoise),
-    Math.round(56 + (72 - 56) * grassNoise),
+    Math.round(67 + (86 - 67) * grassNoise),
+    Math.round(133 + (158 - 133) * grassNoise),
+    Math.round(55 + (70 - 55) * grassNoise),
   ];
 
-  // 6. Transisi Perbatasan Halus Antara Gurun Solaria & Padang Rumput Eldoria (2 Bioma Bertemu, Lebar 30 Unit)
+  // 6. Transisi Perbatasan Halus Antara Gurun Solaria & Padang Rumput Eldoria (Lebar 30 Unit)
   const wave = Math.sin(worldZ * 0.006) * 110 + Math.cos(worldZ * 0.015) * 35;
   const warp = Math.sin(worldX * 0.01 + worldZ * 0.012) * 45;
   const boundaryDist = (worldX + wave + warp) - (-240);
@@ -290,12 +288,12 @@ export function getTerrainVertexColor(worldX: number, worldZ: number, height: nu
     ];
   }
 
-  // 7. Jika di dalam Gurun Solaria murni: 100% Pasir Emas
+  // 7. Jika di dalam Gurun Solaria murni (> SEA_LEVEL + 0.45): 100% Pasir Kuning Emas
   if (b === 'desert') {
     return desertColor;
   }
 
-  // 8. Seluruh Dataran Hijau Eldoria: 100% Rumput Hijau Segar
+  // 8. Seluruh Dataran Hijau Tengah, Timur & Selatan (> SEA_LEVEL + 0.45): 100% Rumput Hijau Segar
   return grassColor;
 }
 
@@ -309,7 +307,7 @@ export function getContinentBiomeSample(x: number, z: number): BiomeSample {
   const slope = clamp(Math.hypot(yRight - y, yDown - y) / delta, 0, 1);
 
   const color = getTerrainVertexColor(x, z, y);
-  const isWater = y < 0.0;
+  const isWater = y <= 0.0;
   const isPath = isPointOnRoad(x, z);
 
   let biomeId = 'plains_grass';

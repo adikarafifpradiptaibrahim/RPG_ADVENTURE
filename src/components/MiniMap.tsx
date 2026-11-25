@@ -142,17 +142,17 @@ export const MiniMap: React.FC<MiniMapProps> = ({
             r = 2; g = 132; b = 199; // ocean azure / lake
           } else if (zone.id === 'volcano') {
             r = 35; g = 31; b = 30; // dark obsidian basalt
-          } else if (h <= 1.2 && !(wx > -180 && wx < 260 && wz < -640)) {
-            // Warm sandy beach fringe along coastline
-            r = 253; g = 224; b = 71; // #fde047
+          } else if (h > 0.0 && h <= 0.45 && !(wx > -180 && wx < 260 && wz < -640)) {
+            // Pita tipis pasir pantai tepat di bibir air
+            r = 230; g = 210; b = 150; // #e6d296
           } else if (zone.id === 'desert') {
-            r = 234; g = 179; b = 8; // golden desert sand #eab308
+            r = 222; g = 184; b = 100; // golden desert sand (#e2be6e..#d4a64c)
           } else if (h > 10.0 || (wx > -180 && wx < 260 && wz < -640)) {
-            r = 241; g = 245; b = 249; // snowy mountain / snow biome
+            r = 242; g = 247; b = 251; // snowy mountain / snow biome (#f2f7fb)
           } else if (wx > 340 && wz < -80 && wz > -200) {
-            r = 21; g = 128; b = 61; // mist forest green
+            r = 54; g = 122; b = 48; // mist forest lush green
           } else {
-            r = 101; g = 163; b = 13; // plains green
+            r = 78; g = 148; b = 62; // fresh plains green (#569e46..#438537)
           }
 
           data[idx] = r;

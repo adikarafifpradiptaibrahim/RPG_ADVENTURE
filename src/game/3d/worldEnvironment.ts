@@ -34,11 +34,7 @@ export interface WorldEnvironmentResult {
   setVegetationVisible: (visible: boolean) => void;
 }
 
-export { yieldIfNeeded, hardYield };
-
-export async function cooperativeYield(budgetMs = 8): Promise<void> {
-  return yieldIfNeeded(budgetMs);
-}
+export { yieldIfNeeded, hardYield, cooperativeYield };
 
 export const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 export const UNIT_CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 12);
@@ -1777,7 +1773,7 @@ export async function buildWorldEnvironmentAsync(
   }
 
   function buildRiverRibbon(rawPoints: [number, number][], width: number, yLevel: number): THREE.Mesh {
-    const points = samplePolyline(rawPoints, 3.5);
+    const points = samplePolyline(rawPoints, 2.0);
     const vertices: number[] = [];
     const uvs: number[] = [];
     const indices: number[] = [];
@@ -1805,7 +1801,7 @@ export async function buildWorldEnvironmentAsync(
       let curW = width;
       if (i > points.length - 5) {
         const t = (points.length - 1 - i) / 4;
-        curW = width * (0.35 + 0.65 * t);
+        curW = width * (0.45 + 0.55 * t);
       }
       const halfW = curW * 0.5;
 
@@ -1835,14 +1831,15 @@ export async function buildWorldEnvironmentAsync(
     return mesh;
   }
 
-  // 1. Cabang A (Barat Laut / Northwest): lebar 6.2, permukaan air Y: -0.35
-  canyonGroup.add(buildRiverRibbon(RIVER_NORTHWEST_BRANCH, 6.2, -0.35));
-  // 2. Cabang B (Gurun / Desert Branch): lebar 5.8, permukaan air Y: -0.35
-  canyonGroup.add(buildRiverRibbon(RIVER_DESERT_BRANCH, 5.8, -0.35));
-  // 3. Cabang C (Timur / East): lebar 6.0, permukaan air Y: -0.35
-  canyonGroup.add(buildRiverRibbon(RIVER_EAST_BRANCH, 6.0, -0.35));
-  // 4. Cabang D (Selatan / Hilir Utama): lebar 6.2, permukaan air Y: -0.35
-  canyonGroup.add(buildRiverRibbon(RIVER_MAIN_DOWNSTREAM, 6.2, -0.35));
+  // Lebar pita air sungai 13.5..14.0 di Y: -0.25 menyatu halus ke tebing smoothstep sungai
+  // 1. Cabang A (Barat Laut / Northwest)
+  canyonGroup.add(buildRiverRibbon(RIVER_NORTHWEST_BRANCH, 13.8, -0.25));
+  // 2. Cabang B (Gurun / Desert Branch)
+  canyonGroup.add(buildRiverRibbon(RIVER_DESERT_BRANCH, 13.2, -0.25));
+  // 3. Cabang C (Timur / East)
+  canyonGroup.add(buildRiverRibbon(RIVER_EAST_BRANCH, 13.5, -0.25));
+  // 4. Cabang D (Selatan / Hilir Utama)
+  canyonGroup.add(buildRiverRibbon(RIVER_MAIN_DOWNSTREAM, 14.0, -0.25));
 
   // Mountain spring basin pools at river headwaters
   const createSpringPool = (sx: number, sz: number, radius = 8.0) => {

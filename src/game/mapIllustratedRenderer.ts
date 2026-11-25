@@ -46,8 +46,8 @@ export function getOrCreateTerrainRasterCanvas(): HTMLCanvasElement | null {
   if (cachedTerrainRasterCanvas) return cachedTerrainRasterCanvas;
   if (typeof document === 'undefined') return null;
 
-  const rasterW = 320;
-  const rasterH = Math.round(rasterW * (WORLD_HEIGHT / WORLD_WIDTH)); // 274
+  const rasterW = 512;
+  const rasterH = 512;
   const canvas = document.createElement('canvas');
   canvas.width = rasterW;
   canvas.height = rasterH;
@@ -56,13 +56,14 @@ export function getOrCreateTerrainRasterCanvas(): HTMLCanvasElement | null {
 
   const imgData = ctx.createImageData(rasterW, rasterH);
   const data = imgData.data;
+  const SEA_LEVEL = 0.0;
 
   for (let gy = 0; gy < rasterH; gy++) {
-    const normZ = gy / rasterH;
+    const normZ = (gy + 0.5) / rasterH;
     const wz = WORLD_BOUNDS.minZ + normZ * WORLD_HEIGHT;
 
     for (let gx = 0; gx < rasterW; gx++) {
-      const normX = gx / rasterW;
+      const normX = (gx + 0.5) / rasterW;
       const wx = WORLD_BOUNDS.minX + normX * WORLD_WIDTH;
       const idx = (gy * rasterW + gx) * 4;
 
@@ -78,27 +79,52 @@ export function getOrCreateTerrainRasterCanvas(): HTMLCanvasElement | null {
         if (distDragon < 24) {
           r = 220; g = 38; b = 38; // Molten lava core #dc2626
         } else {
-          r = 39; g = 39; b = 42; // Volcanic dark rock #27272a
+          r = 39; g = 39; b = 42; // Volcanic dark basalt #27272a
         }
       } else {
         const h = getProceduralContinentHeight(wx, wz);
-        if (h <= 0.0) {
+        if (h <= SEA_LEVEL) {
           r = 2; g = 132; b = 199; // Azure ocean
-        } else if (h <= 1.2 && biome !== 'snow') {
-          // Warm sandy beach fringe along water
-          r = 253; g = 224; b = 71; // #fde047
-        } else if (biome === 'desert') {
-          // Golden desert sand
-          r = 234; g = 179; b = 8; // #eab308
+        } else if (h <= SEA_LEVEL + 0.45 && biome !== 'snow') {
+          // STRICT Shore Beach Ribbon: HANYA pada pita tipis height > SEA_LEVEL && height <= SEA_LEVEL + 0.45
+          r = 230; g = 210; b = 150; // #e6d296
         } else if (biome === 'snow') {
-          // Pure snow white
-          r = 241; g = 245; b = 249; // #f1f5f9
+          // Pure bright snow white (#f2f7fb)
+          r = 242; g = 247; b = 251;
         } else {
-          // Grassland / Forest
+          // Warna Tegas Bioma: Gurun (#e2be6e..#d4a64c) vs Padang Rumput/Hutan (#569e46..#438537)
+          const duneNoise = 0.5 + 0.5 * Math.sin(wx * 0.035 + wz * 0.028);
+          const dr = 212 + (226 - 212) * duneNoise;
+          const dg = 166 + (190 - 166) * duneNoise;
+          const db = 76 + (110 - 76) * duneNoise;
+
+          const grassNoise = 0.5 + 0.5 * Math.sin(wx * 0.025 - wz * 0.03);
+          let gr = 67 + (86 - 67) * grassNoise;
+          let gg = 133 + (158 - 133) * grassNoise;
+          let gb = 55 + (70 - 55) * grassNoise;
           if (wx > 340 && wz < -80 && wz > -200) {
-            r = 21; g = 128; b = 61; // #15803d Dark forest green
+            // Forest dark lush green accent (#438537)
+            gr = 54; gg = 122; gb = 48;
+          }
+
+          const wave = Math.sin(wz * 0.006) * 110 + Math.cos(wz * 0.015) * 35;
+          const warp = Math.sin(wx * 0.01 + wz * 0.012) * 45;
+          const boundaryDist = (wx + wave + warp) - (-240);
+
+          if (wz < 180 && Math.abs(boundaryDist) <= 15) {
+            const t = Math.max(0, Math.min(1, (boundaryDist + 15) / 30));
+            const blend = t * t * (3 - 2 * t);
+            r = Math.round(dr * (1 - blend) + gr * blend);
+            g = Math.round(dg * (1 - blend) + gg * blend);
+            b = Math.round(db * (1 - blend) + gb * blend);
+          } else if (biome === 'desert') {
+            r = Math.round(dr);
+            g = Math.round(dg);
+            b = Math.round(db);
           } else {
-            r = 101; g = 163; b = 13; // #65a30d Lush grassland green
+            r = Math.round(gr);
+            g = Math.round(gg);
+            b = Math.round(gb);
           }
         }
       }
