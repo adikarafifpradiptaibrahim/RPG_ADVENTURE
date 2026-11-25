@@ -784,7 +784,12 @@ export function createHunterModel(): THREE.Group {
   return root;
 }
 
-export function updateHunterWeaponStance(model: THREE.Group, stance: 'dagger' | 'bow', isSheathed: boolean = false) {
+export function updateHunterWeaponStance(
+  model: THREE.Group,
+  stance: 'dagger' | 'bow',
+  isSheathed: boolean = false,
+  bowInHand: boolean = false
+) {
   const backBow = model.getObjectByName('BackBow');
   const handBow = model.getObjectByName('HandBow');
   const bowArrow = model.getObjectByName('BowArrow');
@@ -821,23 +826,35 @@ export function updateHunterWeaponStance(model: THREE.Group, stance: 'dagger' | 
   }
 
   if (stance === 'bow') {
-    // Mode Panah:
-    if (backBow) backBow.visible = false;
-    if (handBow) {
-      handBow.visible = true;
-      handBow.rotation.set(-Math.PI / 2, 0, 0);
-    }
     if (leftDagger) leftDagger.visible = false;
     if (rightDagger) rightDagger.visible = false;
 
-    // TANGAN PEMEGANG BUSUR: Turun menyusuri pinggul, ketiak sedikit santai
-    if (leftArmPose) {
-      leftArmPose.rotation.set(0.04, 0.02, -0.10);
-    }
-
-    // TANGAN TANPA SENJATA: Lurus vertikal ke bawah sejajar badan
-    if (rightArmPose) {
-      rightArmPose.rotation.set(0, 0, 0);
+    if (bowInHand) {
+      // Mode Siap / Membidik / Menembak: Busur pindah dari punggung ke tangan kiri!
+      if (backBow) backBow.visible = false;
+      if (handBow) {
+        handBow.visible = true;
+        handBow.rotation.set(-Math.PI / 2, 0, 0);
+      }
+      if (leftArmPose) {
+        leftArmPose.rotation.set(0.04, 0.02, -0.10);
+      }
+      if (rightArmPose) {
+        rightArmPose.rotation.set(0, 0, 0);
+      }
+    } else {
+      // Mode Idle / Jalan santai tanpa menyerang: Busur rapi tersampir di punggung
+      if (backBow) backBow.visible = true;
+      if (handBow) {
+        handBow.visible = false;
+        handBow.rotation.set(-Math.PI / 2, 0, 0);
+      }
+      if (leftArmPose) {
+        leftArmPose.rotation.set(0, 0, 0);
+      }
+      if (rightArmPose) {
+        rightArmPose.rotation.set(0, 0, 0);
+      }
     }
   } else {
     // Mode Belati (Melee A-Pose Asli):
@@ -884,16 +901,23 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
 
   let hunterWeaponMode: 'dagger' | 'bow' = 'dagger';
   let isHunterSheathed = false;
+  let isHunterBowInHand = false;
   const setHunterWeaponMode = (mode: 'dagger' | 'bow') => {
     hunterWeaponMode = mode;
-    updateHunterWeaponStance(root, mode, isHunterSheathed);
+    if (mode !== 'bow') isHunterBowInHand = false;
+    updateHunterWeaponStance(root, mode, isHunterSheathed, isHunterBowInHand);
   };
   const setHunterSheathed = (sheathed: boolean) => {
     isHunterSheathed = sheathed;
-    updateHunterWeaponStance(root, hunterWeaponMode, sheathed);
+    if (sheathed) isHunterBowInHand = false;
+    updateHunterWeaponStance(root, hunterWeaponMode, sheathed, isHunterBowInHand);
+  };
+  const setHunterBowInHand = (inHand: boolean) => {
+    isHunterBowInHand = inHand;
+    updateHunterWeaponStance(root, hunterWeaponMode, isHunterSheathed, isHunterBowInHand);
   };
 
-  updateHunterWeaponStance(root, hunterWeaponMode, false);
+  updateHunterWeaponStance(root, hunterWeaponMode, false, false);
 
   const orbitingOrbs: THREE.Mesh[] = [];
   let halo: THREE.Mesh | undefined;
@@ -955,6 +979,7 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
     hunterWeaponMode,
     setHunterWeaponMode,
     setHunterSheathed,
+    setHunterBowInHand,
   };
 }
 
@@ -1115,13 +1140,17 @@ export function animateHunterBowAim(
   chargeRatio: number,
   isMoving: boolean,
   walkCycle: number,
-  delta: number
+  delta: number,
+  showArrow: boolean = true
 ): void {
   if (!playerMesh) return;
 
-  // KUNCI: Badan tegak sempurna mengikuti hadap bidikan
+  // KUNCI: Badan tegak, bahu sedikit menyamping alami saat pose memanah
   if (playerMesh.body) {
-    playerMesh.body.rotation.set(0, 0, 0);
+    playerMesh.body.rotation.set(0, 0.22, 0);
+  }
+  if (playerMesh.head) {
+    playerMesh.head.rotation.set(0, -0.20, 0);
   }
   if (playerMesh.group) {
     playerMesh.group.rotation.x = 0;
@@ -1132,7 +1161,11 @@ export function animateHunterBowAim(
     playerMesh.rotation.z = 0;
   }
 
-  // 1. LENGAN KIRI: Mengangkat busur sejajar bahu lurus ke depan
+  // Sembunyikan BackBow saat busur diangkat ke tangan kiri
+  const backBow = playerMesh.group?.getObjectByName('BackBow');
+  if (backBow) backBow.visible = false;
+
+  // 1. LENGAN KIRI: Mengangkat busur sejajar bahu lurus ke depan menuju target
   if (playerMesh.leftArm) {
     playerMesh.leftArm.rotation.set(-Math.PI * 0.48, 0.16, -0.06);
   }
@@ -1144,7 +1177,7 @@ export function animateHunterBowAim(
     handBow.rotation.set(0, 0, -0.15); // Vertikal alami dengan sedikit kemiringan ~8 derajat
   }
 
-  // 2. LENGAN KANAN: Menarik senar ke belakang menuju pipi/bahu seiring naiknya bowChargeRatio (0.0 -> 1.0)
+  // 2. LENGAN KANAN: Menarik / melepas senar ke belakang menuju pipi/bahu
   if (playerMesh.rightArm) {
     playerMesh.rightArm.rotation.set(
       -Math.PI * 0.45,
@@ -1153,10 +1186,10 @@ export function animateHunterBowAim(
     );
   }
 
-  // 3. ANAK PANAH PADA BUSUR: Menunjuk lurus mendatar ke depan searah crosshair +, mundur sedikit seiring tarikan senar
+  // 3. ANAK PANAH PADA BUSUR: Tampil saat membidik/menarik senar, sembunyi sesaat setelah dilepas
   const bowArrow = playerMesh.group?.getObjectByName('BowArrow');
   if (bowArrow) {
-    bowArrow.visible = true;
+    bowArrow.visible = showArrow;
     bowArrow.rotation.set(Math.PI / 2, 0, 0);
     bowArrow.position.set(0, chargeRatio * 0.18, 0.02);
   }

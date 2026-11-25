@@ -137,6 +137,7 @@ export interface PlayerMeshObjects {
   hunterWeaponMode?: 'dagger' | 'bow';
   setHunterWeaponMode?: (mode: 'dagger' | 'bow') => void;
   setHunterSheathed?: (sheathed: boolean) => void;
+  setHunterBowInHand?: (inHand: boolean) => void;
 }
 
 export function createPlayerMesh(charClass: CharacterClass = 'warrior', tier: number = 1): PlayerMeshObjects {

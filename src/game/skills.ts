@@ -4068,6 +4068,7 @@ export function getGaleMagicCircleTexture(): THREE.CanvasTexture {
 export interface SkywardArrowVolleyVfxInstance {
   group: THREE.Group;
   isActive: boolean;
+  setPrewarmVisible?: (visible: boolean) => void;
   activate: (
     casterPos: THREE.Vector3,
     targetPos: THREE.Vector3,
@@ -4160,41 +4161,41 @@ export class SkywardArrowVolleyResourcePool {
 
     this.particleGeom = new THREE.TetrahedronGeometry(0.16, 0);
 
-    // 2. Materials
+    // 2. Materials (Energi Cyan-Aqua #00e5ff bercahaya tajam)
     this.arrowShaftMat = new THREE.MeshStandardMaterial({
-      color: 0x10b981,
-      roughness: 0.3,
-      metalness: 0.4,
-      emissive: 0x059669,
-      emissiveIntensity: 0.8,
+      color: 0x38bdf8,
+      roughness: 0.25,
+      metalness: 0.45,
+      emissive: 0x00e5ff,
+      emissiveIntensity: 1.5,
     });
     this.arrowHeadMat = new THREE.MeshStandardMaterial({
-      color: 0xecfdf5,
-      roughness: 0.2,
-      metalness: 0.8,
-      emissive: 0x34d399,
-      emissiveIntensity: 1.2,
+      color: 0xe0f2fe,
+      roughness: 0.15,
+      metalness: 0.85,
+      emissive: 0x00e5ff,
+      emissiveIntensity: 2.2,
     });
     this.arrowTrailMat = new THREE.MeshBasicMaterial({
-      color: 0x34d399,
+      color: 0x00e5ff,
       transparent: true,
-      opacity: 0.75,
+      opacity: 0.85,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
 
     this.flareArrowMat = new THREE.MeshStandardMaterial({
-      color: 0x6ee7b7,
+      color: 0xe0f2fe,
       roughness: 0.1,
       metalness: 0.9,
-      emissive: 0x10b981,
-      emissiveIntensity: 2.5,
+      emissive: 0x00e5ff,
+      emissiveIntensity: 2.6,
     });
     this.flareTrailMat = new THREE.MeshBasicMaterial({
-      color: 0xa7f3d0,
+      color: 0x38bdf8,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.88,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       side: THREE.DoubleSide,
@@ -4202,6 +4203,7 @@ export class SkywardArrowVolleyResourcePool {
 
     this.magicCircleMat = new THREE.MeshBasicMaterial({
       map: getGaleMagicCircleTexture(),
+      color: 0x67e8f9,
       transparent: true,
       opacity: 0.9,
       blending: THREE.AdditiveBlending,
@@ -4209,51 +4211,51 @@ export class SkywardArrowVolleyResourcePool {
       side: THREE.DoubleSide,
     });
     this.magicRingMat = new THREE.MeshBasicMaterial({
-      color: 0x34d399,
+      color: 0x00e5ff,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.88,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
 
     this.giantShaftMat = new THREE.MeshStandardMaterial({
-      color: 0x047857,
+      color: 0x0284c7,
       roughness: 0.2,
       metalness: 0.85,
-      emissive: 0x10b981,
-      emissiveIntensity: 1.8,
+      emissive: 0x00e5ff,
+      emissiveIntensity: 2.0,
     });
     this.giantHeadMat = new THREE.MeshStandardMaterial({
-      color: 0xf0fdf4,
+      color: 0xe0f2fe,
       roughness: 0.15,
       metalness: 0.9,
-      emissive: 0x34d399,
-      emissiveIntensity: 2.2,
+      emissive: 0x00e5ff,
+      emissiveIntensity: 2.5,
     });
     this.giantVortexMat = new THREE.MeshBasicMaterial({
-      color: 0x6ee7b7,
+      color: 0x00e5ff,
       transparent: true,
-      opacity: 0.65,
+      opacity: 0.72,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
 
     this.shockwaveMat = new THREE.MeshBasicMaterial({
-      color: 0x6ee7b7,
+      color: 0x00e5ff,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.92,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
 
     this.particleMat = new THREE.MeshStandardMaterial({
-      color: 0x10b981,
-      emissive: 0x34d399,
-      emissiveIntensity: 1.5,
-      roughness: 0.4,
+      color: 0x38bdf8,
+      emissive: 0x00e5ff,
+      emissiveIntensity: 1.75,
+      roughness: 0.35,
     });
 
     // 3. Pre-allocate 2 VFX Instances
@@ -4288,8 +4290,8 @@ export class SkywardArrowVolleyResourcePool {
     magicRingMesh.visible = false;
     rootGroup.add(magicCircleMesh, magicRingMesh);
 
-    // C. 16 Gale Rain Arrows (Phase 2)
-    const RAIN_COUNT = 16;
+    // C. 20 Cyan-Aqua Energy Rain Arrows (Phase 2)
+    const RAIN_COUNT = 20;
     const rainArrowGroups: THREE.Group[] = [];
     for (let r = 0; r < RAIN_COUNT; r++) {
       const arrGroup = new THREE.Group();
@@ -4335,14 +4337,17 @@ export class SkywardArrowVolleyResourcePool {
       particleVels.push(new THREE.Vector3());
     }
 
-    // State Variables
+    // State Variables (Pre-allocated untuk Zero-GC di runtime)
     let isActive = false;
     let elapsedTime = 0;
     const casterPos = new THREE.Vector3();
     const targetPos = new THREE.Vector3();
-    const arrowOffsets: { x: number; z: number }[] = [];
-    const dropStartTimes: number[] = [];
-    const arrowHasHit: boolean[] = [];
+    const _impactPosScratch = new THREE.Vector3();
+    const arrowOffsets: { x: number; z: number }[] = Array.from({ length: RAIN_COUNT }, () => ({ x: 0, z: 0 }));
+    const dropStartTimes: number[] = new Array(RAIN_COUNT).fill(0);
+    const arrowHasHit: boolean[] = new Array(RAIN_COUNT).fill(false);
+    const WAVE_TIMES = [0.46, 0.78, 1.10, 1.42];
+    const waveHasHit: boolean[] = [false, false, false, false];
     let finisherHasHit = false;
     let shockwaveStartTime = -1;
 
@@ -4366,6 +4371,9 @@ export class SkywardArrowVolleyResourcePool {
       onFinisherCb = onFinisherImpact;
       finisherHasHit = false;
       shockwaveStartTime = -1;
+      for (let w = 0; w < WAVE_TIMES.length; w++) {
+        waveHasHit[w] = false;
+      }
 
       rootGroup.visible = true;
 
@@ -4382,19 +4390,14 @@ export class SkywardArrowVolleyResourcePool {
       magicCircleMesh.visible = true;
       magicRingMesh.visible = true;
 
-      // 16 Rain arrows configuration (staggered across 0.3s to 1.7s)
-      arrowOffsets.length = 0;
-      dropStartTimes.length = 0;
-      arrowHasHit.length = 0;
+      // 20 Cyan Rain arrows staggered evenly across 0.25s to 1.60s
       for (let i = 0; i < RAIN_COUNT; i++) {
-        const ang = Math.random() * Math.PI * 2;
-        const dist = Math.sqrt(Math.random()) * 5.0; // uniform disc distribution
-        arrowOffsets.push({
-          x: Math.cos(ang) * dist,
-          z: Math.sin(ang) * dist,
-        });
-        dropStartTimes.push(0.3 + (i / RAIN_COUNT) * 1.35);
-        arrowHasHit.push(false);
+        const ang = (i / RAIN_COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.45;
+        const dist = Math.sqrt((i + 0.5) / RAIN_COUNT) * 5.0; // Sebaran merata seluruh lingkaran radius 5.0
+        arrowOffsets[i].x = Math.cos(ang) * dist;
+        arrowOffsets[i].z = Math.sin(ang) * dist;
+        dropStartTimes[i] = 0.25 + (i / RAIN_COUNT) * 1.35;
+        arrowHasHit[i] = false;
         rainArrowGroups[i].visible = false;
       }
 
@@ -4411,10 +4414,25 @@ export class SkywardArrowVolleyResourcePool {
       flareGroup.visible = false;
       magicCircleMesh.visible = false;
       magicRingMesh.visible = false;
-      rainArrowGroups.forEach((g) => { g.visible = false; });
+      for (let r = 0; r < rainArrowGroups.length; r++) {
+        rainArrowGroups[r].visible = false;
+      }
       giantGroup.visible = false;
       shockwaveMesh.visible = false;
-      particleMeshes.forEach((p) => { p.visible = false; });
+      for (let p = 0; p < particleMeshes.length; p++) {
+        particleMeshes[p].visible = false;
+      }
+    };
+
+    const setPrewarmVisible = (visible: boolean) => {
+      rootGroup.visible = visible;
+      flareGroup.visible = visible;
+      magicCircleMesh.visible = visible;
+      magicRingMesh.visible = visible;
+      if (rainArrowGroups.length > 0) rainArrowGroups[0].visible = visible;
+      giantGroup.visible = visible;
+      shockwaveMesh.visible = visible;
+      if (particleMeshes.length > 0) particleMeshes[0].visible = visible;
     };
 
     const update = (
@@ -4459,7 +4477,7 @@ export class SkywardArrowVolleyResourcePool {
         }
       }
 
-      // Phase 2: 16 Gale Rain Arrows (0.3s - 1.7s)
+      // Phase 2: 20 Cyan Rain Arrows (0.25s - 1.65s) + 4 Wave AoE Pulses across Radius 5.5
       const DROP_DURATION = 0.22;
       for (let i = 0; i < RAIN_COUNT; i++) {
         if (arrowHasHit[i]) continue;
@@ -4476,20 +4494,38 @@ export class SkywardArrowVolleyResourcePool {
             rainArrowGroups[i].position.set(ax, ay, az);
             rainArrowGroups[i].visible = true;
           } else {
-            // Impact!
+            // Impact visual & close direct splash!
             arrowHasHit[i] = true;
             rainArrowGroups[i].visible = false;
-            const impactPos = new THREE.Vector3(ax, targetY, az);
-            onArrowCb?.(impactPos, i);
+            _impactPosScratch.set(ax, targetY, az);
+            onArrowCb?.(_impactPosScratch, i);
 
-            // Splash damage within 2.4 units of impact point
+            // Direct splash damage within horizontal XZ 2.0u
             for (let e = 0; e < enemies.length; e++) {
               const enemy = enemies[e];
               if (enemy.data?.isDead) continue;
-              const dist = enemy.mesh.position.distanceTo(impactPos);
-              if (dist <= 2.4) {
-                damageArrowCallback(enemy, impactPos);
+              const distXZ = Math.hypot(enemy.mesh.position.x - ax, enemy.mesh.position.z - az);
+              if (distXZ <= 2.0) {
+                damageArrowCallback(enemy, _impactPosScratch);
               }
+            }
+          }
+        }
+      }
+
+      // Synchronized consistent AoE damage waves inside radius 5.5
+      for (let w = 0; w < WAVE_TIMES.length; w++) {
+        if (!waveHasHit[w] && elapsedTime >= WAVE_TIMES[w]) {
+          waveHasHit[w] = true;
+          for (let e = 0; e < enemies.length; e++) {
+            const enemy = enemies[e];
+            if (enemy.data?.isDead) continue;
+            const distXZ = Math.hypot(
+              enemy.mesh.position.x - targetPos.x,
+              enemy.mesh.position.z - targetPos.z
+            );
+            if (distXZ <= 5.5) {
+              damageArrowCallback(enemy, targetPos);
             }
           }
         }
@@ -4603,10 +4639,20 @@ export class SkywardArrowVolleyResourcePool {
       get isActive() {
         return isActive;
       },
+      setPrewarmVisible,
       activate,
       update,
       cleanup,
     };
+  }
+
+  public attachToScene(scene: THREE.Scene) {
+    for (let i = 0; i < this.instances.length; i++) {
+      const grp = this.instances[i].group;
+      if (grp.parent !== scene) {
+        scene.add(grp);
+      }
+    }
   }
 
   public acquire(
@@ -4626,22 +4672,22 @@ export class SkywardArrowVolleyResourcePool {
   }
 
   public prewarm(scene: THREE.Scene, renderer: THREE.WebGLRenderer, camera: THREE.Camera) {
+    this.attachToScene(scene);
     if (this.instances.length > 0) {
       const sample = this.instances[0];
-      if (!scene.children.includes(sample.group)) {
-        scene.add(sample.group);
-      }
-      const prevVis = sample.group.visible;
+      const prevVis = sample.isActive;
       const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-      sample.group.position.copy(camera.position).addScaledVector(fwd, 4.0);
-      sample.group.visible = true;
+      sample.group.position.copy(camera.position).addScaledVector(fwd, 5.0);
+      sample.setPrewarmVisible?.(true);
       try {
         renderer.compile(scene, camera);
       } catch (e) {
         console.warn('[Engine] Skyward arrow volley prewarm compile warning:', e);
       }
-      sample.group.visible = prevVis;
-      scene.remove(sample.group);
+      if (!prevVis) {
+        sample.cleanup();
+      }
+      sample.group.position.set(0, 0, 0);
     }
   }
 }
