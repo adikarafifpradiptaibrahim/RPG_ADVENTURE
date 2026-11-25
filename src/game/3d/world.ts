@@ -99,6 +99,8 @@ import { buildWorldRoadNetwork, isPointOnRoad } from '../RoadSystem';
 import { checkFrameBudget, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield, hardYield } from './frameBudget';
 import { SpatialLookupGrid } from './spatialGrid';
 import { BRIDGE_CONFIGS, isStrictLandForProps, WATER_LEVEL, distToSegment } from './worldData';
+import { SmoothLoadScheduler } from '../utils/asyncLoader';
+import type { WorldCachePayload } from '../storage/worldCacheManager';
 import {
   TERRAIN_GRID,
   setMeshGroundHeights,
@@ -342,10 +344,12 @@ function createTerrainHeightEvaluator(
 
 export async function buildWorldAsync(
   scene: THREE.Scene,
-  onProgress?: (percent: number, statusText: string) => void
+  onProgress?: (percent: number, statusText: string) => void,
+  cachedTerrain?: WorldCachePayload | null
 ): Promise<WorldObjects> {
   const decorativeProps: THREE.Object3D[] = [];
   const pointLights: THREE.PointLight[] = [];
+  const scheduler = new SmoothLoadScheduler();
 
   // Atmospheric Fog & Sky Color
   scene.fog = new THREE.FogExp2(0x8bc34a, 0.012);
@@ -387,102 +391,134 @@ export async function buildWorldAsync(
   const posAttr = terrainGeo.attributes.position;
   const vertexCount = posAttr.count;
 
-  // 1. Initial procedural heights sampling (Time-sliced max 20 rows per chunk / 6ms budget)
-  onProgress?.(15, 'Membangun Geometri & Heightmap Benua Eldoria (15%)...');
-  const rawHeights = new Float32Array(vertexCount);
-  const gridW = TERRAIN_GRID.gridW;
-  const gridH = TERRAIN_GRID.gridH;
-  let tLast = performance.now();
+  const canRestoreCachedTerrain =
+    Boolean(cachedTerrain) &&
+    cachedTerrain!.terrainPositions.length === vertexCount * 3 &&
+    cachedTerrain!.terrainColors.length === vertexCount * 3 &&
+    cachedTerrain!.terrainNormals.length === vertexCount * 3 &&
+    cachedTerrain!.heightLookupGrid.length === vertexCount;
 
-  for (let gz = 0; gz < gridH; gz++) {
-    for (let gx = 0; gx < gridW; gx++) {
-      const idx = gz * gridW + gx;
-      const vx = posAttr.getX(idx) + TERRAIN_GRID.centerX;
-      const vz = posAttr.getZ(idx) + TERRAIN_GRID.centerZ;
-      rawHeights[idx] = getProceduralContinentHeight(vx, vz);
-    }
-    if (gz % 20 === 0 || performance.now() - tLast > 6) {
-      const pct = Math.round(15 + (gz / gridH) * 5);
-      onProgress?.(pct, `Membangun Geometri & Heightmap (${pct}%)...`);
-      await hardYield();
-      tLast = performance.now();
-    }
-  }
+  if (canRestoreCachedTerrain && cachedTerrain) {
+    // FAST PATH: Langsung pasang buffer biner terrain & heightLookupGrid dari IndexedDB
+    onProgress?.(18, 'Memuat dunia dari Cache Browser (Mode Cepat)...');
+    await scheduler.yieldIfNeeded(true);
 
-  // 2. Slope clamping and 3x3 smoothing filter (Time-sliced max 20 rows per chunk / 6ms budget)
-  onProgress?.(20, 'Menghaluskan Kontur Elevasi & Palung Sungai (20%)...');
-  const smoothedHeights = new Float32Array(rawHeights);
-  const maxSlopeDelta = 2.4;
-  tLast = performance.now();
+    (posAttr.array as Float32Array).set(cachedTerrain.terrainPositions);
+    posAttr.needsUpdate = true;
 
-  for (let pass = 0; pass < 2; pass++) {
-    for (let gz = 1; gz < gridH - 1; gz++) {
-      for (let gx = 1; gx < gridW - 1; gx++) {
+    terrainGeo.setAttribute(
+      'color',
+      new THREE.Float32BufferAttribute(new Float32Array(cachedTerrain.terrainColors), 3)
+    );
+    terrainGeo.setAttribute(
+      'normal',
+      new THREE.Float32BufferAttribute(new Float32Array(cachedTerrain.terrainNormals), 3)
+    );
+    terrainGeo.computeBoundingSphere();
+    setMeshGroundHeights(cachedTerrain.heightLookupGrid);
+
+    onProgress?.(25, 'Memuat dunia dari Cache Browser (Mode Cepat)...');
+    await scheduler.yieldIfNeeded(true);
+  } else {
+    // 1. Initial procedural heights sampling (Time-sliced max 20 rows per chunk / 6ms budget)
+    onProgress?.(15, 'Membangun Geometri & Heightmap Benua Eldoria (15%)...');
+    const rawHeights = new Float32Array(vertexCount);
+    const gridW = TERRAIN_GRID.gridW;
+    const gridH = TERRAIN_GRID.gridH;
+    let tLast = performance.now();
+
+    for (let gz = 0; gz < gridH; gz++) {
+      for (let gx = 0; gx < gridW; gx++) {
         const idx = gz * gridW + gx;
-        if (rawHeights[idx] <= -5.8) continue;
         const vx = posAttr.getX(idx) + TERRAIN_GRID.centerX;
         const vz = posAttr.getZ(idx) + TERRAIN_GRID.centerZ;
-
-        const dRiv = getDistanceToRiver(vx, vz);
-        if (dRiv < 3.2) continue;
-
-        const left = smoothedHeights[gz * gridW + (gx - 1)];
-        const right = smoothedHeights[gz * gridW + (gx + 1)];
-        const top = smoothedHeights[(gz - 1) * gridW + gx];
-        const bottom = smoothedHeights[(gz + 1) * gridW + gx];
-
-        const avg = (left + right + top + bottom) * 0.25;
-        let cur = smoothedHeights[idx];
-
-        if (dRiv < 13.5) {
-          cur = cur * 0.45 + avg * 0.55;
-        }
-        if (cur - avg > maxSlopeDelta) {
-          cur = avg + maxSlopeDelta;
-        } else if (avg - cur > maxSlopeDelta) {
-          cur = avg - maxSlopeDelta;
-        }
-        smoothedHeights[idx] = cur;
+        rawHeights[idx] = getProceduralContinentHeight(vx, vz);
       }
       if (gz % 20 === 0 || performance.now() - tLast > 6) {
-        const pct = Math.round(20 + ((pass * gridH + gz) / (2 * gridH)) * 5);
-        onProgress?.(pct, `Menghaluskan Kontur Elevasi (${pct}%)...`);
+        const pct = Math.round(15 + (gz / gridH) * 5);
+        onProgress?.(pct, `Membangun Geometri & Heightmap (${pct}%)...`);
         await hardYield();
         tLast = performance.now();
       }
     }
-  }
 
-  // 3. Vertex colors generated seamlessly (Time-sliced max 20 rows per chunk / 6ms budget)
-  onProgress?.(25, 'Mewarnai Biome Terrain (25%)...');
-  const colors = new Float32Array(vertexCount * 3);
-  tLast = performance.now();
+    // 2. Slope clamping and 3x3 smoothing filter (Time-sliced max 20 rows per chunk / 6ms budget)
+    onProgress?.(20, 'Menghaluskan Kontur Elevasi & Palung Sungai (20%)...');
+    const smoothedHeights = new Float32Array(rawHeights);
+    const maxSlopeDelta = 2.4;
+    tLast = performance.now();
 
-  for (let gz = 0; gz < gridH; gz++) {
-    for (let gx = 0; gx < gridW; gx++) {
-      const idx = gz * gridW + gx;
-      const vx = posAttr.getX(idx) + TERRAIN_GRID.centerX;
-      const vz = posAttr.getZ(idx) + TERRAIN_GRID.centerZ;
-      const vy = smoothedHeights[idx];
-      posAttr.setY(idx, vy);
+    for (let pass = 0; pass < 2; pass++) {
+      for (let gz = 1; gz < gridH - 1; gz++) {
+        for (let gx = 1; gx < gridW - 1; gx++) {
+          const idx = gz * gridW + gx;
+          if (rawHeights[idx] <= -5.8) continue;
+          const vx = posAttr.getX(idx) + TERRAIN_GRID.centerX;
+          const vz = posAttr.getZ(idx) + TERRAIN_GRID.centerZ;
 
-      const col = getTerrainVertexColor(vx, vz, vy);
-      colors[idx * 3] = col[0] / 255;
-      colors[idx * 3 + 1] = col[1] / 255;
-      colors[idx * 3 + 2] = col[2] / 255;
+          const dRiv = getDistanceToRiver(vx, vz);
+          if (dRiv < 3.2) continue;
+
+          const left = smoothedHeights[gz * gridW + (gx - 1)];
+          const right = smoothedHeights[gz * gridW + (gx + 1)];
+          const top = smoothedHeights[(gz - 1) * gridW + gx];
+          const bottom = smoothedHeights[(gz + 1) * gridW + gx];
+
+          const avg = (left + right + top + bottom) * 0.25;
+          let cur = smoothedHeights[idx];
+
+          if (dRiv < 13.5) {
+            cur = cur * 0.45 + avg * 0.55;
+          }
+          if (cur - avg > maxSlopeDelta) {
+            cur = avg + maxSlopeDelta;
+          } else if (avg - cur > maxSlopeDelta) {
+            cur = avg - maxSlopeDelta;
+          }
+          smoothedHeights[idx] = cur;
+        }
+        if (gz % 20 === 0 || performance.now() - tLast > 6) {
+          const pct = Math.round(20 + ((pass * gridH + gz) / (2 * gridH)) * 5);
+          onProgress?.(pct, `Menghaluskan Kontur Elevasi (${pct}%)...`);
+          await hardYield();
+          tLast = performance.now();
+        }
+      }
     }
-    if (gz % 20 === 0 || performance.now() - tLast > 6) {
-      const pct = Math.round(25 + (gz / gridH) * 5);
-      onProgress?.(pct, `Mewarnai Biome Terrain (${pct}%)...`);
-      await hardYield();
-      tLast = performance.now();
-    }
-  }
 
-  posAttr.needsUpdate = true;
-  terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  terrainGeo.computeVertexNormals();
-  terrainGeo.computeBoundingSphere();
+    // 3. Vertex colors generated seamlessly (Time-sliced max 20 rows per chunk / 6ms budget)
+    onProgress?.(25, 'Mewarnai Biome Terrain (25%)...');
+    const colors = new Float32Array(vertexCount * 3);
+    tLast = performance.now();
+
+    for (let gz = 0; gz < gridH; gz++) {
+      for (let gx = 0; gx < gridW; gx++) {
+        const idx = gz * gridW + gx;
+        const vx = posAttr.getX(idx) + TERRAIN_GRID.centerX;
+        const vz = posAttr.getZ(idx) + TERRAIN_GRID.centerZ;
+        const vy = smoothedHeights[idx];
+        posAttr.setY(idx, vy);
+
+        const col = getTerrainVertexColor(vx, vz, vy);
+        colors[idx * 3] = col[0] / 255;
+        colors[idx * 3 + 1] = col[1] / 255;
+        colors[idx * 3 + 2] = col[2] / 255;
+      }
+      if (gz % 20 === 0 || performance.now() - tLast > 6) {
+        const pct = Math.round(25 + (gz / gridH) * 5);
+        onProgress?.(pct, `Mewarnai Biome Terrain (${pct}%)...`);
+        await hardYield();
+        tLast = performance.now();
+      }
+    }
+
+    posAttr.needsUpdate = true;
+    terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    terrainGeo.computeVertexNormals();
+    terrainGeo.computeBoundingSphere();
+
+    setMeshGroundHeights(smoothedHeights);
+  }
 
   const terrainMat = new THREE.MeshStandardMaterial({
     vertexColors: true,
@@ -496,13 +532,23 @@ export async function buildWorldAsync(
   terrainMesh.receiveShadow = true;
   scene.add(terrainMesh);
 
-  setMeshGroundHeights(smoothedHeights);
   const getTerrainHeight = getExactMeshGroundHeight;
 
-  // 4. Build Spatial Lookup Grid (2D TypedArray Float32 & Uint8)
-  onProgress?.(26, 'Membangun Spatial Lookup Grid & Heightmap (TypedArray)...');
-  await SpatialLookupGrid.get().buildAsync(getTerrainHeight, onProgress);
-  await cooperativeYield(4);
+  // 4. Spatial Lookup Grid (2D TypedArray Float32 & Uint8) - Fast hydrate if cached
+  const spatial = SpatialLookupGrid.get();
+  const hydratedSpatial =
+    canRestoreCachedTerrain &&
+    cachedTerrain?.spatialHeightGrid &&
+    cachedTerrain?.spatialFlagsGrid &&
+    spatial.hydrate(cachedTerrain.spatialHeightGrid, cachedTerrain.spatialFlagsGrid);
+
+  if (!hydratedSpatial) {
+    onProgress?.(26, 'Membangun Spatial Lookup Grid & Heightmap (TypedArray)...');
+    await spatial.buildAsync(getTerrainHeight, onProgress);
+  } else {
+    onProgress?.(31, 'Memuat dunia dari Cache Browser (Mode Cepat)...');
+  }
+  await scheduler.yieldIfNeeded(true);
 
   return await populateWorldEntities(scene, terrainMesh, getTerrainHeight, dirLight, hemiLight, decorativeProps, pointLights, onProgress);
 }

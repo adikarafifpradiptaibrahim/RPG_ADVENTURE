@@ -24,6 +24,8 @@ import { SpatialLookupGrid } from './spatialGrid';
 import { checkFrameBudget, yieldIfBudgetExceeded, yieldToChrome, yieldIfNeeded, cooperativeYield, hardYield } from './frameBudget';
 import { getDeviceProfile } from '../utils/deviceProfiler';
 import { getLandmarkLayout } from './worldLayoutConfig';
+import { SmoothLoadScheduler } from '../utils/asyncLoader';
+import type { WorldCachePayload } from '../storage/worldCacheManager';
 
 export { getTerrainVertexColor };
 
@@ -32,6 +34,7 @@ export interface WorldEnvironmentResult {
   colliders: WorldCollider[];
   update: (delta: number, time: number) => void;
   setVegetationVisible: (visible: boolean) => void;
+  propMatrices?: Record<string, Float32Array>;
 }
 
 export { yieldIfNeeded, hardYield, cooperativeYield };
@@ -74,8 +77,11 @@ export async function buildWorldEnvironmentAsync(
   scene: THREE.Scene,
   getTerrainHeight: (x: number, z: number) => number,
   colliders: WorldCollider[],
-  onProgress?: (percent: number, statusText: string) => void
+  onProgress?: (percent: number, statusText: string) => void,
+  cachedWorld?: WorldCachePayload | null,
+  collectCacheMatrices = false
 ): Promise<WorldEnvironmentResult> {
+  const scheduler = new SmoothLoadScheduler();
   const envGroup = new THREE.Group();
   envGroup.name = 'WorldEnvironment_Zones';
   scene.add(envGroup);
@@ -2295,60 +2301,15 @@ export async function buildWorldEnvironmentAsync(
     return false;
   }
 
-  // 1. SUB-TAHAP 71%: POHON OAK RINDANG / PINUS HIJAU (BERSKALA PERANGKAT)
-  onProgress?.(71, 'Menanam Pohon Oak Rindang (InstancedMesh 71%)...');
   const OAK_COUNT = Math.max(100, Math.round(1100 * propScale));
   const oakTrunkGeo = new THREE.CylinderGeometry(0.32, 0.46, 2.6, 6);
   oakTrunkGeo.translate(0, 1.3, 0);
   const oakCrownGeo = new THREE.DodecahedronGeometry(2.1, 0);
   oakCrownGeo.translate(0, 3.8, 0);
 
-  const oakTrunkMesh = new THREE.InstancedMesh(oakTrunkGeo, matWoodRustic, OAK_COUNT);
-  const oakCrownMesh = new THREE.InstancedMesh(oakCrownGeo, matOakFoliage, OAK_COUNT);
-
-  let oakAssigned = 0;
-  let oakIter = 0;
-  const oakStep = 18;
-  for (let x = -600; x < 680 && oakAssigned < OAK_COUNT; x += oakStep) {
-    for (let z = -800; z < 100 && oakAssigned < OAK_COUNT; z += oakStep) {
-      oakIter++;
-      if (oakIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
-        await hardYield();
-        tLastEnvYield = performance.now();
-      }
-      const ox = x + (0.15 + Math.random() * 0.7) * oakStep;
-      const oz = z + (0.15 + Math.random() * 0.7) * oakStep;
-
-      if (isFarOcean(ox, oz) || spatialGrid.isBlocked(ox, oz) || spatialGrid.isDesert(ox, oz) || spatialGrid.isOcean(ox, oz) || isNearBridge(ox, oz) || isNearBossArena(ox, oz)) continue;
-      const oy = spatialGrid.getHeight(ox, oz);
-      if (oy < 0.25 || oy > 4.5) continue;
-
-      const s = 0.8 + Math.random() * 0.55;
-      dummy.position.set(ox, oy, oz);
-      dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-      dummy.scale.set(s, s * 1.05, s);
-      dummy.updateMatrix();
-
-      oakTrunkMesh.setMatrixAt(oakAssigned, dummy.matrix);
-      oakCrownMesh.setMatrixAt(oakAssigned, dummy.matrix);
-      oakAssigned++;
-    }
-  }
-  oakTrunkMesh.count = oakAssigned;
-  oakCrownMesh.count = oakAssigned;
-  oakTrunkMesh.instanceMatrix.needsUpdate = true;
-  oakCrownMesh.instanceMatrix.needsUpdate = true;
-  oakTrunkMesh.computeBoundingSphere();
-  oakCrownMesh.computeBoundingSphere();
-  envGroup.add(oakTrunkMesh, oakCrownMesh);
-  await hardYield();
-
-  // 2. SUB-TAHAP 72%: POHON CEMARA SEGITIGA (BERSKALA PERANGKAT)
-  onProgress?.(72, 'Menempatkan Rumpun Pohon Cemara (InstancedMesh 72%)...');
   const PINE_COUNT = Math.max(100, Math.round(900 * propScale));
   const pineTrunkGeo = new THREE.CylinderGeometry(0.22, 0.34, 2.2, 5);
   pineTrunkGeo.translate(0, 1.1, 0);
-
   const pineConeGeo1 = new THREE.ConeGeometry(1.5, 2.2, 5);
   pineConeGeo1.translate(0, 2.4, 0);
   const pineConeGeo2 = new THREE.ConeGeometry(1.2, 1.9, 5);
@@ -2356,98 +2317,9 @@ export async function buildWorldEnvironmentAsync(
   const pineConeGeo3 = new THREE.ConeGeometry(0.85, 1.6, 5);
   pineConeGeo3.translate(0, 4.6, 0);
 
-  const pineTrunkMesh = new THREE.InstancedMesh(pineTrunkGeo, matWoodRustic, PINE_COUNT);
-  const pineFoliageMesh1 = new THREE.InstancedMesh(pineConeGeo1, matPineFoliage, PINE_COUNT);
-  const pineFoliageMesh2 = new THREE.InstancedMesh(pineConeGeo2, matPineFoliage, PINE_COUNT);
-  const pineFoliageMesh3 = new THREE.InstancedMesh(pineConeGeo3, matPineFoliage, PINE_COUNT);
-
-  let pineAssigned = 0;
-  let pineIter = 0;
-  const pineStep = 18;
-  for (let x = -607; x < 675 && pineAssigned < PINE_COUNT; x += pineStep) {
-    for (let z = -807; z < 105 && pineAssigned < PINE_COUNT; z += pineStep) {
-      pineIter++;
-      if (pineIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
-        await hardYield();
-        tLastEnvYield = performance.now();
-      }
-      const px = x + (0.15 + Math.random() * 0.7) * pineStep;
-      const pz = z + (0.15 + Math.random() * 0.7) * pineStep;
-
-      if (isFarOcean(px, pz) || spatialGrid.isBlocked(px, pz) || spatialGrid.isDesert(px, pz) || spatialGrid.isOcean(px, pz) || isNearBridge(px, pz) || isNearBossArena(px, pz)) continue;
-      const py = spatialGrid.getHeight(px, pz);
-      if (py < 0.25 || py > 5.0) continue;
-
-      const s = 0.8 + Math.random() * 0.55;
-      dummy.position.set(px, py, pz);
-      dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-      dummy.scale.set(s, s, s);
-      dummy.updateMatrix();
-
-      pineTrunkMesh.setMatrixAt(pineAssigned, dummy.matrix);
-      pineFoliageMesh1.setMatrixAt(pineAssigned, dummy.matrix);
-      pineFoliageMesh2.setMatrixAt(pineAssigned, dummy.matrix);
-      pineFoliageMesh3.setMatrixAt(pineAssigned, dummy.matrix);
-      pineAssigned++;
-    }
-  }
-  pineTrunkMesh.count = pineAssigned;
-  pineFoliageMesh1.count = pineAssigned;
-  pineFoliageMesh2.count = pineAssigned;
-  pineFoliageMesh3.count = pineAssigned;
-  pineTrunkMesh.instanceMatrix.needsUpdate = true;
-  pineFoliageMesh1.instanceMatrix.needsUpdate = true;
-  pineFoliageMesh2.instanceMatrix.needsUpdate = true;
-  pineFoliageMesh3.instanceMatrix.needsUpdate = true;
-  pineTrunkMesh.computeBoundingSphere();
-  pineFoliageMesh1.computeBoundingSphere();
-  pineFoliageMesh2.computeBoundingSphere();
-  pineFoliageMesh3.computeBoundingSphere();
-  envGroup.add(pineTrunkMesh, pineFoliageMesh1, pineFoliageMesh2, pineFoliageMesh3);
-  await hardYield();
-
-  // 3. SUB-TAHAP 73%: FORMASI BEBATUAN GRANIT & KRISTAL (BERSKALA PERANGKAT)
-  onProgress?.(73, 'Membentuk Formasi Bebatuan & Kristal (InstancedMesh 73%)...');
   const BOULDER_COUNT = Math.max(100, Math.round(800 * propScale));
   const boulderGeo = new THREE.DodecahedronGeometry(1.0, 0);
-  const boulderMesh = new THREE.InstancedMesh(boulderGeo, matBoulder, BOULDER_COUNT);
 
-  let boulderAssigned = 0;
-  let boulderIter = 0;
-  const boulderStep = 18;
-  for (let x = -454; x < 400 && boulderAssigned < BOULDER_COUNT; x += boulderStep) {
-    for (let z = -404; z < 180 && boulderAssigned < BOULDER_COUNT; z += boulderStep) {
-      boulderIter++;
-      if (boulderIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
-        await hardYield();
-        tLastEnvYield = performance.now();
-      }
-      const bx = x + (0.15 + Math.random() * 0.7) * boulderStep;
-      const bz = z + (0.15 + Math.random() * 0.7) * boulderStep;
-
-      if (isFarOcean(bx, bz) || spatialGrid.isBlocked(bx, bz) || spatialGrid.isDesert(bx, bz) || spatialGrid.isOcean(bx, bz) || isNearBridge(bx, bz) || isNearBossArena(bx, bz)) continue;
-      const by = spatialGrid.getHeight(bx, bz);
-      if (by < 0.2) continue;
-
-      const scale = 0.7 + Math.random() * 0.75;
-      const scaleY = scale * (0.75 + Math.random() * 0.45);
-      dummy.position.set(bx, by + scaleY * 0.35, bz);
-      dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-      dummy.scale.set(scale, scaleY, scale);
-      dummy.updateMatrix();
-
-      boulderMesh.setMatrixAt(boulderAssigned, dummy.matrix);
-      boulderAssigned++;
-    }
-  }
-  boulderMesh.count = boulderAssigned;
-  boulderMesh.instanceMatrix.needsUpdate = true;
-  boulderMesh.computeBoundingSphere();
-  envGroup.add(boulderMesh);
-  await hardYield();
-
-  // 4. SUB-TAHAP 74%: RUMPUN RUMPUT HIJAU PADANG RUMPUT (BERSKALA PERANGKAT)
-  onProgress?.(74, 'Menumbuhkan Padang Rumput Hijau (InstancedMesh 74%)...');
   const PLAINS_GRASS_COUNT = Math.max(200, Math.round(3500 * propScale));
   const plainsGrassGeo = new THREE.ConeGeometry(0.35, 0.75, 4);
   const matPlainsGrass = new THREE.MeshStandardMaterial({
@@ -2456,144 +2328,370 @@ export async function buildWorldEnvironmentAsync(
     metalness: 0.05,
     flatShading: true,
   });
-  const plainsGrassMesh = new THREE.InstancedMesh(plainsGrassGeo, matPlainsGrass, PLAINS_GRASS_COUNT);
 
-  let pgAssigned = 0;
-  let pgIter = 0;
-  const grassStep = 8.0;
-  for (let x = -600; x < 680 && pgAssigned < PLAINS_GRASS_COUNT; x += grassStep) {
-    for (let z = -800; z < 100 && pgAssigned < PLAINS_GRASS_COUNT; z += grassStep) {
-      pgIter++;
-      if (pgIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
-        await hardYield();
-        tLastEnvYield = performance.now();
-      }
-      const gx = x + (0.15 + Math.random() * 0.7) * grassStep;
-      const gz = z + (0.15 + Math.random() * 0.7) * grassStep;
-
-      if (isFarOcean(gx, gz) || spatialGrid.isBlocked(gx, gz) || spatialGrid.isDesert(gx, gz) || spatialGrid.isOcean(gx, gz) || isNearBridge(gx, gz) || isNearBossArena(gx, gz)) continue;
-      const gy = spatialGrid.getHeight(gx, gz);
-      if (gy < 0.25 || gy > 4.5) continue;
-
-      const s = 0.7 + Math.random() * 0.6;
-      dummy.position.set(gx, gy + s * 0.35, gz);
-      dummy.rotation.set(0, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.2);
-      dummy.scale.set(s, s, s);
-      dummy.updateMatrix();
-
-      plainsGrassMesh.setMatrixAt(pgAssigned, dummy.matrix);
-      pgAssigned++;
-    }
-  }
-  plainsGrassMesh.count = pgAssigned;
-  plainsGrassMesh.instanceMatrix.needsUpdate = true;
-  plainsGrassMesh.computeBoundingSphere();
-  envGroup.add(plainsGrassMesh);
-  await hardYield();
-
-  // 5. SUB-TAHAP 75%: SEMAK LIAR, BATU KARANG & VEGETASI PANTAI (BERSKALA PERANGKAT)
-  onProgress?.(75, 'Menyebarkan Semak Liar & Vegetasi Pantai (InstancedMesh 75%)...');
   const SHRUB_COUNT = Math.max(80, Math.round(750 * propScale));
   const shrubGeo = new THREE.DodecahedronGeometry(0.65, 0);
-  const shrubMesh = new THREE.InstancedMesh(shrubGeo, matShrub, SHRUB_COUNT);
 
-  let shrubAssigned = 0;
-  let shrubIter = 0;
-  const shrubStep = 18;
-  for (let x = -600; x < 680 && shrubAssigned < SHRUB_COUNT; x += shrubStep) {
-    for (let z = -800; z < 100 && shrubAssigned < SHRUB_COUNT; z += shrubStep) {
-      shrubIter++;
-      if (shrubIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
-        await hardYield();
-        tLastEnvYield = performance.now();
-      }
-      const sx = x + (0.15 + Math.random() * 0.7) * shrubStep;
-      const sz = z + (0.15 + Math.random() * 0.7) * shrubStep;
-
-      if (isFarOcean(sx, sz) || spatialGrid.isBlocked(sx, sz) || spatialGrid.isDesert(sx, sz) || spatialGrid.isOcean(sx, sz) || isNearBridge(sx, sz) || isNearBossArena(sx, sz)) continue;
-      const sy = spatialGrid.getHeight(sx, sz);
-      if (sy < 0.2) continue;
-
-      const s = 0.55 + Math.random() * 0.65;
-      dummy.position.set(sx, sy + s * 0.32, sz);
-      dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-      dummy.scale.set(s * (0.8 + Math.random() * 0.4), s * 0.7, s * (0.8 + Math.random() * 0.4));
-      dummy.updateMatrix();
-
-      shrubMesh.setMatrixAt(shrubAssigned, dummy.matrix);
-      shrubAssigned++;
-    }
-  }
-  shrubMesh.count = shrubAssigned;
-  shrubMesh.instanceMatrix.needsUpdate = true;
-  shrubMesh.computeBoundingSphere();
-  envGroup.add(shrubMesh);
-  await hardYield();
-
-  // Batu Karang Laut Pesisir (Coastal Reef Stones): 60 Instances
   const REEF_STONE_COUNT = Math.max(20, Math.round(60 * propScale));
   const reefStoneGeo = new THREE.DodecahedronGeometry(0.85, 0);
-  const reefStoneMesh = new THREE.InstancedMesh(reefStoneGeo, matWetSeaRock, REEF_STONE_COUNT);
-  let reefAssigned = 0;
-  let reefIter = 0;
-  for (let rx = -448; rx <= -410 && reefAssigned < REEF_STONE_COUNT; rx += 7) {
-    for (let rz = -240; rz <= -50 && reefAssigned < REEF_STONE_COUNT; rz += 15) {
-      reefIter++;
-      if (reefIter % 20 === 0 || performance.now() - tLastEnvYield > 6) {
-        await hardYield();
-        tLastEnvYield = performance.now();
-      }
-      if (spatialGrid.isDesert(rx, rz)) continue;
-      const ry = spatialGrid.getHeight(rx, rz);
 
-      const sX = 0.8 + Math.random() * 1.4;
-      const sY = 0.6 + Math.random() * 1.2;
-      const sZ = 0.8 + Math.random() * 1.4;
-      dummy.position.set(rx, ry + sY * 0.35, rz);
-      dummy.rotation.set(Math.random() * 0.4, Math.random() * Math.PI, Math.random() * 0.4);
-      dummy.scale.set(sX, sY, sZ);
-      dummy.updateMatrix();
-
-      reefStoneMesh.setMatrixAt(reefAssigned, dummy.matrix);
-      reefAssigned++;
-    }
-  }
-  reefStoneMesh.count = reefAssigned;
-  reefStoneMesh.instanceMatrix.needsUpdate = true;
-  reefStoneMesh.computeBoundingSphere();
-  envGroup.add(reefStoneMesh);
-
-  // Rumput Gumuk Pantai (Beach Dune Grass): 80 Instances
   const BEACH_GRASS_COUNT = Math.max(25, Math.round(80 * propScale));
   const beachGrassGeo = new THREE.ConeGeometry(0.45, 0.9, 4);
-  const beachGrassMesh = new THREE.InstancedMesh(beachGrassGeo, matBeachGrass, BEACH_GRASS_COUNT);
-  let bgAssigned = 0;
-  let bgIter = 0;
-  for (let gx = -428; gx <= -402 && bgAssigned < BEACH_GRASS_COUNT; gx += 5) {
-    for (let gz = -235; gz <= -55 && bgAssigned < BEACH_GRASS_COUNT; gz += 10) {
-      bgIter++;
-      if (bgIter % 20 === 0 || performance.now() - tLastEnvYield > 6) {
-        await hardYield();
-        tLastEnvYield = performance.now();
+
+  const cachedProps = cachedWorld?.propMatrices;
+  const hasAllCachedProps = Boolean(
+    cachedProps &&
+      cachedProps.oak instanceof Float32Array &&
+      cachedProps.pine instanceof Float32Array &&
+      cachedProps.boulder instanceof Float32Array &&
+      cachedProps.plainsGrass instanceof Float32Array &&
+      cachedProps.shrub instanceof Float32Array &&
+      cachedProps.reefStone instanceof Float32Array &&
+      cachedProps.beachGrass instanceof Float32Array
+  );
+
+  const restoreInstancedLayer = (
+    geo: THREE.BufferGeometry,
+    mat: THREE.Material,
+    matrices: Float32Array
+  ): THREE.InstancedMesh => {
+    const count = Math.floor(matrices.length / 16);
+    const mesh = new THREE.InstancedMesh(geo, mat, Math.max(1, count));
+    mesh.count = count;
+    if (count > 0) {
+      (mesh.instanceMatrix.array as Float32Array).set(matrices.subarray(0, count * 16));
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+    mesh.computeBoundingSphere();
+    return mesh;
+  };
+
+  let oakTrunkMesh: THREE.InstancedMesh;
+  let oakCrownMesh: THREE.InstancedMesh;
+  let pineTrunkMesh: THREE.InstancedMesh;
+  let pineFoliageMesh1: THREE.InstancedMesh;
+  let pineFoliageMesh2: THREE.InstancedMesh;
+  let pineFoliageMesh3: THREE.InstancedMesh;
+  let boulderMesh: THREE.InstancedMesh;
+  let plainsGrassMesh: THREE.InstancedMesh;
+  let shrubMesh: THREE.InstancedMesh;
+  let reefStoneMesh: THREE.InstancedMesh;
+  let beachGrassMesh: THREE.InstancedMesh;
+  let capturedPropMatrices: Record<string, Float32Array> | undefined;
+
+  if (hasAllCachedProps && cachedProps) {
+    // FAST PATH: Langsung muat seluruh matriks InstancedMesh dari IndexedDB
+    onProgress?.(71, 'Memuat dunia dari Cache Browser (Mode Cepat)...');
+    await scheduler.yieldIfNeeded(true);
+
+    oakTrunkMesh = restoreInstancedLayer(oakTrunkGeo, matWoodRustic, cachedProps.oak);
+    oakCrownMesh = restoreInstancedLayer(oakCrownGeo, matOakFoliage, cachedProps.oak);
+    envGroup.add(oakTrunkMesh, oakCrownMesh);
+    await scheduler.yieldIfNeeded(true);
+
+    pineTrunkMesh = restoreInstancedLayer(pineTrunkGeo, matWoodRustic, cachedProps.pine);
+    pineFoliageMesh1 = restoreInstancedLayer(pineConeGeo1, matPineFoliage, cachedProps.pine);
+    pineFoliageMesh2 = restoreInstancedLayer(pineConeGeo2, matPineFoliage, cachedProps.pine);
+    pineFoliageMesh3 = restoreInstancedLayer(pineConeGeo3, matPineFoliage, cachedProps.pine);
+    envGroup.add(pineTrunkMesh, pineFoliageMesh1, pineFoliageMesh2, pineFoliageMesh3);
+    await scheduler.yieldIfNeeded(true);
+
+    boulderMesh = restoreInstancedLayer(boulderGeo, matBoulder, cachedProps.boulder);
+    envGroup.add(boulderMesh);
+    await scheduler.yieldIfNeeded(true);
+
+    onProgress?.(74, 'Memuat dunia dari Cache Browser (Mode Cepat)...');
+    plainsGrassMesh = restoreInstancedLayer(plainsGrassGeo, matPlainsGrass, cachedProps.plainsGrass);
+    envGroup.add(plainsGrassMesh);
+    await scheduler.yieldIfNeeded(true);
+
+    shrubMesh = restoreInstancedLayer(shrubGeo, matShrub, cachedProps.shrub);
+    reefStoneMesh = restoreInstancedLayer(reefStoneGeo, matWetSeaRock, cachedProps.reefStone);
+    beachGrassMesh = restoreInstancedLayer(beachGrassGeo, matBeachGrass, cachedProps.beachGrass);
+    envGroup.add(shrubMesh, reefStoneMesh, beachGrassMesh);
+    await scheduler.yieldIfNeeded(true);
+  } else {
+    // 1. SUB-TAHAP 71%: POHON OAK RINDANG / PINUS HIJAU (BERSKALA PERANGKAT)
+    onProgress?.(71, 'Menanam Pohon Oak Rindang (InstancedMesh 71%)...');
+    oakTrunkMesh = new THREE.InstancedMesh(oakTrunkGeo, matWoodRustic, OAK_COUNT);
+    oakCrownMesh = new THREE.InstancedMesh(oakCrownGeo, matOakFoliage, OAK_COUNT);
+
+    let oakAssigned = 0;
+    let oakIter = 0;
+    const oakStep = 18;
+    for (let x = -600; x < 680 && oakAssigned < OAK_COUNT; x += oakStep) {
+      for (let z = -800; z < 100 && oakAssigned < OAK_COUNT; z += oakStep) {
+        oakIter++;
+        if (oakIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
+          await hardYield();
+          tLastEnvYield = performance.now();
+        }
+        const ox = x + (0.15 + Math.random() * 0.7) * oakStep;
+        const oz = z + (0.15 + Math.random() * 0.7) * oakStep;
+
+        if (isFarOcean(ox, oz) || spatialGrid.isBlocked(ox, oz) || spatialGrid.isDesert(ox, oz) || spatialGrid.isOcean(ox, oz) || isNearBridge(ox, oz) || isNearBossArena(ox, oz)) continue;
+        const oy = spatialGrid.getHeight(ox, oz);
+        if (oy < 0.25 || oy > 4.5) continue;
+
+        const s = 0.8 + Math.random() * 0.55;
+        dummy.position.set(ox, oy, oz);
+        dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+        dummy.scale.set(s, s * 1.05, s);
+        dummy.updateMatrix();
+
+        oakTrunkMesh.setMatrixAt(oakAssigned, dummy.matrix);
+        oakCrownMesh.setMatrixAt(oakAssigned, dummy.matrix);
+        oakAssigned++;
       }
-      if (spatialGrid.isDesert(gx, gz)) continue;
-      const gy = spatialGrid.getHeight(gx, gz);
-      if (gy < 0.25) continue;
+    }
+    oakTrunkMesh.count = oakAssigned;
+    oakCrownMesh.count = oakAssigned;
+    oakTrunkMesh.instanceMatrix.needsUpdate = true;
+    oakCrownMesh.instanceMatrix.needsUpdate = true;
+    oakTrunkMesh.computeBoundingSphere();
+    oakCrownMesh.computeBoundingSphere();
+    envGroup.add(oakTrunkMesh, oakCrownMesh);
+    await hardYield();
 
-      const s = 0.65 + Math.random() * 0.6;
-      dummy.position.set(gx, gy + s * 0.4, gz);
-      dummy.rotation.set(0, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.2);
-      dummy.scale.set(s, s * 1.1, s);
-      dummy.updateMatrix();
+    // 2. SUB-TAHAP 72%: POHON CEMARA SEGITIGA (BERSKALA PERANGKAT)
+    onProgress?.(72, 'Menempatkan Rumpun Pohon Cemara (InstancedMesh 72%)...');
+    pineTrunkMesh = new THREE.InstancedMesh(pineTrunkGeo, matWoodRustic, PINE_COUNT);
+    pineFoliageMesh1 = new THREE.InstancedMesh(pineConeGeo1, matPineFoliage, PINE_COUNT);
+    pineFoliageMesh2 = new THREE.InstancedMesh(pineConeGeo2, matPineFoliage, PINE_COUNT);
+    pineFoliageMesh3 = new THREE.InstancedMesh(pineConeGeo3, matPineFoliage, PINE_COUNT);
 
-      beachGrassMesh.setMatrixAt(bgAssigned, dummy.matrix);
-      bgAssigned++;
+    let pineAssigned = 0;
+    let pineIter = 0;
+    const pineStep = 18;
+    for (let x = -607; x < 675 && pineAssigned < PINE_COUNT; x += pineStep) {
+      for (let z = -807; z < 105 && pineAssigned < PINE_COUNT; z += pineStep) {
+        pineIter++;
+        if (pineIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
+          await hardYield();
+          tLastEnvYield = performance.now();
+        }
+        const px = x + (0.15 + Math.random() * 0.7) * pineStep;
+        const pz = z + (0.15 + Math.random() * 0.7) * pineStep;
+
+        if (isFarOcean(px, pz) || spatialGrid.isBlocked(px, pz) || spatialGrid.isDesert(px, pz) || spatialGrid.isOcean(px, pz) || isNearBridge(px, pz) || isNearBossArena(px, pz)) continue;
+        const py = spatialGrid.getHeight(px, pz);
+        if (py < 0.25 || py > 5.0) continue;
+
+        const s = 0.8 + Math.random() * 0.55;
+        dummy.position.set(px, py, pz);
+        dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+        dummy.scale.set(s, s, s);
+        dummy.updateMatrix();
+
+        pineTrunkMesh.setMatrixAt(pineAssigned, dummy.matrix);
+        pineFoliageMesh1.setMatrixAt(pineAssigned, dummy.matrix);
+        pineFoliageMesh2.setMatrixAt(pineAssigned, dummy.matrix);
+        pineFoliageMesh3.setMatrixAt(pineAssigned, dummy.matrix);
+        pineAssigned++;
+      }
+    }
+    pineTrunkMesh.count = pineAssigned;
+    pineFoliageMesh1.count = pineAssigned;
+    pineFoliageMesh2.count = pineAssigned;
+    pineFoliageMesh3.count = pineAssigned;
+    pineTrunkMesh.instanceMatrix.needsUpdate = true;
+    pineFoliageMesh1.instanceMatrix.needsUpdate = true;
+    pineFoliageMesh2.instanceMatrix.needsUpdate = true;
+    pineFoliageMesh3.instanceMatrix.needsUpdate = true;
+    pineTrunkMesh.computeBoundingSphere();
+    pineFoliageMesh1.computeBoundingSphere();
+    pineFoliageMesh2.computeBoundingSphere();
+    pineFoliageMesh3.computeBoundingSphere();
+    envGroup.add(pineTrunkMesh, pineFoliageMesh1, pineFoliageMesh2, pineFoliageMesh3);
+    await hardYield();
+
+    // 3. SUB-TAHAP 73%: FORMASI BEBATUAN GRANIT & KRISTAL (BERSKALA PERANGKAT)
+    onProgress?.(73, 'Membentuk Formasi Bebatuan & Kristal (InstancedMesh 73%)...');
+    boulderMesh = new THREE.InstancedMesh(boulderGeo, matBoulder, BOULDER_COUNT);
+
+    let boulderAssigned = 0;
+    let boulderIter = 0;
+    const boulderStep = 18;
+    for (let x = -454; x < 400 && boulderAssigned < BOULDER_COUNT; x += boulderStep) {
+      for (let z = -404; z < 180 && boulderAssigned < BOULDER_COUNT; z += boulderStep) {
+        boulderIter++;
+        if (boulderIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
+          await hardYield();
+          tLastEnvYield = performance.now();
+        }
+        const bx = x + (0.15 + Math.random() * 0.7) * boulderStep;
+        const bz = z + (0.15 + Math.random() * 0.7) * boulderStep;
+
+        if (isFarOcean(bx, bz) || spatialGrid.isBlocked(bx, bz) || spatialGrid.isDesert(bx, bz) || spatialGrid.isOcean(bx, bz) || isNearBridge(bx, bz) || isNearBossArena(bx, bz)) continue;
+        const by = spatialGrid.getHeight(bx, bz);
+        if (by < 0.2) continue;
+
+        const scale = 0.7 + Math.random() * 0.75;
+        const scaleY = scale * (0.75 + Math.random() * 0.45);
+        dummy.position.set(bx, by + scaleY * 0.35, bz);
+        dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+        dummy.scale.set(scale, scaleY, scale);
+        dummy.updateMatrix();
+
+        boulderMesh.setMatrixAt(boulderAssigned, dummy.matrix);
+        boulderAssigned++;
+      }
+    }
+    boulderMesh.count = boulderAssigned;
+    boulderMesh.instanceMatrix.needsUpdate = true;
+    boulderMesh.computeBoundingSphere();
+    envGroup.add(boulderMesh);
+    await hardYield();
+
+    // 4. SUB-TAHAP 74%: RUMPUN RUMPUT HIJAU PADANG RUMPUT (BERSKALA PERANGKAT)
+    onProgress?.(74, 'Menumbuhkan Padang Rumput Hijau (InstancedMesh 74%)...');
+    plainsGrassMesh = new THREE.InstancedMesh(plainsGrassGeo, matPlainsGrass, PLAINS_GRASS_COUNT);
+
+    let pgAssigned = 0;
+    let pgIter = 0;
+    const grassStep = 8.0;
+    for (let x = -600; x < 680 && pgAssigned < PLAINS_GRASS_COUNT; x += grassStep) {
+      for (let z = -800; z < 100 && pgAssigned < PLAINS_GRASS_COUNT; z += grassStep) {
+        pgIter++;
+        if (pgIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
+          await hardYield();
+          tLastEnvYield = performance.now();
+        }
+        const gx = x + (0.15 + Math.random() * 0.7) * grassStep;
+        const gz = z + (0.15 + Math.random() * 0.7) * grassStep;
+
+        if (isFarOcean(gx, gz) || spatialGrid.isBlocked(gx, gz) || spatialGrid.isDesert(gx, gz) || spatialGrid.isOcean(gx, gz) || isNearBridge(gx, gz) || isNearBossArena(gx, gz)) continue;
+        const gy = spatialGrid.getHeight(gx, gz);
+        if (gy < 0.25 || gy > 4.5) continue;
+
+        const s = 0.7 + Math.random() * 0.6;
+        dummy.position.set(gx, gy + s * 0.35, gz);
+        dummy.rotation.set(0, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.2);
+        dummy.scale.set(s, s, s);
+        dummy.updateMatrix();
+
+        plainsGrassMesh.setMatrixAt(pgAssigned, dummy.matrix);
+        pgAssigned++;
+      }
+    }
+    plainsGrassMesh.count = pgAssigned;
+    plainsGrassMesh.instanceMatrix.needsUpdate = true;
+    plainsGrassMesh.computeBoundingSphere();
+    envGroup.add(plainsGrassMesh);
+    await hardYield();
+
+    // 5. SUB-TAHAP 75%: SEMAK LIAR, BATU KARANG & VEGETASI PANTAI (BERSKALA PERANGKAT)
+    onProgress?.(75, 'Menyebarkan Semak Liar & Vegetasi Pantai (InstancedMesh 75%)...');
+    shrubMesh = new THREE.InstancedMesh(shrubGeo, matShrub, SHRUB_COUNT);
+
+    let shrubAssigned = 0;
+    let shrubIter = 0;
+    const shrubStep = 18;
+    for (let x = -600; x < 680 && shrubAssigned < SHRUB_COUNT; x += shrubStep) {
+      for (let z = -800; z < 100 && shrubAssigned < SHRUB_COUNT; z += shrubStep) {
+        shrubIter++;
+        if (shrubIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
+          await hardYield();
+          tLastEnvYield = performance.now();
+        }
+        const sx = x + (0.15 + Math.random() * 0.7) * shrubStep;
+        const sz = z + (0.15 + Math.random() * 0.7) * shrubStep;
+
+        if (isFarOcean(sx, sz) || spatialGrid.isBlocked(sx, sz) || spatialGrid.isDesert(sx, sz) || spatialGrid.isOcean(sx, sz) || isNearBridge(sx, sz) || isNearBossArena(sx, sz)) continue;
+        const sy = spatialGrid.getHeight(sx, sz);
+        if (sy < 0.2) continue;
+
+        const s = 0.55 + Math.random() * 0.65;
+        dummy.position.set(sx, sy + s * 0.32, sz);
+        dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+        dummy.scale.set(s * (0.8 + Math.random() * 0.4), s * 0.7, s * (0.8 + Math.random() * 0.4));
+        dummy.updateMatrix();
+
+        shrubMesh.setMatrixAt(shrubAssigned, dummy.matrix);
+        shrubAssigned++;
+      }
+    }
+    shrubMesh.count = shrubAssigned;
+    shrubMesh.instanceMatrix.needsUpdate = true;
+    shrubMesh.computeBoundingSphere();
+    envGroup.add(shrubMesh);
+    await hardYield();
+
+    // Batu Karang Laut Pesisir (Coastal Reef Stones): 60 Instances
+    reefStoneMesh = new THREE.InstancedMesh(reefStoneGeo, matWetSeaRock, REEF_STONE_COUNT);
+    let reefAssigned = 0;
+    let reefIter = 0;
+    for (let rx = -448; rx <= -410 && reefAssigned < REEF_STONE_COUNT; rx += 7) {
+      for (let rz = -240; rz <= -50 && reefAssigned < REEF_STONE_COUNT; rz += 15) {
+        reefIter++;
+        if (reefIter % 20 === 0 || performance.now() - tLastEnvYield > 6) {
+          await hardYield();
+          tLastEnvYield = performance.now();
+        }
+        if (spatialGrid.isDesert(rx, rz)) continue;
+        const ry = spatialGrid.getHeight(rx, rz);
+
+        const sX = 0.8 + Math.random() * 1.4;
+        const sY = 0.6 + Math.random() * 1.2;
+        const sZ = 0.8 + Math.random() * 1.4;
+        dummy.position.set(rx, ry + sY * 0.35, rz);
+        dummy.rotation.set(Math.random() * 0.4, Math.random() * Math.PI, Math.random() * 0.4);
+        dummy.scale.set(sX, sY, sZ);
+        dummy.updateMatrix();
+
+        reefStoneMesh.setMatrixAt(reefAssigned, dummy.matrix);
+        reefAssigned++;
+      }
+    }
+    reefStoneMesh.count = reefAssigned;
+    reefStoneMesh.instanceMatrix.needsUpdate = true;
+    reefStoneMesh.computeBoundingSphere();
+    envGroup.add(reefStoneMesh);
+
+    // Rumput Gumuk Pantai (Beach Dune Grass): 80 Instances
+    beachGrassMesh = new THREE.InstancedMesh(beachGrassGeo, matBeachGrass, BEACH_GRASS_COUNT);
+    let bgAssigned = 0;
+    let bgIter = 0;
+    for (let gx = -428; gx <= -402 && bgAssigned < BEACH_GRASS_COUNT; gx += 5) {
+      for (let gz = -235; gz <= -55 && bgAssigned < BEACH_GRASS_COUNT; gz += 10) {
+        bgIter++;
+        if (bgIter % 20 === 0 || performance.now() - tLastEnvYield > 6) {
+          await hardYield();
+          tLastEnvYield = performance.now();
+        }
+        if (spatialGrid.isDesert(gx, gz)) continue;
+        const gy = spatialGrid.getHeight(gx, gz);
+        if (gy < 0.25) continue;
+
+        const s = 0.65 + Math.random() * 0.6;
+        dummy.position.set(gx, gy + s * 0.4, gz);
+        dummy.rotation.set(0, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.2);
+        dummy.scale.set(s, s * 1.1, s);
+        dummy.updateMatrix();
+
+        beachGrassMesh.setMatrixAt(bgAssigned, dummy.matrix);
+        bgAssigned++;
+      }
+    }
+    beachGrassMesh.count = bgAssigned;
+    beachGrassMesh.instanceMatrix.needsUpdate = true;
+    beachGrassMesh.computeBoundingSphere();
+    envGroup.add(beachGrassMesh);
+
+    if (collectCacheMatrices) {
+      const sliceActive = (mesh: THREE.InstancedMesh): Float32Array =>
+        (mesh.instanceMatrix.array as Float32Array).slice(0, mesh.count * 16);
+      capturedPropMatrices = {
+        oak: sliceActive(oakTrunkMesh),
+        pine: sliceActive(pineTrunkMesh),
+        boulder: sliceActive(boulderMesh),
+        plainsGrass: sliceActive(plainsGrassMesh),
+        shrub: sliceActive(shrubMesh),
+        reefStone: sliceActive(reefStoneMesh),
+        beachGrass: sliceActive(beachGrassMesh),
+      };
     }
   }
-  beachGrassMesh.count = bgAssigned;
-  beachGrassMesh.instanceMatrix.needsUpdate = true;
-  beachGrassMesh.computeBoundingSphere();
-  envGroup.add(beachGrassMesh);
 
   // ============================================================================
   // ZONA L: VEGETASI & BEBATUAN GURUN SOLARIA (SAGUARO CACTI, SANDSTONE CRAGS & DRY TREES)
@@ -3299,6 +3397,7 @@ export async function buildWorldEnvironmentAsync(
     colliders,
     update,
     setVegetationVisible,
+    propMatrices: capturedPropMatrices,
   };
 }
 

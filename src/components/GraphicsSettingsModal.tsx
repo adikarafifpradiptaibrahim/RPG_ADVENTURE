@@ -52,6 +52,7 @@ import {
   CloudSyncStatus,
   CloudUser,
 } from '../game/storage/cloudSyncManager';
+import { BrowserCacheSettingsSection } from './BrowserCacheSettingsSection';
 
 interface GraphicsSettingsModalProps {
   isOpen: boolean;
@@ -493,6 +494,9 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* Bagian Performa & Cache Browser (Lokal Per Perangkat) */}
+              <BrowserCacheSettingsSection isOpen={isOpen} />
             </div>
           )}
 

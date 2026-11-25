@@ -11,6 +11,8 @@ import {
   RIVER_SOUTH_BRANCH,
 } from '../game/mapSampler';
 import { drawRoadsOnMiniMap } from '../game/RoadSystem';
+import { getCachedTerrainRasterCanvas } from '../game/mapIllustratedRenderer';
+import { WORLD_BOUNDS, WORLD_WIDTH, WORLD_HEIGHT } from '../game/3d/worldData';
 
 interface MiniMapProps {
   playerPos: { x: number; z: number; rotationY: number };
@@ -114,60 +116,71 @@ export const MiniMap: React.FC<MiniMapProps> = ({
     ctx.arc(halfSize, halfSize, halfSize - 2, 0, Math.PI * 2);
     ctx.clip();
 
-    // 1. Procedural Top-down Terrain Raster
-    // Sampled cleanly on a 48x48 buffer and bilinearly smoothed to 240x240
-    const gridSize = 48;
-    const offscreen = document.createElement('canvas');
-    offscreen.width = gridSize;
-    offscreen.height = gridSize;
-    const offCtx = offscreen.getContext('2d');
-    if (offCtx) {
-      const imgData = offCtx.createImageData(gridSize, gridSize);
-      const data = imgData.data;
+    // 1. Procedural Top-down Terrain Raster (gunakan cached raster 512x512 saat radar lebar bila tersedia)
+    const cachedRaster = radarRadius >= 75 ? getCachedTerrainRasterCanvas() : null;
+    const sx = ((playerPos.x - radarRadius - WORLD_BOUNDS.minX) / WORLD_WIDTH) * 512;
+    const sy = ((playerPos.z - radarRadius - WORLD_BOUNDS.minZ) / WORLD_HEIGHT) * 512;
+    const sw = ((radarRadius * 2) / WORLD_WIDTH) * 512;
+    const sh = ((radarRadius * 2) / WORLD_HEIGHT) * 512;
 
-      const px = playerPos.x;
-      const pz = playerPos.z;
-
-      for (let gy = 0; gy < gridSize; gy++) {
-        const wz = pz + ((gy - gridSize / 2) / (gridSize / 2)) * radarRadius;
-        for (let gx = 0; gx < gridSize; gx++) {
-          const wx = px + ((gx - gridSize / 2) / (gridSize / 2)) * radarRadius;
-          const idx = (gy * gridSize + gx) * 4;
-
-          const zone = getBiomeAt(wx, wz);
-          const h = getProceduralContinentHeight(wx, wz);
-          let r = 2, g = 132, b = 199; // #0284c7 ocean azure
-
-          if (zone.id === 'ocean' || h <= 0.0) {
-            r = 2; g = 132; b = 199; // ocean azure / lake
-          } else if (zone.id === 'volcano') {
-            r = 35; g = 31; b = 30; // dark obsidian basalt
-          } else if (h > 0.0 && h <= 0.45 && !(wx > -180 && wx < 260 && wz < -640)) {
-            // Pita tipis pasir pantai tepat di bibir air
-            r = 230; g = 210; b = 150; // #e6d296
-          } else if (zone.id === 'desert') {
-            r = 222; g = 184; b = 100; // golden desert sand (#e2be6e..#d4a64c)
-          } else if (h > 10.0 || (wx > -180 && wx < 260 && wz < -640)) {
-            r = 242; g = 247; b = 251; // snowy mountain / snow biome (#f2f7fb)
-          } else if (wx > 340 && wz < -80 && wz > -200) {
-            r = 54; g = 122; b = 48; // mist forest lush green
-          } else {
-            r = 78; g = 148; b = 62; // fresh plains green (#569e46..#438537)
-          }
-
-          data[idx] = r;
-          data[idx + 1] = g;
-          data[idx + 2] = b;
-          data[idx + 3] = 255;
-        }
-      }
-      offCtx.putImageData(imgData, 0, 0);
-
+    if (cachedRaster && sx >= 0 && sy >= 0 && sx + sw <= 512 && sy + sh <= 512) {
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(offscreen, 0, 0, size, size);
+      ctx.drawImage(cachedRaster, sx, sy, sw, sh, 0, 0, size, size);
     } else {
-      ctx.fillStyle = '#65a30d';
-      ctx.fillRect(0, 0, size, size);
+      // Sampled cleanly on a 48x48 buffer and bilinearly smoothed to 240x240
+      const gridSize = 48;
+      const offscreen = document.createElement('canvas');
+      offscreen.width = gridSize;
+      offscreen.height = gridSize;
+      const offCtx = offscreen.getContext('2d');
+      if (offCtx) {
+        const imgData = offCtx.createImageData(gridSize, gridSize);
+        const data = imgData.data;
+
+        const px = playerPos.x;
+        const pz = playerPos.z;
+
+        for (let gy = 0; gy < gridSize; gy++) {
+          const wz = pz + ((gy - gridSize / 2) / (gridSize / 2)) * radarRadius;
+          for (let gx = 0; gx < gridSize; gx++) {
+            const wx = px + ((gx - gridSize / 2) / (gridSize / 2)) * radarRadius;
+            const idx = (gy * gridSize + gx) * 4;
+
+            const zone = getBiomeAt(wx, wz);
+            const h = getProceduralContinentHeight(wx, wz);
+            let r = 2, g = 132, b = 199; // #0284c7 ocean azure
+
+            if (zone.id === 'ocean' || h <= 0.0) {
+              r = 2; g = 132; b = 199; // ocean azure / lake
+            } else if (zone.id === 'volcano') {
+              r = 35; g = 31; b = 30; // dark obsidian basalt
+            } else if (h > 0.0 && h <= 0.45 && !(wx > -180 && wx < 260 && wz < -640)) {
+              // Pita tipis pasir pantai tepat di bibir air
+              r = 230; g = 210; b = 150; // #e6d296
+            } else if (zone.id === 'desert') {
+              r = 222; g = 184; b = 100; // golden desert sand (#e2be6e..#d4a64c)
+            } else if (h > 10.0 || (wx > -180 && wx < 260 && wz < -640)) {
+              r = 242; g = 247; b = 251; // snowy mountain / snow biome (#f2f7fb)
+            } else if (wx > 340 && wz < -80 && wz > -200) {
+              r = 54; g = 122; b = 48; // mist forest lush green
+            } else {
+              r = 78; g = 148; b = 62; // fresh plains green (#569e46..#438537)
+            }
+
+            data[idx] = r;
+            data[idx + 1] = g;
+            data[idx + 2] = b;
+            data[idx + 3] = 255;
+          }
+        }
+        offCtx.putImageData(imgData, 0, 0);
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(offscreen, 0, 0, size, size);
+      } else {
+        ctx.fillStyle = '#65a30d';
+        ctx.fillRect(0, 0, size, size);
+      }
     }
 
     // 2. Vector Procedural Rivers (Meandering Blue Splines)

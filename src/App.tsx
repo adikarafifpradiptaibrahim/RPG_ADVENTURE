@@ -356,6 +356,27 @@ export default function App() {
   // Sound Settings
   const [isMuted, setIsMuted] = useState(false);
   const [isMusicPlaying, setIsMusicPlaying] = useState(true);
+  const [worldCacheToast, setWorldCacheToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    let timerId: number | null = null;
+    const onWorldCacheSaved = (e: Event) => {
+      const msg =
+        (e as CustomEvent<{ message?: string }>).detail?.message ||
+        '⚡ Cache dunia disimpan di browser ini untuk loading berikutnya';
+      setWorldCacheToast(msg);
+      if (timerId !== null) window.clearTimeout(timerId);
+      timerId = window.setTimeout(() => {
+        setWorldCacheToast(null);
+        timerId = null;
+      }, 4000);
+    };
+    window.addEventListener('eldoria_world_cache_saved', onWorldCacheSaved);
+    return () => {
+      window.removeEventListener('eldoria_world_cache_saved', onWorldCacheSaved);
+      if (timerId !== null) window.clearTimeout(timerId);
+    };
+  }, []);
 
   // Add floating combat text helper (streamlined to max 3 items to avoid screen clutter)
   const addFloatingText = useCallback(
@@ -1659,6 +1680,12 @@ export default function App() {
           addFloatingText('☁️ Terhubung ke Akun Cloud!', '#38bdf8', 'info');
         }}
       />
+
+      {worldCacheToast && (
+        <div className="pointer-events-none fixed bottom-5 left-1/2 -translate-x-1/2 z-[160] px-4 py-2 rounded-xl bg-stone-950/90 border border-cyan-500/60 text-cyan-200 text-xs font-bold shadow-xl backdrop-blur-md animate-in fade-in duration-200">
+          {worldCacheToast}
+        </div>
+      )}
 
       {/* ============================================================== */}
       {/* PORTRAIT WARNING OVERLAY: PERINGATAN PUTAR HP KE LANDSCAPE     */}

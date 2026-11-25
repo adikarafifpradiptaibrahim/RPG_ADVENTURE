@@ -165,6 +165,19 @@ export class SpatialLookupGrid {
     }
   }
 
+  public hydrate(heightGrid: Float32Array, flagsGrid: Uint8Array): boolean {
+    if (
+      heightGrid.length !== SPATIAL_TOTAL_CELLS ||
+      flagsGrid.length !== SPATIAL_TOTAL_CELLS
+    ) {
+      return false;
+    }
+    this.heightGrid.set(heightGrid);
+    this.flagsGrid.set(flagsGrid);
+    this.isBuilt = true;
+    return true;
+  }
+
   public async buildAsync(
     getTerrainHeight: (x: number, z: number) => number,
     onProgress?: (percent: number, statusText: string) => void

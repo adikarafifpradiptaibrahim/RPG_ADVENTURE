@@ -119,6 +119,20 @@ import {
 import { DayNightSystem, getSharedDayNightSystem } from './dayNightSystem';
 import { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield, yieldIfNeeded, hardYield } from './frameBudget';
 import { getDeviceProfile } from '../utils/deviceProfiler';
+import { SmoothLoadScheduler } from '../utils/asyncLoader';
+import {
+  isWorldCacheEnabled,
+  getWorldCacheKey,
+  loadWorldCache,
+  saveWorldCache,
+  WorldCachePayload,
+} from '../storage/worldCacheManager';
+import { getMeshGroundHeights } from './worldEnvironment';
+import { SpatialLookupGrid } from './spatialGrid';
+import {
+  exportWorldMapRasterToBlob,
+  hydrateWorldMapRasterFromBlob,
+} from '../mapIllustratedRenderer';
 export { yieldToMainThread, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield, yieldIfNeeded, hardYield };
 
 export interface LootPickup {
@@ -1256,12 +1270,35 @@ export class GameEngine {
       return;
     }
 
-    // Tahap 1: 15% Membangun Geometri & Heightmap Benua Eldoria
-    onProgress?.(15, 'Membangun Geometri & Heightmap Benua Eldoria...');
-    await yieldToMainThread();
+    const useCache = isWorldCacheEnabled();
+    const cacheKey = getWorldCacheKey();
+    const scheduler = new SmoothLoadScheduler();
+    let cachedWorld: WorldCachePayload | null = null;
 
-    // 1. Build 3D World (terrain, ocean, structures, colliders, lights, props) with time-sliced async generation
-    this.world = await buildWorldAsync(this.scene, onProgress);
+    if (useCache) {
+      onProgress?.(10, 'Memeriksa Cache Dunia Browser...');
+      await scheduler.yieldIfNeeded(true);
+      cachedWorld = await loadWorldCache(cacheKey);
+      if (cachedWorld) {
+        onProgress?.(14, 'Memuat dunia dari Cache Browser (Mode Cepat)...');
+        await scheduler.yieldIfNeeded(true);
+      }
+    }
+
+    if (!cachedWorld) {
+      // Tahap 1: 15% Membangun Geometri & Heightmap Benua Eldoria
+      onProgress?.(15, 'Membangun Geometri & Heightmap Benua Eldoria...');
+      await yieldToMainThread();
+    }
+
+    // 1. Build 3D World (terrain, ocean, structures, colliders, lights, props) with time-sliced async / cache fast-path
+    this.world = await buildWorldAsync(this.scene, onProgress, cachedWorld);
+
+    if (cachedWorld?.worldMapBlob) {
+      onProgress?.(46, 'Memuat Peta & Minimap dari Cache Browser...');
+      await hydrateWorldMapRasterFromBlob(cachedWorld.worldMapBlob);
+      await scheduler.yieldIfNeeded(true);
+    }
 
     // Connect Day-Night outdoor lighting and dynamic PointLights
     if (this.world?.hemiLight && this.world?.dirLight) {
@@ -1329,8 +1366,13 @@ export class GameEngine {
     // Tahap 3c: 48.5% - 50% Membangkitkan World Boss & Menempatkan Populasi Monster Time-Sliced
     await this.spawnEnemiesAsync(onProgress);
 
-    // Tahap 4: 64% - 80% Populasi Vegetasi & Bebatuan (InstancedMesh) Time-Sliced
-    onProgress?.(64, 'Populasi Vegetasi & Tata Ruang Wilayah (64%)...');
+    // Tahap 4: 64% - 80% Populasi Vegetasi & Bebatuan (InstancedMesh) Time-Sliced / Cache Fast-Path
+    onProgress?.(
+      64,
+      cachedWorld
+        ? 'Memuat dunia dari Cache Browser (Mode Cepat)...'
+        : 'Populasi Vegetasi & Tata Ruang Wilayah (64%)...'
+    );
     await hardYield();
 
     // 2. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation with TypedArray spatial lookup
@@ -1338,7 +1380,9 @@ export class GameEngine {
       this.scene,
       (x, z) => this.world.getTerrainHeight(x, z),
       this.world.colliders,
-      onProgress
+      onProgress,
+      cachedWorld,
+      useCache && !cachedWorld
     );
 
     // Position player mesh on terrain
@@ -1422,6 +1466,57 @@ export class GameEngine {
     // Tahap 8: 100% Membuka tirai loading secara halus
     onProgress?.(100, 'Dunia Eldoria Siap! Menyerahkan Kontrol...');
     await cooperativeYield(8);
+
+    // HANYA jika cache lokal diaktifkan & terjadi cache miss, simpan biner di latar belakang non-blocking
+    if (useCache && !cachedWorld) {
+      void this.persistWorldCacheInBackground(cacheKey);
+    }
+  }
+
+  private async persistWorldCacheInBackground(cacheKey: string): Promise<void> {
+    if (!isWorldCacheEnabled()) return;
+
+    try {
+      await hardYield();
+      const terrainGeo = this.world?.terrainMesh?.geometry;
+      const posAttr = terrainGeo?.attributes?.position?.array as Float32Array | undefined;
+      const colAttr = terrainGeo?.attributes?.color?.array as Float32Array | undefined;
+      const normAttr = terrainGeo?.attributes?.normal?.array as Float32Array | undefined;
+      const heightLookup = getMeshGroundHeights();
+      const propMatrices = this.worldEnvironment?.propMatrices;
+
+      if (!posAttr || !colAttr || !normAttr || !heightLookup || !propMatrices) {
+        return;
+      }
+
+      const worldMapBlob = await exportWorldMapRasterToBlob();
+      await hardYield();
+      if (!worldMapBlob || !isWorldCacheEnabled()) {
+        return;
+      }
+
+      const spatial = SpatialLookupGrid.get();
+      const saved = await saveWorldCache(cacheKey, {
+        terrainPositions: new Float32Array(posAttr),
+        terrainColors: new Float32Array(colAttr),
+        terrainNormals: new Float32Array(normAttr),
+        heightLookupGrid: new Float32Array(heightLookup),
+        worldMapBlob,
+        propMatrices,
+        spatialHeightGrid: spatial.isBuilt ? new Float32Array(spatial.heightGrid) : undefined,
+        spatialFlagsGrid: spatial.isBuilt ? new Uint8Array(spatial.flagsGrid) : undefined,
+      });
+
+      if (saved && typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('eldoria_world_cache_saved', {
+            detail: { message: '⚡ Cache dunia disimpan di browser ini untuk loading berikutnya' },
+          })
+        );
+      }
+    } catch (err) {
+      console.warn('[Engine] Penyimpanan background cache dunia dilewati:', err);
+    }
   }
 
   public clearCombatState(): void {

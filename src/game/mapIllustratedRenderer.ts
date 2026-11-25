@@ -42,6 +42,68 @@ import {
 
 let cachedTerrainRasterCanvas: HTMLCanvasElement | null = null;
 
+export function getCachedTerrainRasterCanvas(): HTMLCanvasElement | null {
+  return cachedTerrainRasterCanvas;
+}
+
+/**
+ * Mengisi cache raster peta 512x512 langsung dari Blob IndexedDB tanpa mengulang rasterisasi CPU.
+ */
+export async function hydrateWorldMapRasterFromBlob(blob: Blob): Promise<boolean> {
+  if (typeof document === 'undefined' || !blob || blob.size === 0) return false;
+
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+
+    if (typeof createImageBitmap === 'function') {
+      const bitmap = await createImageBitmap(blob);
+      ctx.drawImage(bitmap, 0, 0, 512, 512);
+      bitmap.close();
+      cachedTerrainRasterCanvas = canvas;
+      return true;
+    }
+
+    return await new Promise<boolean>((resolve) => {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, 512, 512);
+        URL.revokeObjectURL(url);
+        cachedTerrainRasterCanvas = canvas;
+        resolve(true);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(false);
+      };
+      img.src = url;
+    });
+  } catch (err) {
+    console.warn('[MapRenderer] Gagal memuat raster peta dari cache Blob:', err);
+    return false;
+  }
+}
+
+/**
+ * Mengekspor hasil rasterisasi peta 512x512 menjadi Blob biner untuk disimpan di IndexedDB.
+ */
+export async function exportWorldMapRasterToBlob(): Promise<Blob | null> {
+  const canvas = getOrCreateTerrainRasterCanvas();
+  if (!canvas) return null;
+
+  return new Promise<Blob | null>((resolve) => {
+    try {
+      canvas.toBlob((blob) => resolve(blob), 'image/png');
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 export function getOrCreateTerrainRasterCanvas(): HTMLCanvasElement | null {
   if (cachedTerrainRasterCanvas) return cachedTerrainRasterCanvas;
   if (typeof document === 'undefined') return null;

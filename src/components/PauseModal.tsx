@@ -38,6 +38,7 @@ import {
   getMouseSensitivityMultiplier,
   setMouseSensitivityMultiplier,
 } from '../game/CameraControls';
+import { BrowserCacheSettingsSection } from './BrowserCacheSettingsSection';
 
 interface PauseModalProps {
   isOpen: boolean;
@@ -525,6 +526,9 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* Bagian Performa & Cache Browser (Lokal Per Perangkat) */}
+              <BrowserCacheSettingsSection isOpen={isOpen && pauseView === 'settings'} />
             </div>
           )}
 

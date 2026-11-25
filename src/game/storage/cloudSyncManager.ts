@@ -342,20 +342,36 @@ class CloudSyncManager {
   }
 
   /**
+   * Pastikan pengaturan cache lokal (browser-only) tidak pernah terbawa ke/dari payload cloud.
+   */
+  private cloneWithoutLocalOnlyFlags(data: EldoriaGuestSaveData): EldoriaGuestSaveData {
+    const cloned = JSON.parse(JSON.stringify(data)) as EldoriaGuestSaveData & {
+      deviceSettings: Record<string, unknown>;
+    };
+    if (cloned.deviceSettings && typeof cloned.deviceSettings === 'object') {
+      delete cloned.deviceSettings.enableWorldCache;
+      delete cloned.deviceSettings.worldCacheEnabled;
+      delete cloned.deviceSettings.eldoria_local_world_cache_enabled;
+    }
+    return cloned;
+  }
+
+  /**
    * Muat data cloud ke dalam localStorage perangkat dan picu event reaktif
    */
   public async applyCloudSaveToLocal(cloudRecord: PlayerCloudSaveRecord): Promise<void> {
     try {
       const cloudSaveData = cloudRecord.save_data;
       if (cloudSaveData && typeof cloudSaveData === 'object') {
-        saveGuestSaveData(cloudSaveData);
+        const sanitized = this.cloneWithoutLocalOnlyFlags(cloudSaveData);
+        saveGuestSaveData(sanitized);
         this.lastSyncedAt = new Date(cloudRecord.updated_at).getTime() || Date.now();
         this.isDirty = false;
         this.setStatus('synced');
 
         if (typeof window !== 'undefined') {
           window.dispatchEvent(
-            new CustomEvent('eldoria_cloud_save_loaded', { detail: cloudSaveData })
+            new CustomEvent('eldoria_cloud_save_loaded', { detail: sanitized })
           );
         }
         console.info('[CloudSync] Save data cloud berhasil dimuat ke cache perangkat.');
@@ -374,7 +390,7 @@ class CloudSyncManager {
     this.setStatus('syncing');
 
     try {
-      const localData = getGuestSaveData();
+      const localData = this.cloneWithoutLocalOnlyFlags(getGuestSaveData());
       // Perbarui nama profil guest jika pemain login
       if (this.user.displayName) {
         localData.guestProfile.displayName = this.user.displayName;
@@ -422,7 +438,7 @@ class CloudSyncManager {
     this.setStatus('syncing');
 
     try {
-      const currentLocal = getGuestSaveData();
+      const currentLocal = this.cloneWithoutLocalOnlyFlags(getGuestSaveData());
       const payload = {
         user_id: this.user.id,
         save_version: SAVE_SCHEMA_VERSION,
