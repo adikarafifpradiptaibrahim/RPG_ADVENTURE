@@ -90,6 +90,8 @@ interface HUDProps {
   mapMarkers: MapMarker[];
   hunterWeaponMode?: 'dagger' | 'bow';
   onSwitchHunterWeapon?: () => void;
+  isWeaponDrawn?: boolean;
+  onToggleWeaponDrawn?: () => void;
   gameMode?: 'singleplayer' | 'multiplayer';
   multiplayerInfo?: {
     isConnected: boolean;
@@ -152,6 +154,8 @@ export const HUD: React.FC<HUDProps> = ({
   mapMarkers,
   hunterWeaponMode = 'dagger',
   onSwitchHunterWeapon,
+  isWeaponDrawn = false,
+  onToggleWeaponDrawn,
   gameMode = 'singleplayer',
   multiplayerInfo,
   onToggleChat,
@@ -698,6 +702,7 @@ export const HUD: React.FC<HUDProps> = ({
         <SkillBar
           stats={stats}
           hunterWeaponMode={hunterWeaponMode}
+          isWeaponDrawn={isWeaponDrawn}
           onPerformAttack={onPerformAttack}
           onAttackStart={onAttackStart}
           onAttackEnd={onAttackEnd}
@@ -708,6 +713,7 @@ export const HUD: React.FC<HUDProps> = ({
           onJump={onJump}
           onDash={onDash}
           onSwitchHunterWeapon={onSwitchHunterWeapon}
+          onToggleWeaponDrawn={onToggleWeaponDrawn}
         />
       )}
 

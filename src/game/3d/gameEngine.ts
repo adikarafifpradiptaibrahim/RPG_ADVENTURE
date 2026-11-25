@@ -31,6 +31,7 @@ import {
   updateHunterWeaponStance,
   animateHunterWalk,
   animateHunterBowAim,
+  animateHunterSkyVolley,
 } from './models';
 export { USE_LEGACY_KNIGHT, USE_LEGACY_MAGE, USE_LEGACY_HUNTER };
 import { buildWorld, buildWorldAsync, WorldObjects, WorldCheckpoint, getTerrainHeight as getProceduralTerrainHeight } from './world';
@@ -170,6 +171,7 @@ export interface GameEngineCallbacks {
   onBossDefeated?: (bossName?: string) => void;
   onSpectatorModeChange?: (active: boolean) => void;
   onHunterWeaponSwitch?: (mode: 'dagger' | 'bow') => void;
+  onWeaponDrawnChange?: (drawn: boolean) => void;
   onGlacialAimChange?: (isAiming: boolean, targetInfo?: { name: string; hp: number; maxHp: number; isBoss?: boolean } | null) => void;
   onBowAimChange?: (isAiming: boolean, chargeRatio: number) => void;
   onArrowVolleyAimChange?: (isAiming: boolean) => void;
@@ -600,8 +602,11 @@ export class GameEngine {
   private chargeDrainAccum = 0;
 
   private hunterWeaponMode: 'dagger' | 'bow' = 'dagger';
-  // Hunter Ninja Sprint Auto-Sheathe & Shadow Afterimages state
-  private isHunterSheathed = false;
+  // Open-World Weapon State: Mode Siaga (isWeaponDrawn = true) vs Mode Santai / Handless (isWeaponDrawn = false)
+  public isWeaponDrawn = false;
+  private combatIdleTimer = 0;
+  private weaponDrawTransitionTimer = 0;
+  private isHunterSheathed = true;
   private hunterAfterimagePool: {
     group: THREE.Group;
     materials: THREE.MeshBasicMaterial[];
@@ -1727,6 +1732,14 @@ export class GameEngine {
     this.playerMesh.group.position.copy(this.playerPos);
     this.playerMesh.group.rotation.y = this.playerRotationY;
     this.scene.add(this.playerMesh.group);
+    if (this.charClass === 'rogue') {
+      this.isWeaponDrawn = false;
+      this.isHunterSheathed = true;
+      this.combatIdleTimer = 0;
+      this.weaponDrawTransitionTimer = 0;
+      this.syncHunterWeaponModel();
+      this.callbacks.onWeaponDrawnChange?.(false);
+    }
   }
 
   // ==========================================
@@ -3587,7 +3600,12 @@ export class GameEngine {
       } else {
         this.castSkill(3);
       }
-    } else if (key === 'x' || code === 'keyx' || key === 't' || code === 'keyt') {
+    } else if (key === 'x' || code === 'keyx') {
+      // Manual Toggle Senjata Open-World: Siaga (Terhunus) <-> Santai (Handless / Tersarung)
+      if (this.charClass === 'rogue') {
+        this.toggleWeaponDrawn();
+      }
+    } else if (key === 't' || code === 'keyt') {
       this.switchHunterWeapon();
     }
   };
@@ -3602,18 +3620,23 @@ export class GameEngine {
     }
     this.bowCombatStanceTimer = 0;
     this.bowShotCooldownTimer = 0;
-    this.unsheatheHunterWeapon();
     this.hunterWeaponMode = targetMode || (this.hunterWeaponMode === 'dagger' ? 'bow' : 'dagger');
-    this.playerMesh?.setHunterBowInHand?.(false);
+    // Saat switch senjata ke Busur/Belati, langsung aktifkan Mode Siaga (terhunus di tangan) & reset timer 7.0s
+    this.isWeaponDrawn = true;
+    this.isHunterSheathed = false;
+    this.combatIdleTimer = 7.0;
+    this.weaponDrawTransitionTimer = 0.12;
     if (this.playerMesh.setHunterWeaponMode) {
       this.playerMesh.setHunterWeaponMode(this.hunterWeaponMode);
     }
+    this.syncHunterWeaponModel();
+    this.callbacks.onWeaponDrawnChange?.(true);
     if (this.hunterWeaponMode === 'bow') {
       soundManager.playBowDraw();
-      this.callbacks.onAddFloatingText('Mode Senjata: Busur & Panah Pemburu 🏹', '#34d399', 'info');
+      this.callbacks.onAddFloatingText('Mode Senjata: Busur Pemburu (Siaga) 🏹', '#34d399', 'info');
     } else {
       soundManager.playRogueDoubleSlash();
-      this.callbacks.onAddFloatingText('Mode Senjata: Belati Bayangan 🗡️', '#10b981', 'info');
+      this.callbacks.onAddFloatingText('Mode Senjata: Belati Kembar (Siaga) 🗡️', '#10b981', 'info');
     }
     if (this.callbacks.onHunterWeaponSwitch) {
       this.callbacks.onHunterWeaponSwitch(this.hunterWeaponMode);
@@ -5303,22 +5326,24 @@ export class GameEngine {
       const bowArrow = this.playerMesh.group?.getObjectByName('BowArrow');
       if (bowArrow) {
         bowArrow.visible = false;
-        bowArrow.position.set(0, 0, 0.02);
-        bowArrow.rotation.set(Math.PI / 2, 0, 0);
+        bowArrow.position.set(0, 0, 0);
+        bowArrow.rotation.set(0, 0, 0);
       }
       const vortex = this.playerMesh.group?.getObjectByName('ArrowVortex');
       if (vortex) vortex.visible = false;
 
-      if (this.playerMesh.leftArm) this.playerMesh.leftArm.rotation.set(0, 0, 0);
-      if (this.playerMesh.rightArm) this.playerMesh.rightArm.rotation.set(0, 0, 0);
+      if (this.playerMesh.leftArm) {
+        this.playerMesh.leftArm.position.set(-0.325, 1.42, 0.02);
+        this.playerMesh.leftArm.rotation.set(0, 0, 0);
+      }
+      if (this.playerMesh.rightArm) {
+        this.playerMesh.rightArm.position.set(0.325, 1.42, 0.02);
+        this.playerMesh.rightArm.rotation.set(0, 0, 0);
+      }
       if (this.playerMesh.body) this.playerMesh.body.rotation.set(0, 0, 0);
       if (this.playerMesh.head) this.playerMesh.head.rotation.set(0, 0, 0);
 
-      if (this.playerMesh.setHunterBowInHand) {
-        this.playerMesh.setHunterBowInHand(false);
-      } else if (this.playerMesh.group) {
-        updateHunterWeaponStance(this.playerMesh.group, this.hunterWeaponMode, this.isHunterSheathed, false);
-      }
+      this.syncHunterWeaponModel();
     }
   }
 
@@ -5375,14 +5400,14 @@ export class GameEngine {
     this.bowChargeRatio = 0;
     this.callbacks.onBowAimChange?.(false, 0);
 
-    // Putarkan karakter ke arah target, tampilkan HandBow, & kunci pose memanah 0.65 detik
-    this.unsheatheHunterWeapon();
+    // Putarkan karakter ke arah target, aktifkan busur di tangan, & tahan pose follow-through 0.45 detik
+    this.ensureWeaponDrawn();
     this.playerRotationY = Math.atan2(aimDir.x, aimDir.z);
     if (this.playerMesh?.group) {
       this.playerMesh.group.rotation.y = this.playerRotationY;
     }
     this.playerMesh?.setHunterBowInHand?.(true);
-    this.bowCombatStanceTimer = 0.65;
+    this.bowCombatStanceTimer = 0.45;
     this.bowShotCooldownTimer = 0.16;
     this.isAttacking = true;
     this.attackType = 'bow_shot';
@@ -5420,13 +5445,13 @@ export class GameEngine {
     this.bowChargeRatio = 0;
     this.callbacks.onBowAimChange?.(false, 0);
 
-    this.unsheatheHunterWeapon();
+    this.ensureWeaponDrawn();
     this.playerRotationY = Math.atan2(aimDir.x, aimDir.z);
     if (this.playerMesh?.group) {
       this.playerMesh.group.rotation.y = this.playerRotationY;
     }
     this.playerMesh?.setHunterBowInHand?.(true);
-    this.bowCombatStanceTimer = 0.65;
+    this.bowCombatStanceTimer = 0.45;
     this.bowShotCooldownTimer = 0.16;
     this.isAttacking = true;
     this.attackType = 'bow_shot';
@@ -8092,12 +8117,16 @@ export class GameEngine {
     this.isAimingArrowVolley = false;
     this.callbacks.onArrowVolleyAimChange?.(false);
 
-    this.bowCombatStanceTimer = 0.65;
+    this.bowCombatStanceTimer = 0.45;
+    this.ensureWeaponDrawn();
     this.playerMesh?.setHunterBowInHand?.(true);
     this.isAttacking = true;
     this.attackType = 'hunter_volley_release';
-    this.attackDuration = 0.25;
-    this.attackTimer = 0.25;
+    this.attackDuration = 0.45;
+    this.attackTimer = 0.45;
+    if (this.playerMesh) {
+      animateHunterSkyVolley(this.playerMesh, 0, this.isMoving, this.walkCycle, 0);
+    }
 
     this.executeSkywardArrowVolley(this.playerPos.clone(), this.arrowVolleyTargetPoint.clone());
   }
@@ -8126,13 +8155,15 @@ export class GameEngine {
     this.attackType = null;
     this.attackTimer = 0;
     this.bowCombatStanceTimer = 0;
-    this.playerMesh?.setHunterBowInHand?.(false);
     if (this.playerMesh?.body) {
       this.playerMesh.body.rotation.set(0, 0, 0);
       this.playerMesh.head?.rotation.set(0, 0, 0);
+      this.playerMesh.leftArm?.position.set(-0.325, 1.42, 0.02);
+      this.playerMesh.rightArm?.position.set(0.325, 1.42, 0.02);
       this.playerMesh.leftArm?.rotation.set(0, 0, 0);
       this.playerMesh.rightArm?.rotation.set(0, 0, 0);
     }
+    this.syncHunterWeaponModel();
 
     if (showToast) {
       this.callbacks.onAddFloatingText('Dibatalkan', '#94a3b8', 'info');
@@ -8219,15 +8250,16 @@ export class GameEngine {
       }
     }
 
-    // Pertahankan busur di tangan & pose memanah 0.65s tanpa setTimeout canggung
-    this.bowCombatStanceTimer = 0.65;
+    // Fase 1 Badai Panah: Angkat busur ke langit ~0.45s & pastikan senjata Mode Siaga di tangan
+    this.bowCombatStanceTimer = 0.45;
+    this.ensureWeaponDrawn();
     this.playerMesh?.setHunterBowInHand?.(true);
     this.isAttacking = true;
     this.attackType = 'hunter_volley_release';
-    this.attackDuration = 0.25;
-    this.attackTimer = 0.25;
+    this.attackDuration = 0.45;
+    this.attackTimer = 0.45;
     if (this.playerMesh) {
-      animateHunterBowAim(this.playerMesh, 0.55, this.isMoving, this.walkCycle, 0, false);
+      animateHunterSkyVolley(this.playerMesh, 0, this.isMoving, this.walkCycle, 0);
     }
 
     this.executeSkywardArrowVolley(this.playerPos.clone(), targetPos);
@@ -9402,18 +9434,98 @@ export class GameEngine {
   }
 
   // ============================================================================
-  // HUNTER NINJA SPRINT: AUTO-SHEATHE & SHADOW AFTERIMAGE POOL
+  // OPEN-WORLD HUNTER WEAPON SYSTEM: SIAGA (DRAWN) VS SANTAI (HANDLESS / SHEATHED)
   // ============================================================================
-  public unsheatheHunterWeapon(): void {
+  private syncHunterWeaponModel(): void {
+    if (this.charClass !== 'rogue' || !this.playerMesh) return;
+    if (this.playerMesh.setHunterWeaponDrawn) {
+      this.playerMesh.setHunterWeaponDrawn(this.isWeaponDrawn);
+    } else if (this.playerMesh.setHunterSheathed) {
+      this.playerMesh.setHunterSheathed(!this.isWeaponDrawn);
+    } else if (this.playerMesh.group) {
+      updateHunterWeaponStance(
+        this.playerMesh.group,
+        this.hunterWeaponMode,
+        !this.isWeaponDrawn,
+        this.isWeaponDrawn && this.hunterWeaponMode === 'bow' && (this.isAimingBow || this.isHoldingBowAttack || this.bowCombatStanceTimer > 0)
+      );
+    }
+  }
+
+  public ensureWeaponDrawn(): void {
     if (this.charClass !== 'rogue') return;
-    this.isHunterSheathed = false;
-    if (this.playerMesh) {
-      if (this.playerMesh.setHunterSheathed) {
-        this.playerMesh.setHunterSheathed(false);
-      } else if (this.playerMesh.group) {
-        updateHunterWeaponStance(this.playerMesh.group, this.hunterWeaponMode, false);
+    this.combatIdleTimer = 7.0;
+    if (!this.isWeaponDrawn) {
+      this.isWeaponDrawn = true;
+      this.isHunterSheathed = false;
+      this.weaponDrawTransitionTimer = 0.12;
+      if (this.hunterWeaponMode === 'bow') {
+        soundManager.playBowDraw();
+      } else {
+        soundManager.playRogueDoubleSlash();
+      }
+      this.syncHunterWeaponModel();
+      this.callbacks.onWeaponDrawnChange?.(true);
+    }
+  }
+
+  public toggleWeaponDrawn(forceState?: boolean, silent = false): void {
+    if (this.charClass !== 'rogue' || this.isControlsLocked || this.isCasting) return;
+    const nextDrawn = forceState !== undefined ? forceState : !this.isWeaponDrawn;
+    if (nextDrawn === this.isWeaponDrawn) {
+      if (nextDrawn) this.combatIdleTimer = 7.0;
+      return;
+    }
+
+    if (!nextDrawn) {
+      if (this.isAimingArrowVolley || this.arrowVolleyAimState.isCharging) {
+        this.cancelArrowVolleyAim(false);
+      }
+      if (this.isHoldingBowAttack || this.isAimingBow) {
+        this.cancelBowAim();
+      }
+      this.bowCombatStanceTimer = 0;
+      this.weaponDrawTransitionTimer = 0;
+      this.combatIdleTimer = 0;
+    } else {
+      this.combatIdleTimer = 7.0;
+      this.weaponDrawTransitionTimer = 0.12;
+    }
+
+    this.isWeaponDrawn = nextDrawn;
+    this.isHunterSheathed = !nextDrawn;
+    this.syncHunterWeaponModel();
+    this.callbacks.onWeaponDrawnChange?.(this.isWeaponDrawn);
+
+    if (!nextDrawn && this.playerMesh) {
+      if (this.playerMesh.body) this.playerMesh.body.rotation.set(0, 0, 0);
+      if (this.playerMesh.head) this.playerMesh.head.rotation.set(0, 0, 0);
+      if (this.playerMesh.leftArm) {
+        this.playerMesh.leftArm.position.set(-0.325, 1.42, 0.02);
+        this.playerMesh.leftArm.rotation.set(0, 0, 0);
+      }
+      if (this.playerMesh.rightArm) {
+        this.playerMesh.rightArm.position.set(0.325, 1.42, 0.02);
+        this.playerMesh.rightArm.rotation.set(0, 0, 0);
       }
     }
+
+    if (!silent) {
+      if (nextDrawn) {
+        this.hunterWeaponMode === 'bow' ? soundManager.playBowDraw() : soundManager.playRogueDoubleSlash();
+        this.callbacks.onAddFloatingText(
+          this.hunterWeaponMode === 'bow' ? 'Mode Siaga: Busur Diangkat 🏹' : 'Mode Siaga: Belati Terhunus 🗡️',
+          '#34d399',
+          'info'
+        );
+      } else {
+        this.callbacks.onAddFloatingText('Mode Santai: Senjata Disarungkan', '#94a3b8', 'info');
+      }
+    }
+  }
+
+  public unsheatheHunterWeapon(): void {
+    this.ensureWeaponDrawn();
   }
 
   private initHunterAfterimagePool() {
@@ -10895,34 +11007,9 @@ export class GameEngine {
       this.sprintDrainAccum = 0;
     }
 
-    // Auto-Sheathe saat Ninja Sprint & Auto-Unsheathe saat kembali ke mode tempur
+    // Sinkronkan stance senjata Pemburu (Siaga vs Handless tanpa override Sprint)
     if (this.charClass === 'rogue') {
-      const shouldSheathe =
-        this.isSprinting &&
-        isMoving &&
-        hasStamina &&
-        !this.isAttacking &&
-        !this.isHoldingBowAttack &&
-        !this.isAimingBow &&
-        !this.isAimingArrowVolley &&
-        !this.arrowVolleyAimState.isCharging &&
-        this.bowCombatStanceTimer <= 0 &&
-        !this.isGaleVaulting;
-
-      if (shouldSheathe) {
-        if (!this.isHunterSheathed) {
-          this.isHunterSheathed = true;
-          if (this.playerMesh?.setHunterSheathed) {
-            this.playerMesh.setHunterSheathed(true);
-          } else if (this.playerMesh?.group) {
-            updateHunterWeaponStance(this.playerMesh.group, this.hunterWeaponMode, true);
-          }
-        }
-      } else {
-        if (this.isHunterSheathed) {
-          this.unsheatheHunterWeapon();
-        }
-      }
+      this.syncHunterWeaponModel();
     }
 
     let targetSpeed = baseSpeed;
@@ -11293,12 +11380,14 @@ export class GameEngine {
             const sprintBob = Math.abs(Math.sin(this.walkCycle)) * 0.06;
             this.playerMesh.group.position.y = this.playerPos.y + sprintBob;
 
-            // 2. Ayunan lengan atletis natural berlawanan langkah kaki (siku tertekuk & belati reverse-grip serong)
+            // 2. Ayunan lengan atletis natural (standby busur dijaga miring rapi, atau ayunan dinamis lengan kosong / belati)
             if (!this.isAttacking) {
-              this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, 0.34 - armSwing * 0.56, 0.32);
-              this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, 0.14, lerpFactor);
-              this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, -0.12, lerpFactor);
-              this.playerMesh.leftArm.position.set(-0.325, 1.40, 0.04);
+              const isBowCarry = this.isWeaponDrawn && this.hunterWeaponMode === 'bow';
+              const targetLeftArmX = isBowCarry ? -0.26 + armSwing * 0.14 : 0.34 - armSwing * 0.56;
+              this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, targetLeftArmX, 0.32);
+              this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, isBowCarry ? 0.16 : 0.14, lerpFactor);
+              this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, isBowCarry ? -0.15 : -0.12, lerpFactor);
+              this.playerMesh.leftArm.position.set(-0.325, 1.40, isBowCarry ? 0.06 : 0.04);
 
               this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0.34 + armSwing * 0.56, 0.32);
               this.playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.y, -0.14, lerpFactor);
@@ -11347,11 +11436,16 @@ export class GameEngine {
             }
 
             if (!this.isAttacking) {
-              this.playerMesh.leftArm.position.set(-0.325, 1.42, 0.02);
+              const isBowCarry = this.isWeaponDrawn && this.hunterWeaponMode === 'bow';
+              this.playerMesh.leftArm.position.set(-0.325, 1.42, isBowCarry ? 0.05 : 0.02);
               this.playerMesh.rightArm.position.set(0.325, 1.42, 0.02);
-              this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, -0.32 + armSwing * 0.42, 0.3);
-              this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, 0, lerpFactor);
-              this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, 0, lerpFactor);
+              this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(
+                this.playerMesh.leftArm.rotation.x,
+                isBowCarry ? -0.22 + armSwing * 0.12 : -0.32 + armSwing * 0.42,
+                0.3
+              );
+              this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, isBowCarry ? 0.14 : 0, lerpFactor);
+              this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, isBowCarry ? -0.15 : 0, lerpFactor);
               this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, -0.32 - armSwing * 0.42, 0.3);
               this.playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.y, 0, lerpFactor);
               this.playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.z, 0, lerpFactor);
@@ -11496,13 +11590,25 @@ export class GameEngine {
           }
 
           if (!this.isAttacking) {
+            const isBowCarry = this.isWeaponDrawn && this.hunterWeaponMode === 'bow';
+            const isQuickDraw = this.weaponDrawTransitionTimer > 0;
             if (this.playerMesh.leftArm) {
-              this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, 0, 0.25);
-              this.playerMesh.leftArm.rotation.y = 0;
-              this.playerMesh.leftArm.rotation.z = 0;
+              this.playerMesh.leftArm.position.set(-0.325, 1.42, isBowCarry ? 0.05 : 0.02);
+              this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(
+                this.playerMesh.leftArm.rotation.x,
+                isQuickDraw ? -0.45 : isBowCarry ? -0.22 : 0,
+                0.28
+              );
+              this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, isBowCarry ? 0.14 : 0, 0.25);
+              this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, isBowCarry ? -0.16 : 0, 0.25);
             }
             if (this.playerMesh.rightArm) {
-              this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0, 0.25);
+              this.playerMesh.rightArm.position.set(0.325, 1.42, 0.02);
+              this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(
+                this.playerMesh.rightArm.rotation.x,
+                isQuickDraw ? 0.42 : 0,
+                0.28
+              );
               this.playerMesh.rightArm.rotation.y = 0;
               this.playerMesh.rightArm.rotation.z = 0;
             }
@@ -11542,7 +11648,16 @@ export class GameEngine {
           this.playerMesh.rotation.x = 0;
           this.playerMesh.rotation.z = 0;
         }
-        const isHunterSprint = this.charClass === 'rogue' && this.isSprinting && isMoving && this.playerStamina > 0;
+        const isHunterSprint =
+          this.charClass === 'rogue' &&
+          this.isSprinting &&
+          isMoving &&
+          this.playerStamina > 0 &&
+          !this.isAttacking &&
+          !this.isAimingBow &&
+          !this.isHoldingBowAttack &&
+          !this.isAimingArrowVolley &&
+          this.bowCombatStanceTimer <= 0;
         const lockLerp = Math.min(1, delta * 12.0);
         const targetBodyLeanX = isHunterSprint ? 0.34 : 0;
         if (this.playerMesh.body) {
@@ -11580,12 +11695,15 @@ export class GameEngine {
           }
         }
       }
-      if (!this.isAttacking) {
+      if (!this.isAttacking && !this.isAimingBow && !this.isHoldingBowAttack && !this.isAimingArrowVolley && this.bowCombatStanceTimer <= 0) {
         if (this.playerMesh.body && !isMageGliding) {
           this.playerMesh.body.rotation.y = THREE.MathUtils.lerp(this.playerMesh.body.rotation.y || 0, 0, 0.2);
           if (Math.abs(this.playerMesh.body.rotation.y) < 0.001) {
             this.playerMesh.body.rotation.y = 0;
           }
+        }
+        if (this.charClass === 'rogue' && this.playerMesh.head) {
+          this.playerMesh.head.rotation.y = THREE.MathUtils.lerp(this.playerMesh.head.rotation.y || 0, 0, 0.2);
         }
       }
     }
@@ -11668,13 +11786,21 @@ export class GameEngine {
         this.playerMesh.rightArm.rotation.set(-0.25, 0, -1.45);
         this.playerMesh.leftArm.rotation.set(-0.25, 0, 1.35);
         this.playerMesh.body.rotation.y = 0;
+      } else if (this.attackType === 'hunter_volley_release') {
+        // Fase 1 Badai Panah: Pose memanah mendongak ke langit (~0.45s) & menembakkan panah pembuka ke atas
+        animateHunterSkyVolley(
+          this.playerMesh,
+          1 - progress,
+          isMoving,
+          this.walkCycle,
+          delta
+        );
       } else if (
         this.attackType === 'bow_shot' ||
         this.attackType === 'bow_barrage' ||
-        this.attackType === 'hunter_volley_release' ||
         this.attackType === 'hunter_aim_volley'
       ) {
-        // Pose memanah bersih selama menembak / membidik Badai Panah (BackBow tersembunyi, HandBow aktif)
+        // Pose memanah bersih selama menembak / membidik Badai Panah (BackBow tersembunyi, HandBow vertikal)
         const isAimingVolleyPose = this.attackType === 'hunter_aim_volley';
         const drawProgress = isAimingVolleyPose ? 0.65 : 0.38 + Math.sin((1 - progress) * Math.PI) * 0.25;
         animateHunterBowAim(
@@ -11762,6 +11888,8 @@ export class GameEngine {
         } else if (this.charClass === 'rogue' && this.playerMesh?.body && this.bowCombatStanceTimer <= 0 && !this.isAimingBow && !this.isHoldingBowAttack) {
           this.playerMesh.body.rotation.set(0, 0, 0);
           this.playerMesh.head?.rotation.set(0, 0, 0);
+          this.playerMesh.leftArm.position.set(-0.325, 1.42, 0.02);
+          this.playerMesh.rightArm.position.set(0.325, 1.42, 0.02);
           this.playerMesh.leftArm.rotation.set(0, 0, 0);
           this.playerMesh.rightArm.rotation.set(0, 0, 0);
         } else if (this.playerMesh) {
@@ -13151,7 +13279,10 @@ export class GameEngine {
       this.hunterArrowVolleyCooldownTimer = Math.max(0, this.hunterArrowVolleyCooldownTimer - delta);
     }
 
-    // Hunter Bow fire-rate throttle & post-shot archery combat stance hold
+    // Hunter Bow fire-rate throttle, follow-through stance hold, & Open-World 7.0s auto-sheathe timer
+    if (this.weaponDrawTransitionTimer > 0) {
+      this.weaponDrawTransitionTimer = Math.max(0, this.weaponDrawTransitionTimer - delta);
+    }
     if (this.bowShotCooldownTimer > 0) {
       this.bowShotCooldownTimer = Math.max(0, this.bowShotCooldownTimer - delta);
     }
@@ -13165,9 +13296,36 @@ export class GameEngine {
         !this.isAimingArrowVolley &&
         !this.arrowVolleyAimState.isCharging
       ) {
-        this.playerMesh?.setHunterBowInHand?.(false);
         if (this.playerMesh?.body) this.playerMesh.body.rotation.set(0, 0, 0);
         if (this.playerMesh?.head) this.playerMesh.head.rotation.set(0, 0, 0);
+        if (this.playerMesh?.leftArm) {
+          this.playerMesh.leftArm.position.set(-0.325, 1.42, 0.02);
+          this.playerMesh.leftArm.rotation.set(0, 0, 0);
+        }
+        if (this.playerMesh?.rightArm) {
+          this.playerMesh.rightArm.position.set(0.325, 1.42, 0.02);
+          this.playerMesh.rightArm.rotation.set(0, 0, 0);
+        }
+        this.syncHunterWeaponModel();
+      }
+    }
+    if (this.charClass === 'rogue' && this.isWeaponDrawn) {
+      const inActiveCombatPose =
+        this.isAttacking ||
+        this.isHoldingBowAttack ||
+        this.isAimingBow ||
+        this.isAimingArrowVolley ||
+        this.arrowVolleyAimState.isCharging ||
+        this.isGaleVaulting ||
+        this.isDashing ||
+        this.bowCombatStanceTimer > 0;
+      if (inActiveCombatPose) {
+        this.combatIdleTimer = 7.0;
+      } else {
+        this.combatIdleTimer -= delta;
+        if (this.combatIdleTimer <= 0) {
+          this.toggleWeaponDrawn(false, false);
+        }
       }
     }
 

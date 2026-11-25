@@ -150,6 +150,7 @@ export default function App() {
   const playTimeRef = useRef(0);
   const [mapMarkers, setMapMarkers] = useState<MapMarker[]>([]);
   const [hunterWeaponMode, setHunterWeaponMode] = useState<'dagger' | 'bow'>('dagger');
+  const [isWeaponDrawn, setIsWeaponDrawn] = useState<boolean>(false);
   const [castingState, setCastingState] = useState<{ isCasting: boolean; progress: number; text: string } | null>(null);
   const [isGlacialAiming, setIsGlacialAiming] = useState(false);
   const [glacialTarget, setGlacialTarget] = useState<{ name: string; hp: number; maxHp: number; isBoss?: boolean } | null>(null);
@@ -812,6 +813,9 @@ export default function App() {
       },
       onHunterWeaponSwitch: (mode) => {
         setHunterWeaponMode(mode);
+      },
+      onWeaponDrawnChange: (drawn) => {
+        setIsWeaponDrawn(drawn);
       },
       onGlacialAimChange: (aiming, targetInfo) => {
         setIsGlacialAiming(aiming);
@@ -1481,6 +1485,8 @@ export default function App() {
             mapMarkers={mapMarkers}
             hunterWeaponMode={hunterWeaponMode}
             onSwitchHunterWeapon={() => engineRef.current?.switchHunterWeapon()}
+            isWeaponDrawn={isWeaponDrawn}
+            onToggleWeaponDrawn={() => engineRef.current?.toggleWeaponDrawn()}
             isSpectatorMode={isSpectatorMode}
             isUIVisible={isUIVisible}
             onToggleSpectator={() => handleToggleSpectator(false)}

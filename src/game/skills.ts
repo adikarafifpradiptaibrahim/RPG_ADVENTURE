@@ -4271,17 +4271,22 @@ export class SkywardArrowVolleyResourcePool {
     rootGroup.name = 'SkywardArrowVolley_Instance';
     rootGroup.visible = false;
 
-    // A. Flare Arrow (Phase 1)
-    const flareGroup = new THREE.Group();
-    const flareShaft = new THREE.Mesh(this.arrowShaftGeom, this.flareArrowMat);
-    flareShaft.rotation.x = Math.PI / 2;
-    const flareHead = new THREE.Mesh(this.arrowHeadGeom, this.flareArrowMat);
-    flareHead.position.z = 0.8;
-    flareHead.rotation.x = Math.PI / 2;
-    const flareTrail = new THREE.Mesh(this.flareTrailGeom, this.flareTrailMat);
-    flareGroup.add(flareShaft, flareHead, flareTrail);
-    flareGroup.visible = false;
-    rootGroup.add(flareGroup);
+    // A. 4 Opening Sky-Launch Arrows (Fase 1: Tembak Cepat ke Langit)
+    const SKY_LAUNCH_COUNT = 4;
+    const skyLaunchArrows: THREE.Group[] = [];
+    for (let s = 0; s < SKY_LAUNCH_COUNT; s++) {
+      const fGroup = new THREE.Group();
+      const flareShaft = new THREE.Mesh(this.arrowShaftGeom, this.flareArrowMat);
+      flareShaft.rotation.x = Math.PI / 2;
+      const flareHead = new THREE.Mesh(this.arrowHeadGeom, this.flareArrowMat);
+      flareHead.position.z = 0.8;
+      flareHead.rotation.x = Math.PI / 2;
+      const flareTrail = new THREE.Mesh(this.flareTrailGeom, this.flareTrailMat);
+      fGroup.add(flareShaft, flareHead, flareTrail);
+      fGroup.visible = false;
+      rootGroup.add(fGroup);
+      skyLaunchArrows.push(fGroup);
+    }
 
     // B. Magic Circle & Outer Ring
     const magicCircleMesh = new THREE.Mesh(this.magicCircleGeom, this.magicCircleMat);
@@ -4290,9 +4295,10 @@ export class SkywardArrowVolleyResourcePool {
     magicRingMesh.visible = false;
     rootGroup.add(magicCircleMesh, magicRingMesh);
 
-    // C. 20 Cyan-Aqua Energy Rain Arrows (Phase 2)
-    const RAIN_COUNT = 20;
+    // C. 28 Cyan Energy Rain Arrows (Fase 2: Hujan Panah Menancap ~0.6s) + Pooled Micro Impact Rings
+    const RAIN_COUNT = 28;
     const rainArrowGroups: THREE.Group[] = [];
+    const rainArrowTrails: THREE.Mesh[] = [];
     for (let r = 0; r < RAIN_COUNT; r++) {
       const arrGroup = new THREE.Group();
       const shaft = new THREE.Mesh(this.arrowShaftGeom, this.arrowShaftMat);
@@ -4305,7 +4311,22 @@ export class SkywardArrowVolleyResourcePool {
       arrGroup.visible = false;
       rootGroup.add(arrGroup);
       rainArrowGroups.push(arrGroup);
+      rainArrowTrails.push(trail);
     }
+
+    const IMPACT_RING_COUNT = 14;
+    const impactRingMeshes: THREE.Mesh[] = [];
+    const impactRingMats: THREE.MeshBasicMaterial[] = [];
+    const impactRingTimers: number[] = new Array(IMPACT_RING_COUNT).fill(-1);
+    for (let ir = 0; ir < IMPACT_RING_COUNT; ir++) {
+      const rMat = this.shockwaveMat.clone();
+      const rMesh = new THREE.Mesh(this.shockwaveGeom, rMat);
+      rMesh.visible = false;
+      rootGroup.add(rMesh);
+      impactRingMeshes.push(rMesh);
+      impactRingMats.push(rMat);
+    }
+    let impactRingNext = 0;
 
     // D. Giant Finisher Arrow (Phase 3)
     const giantGroup = new THREE.Group();
@@ -4325,7 +4346,7 @@ export class SkywardArrowVolleyResourcePool {
     shockwaveMesh.visible = false;
     rootGroup.add(shockwaveMesh);
 
-    // F. 40 Emerald Wind/Leaf Particles
+    // F. 40 Cyan Wind Particles
     const PARTICLE_COUNT = 40;
     const particleMeshes: THREE.Mesh[] = [];
     const particleVels: THREE.Vector3[] = [];
@@ -4343,11 +4364,20 @@ export class SkywardArrowVolleyResourcePool {
     const casterPos = new THREE.Vector3();
     const targetPos = new THREE.Vector3();
     const _impactPosScratch = new THREE.Vector3();
-    const arrowOffsets: { x: number; z: number }[] = Array.from({ length: RAIN_COUNT }, () => ({ x: 0, z: 0 }));
+    const SKY_SPREAD = [
+      { dx: -0.75, dz: 0.45, delay: 0.0 },
+      { dx: 0.75, dz: 0.45, delay: 0.03 },
+      { dx: -0.35, dz: -0.65, delay: 0.06 },
+      { dx: 0.35, dz: -0.65, delay: 0.09 },
+    ];
+    const arrowOffsets: { x: number; z: number; yaw: number; slantX: number }[] = Array.from(
+      { length: RAIN_COUNT },
+      () => ({ x: 0, z: 0, yaw: 0, slantX: 1.32 })
+    );
     const dropStartTimes: number[] = new Array(RAIN_COUNT).fill(0);
     const arrowHasHit: boolean[] = new Array(RAIN_COUNT).fill(false);
-    const WAVE_TIMES = [0.46, 0.78, 1.10, 1.42];
-    const waveHasHit: boolean[] = [false, false, false, false];
+    const WAVE_TIMES = [0.46, 0.72, 0.98, 1.24, 1.50];
+    const waveHasHit: boolean[] = [false, false, false, false, false];
     let finisherHasHit = false;
     let shockwaveStartTime = -1;
 
@@ -4374,31 +4404,42 @@ export class SkywardArrowVolleyResourcePool {
       for (let w = 0; w < WAVE_TIMES.length; w++) {
         waveHasHit[w] = false;
       }
+      for (let ir = 0; ir < IMPACT_RING_COUNT; ir++) {
+        impactRingTimers[ir] = -1;
+        impactRingMeshes[ir].visible = false;
+      }
 
       rootGroup.visible = true;
 
-      // Flare arrow starts at caster
-      flareGroup.position.set(casterPos.x, casterPos.y + 1.2, casterPos.z);
-      flareGroup.visible = true;
+      // Sky-launch arrows originate from caster hands aiming up
+      for (let s = 0; s < SKY_LAUNCH_COUNT; s++) {
+        skyLaunchArrows[s].position.set(casterPos.x, casterPos.y + 1.55, casterPos.z);
+        skyLaunchArrows[s].rotation.set(-Math.PI * 0.44, SKY_SPREAD[s].dx * 0.25, 0);
+        skyLaunchArrows[s].visible = true;
+      }
       onFlareCb?.();
 
-      // Magic circle at target
+      // Ground Magic Circle at target (fades in smoothly as sky barrage arcs overhead)
       magicCircleMesh.position.set(targetPos.x, targetPos.y + 0.04, targetPos.z);
       magicRingMesh.position.set(targetPos.x, targetPos.y + 0.05, targetPos.z);
       magicCircleMesh.scale.set(0.15, 0.15, 0.15);
       magicRingMesh.scale.set(0.15, 0.15, 0.15);
-      magicCircleMesh.visible = true;
-      magicRingMesh.visible = true;
+      magicCircleMesh.visible = false;
+      magicRingMesh.visible = false;
 
-      // 20 Cyan Rain arrows staggered evenly across 0.25s to 1.60s
+      // 28 Rain arrows staggered ~0.05s per batch (2-3 arrows per wave) across 0.30s..1.00s
       for (let i = 0; i < RAIN_COUNT; i++) {
-        const ang = (i / RAIN_COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.45;
-        const dist = Math.sqrt((i + 0.5) / RAIN_COUNT) * 5.0; // Sebaran merata seluruh lingkaran radius 5.0
+        const ang = (i / RAIN_COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+        const dist = Math.sqrt((i + 0.4) / RAIN_COUNT) * 5.1;
         arrowOffsets[i].x = Math.cos(ang) * dist;
         arrowOffsets[i].z = Math.sin(ang) * dist;
-        dropStartTimes[i] = 0.25 + (i / RAIN_COUNT) * 1.35;
+        arrowOffsets[i].yaw = (Math.random() - 0.5) * 0.45;
+        arrowOffsets[i].slantX = 1.24 + (Math.random() - 0.5) * 0.18; // ~71° slanted steep plunge
+        dropStartTimes[i] = 0.30 + Math.floor(i / 2) * 0.05;
         arrowHasHit[i] = false;
         rainArrowGroups[i].visible = false;
+        rainArrowGroups[i].scale.set(1, 1, 1);
+        rainArrowTrails[i].visible = true;
       }
 
       giantGroup.visible = false;
@@ -4411,11 +4452,16 @@ export class SkywardArrowVolleyResourcePool {
     const cleanup = () => {
       isActive = false;
       rootGroup.visible = false;
-      flareGroup.visible = false;
+      for (let s = 0; s < skyLaunchArrows.length; s++) {
+        skyLaunchArrows[s].visible = false;
+      }
       magicCircleMesh.visible = false;
       magicRingMesh.visible = false;
       for (let r = 0; r < rainArrowGroups.length; r++) {
         rainArrowGroups[r].visible = false;
+      }
+      for (let ir = 0; ir < impactRingMeshes.length; ir++) {
+        impactRingMeshes[ir].visible = false;
       }
       giantGroup.visible = false;
       shockwaveMesh.visible = false;
@@ -4426,10 +4472,11 @@ export class SkywardArrowVolleyResourcePool {
 
     const setPrewarmVisible = (visible: boolean) => {
       rootGroup.visible = visible;
-      flareGroup.visible = visible;
+      if (skyLaunchArrows.length > 0) skyLaunchArrows[0].visible = visible;
       magicCircleMesh.visible = visible;
       magicRingMesh.visible = visible;
       if (rainArrowGroups.length > 0) rainArrowGroups[0].visible = visible;
+      if (impactRingMeshes.length > 0) impactRingMeshes[0].visible = visible;
       giantGroup.visible = visible;
       shockwaveMesh.visible = visible;
       if (particleMeshes.length > 0) particleMeshes[0].visible = visible;
@@ -4444,19 +4491,30 @@ export class SkywardArrowVolleyResourcePool {
       if (!isActive) return true;
       elapsedTime += delta;
 
-      // Phase 1: Flare Arrow Launch (0.0s - 0.3s)
-      if (elapsedTime < 0.3) {
-        const t = elapsedTime / 0.3;
-        flareGroup.position.set(casterPos.x, casterPos.y + 1.2 + t * 38.0, casterPos.z);
-        flareGroup.visible = true;
-      } else {
-        flareGroup.visible = false;
+      // Phase 1: 4 Sky-Launch Opening Arrows shooting steeply upward (0.00s - 0.42s)
+      for (let s = 0; s < SKY_LAUNCH_COUNT; s++) {
+        const sp = SKY_SPREAD[s];
+        const sElapsed = elapsedTime - sp.delay;
+        if (sElapsed >= 0 && sElapsed < 0.34) {
+          const t = sElapsed / 0.34;
+          skyLaunchArrows[s].position.set(
+            casterPos.x + sp.dx * t * 3.2,
+            casterPos.y + 1.55 + t * 36.0,
+            casterPos.z + sp.dz * t * 3.2
+          );
+          skyLaunchArrows[s].visible = true;
+        } else {
+          skyLaunchArrows[s].visible = false;
+        }
       }
 
-      // Magic Circle Animation
-      if (elapsedTime <= 2.2) {
-        if (elapsedTime < 0.25) {
-          const s = 0.15 + (elapsedTime / 0.25) * 0.85;
+      // Ground Target Magic Circle (~0.26s onward)
+      if (elapsedTime >= 0.26 && elapsedTime <= 2.35) {
+        magicCircleMesh.visible = true;
+        magicRingMesh.visible = true;
+        const mcElapsed = elapsedTime - 0.26;
+        if (mcElapsed < 0.22) {
+          const s = 0.18 + (mcElapsed / 0.22) * 0.82;
           magicCircleMesh.scale.set(s, s, s);
           magicRingMesh.scale.set(s, s, s);
         } else {
@@ -4466,39 +4524,58 @@ export class SkywardArrowVolleyResourcePool {
         magicCircleMesh.rotation.z += delta * 4.0;
         magicRingMesh.rotation.z -= delta * 2.5;
 
-        // Fade out magic circle near finish
-        if (elapsedTime > 1.85) {
-          const fadeT = Math.max(0, 1.0 - (elapsedTime - 1.85) / 0.35);
+        if (elapsedTime > 1.95) {
+          const fadeT = Math.max(0, 1.0 - (elapsedTime - 1.95) / 0.40);
           (magicCircleMesh.material as THREE.MeshBasicMaterial).opacity = 0.9 * fadeT;
-          (magicRingMesh.material as THREE.MeshBasicMaterial).opacity = 0.85 * fadeT;
+          (magicRingMesh.material as THREE.MeshBasicMaterial).opacity = 0.88 * fadeT;
         } else {
           (magicCircleMesh.material as THREE.MeshBasicMaterial).opacity = 0.9;
-          (magicRingMesh.material as THREE.MeshBasicMaterial).opacity = 0.85;
+          (magicRingMesh.material as THREE.MeshBasicMaterial).opacity = 0.88;
         }
+      } else {
+        magicCircleMesh.visible = false;
+        magicRingMesh.visible = false;
       }
 
-      // Phase 2: 20 Cyan Rain Arrows (0.25s - 1.65s) + 4 Wave AoE Pulses across Radius 5.5
-      const DROP_DURATION = 0.22;
+      // Phase 2: 28 Cyan Rain Arrows plunging from Y + 26, sparking on impact, sticking ~0.6s, fading cleanly
+      const FALL_DURATION = 0.18;
+      const STICK_DURATION = 0.60;
       for (let i = 0; i < RAIN_COUNT; i++) {
-        if (arrowHasHit[i]) continue;
         const startTime = dropStartTimes[i];
-        if (elapsedTime >= startTime) {
-          const dropElapsed = elapsedTime - startTime;
-          const ax = targetPos.x + arrowOffsets[i].x;
-          const az = targetPos.z + arrowOffsets[i].z;
-          const targetY = targetPos.y;
+        if (elapsedTime < startTime) continue;
+        const dropElapsed = elapsedTime - startTime;
+        const off = arrowOffsets[i];
+        const ax = targetPos.x + off.x;
+        const az = targetPos.z + off.z;
+        const targetY = targetPos.y;
+        const arrGroup = rainArrowGroups[i];
 
-          if (dropElapsed < DROP_DURATION) {
-            const fallT = dropElapsed / DROP_DURATION;
-            const ay = 32.0 * (1 - fallT) + targetY * fallT;
-            rainArrowGroups[i].position.set(ax, ay, az);
-            rainArrowGroups[i].visible = true;
-          } else {
-            // Impact visual & close direct splash!
+        if (dropElapsed < FALL_DURATION) {
+          const fallT = dropElapsed / FALL_DURATION;
+          const slantOffset = (1.0 - fallT) * 5.2; // Meluncur miring dari atas langit
+          arrGroup.position.set(
+            ax - Math.sin(off.yaw) * slantOffset,
+            targetY + 26.0 * (1.0 - fallT),
+            az - Math.cos(off.yaw) * slantOffset
+          );
+          arrGroup.rotation.set(off.slantX - Math.PI * 0.5, off.yaw, 0);
+          arrGroup.scale.set(1, 1, 1);
+          rainArrowTrails[i].visible = true;
+          arrGroup.visible = true;
+        } else if (dropElapsed <= FALL_DURATION + STICK_DURATION) {
+          if (!arrowHasHit[i]) {
             arrowHasHit[i] = true;
-            rainArrowGroups[i].visible = false;
-            _impactPosScratch.set(ax, targetY, az);
+            _impactPosScratch.set(ax, targetY + 0.06, az);
             onArrowCb?.(_impactPosScratch, i);
+
+            // Activate pooled micro impact ring on ground
+            const rIdx = impactRingNext;
+            impactRingNext = (impactRingNext + 1) % IMPACT_RING_COUNT;
+            impactRingTimers[rIdx] = 0;
+            impactRingMeshes[rIdx].position.set(ax, targetY + 0.06, az);
+            impactRingMeshes[rIdx].scale.set(0.22, 0.22, 0.22);
+            impactRingMats[rIdx].opacity = 0.78;
+            impactRingMeshes[rIdx].visible = true;
 
             // Direct splash damage within horizontal XZ 2.0u
             for (let e = 0; e < enemies.length; e++) {
@@ -4510,6 +4587,34 @@ export class SkywardArrowVolleyResourcePool {
               }
             }
           }
+
+          // Menancap miring di tanah selama ~0.60 detik sebelum memudar ke pool
+          const stickT = dropElapsed - FALL_DURATION;
+          const fadeProgress = stickT > 0.40 ? (stickT - 0.40) / 0.20 : 0;
+          const scale = Math.max(0.01, 1.0 - fadeProgress);
+          arrGroup.position.set(ax, targetY + 0.14 - fadeProgress * 0.14, az);
+          arrGroup.rotation.set(off.slantX - Math.PI * 0.5, off.yaw, 0);
+          arrGroup.scale.set(scale, scale, scale);
+          rainArrowTrails[i].visible = false;
+          arrGroup.visible = true;
+        } else {
+          arrGroup.visible = false;
+        }
+      }
+
+      // Update pooled micro ground impact rings
+      for (let ir = 0; ir < IMPACT_RING_COUNT; ir++) {
+        if (impactRingTimers[ir] < 0) continue;
+        impactRingTimers[ir] += delta;
+        const rDur = 0.24;
+        if (impactRingTimers[ir] >= rDur) {
+          impactRingTimers[ir] = -1;
+          impactRingMeshes[ir].visible = false;
+        } else {
+          const rt = impactRingTimers[ir] / rDur;
+          const rs = 0.22 + rt * 1.15;
+          impactRingMeshes[ir].scale.set(rs, rs, rs);
+          impactRingMats[ir].opacity = 0.78 * (1.0 - rt);
         }
       }
 
@@ -4627,7 +4732,7 @@ export class SkywardArrowVolleyResourcePool {
         }
       }
 
-      if (elapsedTime >= 2.2) {
+      if (elapsedTime >= 2.38) {
         cleanup();
         return true;
       }

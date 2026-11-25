@@ -7,6 +7,7 @@ import { SKILL_COOLDOWNS } from '../game/skills';
 export interface SkillBarProps {
   stats: PlayerStats;
   hunterWeaponMode?: 'dagger' | 'bow';
+  isWeaponDrawn?: boolean;
   onPerformAttack: () => void;
   onAttackStart?: () => void;
   onAttackEnd?: () => void;
@@ -17,11 +18,13 @@ export interface SkillBarProps {
   onJump: () => void;
   onDash?: () => void;
   onSwitchHunterWeapon?: () => void;
+  onToggleWeaponDrawn?: () => void;
 }
 
 export const SkillBar: React.FC<SkillBarProps> = ({
   stats,
   hunterWeaponMode = 'dagger',
+  isWeaponDrawn = false,
   onPerformAttack,
   onAttackStart,
   onAttackEnd,
@@ -32,6 +35,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
   onJump,
   onDash,
   onSwitchHunterWeapon,
+  onToggleWeaponDrawn,
 }) => {
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -126,7 +130,33 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         </div>
       )}
 
-      {/* Hunter Weapon Switcher (Belati <-> Busur) */}
+      {/* Hunter Mode Toggle: Siaga vs Santai (X) & Switch Weapon Busur <-> Belati (T) */}
+      {stats.characterClass === 'rogue' && onToggleWeaponDrawn && (
+        <button
+          type="button"
+          onTouchStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleWeaponDrawn();
+          }}
+          onClick={onToggleWeaponDrawn}
+          style={{ touchAction: 'none', userSelect: 'none' }}
+          className={`skill-btn skill-btn-sheathe touch-control-btn group relative flex flex-col items-center justify-center border shadow cursor-pointer active:scale-90 transition-all select-none ${
+            isWeaponDrawn
+              ? 'bg-gradient-to-b from-cyan-950 to-stone-950 hover:from-cyan-900 text-cyan-300 border-cyan-400/80 shadow-cyan-500/20'
+              : 'bg-gradient-to-b from-stone-800 to-stone-950 hover:from-stone-700 text-stone-300 border-stone-500/80'
+          }`}
+          title={`Tarik / Sarungkan Senjata (X) — Status: ${isWeaponDrawn ? 'Siaga (Senjata Terhunus)' : 'Santai (Tangan Kosong)'}`}
+        >
+          <span className="text-xs sm:text-sm md:text-base">{isWeaponDrawn ? '⚡' : '🕊️'}</span>
+          <span className="hidden md:inline text-[8px] font-bold line-clamp-1">
+            {isWeaponDrawn ? 'Siaga' : 'Santai'}
+          </span>
+          <span className="absolute -top-1 -right-1 bg-stone-700 text-cyan-200 text-[6px] md:text-[7px] font-mono px-0.5 rounded border border-cyan-400/60">
+            X
+          </span>
+        </button>
+      )}
       {stats.characterClass === 'rogue' && onSwitchHunterWeapon && (
         <button
           type="button"
@@ -138,14 +168,14 @@ export const SkillBar: React.FC<SkillBarProps> = ({
           onClick={onSwitchHunterWeapon}
           style={{ touchAction: 'none', userSelect: 'none' }}
           className="skill-btn skill-btn-switch touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-emerald-950 to-stone-950 hover:from-emerald-900 hover:to-stone-900 text-emerald-300 border border-emerald-500/80 shadow cursor-pointer active:scale-90 transition-all select-none"
-          title={`Ganti Senjata: ${hunterWeaponMode === 'bow' ? 'Belati' : 'Busur'} (X)`}
+          title={`Ganti Senjata: ${hunterWeaponMode === 'bow' ? 'Belati' : 'Busur'} (T)`}
         >
           <span className="text-xs sm:text-sm md:text-base">{hunterWeaponMode === 'bow' ? '🏹' : '🗡️'}</span>
           <span className="hidden md:inline text-[8px] font-bold text-emerald-200 line-clamp-1">
             {hunterWeaponMode === 'bow' ? 'Busur' : 'Belati'}
           </span>
           <span className="absolute -top-1 -right-1 bg-emerald-600 text-white text-[6px] md:text-[7px] font-mono px-0.5 rounded border border-emerald-400">
-            X
+            T
           </span>
         </button>
       )}

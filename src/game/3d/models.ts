@@ -26,6 +26,7 @@ import {
   updateHunterWeaponStance,
   animateHunterWalk,
   animateHunterBowAim,
+  animateHunterSkyVolley,
 } from './playerModel';
 
 export {
@@ -49,6 +50,7 @@ export {
   updateHunterWeaponStance,
   animateHunterWalk,
   animateHunterBowAim,
+  animateHunterSkyVolley,
 };
 
 // Materials cache to optimize performance and prevent memory duplication
@@ -138,6 +140,7 @@ export interface PlayerMeshObjects {
   setHunterWeaponMode?: (mode: 'dagger' | 'bow') => void;
   setHunterSheathed?: (sheathed: boolean) => void;
   setHunterBowInHand?: (inHand: boolean) => void;
+  setHunterWeaponDrawn?: (drawn: boolean) => void;
 }
 
 export function createPlayerMesh(charClass: CharacterClass = 'warrior', tier: number = 1): PlayerMeshObjects {

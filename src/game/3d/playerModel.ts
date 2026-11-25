@@ -134,22 +134,34 @@ function createSegmentedBow(matWood: THREE.Material, matString: THREE.Material, 
   bow.add(limbTop, limbBottom, tipTop, tipBottom, bowString);
 
   if (includeArrow) {
-    // Anak Panah di Busur (Digunakan saat membidik dan menarik busur)
+    // Anak Panah Siap Tembak (Nocked Arrow): menempel di antara tangan kiri (busur) & tangan kanan (senar)
+    // Mengarah lurus ke depan sumbu -Z lokal busur (dari senar di +Z menuju gagang/target di -Z)
     const arrowGroup = new THREE.Group();
     arrowGroup.name = 'BowArrow';
     arrowGroup.visible = false;
-    arrowGroup.rotation.x = Math.PI / 2;
 
-    const matArrowWood = new THREE.MeshLambertMaterial({ color: 0x4a3321 });
+    const matArrowWood = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
     const matArrowHead = new THREE.MeshStandardMaterial({
-      color: 0xd1fae5,
-      emissive: 0x10b981,
-      emissiveIntensity: 0.8,
-      metalness: 0.6,
-      roughness: 0.2,
+      color: 0xe0f7fa,
+      emissive: 0x00e5ff,
+      emissiveIntensity: 1.6,
+      metalness: 0.7,
+      roughness: 0.18,
+    });
+    const matFletchRed = new THREE.MeshBasicMaterial({
+      color: 0xdc2626,
+      transparent: true,
+      opacity: 0.92,
+      side: THREE.DoubleSide,
+    });
+    const matFletchWhite = new THREE.MeshBasicMaterial({
+      color: 0xf8fafc,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide,
     });
     const matWindGlow = new THREE.MeshBasicMaterial({
-      color: 0x10b981,
+      color: 0x00e5ff,
       transparent: true,
       opacity: 0.85,
       side: THREE.DoubleSide,
@@ -161,39 +173,35 @@ function createSegmentedBow(matWood: THREE.Material, matString: THREE.Material, 
       side: THREE.DoubleSide,
     });
 
-    // Batang panah (membujur ke depan sumbu +Z)
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.92, 6), matArrowWood);
+    // Batang panah ramping membujur dari senar (+0.34) ke depan gagang (-0.46)
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.82, 6), matArrowWood);
     shaft.rotation.x = Math.PI / 2;
-    shaft.position.set(0, 0, 0.04);
+    shaft.position.set(0, 0, -0.06);
     arrowGroup.add(shaft);
 
-    // Mata panah tajam
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.16, 4), matArrowHead);
-    tip.rotation.x = Math.PI / 2;
-    tip.position.set(0, 0, 0.52);
+    // Ujung mata panah cyan bercahaya tajam menghadap target (-Z_bow)
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.044, 0.16, 4), matArrowHead);
+    tip.rotation.x = -Math.PI / 2;
+    tip.position.set(0, 0, -0.50);
     arrowGroup.add(tip);
 
-    // Bulu panah di pangkal senar
-    const fletch1 = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.01), matWindGlow);
-    fletch1.position.set(0, 0, -0.38);
-    const fletch2 = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.12, 0.07), matWindGlow);
-    fletch2.position.set(0, 0, -0.38);
+    // Bulu ekor merah-putih menempel di dekat senar cyan (+Z_bow)
+    const fletch1 = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.11, 0.01), matFletchRed);
+    fletch1.position.set(0, 0, 0.30);
+    const fletch2 = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.11, 0.065), matFletchWhite);
+    fletch2.position.set(0, 0, 0.30);
     arrowGroup.add(fletch1, fletch2);
 
-    // Pusaran Angin Zamrud Bercahaya (Emerald Wind Vortex) di Ujung Mata Panah
-    // Aktif saat bowChargeRatio >= 0.85
+    // Pusaran Angin / Energi Bercahaya di Ujung Mata Panah saat Hold Charge tinggi
     const vortexGroup = new THREE.Group();
     vortexGroup.name = 'ArrowVortex';
-    vortexGroup.position.set(0, 0, 0.56);
+    vortexGroup.position.set(0, 0, -0.54);
     vortexGroup.visible = false;
 
-    // Outer emerald wind vortex ring
     const ringOuter = new THREE.Mesh(new THREE.RingGeometry(0.06, 0.24, 16), matWindGlow);
-    // Inner white-gold hyper-charge core ring
     const ringInner = new THREE.Mesh(new THREE.RingGeometry(0.03, 0.13, 12), matGoldCore);
     ringInner.position.z = 0.01;
 
-    // Cross flare blades for intense swirl appearance
     const flare1 = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.04), matGoldCore);
     const flare2 = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.04), matGoldCore);
     flare2.rotation.z = Math.PI / 2;
@@ -357,13 +365,23 @@ export function createHunterModel(): THREE.Group {
     const bootStrap = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.04, 0.28), matLeather);
     bootStrap.position.set(0, -0.57, 0.03);
 
-    // Sarung belati menempel rapi di paha luar (bergerak selaras dengan ayunan kaki)
-    const thighSheath = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.25, 0.09), matLeather);
+    // Sarung belati menempel rapi di pinggang/paha luar + gagang belati tersarung (tersembunyi saat dicabut)
+    const thighSheath = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.25, 0.092), matLeather);
     thighSheath.position.set(sideSign * 0.11, -0.17, 0.01);
-    const sheathHilt = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.08, 6), matSilver);
-    sheathHilt.position.set(sideSign * 0.115, -0.025, 0.01);
+    const sheathTrim = new THREE.Mesh(new THREE.BoxGeometry(0.056, 0.028, 0.096), matDarkMetal);
+    sheathTrim.position.set(sideSign * 0.11, -0.055, 0.01);
 
-    legPivot.add(leg, knee, boot, bootCuff, bootStrap, thighSheath, sheathHilt);
+    const hipDaggerHilt = new THREE.Group();
+    hipDaggerHilt.name = 'HipDaggerHilt';
+    const sheathGuard = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.018, 0.095), matSilver);
+    sheathGuard.position.set(sideSign * 0.115, -0.038, 0.01);
+    const sheathGrip = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.09, 6), matLeather);
+    sheathGrip.position.set(sideSign * 0.115, 0.008, 0.01);
+    const sheathPommel = new THREE.Mesh(new THREE.OctahedronGeometry(0.022, 0), matSilver);
+    sheathPommel.position.set(sideSign * 0.115, 0.058, 0.01);
+    hipDaggerHilt.add(sheathGuard, sheathGrip, sheathPommel);
+
+    legPivot.add(leg, knee, boot, bootCuff, bootStrap, thighSheath, sheathTrim, hipDaggerHilt);
     legGroup.add(legPivot);
 
     if (isLeft) {
@@ -801,11 +819,11 @@ export function createHunterModel(): THREE.Group {
   leftDagger.rotation.set(Math.PI * 0.78, 0.16, 0);
   leftArmPose.add(leftDagger);
 
-  // Busur Horizontal Membujur
+  // Busur di Tangan Kiri (Berdiri VERTIKAL saat standby & memanah — DILARANG tidur horizontal!)
   const handBow = createSegmentedBow(matWood, matString, true);
   handBow.name = 'HandBow';
-  handBow.position.set(0.04, -0.42, 0.04);
-  handBow.rotation.set(-Math.PI / 2, 0, 0);
+  handBow.position.set(0.02, -0.43, 0.03);
+  handBow.rotation.set(0.20, Math.PI, 0.18);
   handBow.visible = false;
   leftArmPose.add(handBow);
 
@@ -880,7 +898,7 @@ export function createHunterModel(): THREE.Group {
 export function updateHunterWeaponStance(
   model: THREE.Group,
   stance: 'dagger' | 'bow',
-  isSheathed: boolean = false,
+  isSheathed: boolean = true,
   bowInHand: boolean = false
 ) {
   const backBow = model.getObjectByName('BackBow');
@@ -889,74 +907,68 @@ export function updateHunterWeaponStance(
   const arrowVortex = model.getObjectByName('ArrowVortex');
   const leftDagger = model.getObjectByName('LeftArm')?.getObjectByName('HandDagger');
   const rightDagger = model.getObjectByName('RightArm')?.getObjectByName('HandDagger');
+  const leftHipDagger = model.getObjectByName('Leg_Left')?.getObjectByName('HipDaggerHilt');
+  const rightHipDagger = model.getObjectByName('Leg_Right')?.getObjectByName('HipDaggerHilt');
 
   const leftArmPose = model.getObjectByName('LeftArmPose');
   const rightArmPose = model.getObjectByName('RightArmPose');
 
   if (bowArrow) {
     bowArrow.visible = false;
-    bowArrow.position.set(0, 0, 0.02);
-    bowArrow.rotation.set(Math.PI / 2, 0, 0);
+    bowArrow.position.set(0, 0, 0);
+    bowArrow.rotation.set(0, 0, 0);
   }
   if (arrowVortex) arrowVortex.visible = false;
 
   if (isSheathed) {
-    // Mode Tersimpan (Ninja Sprint Auto-Sheathe):
-    // Bebaskan kedua tangan, simpan busur di punggung & belati di pinggang
+    // MODE SANTAI / HANDLESS (isWeaponDrawn === false):
+    // Kedua tangan 100% kosong, busur rapi di punggung & belati tersarung di pinggang/paha
     if (handBow) handBow.visible = false;
     if (leftDagger) leftDagger.visible = false;
     if (rightDagger) rightDagger.visible = false;
     if (backBow) backBow.visible = true;
+    if (leftHipDagger) leftHipDagger.visible = true;
+    if (rightHipDagger) rightHipDagger.visible = true;
 
-    // Pose lengan netral agar leluasa dikendalikan oleh animasi Shinobi Arm Sweep
+    if (leftArmPose) leftArmPose.rotation.set(0, 0, 0);
+    if (rightArmPose) rightArmPose.rotation.set(0, 0, 0);
+    return;
+  }
+
+  if (stance === 'bow') {
+    // MODE SIAGA BUSUR (isWeaponDrawn === true):
+    // Busur langsung dipegang VERTIKAL di tangan kiri, BackBow tersembunyi, belati tetap tersarung
+    if (leftDagger) leftDagger.visible = false;
+    if (rightDagger) rightDagger.visible = false;
+    if (leftHipDagger) leftHipDagger.visible = true;
+    if (rightHipDagger) rightHipDagger.visible = true;
+    if (backBow) backBow.visible = false;
+
+    if (handBow) {
+      handBow.visible = true;
+      // Di standby (belum menarik tali), busur berdiri tegak serong alami di sisi tangan kiri
+      if (bowInHand) {
+        handBow.rotation.set(-Math.PI / 2, 0, 0.21);
+      } else {
+        handBow.rotation.set(0.20, Math.PI, 0.18);
+      }
+    }
     if (leftArmPose) {
       leftArmPose.rotation.set(0, 0, 0);
     }
     if (rightArmPose) {
       rightArmPose.rotation.set(0, 0, 0);
     }
-    return;
-  }
-
-  if (stance === 'bow') {
-    if (leftDagger) leftDagger.visible = false;
-    if (rightDagger) rightDagger.visible = false;
-
-    if (bowInHand) {
-      // Mode Siap / Membidik / Menembak: Busur pindah dari punggung ke tangan kiri!
-      if (backBow) backBow.visible = false;
-      if (handBow) {
-        handBow.visible = true;
-        handBow.rotation.set(-Math.PI / 2, 0, 0);
-      }
-      if (leftArmPose) {
-        leftArmPose.rotation.set(0.04, 0.02, -0.10);
-      }
-      if (rightArmPose) {
-        rightArmPose.rotation.set(0, 0, 0);
-      }
-    } else {
-      // Mode Idle / Jalan santai tanpa menyerang: Busur rapi tersampir di punggung
-      if (backBow) backBow.visible = true;
-      if (handBow) {
-        handBow.visible = false;
-        handBow.rotation.set(-Math.PI / 2, 0, 0);
-      }
-      if (leftArmPose) {
-        leftArmPose.rotation.set(0, 0, 0);
-      }
-      if (rightArmPose) {
-        rightArmPose.rotation.set(0, 0, 0);
-      }
-    }
   } else {
-    // Mode Belati (Melee A-Pose Asli):
+    // MODE SIAGA BELATI (isWeaponDrawn === true):
+    // Belati kembar aktif dalam reverse-grip, gagang di sarung pinggang disembunyikan, busur tetap di punggung
     if (backBow) backBow.visible = true;
     if (handBow) handBow.visible = false;
     if (leftDagger) leftDagger.visible = true;
     if (rightDagger) rightDagger.visible = true;
+    if (leftHipDagger) leftHipDagger.visible = false;
+    if (rightHipDagger) rightHipDagger.visible = false;
 
-    // Kembalikan ke pose belati siap tempur yang rapat ke torso
     if (leftArmPose) {
       leftArmPose.rotation.set(-0.16, 0.16, -0.08);
     }
@@ -993,24 +1005,31 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
   const leftWeapon = ((root as any).leftWeapon || leftArm) as THREE.Group;
 
   let hunterWeaponMode: 'dagger' | 'bow' = 'dagger';
-  let isHunterSheathed = false;
+  let isHunterSheathed = true; // Default Open-World: Mode Santai / Handless sampai menyerang atau menekan X/T
   let isHunterBowInHand = false;
   const setHunterWeaponMode = (mode: 'dagger' | 'bow') => {
     hunterWeaponMode = mode;
-    if (mode !== 'bow') isHunterBowInHand = false;
+    isHunterSheathed = false;
+    isHunterBowInHand = mode === 'bow';
     updateHunterWeaponStance(root, mode, isHunterSheathed, isHunterBowInHand);
   };
   const setHunterSheathed = (sheathed: boolean) => {
     isHunterSheathed = sheathed;
-    if (sheathed) isHunterBowInHand = false;
+    isHunterBowInHand = !sheathed && hunterWeaponMode === 'bow';
     updateHunterWeaponStance(root, hunterWeaponMode, sheathed, isHunterBowInHand);
   };
   const setHunterBowInHand = (inHand: boolean) => {
     isHunterBowInHand = inHand;
+    if (inHand) isHunterSheathed = false;
+    updateHunterWeaponStance(root, hunterWeaponMode, isHunterSheathed, isHunterBowInHand);
+  };
+  const setHunterWeaponDrawn = (drawn: boolean) => {
+    isHunterSheathed = !drawn;
+    isHunterBowInHand = drawn && hunterWeaponMode === 'bow';
     updateHunterWeaponStance(root, hunterWeaponMode, isHunterSheathed, isHunterBowInHand);
   };
 
-  updateHunterWeaponStance(root, hunterWeaponMode, false, false);
+  updateHunterWeaponStance(root, hunterWeaponMode, true, false);
 
   const orbitingOrbs: THREE.Mesh[] = [];
   let halo: THREE.Mesh | undefined;
@@ -1073,6 +1092,7 @@ export function createBlockyHunterMesh(tier: number = 1): PlayerMeshObjects {
     setHunterWeaponMode,
     setHunterSheathed,
     setHunterBowInHand,
+    setHunterWeaponDrawn,
   };
 }
 
@@ -1256,12 +1276,14 @@ export function animateHunterBowAim(
 ): void {
   if (!playerMesh) return;
 
-  // KUNCI: Badan tegak, bahu sedikit menyamping alami saat pose memanah
+  // 1. TORSO MENYAMPING (~0.55 rad / ~31.5°): Bahu kiri menunjuk target, kepala menoleh balik fokus ke musuh
   if (playerMesh.body) {
-    playerMesh.body.rotation.set(0, 0.22, 0);
+    playerMesh.body.rotation.reorder('YXZ');
+    playerMesh.body.rotation.set(0, 0.55, 0);
   }
   if (playerMesh.head) {
-    playerMesh.head.rotation.set(0, -0.20, 0);
+    playerMesh.head.rotation.set(0, -0.50, 0);
+    playerMesh.head.position.set(0, 1.50, 0);
   }
   if (playerMesh.group) {
     playerMesh.group.rotation.x = 0;
@@ -1272,64 +1294,66 @@ export function animateHunterBowAim(
     playerMesh.rotation.z = 0;
   }
 
-  // Sembunyikan BackBow saat busur diangkat ke tangan kiri
+  // Pastikan BackBow tersembunyi & HandBow aktif di tangan kiri
   const backBow = playerMesh.group?.getObjectByName('BackBow');
   if (backBow) backBow.visible = false;
 
-  // 1. LENGAN KIRI: Mengangkat busur sejajar bahu lurus ke depan menuju target
+  const leftArmPose = playerMesh.group?.getObjectByName('LeftArmPose');
+  if (leftArmPose) leftArmPose.rotation.set(0, 0, 0);
+  const rightArmPose = playerMesh.group?.getObjectByName('RightArmPose');
+  if (rightArmPose) rightArmPose.rotation.set(0, 0, 0);
+
+  // Getaran tegangan halus saat full hold charge (>= 0.75)
+  const drawJitter = chargeRatio >= 0.75 ? Math.sin(performance.now() * 0.045) * 0.014 : 0;
+
+  // 2. LENGAN KIRI: Lurus menjulur ke depan memegang gagang busur VERTIKAL (~12° natural cant)
   if (playerMesh.leftArm) {
-    playerMesh.leftArm.rotation.set(-Math.PI * 0.48, 0.16, -0.06);
+    playerMesh.leftArm.position.set(-0.27, 1.42, 0.16);
+    playerMesh.leftArm.rotation.set(-Math.PI * 0.48 + drawJitter * 0.4, 0.10, -0.05);
   }
 
-  // Sesuaikan pose handBow agar berdiri tegak menghadap lurus ke depan
+  // WAJIB VERTIKAL: Lengkung kayu menghadap depan (+Z_world), tali cyan di belakang (-Z_world), miring ~12° (0.21 rad)
   const handBow = playerMesh.group?.getObjectByName('HandBow');
   if (handBow) {
     handBow.visible = true;
-    handBow.rotation.set(0, 0, -0.15); // Vertikal alami dengan sedikit kemiringan ~8 derajat
+    handBow.rotation.set(-Math.PI / 2, 0, 0.21);
   }
 
-  // 2. LENGAN KANAN: Menarik / melepas senar ke belakang menuju pipi/bahu
+  // 3. LENGAN KANAN: Terangkat setinggi bahu/pipi, menarik senar & ekor panah mundur
   if (playerMesh.rightArm) {
+    playerMesh.rightArm.position.set(0.28, 1.42, -0.10);
     playerMesh.rightArm.rotation.set(
-      -Math.PI * 0.45,
-      -0.15 - chargeRatio * 0.40,
-      0.15 + chargeRatio * 0.32
+      -Math.PI * 0.44 + drawJitter,
+      -0.20 - chargeRatio * 0.36,
+      0.24 + chargeRatio * 0.30
     );
   }
 
-  // 3. ANAK PANAH PADA BUSUR: Tampil saat membidik/menarik senar, sembunyi sesaat setelah dilepas
+  // 4. NOCKED ARROW: Menempel lurus antara busur & tangan penarik tali, menghilang tepat saat melesat
   const bowArrow = playerMesh.group?.getObjectByName('BowArrow');
   if (bowArrow) {
     bowArrow.visible = showArrow;
-    bowArrow.rotation.set(Math.PI / 2, 0, 0);
-    bowArrow.position.set(0, chargeRatio * 0.18, 0.02);
+    bowArrow.rotation.set(0, 0, 0);
+    bowArrow.position.set(0, 0, chargeRatio * 0.20);
   }
 
-  // 4. PUSARAN ANGIN ZAMRUD BERCAHAYA: Muncul di ujung mata panah saat bowChargeRatio >= 0.85
+  // 5. PUSARAN ENERGI DI UJUNG PANAH: Aktif saat tarikan >= 0.85
   const vortex = playerMesh.group?.getObjectByName('ArrowVortex');
   if (vortex) {
-    const isFullCharge = chargeRatio >= 0.85;
+    const isFullCharge = showArrow && chargeRatio >= 0.85;
     vortex.visible = isFullCharge;
     if (isFullCharge) {
       vortex.rotation.z += delta * 18.0;
     }
   }
 
-  // 5. KAKI: Strafe walk (65% kecepatan) jika bergerak, atau berdiri tegak jika diam
+  // 6. KAKI: Strafe walk (65% kecepatan) jika bergerak, atau berdiri sigap jika diam
   if (isMoving) {
     const legSwing = Math.sin(walkCycle) * 0.50;
-    if (playerMesh.leftLeg) {
-      playerMesh.leftLeg.rotation.set(legSwing, 0, 0);
-    }
-    if (playerMesh.rightLeg) {
-      playerMesh.rightLeg.rotation.set(-legSwing, 0, 0);
-    }
-    if (playerMesh.leftKnee) {
-      playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.30 : 0;
-    }
-    if (playerMesh.rightKnee) {
-      playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.30 : 0;
-    }
+    if (playerMesh.leftLeg) playerMesh.leftLeg.rotation.set(legSwing, 0, 0);
+    if (playerMesh.rightLeg) playerMesh.rightLeg.rotation.set(-legSwing, 0, 0);
+    if (playerMesh.leftKnee) playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.30 : 0;
+    if (playerMesh.rightKnee) playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.30 : 0;
   } else {
     if (playerMesh.leftLeg) {
       playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0, 0.25);
@@ -1341,15 +1365,97 @@ export function animateHunterBowAim(
       playerMesh.rightLeg.rotation.y = 0;
       playerMesh.rightLeg.rotation.z = 0;
     }
-    if (playerMesh.leftKnee) {
-      playerMesh.leftKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.leftKnee.rotation.x, 0, 0.25);
-    }
-    if (playerMesh.rightKnee) {
-      playerMesh.rightKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.rightKnee.rotation.x, 0, 0.25);
-    }
+    if (playerMesh.leftKnee) playerMesh.leftKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.leftKnee.rotation.x, 0, 0.25);
+    if (playerMesh.rightKnee) playerMesh.rightKnee.rotation.x = THREE.MathUtils.lerp(playerMesh.rightKnee.rotation.x, 0, 0.25);
   }
 
   if (playerMesh.cape) {
     playerMesh.cape.rotation.x = THREE.MathUtils.lerp(playerMesh.cape.rotation.x, 0.15, 0.20);
+  }
+}
+
+/**
+ * ============================================================================
+ * FASE 1 BADAI PANAH: ANIMASI MEMANAH MENDONGAK KE LANGIT (~0.45 DETIK)
+ * ============================================================================
+ */
+export function animateHunterSkyVolley(
+  playerMesh: PlayerMeshObjects,
+  progress: number, // 0.0 (start) -> 1.0 (0.45s end)
+  isMoving: boolean,
+  walkCycle: number,
+  delta: number
+): void {
+  if (!playerMesh) return;
+
+  const isLaunchingArrow = progress < 0.48;
+  const drawPull = isLaunchingArrow ? Math.min(1.0, progress / 0.32) : Math.max(0.2, 1.0 - (progress - 0.48) * 1.4);
+
+  // Torso condong menyamping & sedikit mendongak ke belakang menatap langit
+  if (playerMesh.body) {
+    playerMesh.body.rotation.reorder('YXZ');
+    playerMesh.body.rotation.set(-0.22, 0.52, 0);
+  }
+  if (playerMesh.head) {
+    playerMesh.head.rotation.set(-0.46, -0.48, 0);
+    playerMesh.head.position.set(0, 1.49, -0.05);
+  }
+  if (playerMesh.group) {
+    playerMesh.group.rotation.x = 0;
+    playerMesh.group.rotation.z = 0;
+  }
+
+  const backBow = playerMesh.group?.getObjectByName('BackBow');
+  if (backBow) backBow.visible = false;
+
+  const leftArmPose = playerMesh.group?.getObjectByName('LeftArmPose');
+  if (leftArmPose) leftArmPose.rotation.set(0, 0, 0);
+  const rightArmPose = playerMesh.group?.getObjectByName('RightArmPose');
+  if (rightArmPose) rightArmPose.rotation.set(0, 0, 0);
+
+  // Lengan kiri mengangkat busur vertikal miring ~58° ke arah langit (-Math.PI * 0.82)
+  if (playerMesh.leftArm) {
+    playerMesh.leftArm.position.set(-0.27, 1.46, 0.14);
+    playerMesh.leftArm.rotation.set(-Math.PI * 0.82, 0.08, -0.06);
+  }
+  const handBow = playerMesh.group?.getObjectByName('HandBow');
+  if (handBow) {
+    handBow.visible = true;
+    handBow.rotation.set(-Math.PI / 2, 0, 0.18);
+  }
+
+  // Lengan kanan menarik tali mengarah ke langit lalu melepas suar panah
+  if (playerMesh.rightArm) {
+    playerMesh.rightArm.position.set(0.28, 1.40, -0.10);
+    playerMesh.rightArm.rotation.set(
+      -Math.PI * 0.74,
+      -0.18 - drawPull * 0.30,
+      0.22 + drawPull * 0.25
+    );
+  }
+
+  const bowArrow = playerMesh.group?.getObjectByName('BowArrow');
+  if (bowArrow) {
+    bowArrow.visible = isLaunchingArrow;
+    bowArrow.rotation.set(0, 0, 0);
+    bowArrow.position.set(0, 0, drawPull * 0.18);
+  }
+  const vortex = playerMesh.group?.getObjectByName('ArrowVortex');
+  if (vortex) {
+    vortex.visible = isLaunchingArrow;
+    if (isLaunchingArrow) vortex.rotation.z += delta * 22.0;
+  }
+
+  if (isMoving) {
+    const legSwing = Math.sin(walkCycle) * 0.45;
+    if (playerMesh.leftLeg) playerMesh.leftLeg.rotation.set(legSwing, 0, 0);
+    if (playerMesh.rightLeg) playerMesh.rightLeg.rotation.set(-legSwing, 0, 0);
+  } else {
+    if (playerMesh.leftLeg) playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, 0.14, 0.25);
+    if (playerMesh.rightLeg) playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, -0.18, 0.25);
+  }
+
+  if (playerMesh.cape) {
+    playerMesh.cape.rotation.x = THREE.MathUtils.lerp(playerMesh.cape.rotation.x, 0.24, 0.25);
   }
 }
