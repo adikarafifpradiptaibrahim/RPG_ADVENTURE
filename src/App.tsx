@@ -1429,6 +1429,10 @@ export default function App() {
                 if (characterClass === 'mage') {
                   engineRef.current?.startAimGlacialBarrage();
                 } else if (characterClass === 'rogue' && hunterWeaponMode === 'bow') {
+                  engineRef.current?.startAimAstralEagle();
+                }
+              } else if (slot === 4) {
+                if (characterClass === 'rogue' && hunterWeaponMode === 'bow') {
                   engineRef.current?.startAimArrowVolley();
                 }
               }
@@ -1438,6 +1442,10 @@ export default function App() {
                 if (characterClass === 'mage') {
                   engineRef.current?.updateAimGlacialBarrage(delta.x, delta.y);
                 } else if (characterClass === 'rogue' && hunterWeaponMode === 'bow') {
+                  engineRef.current?.rotateCameraByDelta(-delta.x * 0.45, -delta.y * 0.45);
+                }
+              } else if (slot === 4) {
+                if (characterClass === 'rogue' && hunterWeaponMode === 'bow') {
                   engineRef.current?.updateAimArrowVolley(delta.x, delta.y);
                 }
               }
@@ -1447,6 +1455,10 @@ export default function App() {
                 if (characterClass === 'mage') {
                   engineRef.current?.releaseAimGlacialBarrage(isCancelled);
                 } else if (characterClass === 'rogue' && hunterWeaponMode === 'bow') {
+                  engineRef.current?.releaseAimAstralEagle(isCancelled);
+                }
+              } else if (slot === 4) {
+                if (characterClass === 'rogue' && hunterWeaponMode === 'bow') {
                   engineRef.current?.releaseAimArrowVolley(isCancelled);
                 }
               }

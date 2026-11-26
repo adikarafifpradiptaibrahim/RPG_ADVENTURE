@@ -888,22 +888,22 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* Hunter Skyward Arrow Volley Guide Pill Banner - at bottom: 108px */}
+      {/* Hunter Ultimate Badai Panah Agung Guide Pill Banner - at bottom: 108px */}
       {isArrowVolleyAiming && (
         <div
           className="fixed left-1/2 -translate-x-1/2 z-40 pointer-events-none select-none animate-fadeIn flex items-center justify-center whitespace-nowrap"
           style={{ bottom: '108px' }}
         >
           <div
-            className="px-3.5 py-1.5 rounded-full border border-emerald-400/70 text-emerald-200 font-mono tracking-wider backdrop-blur-md flex items-center gap-2"
+            className="px-3.5 py-1.5 rounded-full border border-cyan-400/80 text-cyan-100 font-mono tracking-wider backdrop-blur-md flex items-center gap-2"
             style={{
               fontSize: '11px',
-              backgroundColor: 'rgba(10, 15, 28, 0.75)',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.6), 0 0 12px rgba(16, 185, 129, 0.3)',
+              backgroundColor: 'rgba(10, 15, 28, 0.78)',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.6), 0 0 14px rgba(34, 211, 238, 0.45)',
             }}
           >
-            <span className="text-emerald-400">🌧️</span>
-            <span>BIDIK AREA BADAI • LEPAS [Q] / KLIK KIRI TEMBAK • KLIK KANAN BATAL</span>
+            <span className="text-amber-300">⛈️</span>
+            <span>BIDIK BADAI PANAH AGUNG • LEPAS [F] / KLIK KIRI TEMBAK • KLIK KANAN / ESC BATAL</span>
           </div>
         </div>
       )}

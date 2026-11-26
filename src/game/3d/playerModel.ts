@@ -1281,7 +1281,8 @@ export function animateHunterBowAim(
   isMoving: boolean,
   walkCycle: number,
   delta: number,
-  showArrow: boolean = true
+  showArrow: boolean = true,
+  chargeGatherMode: boolean = false
 ): void {
   if (!playerMesh) return;
 
@@ -1346,13 +1347,20 @@ export function animateHunterBowAim(
     bowArrow.position.set(0, 0, chargeRatio * 0.20);
   }
 
-  // 5. PUSARAN ENERGI DI UJUNG PANAH: Aktif saat tarikan >= 0.85
+  // 5. PUSARAN ENERGI DI UJUNG PANAH: Aktif saat charge gather (Rajawali) atau tarikan >= 0.85
   const vortex = playerMesh.group?.getObjectByName('ArrowVortex');
   if (vortex) {
-    const isFullCharge = showArrow && chargeRatio >= 0.85;
-    vortex.visible = isFullCharge;
-    if (isFullCharge) {
-      vortex.rotation.z += delta * 18.0;
+    const showGather = showArrow && (chargeGatherMode || chargeRatio >= 0.85);
+    vortex.visible = showGather;
+    if (showGather) {
+      vortex.rotation.z += delta * (chargeGatherMode ? 24.0 : 18.0);
+      if (chargeGatherMode) {
+        // Cincin pusaran angin mengecil seiring tarikan energi Panah Rajawali (0 -> 1.0)
+        const gatherScale = Math.max(0.55, 1.75 - chargeRatio * 1.15);
+        vortex.scale.set(gatherScale, gatherScale, gatherScale);
+      } else {
+        vortex.scale.set(1, 1, 1);
+      }
     }
   }
 
@@ -1422,10 +1430,10 @@ export function animateHunterSkyVolley(
   const rightArmPose = playerMesh.group?.getObjectByName('RightArmPose');
   if (rightArmPose) rightArmPose.rotation.set(0, 0, 0);
 
-  // Lengan kiri mengangkat busur vertikal miring ~58° ke arah langit (-Math.PI * 0.82)
+  // Lengan kiri mengangkat busur vertikal miring ~65° ke arah langit (-Math.PI * 0.86)
   if (playerMesh.leftArm) {
     playerMesh.leftArm.position.set(-0.27, 1.46, 0.14);
-    playerMesh.leftArm.rotation.set(-Math.PI * 0.82, 0.08, -0.06);
+    playerMesh.leftArm.rotation.set(-Math.PI * 0.86, 0.08, -0.06);
   }
   const handBow = playerMesh.group?.getObjectByName('HandBow');
   if (handBow) {
@@ -1437,7 +1445,7 @@ export function animateHunterSkyVolley(
   if (playerMesh.rightArm) {
     playerMesh.rightArm.position.set(0.28, 1.40, -0.10);
     playerMesh.rightArm.rotation.set(
-      -Math.PI * 0.74,
+      -Math.PI * 0.78,
       -0.18 - drawPull * 0.30,
       0.22 + drawPull * 0.25
     );

@@ -80,10 +80,10 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         if (hunterWeaponMode === 'bow') {
           return {
             basic: { label: 'Tarik Busur', icon: '🏹', hint: 'Klik / Tahan' },
-            skill1: { name: 'Badai Panah', icon: '🏹', cost: '15 MP', key: 'Q', color: 'border-emerald-500/70 text-emerald-300 bg-emerald-950/40' },
-            skill2: { name: 'Gale Vault', icon: '🦅', cost: '15 Stm', key: 'E', color: 'border-teal-500/70 text-teal-300 bg-teal-950/40' },
+            skill1: { name: 'Rajawali', icon: '🦅', cost: '20 MP', key: 'Q', color: 'border-cyan-400/80 text-cyan-200 bg-cyan-950/50 shadow-cyan-500/30' },
+            skill2: { name: 'Gale Vault', icon: '💨', cost: '15 Stm', key: 'E', color: 'border-teal-500/70 text-teal-300 bg-teal-950/40' },
             skill3: { name: 'Panah Racun', icon: '💣', cost: '25 MP', key: 'R', color: 'border-green-500/70 text-green-300 bg-green-950/40' },
-            skill4: { name: 'Ultimate', icon: '🦅', cost: 'TBD', key: 'F', color: 'border-emerald-500/80 text-emerald-200 bg-emerald-950/60 shadow-emerald-500/30' },
+            skill4: { name: 'Badai Panah', icon: '⛈️', cost: '45 MP', key: 'F', color: 'border-2 border-amber-400/90 text-amber-200 bg-gradient-to-b from-cyan-900/90 via-sky-950/90 to-amber-950/80 shadow-cyan-500/50 ring-1 ring-cyan-400/60' },
           };
         } else {
           return {
@@ -91,7 +91,7 @@ export const SkillBar: React.FC<SkillBarProps> = ({
             skill1: { name: 'Tarian Belati', icon: '⚡', cost: '15 MP', key: 'Q', color: 'border-emerald-500/70 text-emerald-300 bg-emerald-950/40' },
             skill2: { name: 'Shadow Step', icon: '💨', cost: '15 Stm', key: 'E', color: 'border-teal-500/70 text-teal-300 bg-teal-950/40' },
             skill3: { name: 'Kabut Asap', icon: '🧪', cost: '25 MP', key: 'R', color: 'border-green-500/70 text-green-300 bg-green-950/40' },
-            skill4: { name: 'Ultimate', icon: '🗡️', cost: 'TBD', key: 'F', color: 'border-emerald-500/80 text-emerald-200 bg-emerald-950/60 shadow-emerald-500/30' },
+            skill4: { name: 'Ultimate', icon: '🗡️', cost: 'Segera', key: 'F', color: 'border-emerald-500/80 text-emerald-200 bg-emerald-950/60 shadow-emerald-500/30' },
           };
         }
     }
@@ -360,11 +360,13 @@ export const SkillBar: React.FC<SkillBarProps> = ({
         ) : (
           <>
             <span className="text-sm sm:text-base md:text-base">{classSkills.skill1.icon}</span>
-            <span className="hidden md:inline text-[8px] font-bold line-clamp-1">{classSkills.skill1.name}</span>
+            <span className="hidden md:inline text-[8px] font-bold leading-tight truncate max-w-full px-0.5">
+              {classSkills.skill1.name}
+            </span>
             <span className="absolute -top-1 -right-1 bg-stone-800 text-white text-[6px] md:text-[7px] font-mono px-0.5 rounded border border-stone-600">
               {classSkills.skill1.key}
             </span>
-            <span className="hidden md:inline absolute -bottom-1 text-[6px] text-stone-400 font-mono font-bold bg-stone-900/90 px-0.5 rounded">
+            <span className="hidden md:inline absolute -bottom-1 text-[6px] text-stone-300 font-mono font-bold bg-stone-900/90 px-0.5 rounded">
               {classSkills.skill1.cost}
             </span>
           </>
@@ -445,25 +447,86 @@ export const SkillBar: React.FC<SkillBarProps> = ({
       ) : stats.characterClass === 'rogue' ? (
         <button
           type="button"
+          onMouseDown={(e) => {
+            if (hunterWeaponMode === 'bow' && onAimSkillStart && e.button === 0) {
+              onAimSkillStart(4);
+            }
+          }}
+          onMouseUp={(e) => {
+            if (hunterWeaponMode === 'bow' && onAimSkillEnd && e.button === 0) {
+              onAimSkillEnd(4, false);
+            }
+          }}
+          onContextMenu={(e) => {
+            if (hunterWeaponMode === 'bow' && onAimSkillEnd) {
+              e.preventDefault();
+              e.stopPropagation();
+              onAimSkillEnd(4, true);
+            }
+          }}
           onTouchStart={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            onCastSkill(4);
+            if (hunterWeaponMode === 'bow' && onAimSkillStart) {
+              onAimSkillStart(4);
+            } else {
+              onCastSkill(4);
+            }
           }}
-          onClick={() => onCastSkill(4)}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (hunterWeaponMode === 'bow' && onAimSkillEnd) {
+              onAimSkillEnd(4, false);
+            }
+          }}
+          onTouchCancel={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (hunterWeaponMode === 'bow' && onAimSkillEnd) {
+              onAimSkillEnd(4, true);
+            }
+          }}
+          onClick={() => {
+            if (hunterWeaponMode !== 'bow' || !onAimSkillStart) {
+              onCastSkill(4);
+            }
+          }}
           style={{ touchAction: 'none', userSelect: 'none' }}
-          className="skill-btn skill-btn-4 touch-control-btn group relative flex flex-col items-center justify-center bg-gradient-to-b from-emerald-900/90 via-emerald-950/90 to-teal-950/80 text-emerald-200 border-2 border-emerald-400/90 ring-1 ring-emerald-400/60 shadow-lg shadow-emerald-900/50 cursor-pointer active:scale-90 transition-all select-none"
+          className={`skill-btn skill-btn-4 touch-control-btn group relative flex flex-col items-center justify-center cursor-pointer active:scale-90 transition-all select-none shadow-lg ${
+            hunterWeaponMode === 'bow'
+              ? 'bg-gradient-to-b from-cyan-900/90 via-sky-950/90 to-amber-950/80 text-amber-200 border-2 border-amber-400/90 ring-1 ring-cyan-400/70 shadow-cyan-500/40'
+              : 'bg-gradient-to-b from-emerald-900/90 via-emerald-950/90 to-teal-950/80 text-emerald-200 border-2 border-emerald-400/90 ring-1 ring-emerald-400/60 shadow-emerald-900/50'
+          }`}
           title={`${classSkills.skill4?.name || 'Ultimate'} (F - Ultimate)`}
         >
-          <span className="text-sm sm:text-base md:text-base">{classSkills.skill4?.icon || '🏹'}</span>
-          <span className="hidden md:inline text-[8px] font-bold text-emerald-300 line-clamp-1">
+          <span className={`text-sm sm:text-base md:text-base ${hunterWeaponMode === 'bow' ? 'animate-pulse' : ''}`}>
+            {classSkills.skill4?.icon || '⛈️'}
+          </span>
+          <span
+            className={`hidden md:inline text-[8px] font-bold leading-tight truncate max-w-full px-0.5 ${
+              hunterWeaponMode === 'bow' ? 'text-amber-200' : 'text-emerald-300'
+            }`}
+          >
             {classSkills.skill4?.name || 'Ultimate'}
           </span>
-          <span className="absolute -top-1 -right-1 bg-emerald-600 text-stone-950 font-black text-[6px] md:text-[7px] font-mono px-1 rounded-full border border-emerald-300 shadow">
+          <span
+            className={`absolute -top-1 -right-1 font-black text-[6px] md:text-[7px] font-mono px-1 rounded-full border shadow ${
+              hunterWeaponMode === 'bow'
+                ? 'bg-amber-500 text-stone-950 border-amber-200'
+                : 'bg-emerald-600 text-stone-950 border-emerald-300'
+            }`}
+          >
             F
           </span>
-          <span className="hidden md:inline absolute -bottom-1 text-[6px] text-emerald-300 font-mono font-bold bg-emerald-950/90 px-0.5 rounded border border-emerald-500/40">
-            {classSkills.skill4?.cost || 'TBD'}
+          <span
+            className={`hidden md:inline absolute -bottom-1 text-[6px] font-mono font-bold px-0.5 rounded border ${
+              hunterWeaponMode === 'bow'
+                ? 'text-cyan-200 bg-sky-950/95 border-amber-400/50'
+                : 'text-emerald-300 bg-emerald-950/90 border-emerald-500/40'
+            }`}
+          >
+            {classSkills.skill4?.cost || '45 MP'}
           </span>
         </button>
       ) : (
