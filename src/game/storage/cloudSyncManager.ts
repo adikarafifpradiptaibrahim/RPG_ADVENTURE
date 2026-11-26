@@ -352,6 +352,9 @@ class CloudSyncManager {
       delete cloned.deviceSettings.enableWorldCache;
       delete cloned.deviceSettings.worldCacheEnabled;
       delete cloned.deviceSettings.eldoria_local_world_cache_enabled;
+      delete cloned.deviceSettings.devTestingSettings;
+      delete cloned.deviceSettings.devModeEnabled;
+      delete cloned.deviceSettings.eldoria_dev_testing_settings_v1;
     }
     return cloned;
   }

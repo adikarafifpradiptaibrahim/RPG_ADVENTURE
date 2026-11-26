@@ -2735,9 +2735,26 @@ export async function buildDragonCaldera(
     colMesh.position.y = 4.5;
     pGroup.add(colMesh);
 
-    const torchLight = new THREE.PointLight(0xff5722, 2.0, 18);
-    torchLight.position.y = 9.5;
-    pGroup.add(torchLight);
+    // Visual glowing fire braziers atop each obsidian pillar (zero per-pillar PointLight for 60 FPS Caldera performance)
+    const topFlame = new THREE.Mesh(
+      new THREE.ConeGeometry(0.62, 1.5, 6),
+      new THREE.MeshBasicMaterial({ color: 0xff6d00 })
+    );
+    topFlame.position.y = 9.75;
+    pGroup.add(topFlame);
+
+    const topHalo = new THREE.Mesh(
+      new THREE.SphereGeometry(1.15, 8, 8),
+      new THREE.MeshBasicMaterial({
+        color: 0xff3d00,
+        transparent: true,
+        opacity: 0.35,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    topHalo.position.y = 9.6;
+    pGroup.add(topHalo);
 
     pGroup.position.set(dp.x, pY, dp.z);
     scene.add(pGroup);

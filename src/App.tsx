@@ -48,6 +48,15 @@ import {
   cloudSyncManager,
   MigrationDialogData,
 } from './game/storage/cloudSyncManager';
+import {
+  DevTestingSettings,
+  getDevTestingSettings,
+  getEffectiveDevTestingSettings,
+  subscribeDevTestingSettings,
+  updateDevTestingSettings,
+} from './game/storage/devTestingManager';
+import { DevDebugOverlay } from './components/DevDebugOverlay';
+import { DevTeleportPreset } from './components/DeveloperSettingsSection';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -171,6 +180,15 @@ export default function App() {
   // Graphics Settings State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [graphicsSettings, setGraphicsSettings] = useState<GraphicsSettings>(() => loadGraphicsSettings());
+
+  // Local-Only Developer & Testing Mode State (Always defaults to OFF / false)
+  const [devTesting, setDevTesting] = useState<DevTestingSettings>(() => getEffectiveDevTestingSettings());
+  useEffect(() => {
+    setDevTesting(getEffectiveDevTestingSettings());
+    return subscribeDevTestingSettings(() => {
+      setDevTesting(getEffectiveDevTestingSettings());
+    });
+  }, []);
 
   // Touch Controls State (Default OFF on PC, ON on Mobile/Touchscreen)
   const [showTouchControls, setShowTouchControls] = useState<boolean>(() => {
@@ -723,6 +741,47 @@ export default function App() {
     } else {
       setIsUIVisible(true);
     }
+    if (getDevTestingSettings().enabled) {
+      updateDevTestingSettings({ spectatorMode: nextState });
+    }
+  }, []);
+
+  const handleDevForceBossPhase2 = useCallback(() => {
+    if (!engineRef.current) return { ok: false, message: 'Engine 3D belum siap.' };
+    const res = engineRef.current.devForceNearestBossPhase2();
+    addFloatingText(res.message, res.ok ? '#fb923c' : '#f87171', res.ok ? 'crit' : 'info');
+    return res;
+  }, []);
+
+  const handleDevResetBoss = useCallback(() => {
+    if (!engineRef.current) return { ok: false, message: 'Engine 3D belum siap.' };
+    const res = engineRef.current.devResetNearestBoss();
+    addFloatingText(res.message, res.ok ? '#38bdf8' : '#f87171', 'info');
+    return res;
+  }, []);
+
+  const handleDevTeleportPreset = useCallback((preset: DevTeleportPreset) => {
+    if (!engineRef.current) return { ok: false, label: 'Belum siap' };
+    const res = engineRef.current.devTeleportToPreset(preset);
+    addFloatingText(`✨ Teleport ke ${res.label}`, '#34d399', 'info');
+    setIsPauseMenuOpen(false);
+    setIsSettingsOpen(false);
+    return res;
+  }, []);
+
+  const handleDevSetSpectator = useCallback((next: boolean) => {
+    if (!engineRef.current) return;
+    const actual = engineRef.current.toggleSpectatorMode(next, false);
+    setIsSpectatorMode(actual);
+    if (actual) {
+      setSpectatorSpeed(engineRef.current.getSpectatorSpeed());
+    } else {
+      setIsUIVisible(true);
+    }
+  }, []);
+
+  const getDevDebugTelemetry = useCallback(() => {
+    return engineRef.current?.getDevDebugTelemetry() ?? null;
   }, []);
 
   // Initialize Three.js engine when canvas container mounts
@@ -1666,6 +1725,10 @@ export default function App() {
         onReturnToMainMenu={handleReturnToMainMenu}
         onDisconnectAndReturnToMainMenu={handleDisconnectAndReturnToMainMenu}
         onSaveGame={() => handleSaveRoleProgress(true)}
+        onForceBossPhase2={handleDevForceBossPhase2}
+        onResetBoss={handleDevResetBoss}
+        onTeleportPreset={handleDevTeleportPreset}
+        onToggleSpectator={handleDevSetSpectator}
       />
 
       {/* Graphics & Performance Settings Modal (Optimization for Low-End PCs) */}
@@ -1683,6 +1746,16 @@ export default function App() {
           handleReturnToMainMenu();
           addFloatingText('Data Guest Lokal Direset!', '#ef4444', 'crit');
         }}
+        isInGameplay={hasStarted}
+        onForceBossPhase2={handleDevForceBossPhase2}
+        onResetBoss={handleDevResetBoss}
+        onTeleportPreset={handleDevTeleportPreset}
+        onToggleSpectator={handleDevSetSpectator}
+      />
+
+      <DevDebugOverlay
+        isVisible={hasStarted && !isLoadingGameplay && devTesting.enabled && devTesting.showDebugOverlay}
+        getTelemetry={getDevDebugTelemetry}
       />
 
       {/* Cloud Authentication & Cross-Device Account Modal */}

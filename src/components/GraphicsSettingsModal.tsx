@@ -23,6 +23,7 @@ import {
   LogOut,
   RefreshCw,
   CheckCircle2,
+  Wrench,
 } from 'lucide-react';
 import {
   GraphicsSettings,
@@ -53,6 +54,10 @@ import {
   CloudUser,
 } from '../game/storage/cloudSyncManager';
 import { BrowserCacheSettingsSection } from './BrowserCacheSettingsSection';
+import {
+  DeveloperSettingsSection,
+  DevTeleportPreset,
+} from './DeveloperSettingsSection';
 
 interface GraphicsSettingsModalProps {
   isOpen: boolean;
@@ -61,6 +66,11 @@ interface GraphicsSettingsModalProps {
   onClose: () => void;
   onResetGuest?: () => void;
   onOpenAuth?: () => void;
+  isInGameplay?: boolean;
+  onForceBossPhase2?: () => { ok: boolean; message: string };
+  onResetBoss?: () => { ok: boolean; message: string };
+  onTeleportPreset?: (preset: DevTeleportPreset) => { ok: boolean; label: string } | void;
+  onToggleSpectator?: (next: boolean) => void;
 }
 
 export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
@@ -70,8 +80,13 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
   onClose,
   onResetGuest,
   onOpenAuth,
+  isInGameplay = false,
+  onForceBossPhase2,
+  onResetBoss,
+  onTeleportPreset,
+  onToggleSpectator,
 }) => {
-  const [activeTab, setActiveTab] = useState<'grafik' | 'suara' | 'kontrol' | 'akun'>('grafik');
+  const [activeTab, setActiveTab] = useState<'grafik' | 'suara' | 'kontrol' | 'akun' | 'dev'>('grafik');
   const [settings, setSettings] = useState<GraphicsSettings>(currentSettings);
 
   // Cloud Account State
@@ -351,6 +366,21 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
           >
             <User className="w-3.5 h-3.5" />
             <span>Akun & Save</span>
+          </button>
+
+          <button
+            onClick={() => {
+              soundManager.playMenuClick();
+              setActiveTab('dev');
+            }}
+            className={`flex-1 min-w-[68px] py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+              activeTab === 'dev'
+                ? 'bg-orange-600/30 text-orange-300 border border-orange-500/60 shadow'
+                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
+            }`}
+          >
+            <Wrench className="w-3.5 h-3.5" />
+            <span>Dev</span>
           </button>
         </div>
 
@@ -1002,6 +1032,19 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* TAB 5: DEVELOPER & TESTING MODE */}
+          {activeTab === 'dev' && (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              <DeveloperSettingsSection
+                isInGameplay={isInGameplay}
+                onForceBossPhase2={onForceBossPhase2}
+                onResetBoss={onResetBoss}
+                onTeleportPreset={onTeleportPreset}
+                onToggleSpectator={onToggleSpectator}
+              />
             </div>
           )}
 

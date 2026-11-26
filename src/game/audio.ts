@@ -2714,6 +2714,58 @@ export class SoundManager {
       freqEnd: 60,
     });
   }
+
+  // Procedural Storm Thunder Crack (Phase 2 Caldera Lightning Audio)
+  public playThunderCrack() {
+    this.initContext();
+    if (this.isMuted || !this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+
+    // 1. Tajam sambaran petir awal (high-energy electrical snap)
+    this.playNoiseBurst({
+      duration: 0.24,
+      gain: 0.42,
+      filterType: 'bandpass',
+      freqStart: 2200,
+      freqEnd: 360,
+    });
+
+    // 2. Gemuruh guntur utama bergema lewat low-pass filter (~2.1 detik)
+    this.playNoiseBurst({
+      duration: 2.1,
+      gain: 0.52,
+      filterType: 'lowpass',
+      freqStart: 540,
+      freqEnd: 55,
+      delay: 0.04,
+    });
+
+    // 3. Pantulan gemuruh kedua di cakrawala kaldera
+    this.playNoiseBurst({
+      duration: 1.5,
+      gain: 0.3,
+      filterType: 'lowpass',
+      freqStart: 320,
+      freqEnd: 45,
+      delay: 0.38,
+    });
+
+    // 4. Dentuman sub-bass guntur dalam
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'triangle';
+    subOsc.frequency.setValueAtTime(76, now);
+    subOsc.frequency.exponentialRampToValueAtTime(24, now + 1.85);
+
+    subGain.gain.setValueAtTime(0.001, now);
+    subGain.gain.linearRampToValueAtTime(0.45, now + 0.08);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 1.95);
+
+    subOsc.connect(subGain);
+    subGain.connect(this.sfxGain);
+    subOsc.start(now);
+    subOsc.stop(now + 2.0);
+  }
 }
 
 export const soundManager = new SoundManager();

@@ -42,7 +42,13 @@ import {
   getExactMeshGroundHeight,
 } from './worldEnvironment';
 import { BossManager } from '../BossManager';
-import { BOSS_ARENA_ZONES, BossArenaZone } from '../monsterAI';
+import { BOSS_ARENA_ZONES, BossArenaZone, SPAWN_NAGA } from '../monsterAI';
+import {
+  DevTestingSettings,
+  getDefaultDevTestingSettings,
+  getEffectiveDevTestingSettings,
+  subscribeDevTestingSettings,
+} from '../storage/devTestingManager';
 import { RemotePlayerData } from '../multiplayer';
 import { GraphicsSettings, loadGraphicsSettings } from '../graphicsSettings';
 import {
@@ -80,7 +86,6 @@ import {
   WorldLayoutConfig,
   getLandmarkLayout,
   SAFE_ZONES,
-  isInsideSafeZone,
 } from './worldLayoutConfig';
 import { WORLD_BOUNDS } from './worldData';
 import {
@@ -812,7 +817,73 @@ export class GameEngine {
     distanceTraveled?: number;
     pooledArrow?: PooledHunterArrow;
     isCripplingSlow?: boolean;
+    pooledHostileType?: 'titan_boulder' | 'dragon_fireball';
+    pooledHostileIndex?: number;
   }[] = [];
+
+  // Developer Testing State & FPS Telemetry (browser-only, default OFF)
+  private devSettings: DevTestingSettings = getEffectiveDevTestingSettings();
+  private unsubDevSettings: (() => void) | null = null;
+  private currentFps = 60;
+  private fpsFrameAccum = 0;
+  private fpsTimeAccum = 0;
+  private cachedIgnisEnemy: (typeof this.enemies)[0] | null = null;
+
+  // Pre-allocated Boss Projectile Pools (ZERO PointLight, additive halo glow)
+  private titanBoulderPool: Array<{ active: boolean; group: THREE.Group }> = [];
+  private titanBoulderPoolGeos: THREE.BufferGeometry[] = [];
+  private titanBoulderPoolMats: THREE.Material[] = [];
+  private titanBoulderCursor = 0;
+
+  private ignisFireballPool: Array<{ active: boolean; group: THREE.Group }> = [];
+  private ignisFireballPoolGeos: THREE.BufferGeometry[] = [];
+  private ignisFireballPoolMats: THREE.Material[] = [];
+  private ignisFireballCursor = 0;
+
+  // Pre-allocated Caldera Storm, Clouds, Branched Lightning, & Ignis Phase 2 Volcanic Berserk Aura Pools
+  private calderaCloudGroup: THREE.Group | null = null;
+  private calderaCloudMats: THREE.MeshBasicMaterial[] = [];
+  private calderaCloudGeo: THREE.BufferGeometry | null = null;
+
+  private calderaStormPoints: THREE.Points | null = null;
+  private calderaStormPositions = new Float32Array(220 * 3);
+  private calderaStormColors = new Float32Array(220 * 3);
+  private calderaStormVelocities = new Float32Array(220 * 3);
+  private calderaStormMat: THREE.PointsMaterial | null = null;
+  private readonly CALDERA_STORM_PARTICLE_COUNT = 220;
+
+  private ignisAuraPoints: THREE.Points | null = null;
+  private ignisAuraPositions = new Float32Array(180 * 3);
+  private ignisAuraColors = new Float32Array(180 * 3);
+  private ignisAuraVelocities = new Float32Array(180 * 3);
+  private ignisAuraLifes = new Float32Array(180);
+  private ignisAuraMaxLifes = new Float32Array(180);
+  private ignisAuraMat: THREE.PointsMaterial | null = null;
+  private ignisAuraCursor = 0;
+  private readonly IGNIS_AURA_PARTICLE_COUNT = 180;
+
+  private calderaLightningPool: Array<{
+    active: boolean;
+    timer: number;
+    duration: number;
+    group: THREE.Group;
+    outerLines: THREE.LineSegments;
+    outerPos: Float32Array;
+    outerMat: THREE.LineBasicMaterial;
+    coreLines: THREE.LineSegments;
+    corePos: Float32Array;
+    coreMat: THREE.LineBasicMaterial;
+  }> = [];
+  private calderaLightningNextTimer = 2.2;
+  private calderaLightningFlashTimer = 0;
+  private calderaLightningFlashDuration = 0.24;
+
+  // Pre-allocated Scratch Math Objects for Storm Lighting & Weather Blending (Zero per-frame Color alloc)
+  private readonly _stormBgColor = new THREE.Color(0x1a171f);
+  private readonly _stormFogColor = new THREE.Color(0x2e181c);
+  private readonly _stormFlashBgColor = new THREE.Color(0x5b6478);
+  private readonly _stormLightTint = new THREE.Color(0x8c7b88);
+  private readonly _scratchColorWork = new THREE.Color();
 
   // Spectator / Freecam Mode (Minecraft-Style Fly Cam)
   public isSpectatorMode = false;
@@ -1270,6 +1341,7 @@ export class GameEngine {
     spawnPos?: THREE.Vector3;
     respawnTimer?: number;
     isReturning?: boolean;
+    isAttacking?: boolean;
     deathTimer?: number;
     leashRadius?: number;
     attackAnimTimer?: number;
@@ -1346,10 +1418,32 @@ export class GameEngine {
     this.skillVfxLight.name = 'PlayerSkill_StaticLight';
     this.scene.add(this.skillVfxLight);
 
-    // Initialize Zero-Allocation Object Pools for Sparks and Combat VFX
+    // Initialize Zero-Allocation Object Pools for Sparks, Combat VFX, Boss Projectiles & Caldera Storm
     this.initSparksPool();
     this.initCombatVfxPools();
     this.initHunterArrowPool();
+    this.initBossProjectilePools();
+    this.initCalderaStormPools();
+
+    // Sync local-only Developer & Testing settings (default OFF)
+    this.devSettings = getEffectiveDevTestingSettings();
+    this.unsubDevSettings = subscribeDevTestingSettings(() => {
+      this.devSettings = getEffectiveDevTestingSettings();
+      this.bossManager?.setDevFlags(this.devSettings.godMode, this.devSettings.ccImmune);
+      if (this.devSettings.zeroCooldown) {
+        this.mageUltimateCooldownTimer = 0;
+        this.mageGlacialBarrageCooldownTimer = 0;
+        this.mageBlinkCooldownTimer = 0;
+        this.mageCahayaSuciCooldownTimer = 0;
+        this.hunterMobilityCooldownTimer = 0;
+        this.bowShotCooldownTimer = 0;
+      }
+      if (this.devSettings.enabled && this.devSettings.spectatorMode !== this.isSpectatorMode) {
+        this.toggleSpectatorMode(this.devSettings.spectatorMode, false);
+      } else if (!this.devSettings.enabled && this.isSpectatorMode && !this.savedCameraFar) {
+        // Keep F3 standalone behavior safe; no override when dev disabled
+      }
+    });
 
     // Initialize World Editor in Dev Mode
     if (import.meta.env.DEV) {
@@ -1418,6 +1512,7 @@ export class GameEngine {
           this.spawnIgnisFireballProjectile(fromPos, toPos, damage);
         },
         onPlayerDeath: () => {
+          if (this.devSettings.godMode) return;
           this.respawnPlayerAtLastVisitedTown();
         },
         onDamageAbsorb: (rawDmg) => this.absorbDamageWithShield(rawDmg).remainingDamage,
@@ -1426,6 +1521,7 @@ export class GameEngine {
         },
       }
     );
+    this.bossManager.setDevFlags(this.devSettings.godMode, this.devSettings.ccImmune);
 
     // 6. Dynamic PointLights cache for distance-based lighting optimization
     this.scenePointLights = this.world.pointLights || [];
@@ -1560,6 +1656,7 @@ export class GameEngine {
           this.spawnIgnisFireballProjectile(fromPos, toPos, damage);
         },
         onPlayerDeath: () => {
+          if (this.devSettings.godMode) return;
           this.respawnPlayerAtLastVisitedTown();
         },
         onDamageAbsorb: (rawDmg) => this.absorbDamageWithShield(rawDmg).remainingDamage,
@@ -1568,6 +1665,7 @@ export class GameEngine {
         },
       }
     );
+    this.bossManager.setDevFlags(this.devSettings.godMode, this.devSettings.ccImmune);
 
     // Initialize Checkpoints from saved state
     try {
@@ -2975,14 +3073,16 @@ export class GameEngine {
       ],
     };
 
-    this.enemies.push({
+    const ignisEntry = {
       data: wyrmData,
       mesh: wyrmGroup,
       parts: wyrmParts,
       baseY: wyrmY,
       attackCooldown: 0,
       walkCycle: 0,
-    });
+    };
+    this.enemies.push(ignisEntry);
+    this.cachedIgnisEnemy = ignisEntry;
     await cooperativeYield(8);
 
     // Solaria Desert Colossal Super Boss: Jarrus, Sang Cacing Purba (Segmented Burrowing Sandworm: [495, -362])
@@ -3271,6 +3371,15 @@ export class GameEngine {
   // Fast travel / teleport from map
 
   public respawnPlayerAtLastVisitedTown() {
+    if (this.devSettings.godMode) {
+      this.callbacks.onUpdateStats((stats) => ({
+        ...stats,
+        hp: stats.maxHp,
+        mp: stats.maxMp,
+      }));
+      this.callbacks.onAddFloatingText('🛡️ KEBAL KEMATIAN (GOD MODE)!', '#38bdf8', 'info');
+      return;
+    }
     if (this.isCasting) {
       this.isCasting = false;
       this.callbacks.onCastingUpdate?.(null);
@@ -3285,6 +3394,7 @@ export class GameEngine {
     this.cancelArrowVolleyAim(false);
     this.clearActiveBowSkillPools();
     this.bossManager.clearDebuffs();
+    this.bossManager.notifyPlayerRespawn();
     soundManager.handlePlayerRespawn();
     const targetY = Math.max(0.5, this.world.getTerrainHeight(this.lastVisitedTownPos.x, this.lastVisitedTownPos.z) + 0.5);
     this.playerPos.set(this.lastVisitedTownPos.x, targetY, this.lastVisitedTownPos.z);
@@ -3760,7 +3870,7 @@ export class GameEngine {
       if (this.charClass === 'mage') {
         if (!e.repeat) {
           // Abaikan event e.repeat === true pada keydown KeyQ agar menahan tombol Q tidak mereset pressStartTime terus-menerus.
-          if (this.mageGlacialBarrageCooldownTimer > 0) {
+          if (!this.devSettings.zeroCooldown && this.mageGlacialBarrageCooldownTimer > 0) {
             this.callbacks.onAddFloatingText(
               `Glacial Barrage Cooldown (${this.mageGlacialBarrageCooldownTimer.toFixed(1)}s)!`,
               '#94a3b8',
@@ -3768,7 +3878,7 @@ export class GameEngine {
             );
             return;
           }
-          if (this.currentStats.mp < 18) {
+          if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 18) {
             this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#ef4444', 'info');
             return;
           }
@@ -4814,6 +4924,725 @@ export class GameEngine {
     }
     this.scene.add(object);
     this.activeVfx.push({ object, update, cleanup, isPriority });
+  }
+
+  // ============================================================================
+  // POOLED BOSS PROJECTILES, CALDERA STORM WEATHER, LIGHTNING, & IGNIS AURA
+  // ============================================================================
+  private initBossProjectilePools() {
+    if (this.titanBoulderPool.length === 0) {
+      const rockGeo = new THREE.DodecahedronGeometry(0.9, 1);
+      const coreGeo = new THREE.IcosahedronGeometry(0.68, 1);
+      const haloGeo = new THREE.SphereGeometry(1.38, 10, 10);
+
+      const rockMat = new THREE.MeshStandardMaterial({
+        color: 0x292524,
+        emissive: 0x2c0e06,
+        emissiveIntensity: 0.45,
+        roughness: 0.9,
+        metalness: 0.1,
+      });
+      const coreMat = new THREE.MeshBasicMaterial({
+        color: 0xff6d00,
+        wireframe: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+        opacity: 0.85,
+      });
+      const haloMat = new THREE.MeshBasicMaterial({
+        color: 0xff5722,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+        opacity: 0.35,
+      });
+
+      this.titanBoulderPoolGeos.push(rockGeo, coreGeo, haloGeo);
+      this.titanBoulderPoolMats.push(rockMat, coreMat, haloMat);
+
+      for (let i = 0; i < 6; i++) {
+        const group = new THREE.Group();
+        group.add(new THREE.Mesh(rockGeo, rockMat));
+        group.add(new THREE.Mesh(coreGeo, coreMat));
+        group.add(new THREE.Mesh(haloGeo, haloMat));
+        group.visible = false;
+        group.frustumCulled = false;
+        group.traverse((c) => { c.frustumCulled = false; });
+        this.scene.add(group);
+        this.titanBoulderPool.push({ active: false, group });
+      }
+    }
+
+    if (this.ignisFireballPool.length === 0) {
+      const fbGeo = new THREE.SphereGeometry(0.85, 10, 10);
+      const coronaGeo = new THREE.IcosahedronGeometry(1.18, 1);
+      const haloGeo = new THREE.SphereGeometry(1.65, 10, 10);
+
+      const fbMat = new THREE.MeshStandardMaterial({
+        color: 0xff3d00,
+        emissive: 0xff1744,
+        emissiveIntensity: 2.2,
+        roughness: 0.2,
+      });
+      const coronaMat = new THREE.MeshBasicMaterial({
+        color: 0xffeb3b,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.72,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const haloMat = new THREE.MeshBasicMaterial({
+        color: 0xff6d00,
+        transparent: true,
+        opacity: 0.38,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+
+      this.ignisFireballPoolGeos.push(fbGeo, coronaGeo, haloGeo);
+      this.ignisFireballPoolMats.push(fbMat, coronaMat, haloMat);
+
+      for (let i = 0; i < 12; i++) {
+        const group = new THREE.Group();
+        group.add(new THREE.Mesh(fbGeo, fbMat));
+        group.add(new THREE.Mesh(coronaGeo, coronaMat));
+        group.add(new THREE.Mesh(haloGeo, haloMat));
+        group.visible = false;
+        group.frustumCulled = false;
+        group.traverse((c) => { c.frustumCulled = false; });
+        this.scene.add(group);
+        this.ignisFireballPool.push({ active: false, group });
+      }
+    }
+  }
+
+  private initCalderaStormPools() {
+    if (this.calderaCloudGroup) return;
+    const centerX = SPAWN_NAGA[0];
+    const centerZ = SPAWN_NAGA[1];
+    const baseGroundY = 2.5;
+
+    // 1. Dark Low Overcast Storm Cloud Layer above Dragon Caldera
+    const cloudGroup = new THREE.Group();
+    cloudGroup.position.set(centerX, baseGroundY + 38.0, centerZ);
+    const cloudGeo = new THREE.DodecahedronGeometry(1.0, 1);
+    cloudGeo.scale(1.0, 0.22, 0.75);
+    this.calderaCloudGeo = cloudGeo;
+
+    const ringConfigs = [
+      { count: 6, rMin: 12, rMax: 24, yMin: -2, yMax: 2, scale: 22, color: 0x16121b },
+      { count: 8, rMin: 30, rMax: 52, yMin: -3, yMax: 4, scale: 28, color: 0x22151a },
+    ];
+    for (const cfg of ringConfigs) {
+      for (let i = 0; i < cfg.count; i++) {
+        const angle = (i / cfg.count) * Math.PI * 2 + (cfg.rMin * 0.13);
+        const r = THREE.MathUtils.lerp(cfg.rMin, cfg.rMax, ((i * 37) % 10) / 10);
+        const mat = new THREE.MeshBasicMaterial({
+          color: cfg.color,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+        });
+        this.calderaCloudMats.push(mat);
+        const cloud = new THREE.Mesh(cloudGeo, mat);
+        cloud.position.set(
+          Math.cos(angle) * r,
+          THREE.MathUtils.lerp(cfg.yMin, cfg.yMax, ((i * 23) % 10) / 10),
+          Math.sin(angle) * r
+        );
+        const s = cfg.scale + (i % 3) * 5;
+        cloud.scale.set(s, s * 0.75, s);
+        cloud.rotation.y = angle + 0.5;
+        cloud.frustumCulled = false;
+        cloudGroup.add(cloud);
+      }
+    }
+    cloudGroup.visible = false;
+    cloudGroup.frustumCulled = false;
+    this.scene.add(cloudGroup);
+    this.calderaCloudGroup = cloudGroup;
+
+    // 2. Pooled Caldera Volcanic Storm Ash & Ember Rain (THREE.Points with fixed Float32Array)
+    const stormGeo = new THREE.BufferGeometry();
+    for (let i = 0; i < this.CALDERA_STORM_PARTICLE_COUNT; i++) {
+      const i3 = i * 3;
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * 54;
+      this.calderaStormPositions[i3] = centerX + Math.cos(a) * r;
+      this.calderaStormPositions[i3 + 1] = baseGroundY + 1 + Math.random() * 34;
+      this.calderaStormPositions[i3 + 2] = centerZ + Math.sin(a) * r;
+
+      this.calderaStormVelocities[i3] = (Math.random() - 0.5) * 4.5;
+      this.calderaStormVelocities[i3 + 1] = -(2.2 + Math.random() * 3.8);
+      this.calderaStormVelocities[i3 + 2] = (Math.random() - 0.5) * 4.5;
+
+      const isEmber = i % 3 === 0;
+      this.calderaStormColors[i3] = isEmber ? 1.0 : 0.35;
+      this.calderaStormColors[i3 + 1] = isEmber ? 0.38 : 0.30;
+      this.calderaStormColors[i3 + 2] = isEmber ? 0.08 : 0.34;
+    }
+    const stormPosAttr = new THREE.BufferAttribute(this.calderaStormPositions, 3);
+    stormPosAttr.setUsage(THREE.DynamicDrawUsage);
+    stormGeo.setAttribute('position', stormPosAttr);
+    stormGeo.setAttribute('color', new THREE.BufferAttribute(this.calderaStormColors, 3));
+
+    const stormMat = new THREE.PointsMaterial({
+      size: 0.42,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+    const stormPoints = new THREE.Points(stormGeo, stormMat);
+    stormPoints.visible = false;
+    stormPoints.frustumCulled = false;
+    this.scene.add(stormPoints);
+    this.calderaStormPoints = stormPoints;
+    this.calderaStormMat = stormMat;
+
+    // 3. Pooled Ignis Phase 2 Volcanic Berserk Smoke & Magma Embers Aura (THREE.Points with fixed Float32Array)
+    const auraGeo = new THREE.BufferGeometry();
+    for (let i = 0; i < this.IGNIS_AURA_PARTICLE_COUNT; i++) {
+      this.ignisAuraPositions[i * 3] = 0;
+      this.ignisAuraPositions[i * 3 + 1] = -999;
+      this.ignisAuraPositions[i * 3 + 2] = 0;
+      this.ignisAuraLifes[i] = 0;
+      this.ignisAuraMaxLifes[i] = 1.0;
+    }
+    const auraPosAttr = new THREE.BufferAttribute(this.ignisAuraPositions, 3);
+    auraPosAttr.setUsage(THREE.DynamicDrawUsage);
+    const auraColAttr = new THREE.BufferAttribute(this.ignisAuraColors, 3);
+    auraColAttr.setUsage(THREE.DynamicDrawUsage);
+    auraGeo.setAttribute('position', auraPosAttr);
+    auraGeo.setAttribute('color', auraColAttr);
+
+    const auraMat = new THREE.PointsMaterial({
+      size: 0.65,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+    });
+    const auraPoints = new THREE.Points(auraGeo, auraMat);
+    auraPoints.visible = false;
+    auraPoints.frustumCulled = false;
+    this.scene.add(auraPoints);
+    this.ignisAuraPoints = auraPoints;
+    this.ignisAuraMat = auraMat;
+
+    // 4. Pre-allocated Pool of 3 Branched 3D Lightning Bolts (16 line segments each = 32 vertices * 3 floats)
+    const SEGMENTS_PER_BOLT = 18;
+    for (let i = 0; i < 3; i++) {
+      const boltGroup = new THREE.Group();
+      const outerPos = new Float32Array(SEGMENTS_PER_BOLT * 2 * 3);
+      const corePos = new Float32Array(SEGMENTS_PER_BOLT * 2 * 3);
+
+      const outerGeo = new THREE.BufferGeometry();
+      const outerAttr = new THREE.BufferAttribute(outerPos, 3);
+      outerAttr.setUsage(THREE.DynamicDrawUsage);
+      outerGeo.setAttribute('position', outerAttr);
+
+      const coreGeo = new THREE.BufferGeometry();
+      const coreAttr = new THREE.BufferAttribute(corePos, 3);
+      coreAttr.setUsage(THREE.DynamicDrawUsage);
+      coreGeo.setAttribute('position', coreAttr);
+
+      const outerMat = new THREE.LineBasicMaterial({
+        color: 0xe0f2fe,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const coreMat = new THREE.LineBasicMaterial({
+        color: 0xfed7aa,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+
+      const outerLines = new THREE.LineSegments(outerGeo, outerMat);
+      const coreLines = new THREE.LineSegments(coreGeo, coreMat);
+      outerLines.frustumCulled = false;
+      coreLines.frustumCulled = false;
+
+      boltGroup.add(outerLines, coreLines);
+      boltGroup.visible = false;
+      boltGroup.frustumCulled = false;
+      this.scene.add(boltGroup);
+
+      this.calderaLightningPool.push({
+        active: false,
+        timer: 0,
+        duration: 0.24,
+        group: boltGroup,
+        outerLines,
+        outerPos,
+        outerMat,
+        coreLines,
+        corePos,
+        coreMat,
+      });
+    }
+  }
+
+  private spawnCalderaLightningBolt(bolt: (typeof this.calderaLightningPool)[0], x: number, z: number) {
+    const groundY = this.world ? this.world.getTerrainHeight(x, z) : 2.5;
+    const topY = groundY + 40.0;
+    const mainSteps = 10;
+
+    let curX = x + (Math.random() - 0.5) * 4.0;
+    let curY = topY;
+    let curZ = z + (Math.random() - 0.5) * 4.0;
+
+    let segIdx = 0;
+    const writeSegment = (
+      ax: number, ay: number, az: number,
+      bx: number, by: number, bz: number,
+      jitter: number
+    ) => {
+      if (segIdx >= 18) return;
+      const idx = segIdx * 6;
+      bolt.outerPos[idx] = ax;
+      bolt.outerPos[idx + 1] = ay;
+      bolt.outerPos[idx + 2] = az;
+      bolt.outerPos[idx + 3] = bx;
+      bolt.outerPos[idx + 4] = by;
+      bolt.outerPos[idx + 5] = bz;
+
+      bolt.corePos[idx] = ax + jitter;
+      bolt.corePos[idx + 1] = ay;
+      bolt.corePos[idx + 2] = az - jitter;
+      bolt.corePos[idx + 3] = bx + jitter;
+      bolt.corePos[idx + 4] = by;
+      bolt.corePos[idx + 5] = bz - jitter;
+      segIdx++;
+    };
+
+    const branchSeeds: Array<{ x: number; y: number; z: number }> = [];
+    for (let s = 1; s <= mainSteps; s++) {
+      const t = s / mainSteps;
+      const nextX = s === mainSteps ? x : THREE.MathUtils.lerp(curX, x, 0.35) + (Math.random() - 0.5) * 4.2;
+      const nextY = THREE.MathUtils.lerp(topY, groundY, t);
+      const nextZ = s === mainSteps ? z : THREE.MathUtils.lerp(curZ, z, 0.35) + (Math.random() - 0.5) * 4.2;
+      writeSegment(curX, curY, curZ, nextX, nextY, nextZ, 0.14);
+
+      if (s === 3 || s === 6 || s === 8) {
+        branchSeeds.push({ x: nextX, y: nextY, z: nextZ });
+      }
+      curX = nextX;
+      curY = nextY;
+      curZ = nextZ;
+    }
+
+    // Add 3 jagged side branches across remaining segments
+    for (let b = 0; b < branchSeeds.length && segIdx < 16; b++) {
+      const seed = branchSeeds[b];
+      const bx1 = seed.x + (Math.random() - 0.5) * 6.5;
+      const by1 = seed.y - 4.0 - Math.random() * 3.0;
+      const bz1 = seed.z + (Math.random() - 0.5) * 6.5;
+      writeSegment(seed.x, seed.y, seed.z, bx1, by1, bz1, 0.08);
+
+      const bx2 = bx1 + (Math.random() - 0.5) * 5.0;
+      const by2 = by1 - 3.5 - Math.random() * 2.5;
+      const bz2 = bz1 + (Math.random() - 0.5) * 5.0;
+      writeSegment(bx1, by1, bz1, bx2, by2, bz2, 0.06);
+    }
+
+    // Zero any unused trailing segments cleanly
+    while (segIdx < 18) {
+      writeSegment(0, -999, 0, 0, -999, 0, 0);
+    }
+
+    (bolt.outerLines.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+    (bolt.coreLines.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+    bolt.active = true;
+    bolt.timer = 0;
+    bolt.duration = 0.18 + Math.random() * 0.10; // 0.18 - 0.28s
+    bolt.outerMat.opacity = 1.0;
+    bolt.coreMat.opacity = 1.0;
+    bolt.group.visible = true;
+  }
+
+  private updateCalderaStormAndAura(delta: number, elapsed: number) {
+    const stormFactor = this.bossManager?.extremeWeatherFactor || 0;
+    const ignis = this.cachedIgnisEnemy;
+    const isIgnisAlivePhase2 = Boolean(
+      ignis &&
+      !ignis.data.isDead &&
+      ignis.data.hp > 0 &&
+      this.bossManager?.dragonPhase === 2
+    );
+    const distPlayerToCaldera = Math.hypot(this.playerPos.x - SPAWN_NAGA[0], this.playerPos.z - SPAWN_NAGA[1]);
+
+    // 1. Update Ignis Phase 2 Volcanic Berserk Aura Particles (Smoke & Magma Embers)
+    if (this.ignisAuraPoints && this.ignisAuraMat) {
+      if (isIgnisAlivePhase2 && distPlayerToCaldera <= 95.0 && ignis) {
+        const iPos = ignis.mesh.position;
+        const spawnsPerFrame = 3;
+        for (let s = 0; s < spawnsPerFrame; s++) {
+          const idx = this.ignisAuraCursor;
+          this.ignisAuraCursor = (this.ignisAuraCursor + 1) % this.IGNIS_AURA_PARTICLE_COUNT;
+          const i3 = idx * 3;
+          const spawnChoice = idx % 3; // back, wingtips, jaw
+          let ox = (Math.random() - 0.5) * 4.5;
+          let oy = 4.2 + Math.random() * 2.2;
+          let oz = (Math.random() - 0.5) * 4.5;
+          if (spawnChoice === 1) {
+            ox = (Math.random() > 0.5 ? 1 : -1) * (4.5 + Math.random() * 4.5);
+            oy = 5.5 + Math.random() * 2.5;
+          } else if (spawnChoice === 2) {
+            const sinY = Math.sin(ignis.mesh.rotation.y);
+            const cosY = Math.cos(ignis.mesh.rotation.y);
+            ox = sinY * 5.2 + (Math.random() - 0.5) * 1.4;
+            oz = cosY * 5.2 + (Math.random() - 0.5) * 1.4;
+            oy = 6.2 + Math.random() * 1.2;
+          }
+
+          this.ignisAuraPositions[i3] = iPos.x + ox;
+          this.ignisAuraPositions[i3 + 1] = iPos.y + oy;
+          this.ignisAuraPositions[i3 + 2] = iPos.z + oz;
+
+          this.ignisAuraVelocities[i3] = (Math.random() - 0.5) * 2.8;
+          this.ignisAuraVelocities[i3 + 1] = 2.6 + Math.random() * 3.6;
+          this.ignisAuraVelocities[i3 + 2] = (Math.random() - 0.5) * 2.8;
+
+          const isEmber = idx % 2 === 0;
+          this.ignisAuraColors[i3] = isEmber ? 1.0 : 0.16;
+          this.ignisAuraColors[i3 + 1] = isEmber ? (0.25 + Math.random() * 0.35) : 0.13;
+          this.ignisAuraColors[i3 + 2] = isEmber ? 0.04 : 0.15;
+
+          const maxL = 0.65 + Math.random() * 0.55;
+          this.ignisAuraLifes[idx] = maxL;
+          this.ignisAuraMaxLifes[idx] = maxL;
+        }
+      }
+
+      let anyAuraActive = false;
+      for (let i = 0; i < this.IGNIS_AURA_PARTICLE_COUNT; i++) {
+        if (this.ignisAuraLifes[i] > 0) {
+          this.ignisAuraLifes[i] -= delta;
+          const i3 = i * 3;
+          if (this.ignisAuraLifes[i] <= 0) {
+            this.ignisAuraPositions[i3 + 1] = -999;
+          } else {
+            anyAuraActive = true;
+            this.ignisAuraPositions[i3] += this.ignisAuraVelocities[i3] * delta;
+            this.ignisAuraPositions[i3 + 1] += this.ignisAuraVelocities[i3 + 1] * delta;
+            this.ignisAuraPositions[i3 + 2] += this.ignisAuraVelocities[i3 + 2] * delta;
+          }
+        }
+      }
+      this.ignisAuraPoints.visible = anyAuraActive;
+      if (anyAuraActive) {
+        (this.ignisAuraPoints.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+        (this.ignisAuraPoints.geometry.attributes.color as THREE.BufferAttribute).needsUpdate = true;
+      }
+    }
+
+    // 2. Dark Overcast Storm Clouds above Caldera
+    if (this.calderaCloudGroup) {
+      const showClouds = stormFactor > 0.05 && distPlayerToCaldera <= 140.0;
+      this.calderaCloudGroup.visible = showClouds;
+      if (showClouds) {
+        this.calderaCloudGroup.rotation.y = elapsed * 0.06;
+        const targetOp = Math.min(0.86, stormFactor * 0.86);
+        for (let i = 0; i < this.calderaCloudMats.length; i++) {
+          this.calderaCloudMats[i].opacity = targetOp;
+        }
+      }
+    }
+
+    // 3. Swirling Storm Ash & Cinder Particles
+    if (this.calderaStormPoints && this.calderaStormMat) {
+      const showStormAsh = stormFactor > 0.05 && distPlayerToCaldera <= 110.0;
+      this.calderaStormPoints.visible = showStormAsh;
+      if (showStormAsh) {
+        this.calderaStormMat.opacity = Math.min(0.88, stormFactor * 0.88);
+        const cx = SPAWN_NAGA[0];
+        const cz = SPAWN_NAGA[1];
+        for (let i = 0; i < this.CALDERA_STORM_PARTICLE_COUNT; i++) {
+          const i3 = i * 3;
+          this.calderaStormPositions[i3] += (this.calderaStormVelocities[i3] + Math.sin(elapsed + i) * 0.8) * delta;
+          this.calderaStormPositions[i3 + 1] += this.calderaStormVelocities[i3 + 1] * delta;
+          this.calderaStormPositions[i3 + 2] += (this.calderaStormVelocities[i3 + 2] + Math.cos(elapsed + i) * 0.8) * delta;
+
+          if (this.calderaStormPositions[i3 + 1] < 2.2) {
+            const a = Math.random() * Math.PI * 2;
+            const r = Math.random() * 52;
+            this.calderaStormPositions[i3] = cx + Math.cos(a) * r;
+            this.calderaStormPositions[i3 + 1] = 35.0 + Math.random() * 5.0;
+            this.calderaStormPositions[i3 + 2] = cz + Math.sin(a) * r;
+          }
+        }
+        (this.calderaStormPoints.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+      }
+    }
+
+    // 4. Pooled Lightning Strikes & Thunder (only when stormFactor > 0.6 && Ignis alive in combat radius <= 72)
+    if (stormFactor > 0.6 && isIgnisAlivePhase2 && distPlayerToCaldera <= 72.0) {
+      this.calderaLightningNextTimer -= delta;
+      if (this.calderaLightningNextTimer <= 0) {
+        this.calderaLightningNextTimer = 3.5 + Math.random() * 3.0; // 3.5 - 6.5s
+        const strikeCount = Math.random() < 0.38 ? 2 : 1;
+        let triggered = 0;
+        for (let b = 0; b < this.calderaLightningPool.length && triggered < strikeCount; b++) {
+          const bolt = this.calderaLightningPool[b];
+          if (!bolt.active) {
+            const ang = Math.random() * Math.PI * 2;
+            const rad = 22.0 + Math.random() * 24.0;
+            const sx = SPAWN_NAGA[0] + Math.cos(ang) * rad;
+            const sz = SPAWN_NAGA[1] + Math.sin(ang) * rad;
+            this.spawnCalderaLightningBolt(bolt, sx, sz);
+            this.calderaLightningFlashDuration = bolt.duration;
+            this.calderaLightningFlashTimer = bolt.duration;
+            triggered++;
+          }
+        }
+        if (triggered > 0) {
+          soundManager.playThunderCrack();
+        }
+      }
+    } else {
+      // Hentikan petir baru seketika saat Ignis mati atau pemain kabur > 72u
+      this.calderaLightningNextTimer = 1.5;
+    }
+
+    // Advance active lightning bolts & compute double-flicker flash boost
+    let flashBoost = 0;
+    for (let i = 0; i < this.calderaLightningPool.length; i++) {
+      const bolt = this.calderaLightningPool[i];
+      if (!bolt.active) continue;
+      bolt.timer += delta;
+      if (bolt.timer >= bolt.duration) {
+        bolt.active = false;
+        bolt.group.visible = false;
+        continue;
+      }
+      const p = bolt.timer / bolt.duration;
+      // Double flicker curve: spike at t~0.15 and t~0.58 then fade cleanly
+      const flicker = p < 0.35
+        ? Math.sin((p / 0.35) * Math.PI)
+        : p < 0.48
+          ? 0.15
+          : Math.max(0, Math.sin(((p - 0.48) / 0.52) * Math.PI) * 0.9);
+      bolt.outerMat.opacity = Math.min(1, flicker * 1.1);
+      bolt.coreMat.opacity = Math.min(1, flicker * 1.25);
+      flashBoost = Math.max(flashBoost, flicker);
+    }
+
+    if (this.calderaLightningFlashTimer > 0) {
+      this.calderaLightningFlashTimer = Math.max(0, this.calderaLightningFlashTimer - delta);
+    }
+
+    // 5. Atmosphere, Fog & Existing Light Dimming / Lightning Flash (ZERO PointLight creation, ZERO Color allocation)
+    if (stormFactor > 0.001) {
+      const darkT = Math.min(1.0, stormFactor * 0.94);
+
+      if (this.scene.background instanceof THREE.Color) {
+        this.scene.background.lerp(this._stormBgColor, darkT);
+        if (flashBoost > 0.01) {
+          this.scene.background.lerp(this._stormFlashBgColor, Math.min(0.65, flashBoost * 0.55));
+        }
+      }
+
+      if (this.scene.fog) {
+        this.scene.fog.color.lerp(this._stormFogColor, darkT);
+        if (flashBoost > 0.01) {
+          this.scene.fog.color.lerp(this._stormFlashBgColor, Math.min(0.55, flashBoost * 0.45));
+        }
+        if ('density' in this.scene.fog) {
+          (this.scene.fog as THREE.FogExp2).density *= (1.0 + stormFactor * 1.45);
+        } else if (this.scene.fog instanceof THREE.Fog) {
+          this.scene.fog.far *= (1.0 - stormFactor * 0.52);
+          this.scene.fog.near *= (1.0 - stormFactor * 0.55);
+        }
+      }
+
+      if (this.world?.dirLight && this.world?.hemiLight) {
+        const dimMult = 1.0 - stormFactor * 0.45;
+        this.world.dirLight.intensity = this.world.dirLight.intensity * dimMult + flashBoost * 1.65;
+        this.world.hemiLight.intensity = this.world.hemiLight.intensity * dimMult + flashBoost * 0.95;
+        this.world.dirLight.color.lerp(this._stormLightTint, stormFactor * 0.55);
+      }
+    }
+  }
+
+  // ============================================================================
+  // DEVELOPER & TESTING UTILITIES (Active only when Master Dev Mode is ON)
+  // ============================================================================
+  public devForceNearestBossPhase2(): { ok: boolean; message: string } {
+    if (!this.isWorldLoaded) {
+      return { ok: false, message: 'Masuki dunia permainan terlebih dahulu.' };
+    }
+    let nearest: (typeof this.enemies)[0] | null = null;
+    let nearestDist = Infinity;
+    for (const enemy of this.enemies) {
+      const isBoss =
+        enemy.data.type === 'boss' ||
+        enemy.data.id === 'boss_dragonfang' ||
+        enemy.data.id === 'boss_jarrus' ||
+        enemy.data.id === 'boss_titan';
+      if (!isBoss || enemy.data.isDead || enemy.data.hp <= 0) continue;
+      const d = this.playerPos.distanceTo(enemy.mesh.position);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearest = enemy;
+      }
+    }
+    if (!nearest) {
+      return { ok: false, message: 'Tidak ada Boss hidup ditemukan di dunia.' };
+    }
+    // Set ke tepat di bawah ambang 50% (misal 49.5%) agar Fase 2 Ignis & Whirlpool Jarrus langsung aktif
+    const phase2Hp = Math.max(1, Math.floor(nearest.data.maxHp * 0.5) - 1);
+    nearest.data.hp = Math.min(nearest.data.hp, phase2Hp);
+    const bossName = nearest.data.nameId || nearest.data.name;
+    this.callbacks.onAddFloatingText(`⚡ [DEV] ${bossName} dipaksa ke Fase 2 (${nearest.data.hp}/${nearest.data.maxHp} HP)!`, '#f59e0b', 'crit');
+    return { ok: true, message: `${bossName} diatur ke Fase 2 (${nearest.data.hp} HP).` };
+  }
+
+  public devResetNearestBoss(): { ok: boolean; message: string } {
+    if (!this.isWorldLoaded) {
+      return { ok: false, message: 'Masuki dunia permainan terlebih dahulu.' };
+    }
+    let nearest: (typeof this.enemies)[0] | null = null;
+    let nearestDist = Infinity;
+    for (const enemy of this.enemies) {
+      const isBoss =
+        enemy.data.type === 'boss' ||
+        enemy.data.id === 'boss_dragonfang' ||
+        enemy.data.id === 'boss_jarrus' ||
+        enemy.data.id === 'boss_titan';
+      if (!isBoss) continue;
+      const d = this.playerPos.distanceTo(enemy.mesh.position);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearest = enemy;
+      }
+    }
+    if (!nearest) {
+      return { ok: false, message: 'Data Boss tidak ditemukan.' };
+    }
+    nearest.data.isDead = false;
+    nearest.data.hp = nearest.data.maxHp;
+    nearest.respawnTimer = 0;
+    nearest.deathTimer = 0;
+    nearest.isReturning = false;
+    nearest.attackCooldown = 0;
+    nearest.stunTimer = 0;
+    nearest.slowTimer = 0;
+    nearest.brittleTimer = 0;
+    nearest.armorBreakTimer = 0;
+    nearest.velocity?.set(0, 0, 0);
+
+    const sx = nearest.spawnPos?.x ?? nearest.data.position[0];
+    const sz = nearest.spawnPos?.z ?? nearest.data.position[2];
+    const sy = this.world.getTerrainHeight(sx, sz);
+    nearest.mesh.position.set(sx, sy, sz);
+    nearest.mesh.visible = true;
+    const scale =
+      nearest.data.id === 'boss_dragonfang' ? 4.2 :
+      nearest.data.id === 'boss_jarrus' ? 1.0 : 3.5;
+    nearest.mesh.scale.set(scale, scale, scale);
+    nearest.mesh.rotation.order = 'XYZ';
+    nearest.mesh.rotation.set(0, 0, 0);
+    this.resetEnemyPose(nearest);
+    this.bossManager?.resetBoss(nearest.data.id, nearest);
+
+    const bossName = nearest.data.nameId || nearest.data.name;
+    this.callbacks.onAddFloatingText(`🔄 [DEV] ${bossName} direset ke HP penuh (Fase 1)!`, '#38bdf8', 'crit');
+    return { ok: true, message: `${bossName} berhasil direset (${nearest.data.maxHp} HP).` };
+  }
+
+  public devTeleportToPreset(preset: 'ignis' | 'jarrus' | 'titan' | 'village'): { ok: boolean; label: string } {
+    if (!this.isWorldLoaded) {
+      return { ok: false, label: 'Masuki dunia permainan terlebih dahulu.' };
+    }
+    let tx = 20;
+    let tz = -55;
+    let label = 'Desa Utama Eldoria';
+    if (preset === 'ignis') {
+      tx = 40;
+      tz = 800;
+      label = 'Kaldera Naga Ignis';
+    } else if (preset === 'jarrus') {
+      tx = -580;
+      tz = -180;
+      label = 'Kawah Cacing Jarrus';
+    } else if (preset === 'titan') {
+      const titanEnemy = this.enemies.find((e) => e.data.id === 'boss_titan');
+      const gx = titanEnemy?.spawnPos?.x ?? titanEnemy?.data.position[0] ?? SPAWN_TITAN.x;
+      const gz = titanEnemy?.spawnPos?.z ?? titanEnemy?.data.position[2] ?? SPAWN_TITAN.z;
+      tx = gx;
+      tz = gz + 32;
+      label = 'Arena Titan Golem';
+    }
+    this.teleportGraceTimer = 0.25;
+    this.teleportTo(tx, tz);
+    this.callbacks.onAddFloatingText(`🧭 [DEV] Teleportasi: ${label}`, '#22d3ee', 'crit');
+    return { ok: true, label };
+  }
+
+  public getDevDebugTelemetry(): {
+    fps: number;
+    x: number;
+    y: number;
+    z: number;
+    nearestBoss: {
+      id: string;
+      name: string;
+      dist: number;
+      hp: number;
+      maxHp: number;
+      isDead: boolean;
+      phase: number;
+      aiState: string;
+      stormFactor: number;
+    } | null;
+  } {
+    let nearest: (typeof this.enemies)[0] | null = null;
+    let nearestDist = Infinity;
+    for (const enemy of this.enemies) {
+      const isBoss =
+        enemy.data.type === 'boss' ||
+        enemy.data.id === 'boss_dragonfang' ||
+        enemy.data.id === 'boss_jarrus' ||
+        enemy.data.id === 'boss_titan';
+      if (!isBoss) continue;
+      const d = this.playerPos.distanceTo(enemy.mesh.position);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearest = enemy;
+      }
+    }
+
+    const activePos = this.isSpectatorMode ? this.spectatorPos : this.playerPos;
+    let bossInfo = null;
+    if (nearest) {
+      const dbg = this.bossManager?.getBossDebugState(nearest.data.id);
+      bossInfo = {
+        id: nearest.data.id,
+        name: nearest.data.nameId || nearest.data.name,
+        dist: Math.round(nearestDist * 10) / 10,
+        hp: Math.max(0, Math.round(nearest.data.hp)),
+        maxHp: nearest.data.maxHp,
+        isDead: Boolean(nearest.data.isDead),
+        phase: dbg?.phase ?? 1,
+        aiState: nearest.data.isDead ? 'dead' : (dbg?.state ?? 'chase'),
+        stormFactor: dbg?.stormFactor ?? 0,
+      };
+    }
+
+    return {
+      fps: this.currentFps,
+      x: Math.round(activePos.x * 10) / 10,
+      y: Math.round(activePos.y * 10) / 10,
+      z: Math.round(activePos.z * 10) / 10,
+      nearestBoss: bossInfo,
+    };
   }
 
   // ============================================================================
@@ -6945,7 +7774,7 @@ export class GameEngine {
     }
     this.playerMesh?.setHunterBowInHand?.(true);
     this.bowCombatStanceTimer = 0.45;
-    this.bowShotCooldownTimer = 0.16;
+    this.bowShotCooldownTimer = this.devSettings.zeroCooldown ? 0 : 0.16;
     this.isAttacking = true;
     this.attackType = 'bow_shot';
     this.attackDuration = 0.22;
@@ -6989,7 +7818,7 @@ export class GameEngine {
     }
     this.playerMesh?.setHunterBowInHand?.(true);
     this.bowCombatStanceTimer = 0.45;
-    this.bowShotCooldownTimer = 0.16;
+    this.bowShotCooldownTimer = this.devSettings.zeroCooldown ? 0 : 0.16;
     this.isAttacking = true;
     this.attackType = 'bow_shot';
     this.attackDuration = 0.22;
@@ -8443,7 +9272,7 @@ export class GameEngine {
     if (this.isControlsLocked || this.isCasting) return;
     if (this.charClass !== 'mage') return;
 
-    if (this.mageUltimateCooldownTimer > 0) {
+    if (!this.devSettings.zeroCooldown && this.mageUltimateCooldownTimer > 0) {
       this.callbacks.onAddFloatingText(
         `Celestial Apocalypse Cooldown (${this.mageUltimateCooldownTimer.toFixed(1)}s)!`,
         '#a855f7',
@@ -8453,14 +9282,15 @@ export class GameEngine {
     }
 
     this.callbacks.onUpdateStats((stats) => {
-      if (stats.mp < 45) {
+      if (!this.devSettings.infiniteEnergy && stats.mp < 45) {
         this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 45 MP)!', '#e57373', 'info');
         return stats;
       }
 
       // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 18.0s)
-      this.mageUltimateCooldownTimer = SKILL_COOLDOWNS.CELESTIAL_APOCALYPSE;
+      this.mageUltimateCooldownTimer = this.devSettings.zeroCooldown ? 0 : SKILL_COOLDOWNS.CELESTIAL_APOCALYPSE;
       this.startCelestialApocalypseCasting();
+      if (this.devSettings.infiniteEnergy) return stats;
       return { ...stats, mp: Math.max(0, stats.mp - 45) };
     });
   }
@@ -8799,7 +9629,7 @@ export class GameEngine {
     if (this.charClass !== 'mage') return;
     if (this.isAimGlacialActive && this.activeGlacialVfx) return;
 
-    if (this.mageGlacialBarrageCooldownTimer > 0) {
+    if (!this.devSettings.zeroCooldown && this.mageGlacialBarrageCooldownTimer > 0) {
       this.callbacks.onAddFloatingText(
         `Glacial Barrage Cooldown (${this.mageGlacialBarrageCooldownTimer.toFixed(1)}s)!`,
         '#94a3b8',
@@ -8808,7 +9638,7 @@ export class GameEngine {
       return;
     }
 
-    if (this.currentStats.mp < 18) {
+    if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 18) {
       this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#ef4444', 'info');
       return;
     }
@@ -8944,7 +9774,7 @@ export class GameEngine {
       return;
     }
 
-    if (this.mageGlacialBarrageCooldownTimer > 0) {
+    if (!this.devSettings.zeroCooldown && this.mageGlacialBarrageCooldownTimer > 0) {
       this.callbacks.onAddFloatingText(
         `Glacial Barrage Cooldown (${this.mageGlacialBarrageCooldownTimer.toFixed(1)}s)!`,
         '#94a3b8',
@@ -8955,21 +9785,23 @@ export class GameEngine {
     }
 
     // Pemotongan 18 MP HANYA dilakukan di sini saat kristal es benar-benar diluncurkan!
-    if (this.currentStats.mp < 18) {
+    if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 18) {
       this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#ef4444', 'info');
       this.cancelGlacialAim();
       return;
     }
 
     // Kurangi MP seketika pada state internal dan notifikasi callback
-    this.currentStats.mp = Math.max(0, this.currentStats.mp - 18);
-    this.callbacks.onUpdateStats((stats) => ({
-      ...stats,
-      mp: Math.max(0, stats.mp - 18),
-    }));
+    if (!this.devSettings.infiniteEnergy) {
+      this.currentStats.mp = Math.max(0, this.currentStats.mp - 18);
+      this.callbacks.onUpdateStats((stats) => ({
+        ...stats,
+        mp: Math.max(0, stats.mp - 18),
+      }));
+    }
 
     // Set cooldown skill Q
-    this.mageGlacialBarrageCooldownTimer = SKILL_COOLDOWNS.GLACIAL_BARRAGE;
+    this.mageGlacialBarrageCooldownTimer = this.devSettings.zeroCooldown ? 0 : SKILL_COOLDOWNS.GLACIAL_BARRAGE;
     this.glacialAimState.isCharging = false;
 
     // Pastikan aimTargetPoint valid sebelum penembakan
@@ -9474,7 +10306,7 @@ export class GameEngine {
     // Integrasi Handless <-> Siaga: langsung hunus busur ke tangan kiri
     this.unsheatheHunterWeapon();
 
-    if (this.currentStats.mp < 20) {
+    if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 20) {
       this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 20 MP)!', '#ef4444', 'info');
       this.astralEagleAimState.isCharging = false;
       return;
@@ -9555,18 +10387,20 @@ export class GameEngine {
     this.astralEagleChargeRatio = 0;
     this.callbacks.onBowAimChange?.(false, 0);
 
-    if (this.currentStats.mp < 20) {
+    if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 20) {
       this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 20 MP)!', '#ef4444', 'info');
       this.syncHunterWeaponModel();
       return;
     }
 
     // Potong 20 MP hanya sekali saat dilepas / tembak
-    this.currentStats.mp = Math.max(0, this.currentStats.mp - 20);
-    this.callbacks.onUpdateStats((stats) => ({
-      ...stats,
-      mp: Math.max(0, stats.mp - 20),
-    }));
+    if (!this.devSettings.infiniteEnergy) {
+      this.currentStats.mp = Math.max(0, this.currentStats.mp - 20);
+      this.callbacks.onUpdateStats((stats) => ({
+        ...stats,
+        mp: Math.max(0, stats.mp - 20),
+      }));
+    }
 
     this.ensureWeaponDrawn();
     this.playerMesh?.setHunterBowInHand?.(true);
@@ -9623,7 +10457,7 @@ export class GameEngine {
     if (this.charClass !== 'rogue' || this.hunterWeaponMode !== 'bow') return;
 
     this.unsheatheHunterWeapon();
-    if (this.currentStats.mp < 20) {
+    if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 20) {
       this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 20 MP)!', '#ef4444', 'info');
       return;
     }
@@ -9645,7 +10479,7 @@ export class GameEngine {
     if (this.isAimingArrowVolley) return;
     this.unsheatheHunterWeapon();
 
-    if (this.currentStats.mp < 45) {
+    if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 45) {
       this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 45 MP)!', '#ef4444', 'info');
       this.arrowVolleyAimState.isCharging = false;
       return;
@@ -9821,18 +10655,20 @@ export class GameEngine {
       return;
     }
 
-    if (this.currentStats.mp < 45) {
+    if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 45) {
       this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 45 MP)!', '#ef4444', 'info');
       this.cancelArrowVolleyAim(false);
       return;
     }
 
     // Potong MP 45 secara sinkron + sinkronkan HUD (0 Cooldown!)
-    this.currentStats.mp = Math.max(0, this.currentStats.mp - 45);
-    this.callbacks.onUpdateStats((stats) => ({
-      ...stats,
-      mp: Math.max(0, stats.mp - 45),
-    }));
+    if (!this.devSettings.infiniteEnergy) {
+      this.currentStats.mp = Math.max(0, this.currentStats.mp - 45);
+      this.callbacks.onUpdateStats((stats) => ({
+        ...stats,
+        mp: Math.max(0, stats.mp - 45),
+      }));
+    }
 
     this.callbacks.onAddFloatingText('⛈️ BADAI PANAH AGUNG!', '#fde047', 'crit');
     soundManager.playBowShoot(true);
@@ -9908,17 +10744,19 @@ export class GameEngine {
     if (this.isAimingArrowVolley) return;
     this.unsheatheHunterWeapon();
 
-    if (this.currentStats.mp < 45) {
+    if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 45) {
       this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 45 MP)!', '#ef4444', 'info');
       return;
     }
 
     // Potong MP 45 sekali secara sinkron + sinkronkan HUD (0 Cooldown!)
-    this.currentStats.mp = Math.max(0, this.currentStats.mp - 45);
-    this.callbacks.onUpdateStats((stats) => ({
-      ...stats,
-      mp: Math.max(0, stats.mp - 45),
-    }));
+    if (!this.devSettings.infiniteEnergy) {
+      this.currentStats.mp = Math.max(0, this.currentStats.mp - 45);
+      this.callbacks.onUpdateStats((stats) => ({
+        ...stats,
+        mp: Math.max(0, stats.mp - 45),
+      }));
+    }
 
     this.callbacks.onAddFloatingText('⛈️ BADAI PANAH AGUNG!', '#fde047', 'crit');
     soundManager.playBowShoot(true);
@@ -10007,7 +10845,7 @@ export class GameEngine {
     rawDamage: number,
     attackerEnemy?: (typeof this.enemies)[0]
   ): { remainingDamage: number; absorbed: number } {
-    if (this.isInvulnerable) {
+    if (this.isInvulnerable || this.devSettings.godMode) {
       return { remainingDamage: 0, absorbed: 0 };
     }
 
@@ -10387,7 +11225,7 @@ export class GameEngine {
 
     // Pemburu (Hunter) Bow Tap-or-Hold Charge Handler (izinkan tembakan cepat tanpa deadlock oleh pose follow-through)
     if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
-      if (this.bowShotCooldownTimer > 0) return;
+      if (!this.devSettings.zeroCooldown && this.bowShotCooldownTimer > 0) return;
       this.unsheatheHunterWeapon();
       this.alignPlayerOrientationToInputOrTarget(22);
       this.isHoldingBowAttack = true;
@@ -10626,7 +11464,7 @@ export class GameEngine {
   public performShieldDash() {
     if (this.isControlsLocked || this.isDashing || this.isCasting) return;
     this.callbacks.onUpdateStats((stats) => {
-      if (stats.stamina < 15) {
+      if (!this.devSettings.infiniteEnergy && stats.stamina < 15) {
         this.callbacks.onAddFloatingText('Stamina Tidak Cukup!', '#ffb74d', 'info');
         return stats;
       }
@@ -10660,6 +11498,7 @@ export class GameEngine {
       }, 100);
 
       this.callbacks.onAddFloatingText('Shield Dash! 🛡️', '#fbbf24', 'info');
+      if (this.devSettings.infiniteEnergy) return stats;
       return { ...stats, stamina: Math.max(0, stats.stamina - 15) };
     });
   }
@@ -10771,7 +11610,7 @@ export class GameEngine {
 
   private castWarriorAegisRetribution() {
     this.callbacks.onUpdateStats((stats) => {
-      if (stats.mp < 25 || stats.stamina < 15) {
+      if (!this.devSettings.infiniteEnergy && (stats.mp < 25 || stats.stamina < 15)) {
         this.callbacks.onAddFloatingText('Aura / Stamina Tidak Cukup (25 Aura + 15 Stm)!', '#e57373', 'info');
         return stats;
       }
@@ -10793,8 +11632,8 @@ export class GameEngine {
 
       return {
         ...stats,
-        mp: Math.max(0, stats.mp - 25),
-        stamina: Math.max(0, stats.stamina - 15),
+        mp: this.devSettings.infiniteEnergy ? stats.mp : Math.max(0, stats.mp - 25),
+        stamina: this.devSettings.infiniteEnergy ? stats.stamina : Math.max(0, stats.stamina - 15),
         shield: shieldVal,
         maxShield: shieldVal,
         shieldDuration: 5.0,
@@ -10806,7 +11645,7 @@ export class GameEngine {
   public performBasicAttack() {
     if (this.isControlsLocked || this.isCasting) return;
     if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
-      if (this.bowShotCooldownTimer > 0) return;
+      if (!this.devSettings.zeroCooldown && this.bowShotCooldownTimer > 0) return;
       this.fireQuickBowArrow();
       return;
     }
@@ -10926,11 +11765,12 @@ export class GameEngine {
     if (skillSlot === 1) {
       if (this.charClass === 'warrior') {
         this.callbacks.onUpdateStats((stats) => {
-          if (stats.mp < 20) {
+          if (!this.devSettings.infiniteEnergy && stats.mp < 20) {
             this.callbacks.onAddFloatingText('Aura Tidak Cukup (Butuh 20)!', '#e57373', 'info');
             return stats;
           }
           this.castWarriorTripleCrescentGale();
+          if (this.devSettings.infiniteEnergy) return stats;
           return { ...stats, mp: Math.max(0, stats.mp - 20) };
         });
         return;
@@ -10954,13 +11794,15 @@ export class GameEngine {
           return;
         }
 
-        if (this.currentStats.mp < 15) {
+        if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 15) {
           this.callbacks.onAddFloatingText('MP Tidak Cukup!', '#e57373', 'info');
           return;
         }
         const stats = this.currentStats;
-        this.currentStats.mp = Math.max(0, stats.mp - 15);
-        this.callbacks.onUpdateStats((s) => ({ ...s, mp: Math.max(0, s.mp - 15) }));
+        if (!this.devSettings.infiniteEnergy) {
+          this.currentStats.mp = Math.max(0, stats.mp - 15);
+          this.callbacks.onUpdateStats((s) => ({ ...s, mp: Math.max(0, s.mp - 15) }));
+        }
 
         // Hunter Daggers Skill 1: Tarian 1000 Belati (Shadow Flurry 360°)
         soundManager.playRogueShadowFlurry();
@@ -10983,11 +11825,12 @@ export class GameEngine {
     } else if (skillSlot === 2) {
       if (this.charClass === 'warrior') {
         this.callbacks.onUpdateStats((stats) => {
-          if (stats.mp < 30) {
+          if (!this.devSettings.infiniteEnergy && stats.mp < 30) {
             this.callbacks.onAddFloatingText('Aura Tidak Cukup (Butuh 30)!', '#e57373', 'info');
             return stats;
           }
           this.castWarriorCataclysmicLeap();
+          if (this.devSettings.infiniteEnergy) return stats;
           return { ...stats, mp: Math.max(0, stats.mp - 30) };
         });
         return;
@@ -11021,17 +11864,19 @@ export class GameEngine {
 
       // Rogue Skill 3 (Cost: 25 MP)
       if (this.charClass === 'rogue') {
-        if (this.currentStats.mp < 25) {
+        if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 25) {
           this.callbacks.onAddFloatingText('MP Tidak Cukup!', '#e57373', 'info');
           return;
         }
         const stats = this.currentStats;
         const healAmt = Math.round(50 + stats.agility * 3.0);
-        this.currentStats.mp = Math.max(0, stats.mp - 25);
+        if (!this.devSettings.infiniteEnergy) {
+          this.currentStats.mp = Math.max(0, stats.mp - 25);
+        }
         this.currentStats.hp = Math.min(stats.maxHp, stats.hp + healAmt);
         this.callbacks.onUpdateStats((s) => ({
           ...s,
-          mp: Math.max(0, s.mp - 25),
+          mp: this.devSettings.infiniteEnergy ? s.maxMp : Math.max(0, s.mp - 25),
           hp: Math.min(s.maxHp, s.hp + healAmt),
         }));
 
@@ -11465,7 +12310,7 @@ export class GameEngine {
   public performHunterGaleVault() {
     if (this.isControlsLocked || this.isCasting || this.isGaleVaulting) return;
 
-    if (this.hunterMobilityCooldownTimer > 0) {
+    if (!this.devSettings.zeroCooldown && this.hunterMobilityCooldownTimer > 0) {
       this.callbacks.onAddFloatingText(
         `Gale Vault Cooldown (${this.hunterMobilityCooldownTimer.toFixed(1)}s)!`,
         '#34d399',
@@ -11474,22 +12319,26 @@ export class GameEngine {
       return;
     }
 
-    if (this.currentStats.stamina < 15) {
+    if (!this.devSettings.infiniteEnergy && this.currentStats.stamina < 15) {
       this.callbacks.onAddFloatingText('Stamina Habis (Butuh 15)!', '#ffb74d', 'info');
       return;
     }
 
-    this.currentStats.stamina = Math.max(0, this.currentStats.stamina - 15);
+    if (!this.devSettings.infiniteEnergy) {
+      this.currentStats.stamina = Math.max(0, this.currentStats.stamina - 15);
+    }
     this.executeHunterGaleVault();
-    this.callbacks.onUpdateStats((stats) => ({
-      ...stats,
-      stamina: Math.max(0, stats.stamina - 15),
-    }));
+    if (!this.devSettings.infiniteEnergy) {
+      this.callbacks.onUpdateStats((stats) => ({
+        ...stats,
+        stamina: Math.max(0, stats.stamina - 15),
+      }));
+    }
   }
 
   private executeHunterGaleVault() {
     // TODO: Kembalikan cooldown 6s setelah pengujian selesai
-    this.hunterMobilityCooldownTimer = SKILL_COOLDOWNS.HUNTER_MOBILITY ?? 0;
+    this.hunterMobilityCooldownTimer = this.devSettings.zeroCooldown ? 0 : (SKILL_COOLDOWNS.HUNTER_MOBILITY ?? 0);
 
     soundManager.playDash();
 
@@ -11527,7 +12376,7 @@ export class GameEngine {
   public performHunterPhantomDecoyStep() {
     if (this.isControlsLocked || this.isCasting || this.isDashing) return;
 
-    if (this.hunterMobilityCooldownTimer > 0) {
+    if (!this.devSettings.zeroCooldown && this.hunterMobilityCooldownTimer > 0) {
       this.callbacks.onAddFloatingText(
         `Phantom Decoy Cooldown (${this.hunterMobilityCooldownTimer.toFixed(1)}s)!`,
         '#10b981',
@@ -11536,22 +12385,26 @@ export class GameEngine {
       return;
     }
 
-    if (this.currentStats.stamina < 15) {
+    if (!this.devSettings.infiniteEnergy && this.currentStats.stamina < 15) {
       this.callbacks.onAddFloatingText('Stamina Habis (Butuh 15)!', '#ffb74d', 'info');
       return;
     }
 
-    this.currentStats.stamina = Math.max(0, this.currentStats.stamina - 15);
+    if (!this.devSettings.infiniteEnergy) {
+      this.currentStats.stamina = Math.max(0, this.currentStats.stamina - 15);
+    }
     this.executeHunterPhantomDecoyStep();
-    this.callbacks.onUpdateStats((stats) => ({
-      ...stats,
-      stamina: Math.max(0, stats.stamina - 15),
-    }));
+    if (!this.devSettings.infiniteEnergy) {
+      this.callbacks.onUpdateStats((stats) => ({
+        ...stats,
+        stamina: Math.max(0, stats.stamina - 15),
+      }));
+    }
   }
 
   private executeHunterPhantomDecoyStep() {
     // TODO: Kembalikan cooldown 6s setelah pengujian selesai
-    this.hunterMobilityCooldownTimer = SKILL_COOLDOWNS.HUNTER_MOBILITY ?? 0;
+    this.hunterMobilityCooldownTimer = this.devSettings.zeroCooldown ? 0 : (SKILL_COOLDOWNS.HUNTER_MOBILITY ?? 0);
 
     soundManager.playDash();
     soundManager.playRogueSmoke();
@@ -11627,7 +12480,7 @@ export class GameEngine {
   public performMageBlink() {
     if (this.isControlsLocked || this.isCasting || this.isDashing) return;
 
-    if (this.mageBlinkCooldownTimer > 0) {
+    if (!this.devSettings.zeroCooldown && this.mageBlinkCooldownTimer > 0) {
       this.callbacks.onAddFloatingText(
         `Arcane Blink Cooldown (${this.mageBlinkCooldownTimer.toFixed(1)}s)!`,
         '#06b6d4',
@@ -11636,15 +12489,17 @@ export class GameEngine {
       return;
     }
 
-    if (this.playerStamina < 15) {
+    if (!this.devSettings.infiniteEnergy && this.playerStamina < 15) {
       this.callbacks.onAddFloatingText('Stamina Habis (Butuh 15)!', '#ffb74d', 'info');
       return;
     }
 
-    this.callbacks.onUpdateStats((stats) => {
-      if (stats.stamina < 15) return stats;
-      return { ...stats, stamina: Math.max(0, stats.stamina - 15) };
-    });
+    if (!this.devSettings.infiniteEnergy) {
+      this.callbacks.onUpdateStats((stats) => {
+        if (stats.stamina < 15) return stats;
+        return { ...stats, stamina: Math.max(0, stats.stamina - 15) };
+      });
+    }
 
     // Mage: Langkah Dimensi (Instant Blink Teleport with Dual Runic Circles, Afterimages & Enemy Penetration)
     soundManager.playMageBlink();
@@ -11716,7 +12571,7 @@ export class GameEngine {
     // Spawn pooled VFX
     this.spawnMageBlinkVfx(startPos, targetPos);
     // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 2.0s)
-    this.mageBlinkCooldownTimer = SKILL_COOLDOWNS.ARCANE_BLINK;
+    this.mageBlinkCooldownTimer = this.devSettings.zeroCooldown ? 0 : SKILL_COOLDOWNS.ARCANE_BLINK;
     this.callbacks.onAddFloatingText('Langkah Dimensi!', '#38bdf8', 'info');
   }
 
@@ -11729,7 +12584,7 @@ export class GameEngine {
     if (this.isControlsLocked || this.isCasting) return;
     if (this.charClass !== 'mage') return;
 
-    if (this.mageCahayaSuciCooldownTimer > 0) {
+    if (!this.devSettings.zeroCooldown && this.mageCahayaSuciCooldownTimer > 0) {
       this.callbacks.onAddFloatingText(
         `Cahaya Suci Cooldown (${this.mageCahayaSuciCooldownTimer.toFixed(1)}s)!`,
         '#38bdf8',
@@ -11739,7 +12594,7 @@ export class GameEngine {
     }
 
     this.callbacks.onUpdateStats((stats) => {
-      if (stats.mp < 25) {
+      if (!this.devSettings.infiniteEnergy && stats.mp < 25) {
         this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 25 MP)!', '#e57373', 'info');
         return stats;
       }
@@ -11747,7 +12602,7 @@ export class GameEngine {
       soundManager.playMageCelestialHeal();
       this.spawnMageCelestialHealVfx();
       // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 12.0s)
-      this.mageCahayaSuciCooldownTimer = SKILL_COOLDOWNS.CAHAYA_SUCI;
+      this.mageCahayaSuciCooldownTimer = this.devSettings.zeroCooldown ? 0 : SKILL_COOLDOWNS.CAHAYA_SUCI;
       this.isAttacking = true;
       this.attackType = 'celestial_heal';
       this.attackDuration = 0.8;
@@ -11776,7 +12631,7 @@ export class GameEngine {
       }
 
       // 4. Mana Battery (+30 MP, net +5 MP after 25 MP cost)
-      const newMp = Math.min(stats.maxMp, stats.mp - 25 + 30);
+      const newMp = this.devSettings.infiniteEnergy ? stats.maxMp : Math.min(stats.maxMp, stats.mp - 25 + 30);
 
       if (shieldGain > 0 && newHp > currentHp) {
         const actualHealed = newHp - currentHp;
@@ -11830,8 +12685,9 @@ export class GameEngine {
   }
 
   private damageEnemy(enemy: (typeof this.enemies)[0], rawDamage: number, isCrit: boolean, knockback = 0.4) {
+    const scaledRawDamage = this.devSettings.superDamage ? rawDamage * 10 : rawDamage;
     const defense = enemy.data.defense;
-    let actualDamage = Math.max(3, rawDamage - defense);
+    let actualDamage = Math.max(3, scaledRawDamage - defense);
     if (enemy.brittleTimer && enemy.brittleTimer > 0) {
       actualDamage = Math.round(actualDamage * 1.20); // Brittle: +20% Damage Taken
     }
@@ -11895,6 +12751,7 @@ export class GameEngine {
 
     if (isBoss) {
       const bossName = enemy.data.nameId || enemy.data.name;
+      this.bossManager?.notifyBossDefeated(enemy.data.id);
       soundManager.playBossVictory(bossName);
       this.callbacks.onBossDefeated?.(bossName);
     } else {
@@ -14465,37 +15322,22 @@ export class GameEngine {
     this.spawnSparks(slashPos, 0xffd600, 6, 3.5);
   }
 
-  // Spawn flying 3D stone boulder projectile for Titan's Rock Boulder Throw skill
+  // Spawn flying 3D stone boulder projectile for Titan's Rock Boulder Throw skill (Pre-allocated Pool, ZERO PointLight)
   private spawnTitanBoulderProjectile(origin: THREE.Vector3, target: THREE.Vector3, damage = 32) {
-    const group = new THREE.Group();
-    group.position.copy(origin);
+    if (this.titanBoulderPool.length === 0) {
+      this.initBossProjectilePools();
+    }
+    let idx = this.titanBoulderPool.findIndex((p) => !p.active);
+    if (idx === -1) {
+      idx = this.titanBoulderCursor;
+      this.titanBoulderCursor = (this.titanBoulderCursor + 1) % this.titanBoulderPool.length;
+    }
+    const slot = this.titanBoulderPool[idx];
+    slot.active = true;
+    slot.group.position.copy(origin);
+    slot.group.rotation.set(0, 0, 0);
+    slot.group.visible = true;
 
-    // Irregular rocky boulder mesh
-    const rockGeo = new THREE.DodecahedronGeometry(0.9, 1);
-    const rockMat = new THREE.MeshStandardMaterial({
-      color: 0x292524,
-      roughness: 0.9,
-      metalness: 0.1,
-    });
-    const rockMesh = new THREE.Mesh(rockGeo, rockMat);
-    group.add(rockMesh);
-
-    // Glowing magma core / embers inside the boulder
-    const coreGeo = new THREE.IcosahedronGeometry(0.65, 1);
-    const coreMat = new THREE.MeshBasicMaterial({
-      color: 0xff5722,
-      wireframe: true,
-    });
-    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
-    group.add(coreMesh);
-
-    // Magma light
-    const light = new THREE.PointLight(0xff5722, 1.8, 6.0);
-    group.add(light);
-
-    this.scene.add(group);
-
-    // Aim towards target
     const dir = new THREE.Vector3().subVectors(target, origin).normalize();
     const rotAxis = new THREE.Vector3(
       Math.random() - 0.5,
@@ -14504,7 +15346,7 @@ export class GameEngine {
     ).normalize();
 
     this.activeProjectiles.push({
-      object: group,
+      object: slot.group,
       direction: dir,
       speed: 22.0,
       lifetime: 2.5,
@@ -14514,40 +15356,30 @@ export class GameEngine {
       isHostile: true,
       blastRadius: 3.2,
       rotationAxis: rotAxis,
+      pooledHostileType: 'titan_boulder',
+      pooledHostileIndex: idx,
     });
   }
 
-  // Spawn flying magma fireball projectile for Ignis Fireball Barrage skill
+  // Spawn flying magma fireball projectile for Ignis Fireball Barrage skill (Pre-allocated Pool, ZERO PointLight)
   private spawnIgnisFireballProjectile(origin: THREE.Vector3, target: THREE.Vector3, damage = 42) {
-    const group = new THREE.Group();
-    group.position.copy(origin);
-
-    const fireballGeo = new THREE.SphereGeometry(0.85, 12, 12);
-    const fireballMat = new THREE.MeshStandardMaterial({
-      color: 0xff3d00,
-      emissive: 0xff1744,
-      emissiveIntensity: 2.2,
-      roughness: 0.2,
-    });
-    group.add(new THREE.Mesh(fireballGeo, fireballMat));
-
-    const coronaGeo = new THREE.IcosahedronGeometry(1.15, 1);
-    const coronaMat = new THREE.MeshBasicMaterial({
-      color: 0xffeb3b,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.65,
-    });
-    group.add(new THREE.Mesh(coronaGeo, coronaMat));
-
-    const light = new THREE.PointLight(0xff3d00, 2.8, 8.0);
-    group.add(light);
-
-    this.scene.add(group);
+    if (this.ignisFireballPool.length === 0) {
+      this.initBossProjectilePools();
+    }
+    let idx = this.ignisFireballPool.findIndex((p) => !p.active);
+    if (idx === -1) {
+      idx = this.ignisFireballCursor;
+      this.ignisFireballCursor = (this.ignisFireballCursor + 1) % this.ignisFireballPool.length;
+    }
+    const slot = this.ignisFireballPool[idx];
+    slot.active = true;
+    slot.group.position.copy(origin);
+    slot.group.rotation.set(0, 0, 0);
+    slot.group.visible = true;
 
     const dir = new THREE.Vector3().subVectors(target, origin).normalize();
     this.activeProjectiles.push({
-      object: group,
+      object: slot.group,
       direction: dir,
       speed: 26.0,
       lifetime: 3.0,
@@ -14556,12 +15388,14 @@ export class GameEngine {
       vfxType: 'dragon_fireball',
       isHostile: true,
       blastRadius: 3.0,
+      pooledHostileType: 'dragon_fireball',
+      pooledHostileIndex: idx,
     });
   }
 
   private enemyAttackPlayer(enemy: (typeof this.enemies)[0]) {
-    if (this.isInvulnerable) {
-      this.callbacks.onAddFloatingText('KEBAL / iFrame!', '#38bdf8', 'info');
+    if (this.isInvulnerable || this.devSettings.godMode) {
+      this.callbacks.onAddFloatingText(this.devSettings.godMode ? '🛡️ KEBAL (GOD MODE)!' : 'KEBAL / iFrame!', '#38bdf8', 'info');
       return;
     }
     soundManager.playHit();
@@ -14930,6 +15764,15 @@ export class GameEngine {
 
     const delta = Math.min(this.clock.getDelta(), 0.05);
 
+    // Rolling FPS Counter (~0.5s window)
+    this.fpsFrameAccum++;
+    this.fpsTimeAccum += delta;
+    if (this.fpsTimeAccum >= 0.5) {
+      this.currentFps = Math.max(1, Math.round(this.fpsFrameAccum / this.fpsTimeAccum));
+      this.fpsFrameAccum = 0;
+      this.fpsTimeAccum = 0;
+    }
+
     // Update 24-minute real-time Day-Night Cycle & Celestial Atmosphere
     this.dayNightSystem.update(delta);
     if (this.world?.hemiLight && this.world?.dirLight) {
@@ -14964,6 +15807,7 @@ export class GameEngine {
     // Update Player & World Physics
     this.updatePlayer(delta);
     this.updateMonster(delta);
+    this.updateCalderaStormAndAura(delta, this.clock.getElapsedTime());
     this.updateLootPickups(delta);
     this.updateCamera(delta);
     this.updateRemotePlayers(delta);
@@ -14972,6 +15816,29 @@ export class GameEngine {
     this.updateCombatVfxPools(delta);
     this.updateAstralEagle(delta);
     this.updateArrowStormUltimate(delta);
+
+    // Dev Mode Testing overrides: Infinite Energy (100% MP & Stamina) + Zero Cooldowns
+    if (this.devSettings.zeroCooldown) {
+      this.mageUltimateCooldownTimer = 0;
+      this.mageGlacialBarrageCooldownTimer = 0;
+      this.mageBlinkCooldownTimer = 0;
+      this.mageCahayaSuciCooldownTimer = 0;
+      this.hunterMobilityCooldownTimer = 0;
+      this.bowShotCooldownTimer = 0;
+    }
+    if (this.devSettings.infiniteEnergy) {
+      const targetMaxStam = this.currentStats.maxStamina || 100;
+      this.playerStamina = targetMaxStam;
+      if (this.currentStats.mp < this.currentStats.maxMp || this.currentStats.stamina < targetMaxStam) {
+        this.currentStats.mp = this.currentStats.maxMp;
+        this.currentStats.stamina = targetMaxStam;
+        this.callbacks.onUpdateStats((s) => ({
+          ...s,
+          mp: s.maxMp,
+          stamina: s.maxStamina,
+        }));
+      }
+    }
 
     // Update Mage Arcane Shield Timer
     if (this.arcaneShieldTimer > 0) {
@@ -15232,8 +16099,8 @@ export class GameEngine {
           }
 
           if (distToPlayer <= (proj.blastRadius || 3.2)) {
-            if (this.isInvulnerable) {
-              this.callbacks.onAddFloatingText('KEBAL / iFrame!', '#38bdf8', 'info');
+            if (this.isInvulnerable || this.devSettings.godMode) {
+              this.callbacks.onAddFloatingText(this.devSettings.godMode ? '🛡️ KEBAL (GOD MODE)!' : 'KEBAL / iFrame!', '#38bdf8', 'info');
             } else {
               this.callbacks.onUpdateStats((stats) => {
                 let finalDmg = Math.max(5, proj.damage - Math.round(stats.baseDefense * 0.5));
@@ -15258,14 +16125,28 @@ export class GameEngine {
                 }
                 return { ...stats, hp: nextHp };
               });
-              const knockDir = new THREE.Vector3(this.playerPos.x - hitPos.x, 0, this.playerPos.z - hitPos.z).normalize();
-              this.playerVel.x += knockDir.x * (isFireball ? 8.0 : 14.0);
-              this.playerVel.z += knockDir.z * (isFireball ? 8.0 : 14.0);
-              this.callbacks.onAddFloatingText('💨 TERPENTAL (KNOCKBACK)!', '#ff9100', 'info');
+              if (!this.devSettings.ccImmune) {
+                const knockDir = new THREE.Vector3(this.playerPos.x - hitPos.x, 0, this.playerPos.z - hitPos.z).normalize();
+                this.playerVel.x += knockDir.x * (isFireball ? 8.0 : 14.0);
+                this.playerVel.z += knockDir.z * (isFireball ? 8.0 : 14.0);
+                this.callbacks.onAddFloatingText('💨 TERPENTAL (KNOCKBACK)!', '#ff9100', 'info');
+              }
             }
           }
 
-          if (proj.pooledArrow) {
+          if (proj.pooledHostileType === 'titan_boulder' && proj.pooledHostileIndex !== undefined) {
+            const slot = this.titanBoulderPool[proj.pooledHostileIndex];
+            if (slot) {
+              slot.active = false;
+              slot.group.visible = false;
+            }
+          } else if (proj.pooledHostileType === 'dragon_fireball' && proj.pooledHostileIndex !== undefined) {
+            const slot = this.ignisFireballPool[proj.pooledHostileIndex];
+            if (slot) {
+              slot.active = false;
+              slot.group.visible = false;
+            }
+          } else if (proj.pooledArrow) {
             this.releasePooledArrow(proj.object);
           } else {
             this.scene.remove(proj.object);
@@ -15581,6 +16462,59 @@ export class GameEngine {
     window.removeEventListener('touchmove', this.handleTouchMove);
     window.removeEventListener('touchend', this.handleTouchEnd);
     window.removeEventListener('touchcancel', this.handleTouchEnd);
+
+    this.unsubDevSettings?.();
+    this.unsubDevSettings = null;
+
+    // Clean up Boss Projectile Pools
+    this.titanBoulderPool.forEach((p) => this.scene.remove(p.group));
+    this.titanBoulderPool = [];
+    this.titanBoulderPoolGeos.forEach((g) => g.dispose());
+    this.titanBoulderPoolGeos = [];
+    this.titanBoulderPoolMats.forEach((m) => m.dispose());
+    this.titanBoulderPoolMats = [];
+
+    this.ignisFireballPool.forEach((p) => this.scene.remove(p.group));
+    this.ignisFireballPool = [];
+    this.ignisFireballPoolGeos.forEach((g) => g.dispose());
+    this.ignisFireballPoolGeos = [];
+    this.ignisFireballPoolMats.forEach((m) => m.dispose());
+    this.ignisFireballPoolMats = [];
+
+    // Clean up Caldera Storm, Clouds, Ash, Aura, & Lightning Pools
+    if (this.calderaCloudGroup) {
+      this.scene.remove(this.calderaCloudGroup);
+      this.calderaCloudGroup = null;
+    }
+    this.calderaCloudGeo?.dispose();
+    this.calderaCloudGeo = null;
+    this.calderaCloudMats.forEach((m) => m.dispose());
+    this.calderaCloudMats = [];
+
+    if (this.calderaStormPoints) {
+      this.scene.remove(this.calderaStormPoints);
+      this.calderaStormPoints.geometry.dispose();
+      this.calderaStormMat?.dispose();
+      this.calderaStormPoints = null;
+      this.calderaStormMat = null;
+    }
+
+    if (this.ignisAuraPoints) {
+      this.scene.remove(this.ignisAuraPoints);
+      this.ignisAuraPoints.geometry.dispose();
+      this.ignisAuraMat?.dispose();
+      this.ignisAuraPoints = null;
+      this.ignisAuraMat = null;
+    }
+
+    this.calderaLightningPool.forEach((b) => {
+      this.scene.remove(b.group);
+      b.outerLines.geometry.dispose();
+      b.coreLines.geometry.dispose();
+      b.outerMat.dispose();
+      b.coreMat.dispose();
+    });
+    this.calderaLightningPool = [];
 
     // Clean up active VFX and projectiles
     this.starfallTimeoutIds.forEach((id) => clearTimeout(id));

@@ -18,7 +18,7 @@ export interface MonsterSpawnConfig {
   aggroRange: number;
 }
 
-import { SAFE_ZONES, isInsideSafeZone as isInsideConfigSafeZone, getLandmarkLayout } from './3d/worldLayoutConfig';
+import { SAFE_ZONES, isInsideSafeZone as isInsideConfigSafeZone } from './3d/worldLayoutConfig';
 export { SAFE_ZONES };
 
 /**

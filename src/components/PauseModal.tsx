@@ -22,6 +22,7 @@ import {
   Settings,
   ArrowLeft,
   Save,
+  Wrench,
 } from 'lucide-react';
 import { soundManager } from '../game/audio';
 import {
@@ -39,6 +40,10 @@ import {
   setMouseSensitivityMultiplier,
 } from '../game/CameraControls';
 import { BrowserCacheSettingsSection } from './BrowserCacheSettingsSection';
+import {
+  DeveloperSettingsSection,
+  DevTeleportPreset,
+} from './DeveloperSettingsSection';
 
 interface PauseModalProps {
   isOpen: boolean;
@@ -54,6 +59,10 @@ interface PauseModalProps {
   onReturnToMainMenu: () => void;
   onDisconnectAndReturnToMainMenu: () => void;
   onSaveGame?: () => void;
+  onForceBossPhase2?: () => { ok: boolean; message: string };
+  onResetBoss?: () => { ok: boolean; message: string };
+  onTeleportPreset?: (preset: DevTeleportPreset) => { ok: boolean; label: string } | void;
+  onToggleSpectator?: (next: boolean) => void;
 }
 
 export const PauseModal: React.FC<PauseModalProps> = ({
@@ -69,8 +78,12 @@ export const PauseModal: React.FC<PauseModalProps> = ({
   onReturnToMainMenu,
   onDisconnectAndReturnToMainMenu,
   onSaveGame,
+  onForceBossPhase2,
+  onResetBoss,
+  onTeleportPreset,
+  onToggleSpectator,
 }) => {
-  const [activeTab, setActiveTab] = useState<'grafik' | 'suara' | 'kontrol'>('grafik');
+  const [activeTab, setActiveTab] = useState<'grafik' | 'suara' | 'kontrol' | 'dev'>('grafik');
   const [pauseView, setPauseView] = useState<'menu' | 'settings'>('menu');
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<boolean>(false);
 
@@ -352,6 +365,18 @@ export const PauseModal: React.FC<PauseModalProps> = ({
           >
             <Gamepad2 className="w-3.5 h-3.5" />
             <span>Kontrol</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('dev')}
+            className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'dev'
+                ? 'bg-orange-600/30 text-orange-300 border border-orange-500/60 shadow'
+                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
+            }`}
+          >
+            <Wrench className="w-3.5 h-3.5" />
+            <span>Dev</span>
           </button>
         </div>
 
@@ -709,6 +734,19 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* TAB 4: DEVELOPER & TESTING MODE */}
+          {activeTab === 'dev' && (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              <DeveloperSettingsSection
+                isInGameplay={true}
+                onForceBossPhase2={onForceBossPhase2}
+                onResetBoss={onResetBoss}
+                onTeleportPreset={onTeleportPreset}
+                onToggleSpectator={onToggleSpectator}
+              />
             </div>
           )}
 
