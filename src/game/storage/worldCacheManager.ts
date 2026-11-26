@@ -12,7 +12,7 @@ import {
 import { exportWorldMapRasterToBlob } from '../mapIllustratedRenderer';
 
 export const WORLD_CACHE_PREF_KEY = 'eldoria_local_world_cache_enabled';
-export const WORLD_CACHE_VERSION = 'eldoria-modular-v2';
+export const WORLD_CACHE_VERSION = 'eldoria-modular-v3';
 export const WORLD_CACHE_DB_NAME = 'EldoriaWorldCacheDB';
 export const WORLD_CACHE_STORE_NAME = 'worldModules';
 const WORLD_CACHE_DB_VERSION = 2;
@@ -202,18 +202,20 @@ export function getWorldModuleHashes(
   }));
 
   const terrainHash = computeConfigHash({
-    schema: 2,
+    schema: 3,
     bounds: WORLD_BOUNDS,
     seaBed: SEA_BED_HEIGHT,
     biomes: BIOMES,
     rivers: RIVER_SPLINES,
+    roads: ROAD_SPLINES,
+    bridges: BRIDGE_CONFIGS,
     flatten: landmarkFlattenConfig,
     terrainGrid: terrainGridSpec ?? { segmentsX: 1240, segmentsZ: 1060 },
     deviceTier: profile.tier,
   });
 
   const worldMapHash = computeConfigHash({
-    schema: 2,
+    schema: 3,
     bounds: WORLD_BOUNDS,
     biomes: BIOMES,
     rivers: RIVER_SPLINES,
@@ -231,7 +233,7 @@ export function getWorldModuleHashes(
   });
 
   const propsHash = computeConfigHash({
-    schema: 2,
+    schema: 3,
     bounds: WORLD_BOUNDS,
     roads: ROAD_SPLINES,
     bridges: BRIDGE_CONFIGS,

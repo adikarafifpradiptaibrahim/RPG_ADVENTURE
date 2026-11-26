@@ -41,6 +41,7 @@ import {
   WorldEnvironmentResult,
   getExactMeshGroundHeight,
 } from './worldEnvironment';
+import { getSolidGroundHeight } from './walkableSurfaceSystem';
 import { BossManager } from '../BossManager';
 import { BOSS_ARENA_ZONES, BossArenaZone, SPAWN_NAGA, resolveEnemyTarget } from '../monsterAI';
 import { createHunterModel } from './playerModel';
@@ -233,8 +234,8 @@ export interface GameEngineCallbacks {
  * Kalkulasi elevasi ketinggian tanah perlin noise landai (kontur lembut bukit padang rumput)
  * Pengecualian desa (datar 0) dan padang gurun
  */
-export function getTerrainHeight(x: number, z: number): number {
-  return getExactMeshGroundHeight(x, z);
+export function getTerrainHeight(x: number, z: number, currentY?: number): number {
+  return getSolidGroundHeight(x, z, currentY);
 }
 
 interface TownZoneTrigger {
@@ -1495,10 +1496,10 @@ export class GameEngine {
     // 1. Build 3D World (terrain, ocean, structures, colliders, lights, props)
     this.world = buildWorld(this.scene);
 
-    // 2. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation
+    // 2. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation (menggunakan heightmap terrain dasar)
     this.worldEnvironment = buildWorldEnvironment(
       this.scene,
-      (x, z) => this.world.getTerrainHeight(x, z),
+      (x, z) => getExactMeshGroundHeight(x, z),
       this.world.colliders
     );
 
@@ -1571,8 +1572,8 @@ export class GameEngine {
     // 8. Apply shadow & distance culling settings
     this.applyGraphicsSettings(this.graphicsSettings);
 
-    // 9. Position player mesh on terrain
-    const startY = getExactMeshGroundHeight(this.playerPos.x, this.playerPos.z);
+    // 9. Position player mesh on solid ground surface
+    const startY = getSolidGroundHeight(this.playerPos.x, this.playerPos.z);
     this.playerPos.y = startY;
     if (this.playerMesh?.group) {
       this.playerMesh.group.position.copy(this.playerPos);
@@ -1726,15 +1727,15 @@ export class GameEngine {
     // 2. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation with TypedArray spatial lookup
     this.worldEnvironment = await buildWorldEnvironmentAsync(
       this.scene,
-      (x, z) => this.world.getTerrainHeight(x, z),
+      (x, z) => getExactMeshGroundHeight(x, z),
       this.world.colliders,
       onProgress,
       cachedWorld,
       true
     );
 
-    // Position player mesh on terrain
-    const startY = getExactMeshGroundHeight(this.playerPos.x, this.playerPos.z);
+    // Position player mesh on solid ground surface
+    const startY = getSolidGroundHeight(this.playerPos.x, this.playerPos.z);
     this.playerPos.y = startY;
     if (this.playerMesh?.group) {
       this.playerMesh.group.position.copy(this.playerPos);
@@ -1983,8 +1984,8 @@ export class GameEngine {
     this.bossManager?.clearDebuffs();
   }
 
-  public getTerrainHeight(x: number, z: number): number {
-    return getExactMeshGroundHeight(x, z);
+  public getTerrainHeight(x: number, z: number, currentY?: number): number {
+    return getSolidGroundHeight(x, z, currentY);
   }
 
   public setCharacterClass(newClass: CharacterClass) {
@@ -3692,7 +3693,7 @@ export class GameEngine {
       if (landAtCamera) {
         this.playerPos.x = this.spectatorPos.x;
         this.playerPos.z = this.spectatorPos.z;
-        this.playerPos.y = getExactMeshGroundHeight(this.spectatorPos.x, this.spectatorPos.z);
+        this.playerPos.y = getSolidGroundHeight(this.spectatorPos.x, this.spectatorPos.z);
         this.playerVel.set(0, 0, 0);
         this.isGrounded = true;
         this.playerMesh.group.position.copy(this.playerPos);
@@ -3807,7 +3808,7 @@ export class GameEngine {
     this.spectatorPos.z = Math.max(minZ, Math.min(maxZ, this.spectatorPos.z));
 
     // 2. Deep Underground Bound: allow subterranean/underwater inspection, clamped to prevent infinite void fall
-    const groundY = getExactMeshGroundHeight(this.spectatorPos.x, this.spectatorPos.z);
+    const groundY = getSolidGroundHeight(this.spectatorPos.x, this.spectatorPos.z);
     const minY = Math.min(-45, groundY - 40);
 
     // 3. Dynamic Maximum Altitude based on camera far plane
@@ -7986,8 +7987,8 @@ export class GameEngine {
   private spawnShockwaveRing(position: THREE.Vector3, color: number, maxRadius = 4.5, duration = 0.4) {
     const item = this.shockwavePool[this.shockwaveNextIndex];
     this.shockwaveNextIndex = (this.shockwaveNextIndex + 1) % this.shockwavePool.length;
-    item.mesh.position.copy(position);
-    item.mesh.position.y += 0.08;
+    const solidGroundY = getSolidGroundHeight(position.x, position.z, position.y);
+    item.mesh.position.set(position.x, Math.max(position.y, solidGroundY) + 0.08, position.z);
     item.mesh.scale.set(1, 1, 1);
     item.mat.color.setHex(color);
     item.mat.opacity = 0.9;
@@ -12435,13 +12436,14 @@ export class GameEngine {
 
     const group = this.shadowDecoyPool[this.shadowDecoyCursor];
     this.shadowDecoyCursor = (this.shadowDecoyCursor + 1) % this.shadowDecoyPool.length;
-    group.position.copy(pos);
+    const solidY = getSolidGroundHeight(pos.x, pos.z, pos.y);
+    group.position.set(pos.x, Math.max(pos.y, solidY), pos.z);
     group.rotation.set(0, rotY, 0);
     group.visible = true;
 
     this.activeShadowDecoy = {
       group,
-      pos: pos.clone(),
+      pos: group.position.clone(),
       timer: 2.8,
       active: true,
     };
@@ -12640,7 +12642,7 @@ export class GameEngine {
     const resolved = this.resolveCollisions(targetX, targetZ);
     const targetPos = new THREE.Vector3(
       resolved.x,
-      this.world.getTerrainHeight(resolved.x, resolved.z),
+      getSolidGroundHeight(resolved.x, resolved.z, this.playerPos.y),
       resolved.z
     );
 
@@ -12744,7 +12746,7 @@ export class GameEngine {
     const resolved = this.resolveCollisions(targetX, targetZ);
     const targetPos = this._scratchTarget.set(
       resolved.x,
-      this.world.getTerrainHeight(resolved.x, resolved.z),
+      getSolidGroundHeight(resolved.x, resolved.z, this.playerPos.y),
       resolved.z
     );
 
@@ -13562,7 +13564,7 @@ export class GameEngine {
       this.playerVel.x = 0;
       this.playerVel.y = 0;
       this.playerVel.z = 0;
-      const groundY = getExactMeshGroundHeight(this.playerPos.x, this.playerPos.z);
+      const groundY = getSolidGroundHeight(this.playerPos.x, this.playerPos.z, this.playerPos.y);
       this.playerPos.y = groundY;
       this.isGrounded = true;
       this.playerMesh.group.position.copy(this.playerPos);
@@ -13625,7 +13627,7 @@ export class GameEngine {
       this.playerPos.y += this.playerVel.y * delta;
       const inThroneRoomLocked = this.playerPos.y < -10 && this.playerPos.x >= -435 && this.playerPos.x <= -395 && this.playerPos.z >= 335 && this.playerPos.z <= 365;
       const inMageTowerLocked = isInsideMageTowerInterior(this.playerPos.x, this.playerPos.y, this.playerPos.z);
-      let groundY = getExactMeshGroundHeight(this.playerPos.x, this.playerPos.z);
+      let groundY = getSolidGroundHeight(this.playerPos.x, this.playerPos.z, this.playerPos.y);
       if (inThroneRoomLocked) {
         groundY = (this.playerPos.x <= -424 && Math.abs(this.playerPos.z - 350) <= 6) ? -24.4 : -25.0;
       } else if (inMageTowerLocked) {
@@ -13852,7 +13854,7 @@ export class GameEngine {
     // 4. Calculate movement with building collisions & cliff climbing physics
     const oldX = this.playerPos.x;
     const oldZ = this.playerPos.z;
-    const currentGroundY = this.world.getTerrainHeight(oldX, oldZ);
+    const currentGroundY = getSolidGroundHeight(oldX, oldZ, this.playerPos.y);
 
     let nextX = oldX + this.playerVel.x * delta;
     let nextZ = oldZ + this.playerVel.z * delta;
@@ -13863,7 +13865,7 @@ export class GameEngine {
     nextZ = resolved.z;
 
     // 4b. Terrain slope & Cliff climbing physics
-    const targetGroundY = this.world.getTerrainHeight(nextX, nextZ);
+    const targetGroundY = getSolidGroundHeight(nextX, nextZ, this.playerPos.y);
     const heightDiff = targetGroundY - currentGroundY;
     const horizDist = Math.hypot(nextX - oldX, nextZ - oldZ);
     const slope = horizDist > 0.001 ? heightDiff / horizDist : 0;
@@ -13876,10 +13878,10 @@ export class GameEngine {
       if (!canMantle) {
         // Slide smoothly along the cliff face instead of completely locking up
         const resXOnly = this.resolveCollisions(oldX + this.playerVel.x * delta, oldZ);
-        const hDiffX = this.world.getTerrainHeight(resXOnly.x, oldZ) - currentGroundY;
+        const hDiffX = getSolidGroundHeight(resXOnly.x, oldZ, this.playerPos.y) - currentGroundY;
 
         const resZOnly = this.resolveCollisions(oldX, oldZ + this.playerVel.z * delta);
-        const hDiffZ = this.world.getTerrainHeight(oldX, resZOnly.z) - currentGroundY;
+        const hDiffZ = getSolidGroundHeight(oldX, resZOnly.z, this.playerPos.y) - currentGroundY;
 
         if (hDiffX <= 0.95 && Math.abs(this.playerVel.x) > 0.05) {
           nextX = resXOnly.x;
@@ -13965,8 +13967,8 @@ export class GameEngine {
         this.isGrounded = true;
       }
     } else {
-      // Terrain ground collision and Ocean water surface
-      const groundY = getExactMeshGroundHeight(this.playerPos.x, this.playerPos.z);
+      // Solid walkable surface collision (terrain + bridges + docks + altars + stairs) and Ocean water surface
+      const groundY = getSolidGroundHeight(this.playerPos.x, this.playerPos.z, this.playerPos.y);
       if (this.playerPos.z > 22 && this.playerPos.x >= -65 && this.playerPos.x <= 105 && groundY < -0.2) {
         const waterSurfaceY = -0.25;
         if (this.playerPos.y <= waterSurfaceY) {
@@ -13979,17 +13981,17 @@ export class GameEngine {
           this.playerPos.y = groundY;
           this.playerVel.y = 0;
           this.isGrounded = true;
-        } else if (this.isGrounded && this.playerPos.y - groundY < 0.65) {
-          // Snap to ground on gentle slope descents to prevent floating down hills
+        } else if (this.isGrounded && this.playerPos.y - groundY < 0.78) {
+          // Snap to ground on gentle slope/stair descents to prevent floating down hills & steps
           this.playerPos.y = groundY;
           this.playerVel.y = 0;
         }
       }
     }
 
-    // Absolute ground floor clamp: prevent sinking into terrain during delta spike or steep slope descents
+    // Absolute ground floor clamp: prevent sinking into terrain/surfaces during delta spike or steep slope descents
     if (!inThroneRoom && !inMageTower) {
-      const minFloorY = getExactMeshGroundHeight(this.playerPos.x, this.playerPos.z);
+      const minFloorY = getSolidGroundHeight(this.playerPos.x, this.playerPos.z, this.playerPos.y);
       if (this.playerPos.y < minFloorY) {
         this.playerPos.y = minFloorY;
         this.playerVel.y = 0;
@@ -15087,7 +15089,7 @@ export class GameEngine {
         enemy.velocity.y -= 26.0 * delta; // Gravity
         enemy.velocity.x *= Math.max(0, 1 - 4.0 * delta); // Friction
         enemy.velocity.z *= Math.max(0, 1 - 4.0 * delta);
-        const groundH = this.world.getTerrainHeight(ePos.x, ePos.z);
+        const groundH = getSolidGroundHeight(ePos.x, ePos.z, ePos.y);
         if (ePos.y <= groundH) {
           ePos.y = groundH;
           enemy.velocity.set(0, 0, 0);
@@ -15149,7 +15151,7 @@ export class GameEngine {
           const returnSpeed = enemy.data.speed * slowMult * delta;
           ePos.x += (toSpawnX / distToSpawn) * returnSpeed;
           ePos.z += (toSpawnZ / distToSpawn) * returnSpeed;
-          ePos.y = this.world.getTerrainHeight(ePos.x, ePos.z);
+          ePos.y = getSolidGroundHeight(ePos.x, ePos.z, ePos.y);
 
           // Mainkan animasi berjalan
           enemy.walkCycle += delta * 5.5;
@@ -15235,7 +15237,7 @@ export class GameEngine {
           const moveSpeed = baseSpeed * slowMult * delta;
           ePos.x += toTarget.x * moveSpeed;
           ePos.z += toTarget.z * moveSpeed;
-          ePos.y = this.world.getTerrainHeight(ePos.x, ePos.z);
+          ePos.y = getSolidGroundHeight(ePos.x, ePos.z, ePos.y);
 
           enemy.walkCycle += delta * (enemy.data.id === 'boss_dragonfang' ? 9.5 : 6);
           this.animateEnemyWalk(enemy, delta);
@@ -15426,7 +15428,7 @@ export class GameEngine {
         const lerpSpeed = Math.min(1, delta * 12);
         ePos.x += (target.x - ePos.x) * lerpSpeed;
         ePos.z += (target.z - ePos.z) * lerpSpeed;
-        ePos.y = this.world.getTerrainHeight(ePos.x, ePos.z);
+        ePos.y = getSolidGroundHeight(ePos.x, ePos.z, ePos.y);
 
         // Lerp rotasi Y dari server
         let diffRot = target.rotationY - enemy.mesh.rotation.y;
@@ -15778,8 +15780,8 @@ export class GameEngine {
     this.remotePlayers.forEach((rp) => {
       // Lerp position smoothly
       rp.currentPos.lerp(rp.targetPos, Math.min(1, delta * 14));
-      // Ensure remote player feet do not sink below terrain surface
-      const groundY = this.world.getTerrainHeight(rp.currentPos.x, rp.currentPos.z);
+      // Ensure remote player feet do not sink below solid walkable ground surface
+      const groundY = getSolidGroundHeight(rp.currentPos.x, rp.currentPos.z, rp.currentPos.y);
       if (rp.currentPos.y < groundY) {
         rp.currentPos.y = groundY;
       }

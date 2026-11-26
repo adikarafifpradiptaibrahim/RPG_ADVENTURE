@@ -106,6 +106,11 @@ import {
   setMeshGroundHeights,
   getExactMeshGroundHeight,
 } from './worldEnvironment';
+import {
+  clearWalkableSurfaces,
+  registerWalkableSurface,
+  getSolidGroundHeight,
+} from './walkableSurfaceSystem';
 
 export interface WorldCollider {
   type: 'box' | 'circle';
@@ -174,7 +179,7 @@ export interface WorldObjects {
   pointLights?: THREE.PointLight[];
   dirLight?: THREE.DirectionalLight;
   hemiLight?: THREE.HemisphereLight;
-  getTerrainHeight: (x: number, z: number) => number;
+  getTerrainHeight: (x: number, z: number, currentY?: number) => number;
 }
 
 /**
@@ -185,6 +190,7 @@ export function getTerrainHeight(x: number, z: number): number {
 }
 
 export function buildWorld(scene: THREE.Scene): WorldObjects {
+  clearWalkableSurfaces();
   const decorativeProps: THREE.Object3D[] = [];
   const pointLights: THREE.PointLight[] = [];
 
@@ -329,7 +335,7 @@ export function buildWorld(scene: THREE.Scene): WorldObjects {
     pointLights,
     dirLight,
     hemiLight,
-    getTerrainHeight,
+    getTerrainHeight: (x: number, z: number, currentY?: number) => getSolidGroundHeight(x, z, currentY),
   };
 }
 
@@ -347,6 +353,7 @@ export async function buildWorldAsync(
   onProgress?: (percent: number, statusText: string) => void,
   cachedTerrain?: WorldCachePayload | null
 ): Promise<WorldObjects> {
+  clearWalkableSurfaces();
   const decorativeProps: THREE.Object3D[] = [];
   const pointLights: THREE.PointLight[] = [];
   const scheduler = new SmoothLoadScheduler();
@@ -594,34 +601,41 @@ export async function buildHarbor(
   const shorelineBoardwalk = createDockShorelineBoardwalkMesh(5.4, 6.0);
   shorelineBoardwalk.position.set(harborX, 0.15, harborZ - 2.0);
   scene.add(shorelineBoardwalk);
+  registerWalkableSurface(shorelineBoardwalk, { label: 'Boardwalk Pantai Pelabuhan' });
 
   const beachRamp = createDockStairRampMesh(4.8, 4.0, 1.8);
   beachRamp.position.set(harborX, 0.05, harborZ);
   scene.add(beachRamp);
+  registerWalkableSurface(beachRamp, { label: 'Ramp Tangga Pantai Pelabuhan' });
 
   // 2. Extended Main Straight Pier (Dermaga Utama Menjorok lurus ke Samudra Selatan Z: 21..49)
   const pierMain1 = createPierDockMesh({ length: 14.0, width: 4.8, pileDepth: 7.5, hasMooringBollards: true });
   pierMain1.position.set(harborX, dockY, harborZ + 1.0);
   scene.add(pierMain1);
+  registerWalkableSurface(pierMain1, { label: 'Dermaga Utama Pelabuhan 1' });
 
   const pierMain2 = createPierDockMesh({ length: 14.0, width: 4.8, pileDepth: 8.0, hasMooringBollards: true });
   pierMain2.position.set(harborX, dockY, harborZ + 15.0);
   scene.add(pierMain2);
+  registerWalkableSurface(pierMain2, { label: 'Dermaga Utama Pelabuhan 2' });
 
   const pierHeadPlatform = createPierDockMesh({ length: 12.0, width: 10.0, pileDepth: 9.0, hasLantern: true, lanternSide: 'both', hasMooringBollards: true });
   pierHeadPlatform.position.set(harborX, dockY, harborZ + 29.0);
   scene.add(pierHeadPlatform);
+  registerWalkableSurface(pierHeadPlatform, { label: 'Platform Ujung Dermaga Pelabuhan' });
 
   // 3. Symmetrical Berthing Wings (Cabang Tempat Bersandar Kapal di Z = harborZ + 24)
   const wingWest1 = createPierDockMesh({ length: 14.0, width: 4.0, pileDepth: 7.5, hasLantern: true, lanternSide: 'left', hasMooringBollards: true });
   wingWest1.position.set(harborX - 2.4, dockY, harborZ + 24.0);
   wingWest1.rotation.y = Math.PI * 1.5;
   scene.add(wingWest1);
+  registerWalkableSurface(wingWest1, { label: 'Sayap Dermaga Barat' });
 
   const wingEast1 = createPierDockMesh({ length: 14.0, width: 4.0, pileDepth: 7.5, hasLantern: true, lanternSide: 'right', hasMooringBollards: true });
   wingEast1.position.set(harborX + 2.4, dockY, harborZ + 24.0);
   wingEast1.rotation.y = Math.PI / 2;
   scene.add(wingEast1);
+  registerWalkableSurface(wingEast1, { label: 'Sayap Dermaga Timur' });
 
   // 4. Moored Main Ships (100% Mengapung di atas Air Laut Dalam Samudra Selatan Z: 48..60)
   const galleon1 = createMerchantGalleonMesh();
@@ -643,17 +657,25 @@ export async function buildHarbor(
   const gangwayMat = new THREE.MeshLambertMaterial({ color: 0x5d4037, flatShading: true });
   const gangwayEast = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.16, 1.6), gangwayMat);
   gangwayEast.position.set(harborX + 15.5, 1.86, harborZ + 24.0);
+  gangwayEast.userData.walkableSurface = true;
   scene.add(gangwayEast);
+  registerWalkableSurface(gangwayEast, { label: 'Papan Naik Kapal Timur' });
 
   const gangwayWest = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.16, 1.6), gangwayMat);
   gangwayWest.position.set(harborX - 15.5, 1.86, harborZ + 24.0);
+  gangwayWest.userData.walkableSurface = true;
   scene.add(gangwayWest);
+  registerWalkableSurface(gangwayWest, { label: 'Papan Naik Kapal Barat' });
 
   colliders.push(
     // Ship Hull Colliders (Outer water boundaries)
     { type: 'box', minX: harborX + 13.0, maxX: harborX + 23.0, minZ: harborZ + 18, maxZ: harborZ + 32, label: 'Lambung Kapal Dagang Emas 1' },
     { type: 'box', minX: harborX - 23.0, maxX: harborX - 13.0, minZ: harborZ + 18, maxZ: harborZ + 32, label: 'Lambung Kapal Perang Bershield' },
-    { type: 'box', minX: harborX - 2.6, maxX: harborX + 2.6, minZ: harborZ, maxZ: harborZ + 42, label: 'Dermaga Utama Pelabuhan' }
+    // Pembatas tepi kiri & kanan dermaga utama (membiarkan jalur tengah terbuka untuk dilalui!)
+    { type: 'box', minX: harborX - 2.65, maxX: harborX - 2.38, minZ: harborZ + 1, maxZ: harborZ + 21.8, label: 'Tepi Barat Dermaga Utama' },
+    { type: 'box', minX: harborX + 2.38, maxX: harborX + 2.65, minZ: harborZ + 1, maxZ: harborZ + 21.8, label: 'Tepi Timur Dermaga Utama' },
+    { type: 'box', minX: harborX - 2.65, maxX: harborX - 2.38, minZ: harborZ + 26.2, maxZ: harborZ + 29.0, label: 'Tepi Barat Leher Dermaga' },
+    { type: 'box', minX: harborX + 2.38, maxX: harborX + 2.65, minZ: harborZ + 26.2, maxZ: harborZ + 29.0, label: 'Tepi Timur Leher Dermaga' }
   );
 
   await cooperativeYield(4);
@@ -763,7 +785,9 @@ export async function buildMainVillage(
   sanctuaryPlazaRim.rotation.x = -Math.PI / 2;
   sanctuaryPlazaRim.position.set(fountainX, villageMainlandY + 0.04, fountainZ);
   sanctuaryPlazaRim.receiveShadow = true;
+  sanctuaryPlazaRim.userData.walkableSurface = true;
   scene.add(sanctuaryPlazaRim);
+  registerWalkableSurface(sanctuaryPlazaRim, { label: 'Alun-Alun Air Mancur Sanctuary' });
 
   // ==========================================
   // ALL VILLAGE HOUSES & BUILDINGS (>= 15 units clearance from all road centerlines & river)
@@ -1151,6 +1175,7 @@ export async function buildAstraeaCastle(
   imperialPalace.position.set(-250 + astDX, astraeaBaseY, -265 + astDZ);
   imperialPalace.rotation.y = 0;
   scene.add(imperialPalace);
+  registerWalkableSurface(imperialPalace, { label: 'Tangga & Podium Istana Astraea' });
   colliders.push({
     type: 'box',
     minX: -264 + astDX,
@@ -1164,6 +1189,7 @@ export async function buildAstraeaCastle(
   const circularPlaza = createCircularPlazaMesh(11.5, 4.8);
   circularPlaza.position.set(-250 + astDX, astraeaBaseY, -240 + astDZ);
   scene.add(circularPlaza);
+  registerWalkableSurface(circularPlaza, { label: 'Pelataran Bundar Alun-Alun Astraea' });
 
   // B2. Celestial 3-Tier Fountain of Immortality (Center of Circular Plaza at X: 320, Z: -260)
   const celestialFountain = createImperialFountainMesh();
@@ -1448,6 +1474,7 @@ export async function buildValKragorFort(
   fortressKeep.position.set(402 + vkDX, valKragorBaseY, 80 + vkDZ);
   fortressKeep.rotation.y = -Math.PI / 2;
   scene.add(fortressKeep);
+  registerWalkableSurface(fortressKeep, { label: 'Undakan Kastil Komando Val-Kragor' });
   colliders.push({
     type: 'box',
     minX: 397 + vkDX,
@@ -1758,11 +1785,14 @@ export async function buildValKragorFort(
   await cooperativeYield(4);
 
   // ==========================================
-  // 2.9 SISTEM 4 JEMBATAN PERPOTONGAN SUNGAI (BRIDGE_CONFIGS SINGLE SOURCE OF TRUTH)
-  // Menyeberangi sungai tegak lurus dengan abutment padat dan pagar pembatas kokoh
+  // 2.9 SISTEM JEMBATAN PERPOTONGAN SUNGAI (BRIDGE_CONFIGS SINGLE SOURCE OF TRUTH)
+  // Menyeberangi sungai tegak lurus dengan abutment padat, ramp pendekatan ke kontur tanah, dan pagar pembatas terarah
   // ==========================================
   for (const b of BRIDGE_CONFIGS) {
+    const cosY = Math.cos(b.rotationY);
+    const sinY = Math.sin(b.rotationY);
     let bridgeMesh: THREE.Group;
+
     if (b.type === 'suspension') {
       bridgeMesh = createSuspensionBridgeMesh(b.length);
       bridgeMesh.position.set(b.x, b.y, b.z);
@@ -1773,22 +1803,59 @@ export async function buildValKragorFort(
       chasmStonePier.position.set(b.x, -2.2, b.z);
       scene.add(chasmStonePier);
     } else {
-      bridgeMesh = createStoneArchBridgeMesh(b.length, b.width, Math.max(2.7, b.y + 2.6));
+      const bankProbeOffset = b.length * 0.5 + 3.2;
+      const bankLeftX = b.x - bankProbeOffset * cosY;
+      const bankLeftZ = b.z + bankProbeOffset * sinY;
+      const bankRightX = b.x + bankProbeOffset * cosY;
+      const bankRightZ = b.z - bankProbeOffset * sinY;
+
+      const leftTerrainY = getTerrainHeight(bankLeftX, bankLeftZ, true);
+      const rightTerrainY = getTerrainHeight(bankRightX, bankRightZ, true);
+      const leftBankDropY = leftTerrainY - b.y - 0.14;
+      const rightBankDropY = rightTerrainY - b.y - 0.14;
+
+      bridgeMesh = createStoneArchBridgeMesh(b.length, b.width, Math.max(2.7, b.y + 2.6), {
+        leftBankDropY,
+        rightBankDropY,
+        rampLength: 3.4,
+      });
       bridgeMesh.position.set(b.x, b.y, b.z);
       bridgeMesh.rotation.y = b.rotationY;
       scene.add(bridgeMesh);
     }
 
-    if (Math.abs(b.rotationY) < 0.1) {
+    // Daftarkan seluruh lantai dek & ramp pendekatan sebagai permukaan solid walkable
+    registerWalkableSurface(bridgeMesh, { label: `Jembatan ${b.nameId}` });
+
+    // Pasang collider pagar kiri & kanan akurat mengikuti sudut rotasi jembatan
+    const railSideOffset = b.width * 0.5 + 0.28;
+    if (Math.abs(sinY) < 0.05) {
       colliders.push(
-        { type: 'box', minX: b.x - b.length / 2, maxX: b.x + b.length / 2, minZ: b.z - b.width / 2 - 0.4, maxZ: b.z - b.width / 2, label: `Pagar ${b.nameId} Sisi Utara` },
-        { type: 'box', minX: b.x - b.length / 2, maxX: b.x + b.length / 2, minZ: b.z + b.width / 2, maxZ: b.z + b.width / 2 + 0.4, label: `Pagar ${b.nameId} Sisi Selatan` }
+        { type: 'box', minX: b.x - b.length / 2, maxX: b.x + b.length / 2, minZ: b.z - railSideOffset - 0.15, maxZ: b.z - railSideOffset + 0.15, label: `Pagar ${b.nameId} Sisi Utara` },
+        { type: 'box', minX: b.x - b.length / 2, maxX: b.x + b.length / 2, minZ: b.z + railSideOffset - 0.15, maxZ: b.z + railSideOffset + 0.15, label: `Pagar ${b.nameId} Sisi Selatan` }
+      );
+    } else if (Math.abs(cosY) < 0.05) {
+      colliders.push(
+        { type: 'box', minX: b.x - railSideOffset - 0.15, maxX: b.x - railSideOffset + 0.15, minZ: b.z - b.length / 2, maxZ: b.z + b.length / 2, label: `Pagar ${b.nameId} Sisi Barat` },
+        { type: 'box', minX: b.x + railSideOffset - 0.15, maxX: b.x + railSideOffset + 0.15, minZ: b.z - b.length / 2, maxZ: b.z + b.length / 2, label: `Pagar ${b.nameId} Sisi Timur` }
       );
     } else {
-      colliders.push(
-        { type: 'box', minX: b.x - b.width / 2 - 0.4, maxX: b.x - b.width / 2, minZ: b.z - b.length / 2, maxZ: b.z + b.length / 2, label: `Pagar ${b.nameId} Sisi Barat` },
-        { type: 'box', minX: b.x + b.width / 2, maxX: b.x + b.width / 2 + 0.4, minZ: b.z - b.length / 2, maxZ: b.z + b.length / 2, label: `Pagar ${b.nameId} Sisi Timur` }
-      );
+      const halfSpan = b.length * 0.48;
+      const step = 1.8;
+      for (let lx = -halfSpan; lx <= halfSpan + 0.01; lx += step) {
+        const clampedLx = Math.min(halfSpan, lx);
+        for (const sideZ of [-railSideOffset, railSideOffset]) {
+          const rx = b.x + clampedLx * cosY + sideZ * sinY;
+          const rz = b.z - clampedLx * sinY + sideZ * cosY;
+          colliders.push({
+            type: 'circle',
+            x: rx,
+            z: rz,
+            radius: 0.30,
+            label: `Pagar ${b.nameId}`,
+          });
+        }
+      }
     }
   }
 
@@ -2089,6 +2156,7 @@ export async function buildDesertStructures(
   solariaPalace.position.set(410 + spDX, solariaPalaceY, -470 + spDZ);
   solariaPalace.rotation.y = -Math.PI / 2; // Menghadap ke Selatan menyambut jalan akses lurus dari Desa Gurun
   scene.add(solariaPalace);
+  registerWalkableSurface(solariaPalace, { label: 'Teras & Tangga Istana Taj Mahal Solaria' });
   colliders.push({
     type: 'box',
     minX: 392 + spDX,
@@ -2481,6 +2549,7 @@ export async function buildTitanLakeAndCanyon(
   const mageTowerExterior = createMageTowerExteriorMesh();
   mageTowerExterior.position.set(110 + mtDX, mageTowerBaseY, -10 + mtDZ);
   scene.add(mageTowerExterior);
+  registerWalkableSurface(mageTowerExterior, { label: 'Undakan & Plinth Mage Tower' });
   colliders.push({
     type: 'circle',
     x: 110 + mtDX,
@@ -2662,10 +2731,12 @@ export async function buildDragonCaldera(
   });
   const daisBase = new THREE.Mesh(new THREE.CylinderGeometry(15.0, 16.5, 0.7, 32), daisMat);
   daisBase.position.y = 0.35;
+  daisBase.userData.walkableSurface = true;
   altarGroup.add(daisBase);
 
   const daisTop = new THREE.Mesh(new THREE.CylinderGeometry(12.5, 13.5, 0.6, 32), daisMat);
   daisTop.position.y = 0.95;
+  daisTop.userData.walkableSurface = true;
   altarGroup.add(daisTop);
 
   // Fiery glowing runic outer circle
@@ -2681,12 +2752,14 @@ export async function buildDragonCaldera(
   });
   const runeRingMesh = new THREE.Mesh(runeRingGeo, runeRingMat);
   runeRingMesh.position.y = 1.26;
+  runeRingMesh.userData.walkableSurface = true;
   altarGroup.add(runeRingMesh);
 
-  // Central dragon summoning fire bowl
+  // Central dragon summoning fire bowl (non-walkable, dihalangi collider)
   const brazierGeo = new THREE.CylinderGeometry(2.2, 1.2, 1.4, 8);
   const brazierMesh = new THREE.Mesh(brazierGeo, daisMat);
   brazierMesh.position.y = 1.95;
+  brazierMesh.userData.nonWalkable = true;
   altarGroup.add(brazierMesh);
 
   // Roaring primal fire flame
@@ -2699,6 +2772,7 @@ export async function buildDragonCaldera(
   });
   const flameMesh = new THREE.Mesh(flameGeo, flameMat);
   flameMesh.position.y = 3.8;
+  flameMesh.userData.nonWalkable = true;
   altarGroup.add(flameMesh);
 
   // Local central altar light
@@ -2709,6 +2783,7 @@ export async function buildDragonCaldera(
 
   altarGroup.position.set(dragonArenaCenter.x, dragonArenaBaseY, dragonArenaCenter.z);
   scene.add(altarGroup);
+  registerWalkableSurface(altarGroup, { label: 'Altar Rune Naga Kaldera' });
   colliders.push({ type: 'circle', x: dragonArenaCenter.x, z: dragonArenaCenter.z, radius: 2.5, label: 'Altar Rune Naga' });
 
   // B. 4 Pilar Rune Naga Obsidian di Sudut Altar (Radius 14.5 unit)
@@ -2857,7 +2932,9 @@ export async function buildDragonCaldera(
   });
   const dockPier = new THREE.Mesh(new THREE.BoxGeometry(5.0, 0.45, 18.0), charredDockMat);
   dockPier.position.set(40, 0.45, 750);
+  dockPier.userData.walkableSurface = true;
   scene.add(dockPier);
+  registerWalkableSurface(dockPier, { label: 'Dermaga Kayu Hangus Kaldera' });
   // Tiang pancang dermaga hangus (InstancedMesh)
   const dockPileGeo = new THREE.CylinderGeometry(0.25, 0.25, 3.5, 6);
   const dockPileMesh = new THREE.InstancedMesh(dockPileGeo, charredDockMat, 8);
@@ -2877,30 +2954,13 @@ export async function buildDragonCaldera(
   dockPileMesh.instanceMatrix.needsUpdate = true;
   dockPileMesh.computeBoundingSphere();
   scene.add(dockPileMesh);
-  colliders.push({ type: 'box', minX: 37.0, maxX: 43.0, minZ: 741, maxZ: 759, label: 'Dermaga Kayu Hangus' });
+  // Pembatas tepi kiri & kanan dermaga (membiarkan dek tengah 100% bisa diinjak pemain)
+  colliders.push(
+    { type: 'box', minX: 37.0, maxX: 37.5, minZ: 741, maxZ: 759, label: 'Tepi Barat Dermaga Kayu Hangus' },
+    { type: 'box', minX: 42.5, maxX: 43.0, minZ: 741, maxZ: 759, label: 'Tepi Timur Dermaga Kayu Hangus' }
+  );
 
-  // G. 2 Jembatan Batu Rantai Vulkanik Penghubung ke Pulau Satelit
-  // Jembatan 1: Menghubungkan Pulau Satelit Barat Daya [-75, 875] ke Pulau Utama [40, 840]
-  // Bentang segmen: [-38, 858] ke [-8, 848]
-  const bridge1Len = Math.hypot(-8 - -38, 848 - 858);
-  const bridge1MidX = (-38 + -8) / 2;
-  const bridge1MidZ = (858 + 848) / 2;
-  const bridge1Ang = Math.atan2(848 - 858, -8 - -38);
-  const bridge1Mesh = new THREE.Mesh(new THREE.BoxGeometry(bridge1Len, 0.65, 4.2), basaltMat);
-  bridge1Mesh.position.set(bridge1MidX, 2.40, bridge1MidZ);
-  bridge1Mesh.rotation.y = -bridge1Ang;
-  scene.add(bridge1Mesh);
-
-  // Jembatan 2: Menghubungkan Pulau Satelit Barat Laut [-65, 775] ke Pulau Utama [40, 840]
-  // Bentang segmen: [-34, 792] ke [-4, 808]
-  const bridge2Len = Math.hypot(-4 - -34, 808 - 792);
-  const bridge2MidX = (-34 + -4) / 2;
-  const bridge2MidZ = (792 + 808) / 2;
-  const bridge2Ang = Math.atan2(808 - 792, -4 - -34);
-  const bridge2Mesh = new THREE.Mesh(new THREE.BoxGeometry(bridge2Len, 0.65, 4.2), basaltMat);
-  bridge2Mesh.position.set(bridge2MidX, 2.40, bridge2MidZ);
-  bridge2Mesh.rotation.y = -bridge2Ang;
-  scene.add(bridge2Mesh);
+  // G. Jembatan Rantai Vulkanik SW & NW ke Pulau Satelit dibangun terpadu melalui BRIDGE_CONFIGS (tanpa duplikasi mesh X-overlap)
 
   // H. Lingkungan Pulau Satelit Barat Daya [-75, 875]
   const swRock = createVolcanicBasaltRockMesh(2.2);
@@ -2966,7 +3026,11 @@ export async function buildDragonCaldera(
   lhDock.position.set(-188, -0.35, 460);
   lhDock.rotation.y = Math.PI / 2;
   scene.add(lhDock);
-  colliders.push({ type: 'box', minX: -195, maxX: -181, minZ: 457, maxZ: 463, label: 'Dermaga Pulau Mercusuar' });
+  registerWalkableSurface(lhDock, { label: 'Dermaga Pulau Mercusuar' });
+  colliders.push(
+    { type: 'box', minX: -195, maxX: -181, minZ: 457.6, maxZ: 458.1, label: 'Tepi Utara Dermaga Mercusuar' },
+    { type: 'box', minX: -195, maxX: -181, minZ: 461.9, maxZ: 462.4, label: 'Tepi Selatan Dermaga Mercusuar' }
+  );
 
   // Rumpun Palem di Pulau Mercusuar
   const lhPalm1 = createDesertPalmMesh();
@@ -3029,7 +3093,7 @@ export async function buildDragonCaldera(
   for (let c = 0; c < chestData.length; c++) {
     const cd = chestData[c];
     const { group, lidGroup } = createTreasureChestMesh();
-    const cy = getTerrainHeight(cd.pos[0], cd.pos[2]);
+    const cy = getSolidGroundHeight(cd.pos[0], cd.pos[2]);
     group.position.set(cd.pos[0], cy, cd.pos[2]);
     scene.add(group);
     chests.push({
@@ -3766,7 +3830,7 @@ async function populateWorldEntities(
     pointLights,
     dirLight,
     hemiLight,
-    getTerrainHeight,
+    getTerrainHeight: (x: number, z: number, currentY?: number) => getSolidGroundHeight(x, z, currentY),
   };
 }
 

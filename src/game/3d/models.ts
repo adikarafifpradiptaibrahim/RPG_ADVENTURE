@@ -2603,14 +2603,17 @@ export function createPierDockMesh(options?: PierDockOptions): THREE.Group {
   deck.position.set(0, 2.1, length / 2);
   deck.receiveShadow = true;
   deck.castShadow = true;
+  deck.userData.walkableSurface = true;
   pier.add(deck);
 
-  // Raised edge curb logs / fender beams along pier flanks
+  // Raised edge curb logs / fender beams along pier flanks (non-walkable)
   const curbGeo = new THREE.BoxGeometry(0.18, 0.24, length);
   const leftCurb = new THREE.Mesh(curbGeo, darkTimberMat);
   leftCurb.position.set(-halfWidth + 0.09, 2.25, length / 2);
+  leftCurb.userData.nonWalkable = true;
   const rightCurb = new THREE.Mesh(curbGeo, darkTimberMat);
   rightCurb.position.set(halfWidth - 0.09, 2.25, length / 2);
+  rightCurb.userData.nonWalkable = true;
   pier.add(leftCurb, rightCurb);
 
   // 3. Mooring Bollards / Cleats with rope wraps
@@ -2623,15 +2626,19 @@ export function createPierDockMesh(options?: PierDockOptions): THREE.Group {
       // Left bollard
       const bLeft = new THREE.Mesh(bollardGeo, darkTimberMat);
       bLeft.position.set(-halfWidth + 0.2, 2.45, bz);
+      bLeft.userData.nonWalkable = true;
       const rLeft = new THREE.Mesh(ropeRingGeo, ropeMat);
       rLeft.position.set(-halfWidth + 0.2, 2.4, bz);
+      rLeft.userData.nonWalkable = true;
       pier.add(bLeft, rLeft);
 
       // Right bollard
       const bRight = new THREE.Mesh(bollardGeo, darkTimberMat);
       bRight.position.set(halfWidth - 0.2, 2.45, bz);
+      bRight.userData.nonWalkable = true;
       const rRight = new THREE.Mesh(ropeRingGeo, ropeMat);
       rRight.position.set(halfWidth - 0.2, 2.4, bz);
+      rRight.userData.nonWalkable = true;
       pier.add(bRight, rRight);
     }
   }
@@ -3404,11 +3411,13 @@ export function createSuspensionBridgeMesh(length: number = 28): THREE.Group {
       pylon.position.set(x, 0.8, z);
       pylon.castShadow = true;
       pylon.receiveShadow = true;
+      pylon.userData.nonWalkable = true;
       bridge.add(pylon);
     }
     // Cross timber beam between pylons
     const beam = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.55, 5.4), timberMat);
     beam.position.set(x, 4.4, 0);
+    beam.userData.nonWalkable = true;
     bridge.add(beam);
 
     // Solid stone abutment foundation block & flush approach ramp (menempel padat di tanah, zero gap!)
@@ -3418,12 +3427,14 @@ export function createSuspensionBridgeMesh(length: number = 28): THREE.Group {
     abutment.position.set(abutmentX, -1.2, 0);
     abutment.receiveShadow = true;
     abutment.castShadow = true;
+    abutment.userData.nonWalkable = true;
     bridge.add(abutment);
 
     const ramp = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.22, 3.6), timberMat);
     ramp.position.set(abutmentX, -0.06, 0);
     ramp.rotation.z = isWest ? 0.08 : -0.08;
     ramp.receiveShadow = true;
+    ramp.userData.walkableSurface = true;
     bridge.add(ramp);
   }
 
@@ -3437,14 +3448,17 @@ export function createSuspensionBridgeMesh(length: number = 28): THREE.Group {
     const plank = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.22, 3.4), timberMat);
     plank.position.set(px, py, 0);
     plank.receiveShadow = true;
+    plank.userData.walkableSurface = true;
     bridge.add(plank);
 
     // Left and Right Handrail Posts
     const postGeo = new THREE.CylinderGeometry(0.06, 0.06, 1.3, 4);
     const postL = new THREE.Mesh(postGeo, timberMat);
     postL.position.set(px, py + 0.65, -1.6);
+    postL.userData.nonWalkable = true;
     const postR = new THREE.Mesh(postGeo, timberMat);
     postR.position.set(px, py + 0.65, 1.6);
+    postR.userData.nonWalkable = true;
     bridge.add(postL, postR);
   }
 
@@ -3458,6 +3472,7 @@ export function createSuspensionBridgeMesh(length: number = 28): THREE.Group {
     ]);
     const ropeGeo = new THREE.TubeGeometry(ropeCurve, 24, ropeRadius, 6, false);
     const rope = new THREE.Mesh(ropeGeo, ropeMat);
+    rope.userData.nonWalkable = true;
     bridge.add(rope);
   }
 
@@ -4224,19 +4239,24 @@ export function createImperialPalaceMesh(): THREE.Group {
     palace.add(carpetRiser);
   }
 
-  // Marble Balustrades & Handrails flanking stairs
+    // Marble Balustrades & Handrails flanking stairs (non-walkable)
   for (const bx of [-stairWidth / 2 - 0.4, stairWidth / 2 + 0.4]) {
     const balustrade = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.2, stepCount * stepRun + 0.6), whiteMarble);
     balustrade.position.set(bx, 1.4, 9.0 + (stepCount * stepRun) / 2);
     balustrade.rotation.x = Math.atan2(1.6, stepCount * stepRun);
+    balustrade.userData.nonWalkable = true;
     const postBottom = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.6, 0.8), whiteMarble);
     postBottom.position.set(bx, 0.8, 9.0 + stepCount * stepRun + 0.4);
+    postBottom.userData.nonWalkable = true;
     const postTop = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.6, 0.8), whiteMarble);
     postTop.position.set(bx, 2.4, 9.0 - 0.4);
+    postTop.userData.nonWalkable = true;
     const finialBottom = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 12), goldTrim);
     finialBottom.position.set(bx, 1.8, 9.0 + stepCount * stepRun + 0.4);
+    finialBottom.userData.nonWalkable = true;
     const finialTop = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 12), goldTrim);
     finialTop.position.set(bx, 3.4, 9.0 - 0.4);
+    finialTop.userData.nonWalkable = true;
     palace.add(balustrade, postBottom, postTop, finialBottom, finialTop);
   }
 
@@ -5293,7 +5313,8 @@ export function createStoneBridgePierMesh(height: number = 7.5): THREE.Group {
 export function createStoneArchBridgeMesh(
   length: number = 24,
   width: number = 4.8,
-  pierDepth: number = 2.7
+  pierDepth: number = 2.7,
+  options?: { leftBankDropY?: number; rightBankDropY?: number; rampLength?: number }
 ): THREE.Group {
   const group = new THREE.Group();
   group.name = 'StoneArchBridge';
@@ -5309,30 +5330,48 @@ export function createStoneArchBridgeMesh(
     roughness: 0.2,
   });
 
-  // 1. Dek Jalan Utama (Permukaan jalan berada tepat di Y = 0)
+  // 1. Dek Jalan Utama Solid (Permukaan jalan berada tepat di Y = 0, bebas pelat bertumpuk / Z-fighting)
   const deck = new THREE.Mesh(new THREE.BoxGeometry(length, 0.4, width), matStoneDeck);
   deck.position.set(0, -0.2, 0);
   deck.receiveShadow = true;
+  deck.userData.walkableSurface = true;
   group.add(deck);
 
-  // Jalur batu pelapis jalan (Paving stone segments)
-  const plankCount = Math.floor(length / 1.2);
-  for (let i = 0; i <= plankCount; i++) {
-    const px = -length / 2 + (i / plankCount) * length;
-    const rib = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.42, width), matStoneTrim);
-    rib.position.set(px, -0.19, 0);
-    rib.receiveShadow = true;
-    group.add(rib);
+  // Tepi batu pembatas jalan sejajar rata di sisi kiri & kanan dek (tanpa bertumpuk di tengah)
+  for (const sideZ of [-(width / 2 - 0.16), width / 2 - 0.16]) {
+    const edgeCurb = new THREE.Mesh(new THREE.BoxGeometry(length, 0.4, 0.3), matStoneTrim);
+    edgeCurb.position.set(0, -0.2, sideZ);
+    edgeCurb.receiveShadow = true;
+    edgeCurb.userData.walkableSurface = true;
+    group.add(edgeCurb);
   }
 
-  // 2. Pondasi Batu Tepi Kokoh (Abutments di kedua ujung tebing sungai)
-  for (const endX of [-length / 2, length / 2]) {
-    const isWest = endX < 0;
+  // 2. Pondasi Batu Tepi Kokoh (Abutments) + Ramp Pendekatan Landai Kiri & Kanan menancap mulus ke tanah
+  const rampLen = options?.rampLength ?? 3.4;
+  const ends: Array<{ endX: number; isWest: boolean; dropY: number }> = [
+    { endX: -length / 2, isWest: true, dropY: THREE.MathUtils.clamp(options?.leftBankDropY ?? -0.35, -2.2, 0.08) },
+    { endX: length / 2, isWest: false, dropY: THREE.MathUtils.clamp(options?.rightBankDropY ?? -0.35, -2.2, 0.08) },
+  ];
+
+  for (const { endX, isWest, dropY } of ends) {
+    const dirSign = isWest ? -1 : 1;
     const abutment = new THREE.Mesh(new THREE.BoxGeometry(3.6, pierDepth + 1.2, width + 0.6), matStoneDark);
-    abutment.position.set(endX + (isWest ? -1.0 : 1.0), -(pierDepth + 1.2) / 2 + 0.1, 0);
+    abutment.position.set(endX + dirSign * 1.0, -(pierDepth + 1.2) / 2 + 0.1, 0);
     abutment.receiveShadow = true;
     abutment.castShadow = true;
+    abutment.userData.nonWalkable = true;
     group.add(abutment);
+
+    // Ramp batu miring mulus dari tepi dek Y = 0 menuju permukaan tanah (dropY) tanpa celah mengambang
+    const rampPitch = Math.atan2(-dropY, rampLen);
+    const slopeHyp = Math.hypot(rampLen, dropY);
+    const rampDeck = new THREE.Mesh(new THREE.BoxGeometry(slopeHyp + 0.24, 0.44, width), matStoneDeck);
+    rampDeck.position.set(endX + dirSign * (rampLen * 0.5), dropY * 0.5 - 0.22, 0);
+    rampDeck.rotation.z = isWest ? rampPitch : -rampPitch;
+    rampDeck.receiveShadow = true;
+    rampDeck.castShadow = true;
+    rampDeck.userData.walkableSurface = true;
+    group.add(rampDeck);
   }
 
   // 3. Pilar Batu Penopang Bawah (Piers menancap ke dasar palung -pierDepth)
@@ -5342,15 +5381,18 @@ export function createStoneArchBridgeMesh(
     pier.position.set(px, -pierDepth / 2, 0);
     pier.castShadow = true;
     pier.receiveShadow = true;
+    pier.userData.nonWalkable = true;
     group.add(pier);
 
     // Corbel bevel penopang lengkungan
     const corbelL = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.8, width * 0.92), matStoneTrim);
     corbelL.position.set(px - 1.2, -0.6, 0);
     corbelL.rotation.z = 0.35;
+    corbelL.userData.nonWalkable = true;
     const corbelR = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.8, width * 0.92), matStoneTrim);
     corbelR.position.set(px + 1.2, -0.6, 0);
     corbelR.rotation.z = -0.35;
+    corbelR.userData.nonWalkable = true;
     group.add(corbelL, corbelR);
   }
 
@@ -5360,6 +5402,7 @@ export function createStoneArchBridgeMesh(
   archMesh.rotation.z = Math.PI / 2;
   archMesh.position.set(0, -1.15, 0);
   archMesh.scale.set(0.65, 1.0, 1.0);
+  archMesh.userData.nonWalkable = true;
   group.add(archMesh);
 
   // 4. Balustrade / Pagar Batu Kiri & Kanan (Z = -width/2 & +width/2)
@@ -5368,11 +5411,13 @@ export function createStoneArchBridgeMesh(
     railing.position.set(0, 0.42, sideZ);
     railing.castShadow = true;
     railing.receiveShadow = true;
+    railing.userData.nonWalkable = true;
     group.add(railing);
 
     const cap = new THREE.Mesh(new THREE.BoxGeometry(length + 0.4, 0.18, 0.5), matStoneTrim);
     cap.position.set(0, 0.85, sideZ);
     cap.castShadow = true;
+    cap.userData.nonWalkable = true;
     group.add(cap);
 
     // Tiang baluster berkala
@@ -5382,24 +5427,28 @@ export function createStoneArchBridgeMesh(
       const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.95, 0.45), matStoneTrim);
       post.position.set(px, 0.47, sideZ);
       post.castShadow = true;
+      post.userData.nonWalkable = true;
       group.add(post);
     }
   }
 
-  // 5. Lentera Batu pada 4 Sudut Pangkal Jembatan
+  // 5. Lentera Batu pada 4 Sudut Luar Pangkal Jembatan (aman dari jalur pejalan kaki)
   for (const lx of [-length / 2 + 0.5, length / 2 - 0.5]) {
-    for (const lz of [-width / 2, width / 2]) {
-      const ped = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.4, 0.7), matStoneTrim);
+    for (const lz of [-(width / 2 + 0.14), width / 2 + 0.14]) {
+      const ped = new THREE.Mesh(new THREE.BoxGeometry(0.65, 1.4, 0.65), matStoneTrim);
       ped.position.set(lx, 0.7, lz);
       ped.castShadow = true;
+      ped.userData.nonWalkable = true;
 
       const lanternBox = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.5, 0.35), matLantern);
       lanternBox.position.set(0, 0.95, 0);
+      lanternBox.userData.nonWalkable = true;
       ped.add(lanternBox);
 
       const roof = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.3, 4), matWoodBeam);
       roof.position.set(0, 1.3, 0);
       roof.rotation.y = Math.PI / 4;
+      roof.userData.nonWalkable = true;
       ped.add(roof);
 
       group.add(ped);
@@ -5422,6 +5471,7 @@ export function createDockStairRampMesh(width: number = 4.6, length: number = 4.
   slope.position.set(0, height / 2, length / 2);
   slope.rotation.x = -Math.atan2(height, length);
   slope.receiveShadow = true;
+  slope.userData.walkableSurface = true;
   group.add(slope);
 
   // Stepped wooden treads for character grip
@@ -5431,6 +5481,7 @@ export function createDockStairRampMesh(width: number = 4.6, length: number = 4.
     const sy = (s / (stepCount + 1)) * height;
     const stepPlank = new THREE.Mesh(new THREE.BoxGeometry(width - 0.2, 0.12, 0.35), timberMat);
     stepPlank.position.set(0, sy + 0.08, sz);
+    stepPlank.userData.walkableSurface = true;
     group.add(stepPlank);
   }
 
@@ -5439,23 +5490,29 @@ export function createDockStairRampMesh(width: number = 4.6, length: number = 4.
   const curbL = new THREE.Mesh(curbGeo, darkTimberMat);
   curbL.position.set(-width / 2 + 0.12, height / 2 + 0.1, length / 2);
   curbL.rotation.x = -Math.atan2(height, length);
+  curbL.userData.nonWalkable = true;
 
   const curbR = new THREE.Mesh(curbGeo, darkTimberMat);
   curbR.position.set(width / 2 - 0.12, height / 2 + 0.1, length / 2);
   curbR.rotation.x = -Math.atan2(height, length);
+  curbR.userData.nonWalkable = true;
 
   group.add(curbL, curbR);
 
   // Lantern posts at beach foot
   const postL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 1.4, 6), timberMat);
   postL.position.set(-width / 2 + 0.15, 0.8, 0.3);
+  postL.userData.nonWalkable = true;
   const lanternL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.26, 0.22), new THREE.MeshBasicMaterial({ color: 0xffb74d }));
   lanternL.position.set(-width / 2 + 0.15, 1.4, 0.3);
+  lanternL.userData.nonWalkable = true;
 
   const postR = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 1.4, 6), timberMat);
   postR.position.set(width / 2 - 0.15, 0.8, 0.3);
+  postR.userData.nonWalkable = true;
   const lanternR = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.26, 0.22), new THREE.MeshBasicMaterial({ color: 0xffb74d }));
   lanternR.position.set(width / 2 - 0.15, 1.4, 0.3);
+  lanternR.userData.nonWalkable = true;
 
   group.add(postL, lanternL, postR, lanternR);
 

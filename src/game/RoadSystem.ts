@@ -355,22 +355,34 @@ function createContinuousRibbonMesh(
 
     // PENYELARASAN ABUTMENT KEPALA JEMBATAN:
     for (const b of BRIDGE_CONFIGS) {
-      const distToB = Math.hypot(cur.x - b.x, cur.z - b.z);
-      if (distToB <= b.length * 0.58) {
-        leftY = Math.min(b.y + 0.04, leftY);
-        rightY = Math.min(b.y + 0.04, rightY);
+      const dxB = cur.x - b.x;
+      const dzB = cur.z - b.z;
+      const cos = Math.cos(b.rotationY);
+      const sin = Math.sin(b.rotationY);
+      const lx = dxB * cos - dzB * sin;
+      const lz = dxB * sin + dzB * cos;
+      if (Math.abs(lx) <= b.length * 0.5 + 4.5 && Math.abs(lz) <= b.width * 0.85) {
+        const approachTargetY = b.y - 0.12;
+        leftY = Math.min(approachTargetY, leftY);
+        rightY = Math.min(approachTargetY, rightY);
       }
     }
 
     positions.push(leftX, leftY, leftZ, rightX, rightY, rightZ);
     uvs.push(0, totalDist / 3.2, 1, totalDist / 3.2);
 
-    // Quad Strip Triangles: Hentikan pita jalan di bentang jembatan agar lantai jembatan bebas tembusan tanah
+    // Quad Strip Triangles: Hentikan pita jalan di bentang jembatan, ramp, dan zona air sungai agar 0% tembusan
     if (i < points.length - 1) {
       const next = points[i + 1];
       const midX = (cur.x + next.x) * 0.5;
       const midZ = (cur.z + next.z) * 0.5;
-      if (!isPointOnBridgeDeck(midX, midZ, -0.1)) {
+      const midY = (leftY + rightY) * 0.5;
+      const insideBridgeSpan =
+        isPointOnBridgeDeck(midX, midZ, 1.6) ||
+        isPointOnBridgeDeck(cur.x, cur.z, 0.8) ||
+        isPointOnBridgeDeck(next.x, next.z, 0.8);
+      const insideRiverWater = midY <= WATER_LEVEL + 0.25 && isRiverZone(midX, midZ, 9.0);
+      if (!insideBridgeSpan && !insideRiverWater) {
         const v0 = i * 2;
         const v1 = i * 2 + 1;
         const v2 = (i + 1) * 2;
@@ -442,10 +454,11 @@ function createCobblestoneDetailMesh(
       const cur = pts[i];
       const next = pts[i + 1];
 
-      // Jangan spawn batu di atas jembatan, di zona sungai, atau di dalam tembok benteng/istana
+      // Jangan spawn batu di atas jembatan, ramp pendekatan, zona air sungai, atau di dalam tembok benteng/istana
       if (Math.abs(cur.z - 47) <= 3.0 && cur.x >= 135.5 && cur.x <= 154.5) continue;
-      if (isPointOnBridgeDeck(cur.x, cur.z, 2.0)) continue;
-      if (isRiverZone(cur.x, cur.z, 8.5)) continue;
+      if (isPointOnBridgeDeck(cur.x, cur.z, 3.8)) continue;
+      if (isRiverZone(cur.x, cur.z, 9.0)) continue;
+      if (yFunc(cur.x, cur.z) <= WATER_LEVEL + 0.25) continue;
 
       const dx = next.x - cur.x;
       const dz = next.z - cur.z;
@@ -538,6 +551,11 @@ function createSandstonePaversMesh(
   for (let i = 0; i < pts.length - 1; i++) {
     const cur = pts[i];
     const next = pts[i + 1];
+
+    // Bebaskan pita jembatan, ramp pendekatan, dan zona perairan dari taburan batu pasir
+    if (isPointOnBridgeDeck(cur.x, cur.z, 3.8)) continue;
+    if (isRiverZone(cur.x, cur.z, 9.0)) continue;
+    if (yFunc(cur.x, cur.z) <= WATER_LEVEL + 0.25) continue;
 
     const dx = next.x - cur.x;
     const dz = next.z - cur.z;
@@ -863,7 +881,7 @@ export function drawRoadsOnWorldMap(
     const sy = ((b.z - minZ) / (maxZ - minZ)) * height;
     ctx.save();
     ctx.translate(sx, sy);
-    ctx.rotate(b.rotationY);
+    ctx.rotate(-b.rotationY);
 
     // Deck kayu cokelat tebal dengan bayangan
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';

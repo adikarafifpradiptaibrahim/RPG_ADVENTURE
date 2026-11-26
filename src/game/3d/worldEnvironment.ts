@@ -10,7 +10,9 @@ import {
   distToSegment,
   isFarOcean,
   SEA_BED_HEIGHT,
+  worldToBridgeLocal,
 } from './worldData';
+import { registerWalkableSurface } from './walkableSurfaceSystem';
 import {
   isDesertBiome,
   getDistanceToRiver,
@@ -524,6 +526,7 @@ export async function buildWorldEnvironmentAsync(
     slab.position.set(sx, sy + 0.1, sz);
     slab.rotation.y = Math.random() * Math.PI;
     ruinsGroup.add(slab);
+    registerWalkableSurface(slab, { label: 'Ubin Reruntuhan Kuno' });
   }
 
   // Lingkaran Runik Sihir Cyan Pusat di Tengah Reruntuhan
@@ -531,6 +534,7 @@ export async function buildWorldEnvironmentAsync(
   centerPlazaRing.rotateX(-Math.PI / 2);
   centerPlazaRing.position.set(ruinsCenterX, ruinsBaseY + 0.14, ruinsCenterZ);
   ruinsGroup.add(centerPlazaRing);
+  registerWalkableSurface(centerPlazaRing, { label: 'Pusat Reruntuhan Kuno' });
 
   // Bongkahan Pilar Roboh & Patah Tergeletak di Rumput
   const fallenPillars = [
@@ -747,6 +751,8 @@ export async function buildWorldEnvironmentAsync(
   const deck = new THREE.Mesh(new THREE.BoxGeometry(towerSpan + 0.8, 0.25, towerSpan + 0.8), matWoodRustic);
   deck.position.y = towerH - 1.2;
   tower.add(deck);
+  tower.updateMatrixWorld(true);
+  registerWalkableSurface(deck, { label: 'Dek Menara Pengawas' });
 
   // Pagar pembatas dek
   const railH = 0.9;
@@ -1477,6 +1483,7 @@ export async function buildWorldEnvironmentAsync(
   arenaFloor.position.set(colosseumCenterX, colosseumFloorY + 0.02, colosseumCenterZ);
   arenaFloor.receiveShadow = true;
   colosseumGroup.add(arenaFloor);
+  registerWalkableSurface(arenaFloor, { label: 'Lantai Arena Colosseum' });
 
   // B. Bercak Hangus & Retakan Batu Kuno pada Lantai Arena
   const scorchCoords = [
@@ -1495,6 +1502,7 @@ export async function buildWorldEnvironmentAsync(
     scorch.position.set(colosseumCenterX + sc.dx, colosseumFloorY + 0.04, colosseumCenterZ + sc.dz);
     scorch.receiveShadow = true;
     colosseumGroup.add(scorch);
+    registerWalkableSurface(scorch, { label: 'Lantai Arena Colosseum Scorch' });
   });
 
   // Pelat Batu Kuno Pecah di Lantai Arena (Cracked Stone Slabs)
@@ -1511,6 +1519,7 @@ export async function buildWorldEnvironmentAsync(
     slab.rotation.y = sAng + Math.PI / 4;
     slab.receiveShadow = true;
     colosseumGroup.add(slab);
+    registerWalkableSurface(slab, { label: 'Pelat Batu Colosseum' });
   }
 
   // Pecahan Pilar Marmer Roboh di Lantai Arena (Fallen Marble Column Drums)
@@ -3178,6 +3187,8 @@ export async function buildWorldEnvironmentAsync(
     const floor = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.25, 2.6), matWoodRustic);
     floor.position.y = 5.8;
     wtGroup.add(floor);
+    wtGroup.updateMatrixWorld(true);
+    registerWalkableSurface(floor, { label: 'Lantai Pos Pengawas Val-Kragor' });
     const roof = new THREE.Mesh(new THREE.ConeGeometry(2.0, 1.8, 4), matTentFabric);
     roof.position.y = 7.2;
     wtGroup.add(roof);
@@ -3477,13 +3488,8 @@ export function getExactMeshGroundHeight(x: number, z: number, forVisualMesh = f
 
   // 1. Walkable bridge deck corridors (BRIDGE_CONFIGS)
   for (const b of BRIDGE_CONFIGS) {
-    const dx = x - b.x;
-    const dz = z - b.z;
-    const cos = Math.cos(-b.rotationY);
-    const sin = Math.sin(-b.rotationY);
-    const lx = cos * dx - sin * dz;
-    const lz = sin * dx + cos * dz;
-    if (Math.abs(lx) <= b.length * 0.46 && Math.abs(lz) <= b.width * 0.55) {
+    const { lx, lz } = worldToBridgeLocal(x, z, b);
+    if (Math.abs(lx) <= b.length * 0.49 && Math.abs(lz) <= b.width * 0.52) {
       return b.y;
     }
   }
@@ -3496,10 +3502,6 @@ export function getExactMeshGroundHeight(x: number, z: number, forVisualMesh = f
   ) {
     return 1.85;
   }
-
-  // 3. Volcanic Chain Bridges in Dragon Caldera Archipelago
-  if (distToSegment(x, z, -38, 858, -8, 848) <= 3.8) return 2.40;
-  if (distToSegment(x, z, -34, 792, -4, 808) <= 3.8) return 2.40;
 
   // 4. Bounds check and fallback
   if (

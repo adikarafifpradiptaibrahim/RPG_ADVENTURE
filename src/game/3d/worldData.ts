@@ -402,30 +402,36 @@ export const ROAD_SPLINES: RoadSplineDef[] = [
     ],
   },
 
-  // 2. POROS TIMUR: Desa Utama [20, -60] -> Jembatan [95, -60] -> Mage Tower [270, -260] -> Gerbang Selatan Astraea [460, -370]
+  // 2. POROS TIMUR: Desa Utama [20, -60] -> Jembatan [95, -60] -> Jembatan [200, -168] -> Mage Tower [270, -260] -> Gerbang Selatan Astraea [460, -370]
   {
     id: 'road_village_astraea',
     name: 'Jalan Poros Timur: Desa - Mage Tower - Astraea',
     width: 3.4,
     points: [
       [20, -60],   // Gerbang Timur Desa Utama
-      [95, -60],   // Menyeberang Jembatan Sungai Timur [95, -60]
-      [170, -130],
+      [76, -60],   // Pangkal Barat Jembatan Poros Timur (segaris lurus ke timur)
+      [114, -60],  // Pangkal Timur Jembatan Poros Timur
+      [175, -110],
+      [200, -148], // Pangkal Selatan Jembatan Menara Sihir Timur
+      [200, -188], // Pangkal Utara Jembatan Menara Sihir Timur
+      [230, -225],
       [270, -260], // Alun-Alun Bukit Kering Mage Tower Puncak Halilintar
       [360, -320],
       [460, -370], // Berhenti Tegak Lurus Tepat di Depan Gerbang Selatan Astraea
     ],
   },
 
-  // 3. POROS TENGGARA: Mage Tower [270, -260] -> Puing Kastil Courtyard [535, -45] -> Benteng Val-Kragor [580, 115]
+  // 3. POROS TENGGARA: Mage Tower [270, -260] -> Jembatan [380, -190] -> Puing Kastil Courtyard [535, -45] -> Benteng Val-Kragor [580, 115]
   {
     id: 'road_mage_valkragor',
     name: 'Jalan Poros Tenggara: Mage Tower - Puing Kastil - Val-Kragor',
     width: 3.0,
     points: [
       [270, -260], // Simpang Mage Tower
-      [380, -190],
-      [460, -120],
+      [355, -225],
+      [380, -210], // Pangkal Utara Jembatan Val-Kragor
+      [380, -170], // Pangkal Selatan Jembatan Val-Kragor
+      [440, -125],
       [535, -45],  // Halaman Depan Puing Kastil Terbengkalai (Tidak Membelah Tembok Kastil)
       [560, 25],
       [580, 115],  // Berhenti Tepat di Depan Gerbang Selatan Benteng Val-Kragor
@@ -452,14 +458,15 @@ export const ROAD_SPLINES: RoadSplineDef[] = [
     name: 'Jalan Poros Kafilah: Desa Utama - Oase - Desa Gurun Solaria',
     width: 3.6,
     points: [
-      [20, -60],   // Gerbang Barat Desa Utama
+      [20, -60],       // Gerbang Barat Desa Utama
       [-40, -100],
-      [-120, -170], // Menyeberang Jembatan Gurun Solaria
-      [-220, -220],
-      [-320, -280], // Jalur Kafilah Barat
-      [-380, -310], // Mengitari tepi kering timur laut Oase [-420, -350] (0% menembus air kolam)
-      [-440, -380], // Mengitari tepi kering barat daya Oase
-      [-540, -420], // Alun-Alun Desa Gurun Solaria
+      [-129.5, -149.5], // Pangkal Selatan Jembatan Gurun Solaria (tegak lurus sungai)
+      [-110.5, -190.5], // Pangkal Utara Jembatan Gurun Solaria (tegak lurus sungai)
+      [-220, -245],     // Mengitari sisi utara Sungai Gurun Barat (0% menyentuh air)
+      [-310, -295],     // Jalur Kafilah Barat
+      [-380, -325],     // Mengitari tepi kering timur laut Oase [-400, -290] (0% menembus air kolam)
+      [-440, -380],     // Mengitari tepi kering barat daya Oase
+      [-540, -420],     // Alun-Alun Desa Gurun Solaria
     ],
   },
 
@@ -520,16 +527,31 @@ export const BRIDGE_CONFIGS: BridgeDef[] = Object.values(WORLD_LAYOUT_CONFIG.bri
   type: b.type,
 }));
 
+/**
+ * Memproyeksikan titik dunia (px, pz) ke koordinat lokal jembatan (lx searah bentang, lz searah lebar).
+ * Mengingat rotasi Y Three.js memetakan lokal (+lx, +lz) -> (lx cos θ + lz sin θ, -lx sin θ + lz cos θ),
+ * inversinya adalah: lx = dx cos θ - dz sin θ, lz = dx sin θ + dz cos θ.
+ */
+export function worldToBridgeLocal(
+  px: number,
+  pz: number,
+  b: { x: number; z: number; rotationY: number }
+): { lx: number; lz: number } {
+  const dx = px - b.x;
+  const dz = pz - b.z;
+  const cos = Math.cos(b.rotationY);
+  const sin = Math.sin(b.rotationY);
+  return {
+    lx: dx * cos - dz * sin,
+    lz: dx * sin + dz * cos,
+  };
+}
+
 export function isPointOnBridgeDeck(px: number, pz: number, margin = 0): boolean {
   for (const b of BRIDGE_CONFIGS) {
-    const dx = px - b.x;
-    const dz = pz - b.z;
-    const cos = Math.cos(-b.rotationY);
-    const sin = Math.sin(-b.rotationY);
-    const lx = cos * dx - sin * dz;
-    const lz = sin * dx + cos * dz;
-    const halfLen = b.length * 0.44 + margin;
-    const halfWid = b.width * 0.55 + margin;
+    const { lx, lz } = worldToBridgeLocal(px, pz, b);
+    const halfLen = b.length * 0.50 + margin;
+    const halfWid = b.width * 0.52 + margin;
     if (Math.abs(lx) <= halfLen && Math.abs(lz) <= halfWid) {
       return true;
     }
@@ -916,10 +938,15 @@ export function getProceduralContinentHeight(x: number, z: number): number {
 
   // B. Gugusan 3 Pulau Vulkanik Kaldera Naga di Laut Selatan Jauh [Pusat: 40, 840]
   if (biome === 'volcano') {
-    const dBridge1 = distToSegment(x, z, -38, 858, -8, 848);
-    if (dBridge1 <= 3.8) return 2.40;
-    const dBridge2 = distToSegment(x, z, -34, 792, -4, 808);
-    if (dBridge2 <= 3.8) return 2.40;
+    // Tumpuan tebing ujung jembatan rantai SW & NW hanya di bibir daratan pulau (saluran tengah digali -2.50 oleh BRIDGE_CONFIGS)
+    if (
+      Math.hypot(x - (-38), z - 858) <= 6.5 ||
+      Math.hypot(x - (-8), z - 848) <= 6.5 ||
+      Math.hypot(x - (-34), z - 792) <= 6.5 ||
+      Math.hypot(x - (-4), z - 808) <= 6.5
+    ) {
+      return 2.30;
+    }
 
     const distSW = Math.hypot(x - (lm.caldera_sw_satellite?.x ?? -75), z - (lm.caldera_sw_satellite?.z ?? 875)) + Math.sin(x * 0.06 - z * 0.05) * 3.2;
     if (distSW <= 48) {
@@ -1259,27 +1286,23 @@ export function getProceduralContinentHeight(x: number, z: number): number {
 
   for (const b of BRIDGE_CONFIGS) {
     const distB = Math.hypot(x - b.x, z - b.z);
-    if (distB < 18) {
-      const dxB = x - b.x;
-      const dzB = z - b.z;
-      const cos = Math.cos(-b.rotationY);
-      const sin = Math.sin(-b.rotationY);
-      const lx = cos * dxB - sin * dzB;
-      const lz = sin * dxB + cos * dzB;
+    if (distB < b.length * 0.65 + 6.0) {
+      const { lx, lz } = worldToBridgeLocal(x, z, b);
 
-      // Area tepat di bawah dek jembatan: palung sungai dalam Y = -2.50
-      if (Math.abs(lx) <= b.length * 0.40 && Math.abs(lz) <= b.width * 0.70) {
+      // Area tepat di bawah dek jembatan: palung sungai / selat dalam Y = -2.50
+      if (Math.abs(lx) <= b.length * 0.42 && Math.abs(lz) <= b.width * 0.78) {
         return -2.50;
       }
-      if (Math.abs(lz) <= b.width * 0.85 && Math.abs(lx) > b.length * 0.40) {
-        const approachT = smoothstepBlend(18, b.length * 0.45, distB);
-        return lerpVal(landH, Math.max(2.05, b.y - 0.05), approachT);
+      // Zona tepi pendekatan pangkal & ramp jembatan: landai menuju tepi dek tanpa menembus papan
+      if (Math.abs(lz) <= b.width * 0.90 && Math.abs(lx) > b.length * 0.42) {
+        const approachT = smoothstepBlend(b.length * 0.65 + 6.0, b.length * 0.44, distB);
+        return lerpVal(landH, Math.max(2.00, b.y - 0.10), approachT);
       }
       if (distRiver < 11.5) {
         const tBank = smoothstepBlend(2.8, 11.5, distRiver);
-        return lerpVal(-2.50, Math.max(2.05, b.y - 0.05), tBank);
+        return lerpVal(-2.50, Math.max(2.00, b.y - 0.10), tBank);
       }
-      return Math.max(2.05, b.y - 0.05);
+      return Math.max(2.00, b.y - 0.10);
     }
   }
 

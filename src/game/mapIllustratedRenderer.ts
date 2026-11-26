@@ -668,7 +668,7 @@ export function renderIllustratedMap(
     const bLen = Math.max(18, width * 0.024);
     ctx.save();
     ctx.translate(bx, by);
-    ctx.rotate(br.rotationY);
+    ctx.rotate(-br.rotationY);
 
     // Standard Bridge spanning perpendicularly across river
     ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
