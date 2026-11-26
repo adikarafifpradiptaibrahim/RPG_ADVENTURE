@@ -221,15 +221,15 @@
   }
 
   .hud-action-cluster-desktop .skill-btn {
-    position: static !important;
-    width: 2.75rem !important;
-    height: 2.75rem !important;
+    position: relative !important;
+    width: 3.15rem !important;
+    height: 3.15rem !important;
     border-radius: 0.75rem !important;
   }
 
   .hud-action-cluster-desktop .skill-btn-attack {
-    width: 3.25rem !important;
-    height: 3.25rem !important;
+    width: 3.5rem !important;
+    height: 3.5rem !important;
   }
 
   @media (min-width: 769px) {
@@ -265,16 +265,16 @@
 
     .hud-action-cluster:not(.hud-action-cluster-mobile) .skill-btn,
     .hud-action-cluster-desktop .skill-btn {
-      position: static !important;
-      width: 2.75rem !important;
-      height: 2.75rem !important;
+      position: relative !important;
+      width: 3.15rem !important;
+      height: 3.15rem !important;
       border-radius: 0.75rem !important;
     }
 
     .hud-action-cluster:not(.hud-action-cluster-mobile) .skill-btn-attack,
     .hud-action-cluster-desktop .skill-btn-attack {
-      width: 3.25rem !important;
-      height: 3.25rem !important;
+      width: 3.5rem !important;
+      height: 3.5rem !important;
     }
   }
 
@@ -338,7 +338,8 @@
     height: 40px !important;
   }
 
-  .hud-action-cluster-mobile .skill-btn-dash {
+  .hud-action-cluster-mobile .skill-btn-dash,
+  .hud-action-cluster-mobile .skill-btn-4 {
     bottom: 0px !important;
     right: 68px !important;
     width: 40px !important;
@@ -513,8 +514,9 @@
     height: 40px !important;
   }
 
-  /* Dash Button (C): Next to Attack */
-  .hud-action-cluster:not(.hud-action-cluster-desktop) .skill-btn-dash {
+  /* Dash / Ultimate Button: Next to Attack */
+  .hud-action-cluster:not(.hud-action-cluster-desktop) .skill-btn-dash,
+  .hud-action-cluster:not(.hud-action-cluster-desktop) .skill-btn-4 {
     bottom: 0px !important;
     right: 68px !important;
     width: 40px !important;

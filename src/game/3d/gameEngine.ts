@@ -42,7 +42,12 @@ import {
   getExactMeshGroundHeight,
 } from './worldEnvironment';
 import { BossManager } from '../BossManager';
-import { BOSS_ARENA_ZONES, BossArenaZone, SPAWN_NAGA } from '../monsterAI';
+import { BOSS_ARENA_ZONES, BossArenaZone, SPAWN_NAGA, resolveEnemyTarget } from '../monsterAI';
+import { createHunterModel } from './playerModel';
+import {
+  SkillCooldownManager,
+  HudSkillCooldownMap,
+} from '../skillCooldownManager';
 import {
   DevTestingSettings,
   getDefaultDevTestingSettings,
@@ -180,6 +185,7 @@ export interface GameEngineCallbacks {
   onSpectatorModeChange?: (active: boolean) => void;
   onHunterWeaponSwitch?: (mode: 'dagger' | 'bow') => void;
   onWeaponDrawnChange?: (drawn: boolean) => void;
+  onStealthChange?: (active: boolean, remaining: number) => void;
   onGlacialAimChange?: (isAiming: boolean, targetInfo?: { name: string; hp: number; maxHp: number; isBoss?: boolean } | null) => void;
   onBowAimChange?: (isAiming: boolean, chargeRatio: number) => void;
   onArrowVolleyAimChange?: (isAiming: boolean) => void;
@@ -353,13 +359,14 @@ export class GameEngine {
   private castingDuration = 1.0;
   private castingSkillName = '';
   private castingCircleInstance: StarfallCastingCircleInstance | null = null;
-  // TODO: Kembalikan cooldown normal setelah pengujian selesai
+  // Global Centralized Skill Cooldown & Charge Manager
+  private skillCooldownsManager = new SkillCooldownManager();
   private mageUltimateCooldownTimer = 0;
   private mageGlacialBarrageCooldownTimer = 0;
   private mageBlinkCooldownTimer = 0;
   private mageCahayaSuciCooldownTimer = 0;
   private hunterMobilityCooldownTimer = 0;
-  // Hunter Bow Skill 1 (Q): Panah Rajawali Astral (0 CD, 20 MP, Tap < 220ms vs Hold Charge up to 1.0s)
+  // Hunter Bow Skill 1 (Q): Panah Rajawali Astral (6s CD, 20 MP)
   public isChargingAstralEagle = false;
   public astralEagleChargeRatio = 0;
   public astralEagleAimState = {
@@ -367,20 +374,28 @@ export class GameEngine {
     pressStartTime: 0,
     cancelled: false,
   };
-  // Hunter Gale Vault & Snipe state
+  // Hunter Stealth (Smoke Veil) & Shadow Decoy Dash state
   private isGaleVaulting = false;
   private galeVaultTimer = 0;
   private galeVaultShotFired = false;
-  // Hunter Phantom Decoy Step state
   public phantomAmbushReady = false;
   private phantomAmbushTimer = 0;
+  public isPlayerStealthed = false;
+  private stealthTimer = 0;
+  private playerMatSnapshots: Array<{
+    mat: THREE.Material;
+    opacity: number;
+    transparent: boolean;
+    colorHex?: number;
+  }> = [];
   private shadowDecoyPool: THREE.Group[] = [];
+  private shadowDecoyCursor = 0;
+  private shadowDecoySharedMats: THREE.Material[] = [];
   private activeShadowDecoy: {
     group: THREE.Group;
     pos: THREE.Vector3;
     timer: number;
     active: boolean;
-    damage: number;
   } | null = null;
   // Hunter Bow Ultimate (F): Badai Panah Agung (0 CD, 45 MP, Tap vs Hold AoE Radius 13)
   public isAimingArrowVolley = false;
@@ -551,6 +566,8 @@ export class GameEngine {
     baseOpacity: number;
     riseSpeed: number;
     growRate: number;
+    vx: number;
+    vz: number;
   }> = [];
   private smokePuffNextIndex = 0;
 
@@ -794,6 +811,7 @@ export class GameEngine {
     portalOpened: boolean;
     tombakLaunched: boolean;
     finisherImpacted: boolean;
+    ambushMult: number;
   }> = [];
   private arrowRainSharedGeometries: THREE.BufferGeometry[] = [];
   private arrowRainSharedMaterials: THREE.Material[] = [];
@@ -1437,6 +1455,7 @@ export class GameEngine {
         this.mageCahayaSuciCooldownTimer = 0;
         this.hunterMobilityCooldownTimer = 0;
         this.bowShotCooldownTimer = 0;
+        this.skillCooldownsManager.forceZeroAll();
       }
       if (this.devSettings.enabled && this.devSettings.spectatorMode !== this.isSpectatorMode) {
         this.toggleSpectatorMode(this.devSettings.spectatorMode, false);
@@ -1516,6 +1535,8 @@ export class GameEngine {
           this.respawnPlayerAtLastVisitedTown();
         },
         onDamageAbsorb: (rawDmg) => this.absorbDamageWithShield(rawDmg).remainingDamage,
+        onPlayerDamaged: (actualDamage) => this.handlePlayerTookDamage(actualDamage),
+        onDecoyHit: () => this.dismissActiveShadowDecoy(false),
         onAirborneChange: (isAirborne: boolean) => {
           this.isDragonAirborne = isAirborne;
         },
@@ -1660,6 +1681,8 @@ export class GameEngine {
           this.respawnPlayerAtLastVisitedTown();
         },
         onDamageAbsorb: (rawDmg) => this.absorbDamageWithShield(rawDmg).remainingDamage,
+        onPlayerDamaged: (actualDamage) => this.handlePlayerTookDamage(actualDamage),
+        onDecoyHit: () => this.dismissActiveShadowDecoy(false),
         onAirborneChange: (isAirborne: boolean) => {
           this.isDragonAirborne = isAirborne;
         },
@@ -1929,15 +1952,13 @@ export class GameEngine {
     this.mageBlinkCooldownTimer = 0;
     this.mageCahayaSuciCooldownTimer = 0;
     this.hunterMobilityCooldownTimer = 0;
+    this.skillCooldownsManager.resetAll();
     this.isGaleVaulting = false;
     this.galeVaultTimer = 0;
     this.phantomAmbushReady = false;
     this.phantomAmbushTimer = 0;
-    if (this.activeShadowDecoy) {
-      this.activeShadowDecoy.active = false;
-      this.activeShadowDecoy.group.visible = false;
-      this.activeShadowDecoy = null;
-    }
+    this.endPlayerStealth('reset');
+    this.dismissActiveShadowDecoy(true);
     if (this.isHunterSheathed) {
       this.unsheatheHunterWeapon();
     }
@@ -1967,6 +1988,9 @@ export class GameEngine {
   }
 
   public setCharacterClass(newClass: CharacterClass) {
+    this.endPlayerStealth('reset');
+    this.dismissActiveShadowDecoy(true);
+    this.skillCooldownsManager.resetAll();
     this.charClass = newClass;
     this.rebuildPlayerMesh();
   }
@@ -2040,11 +2064,36 @@ export class GameEngine {
     }
   }
 
+  private capturePlayerMaterialSnapshots() {
+    this.playerMatSnapshots = [];
+    if (!this.playerMesh?.group) return;
+    const seen = new Set<THREE.Material>();
+    this.playerMesh.group.traverse((obj) => {
+      if ((obj as THREE.Mesh).isMesh) {
+        const rawMat = (obj as THREE.Mesh).material;
+        const mats = Array.isArray(rawMat) ? rawMat : [rawMat];
+        for (const m of mats) {
+          if (!m || seen.has(m)) continue;
+          seen.add(m);
+          const colorObj = (m as any).color as THREE.Color | undefined;
+          this.playerMatSnapshots.push({
+            mat: m,
+            opacity: m.opacity,
+            transparent: m.transparent,
+            colorHex: colorObj ? colorObj.getHex() : undefined,
+          });
+        }
+      }
+    });
+  }
+
   public rebuildPlayerMesh() {
+    this.endPlayerStealth('reset');
     if (this.playerMesh && this.playerMesh.group) {
       this.scene.remove(this.playerMesh.group);
     }
     this.playerMesh = createPlayerMesh(this.charClass, this.playerTier);
+    this.capturePlayerMaterialSnapshots();
     this.playerMesh.group.position.copy(this.playerPos);
     this.playerMesh.group.rotation.y = this.playerRotationY;
     this.scene.add(this.playerMesh.group);
@@ -3390,6 +3439,8 @@ export class GameEngine {
         this.castingCircleInstance = null;
       }
     }
+    this.endPlayerStealth('reset');
+    this.dismissActiveShadowDecoy(true);
     this.cancelAstralEagleAim(false);
     this.cancelArrowVolleyAim(false);
     this.clearActiveBowSkillPools();
@@ -3869,10 +3920,10 @@ export class GameEngine {
       }
       if (this.charClass === 'mage') {
         if (!e.repeat) {
-          // Abaikan event e.repeat === true pada keydown KeyQ agar menahan tombol Q tidak mereset pressStartTime terus-menerus.
-          if (!this.devSettings.zeroCooldown && this.mageGlacialBarrageCooldownTimer > 0) {
+          const cdCheck = this.skillCooldownsManager.canUse('mage_q', this.isZeroCd());
+          if (!cdCheck.ok) {
             this.callbacks.onAddFloatingText(
-              `Glacial Barrage Cooldown (${this.mageGlacialBarrageCooldownTimer.toFixed(1)}s)!`,
+              `Glacial Barrage Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
               '#94a3b8',
               'info'
             );
@@ -3904,12 +3955,7 @@ export class GameEngine {
       }
     } else if (key === 'e' || code === 'keye') {
       // Slot 2 (E):
-      // Mage Slot 2 (E): Arcane Blink [E] (Teleportasi instan menembus musuh dengan iFrame 0.2s)
-      // Rogue: Skill 2 Mobilitas Khusus Pemburu (Gale Vault / Phantom Decoy Step)
-      // Warrior: Dash [E]
-      if (this.charClass === 'rogue') {
-        this.unsheatheHunterWeapon();
-      }
+      // Mage: Arcane Blink [E] / Rogue: Bayangan Pengecoh [E] Dual Mode / Warrior: Shield Dash [E]
       if (this.charClass === 'mage') {
         this.castArcaneBlink();
       } else if (this.charClass === 'rogue') {
@@ -3918,16 +3964,10 @@ export class GameEngine {
         this.performDash();
       }
     } else if (key === 'shift' || code === 'shiftleft' || code === 'shiftright') {
-      // Tombol [Shift] (Sprint / Terbang Cepat):
-      // HAPUS pemanggilan performDash() dari tombol Shift!
-      // Saat tombol Shift ditahan sambil bergerak, mode Lari Cepat (Sprint) aktif di updateMovement()
+      // Tombol [Shift] (Sprint / Terbang Cepat)
     } else if (key === 'r' || code === 'keyr') {
       // Slot 3 (R):
-      // Mage Slot 3 (R): Cahaya Suci / Sanctuary [R] (Heal, Cleanse, Overheal Shield, & +30 MP)
-      // Knight: Aegis Retribution [R] / Rogue: Bom Asap [R]
-      if (this.charClass === 'rogue') {
-        this.unsheatheHunterWeapon();
-      }
+      // Mage: Cahaya Suci [R] / Knight: Aegis Retribution [R] / Rogue: Bom Asap Stealth [R] Dual Mode
       if (this.charClass === 'mage') {
         this.castCahayaSuci();
       } else {
@@ -3982,6 +4022,25 @@ export class GameEngine {
 
   public getHunterWeaponMode(): 'dagger' | 'bow' {
     return this.hunterWeaponMode;
+  }
+
+  public getHudCooldowns(): HudSkillCooldownMap {
+    return this.skillCooldownsManager.getHudMap(this.charClass, this.hunterWeaponMode);
+  }
+
+  public hasActiveSkillCooldowns(): boolean {
+    return this.skillCooldownsManager.hasAnyActive();
+  }
+
+  public subscribeCooldownUpdates(listener: () => void): () => void {
+    return this.skillCooldownsManager.subscribe(listener);
+  }
+
+  public getStealthState(): { active: boolean; remaining: number } {
+    return {
+      active: this.isPlayerStealthed,
+      remaining: Math.max(0, this.stealthTimer),
+    };
   }
 
   private handleKeyUp = (e: KeyboardEvent) => {
@@ -5878,27 +5937,30 @@ export class GameEngine {
       });
     }
 
-    // 5. Toxic Smoke Cloak & Shadow Step Puff Pool (28 pre-allocated dodecahedrons)
-    const sharedSmokeGeom = new THREE.DodecahedronGeometry(0.75, 1);
-    for (let i = 0; i < 28; i++) {
+    // 5. Smoke Veil & Shadow Step Puff Pool (44 pre-allocated dodecahedrons, frustumCulled=false)
+    const sharedSmokeGeom = new THREE.DodecahedronGeometry(0.85, 1);
+    for (let i = 0; i < 44; i++) {
       const mat = new THREE.MeshBasicMaterial({
-        color: 0x059669,
+        color: i % 2 === 0 ? 0x9ca3af : 0x6b7280,
         transparent: true,
-        opacity: 0.75,
+        opacity: 0.65,
         depthWrite: false,
       });
       const mesh = new THREE.Mesh(sharedSmokeGeom, mat);
       mesh.visible = false;
+      mesh.frustumCulled = false;
       this.scene.add(mesh);
       this.smokePuffPool.push({
         mesh,
         mat,
         active: false,
         elapsed: 0,
-        duration: 1.5,
-        baseOpacity: 0.75,
-        riseSpeed: 0.7,
-        growRate: 0.9,
+        duration: 3.5,
+        baseOpacity: 0.65,
+        riseSpeed: 0.5,
+        growRate: 0.65,
+        vx: 0,
+        vz: 0,
       });
     }
 
@@ -6575,7 +6637,8 @@ export class GameEngine {
     speed: number,
     maxRange: number,
     damageMultiplier: number,
-    knockback: number
+    knockback: number,
+    forceAmbushCrit = false
   ) {
     if (this.astralEaglePool.length === 0) {
       this.initBowSkillVfxPools();
@@ -6597,7 +6660,7 @@ export class GameEngine {
     const dir = direction.clone().normalize();
     const stats = this.currentStats;
     const tierMult = 1 + (this.playerTier - 1) * 0.25;
-    const isCrit = Math.random() < 0.28 + stats.agility * 0.025;
+    const isCrit = forceAmbushCrit || Math.random() < 0.28 + stats.agility * 0.025;
     const baseDmg = (stats.baseAttack + stats.agility * 2.5) * tierMult * damageMultiplier;
     const finalDmg = Math.max(8, Math.round(isCrit ? baseDmg * 1.8 : baseDmg));
 
@@ -6718,7 +6781,7 @@ export class GameEngine {
     }
   }
 
-  private startArrowStormUltimate(casterPos: THREE.Vector3, targetPos: THREE.Vector3) {
+  private startArrowStormUltimate(casterPos: THREE.Vector3, targetPos: THREE.Vector3, ambushMult = 1.0) {
     if (this.arrowRainPool.length === 0) {
       this.initBowSkillVfxPools();
     }
@@ -6823,6 +6886,7 @@ export class GameEngine {
       portalOpened: false,
       tombakLaunched: false,
       finisherImpacted: false,
+      ambushMult,
     });
   }
 
@@ -7021,8 +7085,8 @@ export class GameEngine {
                 enemy.mesh.position.z - storm.targetPos.z
               );
               if (distXZ <= storm.radius) {
-                const isCrit = Math.random() < 0.25 + stats.agility * 0.02;
-                const baseDmg = (stats.baseAttack + stats.agility * 2.4) * tierMult * 0.42;
+                const isCrit = storm.ambushMult > 1.0 || Math.random() < 0.25 + stats.agility * 0.02;
+                const baseDmg = (stats.baseAttack + stats.agility * 2.4) * tierMult * 0.42 * storm.ambushMult;
                 const finalDmg = Math.max(6, Math.round(isCrit ? baseDmg * 1.85 : baseDmg));
                 this.damageEnemy(enemy, finalDmg, isCrit, 0.15);
                 // Slow 35% selama musuh di dalam area badai
@@ -7104,8 +7168,8 @@ export class GameEngine {
                   enemy.mesh.position.z - storm.targetPos.z
                 );
                 if (distXZ <= storm.radius + 0.5) {
-                  const isCrit = Math.random() < 0.35 + stats.agility * 0.025;
-                  const baseDmg = (stats.baseAttack + stats.agility * 2.8) * tierMult * 1.95;
+                  const isCrit = storm.ambushMult > 1.0 || Math.random() < 0.35 + stats.agility * 0.025;
+                  const baseDmg = (stats.baseAttack + stats.agility * 2.8) * tierMult * 1.95 * storm.ambushMult;
                   const finalDmg = Math.max(18, Math.round(isCrit ? baseDmg * 1.9 : baseDmg));
                   const kb = enemy.data.type === 'boss' ? 0.2 : 1.1;
                   this.damageEnemy(enemy, finalDmg, isCrit, kb);
@@ -7284,9 +7348,13 @@ export class GameEngine {
         continue;
       }
       const lifeRatio = 1 - item.elapsed / item.duration;
+      item.mesh.position.x += item.vx * delta;
+      item.mesh.position.z += item.vz * delta;
+      item.vx *= Math.max(0, 1 - 1.4 * delta);
+      item.vz *= Math.max(0, 1 - 1.4 * delta);
       item.mesh.position.y += delta * item.riseSpeed;
       item.mesh.scale.multiplyScalar(1 + delta * item.growRate);
-      item.mat.opacity = lifeRatio * item.baseOpacity;
+      item.mat.opacity = Math.pow(lifeRatio, 0.85) * item.baseOpacity;
     }
 
     // Update active 360 blade spins
@@ -7774,7 +7842,7 @@ export class GameEngine {
     }
     this.playerMesh?.setHunterBowInHand?.(true);
     this.bowCombatStanceTimer = 0.45;
-    this.bowShotCooldownTimer = this.devSettings.zeroCooldown ? 0 : 0.16;
+    this.bowShotCooldownTimer = 0;
     this.isAttacking = true;
     this.attackType = 'bow_shot';
     this.attackDuration = 0.22;
@@ -7796,8 +7864,9 @@ export class GameEngine {
       });
     }
 
+    const isAmbush = this.consumeStealthForAmbush();
     soundManager.playBowShoot(false);
-    this.spawnHunterArrow(aimDir, false, 1.0, undefined, false, 32.0, false);
+    this.spawnHunterArrow(aimDir, false, isAmbush ? 1.5 : 1.0, undefined, false, 32.0, false, false, isAmbush);
   }
 
   public fireChargedBowArrow(chargeRatio: number) {
@@ -7818,7 +7887,7 @@ export class GameEngine {
     }
     this.playerMesh?.setHunterBowInHand?.(true);
     this.bowCombatStanceTimer = 0.45;
-    this.bowShotCooldownTimer = this.devSettings.zeroCooldown ? 0 : 0.16;
+    this.bowShotCooldownTimer = 0;
     this.isAttacking = true;
     this.attackType = 'bow_shot';
     this.attackDuration = 0.22;
@@ -7840,8 +7909,9 @@ export class GameEngine {
       });
     }
 
+    const isAmbush = this.consumeStealthForAmbush();
     soundManager.playBowShoot(isFullCharge);
-    this.spawnHunterArrow(aimDir, isFullCharge, dmgMultiplier, undefined, false, speed, isFullCharge);
+    this.spawnHunterArrow(aimDir, isFullCharge, dmgMultiplier * (isAmbush ? 1.5 : 1.0), undefined, false, speed, isFullCharge, false, isAmbush);
 
     if (isFullCharge) {
       this.callbacks.onAddFloatingText?.('🏹 PENETRATING WIND-PIERCER!', '#fef08a', 'crit');
@@ -7972,6 +8042,8 @@ export class GameEngine {
       item.mat.opacity = 0.28;
       item.riseSpeed = 0.35;
       item.growRate = 0.8;
+      item.vx = 0;
+      item.vz = 0;
       item.elapsed = 0;
       item.duration = 0.25;
       item.active = true;
@@ -9272,9 +9344,10 @@ export class GameEngine {
     if (this.isControlsLocked || this.isCasting) return;
     if (this.charClass !== 'mage') return;
 
-    if (!this.devSettings.zeroCooldown && this.mageUltimateCooldownTimer > 0) {
+    const cdCheck = this.skillCooldownsManager.canUse('mage_f', this.isZeroCd());
+    if (!cdCheck.ok) {
       this.callbacks.onAddFloatingText(
-        `Celestial Apocalypse Cooldown (${this.mageUltimateCooldownTimer.toFixed(1)}s)!`,
+        `Celestial Apocalypse Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
         '#a855f7',
         'info'
       );
@@ -9287,8 +9360,8 @@ export class GameEngine {
         return stats;
       }
 
-      // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 18.0s)
-      this.mageUltimateCooldownTimer = this.devSettings.zeroCooldown ? 0 : SKILL_COOLDOWNS.CELESTIAL_APOCALYPSE;
+      this.skillCooldownsManager.consume('mage_f', this.isZeroCd());
+      this.mageUltimateCooldownTimer = this.isZeroCd() ? 0 : SKILL_COOLDOWNS.CELESTIAL_APOCALYPSE;
       this.startCelestialApocalypseCasting();
       if (this.devSettings.infiniteEnergy) return stats;
       return { ...stats, mp: Math.max(0, stats.mp - 45) };
@@ -9629,9 +9702,10 @@ export class GameEngine {
     if (this.charClass !== 'mage') return;
     if (this.isAimGlacialActive && this.activeGlacialVfx) return;
 
-    if (!this.devSettings.zeroCooldown && this.mageGlacialBarrageCooldownTimer > 0) {
+    const cdCheck = this.skillCooldownsManager.canUse('mage_q', this.isZeroCd());
+    if (!cdCheck.ok) {
       this.callbacks.onAddFloatingText(
-        `Glacial Barrage Cooldown (${this.mageGlacialBarrageCooldownTimer.toFixed(1)}s)!`,
+        `Glacial Barrage Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
         '#94a3b8',
         'info'
       );
@@ -9774,9 +9848,10 @@ export class GameEngine {
       return;
     }
 
-    if (!this.devSettings.zeroCooldown && this.mageGlacialBarrageCooldownTimer > 0) {
+    const cdCheck = this.skillCooldownsManager.canUse('mage_q', this.isZeroCd());
+    if (!cdCheck.ok) {
       this.callbacks.onAddFloatingText(
-        `Glacial Barrage Cooldown (${this.mageGlacialBarrageCooldownTimer.toFixed(1)}s)!`,
+        `Glacial Barrage Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
         '#94a3b8',
         'info'
       );
@@ -9784,14 +9859,12 @@ export class GameEngine {
       return;
     }
 
-    // Pemotongan 18 MP HANYA dilakukan di sini saat kristal es benar-benar diluncurkan!
     if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 18) {
       this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 18 MP)!', '#ef4444', 'info');
       this.cancelGlacialAim();
       return;
     }
 
-    // Kurangi MP seketika pada state internal dan notifikasi callback
     if (!this.devSettings.infiniteEnergy) {
       this.currentStats.mp = Math.max(0, this.currentStats.mp - 18);
       this.callbacks.onUpdateStats((stats) => ({
@@ -9800,8 +9873,8 @@ export class GameEngine {
       }));
     }
 
-    // Set cooldown skill Q
-    this.mageGlacialBarrageCooldownTimer = this.devSettings.zeroCooldown ? 0 : SKILL_COOLDOWNS.GLACIAL_BARRAGE;
+    this.skillCooldownsManager.consume('mage_q', this.isZeroCd());
+    this.mageGlacialBarrageCooldownTimer = this.isZeroCd() ? 0 : SKILL_COOLDOWNS.GLACIAL_BARRAGE;
     this.glacialAimState.isCharging = false;
 
     // Pastikan aimTargetPoint valid sebelum penembakan
@@ -10303,7 +10376,17 @@ export class GameEngine {
     if (this.isControlsLocked || this.isCasting) return;
     if (this.charClass !== 'rogue' || this.hunterWeaponMode !== 'bow') return;
 
-    // Integrasi Handless <-> Siaga: langsung hunus busur ke tangan kiri
+    const cdCheck = this.skillCooldownsManager.canUse('rogue_bow_q', this.isZeroCd());
+    if (!cdCheck.ok) {
+      this.callbacks.onAddFloatingText(
+        `Panah Rajawali Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
+        '#38bdf8',
+        'info'
+      );
+      this.astralEagleAimState.isCharging = false;
+      return;
+    }
+
     this.unsheatheHunterWeapon();
 
     if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 20) {
@@ -10387,13 +10470,23 @@ export class GameEngine {
     this.astralEagleChargeRatio = 0;
     this.callbacks.onBowAimChange?.(false, 0);
 
+    const cdCheck = this.skillCooldownsManager.canUse('rogue_bow_q', this.isZeroCd());
+    if (!cdCheck.ok) {
+      this.callbacks.onAddFloatingText(
+        `Panah Rajawali Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
+        '#38bdf8',
+        'info'
+      );
+      this.syncHunterWeaponModel();
+      return;
+    }
+
     if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 20) {
       this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 20 MP)!', '#ef4444', 'info');
       this.syncHunterWeaponModel();
       return;
     }
 
-    // Potong 20 MP hanya sekali saat dilepas / tembak
     if (!this.devSettings.infiniteEnergy) {
       this.currentStats.mp = Math.max(0, this.currentStats.mp - 20);
       this.callbacks.onUpdateStats((stats) => ({
@@ -10401,6 +10494,7 @@ export class GameEngine {
         mp: Math.max(0, stats.mp - 20),
       }));
     }
+    this.skillCooldownsManager.consume('rogue_bow_q', this.isZeroCd());
 
     this.ensureWeaponDrawn();
     this.playerMesh?.setHunterBowInHand?.(true);
@@ -10448,13 +10542,31 @@ export class GameEngine {
       });
     }
 
+    const isAmbush = this.consumeStealthForAmbush();
     soundManager.playBowShoot(isCharged);
-    this.spawnAstralEagleProjectile(aimDir, speed, range, dmgMultiplier, knockback);
+    this.spawnAstralEagleProjectile(
+      aimDir,
+      speed,
+      range,
+      dmgMultiplier * (isAmbush ? 1.5 : 1.0),
+      knockback,
+      isAmbush
+    );
   }
 
   public quickCastAstralEagle() {
     if (this.isControlsLocked || this.isCasting) return;
     if (this.charClass !== 'rogue' || this.hunterWeaponMode !== 'bow') return;
+
+    const cdCheck = this.skillCooldownsManager.canUse('rogue_bow_q', this.isZeroCd());
+    if (!cdCheck.ok) {
+      this.callbacks.onAddFloatingText(
+        `Panah Rajawali Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
+        '#38bdf8',
+        'info'
+      );
+      return;
+    }
 
     this.unsheatheHunterWeapon();
     if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 20) {
@@ -10477,6 +10589,16 @@ export class GameEngine {
     if (this.isControlsLocked) return;
     if (this.charClass !== 'rogue' || this.hunterWeaponMode !== 'bow') return;
     if (this.isAimingArrowVolley) return;
+    const cdCheck = this.skillCooldownsManager.canUse('rogue_bow_f', this.isZeroCd());
+    if (!cdCheck.ok) {
+      this.callbacks.onAddFloatingText(
+        `Badai Panah Agung Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
+        '#fde047',
+        'info'
+      );
+      this.arrowVolleyAimState.isCharging = false;
+      return;
+    }
     this.unsheatheHunterWeapon();
 
     if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 45) {
@@ -10655,13 +10777,23 @@ export class GameEngine {
       return;
     }
 
+    const cdCheck = this.skillCooldownsManager.canUse('rogue_bow_f', this.isZeroCd());
+    if (!cdCheck.ok) {
+      this.callbacks.onAddFloatingText(
+        `Badai Panah Agung Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
+        '#fde047',
+        'info'
+      );
+      this.cancelArrowVolleyAim(false);
+      return;
+    }
+
     if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 45) {
       this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 45 MP)!', '#ef4444', 'info');
       this.cancelArrowVolleyAim(false);
       return;
     }
 
-    // Potong MP 45 secara sinkron + sinkronkan HUD (0 Cooldown!)
     if (!this.devSettings.infiniteEnergy) {
       this.currentStats.mp = Math.max(0, this.currentStats.mp - 45);
       this.callbacks.onUpdateStats((stats) => ({
@@ -10669,6 +10801,7 @@ export class GameEngine {
         mp: Math.max(0, stats.mp - 45),
       }));
     }
+    this.skillCooldownsManager.consume('rogue_bow_f', this.isZeroCd());
 
     this.callbacks.onAddFloatingText('⛈️ BADAI PANAH AGUNG!', '#fde047', 'crit');
     soundManager.playBowShoot(true);
@@ -10742,6 +10875,17 @@ export class GameEngine {
     if (this.isControlsLocked) return;
     if (this.charClass !== 'rogue' || this.hunterWeaponMode !== 'bow') return;
     if (this.isAimingArrowVolley) return;
+
+    const cdCheck = this.skillCooldownsManager.canUse('rogue_bow_f', this.isZeroCd());
+    if (!cdCheck.ok) {
+      this.callbacks.onAddFloatingText(
+        `Badai Panah Agung Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
+        '#fde047',
+        'info'
+      );
+      return;
+    }
+
     this.unsheatheHunterWeapon();
 
     if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 45) {
@@ -10749,7 +10893,6 @@ export class GameEngine {
       return;
     }
 
-    // Potong MP 45 sekali secara sinkron + sinkronkan HUD (0 Cooldown!)
     if (!this.devSettings.infiniteEnergy) {
       this.currentStats.mp = Math.max(0, this.currentStats.mp - 45);
       this.callbacks.onUpdateStats((stats) => ({
@@ -10757,6 +10900,7 @@ export class GameEngine {
         mp: Math.max(0, stats.mp - 45),
       }));
     }
+    this.skillCooldownsManager.consume('rogue_bow_f', this.isZeroCd());
 
     this.callbacks.onAddFloatingText('⛈️ BADAI PANAH AGUNG!', '#fde047', 'crit');
     soundManager.playBowShoot(true);
@@ -10834,8 +10978,8 @@ export class GameEngine {
       });
     }
 
-    // Visual 3 Fase & AoE damage dikelola penuh oleh Multi-Instance Object Pool (updateArrowStormUltimate)
-    this.startArrowStormUltimate(casterPos, targetPos);
+    const isAmbush = this.consumeStealthForAmbush();
+    this.startArrowStormUltimate(casterPos, targetPos, isAmbush ? 1.5 : 1.0);
   }
 
   /**
@@ -10977,35 +11121,67 @@ export class GameEngine {
     }
   }
 
-  // 12. Rogue Smoke Cloak VFX (Pooled volumetric expanding toxic ninja smoke screen & spore motes)
-  private spawnRogueSmokeCloakVfx() {
-    for (let i = 0; i < 16; i++) {
-      if (this.smokePuffPool.length === 0) break;
+  // 12. Bom Asap / Smoke Veil VFX (Pooled volumetric gray smoke cloud, radius ~6.5u, duration 3.5s, floor decals stay readable)
+  private spawnRogueSmokeCloakVfx(origin: THREE.Vector3 = this.playerPos) {
+    const puffCount = Math.min(26, this.smokePuffPool.length);
+    for (let i = 0; i < puffCount; i++) {
       const item = this.smokePuffPool[this.smokePuffNextIndex];
       this.smokePuffNextIndex = (this.smokePuffNextIndex + 1) % this.smokePuffPool.length;
-      const puffScale = 0.8 + Math.random() * 0.65;
+
+      const angle = (i / puffCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.45;
+      const startDist = 0.35 + Math.random() * 1.8;
+      const heightOffset = 0.55 + Math.random() * 1.45;
+      const puffScale = 0.75 + Math.random() * 0.65;
+
       item.mesh.position.set(
-        this.playerPos.x + (Math.random() - 0.5) * 3.6,
-        this.playerPos.y + Math.random() * 1.8 + 0.3,
-        this.playerPos.z + (Math.random() - 0.5) * 3.6
+        origin.x + Math.cos(angle) * startDist,
+        origin.y + heightOffset,
+        origin.z + Math.sin(angle) * startDist
       );
-      item.mesh.scale.set(puffScale, puffScale, puffScale);
-      item.mat.color.setHex(i % 3 === 0 ? 0x064e3b : i % 3 === 1 ? 0x059669 : 0x18181b);
-      item.baseOpacity = 0.75;
-      item.mat.opacity = 0.75;
-      item.riseSpeed = 0.7;
-      item.growRate = 0.9;
+      item.mesh.scale.set(puffScale, puffScale * 0.85, puffScale);
+      item.mat.color.setHex(i % 2 === 0 ? 0x9ca3af : 0x6b7280);
+      item.baseOpacity = i < 8 ? 0.55 : 0.66;
+      item.mat.opacity = item.baseOpacity;
+      item.vx = Math.cos(angle) * (2.6 + Math.random() * 2.2);
+      item.vz = Math.sin(angle) * (2.6 + Math.random() * 2.2);
+      item.riseSpeed = 0.32 + Math.random() * 0.25;
+      item.growRate = 0.52;
       item.elapsed = 0;
-      item.duration = 1.5;
+      item.duration = 3.5;
       item.active = true;
       item.mesh.visible = true;
     }
 
-    this.spawnShockwaveRing(this.playerPos, 0x10b981, 4.4, 0.65);
-    this._scratchVec1.copy(this.playerPos);
-    this._scratchVec1.y += 1.0;
-    this.spawnSparks(this._scratchVec1, 0x34d399, 16, 3.5);
-    this.triggerCameraShake(0.18);
+    this.spawnShockwaveRing(origin, 0x9ca3af, 6.5, 0.7);
+    this._scratchVec1.set(origin.x, origin.y + 0.7, origin.z);
+    this.spawnSparks(this._scratchVec1, 0xd1d5db, 14, 3.8);
+    this.triggerCameraShake(0.16);
+  }
+
+  private spawnShadowDecoyDispelPuffs(pos: THREE.Vector3) {
+    const count = Math.min(10, this.smokePuffPool.length);
+    for (let i = 0; i < count; i++) {
+      const item = this.smokePuffPool[this.smokePuffNextIndex];
+      this.smokePuffNextIndex = (this.smokePuffNextIndex + 1) % this.smokePuffPool.length;
+      const angle = (i / count) * Math.PI * 2;
+      item.mesh.position.set(
+        pos.x + Math.cos(angle) * 0.35,
+        pos.y + 0.55 + Math.random() * 0.9,
+        pos.z + Math.sin(angle) * 0.35
+      );
+      item.mesh.scale.setScalar(0.5 + Math.random() * 0.35);
+      item.mat.color.setHex(i % 3 === 0 ? 0x67e8f9 : i % 2 === 0 ? 0x9ca3af : 0x6b7280);
+      item.baseOpacity = 0.56;
+      item.mat.opacity = 0.56;
+      item.vx = Math.cos(angle) * (1.5 + Math.random() * 1.1);
+      item.vz = Math.sin(angle) * (1.5 + Math.random() * 1.1);
+      item.riseSpeed = 0.65;
+      item.growRate = 0.75;
+      item.elapsed = 0;
+      item.duration = 0.9;
+      item.active = true;
+      item.mesh.visible = true;
+    }
   }
 
   // Helper to dynamically align player facing direction to active movement or closest 360Â° enemy
@@ -11101,7 +11277,8 @@ export class GameEngine {
     isRemote = false,
     customSpeed?: number,
     isPiercing = false,
-    isCripplingSlow = false
+    isCripplingSlow = false,
+    forceAmbushCrit = false
   ) {
     const fwd = aimDirection
       ? aimDirection.clone().normalize()
@@ -11137,9 +11314,9 @@ export class GameEngine {
     }
 
     const stats = this.currentStats;
-    // Wind-Piercer Full Charge grants +25% Bonus Critical Chance
+    // Wind-Piercer Full Charge grants +25% Bonus Critical Chance; Stealth Ambush forces Crit
     const critChance = (isPiercing ? 0.47 : 0.22) + stats.agility * 0.015;
-    const isCrit = Math.random() < critChance;
+    const isCrit = forceAmbushCrit || Math.random() < critChance;
     const tierMult = 1 + (this.playerTier - 1) * 0.25;
     const baseDmg = (stats.baseAttack + stats.agility * 2.2) * tierMult * bonusDmgMult;
     const finalDmg = Math.round(isCrit ? baseDmg * 1.85 : baseDmg);
@@ -11463,11 +11640,21 @@ export class GameEngine {
 
   public performShieldDash() {
     if (this.isControlsLocked || this.isDashing || this.isCasting) return;
+    const cdCheck = this.skillCooldownsManager.canUse('warrior_dash', this.isZeroCd());
+    if (!cdCheck.ok) {
+      this.callbacks.onAddFloatingText(
+        `Shield Dash Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
+        '#fbbf24',
+        'info'
+      );
+      return;
+    }
     this.callbacks.onUpdateStats((stats) => {
       if (!this.devSettings.infiniteEnergy && stats.stamina < 15) {
         this.callbacks.onAddFloatingText('Stamina Tidak Cukup!', '#ffb74d', 'info');
         return stats;
       }
+      this.skillCooldownsManager.consume('warrior_dash', this.isZeroCd());
 
       const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
 
@@ -11609,11 +11796,21 @@ export class GameEngine {
   }
 
   private castWarriorAegisRetribution() {
+    const cdCheck = this.skillCooldownsManager.canUse('warrior_r', this.isZeroCd());
+    if (!cdCheck.ok) {
+      this.callbacks.onAddFloatingText(
+        `Aegis Retribution Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
+        '#f97316',
+        'info'
+      );
+      return;
+    }
     this.callbacks.onUpdateStats((stats) => {
       if (!this.devSettings.infiniteEnergy && (stats.mp < 25 || stats.stamina < 15)) {
         this.callbacks.onAddFloatingText('Aura / Stamina Tidak Cukup (25 Aura + 15 Stm)!', '#e57373', 'info');
         return stats;
       }
+      this.skillCooldownsManager.consume('warrior_r', this.isZeroCd());
 
       soundManager.playSkillBenteng();
       this.isAttacking = true;
@@ -11697,19 +11894,11 @@ export class GameEngine {
       soundManager.playArcaneBeam();
       this.spawnMageArcaneLaserBeam();
     } else if (this.charClass === 'rogue') {
-      // Hunter Daggers Melee Combat
-      const isAmbushCrit = this.phantomAmbushReady;
-      if (isAmbushCrit) {
-        this.phantomAmbushReady = false;
-        this.phantomAmbushTimer = 0;
-        soundManager.playRogueShadowFlurry();
-        this.spawnSparks(this.playerPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0x064e3b, 22, 5.0);
-        this.spawnHitStarburst(this.playerPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0x10b981, 1.8);
-        this.callbacks.onAddFloatingText('Phantom Ambush Critical! 🗡️💥', '#10b981', 'crit');
-      }
+      // Hunter Daggers Melee Combat (0s Basic Attack CD)
+      const isStealthAmbush = this.consumeStealthForAmbush();
+      const ambushMult = isStealthAmbush ? 1.5 : 1.0;
 
       if (currentCombo === 2) {
-        // Combo 3 Finisher: 360° Shadow Blade Whirlwind Cutter (Depan, Belakang, Kiri, Kanan!)
         this.attackType = 'basic_spin_360';
         this.attackDuration = 0.32;
         this.attackTimer = 0.32;
@@ -11718,12 +11907,11 @@ export class GameEngine {
         this.executeMeleeAttack({
           range: 3.4,
           is360: true,
-          dmgMultiplier: 1.75,
-          critBonus: isAmbushCrit ? 2.0 : 0.45,
+          dmgMultiplier: 1.75 * ambushMult,
+          critBonus: isStealthAmbush ? 5.0 : 0.45,
           knockback: 0.5,
         });
       } else {
-        // Rapid dual dagger slashes (covers front, flanks, and close 360°)
         this.attackType = currentCombo === 0 ? 'basic_slash_1' : 'basic_slash_2';
         this.attackDuration = 0.22;
         this.attackTimer = 0.22;
@@ -11732,8 +11920,8 @@ export class GameEngine {
         this.executeMeleeAttack({
           range: 3.0,
           coneAngle: -0.35,
-          dmgMultiplier: 1.35,
-          critBonus: isAmbushCrit ? 2.0 : 0.35,
+          dmgMultiplier: 1.35 * ambushMult,
+          critBonus: isStealthAmbush ? 5.0 : 0.35,
           knockback: 0.25,
         });
       }
@@ -11742,12 +11930,14 @@ export class GameEngine {
 
   public castSkill(skillSlot: 1 | 2 | 3 | 4) {
     if (this.isControlsLocked || this.isCasting) return;
-    if (this.charClass === 'rogue') {
+    // Hanya Basic Attack, Skill Q (1), & Ultimate F (4) menghunus senjata; Dash (2) & Bom Asap (3) universal Dual Mode + Handless
+    if (this.charClass === 'rogue' && (skillSlot === 1 || skillSlot === 4)) {
       this.unsheatheHunterWeapon();
     }
 
-    // Dynamically align facing to movement or closest 360° enemy
-    this.alignPlayerOrientationToInputOrTarget(this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' ? 22 : 16);
+    if (skillSlot === 1 || skillSlot === 4) {
+      this.alignPlayerOrientationToInputOrTarget(this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' ? 22 : 16);
+    }
 
     if (this.gameMode === 'multiplayer') {
       this.callbacks.onLocalPlayerAttack?.({
@@ -11764,11 +11954,23 @@ export class GameEngine {
 
     if (skillSlot === 1) {
       if (this.charClass === 'warrior') {
+        const cdCheck = this.skillCooldownsManager.canUse('warrior_q', this.isZeroCd());
+        if (!cdCheck.ok) {
+          if (cdCheck.reason === 'no_charges') {
+            this.callbacks.onAddFloatingText(
+              `Triple Crescent Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
+              '#fbbf24',
+              'info'
+            );
+          }
+          return;
+        }
         this.callbacks.onUpdateStats((stats) => {
           if (!this.devSettings.infiniteEnergy && stats.mp < 20) {
             this.callbacks.onAddFloatingText('Aura Tidak Cukup (Butuh 20)!', '#e57373', 'info');
             return stats;
           }
+          this.skillCooldownsManager.consume('warrior_q', this.isZeroCd());
           this.castWarriorTripleCrescentGale();
           if (this.devSettings.infiniteEnergy) return stats;
           return { ...stats, mp: Math.max(0, stats.mp - 20) };
@@ -11777,15 +11979,12 @@ export class GameEngine {
       }
 
       if (this.charClass === 'mage') {
-        // Mage Slot 1 (Q): Glacial Crystal Barrage
         this.executeGlacialCrystalBarrage();
         return;
       }
 
-      // Rogue Skill 1
       if (this.charClass === 'rogue') {
         if (this.hunterWeaponMode === 'bow') {
-          // Hunter Bow Skill 1 (Q): Panah Rajawali Astral (0 CD, 20 MP)
           if (this.isChargingAstralEagle || this.astralEagleAimState.isCharging) {
             this.releaseAimAstralEagle(false);
           } else {
@@ -11794,17 +11993,28 @@ export class GameEngine {
           return;
         }
 
-        if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 15) {
-          this.callbacks.onAddFloatingText('MP Tidak Cukup!', '#e57373', 'info');
+        const cdCheck = this.skillCooldownsManager.canUse('rogue_dagger_q', this.isZeroCd());
+        if (!cdCheck.ok) {
+          this.callbacks.onAddFloatingText(
+            `Tarian Belati Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
+            '#34d399',
+            'info'
+          );
           return;
         }
+        if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 15) {
+          this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 15 MP)!', '#e57373', 'info');
+          return;
+        }
+
         const stats = this.currentStats;
         if (!this.devSettings.infiniteEnergy) {
           this.currentStats.mp = Math.max(0, stats.mp - 15);
           this.callbacks.onUpdateStats((s) => ({ ...s, mp: Math.max(0, s.mp - 15) }));
         }
+        this.skillCooldownsManager.consume('rogue_dagger_q', this.isZeroCd());
 
-        // Hunter Daggers Skill 1: Tarian 1000 Belati (Shadow Flurry 360°)
+        const isAmbush = this.consumeStealthForAmbush();
         soundManager.playRogueShadowFlurry();
         this.spawnRogueShadowFlurryVfx();
         this.isAttacking = true;
@@ -11812,7 +12022,7 @@ export class GameEngine {
         this.attackDuration = 0.4;
         this.attackTimer = 0.4;
 
-        const skillDmg = Math.round((stats.baseAttack + stats.agility * 2.5) * 1.5);
+        const skillDmg = Math.round((stats.baseAttack + stats.agility * 2.5) * 1.5 * (isAmbush ? 1.5 : 1.0));
         this.enemies.forEach((enemy) => {
           if (enemy.data.isDead) return;
           if (this.playerPos.distanceTo(enemy.mesh.position) <= 4.0) {
@@ -11824,11 +12034,21 @@ export class GameEngine {
       }
     } else if (skillSlot === 2) {
       if (this.charClass === 'warrior') {
+        const cdCheck = this.skillCooldownsManager.canUse('warrior_ult', this.isZeroCd());
+        if (!cdCheck.ok) {
+          this.callbacks.onAddFloatingText(
+            `Cataclysmic Leap Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
+            '#fbbf24',
+            'info'
+          );
+          return;
+        }
         this.callbacks.onUpdateStats((stats) => {
           if (!this.devSettings.infiniteEnergy && stats.mp < 30) {
             this.callbacks.onAddFloatingText('Aura Tidak Cukup (Butuh 30)!', '#e57373', 'info');
             return stats;
           }
+          this.skillCooldownsManager.consume('warrior_ult', this.isZeroCd());
           this.castWarriorCataclysmicLeap();
           if (this.devSettings.infiniteEnergy) return stats;
           return { ...stats, mp: Math.max(0, stats.mp - 30) };
@@ -11837,17 +12057,13 @@ export class GameEngine {
       }
 
       if (this.charClass === 'mage') {
-        // Mage Slot 2 (E): Arcane Blink (Teleportasi instan menembus musuh dengan iFrame 0.2s)
         this.castArcaneBlink();
         return;
       }
 
       if (this.charClass === 'rogue') {
-        if (this.hunterWeaponMode === 'bow') {
-          this.performHunterGaleVault();
-        } else {
-          this.performHunterPhantomDecoyStep();
-        }
+        // Universal Dual Mode Dash: Bayangan Pengecoh (Belati / Busur / Santai)
+        this.performHunterShadowDecoyDash();
         return;
       }
     } else if (skillSlot === 3) {
@@ -11857,69 +12073,17 @@ export class GameEngine {
       }
 
       if (this.charClass === 'mage') {
-        // Mage Slot 3 (R): Cahaya Suci / Sanctuary (Heal, Cleanse, Overheal Shield, & +30 MP)
         this.castCahayaSuci();
         return;
       }
 
-      // Rogue Skill 3 (Cost: 25 MP)
       if (this.charClass === 'rogue') {
-        if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 25) {
-          this.callbacks.onAddFloatingText('MP Tidak Cukup!', '#e57373', 'info');
-          return;
-        }
-        const stats = this.currentStats;
-        const healAmt = Math.round(50 + stats.agility * 3.0);
-        if (!this.devSettings.infiniteEnergy) {
-          this.currentStats.mp = Math.max(0, stats.mp - 25);
-        }
-        this.currentStats.hp = Math.min(stats.maxHp, stats.hp + healAmt);
-        this.callbacks.onUpdateStats((s) => ({
-          ...s,
-          mp: this.devSettings.infiniteEnergy ? s.maxMp : Math.max(0, s.mp - 25),
-          hp: Math.min(s.maxHp, s.hp + healAmt),
-        }));
-
-        if (this.hunterWeaponMode === 'bow') {
-          // Hunter Bow Skill 3: Panah Bom Racun Siluman
-          soundManager.playBowShoot(true);
-          soundManager.playRogueSmoke();
-          soundManager.playLevelUp();
-          const aimDir = this.getBowShotDirection();
-          this.playerRotationY = Math.atan2(aimDir.x, aimDir.z);
-          if (this.playerMesh?.group) {
-            this.playerMesh.group.rotation.y = this.playerRotationY;
-          }
-          this.bowCombatStanceTimer = 0.65;
-          this.playerMesh?.setHunterBowInHand?.(true);
-          this.isAttacking = true;
-          this.attackType = 'bow_shot';
-          this.attackDuration = 0.25;
-          this.attackTimer = 0.25;
-
-          this.spawnHunterArrow(aimDir, true, 2.4);
-          this.spawnRogueSmokeCloakVfx();
-          this.speedBuffTimer = 8.0;
-
-          this.callbacks.onAddFloatingText(`+${healAmt} HP & Panah Bom Racun! 💣`, '#34d399', 'heal');
-        } else {
-          // Hunter Daggers Skill 3: Kabut Asap & Eliksir Siluman
-          soundManager.playRogueSmoke();
-          soundManager.playLevelUp();
-          this.spawnRogueSmokeCloakVfx();
-          this.isAttacking = true;
-          this.attackType = 'smoke_bomb';
-          this.attackDuration = 0.45;
-          this.attackTimer = 0.45;
-          this.speedBuffTimer = 8.0;
-
-          this.callbacks.onAddFloatingText(`+${healAmt} HP & Kecepatan Bayangan!`, '#34d399', 'heal');
-        }
+        // Universal Dual Mode Skill R: Bom Asap (Smoke Veil Stealth 3.0s)
+        this.performHunterSmokeVeil();
         return;
       }
     } else if (skillSlot === 4) {
       if (this.charClass === 'mage') {
-        // Mage Slot 4 (F - ULTIMATE): Celestial Apocalypse / Starfall Ultimate
         this.startStarfallCasting();
         return;
       } else if (this.charClass === 'rogue') {
@@ -11931,7 +12095,32 @@ export class GameEngine {
           }
           return;
         }
-        this.callbacks.onAddFloatingText('Skill Ultimate Belati Segera Hadir! 🗡️✨', '#34d399', 'info');
+        const cdCheck = this.skillCooldownsManager.canUse('rogue_dagger_f', this.isZeroCd());
+        if (!cdCheck.ok) {
+          this.callbacks.onAddFloatingText(
+            `Ultimate Belati Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
+            '#34d399',
+            'info'
+          );
+          return;
+        }
+        this.skillCooldownsManager.consume('rogue_dagger_f', this.isZeroCd());
+        const isAmbush = this.consumeStealthForAmbush();
+        soundManager.playRogueShadowFlurry();
+        this.spawn360BladeSpinVfx(0x10b981, 4.4);
+        this.spawnShockwaveRing(this.playerPos, 0x34d399, 4.8, 0.45);
+        this.isAttacking = true;
+        this.attackType = 'basic_spin_360';
+        this.attackDuration = 0.42;
+        this.attackTimer = 0.42;
+        this.executeMeleeAttack({
+          range: 4.5,
+          is360: true,
+          dmgMultiplier: 2.35 * (isAmbush ? 1.5 : 1.0),
+          critBonus: 5.0,
+          knockback: 1.0,
+        });
+        this.callbacks.onAddFloatingText('🌙 EKSEKUSI BAYANGAN BELATI!', '#34d399', 'crit');
         return;
       }
     }
@@ -12145,275 +12334,272 @@ export class GameEngine {
   }
 
   // ============================================================================
-  // HUNTER MOBILITY REVAMP: GALE VAULT (BOW) & PHANTOM DECOY STEP (DAGGER)
+  // DUAL MODE ASSASSIN: BAYANGAN PENGECOH (DASH 2 CHARGES) & BOM ASAP (STEALTH 3s)
   // ============================================================================
+  private isZeroCd(): boolean {
+    return Boolean(this.devSettings.enabled && this.devSettings.zeroCooldown);
+  }
+
   private initShadowDecoyPool() {
     if (this.shadowDecoyPool.length > 0) return;
-    for (let i = 0; i < 3; i++) {
-      const decoyGroup = this.createShadowDecoyMesh();
+
+    const decoyBodyMat = new THREE.MeshLambertMaterial({
+      color: 0x1e293b,
+      transparent: true,
+      opacity: 0.72,
+    });
+    const decoyEyeMat = new THREE.MeshBasicMaterial({
+      color: 0x00e5ff,
+      transparent: true,
+      opacity: 0.65,
+    });
+    const decoyRingMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.42,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.shadowDecoySharedMats.push(decoyBodyMat, decoyEyeMat, decoyRingMat);
+
+    for (let i = 0; i < 2; i++) {
+      const decoyGroup = this.createShadowDecoyMesh(decoyBodyMat, decoyEyeMat, decoyRingMat);
       decoyGroup.visible = false;
+      decoyGroup.frustumCulled = false;
+      decoyGroup.traverse((child) => {
+        child.frustumCulled = false;
+      });
       this.scene.add(decoyGroup);
       this.shadowDecoyPool.push(decoyGroup);
     }
   }
 
-  private createShadowDecoyMesh(): THREE.Group {
-    const group = new THREE.Group();
-    group.name = 'HunterShadowDecoy';
+  private createShadowDecoyMesh(
+    bodyMat: THREE.Material,
+    eyeMat: THREE.Material,
+    ringMat: THREE.Material
+  ): THREE.Group {
+    const silhouette = createHunterModel();
+    silhouette.name = 'HunterShadowDecoy';
 
-    // Dark silhouette material (dark green / deep shadow)
-    const shadowMat = new THREE.MeshLambertMaterial({
-      color: 0x022c22,
-      transparent: true,
-      opacity: 0.82,
+    silhouette.traverse((obj) => {
+      if ((obj as THREE.Mesh).isMesh) {
+        const mesh = obj as THREE.Mesh;
+        // Sembunyikan senjata agar klon tampil statis dalam siluet tudung gelap rapi
+        if (mesh.name === 'HandDagger' || mesh.parent?.name === 'HandDagger' || mesh.parent?.name === 'SegmentedBow') {
+          mesh.visible = false;
+        }
+        if (Array.isArray(mesh.material)) {
+          mesh.material.forEach((m) => m.dispose?.());
+        } else {
+          mesh.material?.dispose?.();
+        }
+        mesh.material = bodyMat;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+        mesh.frustumCulled = false;
+      }
     });
-    // Wireframe emerald glow
-    const wireMat = new THREE.MeshBasicMaterial({
-      color: 0x10b981,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.38,
-      blending: THREE.AdditiveBlending,
+
+    // Pastikan tidak ada senjata tersisa di grup decoy
+    ['BackBow', 'HandBow', 'HandDaggerL', 'HandDaggerR', 'HipDaggerSheathL', 'HipDaggerSheathR'].forEach((n) => {
+      const obj = silhouette.getObjectByName(n);
+      if (obj) obj.visible = false;
     });
 
-    // Torso
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.65, 0.28), shadowMat);
-    torso.position.y = 1.30;
-    const torsoWire = new THREE.Mesh(new THREE.BoxGeometry(0.49, 0.66, 0.29), wireMat);
-    torso.add(torsoWire);
-    group.add(torso);
+    // Sorot mata cyan redup tepat di bawah tepi tudung wajah
+    const eyeGeo = new THREE.PlaneGeometry(0.068, 0.022);
+    const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+    leftEye.position.set(-0.052, 1.655, 0.168);
+    leftEye.rotation.z = -0.14;
+    const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+    rightEye.position.set(0.052, 1.655, 0.168);
+    rightEye.rotation.z = 0.14;
+    silhouette.add(leftEye, rightEye);
 
-    // Head & Hood
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.32, 0.30), shadowMat);
-    head.position.y = 1.82;
-    const headWire = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.33, 0.31), wireMat);
-    head.add(headWire);
-    group.add(head);
-
-    // Cape
-    const cape = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.85, 0.05), shadowMat);
-    cape.position.set(0, 1.25, -0.16);
-    cape.rotation.x = 0.20;
-    group.add(cape);
-
-    // Left & Right Arms
-    const armGeom = new THREE.BoxGeometry(0.14, 0.48, 0.14);
-    const leftArm = new THREE.Mesh(armGeom, shadowMat);
-    leftArm.position.set(0.32, 1.30, 0);
-    leftArm.rotation.set(-0.3, 0, 0.2);
-    const rightArm = new THREE.Mesh(armGeom, shadowMat);
-    rightArm.position.set(-0.32, 1.30, 0);
-    rightArm.rotation.set(-0.3, 0, -0.2);
-    group.add(leftArm, rightArm);
-
-    // Dual Daggers in arms
-    const daggerGeom = new THREE.BoxGeometry(0.04, 0.42, 0.02);
-    const daggerMat = new THREE.MeshBasicMaterial({
-      color: 0x34d399,
-      transparent: true,
-      opacity: 0.75,
-      blending: THREE.AdditiveBlending,
-    });
-    const leftDagger = new THREE.Mesh(daggerGeom, daggerMat);
-    leftDagger.position.set(0, -0.25, 0.12);
-    leftDagger.rotation.x = Math.PI / 3;
-    leftArm.add(leftDagger);
-
-    const rightDagger = new THREE.Mesh(daggerGeom, daggerMat);
-    rightDagger.position.set(0, -0.25, 0.12);
-    rightDagger.rotation.x = Math.PI / 3;
-    rightArm.add(rightDagger);
-
-    // Left & Right Legs
-    const legGeom = new THREE.BoxGeometry(0.18, 0.58, 0.18);
-    const leftLeg = new THREE.Mesh(legGeom, shadowMat);
-    leftLeg.position.set(0.14, 0.60, 0);
-    const rightLeg = new THREE.Mesh(legGeom, shadowMat);
-    rightLeg.position.set(-0.14, 0.60, 0);
-    group.add(leftLeg, rightLeg);
-
-    // Ground Rune Circle
-    const groundRingGeom = new THREE.RingGeometry(0.4, 0.9, 24);
-    const groundRingMat = new THREE.MeshBasicMaterial({
-      color: 0x10b981,
-      transparent: true,
-      opacity: 0.55,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const groundRing = new THREE.Mesh(groundRingGeom, groundRingMat);
+    const groundRing = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.85, 24), ringMat);
     groundRing.rotation.x = -Math.PI / 2;
     groundRing.position.y = 0.05;
-    group.add(groundRing);
+    silhouette.add(groundRing);
 
-    return group;
+    return silhouette;
   }
 
   private spawnShadowDecoy(pos: THREE.Vector3, rotY: number) {
     this.initShadowDecoyPool();
 
-    // If an existing decoy is active, explode it first
     if (this.activeShadowDecoy && this.activeShadowDecoy.active) {
-      this.explodeActiveShadowDecoy();
+      this.dismissActiveShadowDecoy(true);
     }
 
-    const group = this.shadowDecoyPool.find((g) => !g.visible) || this.shadowDecoyPool[0];
+    const group = this.shadowDecoyPool[this.shadowDecoyCursor];
+    this.shadowDecoyCursor = (this.shadowDecoyCursor + 1) % this.shadowDecoyPool.length;
     group.position.copy(pos);
     group.rotation.set(0, rotY, 0);
     group.visible = true;
 
-    // Calculate 110% Dagger Power AoE damage synchronously
-    const tierMult = 1 + (this.playerTier - 1) * 0.25;
-    const damage = Math.round((this.currentStats.baseAttack + this.currentStats.agility * 2.5) * tierMult * 1.10);
-
     this.activeShadowDecoy = {
       group,
       pos: pos.clone(),
-      timer: 2.0,
+      timer: 2.8,
       active: true,
-      damage,
     };
   }
 
-  private explodeActiveShadowDecoy() {
+  public dismissActiveShadowDecoy(silent = false) {
     if (!this.activeShadowDecoy || !this.activeShadowDecoy.active) return;
     const decoyPos = this.activeShadowDecoy.pos;
-    const damage = this.activeShadowDecoy.damage;
 
     this.activeShadowDecoy.active = false;
     this.activeShadowDecoy.group.visible = false;
 
-    soundManager.playRogueSmoke();
-    soundManager.playHit();
-
-    // Emerald mist explosion VFX
-    this.spawnShockwaveRing(decoyPos, 0x10b981, 5.0, 0.45);
-    this.spawnSparks(decoyPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0x10b981, 28, 6.0);
-    this.spawnSparks(decoyPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0x064e3b, 20, 5.0);
-    this.spawnSparks(decoyPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0xa7f3d0, 14, 4.0);
-    this.spawnHitStarburst(decoyPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0x34d399, 2.5);
-    this.callbacks.onAddFloatingText('Ledakan Bayangan Zamrud! 💥', '#10b981', 'info');
-
-    // AoE damage within radius 5.0
-    this.enemies.forEach((enemy) => {
-      if (enemy.data.isDead) return;
-      if (enemy.mesh.position.distanceTo(decoyPos) <= 5.0) {
-        this.damageEnemy(enemy, damage, false, 1.2);
-        this.spawnHitStarburst(enemy.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)), 0x10b981, 1.2);
-      }
-    });
+    if (!silent) {
+      soundManager.playRogueSmoke();
+      this.spawnShadowDecoyDispelPuffs(decoyPos);
+      this.spawnSparks(decoyPos.clone().add(new THREE.Vector3(0, 0.9, 0)), 0x67e8f9, 10, 3.2);
+    }
 
     this.activeShadowDecoy = null;
   }
 
-  public performHunterGaleVault() {
-    if (this.isControlsLocked || this.isCasting || this.isGaleVaulting) return;
+  private applyPlayerStealthMaterials(stealthed: boolean) {
+    if (this.playerMatSnapshots.length === 0) {
+      this.capturePlayerMaterialSnapshots();
+    }
+    for (const snap of this.playerMatSnapshots) {
+      const m = snap.mat;
+      if (stealthed) {
+        m.transparent = true;
+        m.opacity = 0.35;
+        if ((m as any).color && snap.colorHex !== undefined) {
+          (m as any).color.setHex(snap.colorHex).multiplyScalar(0.55);
+        }
+      } else {
+        m.transparent = snap.transparent;
+        m.opacity = snap.opacity;
+        if ((m as any).color && snap.colorHex !== undefined) {
+          (m as any).color.setHex(snap.colorHex);
+        }
+      }
+      m.needsUpdate = false;
+    }
+  }
 
-    if (!this.devSettings.zeroCooldown && this.hunterMobilityCooldownTimer > 0) {
+  private endPlayerStealth(reason: 'expired' | 'ambush' | 'damaged' | 'reset') {
+    if (!this.isPlayerStealthed && this.stealthTimer <= 0) return;
+    this.isPlayerStealthed = false;
+    this.stealthTimer = 0;
+    this.applyPlayerStealthMaterials(false);
+    this.callbacks.onStealthChange?.(false, 0);
+
+    if (reason === 'damaged') {
+      this.callbacks.onAddFloatingText('⚠️ STEALTH TERBONGKAR!', '#ef4444', 'crit');
+    }
+  }
+
+  private consumeStealthForAmbush(): boolean {
+    if (!this.isPlayerStealthed) return false;
+    this.endPlayerStealth('ambush');
+    soundManager.playRogueShadowFlurry();
+    this.spawnHitStarburst(this.playerPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0xfde047, 1.6);
+    this.callbacks.onAddFloatingText('💥 AMBUSH CRIT!', '#fde047', 'crit');
+    return true;
+  }
+
+  private handlePlayerTookDamage(actualDamage: number) {
+    if (actualDamage > 0 && this.isPlayerStealthed) {
+      this.endPlayerStealth('damaged');
+    }
+  }
+
+  public performHunterSmokeVeil() {
+    if (this.isControlsLocked || this.isCasting) return;
+    if (this.charClass !== 'rogue') return;
+
+    const cdCheck = this.skillCooldownsManager.canUse('rogue_smoke_r', this.isZeroCd());
+    if (!cdCheck.ok) {
       this.callbacks.onAddFloatingText(
-        `Gale Vault Cooldown (${this.hunterMobilityCooldownTimer.toFixed(1)}s)!`,
-        '#34d399',
+        `Bom Asap Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
+        '#9ca3af',
         'info'
       );
       return;
     }
 
-    if (!this.devSettings.infiniteEnergy && this.currentStats.stamina < 15) {
-      this.callbacks.onAddFloatingText('Stamina Habis (Butuh 15)!', '#ffb74d', 'info');
+    if (!this.devSettings.infiniteEnergy && this.currentStats.mp < 20) {
+      this.callbacks.onAddFloatingText('MP Tidak Cukup (Butuh 20 MP)!', '#e57373', 'info');
       return;
     }
 
     if (!this.devSettings.infiniteEnergy) {
-      this.currentStats.stamina = Math.max(0, this.currentStats.stamina - 15);
-    }
-    this.executeHunterGaleVault();
-    if (!this.devSettings.infiniteEnergy) {
-      this.callbacks.onUpdateStats((stats) => ({
-        ...stats,
-        stamina: Math.max(0, stats.stamina - 15),
+      this.currentStats.mp = Math.max(0, this.currentStats.mp - 20);
+      this.callbacks.onUpdateStats((s) => ({
+        ...s,
+        mp: Math.max(0, s.mp - 20),
       }));
     }
+
+    this.skillCooldownsManager.consume('rogue_smoke_r', this.isZeroCd());
+
+    soundManager.playRogueSmoke();
+    this.spawnRogueSmokeCloakVfx(this.playerPos);
+
+    this.isAttacking = true;
+    this.attackType = 'smoke_bomb';
+    this.attackDuration = 0.35;
+    this.attackTimer = 0.35;
+
+    // Stealth 3.0 detik: transparansi karakter ~0.35, +20% Speed, Aggro Drop total
+    this.isPlayerStealthed = true;
+    this.stealthTimer = 3.0;
+    this.applyPlayerStealthMaterials(true);
+    this.callbacks.onStealthChange?.(true, 3.0);
+    this.callbacks.onAddFloatingText('💨 BOM ASAP! STEALTH AKTIF (3.0s)', '#d1d5db', 'info');
   }
 
-  private executeHunterGaleVault() {
-    // TODO: Kembalikan cooldown 6s setelah pengujian selesai
-    this.hunterMobilityCooldownTimer = this.devSettings.zeroCooldown ? 0 : (SKILL_COOLDOWNS.HUNTER_MOBILITY ?? 0);
-
-    soundManager.playDash();
-
-    const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(
-      new THREE.Vector3(0, 1, 0),
-      this.playerRotationY
-    );
-    const startPos = this.playerPos.clone();
-
-    // Invulnerability (0.35s in mid-air)
-    this.isInvulnerable = true;
-    this.invulnerableTimer = 0.35;
-
-    // Leap backwards 9.5 units (velocity.y = 7.8, horizontal thrust -19.5 away from facing)
-    this.isGrounded = false;
-    this.playerVel.y = 7.8;
-    this.playerVel.x = -forward.x * 19.5;
-    this.playerVel.z = -forward.z * 19.5;
-
-    this.isGaleVaulting = true;
-    this.galeVaultTimer = 0.45;
-    this.galeVaultShotFired = false;
-    this.attackType = 'hunter_gale_vault';
-    this.attackDuration = 0.45;
-    this.attackTimer = 0.45;
-
-    // Emerald wind recoil shockwave ring at launch origin
-    this.spawnShockwaveRing(startPos, 0x10b981, 3.4, 0.4);
-    this.spawnSparks(startPos.clone().add(new THREE.Vector3(0, 0.2, 0)), 0x34d399, 16, 4.5);
-    this.spawnSparks(startPos.clone().add(new THREE.Vector3(0, 0.2, 0)), 0xa7f3d0, 10, 3.5);
-
-    this.callbacks.onAddFloatingText('Gale Vault & Snipe! 🦅💨', '#34d399', 'info');
-  }
-
-  public performHunterPhantomDecoyStep() {
+  public performHunterShadowDecoyDash() {
     if (this.isControlsLocked || this.isCasting || this.isDashing) return;
 
-    if (!this.devSettings.zeroCooldown && this.hunterMobilityCooldownTimer > 0) {
-      this.callbacks.onAddFloatingText(
-        `Phantom Decoy Cooldown (${this.hunterMobilityCooldownTimer.toFixed(1)}s)!`,
-        '#10b981',
-        'info'
-      );
+    const cdCheck = this.skillCooldownsManager.canUse('rogue_dash', this.isZeroCd());
+    if (!cdCheck.ok) {
+      if (cdCheck.reason === 'no_charges') {
+        this.callbacks.onAddFloatingText(
+          `Bayangan Pengecoh Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
+          '#67e8f9',
+          'info'
+        );
+      }
       return;
     }
 
-    if (!this.devSettings.infiniteEnergy && this.currentStats.stamina < 15) {
-      this.callbacks.onAddFloatingText('Stamina Habis (Butuh 15)!', '#ffb74d', 'info');
+    if (!this.devSettings.infiniteEnergy && this.currentStats.stamina < 12) {
+      this.callbacks.onAddFloatingText('Stamina Habis (Butuh 12 Stm)!', '#ffb74d', 'info');
       return;
     }
 
     if (!this.devSettings.infiniteEnergy) {
-      this.currentStats.stamina = Math.max(0, this.currentStats.stamina - 15);
-    }
-    this.executeHunterPhantomDecoyStep();
-    if (!this.devSettings.infiniteEnergy) {
+      this.currentStats.stamina = Math.max(0, this.currentStats.stamina - 12);
       this.callbacks.onUpdateStats((stats) => ({
         ...stats,
-        stamina: Math.max(0, stats.stamina - 15),
+        stamina: Math.max(0, stats.stamina - 12),
       }));
     }
+
+    this.skillCooldownsManager.consume('rogue_dash', this.isZeroCd());
+    this.executeHunterShadowDecoyDash();
   }
 
-  private executeHunterPhantomDecoyStep() {
-    // TODO: Kembalikan cooldown 6s setelah pengujian selesai
-    this.hunterMobilityCooldownTimer = this.devSettings.zeroCooldown ? 0 : (SKILL_COOLDOWNS.HUNTER_MOBILITY ?? 0);
-
+  private executeHunterShadowDecoyDash() {
     soundManager.playDash();
     soundManager.playRogueSmoke();
 
     const dashDir = this.getPlayerMovementDirection();
     const startPos = this.playerPos.clone();
+    const prevRotY = this.playerRotationY;
 
-    // 10.5 units dash with raycasting against solid environment (penetrable through mobs/bosses)
-    let maxDist = 10.5;
+    // Melesat cepat ~9.5 unit dengan Raycaster / solid collider obstacle check
+    let maxDist = 9.5;
     const inInterior = this.playerPos.y < -10;
     for (const col of this.world.colliders) {
       const isInteriorCollider = col.maxY !== undefined && col.maxY < 0;
@@ -12437,6 +12623,20 @@ export class GameEngine {
     targetX = Math.max(WORLD_BOUNDS.minX + 5, Math.min(WORLD_BOUNDS.maxX - 5, targetX));
     targetZ = Math.max(WORLD_BOUNDS.minZ + 5, Math.min(WORLD_BOUNDS.maxZ - 5, targetZ));
 
+    // Jika sedang dalam Boss Arena, cegah dash keluar menembus batas arena
+    for (const zone of Object.values(BOSS_ARENA_ZONES)) {
+      const startInZone = Math.hypot(startPos.x - zone.center.x, startPos.z - zone.center.z) <= zone.radius - 1.5;
+      if (startInZone) {
+        const endDist = Math.hypot(targetX - zone.center.x, targetZ - zone.center.z);
+        if (endDist > zone.radius - 1.5) {
+          const clampRatio = (zone.radius - 1.5) / endDist;
+          targetX = zone.center.x + (targetX - zone.center.x) * clampRatio;
+          targetZ = zone.center.z + (targetZ - zone.center.z) * clampRatio;
+        }
+        break;
+      }
+    }
+
     const resolved = this.resolveCollisions(targetX, targetZ);
     const targetPos = new THREE.Vector3(
       resolved.x,
@@ -12444,45 +12644,50 @@ export class GameEngine {
       resolved.z
     );
 
-    // Invulnerability (iFrame 0.35s)
+    // 0.3s Invulnerability iFrames
     this.isInvulnerable = true;
-    this.invulnerableTimer = 0.35;
-    this.isDashing = true;
-    this.dashTimer = 0.30;
+    this.invulnerableTimer = 0.30;
+    this.isDashing = false;
+    this.dashTimer = 0;
+    this.isAttacking = true;
     this.attackType = 'hunter_phantom_decoy';
-    this.attackDuration = 0.30;
-    this.attackTimer = 0.30;
+    this.attackDuration = 0.25;
+    this.attackTimer = 0.25;
 
-    // Spawn Shadow Decoy at start position
-    this.spawnShadowDecoy(startPos, this.playerRotationY);
+    // Tinggalkan Bayangan Pengecoh statis di titik asal selama 2.8 detik menghadap arah terakhir
+    this.spawnShadowDecoy(startPos, prevRotY);
 
-    // Teleport player swiftly to target
+    // Pindahkan pemain ke posisi tujuan dash (9.5u aman)
     this.playerPos.copy(targetPos);
     this.playerMesh.group.position.copy(targetPos);
     this.playerRotationY = Math.atan2(dashDir.x, dashDir.z);
     this.playerMesh.group.rotation.set(0, this.playerRotationY, 0);
     this.playerVel.set(0, 0, 0);
 
-    // VFX
+    // VFX jejak bayangan & asap ringan cyan-abu
     this.spawnRogueShadowStepVfx(startPos, targetPos);
-    this.spawnShockwaveRing(targetPos, 0x10b981, 2.8, 0.3);
-    this.spawnSparks(targetPos.clone().add(new THREE.Vector3(0, 0.8, 0)), 0x064e3b, 16, 4.0);
-    this.spawnSparks(targetPos.clone().add(new THREE.Vector3(0, 0.8, 0)), 0x10b981, 16, 4.5);
+    this.spawnShadowDecoyDispelPuffs(startPos);
+    this.spawnShockwaveRing(targetPos, 0x38bdf8, 2.6, 0.28);
 
-    // Follow-up buff: phantomAmbushReady for 2.5s -> guaranteed 100% crit on next basic dagger attack
-    this.phantomAmbushReady = true;
-    this.phantomAmbushTimer = 2.5;
+    this.callbacks.onAddFloatingText('👥 Bayangan Pengecoh!', '#67e8f9', 'info');
+  }
 
-    this.callbacks.onAddFloatingText('Phantom Decoy & Ambush Ready! 🗡️💨', '#10b981', 'info');
+  public performHunterGaleVault() {
+    this.performHunterShadowDecoyDash();
+  }
+
+  public performHunterPhantomDecoyStep() {
+    this.performHunterShadowDecoyDash();
   }
 
   // --- MAGE MOBILITY: ARCANE BLINK (Shift) ---
   public performMageBlink() {
     if (this.isControlsLocked || this.isCasting || this.isDashing) return;
 
-    if (!this.devSettings.zeroCooldown && this.mageBlinkCooldownTimer > 0) {
+    const cdCheck = this.skillCooldownsManager.canUse('mage_e', this.isZeroCd());
+    if (!cdCheck.ok) {
       this.callbacks.onAddFloatingText(
-        `Arcane Blink Cooldown (${this.mageBlinkCooldownTimer.toFixed(1)}s)!`,
+        `Arcane Blink Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
         '#06b6d4',
         'info'
       );
@@ -12500,6 +12705,7 @@ export class GameEngine {
         return { ...stats, stamina: Math.max(0, stats.stamina - 15) };
       });
     }
+    this.skillCooldownsManager.consume('mage_e', this.isZeroCd());
 
     // Mage: Langkah Dimensi (Instant Blink Teleport with Dual Runic Circles, Afterimages & Enemy Penetration)
     soundManager.playMageBlink();
@@ -12584,9 +12790,10 @@ export class GameEngine {
     if (this.isControlsLocked || this.isCasting) return;
     if (this.charClass !== 'mage') return;
 
-    if (!this.devSettings.zeroCooldown && this.mageCahayaSuciCooldownTimer > 0) {
+    const cdCheck = this.skillCooldownsManager.canUse('mage_r', this.isZeroCd());
+    if (!cdCheck.ok) {
       this.callbacks.onAddFloatingText(
-        `Cahaya Suci Cooldown (${this.mageCahayaSuciCooldownTimer.toFixed(1)}s)!`,
+        `Cahaya Suci Cooldown (${cdCheck.remaining.toFixed(1)}s)!`,
         '#38bdf8',
         'info'
       );
@@ -12601,8 +12808,8 @@ export class GameEngine {
 
       soundManager.playMageCelestialHeal();
       this.spawnMageCelestialHealVfx();
-      // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 12.0s)
-      this.mageCahayaSuciCooldownTimer = this.devSettings.zeroCooldown ? 0 : SKILL_COOLDOWNS.CAHAYA_SUCI;
+      this.skillCooldownsManager.consume('mage_r', this.isZeroCd());
+      this.mageCahayaSuciCooldownTimer = this.isZeroCd() ? 0 : SKILL_COOLDOWNS.CAHAYA_SUCI;
       this.isAttacking = true;
       this.attackType = 'celestial_heal';
       this.attackDuration = 0.8;
@@ -13542,6 +13749,9 @@ export class GameEngine {
     } else if (this.isAimingArrowVolley || this.arrowVolleyAimState.isCharging) {
       targetSpeed = baseSpeed * 0.65; // Strafe walk 65% speed while aiming Ultimate Badai Panah Agung
     } else {
+      if (this.isPlayerStealthed) {
+        targetSpeed *= 1.20; // Stealth Bom Asap: +20% Movement Speed
+      }
       if (this.bossManager?.playerDebuffs?.isSlowed) {
         targetSpeed *= 0.5; // Efek Slow -50% pergerakan dari Boss / Sand Spikes
       }
@@ -14819,6 +15029,10 @@ export class GameEngine {
   private updateMonsterSinglePlayer(delta: number) {
     let bossInView = false;
     let activeBoss: EnemyData | null = null;
+    const decoyTargetInfo = this.activeShadowDecoy && this.activeShadowDecoy.active
+      ? { active: true, position: this.activeShadowDecoy.pos }
+      : null;
+    this.bossManager.setStealthAndDecoyState(this.isPlayerStealthed, decoyTargetInfo);
     this.bossManager.update(delta, this.playerPos, this.playerVel, this.isDashing || this.isInvulnerable, !this.isGrounded);
 
     this.enemies.forEach((enemy) => {
@@ -14991,17 +15205,27 @@ export class GameEngine {
         }
       }
 
-      // Check if Hunter Shadow Decoy is active and within 8.0 units of this enemy
-      const distToDecoy = this.activeShadowDecoy && this.activeShadowDecoy.active
-        ? ePos.distanceTo(this.activeShadowDecoy.pos)
-        : Infinity;
-      const isTauntedByDecoy = distToDecoy <= 8.0;
+      const resolvedTarget = resolveEnemyTarget(
+        ePos,
+        this.playerPos,
+        this.isPlayerStealthed,
+        this.activeShadowDecoy && this.activeShadowDecoy.active
+          ? { active: true, position: this.activeShadowDecoy.pos }
+          : null
+      );
 
-      const currentTargetPos = isTauntedByDecoy ? this.activeShadowDecoy!.pos : this.playerPos;
-      const distToCurrentTarget = isTauntedByDecoy ? distToDecoy : distToPlayer;
+      // Stealth Aggro Drop (tanpa Decoy): monster kehilangan kunci target dan diam waspada tanpa reset HP pulang
+      if (!resolvedTarget.targetPos) {
+        enemy.isAttacking = false;
+        return;
+      }
+
+      const isTauntedByDecoy = resolvedTarget.isDecoy;
+      const currentTargetPos = resolvedTarget.targetPos;
+      const distToCurrentTarget = resolvedTarget.dist;
 
       // STATE 3: Jika target dalam jarak deteksi dan monster masih di dalam wilayahnya -> kejar & serang
-      if ((isTauntedByDecoy || distToPlayer <= enemy.data.detectRange) && distFromSpawn <= territoryRadius) {
+      if (distToCurrentTarget <= enemy.data.detectRange && distFromSpawn <= territoryRadius) {
         const toTarget = new THREE.Vector3().subVectors(currentTargetPos, ePos).normalize();
         const targetRotY = Math.atan2(toTarget.x, toTarget.z);
         enemy.mesh.rotation.y = targetRotY;
@@ -15037,16 +15261,16 @@ export class GameEngine {
             enemy.attackCooldown = 1.5;
             enemy.attackAnimTimer = 0.35; // Trigger monster attack swing / lunge
             if (isTauntedByDecoy) {
-              // Menyerang Shadow Decoy (animasi serang tanpa melukai player)
+              // Serangan musuh menghantam Bayangan Pengecoh -> langsung hancur dengan asap abu-cyan
               soundManager.playHit();
-              this.spawnSparks(this.activeShadowDecoy!.pos.clone().add(new THREE.Vector3(0, 0.8, 0)), 0x064e3b, 8, 3.0);
+              this.dismissActiveShadowDecoy(false);
             } else {
               this.enemyAttackPlayer(enemy);
             }
           }
         }
       } else if (distFromSpawn > 1.2) {
-        // Player tidak di sekitar dan monster tidak di titik asal -> kembali pulang
+        // Target tidak di sekitar dan monster tidak di titik asal -> kembali pulang
         enemy.isReturning = true;
       }
     });
@@ -15409,6 +15633,7 @@ export class GameEngine {
 
       if (finalDmg > 0) {
         this.callbacks.onAddFloatingText(`-${finalDmg} HP`, '#ff1744', 'damage');
+        this.handlePlayerTookDamage(finalDmg);
       }
 
       if (nextHp <= 0) {
@@ -15817,8 +16042,20 @@ export class GameEngine {
     this.updateAstralEagle(delta);
     this.updateArrowStormUltimate(delta);
 
+    // Global Skill Cooldown & Charge Manager update + Dev Mode Zero-CD sync
+    const zeroCd = this.isZeroCd();
+    this.skillCooldownsManager.update(delta, zeroCd);
+
+    // Assassin Bom Asap Stealth 3.0s countdown
+    if (this.isPlayerStealthed) {
+      this.stealthTimer -= delta;
+      if (this.stealthTimer <= 0) {
+        this.endPlayerStealth('expired');
+      }
+    }
+
     // Dev Mode Testing overrides: Infinite Energy (100% MP & Stamina) + Zero Cooldowns
-    if (this.devSettings.zeroCooldown) {
+    if (zeroCd) {
       this.mageUltimateCooldownTimer = 0;
       this.mageGlacialBarrageCooldownTimer = 0;
       this.mageBlinkCooldownTimer = 0;
@@ -15937,19 +16174,19 @@ export class GameEngine {
       }
     }
 
-    // Hunter Active Shadow Decoy
+    // Hunter Active Shadow Decoy (2.8s statis, lenyap dengan asap abu-cyan saat habis atau terkena serangan)
     if (this.activeShadowDecoy && this.activeShadowDecoy.active) {
       this.activeShadowDecoy.timer -= delta;
-      if (Math.random() < 0.25) {
+      if (Math.random() < 0.2) {
         this.spawnSparks(
-          this.activeShadowDecoy.pos.clone().add(new THREE.Vector3(0, 0.8, 0)),
-          0x064e3b,
-          2,
-          1.5
+          this.activeShadowDecoy.pos.clone().add(new THREE.Vector3(0, 0.85, 0)),
+          0x67e8f9,
+          1,
+          1.2
         );
       }
       if (this.activeShadowDecoy.timer <= 0) {
-        this.explodeActiveShadowDecoy();
+        this.dismissActiveShadowDecoy(false);
       }
     }
 
@@ -16080,10 +16317,18 @@ export class GameEngine {
           proj.object.rotateOnAxis(proj.rotationAxis, delta * 8);
         }
         const distToPlayer = proj.object.position.distanceTo(this.playerPos);
+        const distToDecoy =
+          this.activeShadowDecoy && this.activeShadowDecoy.active
+            ? proj.object.position.distanceTo(this.activeShadowDecoy.pos)
+            : Infinity;
         const groundY = this.world.getTerrainHeight(proj.object.position.x, proj.object.position.z);
         const hitGround = proj.object.position.y <= groundY + 0.5;
+        const blastR = proj.blastRadius || 2.4;
 
-        if (distToPlayer <= (proj.blastRadius || 2.4) || hitGround || proj.lifetime <= 0) {
+        if (distToPlayer <= blastR || distToDecoy <= blastR || hitGround || proj.lifetime <= 0) {
+          if (distToDecoy <= (proj.blastRadius || 3.2)) {
+            this.dismissActiveShadowDecoy(false);
+          }
           const hitPos = proj.object.position.clone();
           hitPos.y = groundY + 0.15;
           const isFireball = proj.vfxType === 'dragon_fireball';
@@ -16113,6 +16358,7 @@ export class GameEngine {
                     '#ff1744',
                     'damage'
                   );
+                  this.handlePlayerTookDamage(finalDmg);
                 }
                 if (isFireball) {
                   this.bossManager.applyBurnDebuff(3.0);
@@ -16613,9 +16859,19 @@ export class GameEngine {
     registerActiveWorldSnapshotProvider(null);
 
     // Clean up Hunter Shadow Decoys
-    this.shadowDecoyPool.forEach((d) => this.scene.remove(d));
+    this.shadowDecoyPool.forEach((d) => {
+      this.scene.remove(d);
+      d.traverse((c) => {
+        if ((c as THREE.Mesh).isMesh) {
+          (c as THREE.Mesh).geometry?.dispose();
+        }
+      });
+    });
     this.shadowDecoyPool = [];
+    this.shadowDecoySharedMats.forEach((m) => m.dispose());
+    this.shadowDecoySharedMats = [];
     this.activeShadowDecoy = null;
+    this.playerMatSnapshots = [];
 
     // Clean up Hunter Shadow Afterimages
     this.hunterAfterimagePool.forEach((item) => {

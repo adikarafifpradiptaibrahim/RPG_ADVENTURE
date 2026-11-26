@@ -39,6 +39,7 @@ import {
 import { MiniMap } from './MiniMap';
 import { getSharedDayNightSystem } from '../game/3d/dayNightSystem';
 import { SkillBar } from './SkillBar';
+import { HudSkillCooldownMap } from '../game/skillCooldownManager';
 import { QuestTracker } from './QuestTracker';
 import {
   cloudSyncManager,
@@ -113,6 +114,10 @@ interface HUDProps {
   castingState?: { isCasting: boolean; progress: number; text: string } | null;
   isUIVisible?: boolean;
   onSaveGame?: () => void;
+  stealthActive?: boolean;
+  getSkillCooldowns?: () => HudSkillCooldownMap | null;
+  subscribeSkillCooldowns?: (listener: () => void) => () => void;
+  getStealthState?: () => { active: boolean; remaining: number } | null;
 }
 
 export const HUD: React.FC<HUDProps> = ({
@@ -172,6 +177,10 @@ export const HUD: React.FC<HUDProps> = ({
   castingState,
   isUIVisible = true,
   onSaveGame,
+  stealthActive = false,
+  getSkillCooldowns,
+  subscribeSkillCooldowns,
+  getStealthState,
 }) => {
   const [dayNight, setDayNight] = useState(() => getSharedDayNightSystem().getState());
   const [dismissMobileTip, setDismissMobileTip] = useState(false);
@@ -703,6 +712,7 @@ export const HUD: React.FC<HUDProps> = ({
           stats={stats}
           hunterWeaponMode={hunterWeaponMode}
           isWeaponDrawn={isWeaponDrawn}
+          stealthActive={stealthActive}
           onPerformAttack={onPerformAttack}
           onAttackStart={onAttackStart}
           onAttackEnd={onAttackEnd}
@@ -714,6 +724,9 @@ export const HUD: React.FC<HUDProps> = ({
           onDash={onDash}
           onSwitchHunterWeapon={onSwitchHunterWeapon}
           onToggleWeaponDrawn={onToggleWeaponDrawn}
+          getSkillCooldowns={getSkillCooldowns}
+          subscribeSkillCooldowns={subscribeSkillCooldowns}
+          getStealthState={getStealthState}
         />
       )}
 

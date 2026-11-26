@@ -42,6 +42,42 @@ export const BOSS_ARENA_ZONES: Record<string, BossArenaZone> = {
   },
 };
 
+export interface ShadowDecoyTargetInfo {
+  active: boolean;
+  position: THREE.Vector3;
+}
+
+export interface ResolvedEnemyTarget {
+  targetPos: THREE.Vector3 | null;
+  isDecoy: boolean;
+  dist: number;
+}
+
+/**
+ * Shared AI target selector supporting Shadow Decoy priority & Assassin Stealth aggro drop:
+ * - If decoy is active AND (player is stealthed OR decoy is closer to enemy than player), lock onto decoy.
+ * - Else if player is stealthed (and no decoy), enemy loses target lock (returns null targetPos).
+ * - Otherwise target real player.
+ */
+export function resolveEnemyTarget(
+  enemyPos: THREE.Vector3,
+  playerPos: THREE.Vector3,
+  isPlayerStealthed: boolean,
+  decoy?: ShadowDecoyTargetInfo | null
+): ResolvedEnemyTarget {
+  const distToPlayer = enemyPos.distanceTo(playerPos);
+  if (decoy && decoy.active) {
+    const distToDecoy = enemyPos.distanceTo(decoy.position);
+    if (isPlayerStealthed || distToDecoy < distToPlayer) {
+      return { targetPos: decoy.position, isDecoy: true, dist: distToDecoy };
+    }
+  }
+  if (isPlayerStealthed) {
+    return { targetPos: null, isDecoy: false, dist: Infinity };
+  }
+  return { targetPos: playerPos, isDecoy: false, dist: distToPlayer };
+}
+
 /**
  * Checks if a world position is within any active Boss Arena bounding zone
  */

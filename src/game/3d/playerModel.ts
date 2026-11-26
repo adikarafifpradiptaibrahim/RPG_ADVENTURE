@@ -98,7 +98,8 @@ function getRogueFaceMaterial(): THREE.MeshBasicMaterial {
   if (!cachedRogueFaceMaterial) {
     cachedRogueFaceMaterial = new THREE.MeshBasicMaterial({ map: getRogueFaceTexture() });
   }
-  return cachedRogueFaceMaterial;
+  // Clone material per character instance (sharing texture singleton) so Stealth opacity transitions stay isolated
+  return cachedRogueFaceMaterial.clone();
 }
 
 // 2. BUSUR BERSUDUT 5-SEGMEN DENGAN ANAK PANAH & PUSARAN ANGIN ZAMRUD

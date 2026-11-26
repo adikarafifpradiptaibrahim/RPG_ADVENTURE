@@ -180,6 +180,7 @@ export default function App() {
   // Graphics Settings State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [graphicsSettings, setGraphicsSettings] = useState<GraphicsSettings>(() => loadGraphicsSettings());
+  const [isStealthActive, setIsStealthActive] = useState(false);
 
   // Local-Only Developer & Testing Mode State (Always defaults to OFF / false)
   const [devTesting, setDevTesting] = useState<DevTestingSettings>(() => getEffectiveDevTestingSettings());
@@ -784,6 +785,18 @@ export default function App() {
     return engineRef.current?.getDevDebugTelemetry() ?? null;
   }, []);
 
+  const getSkillCooldowns = useCallback(() => {
+    return engineRef.current?.getHudCooldowns() ?? null;
+  }, []);
+
+  const subscribeSkillCooldowns = useCallback((listener: () => void) => {
+    return engineRef.current?.subscribeCooldownUpdates(listener) ?? (() => {});
+  }, []);
+
+  const getStealthState = useCallback(() => {
+    return engineRef.current?.getStealthState() ?? null;
+  }, []);
+
   // Initialize Three.js engine when canvas container mounts
   useEffect(() => {
     if (!containerRef.current || engineRef.current) return;
@@ -875,6 +888,9 @@ export default function App() {
       },
       onWeaponDrawnChange: (drawn) => {
         setIsWeaponDrawn(drawn);
+      },
+      onStealthChange: (active) => {
+        setIsStealthActive(active);
       },
       onGlacialAimChange: (aiming, targetInfo) => {
         setIsGlacialAiming(aiming);
@@ -1582,6 +1598,10 @@ export default function App() {
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenMenu={() => setIsPauseMenuOpen(true)}
             onSaveGame={() => handleSaveRoleProgress(true)}
+            stealthActive={isStealthActive}
+            getSkillCooldowns={getSkillCooldowns}
+            subscribeSkillCooldowns={subscribeSkillCooldowns}
+            getStealthState={getStealthState}
             showTouchControls={showTouchControls}
             onToggleTouchControls={handleToggleTouchControls}
             isFullscreen={isFullscreen}

@@ -1,22 +1,32 @@
 import * as THREE from 'three';
 
 // ============================================================================
-// SKILL COOLDOWN CONSTANTS (STRESS-TESTING & BALANCING)
+// SKILL COOLDOWN CONSTANTS (GLOBAL BALANCING & CHARGE SYSTEM)
 // ============================================================================
-// TODO: Kembalikan cooldown normal setelah pengujian selesai
-// Nilai balancing normal:
-// - GLACIAL_BARRAGE: 7.5s
-// - CELESTIAL_APOCALYPSE: 18.0s
-// - ARCANE_BLINK: 0.1s (atau 2.0s)
-// - CAHAYA_SUCI: 0.1s (atau 12.0s)
 export const SKILL_COOLDOWNS = {
-  GLACIAL_BARRAGE: 0, // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 7.5s)
-  CELESTIAL_APOCALYPSE: 0, // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 18.0s)
-  ARCANE_BLINK: 0, // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 0.1s / 2.0s)
-  CAHAYA_SUCI: 0, // TODO: Kembalikan cooldown normal setelah pengujian selesai (Normal: 0.1s / 12.0s)
-  SKYWARD_VOLLEY: 0, // TODO: Kembalikan cooldown 8s setelah pengujian selesai (Normal: 8.0s)
-  HUNTER_MOBILITY: 0, // TODO: Kembalikan cooldown 6s setelah pengujian selesai (Normal: 6.0s)
-};
+  // Mage
+  GLACIAL_BARRAGE: 6.0,
+  ARCANE_BLINK: 5.5,
+  CAHAYA_SUCI: 12.0,
+  CELESTIAL_APOCALYPSE: 22.0,
+
+  // Assassin / Hunter (Dual Mode)
+  HUNTER_DAGGER_Q: 6.0,
+  ASTRAL_EAGLE: 6.0,
+  HUNTER_DECOY_DASH_RECHARGE: 5.5,
+  HUNTER_DECOY_DASH_INTERNAL: 0.4,
+  HUNTER_MOBILITY: 5.5,
+  HUNTER_SMOKE_VEIL: 12.0,
+  HUNTER_DAGGER_ULT: 22.0,
+  SKYWARD_VOLLEY: 22.0,
+
+  // Knight / Warrior (3 Charges Q)
+  WARRIOR_CRESCENT_RECHARGE: 5.0,
+  WARRIOR_CRESCENT_INTERNAL: 0.35,
+  WARRIOR_DASH: 5.0,
+  WARRIOR_AEGIS: 12.0,
+  WARRIOR_ULTIMATE: 20.0,
+} as const;
 
 /**
  * Procedural Arcane Magic Circle Texture Generator

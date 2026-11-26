@@ -1,7 +1,13 @@
 import * as THREE from 'three';
 import { EnemyData, PlayerStats } from '../types/game';
 import { soundManager } from './audio';
-import { MonsterCombatAI, SPAWN_NAGA, NAGA_CALDERA_RADIUS } from './monsterAI';
+import {
+  MonsterCombatAI,
+  SPAWN_NAGA,
+  NAGA_CALDERA_RADIUS,
+  resolveEnemyTarget,
+  ShadowDecoyTargetInfo,
+} from './monsterAI';
 import {
   IGNIS_DRAGON_BOSS_CONFIG,
   ANCIENT_TITAN_BOSS_CONFIG,
@@ -49,6 +55,8 @@ export interface BossManagerCallbacks {
   onSpawnFireballProjectile?: (fromPos: THREE.Vector3, toPos: THREE.Vector3, damage: number) => void;
   onPlayerDeath?: () => void;
   onDamageAbsorb?: (rawDmg: number) => number;
+  onPlayerDamaged?: (actualDamage: number) => void;
+  onDecoyHit?: () => void;
   onAirborneChange?: (isAirborne: boolean) => void;
   onCameraFocusBoss?: (bossPos: THREE.Vector3, weight: number) => void;
 }
@@ -91,6 +99,11 @@ export class BossManager {
   // Developer Testing Flags (synced from devTestingManager, default false)
   private devGodMode: boolean = false;
   private devCcImmune: boolean = false;
+
+  // Player Stealth & Shadow Decoy AI Redirection State
+  private isPlayerStealthed: boolean = false;
+  private activeDecoy: ShadowDecoyTargetInfo | null = null;
+  private flyingPursuitLockedTarget: THREE.Vector3 | null = null;
 
   // Zero-allocation Scratch Math Objects
   private readonly _scratchV1 = new THREE.Vector3();
@@ -180,8 +193,16 @@ export class BossManager {
 
   public notifyPlayerRespawn() {
     this.clearDebuffs();
+    this.isPlayerStealthed = false;
+    this.activeDecoy = null;
+    this.flyingPursuitLockedTarget = null;
     // Mulai pemulihan cuaca kaldera secara perlahan saat pemain respawn
     this.ignisLastKnownAlive = false;
+  }
+
+  public setStealthAndDecoyState(isStealthed: boolean, decoy: ShadowDecoyTargetInfo | null) {
+    this.isPlayerStealthed = isStealthed;
+    this.activeDecoy = decoy && decoy.active ? decoy : null;
   }
 
   public getBossDebugState(bossId: string): {
@@ -444,9 +465,15 @@ export class BossManager {
           // Efek debu pasir abrasif berkala saat tersedot
           if (!this.devGodMode && Math.random() < 0.08) {
             this.callbacks.onUpdateStats((stats) => {
-              const sandDmg = 4;
+              let sandDmg = 4;
+              if (this.callbacks.onDamageAbsorb) {
+                sandDmg = this.callbacks.onDamageAbsorb(sandDmg);
+              }
               const nextHp = Math.max(0, stats.hp - sandDmg);
-              this.callbacks.onAddFloatingText(`-${sandDmg} HP (Pusaran Pasir)`, '#f59e0b', 'damage');
+              if (sandDmg > 0) {
+                this.callbacks.onAddFloatingText(`-${sandDmg} HP (Pusaran Pasir)`, '#f59e0b', 'damage');
+                this.callbacks.onPlayerDamaged?.(sandDmg);
+              }
               if (nextHp <= 0) {
                 this.callbacks.onPlayerDeath?.();
               }
@@ -622,12 +649,18 @@ export class BossManager {
       return true;
     }
 
-    // Evaluate Boss Skills
+    // Evaluate Boss Skills using shared Decoy priority & Stealth aggro-drop resolver
     if (enemy.isReturning) {
       return false;
     }
     const ePos = enemy.mesh.position;
-    const distToPlayer = Math.hypot(playerPos.x - ePos.x, playerPos.z - ePos.z);
+    const resolved = resolveEnemyTarget(ePos, playerPos, this.isPlayerStealthed, this.activeDecoy);
+    if (!resolved.targetPos) {
+      // Pemain berada dalam Stealth Bom Asap dan tidak ada Decoy: Boss kehilangan kunci target
+      return true;
+    }
+    const aimPos = resolved.targetPos;
+    const distToPlayer = resolved.dist;
     if (distToPlayer > enemy.data.detectRange) {
       return false; // Out of detection range, do not cast boss skills
     }
@@ -641,7 +674,7 @@ export class BossManager {
     const cdMap = this.skillCooldowns.get(bossId)!;
 
     if (isIgnis) {
-      const distToCenter = Math.hypot(playerPos.x - SPAWN_NAGA[0], playerPos.z - SPAWN_NAGA[1]);
+      const distToCenter = Math.hypot(aimPos.x - SPAWN_NAGA[0], aimPos.z - SPAWN_NAGA[1]);
       const meteorDiveCd = cdMap.get('meteor_dive') ?? 0;
       const flyingCooldown = cdMap.get('flying_dash') ?? cdMap.get('flying_pursuit') ?? 0;
 
@@ -662,17 +695,18 @@ export class BossManager {
         return this.updateDragonMeteorDive(enemy, playerPos, delta, cdMap, isPlayerJumping, playerVel);
       }
 
-      // 2. GAP CLOSER: Flying Dive / Dash Pursuit (Jarak > 12 unit, jika pemain di kaldera & Cooldown <= 0)
+      // 2. GAP CLOSER: Flying Dive / Dash Pursuit (Jarak > 12 unit, jika target di kaldera & Cooldown <= 0)
       if (distToCenter <= NAGA_CALDERA_RADIUS && distToPlayer > 12.0 && flyingCooldown <= 0) {
         this.bossStates.set(bossId, 'flying_pursuit');
         this.stateTimers.set(bossId, 0);
+        this.flyingPursuitLockedTarget = aimPos.clone();
         soundManager.playDragonRoar();
         this.callbacks.onAddFloatingText('🦅 IGNIS TERBANG MENUKIK MENGEJAR!', '#f97316', 'crit');
         return this.updateDragonFlyingPursuit(enemy, playerPos, delta, cdMap);
       }
 
       const fwd = this._scratchV1.set(0, 0, 1).applyAxisAngle(this._upAxis, enemy.mesh.rotation.y);
-      const toPlayer = this._scratchV2.set(playerPos.x - ePos.x, 0, playerPos.z - ePos.z).normalize();
+      const toPlayer = this._scratchV2.set(aimPos.x - ePos.x, 0, aimPos.z - ePos.z).normalize();
       const dot = fwd.dot(toPlayer);
 
       const selected = MonsterCombatAI.selectDragonSkill(distToPlayer, dot, cdMap, distToCenter);
@@ -693,12 +727,13 @@ export class BossManager {
       } else if (selected === 'flying_dash') {
         this.bossStates.set(bossId, 'flying_pursuit');
         this.stateTimers.set(bossId, 0);
+        this.flyingPursuitLockedTarget = aimPos.clone();
         soundManager.playDragonRoar();
         this.callbacks.onAddFloatingText('🦅 IGNIS TERBANG MENUKIK MENGEJAR!', '#f97316', 'crit');
         return this.updateDragonFlyingPursuit(enemy, playerPos, delta, cdMap);
       } else if (selected === 'fireball_barrage') {
         const skill = config.skills.find((s) => s.id === 'fireball_barrage')!;
-        this.startTelegraphCircle(bossId, enemy, playerPos.clone(), 3.0, skill);
+        this.startTelegraphCircle(bossId, enemy, aimPos.clone(), 3.0, skill);
         soundManager.playDragonFireBreath();
         this.callbacks.onAddFloatingText('🔥 BOLA API MAGMA BERUNTUN!', '#ef4444', 'info');
         cdMap.set('fireball_barrage', skill.cooldown);
@@ -728,14 +763,14 @@ export class BossManager {
         return true;
       } else if (selected === 'boulder_hurl') {
         const skill = config.skills.find((s) => s.id === 'boulder_hurl') || config.skills.find((s) => s.id === 'rock_throw')!;
-        this.startTelegraphCircle(bossId, enemy, playerPos.clone(), 2.0, skill);
+        this.startTelegraphCircle(bossId, enemy, aimPos.clone(), 2.0, skill);
         soundManager.playTitanGroundSlam();
         this.callbacks.onAddFloatingText('🪨 TITAN MELEMPAR BONGKAHAN BATU RAKSASA!', '#f59e0b', 'info');
         cdMap.set('boulder_hurl', skill.cooldown);
         return true;
       } else if (selected === 'earth_fissure') {
         const skill = config.skills.find((s) => s.id === 'earth_fissure')!;
-        const toPlayer = new THREE.Vector3(playerPos.x - ePos.x, 0, playerPos.z - ePos.z).normalize();
+        const toPlayer = new THREE.Vector3(aimPos.x - ePos.x, 0, aimPos.z - ePos.z).normalize();
         this.startTelegraphLine(bossId, enemy, ePos, toPlayer, Math.min(36, distToPlayer + 6), 4.0, skill);
         soundManager.playTitanGroundSlam();
         this.callbacks.onAddFloatingText('⚡ GUNCANGAN RETAKAN BUMI MERAMBAT!', '#38bdf8', 'info');
@@ -743,7 +778,7 @@ export class BossManager {
         return true;
       } else if (selected === 'heavy_punch') {
         const skill = config.skills.find((s) => s.id === 'heavy_punch')!;
-        const toPlayer = new THREE.Vector3(playerPos.x - ePos.x, 0, playerPos.z - ePos.z).normalize();
+        const toPlayer = new THREE.Vector3(aimPos.x - ePos.x, 0, aimPos.z - ePos.z).normalize();
         const punchPos = ePos.clone().addScaledVector(toPlayer, 2.5);
         this.startTelegraphCircle(bossId, enemy, punchPos, 3.8, skill);
         cdMap.set('heavy_punch', skill.cooldown);
@@ -763,7 +798,7 @@ export class BossManager {
         }
       } else if (selected === 'burrow_burst') {
         const skill = config.skills.find((s) => s.id === 'burrow_burst')!;
-        const targetPos = playerPos.clone();
+        const targetPos = aimPos.clone();
         // Leash territory safeguard: Cacing tidak boleh burrow keluar dari arena kawah pasir
         const homePos = enemy.spawnPos || new THREE.Vector3(-30, 0, -220);
         const distFromHome = Math.hypot(targetPos.x - homePos.x, targetPos.z - homePos.z);
@@ -787,7 +822,7 @@ export class BossManager {
           for (let sp = 0; sp < 6; sp++) {
             const angle = Math.random() * Math.PI * 2;
             const dist = 1.5 + Math.random() * 5.0;
-            const spikeCenter = playerPos.clone().add(new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist));
+            const spikeCenter = aimPos.clone().add(new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist));
             this.startTelegraphCircle(bossId, enemy, spikeCenter, 2.0, skill);
           }
           soundManager.playWormBurrow();
@@ -859,6 +894,16 @@ export class BossManager {
 
     const groundY = this.getTerrainHeight(nagaPos.x, nagaPos.z);
     const targetFlightY = groundY + 5.5;
+    const resolvedFly = resolveEnemyTarget(nagaPos, playerPos, this.isPlayerStealthed, this.activeDecoy);
+    if (resolvedFly.targetPos) {
+      if (!this.flyingPursuitLockedTarget) {
+        this.flyingPursuitLockedTarget = resolvedFly.targetPos.clone();
+      } else {
+        this.flyingPursuitLockedTarget.copy(resolvedFly.targetPos);
+      }
+    }
+    const navTarget = this.flyingPursuitLockedTarget || playerPos;
+    const distToNavTarget = Math.hypot(navTarget.x - nagaPos.x, navTarget.z - nagaPos.z);
     const distToPlayer = Math.hypot(playerPos.x - nagaPos.x, playerPos.z - nagaPos.z);
 
     // ==========================================
@@ -887,8 +932,8 @@ export class BossManager {
         enemy.parts.rightLeg.rotation.x = 0.4;
       }
 
-      // Hadap ke arah pemain (zero alloc)
-      const toP = this._scratchV1.set(playerPos.x - nagaPos.x, 0, playerPos.z - nagaPos.z);
+      // Hadap ke arah target (zero alloc)
+      const toP = this._scratchV1.set(navTarget.x - nagaPos.x, 0, navTarget.z - nagaPos.z);
       if (toP.lengthSq() > 0.001) {
         naga.rotation.y = Math.atan2(toP.x, toP.z);
       }
@@ -896,14 +941,15 @@ export class BossManager {
     }
 
     // ==========================================
-    // 3. FASE LANDING SLAM (Mendarat di Dekat Pemain)
+    // 3. FASE LANDING SLAM (Mendarat di Dekat Target)
     // ==========================================
-    if (distToPlayer <= 4.8 || stateTimer >= 4.2) {
+    if (distToNavTarget <= 4.8 || stateTimer >= 4.2) {
       // Naga mendarat ke tanah:
       nagaPos.y = groundY;
       naga.rotation.order = 'XYZ';
       naga.rotation.x = 0;
       naga.rotation.z = 0;
+      this.flyingPursuitLockedTarget = null;
 
       // Hasilkan efek benturan tanah (ground slam)
       this.callbacks.onCameraShake(0.65);
@@ -911,6 +957,14 @@ export class BossManager {
       this.callbacks.onSpawnShockwave?.(this._scratchV1.copy(nagaPos), 0xff3d00, 7.5, 0.5);
       this.callbacks.onSpawnSparks?.(this._scratchV2.set(nagaPos.x, nagaPos.y + 0.6, nagaPos.z), 0xdc2626, 18, 5.5);
       this.callbacks.onAddFloatingText('💥 IGNIS MENDARAT MENUKIK (GROUND SLAM)!', '#ef4444', 'crit');
+
+      // Hancurkan Shadow Decoy jika masuk radius pendaratan
+      if (this.activeDecoy?.active) {
+        const distDecoy = Math.hypot(this.activeDecoy.position.x - nagaPos.x, this.activeDecoy.position.z - nagaPos.z);
+        if (distDecoy <= 5.5) {
+          this.callbacks.onDecoyHit?.();
+        }
+      }
 
       // Serangan benturan landing slam jika pemain berada di area benturan (hormati God Mode):
       if (distToPlayer <= 5.5 && !this.devGodMode) {
@@ -920,6 +974,7 @@ export class BossManager {
           const nextHp = Math.max(0, stats.hp - actualDmg);
           if (actualDmg > 0) {
             this.callbacks.onAddFloatingText(`-${actualDmg} HP (Ignis Slam!)`, '#ef4444', 'damage');
+            this.callbacks.onPlayerDamaged?.(actualDmg);
           }
           if (nextHp <= 0) this.callbacks.onPlayerDeath?.();
           return { ...stats, hp: nextHp };
@@ -944,7 +999,14 @@ export class BossManager {
         enemy.parts.rightLeg.rotation.set(0, 0, 0);
       }
 
-      // Segera transisikan naga ke serangan jarak dekat: Dragon Claw Strike atau Flame Breath
+      // Hanya rantai serangan lanjutan jika target masih terdeteksi
+      const afterLand = resolveEnemyTarget(nagaPos, playerPos, this.isPlayerStealthed, this.activeDecoy);
+      if (!afterLand.targetPos) {
+        this.bossStates.set(bossId, 'recovery');
+        this.stateTimers.set(bossId, 0);
+        return true;
+      }
+
       const clawCd = cdMap.get('dragon_claw') ?? 0;
       const breathCd = cdMap.get('flame_breath') ?? cdMap.get('fire_breath') ?? 0;
       const config = IGNIS_DRAGON_BOSS_CONFIG;
@@ -974,9 +1036,9 @@ export class BossManager {
     // ==========================================
     // 2. FASE GLIDE / DIVE RUSH (Kecepatan terukur 13.0 m/s)
     // ==========================================
-    const playerGroundY = this.getTerrainHeight(playerPos.x, playerPos.z);
-    const targetY = THREE.MathUtils.lerp(targetFlightY, playerGroundY + 1.4, 0.45);
-    const targetPos = this._scratchV1.set(playerPos.x, targetY, playerPos.z);
+    const navGroundY = this.getTerrainHeight(navTarget.x, navTarget.z);
+    const targetY = THREE.MathUtils.lerp(targetFlightY, navGroundY + 1.4, 0.45);
+    const targetPos = this._scratchV1.set(navTarget.x, targetY, navTarget.z);
 
     // Pergerakan linear terukur 13.0 m/s (menggantikan lerp + addScaledVector ganda sebelumnya)
     const toTarget = this._scratchV2.subVectors(targetPos, nagaPos);
@@ -1174,12 +1236,24 @@ export class BossManager {
       if (!this.orbitFireball1Fired && orbitTime >= 2.1) {
         this.orbitFireball1Fired = true;
         this._scratchV2.set(nagaPos.x, nagaPos.y - 0.5, nagaPos.z);
-        this.callbacks.onSpawnFireballProjectile?.(this._scratchV2, this._scratchV3.copy(playerPos), 28);
+        const orbitAim = resolveEnemyTarget(nagaPos, playerPos, this.isPlayerStealthed, this.activeDecoy);
+        if (orbitAim.targetPos) {
+          this._scratchV3.copy(orbitAim.targetPos);
+        } else {
+          this._scratchV3.set(centerX + (Math.random() - 0.5) * 10, arenaCenterGroundY, centerZ + (Math.random() - 0.5) * 10);
+        }
+        this.callbacks.onSpawnFireballProjectile?.(this._scratchV2, this._scratchV3, 28);
         soundManager.playDragonFireBreath();
       } else if (!this.orbitFireball2Fired && orbitTime >= 5.3) {
         this.orbitFireball2Fired = true;
         this._scratchV2.set(nagaPos.x, nagaPos.y - 0.5, nagaPos.z);
-        this.callbacks.onSpawnFireballProjectile?.(this._scratchV2, this._scratchV3.copy(playerPos), 28);
+        const orbitAim = resolveEnemyTarget(nagaPos, playerPos, this.isPlayerStealthed, this.activeDecoy);
+        if (orbitAim.targetPos) {
+          this._scratchV3.copy(orbitAim.targetPos);
+        } else {
+          this._scratchV3.set(centerX + (Math.random() - 0.5) * 10, arenaCenterGroundY, centerZ + (Math.random() - 0.5) * 10);
+        }
+        this.callbacks.onSpawnFireballProjectile?.(this._scratchV2, this._scratchV3, 28);
         soundManager.playDragonFireBreath();
       }
 
@@ -1191,9 +1265,9 @@ export class BossManager {
     // ==========================================
     if (stateTimer < 9.3) {
       if (!this.meteorDiveTarget) {
-        // Kunci koordinat jatuh di posisi pemain (dijaga di dalam radius arena)
-        let tx = playerPos.x;
-        let tz = playerPos.z;
+        const lockAim = resolveEnemyTarget(nagaPos, playerPos, this.isPlayerStealthed, this.activeDecoy);
+        let tx = lockAim.targetPos ? lockAim.targetPos.x : centerX + (Math.random() - 0.5) * 10;
+        let tz = lockAim.targetPos ? lockAim.targetPos.z : centerZ + (Math.random() - 0.5) * 10;
         const tDist = Math.hypot(tx - centerX, tz - centerZ);
         if (tDist > NAGA_CALDERA_RADIUS - 4.0) {
           const r = (NAGA_CALDERA_RADIUS - 4.0) / tDist;
@@ -1315,6 +1389,12 @@ export class BossManager {
     }
 
     // 1. Direct Impact Damage (Radius 6.5 unit): 85 damage + High Knockup
+    if (this.activeDecoy?.active) {
+      const distDecoyImpact = Math.hypot(this.activeDecoy.position.x - impactPos.x, this.activeDecoy.position.z - impactPos.z);
+      if (distDecoyImpact <= 6.5) {
+        this.callbacks.onDecoyHit?.();
+      }
+    }
     const distToImpact = Math.hypot(playerPos.x - impactPos.x, playerPos.z - impactPos.z);
     if (distToImpact <= 6.5) {
       if (!this.devGodMode) {
@@ -1325,6 +1405,7 @@ export class BossManager {
           const nextHp = Math.max(0, stats.hp - actualDmg);
           if (actualDmg > 0) {
             this.callbacks.onAddFloatingText(`-${actualDmg} HP (CRASH!)`, '#ef4444', 'crit');
+            this.callbacks.onPlayerDamaged?.(actualDmg);
           }
           if (nextHp <= 0) this.callbacks.onPlayerDeath?.();
           return { ...stats, hp: nextHp };
@@ -1483,6 +1564,14 @@ export class BossManager {
       const progress = Math.min(1.0, (sw.currentRadius - 2.0) / Math.max(1.0, sw.maxRadius - 2.0));
       sw.mat.opacity = Math.max(0, (1.0 - progress) * 0.85);
 
+      // Check Decoy hit by wavefront
+      if (this.activeDecoy?.active) {
+        const distDecoy = Math.hypot(this.activeDecoy.position.x - sw.center.x, this.activeDecoy.position.z - sw.center.z);
+        if (Math.abs(distDecoy - sw.currentRadius) <= 1.5) {
+          this.callbacks.onDecoyHit?.();
+        }
+      }
+
       // Collision check with player
       if (!sw.hasHitPlayer) {
         const distToCenter = Math.hypot(playerPos.x - sw.center.x, playerPos.z - sw.center.z);
@@ -1502,6 +1591,7 @@ export class BossManager {
                 const nextHp = Math.max(0, stats.hp - actualDmg);
                 if (actualDmg > 0) {
                   this.callbacks.onAddFloatingText(`-${actualDmg} HP (Gelombang Kejut)`, '#ff3d00', 'damage');
+                  this.callbacks.onPlayerDamaged?.(actualDmg);
                 }
                 if (nextHp <= 0) this.callbacks.onPlayerDeath?.();
                 return { ...stats, hp: nextHp };
@@ -1705,40 +1795,46 @@ export class BossManager {
   // Attack Execution & Player Hit Evaluation
   // ==========================================
 
+  private isPointInTelegraphZone(tel: ActiveTelegraph, point: THREE.Vector3): boolean {
+    const pX = point.x;
+    const pZ = point.z;
+
+    if (tel.type === 'circle') {
+      return Math.hypot(pX - tel.center.x, pZ - tel.center.z) <= (tel.radius || 5.0);
+    }
+    if (tel.type === 'cone' && tel.direction) {
+      const toPt = this._scratchV1.set(pX - tel.center.x, 0, pZ - tel.center.z);
+      const dist = toPt.length();
+      if (dist <= (tel.radius || 12)) {
+        if (dist < 0.001) return true;
+        toPt.divideScalar(dist);
+        const angleBetween = Math.acos(Math.max(-1, Math.min(1, toPt.dot(tel.direction))));
+        return angleBetween <= (tel.coneAngle || Math.PI / 3) / 2;
+      }
+      return false;
+    }
+    if (tel.type === 'line' && tel.direction) {
+      const toPt = this._scratchV1.set(pX - tel.center.x, 0, pZ - tel.center.z);
+      const projDist = toPt.dot(tel.direction);
+      if (projDist >= 0 && projDist <= (tel.length || 18)) {
+        const perp = this._scratchV2.copy(toPt).addScaledVector(tel.direction, -projDist);
+        return perp.length() <= (tel.width || 4) / 2;
+      }
+    }
+    return false;
+  }
+
   private executeTelegraphAttack(
     tel: ActiveTelegraph,
     playerPos: THREE.Vector3,
     playerVel: THREE.Vector3,
     isPlayerDashing: boolean
   ) {
-    let isInsideDangerZone = false;
-    const pX = playerPos.x;
-    const pZ = playerPos.z;
+    const isInsideDangerZone = this.isPointInTelegraphZone(tel, playerPos);
 
-    if (tel.type === 'circle') {
-      const dist = Math.hypot(pX - tel.center.x, pZ - tel.center.z);
-      if (dist <= (tel.radius || 5.0)) {
-        isInsideDangerZone = true;
-      }
-    } else if (tel.type === 'cone' && tel.direction) {
-      const toPlayer = new THREE.Vector3(pX - tel.center.x, 0, pZ - tel.center.z);
-      const dist = toPlayer.length();
-      if (dist <= (tel.radius || 12)) {
-        toPlayer.normalize();
-        const angleBetween = Math.acos(Math.max(-1, Math.min(1, toPlayer.dot(tel.direction))));
-        if (angleBetween <= (tel.coneAngle || Math.PI / 3) / 2) {
-          isInsideDangerZone = true;
-        }
-      }
-    } else if (tel.type === 'line' && tel.direction) {
-      const toP = new THREE.Vector3(pX - tel.center.x, 0, pZ - tel.center.z);
-      const projDist = toP.dot(tel.direction);
-      if (projDist >= 0 && projDist <= (tel.length || 18)) {
-        const perp = new THREE.Vector3().subVectors(toP, tel.direction.clone().multiplyScalar(projDist));
-        if (perp.length() <= (tel.width || 4) / 2) {
-          isInsideDangerZone = true;
-        }
-      }
+    // Check if an active Shadow Decoy is inside the danger zone and absorb the hit
+    if (this.activeDecoy?.active && this.isPointInTelegraphZone(tel, this.activeDecoy.position)) {
+      this.callbacks.onDecoyHit?.();
     }
 
     // Determine 3D impact coordinate on ground
@@ -1763,10 +1859,16 @@ export class BossManager {
     } else if (tel.skill.id === 'boulder_hurl' || tel.skill.id === 'rock_throw') {
       soundManager.playTitanGroundSlam();
       this.callbacks.onCameraShake(0.8);
-      // Spawn flying 3D stone boulder projectile towards player (impact radius 2.0 / diameter 4.0)
+      // Hormati Stealth: jika pemain bersembunyi setelah telegraph dikunci, tembak tetap menuju koordinat kunci lama (tel.center) atau Decoy
+      const boulderTarget =
+        this.activeDecoy?.active && (this.isPlayerStealthed || this.activeDecoy.position.distanceTo(tel.center) < playerPos.distanceTo(tel.center))
+          ? this.activeDecoy.position.clone()
+          : this.isPlayerStealthed
+            ? tel.center.clone()
+            : playerPos.clone();
       this.callbacks.onSpawnBoulderProjectile?.(
         tel.center.clone().add(new THREE.Vector3(0, 3.5, 0)),
-        playerPos.clone(),
+        boulderTarget,
         tel.skill.damage
       );
       this.bossStates.set(tel.bossId, 'recovery');
@@ -1828,16 +1930,22 @@ export class BossManager {
     } else if (tel.skill.id === 'fireball_barrage') {
       soundManager.playDragonFireBreath();
       this.callbacks.onCameraShake(0.7);
-      // Spawn 2 magma fireballs towards player
+      const fbTarget =
+        this.activeDecoy?.active && (this.isPlayerStealthed || this.activeDecoy.position.distanceTo(tel.center) < playerPos.distanceTo(tel.center))
+          ? this.activeDecoy.position.clone()
+          : this.isPlayerStealthed
+            ? tel.center.clone()
+            : playerPos.clone();
+      // Spawn 2 magma fireballs towards locked coordinate / target
       this.callbacks.onSpawnFireballProjectile?.(
         tel.center.clone().add(new THREE.Vector3(-1.5, 3.5, 0)),
-        playerPos.clone(),
+        fbTarget.clone(),
         tel.skill.damage
       );
       setTimeout(() => {
         this.callbacks.onSpawnFireballProjectile?.(
           tel.center.clone().add(new THREE.Vector3(1.5, 3.5, 0)),
-          playerPos.clone(),
+          fbTarget.clone(),
           tel.skill.damage
         );
       }, 150);
@@ -1920,6 +2028,7 @@ export class BossManager {
         const nextHp = Math.max(0, stats.hp - finalDmg);
         if (finalDmg > 0) {
           this.callbacks.onAddFloatingText(`-${finalDmg} HP (${skill.nameId})`, '#ff1744', 'damage');
+          this.callbacks.onPlayerDamaged?.(finalDmg);
         }
         if (nextHp <= 0) {
           this.callbacks.onPlayerDeath?.();
@@ -2046,6 +2155,7 @@ export class BossManager {
             const nextHp = Math.max(0, stats.hp - burnDmg);
             if (burnDmg > 0) {
               this.callbacks.onAddFloatingText(`-${burnDmg} HP (Bakar)`, '#ff3d00', 'damage');
+              this.callbacks.onPlayerDamaged?.(burnDmg);
             }
             if (nextHp <= 0) {
               this.callbacks.onPlayerDeath?.();
