@@ -6,6 +6,8 @@ import {
   setWorldCacheEnabled,
   clearWorldCache,
   getWorldCacheInfo,
+  hasActiveWorldSnapshot,
+  captureAndSaveActiveWorldCache,
   WorldCacheInfo,
 } from '../game/storage/worldCacheManager';
 
@@ -21,6 +23,7 @@ export const BrowserCacheSettingsSection: React.FC<BrowserCacheSettingsSectionPr
     exists: false,
     sizeMB: '0',
     savedAt: null,
+    moduleCount: 0,
   });
   const [isBusy, setIsBusy] = useState<boolean>(false);
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
@@ -56,12 +59,37 @@ export const BrowserCacheSettingsSection: React.FC<BrowserCacheSettingsSectionPr
     const next = !cacheEnabled;
     setCacheEnabled(next);
     await setWorldCacheEnabled(next);
-    await refreshStatus();
-    setIsBusy(false);
 
     if (!next) {
+      await refreshStatus();
+      setIsBusy(false);
       setStatusFeedback('Cache lokal dinonaktifkan & penyimpanan dibersihkan.');
       setTimeout(() => setStatusFeedback(null), 2600);
+      return;
+    }
+
+    if (hasActiveWorldSnapshot()) {
+      setStatusFeedback('Menyimpan cache...');
+      const res = await captureAndSaveActiveWorldCache();
+      await refreshStatus();
+      setIsBusy(false);
+      if (res.saved) {
+        setStatusFeedback(
+          `Tersimpan (~${res.sizeMB} MB) — Loading berikutnya akan jauh lebih cepat!`
+        );
+      } else {
+        setStatusFeedback(
+          'Cache diaktifkan — penyimpanan browser dibatasi (mode privat/kuota).'
+        );
+      }
+      setTimeout(() => setStatusFeedback(null), 4200);
+    } else {
+      await refreshStatus();
+      setIsBusy(false);
+      setStatusFeedback(
+        'Cache diaktifkan — data dunia akan otomatis disimpan saat memasuki permainan.'
+      );
+      setTimeout(() => setStatusFeedback(null), 3200);
     }
   };
 

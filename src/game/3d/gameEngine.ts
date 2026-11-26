@@ -123,12 +123,15 @@ import { getDeviceProfile } from '../utils/deviceProfiler';
 import { SmoothLoadScheduler } from '../utils/asyncLoader';
 import {
   isWorldCacheEnabled,
-  getWorldCacheKey,
-  loadWorldCache,
-  saveWorldCache,
+  loadModularWorldCache,
+  saveAllModularCaches,
+  saveModularCache,
+  registerActiveWorldSnapshotProvider,
+  ModularWorldCacheLoadResult,
   WorldCachePayload,
+  ActiveWorldSnapshot,
 } from '../storage/worldCacheManager';
-import { getMeshGroundHeights } from './worldEnvironment';
+import { TERRAIN_GRID, getMeshGroundHeights } from './worldEnvironment';
 import { SpatialLookupGrid } from './spatialGrid';
 import {
   exportWorldMapRasterToBlob,
@@ -660,6 +663,64 @@ export class GameEngine {
   private hunterArrowPool: PooledHunterArrow[] = [];
   private hunterArrowPoolGeometries: THREE.BufferGeometry[] = [];
   private hunterArrowPoolMaterials: THREE.Material[] = [];
+
+  // Dedicated Bulletproof Badai Panah Pool (45 direct scene-added 3D arrows + 5 sky arrows + AoE rings + impact bursts)
+  private arrowRainPool: Array<{
+    root: THREE.Group;
+    trail: THREE.Mesh;
+    trailMat: THREE.MeshBasicMaterial;
+    shaftMat: THREE.MeshStandardMaterial;
+    active: boolean;
+    phase: 'falling' | 'stuck';
+    vx: number;
+    vy: number;
+    vz: number;
+    groundY: number;
+    stickElapsed: number;
+  }> = [];
+  private arrowRainPoolCursor = 0;
+  private arrowRainSkyPool: Array<{
+    root: THREE.Group;
+    trailMat: THREE.MeshBasicMaterial;
+    active: boolean;
+    vx: number;
+    vy: number;
+    vz: number;
+    elapsed: number;
+    duration: number;
+  }> = [];
+  private arrowRainAoERingPool: Array<{
+    group: THREE.Group;
+    outerRing: THREE.Mesh;
+    innerDisc: THREE.Mesh;
+    outerMat: THREE.MeshBasicMaterial;
+    innerMat: THREE.MeshBasicMaterial;
+    active: boolean;
+  }> = [];
+  private arrowRainImpactPool: Array<{
+    group: THREE.Group;
+    ringMat: THREE.MeshBasicMaterial;
+    sparkMat: THREE.MeshBasicMaterial;
+    active: boolean;
+    elapsed: number;
+    duration: number;
+  }> = [];
+  private arrowRainImpactCursor = 0;
+  private activeArrowRains: Array<{
+    targetPos: THREE.Vector3;
+    groundY: number;
+    radius: number;
+    elapsed: number;
+    rainDuration: number;
+    spawnAccum: number;
+    tickAccum: number;
+    aoeSlotIdx: number;
+    spawnWaveIndex: number;
+  }> = [];
+  private arrowRainSharedGeometries: THREE.BufferGeometry[] = [];
+  private arrowRainSharedMaterials: THREE.Material[] = [];
+  private readonly arrowRainUpAxisScratch = new THREE.Vector3(0, 1, 0);
+  private readonly arrowRainDirScratch = new THREE.Vector3();
 
   private activeProjectiles: {
     object: THREE.Object3D;
@@ -1348,21 +1409,30 @@ export class GameEngine {
     }
 
     const useCache = isWorldCacheEnabled();
-    const cacheKey = getWorldCacheKey();
-    const scheduler = new SmoothLoadScheduler();
+    const terrainGridSpec = {
+      minX: TERRAIN_GRID.minX,
+      maxX: TERRAIN_GRID.maxX,
+      minZ: TERRAIN_GRID.minZ,
+      maxZ: TERRAIN_GRID.maxZ,
+      segmentsX: TERRAIN_GRID.segmentsX,
+      segmentsZ: TERRAIN_GRID.segmentsZ,
+    };
+    let modularCache: ModularWorldCacheLoadResult | null = null;
     let cachedWorld: WorldCachePayload | null = null;
 
     if (useCache) {
-      onProgress?.(10, 'Memeriksa Cache Dunia Browser...');
-      await scheduler.yieldIfNeeded(true);
-      cachedWorld = await loadWorldCache(cacheKey);
-      if (cachedWorld) {
-        onProgress?.(14, 'Memuat dunia dari Cache Browser (Mode Cepat)...');
-        await scheduler.yieldIfNeeded(true);
+      onProgress?.(12, 'Memeriksa Modular Smart Cache Browser...');
+      modularCache = await loadModularWorldCache(terrainGridSpec);
+      cachedWorld = modularCache.payload;
+      if (modularCache.hitCount > 0) {
+        onProgress?.(
+          15,
+          `Memuat dunia dari Cache Browser (${modularCache.hitCount}/3 modul cocok)...`
+        );
       }
     }
 
-    if (!cachedWorld) {
+    if (!modularCache?.terrain) {
       // Tahap 1: 15% Membangun Geometri & Heightmap Benua Eldoria
       onProgress?.(15, 'Membangun Geometri & Heightmap Benua Eldoria...');
       await yieldToMainThread();
@@ -1371,10 +1441,16 @@ export class GameEngine {
     // 1. Build 3D World (terrain, ocean, structures, colliders, lights, props) with time-sliced async / cache fast-path
     this.world = await buildWorldAsync(this.scene, onProgress, cachedWorld);
 
-    if (cachedWorld?.worldMapBlob) {
+    if (modularCache?.worldMap?.worldMapBlob) {
       onProgress?.(46, 'Memuat Peta & Minimap dari Cache Browser...');
-      await hydrateWorldMapRasterFromBlob(cachedWorld.worldMapBlob);
-      await scheduler.yieldIfNeeded(true);
+      await hydrateWorldMapRasterFromBlob(modularCache.worldMap.worldMapBlob);
+      await new Promise<void>((resolve) => {
+        if (typeof requestAnimationFrame !== 'undefined') {
+          requestAnimationFrame(() => resolve());
+        } else {
+          setTimeout(resolve, 0);
+        }
+      });
     }
 
     // Connect Day-Night outdoor lighting and dynamic PointLights
@@ -1385,7 +1461,7 @@ export class GameEngine {
 
     // Tahap 3b: 61% Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya
     onProgress?.(61, 'Menginisialisasi Boss Arena, Checkpoints, & Sistem Cahaya (61%)...');
-    await hardYield();
+    await cooperativeYield(6);
 
     // Initialize Boss Manager
     this.bossManager = new BossManager(
@@ -1446,11 +1522,11 @@ export class GameEngine {
     // Tahap 4: 64% - 80% Populasi Vegetasi & Bebatuan (InstancedMesh) Time-Sliced / Cache Fast-Path
     onProgress?.(
       64,
-      cachedWorld
-        ? 'Memuat dunia dari Cache Browser (Mode Cepat)...'
+      modularCache?.props
+        ? 'Memuat Vegetasi dari Cache Browser (Mode Cepat)...'
         : 'Populasi Vegetasi & Tata Ruang Wilayah (64%)...'
     );
-    await hardYield();
+    await cooperativeYield(6);
 
     // 2. Build 4 Environmental Thematic Zones & Natural Instanced Vegetation with TypedArray spatial lookup
     this.worldEnvironment = await buildWorldEnvironmentAsync(
@@ -1459,7 +1535,7 @@ export class GameEngine {
       this.world.colliders,
       onProgress,
       cachedWorld,
-      useCache && !cachedWorld
+      true
     );
 
     // Position player mesh on terrain
@@ -1471,7 +1547,7 @@ export class GameEngine {
 
     // Tahap 5: 82% Pre-Alokasi Pool VFX Karakter & Skill Mage
     onProgress?.(82, 'Pre-Alokasi Pool VFX Karakter & Skill Mage (82%)...');
-    await cooperativeYield(8);
+    await cooperativeYield(6);
 
     // Pre-decode audio buffers
     await soundManager.preloadMageAudioBuffers();
@@ -1485,11 +1561,11 @@ export class GameEngine {
 
     // Apply shadow & distance culling settings
     this.applyGraphicsSettings(this.graphicsSettings);
-    await cooperativeYield(8);
+    await cooperativeYield(6);
 
     // Tahap 6: 86% Mengompilasi Shader GPU Global (renderer.compile / compileAsync)
     onProgress?.(86, 'Mengompilasi Shader GPU Global (86%)...');
-    await yieldIfNeeded(true);
+    await cooperativeYield(6);
 
     if (this.renderer && this.scene && this.camera) {
       try {
@@ -1502,31 +1578,31 @@ export class GameEngine {
         console.warn('[Engine] Shader compilation warning:', e);
       }
     }
-    await yieldIfNeeded(true);
+    await cooperativeYield(6);
 
     // Tahap 7a: 90% In-Frustum GPU Shader Warm-Up Khusus Mage
     onProgress?.(90, 'Kompilasi Shader Pool Sihir Mage (90%)...');
-    await cooperativeYield(8);
+    await cooperativeYield(6);
 
     if (this.scene && this.renderer && this.camera) {
       await preloadMageVfxPoolAsync(this.scene, this.renderer, this.camera, async () => {
-        await cooperativeYield(8);
+        await cooperativeYield(6);
       });
     }
-    await cooperativeYield(8);
+    await cooperativeYield(6);
 
     // Tahap 7b: 94% In-Frustum GPU Shader Warm-Up Khusus Pemburu & Assassin
     onProgress?.(94, 'Kompilasi Shader Pool Panah & Bayangan Pemburu (94%)...');
-    await cooperativeYield(8);
+    await cooperativeYield(6);
 
     if (this.scene && this.renderer && this.camera) {
       await this.prewarmHunterShadersInFrustumAsync();
     }
-    await cooperativeYield(8);
+    await cooperativeYield(6);
 
     // Tahap 7c: 98% Warm-Up Shader Boss Telegraph & Efek Tempur
     onProgress?.(98, 'Kompilasi Shader Boss Telegraph & Efek Tempur (98%)...');
-    await cooperativeYield(8);
+    await cooperativeYield(6);
     if (this.bossManager && this.renderer && this.scene && this.camera) {
       try {
         if (typeof (this.renderer as any).compileAsync === 'function') {
@@ -1536,58 +1612,123 @@ export class GameEngine {
         console.warn('[Engine] Boss shader warm-up compile warning:', e);
       }
     }
-    await cooperativeYield(8);
+    await cooperativeYield(6);
 
     this.isWorldLoaded = true;
 
+    // Daftarkan provider snapshot aktif agar toggle "Simpan Cache Dunia" di Pengaturan langsung menyimpan instan!
+    registerActiveWorldSnapshotProvider(() => this.captureCurrentWorldSnapshot(terrainGridSpec));
+
     // Tahap 8: 100% Membuka tirai loading secara halus
     onProgress?.(100, 'Dunia Eldoria Siap! Menyerahkan Kontrol...');
-    await cooperativeYield(8);
 
-    // HANYA jika cache lokal diaktifkan & terjadi cache miss, simpan biner di latar belakang non-blocking
-    if (useCache && !cachedWorld) {
-      void this.persistWorldCacheInBackground(cacheKey);
+    // HANYA jika cache lokal aktif & ada modul yang miss/stale (Partial Invalidation), simpan modul yang kurang di background
+    if (
+      useCache &&
+      (!modularCache?.terrain || !modularCache?.worldMap || !modularCache?.props)
+    ) {
+      void this.persistWorldCacheInBackground(modularCache, terrainGridSpec);
     }
   }
 
-  private async persistWorldCacheInBackground(cacheKey: string): Promise<void> {
+  private captureCurrentWorldSnapshot(terrainGridSpec: {
+    minX: number;
+    maxX: number;
+    minZ: number;
+    maxZ: number;
+    segmentsX: number;
+    segmentsZ: number;
+  }): ActiveWorldSnapshot | null {
+    const terrainGeo = this.world?.terrainMesh?.geometry;
+    const posAttr = terrainGeo?.attributes?.position?.array as Float32Array | undefined;
+    const colAttr = terrainGeo?.attributes?.color?.array as Float32Array | undefined;
+    const normAttr = terrainGeo?.attributes?.normal?.array as Float32Array | undefined;
+    const heightLookup = getMeshGroundHeights();
+    if (!posAttr || !colAttr || !normAttr || !heightLookup) {
+      return null;
+    }
+
+    const spatial = SpatialLookupGrid.get();
+    return {
+      terrainPositions: posAttr,
+      terrainColors: colAttr,
+      terrainNormals: normAttr,
+      heightLookupGrid: heightLookup,
+      propMatrices: this.worldEnvironment?.propMatrices,
+      spatialHeightGrid: spatial.isBuilt ? spatial.heightGrid : undefined,
+      spatialFlagsGrid: spatial.isBuilt ? spatial.flagsGrid : undefined,
+      terrainGridSpec,
+    };
+  }
+
+  private async persistWorldCacheInBackground(
+    modularCache: ModularWorldCacheLoadResult | null,
+    terrainGridSpec: {
+      minX: number;
+      maxX: number;
+      minZ: number;
+      maxZ: number;
+      segmentsX: number;
+      segmentsZ: number;
+    }
+  ): Promise<void> {
     if (!isWorldCacheEnabled()) return;
 
     try {
-      await hardYield();
-      const terrainGeo = this.world?.terrainMesh?.geometry;
-      const posAttr = terrainGeo?.attributes?.position?.array as Float32Array | undefined;
-      const colAttr = terrainGeo?.attributes?.color?.array as Float32Array | undefined;
-      const normAttr = terrainGeo?.attributes?.normal?.array as Float32Array | undefined;
-      const heightLookup = getMeshGroundHeights();
-      const propMatrices = this.worldEnvironment?.propMatrices;
+      await cooperativeYield(6);
+      const snapshot = this.captureCurrentWorldSnapshot(terrainGridSpec);
+      if (!snapshot) return;
 
-      if (!posAttr || !colAttr || !normAttr || !heightLookup || !propMatrices) {
-        return;
+      const hashes = modularCache?.hashes;
+      let savedAny = false;
+
+      if (!modularCache?.terrain && hashes) {
+        const ok = await saveModularCache(hashes.terrainKey, hashes.terrainHash, {
+          terrainPositions: new Float32Array(snapshot.terrainPositions),
+          terrainColors: new Float32Array(snapshot.terrainColors),
+          terrainNormals: new Float32Array(snapshot.terrainNormals),
+          heightLookupGrid: new Float32Array(snapshot.heightLookupGrid),
+          spatialHeightGrid: snapshot.spatialHeightGrid
+            ? new Float32Array(snapshot.spatialHeightGrid)
+            : undefined,
+          spatialFlagsGrid: snapshot.spatialFlagsGrid
+            ? new Uint8Array(snapshot.spatialFlagsGrid)
+            : undefined,
+        });
+        if (ok) savedAny = true;
       }
 
-      const worldMapBlob = await exportWorldMapRasterToBlob();
-      await hardYield();
-      if (!worldMapBlob || !isWorldCacheEnabled()) {
-        return;
+      if (!modularCache?.worldMap && hashes && isWorldCacheEnabled()) {
+        const worldMapBlob = await exportWorldMapRasterToBlob();
+        if (worldMapBlob && isWorldCacheEnabled()) {
+          const ok = await saveModularCache(hashes.worldMapKey, hashes.worldMapHash, {
+            worldMapBlob,
+          });
+          if (ok) savedAny = true;
+        }
       }
 
-      const spatial = SpatialLookupGrid.get();
-      const saved = await saveWorldCache(cacheKey, {
-        terrainPositions: new Float32Array(posAttr),
-        terrainColors: new Float32Array(colAttr),
-        terrainNormals: new Float32Array(normAttr),
-        heightLookupGrid: new Float32Array(heightLookup),
-        worldMapBlob,
-        propMatrices,
-        spatialHeightGrid: spatial.isBuilt ? new Float32Array(spatial.heightGrid) : undefined,
-        spatialFlagsGrid: spatial.isBuilt ? new Uint8Array(spatial.flagsGrid) : undefined,
-      });
+      if (!modularCache?.props && snapshot.propMatrices && hashes && isWorldCacheEnabled()) {
+        const clonedProps: Record<string, Float32Array> = {};
+        for (const key of Object.keys(snapshot.propMatrices)) {
+          clonedProps[key] = new Float32Array(snapshot.propMatrices[key]);
+        }
+        const ok = await saveModularCache(hashes.propsKey, hashes.propsHash, {
+          propMatrices: clonedProps,
+        });
+        if (ok) savedAny = true;
+      }
 
-      if (saved && typeof window !== 'undefined') {
+      if (!hashes) {
+        snapshot.worldMapBlob = await exportWorldMapRasterToBlob();
+        const ok = await saveAllModularCaches(snapshot);
+        if (ok) savedAny = true;
+      }
+
+      if (savedAny && typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('eldoria_world_cache_saved', {
-            detail: { message: '⚡ Cache dunia disimpan di browser ini untuk loading berikutnya' },
+            detail: { message: '⚡ Modular Smart Cache disimpan di browser ini untuk loading berikutnya' },
           })
         );
       }
@@ -2088,7 +2229,7 @@ export class GameEngine {
     };
 
     onProgress?.(62, 'Menempatkan Populasi Monster & Penjaga Wilayah (62%)...');
-    await hardYield();
+    await cooperativeYield(6);
 
     // 1. Meadow Slimes (Lv. 1) - Relocated to Eastern Plains (> 85 units east from Sanctuary)
     await spawnGroupAsync(MEADOW_SLIME_SPAWNS, (sp) => {
@@ -4896,6 +5037,520 @@ export class GameEngine {
         vz: 0,
       });
     }
+
+    // 8. Dedicated Bulletproof Badai Panah Pool (45 direct scene-added 3D arrows, frustumCulled = false)
+    this.initArrowRainPool();
+  }
+
+  private initArrowRainPool() {
+    if (this.arrowRainPool.length > 0) return;
+
+    // Geometri bersama panah hujan (shaft ~2.2 unit agar super jelas dari kamera 3rd-person + trail cyan-white panjang)
+    const rainShaftGeom = new THREE.CylinderGeometry(0.06, 0.06, 2.2, 6);
+    const rainHeadGeom = new THREE.ConeGeometry(0.16, 0.45, 6);
+    const rainFletchGeom = new THREE.BoxGeometry(0.26, 0.38, 0.03);
+    const rainTrailGeom = new THREE.CylinderGeometry(0.22, 0.02, 3.2, 6, 1, true);
+    const skyTrailGeom = new THREE.CylinderGeometry(0.30, 0.03, 4.2, 6, 1, true);
+
+    const headMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: 0x67e8f9,
+      emissiveIntensity: 3.0,
+      roughness: 0.15,
+      metalness: 0.6,
+    });
+    const fletchMat = new THREE.MeshBasicMaterial({
+      color: 0x67e8f9,
+      transparent: true,
+      opacity: 0.92,
+      side: THREE.DoubleSide,
+    });
+
+    this.arrowRainSharedGeometries.push(
+      rainShaftGeom,
+      rainHeadGeom,
+      rainFletchGeom,
+      rainTrailGeom,
+      skyTrailGeom
+    );
+    this.arrowRainSharedMaterials.push(headMat, fletchMat);
+
+    // A. Pool utama 45 anak panah hujan Badai Panah (langsung ke scene + frustumCulled = false)
+    for (let i = 0; i < 45; i++) {
+      const root = new THREE.Group();
+      root.name = `BadaiPanahRainArrow_${i}`;
+
+      const shaftMat = new THREE.MeshStandardMaterial({
+        color: 0x22d3ee,
+        emissive: 0x00e5ff,
+        emissiveIntensity: 2.2,
+        transparent: true,
+        opacity: 1.0,
+        roughness: 0.2,
+        metalness: 0.5,
+      });
+      const trailMat = new THREE.MeshBasicMaterial({
+        color: 0x67e8f9,
+        transparent: true,
+        opacity: 0.88,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+
+      const shaft = new THREE.Mesh(rainShaftGeom, shaftMat);
+      const head = new THREE.Mesh(rainHeadGeom, headMat);
+      head.position.set(0, 1.28, 0);
+
+      const fletch1 = new THREE.Mesh(rainFletchGeom, fletchMat);
+      fletch1.position.set(0, -0.94, 0);
+      const fletch2 = new THREE.Mesh(rainFletchGeom, fletchMat);
+      fletch2.position.set(0, -0.94, 0);
+      fletch2.rotation.y = Math.PI / 2;
+
+      const trail = new THREE.Mesh(rainTrailGeom, trailMat);
+      trail.position.set(0, -2.55, 0);
+
+      root.add(shaft, head, fletch1, fletch2, trail);
+      root.visible = false;
+      root.frustumCulled = false;
+      root.traverse((obj) => {
+        obj.frustumCulled = false;
+      });
+      this.scene.add(root);
+
+      this.arrowRainPool.push({
+        root,
+        trail,
+        trailMat,
+        shaftMat,
+        active: false,
+        phase: 'falling',
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        groundY: 0,
+        stickElapsed: 0,
+      });
+    }
+
+    // B. Pool 5 anak panah pembuka yang melesat ke langit saat karakter mengangkat busur
+    for (let i = 0; i < 5; i++) {
+      const root = new THREE.Group();
+      root.name = `BadaiPanahSkyArrow_${i}`;
+      const trailMat = new THREE.MeshBasicMaterial({
+        color: 0x67e8f9,
+        transparent: true,
+        opacity: 0.92,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const shaft = new THREE.Mesh(rainShaftGeom, headMat);
+      shaft.scale.set(1.25, 1.15, 1.25);
+      const head = new THREE.Mesh(rainHeadGeom, headMat);
+      head.scale.set(1.3, 1.3, 1.3);
+      head.position.set(0, 1.4, 0);
+      const trail = new THREE.Mesh(skyTrailGeom, trailMat);
+      trail.position.set(0, -3.1, 0);
+
+      root.add(shaft, head, trail);
+      root.visible = false;
+      root.frustumCulled = false;
+      root.traverse((obj) => {
+        obj.frustumCulled = false;
+      });
+      this.scene.add(root);
+
+      this.arrowRainSkyPool.push({
+        root,
+        trailMat,
+        active: false,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        elapsed: 0,
+        duration: 0.35,
+      });
+    }
+
+    // C. Lingkaran target AoE cyan (Radius 5.5) menyala stabil selama durasi hujan 2.0 detik
+    const aoeOuterGeom = new THREE.RingGeometry(5.15, 5.55, 48);
+    aoeOuterGeom.rotateX(-Math.PI / 2);
+    const aoeDiscGeom = new THREE.CircleGeometry(5.35, 48);
+    aoeDiscGeom.rotateX(-Math.PI / 2);
+    this.arrowRainSharedGeometries.push(aoeOuterGeom, aoeDiscGeom);
+
+    for (let i = 0; i < 2; i++) {
+      const group = new THREE.Group();
+      group.name = `BadaiPanahAoERing_${i}`;
+      const outerMat = new THREE.MeshBasicMaterial({
+        color: 0x22d3ee,
+        transparent: true,
+        opacity: 0.92,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const innerMat = new THREE.MeshBasicMaterial({
+        map: getGaleMagicCircleTexture(),
+        color: 0x67e8f9,
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const outerRing = new THREE.Mesh(aoeOuterGeom, outerMat);
+      const innerDisc = new THREE.Mesh(aoeDiscGeom, innerMat);
+      innerDisc.position.y = 0.02;
+      group.add(outerRing, innerDisc);
+      group.visible = false;
+      group.frustumCulled = false;
+      group.traverse((obj) => {
+        obj.frustumCulled = false;
+      });
+      this.scene.add(group);
+
+      this.arrowRainAoERingPool.push({
+        group,
+        outerRing,
+        innerDisc,
+        outerMat,
+        innerMat,
+        active: false,
+      });
+    }
+
+    // D. Pool 20 cincin & percikan tumbukan panah di tanah
+    const impactRingGeom = new THREE.RingGeometry(0.24, 0.72, 20);
+    impactRingGeom.rotateX(-Math.PI / 2);
+    const impactSparkGeom = new THREE.ConeGeometry(0.08, 0.52, 4);
+    this.arrowRainSharedGeometries.push(impactRingGeom, impactSparkGeom);
+
+    for (let i = 0; i < 20; i++) {
+      const group = new THREE.Group();
+      group.name = `BadaiPanahImpact_${i}`;
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0x67e8f9,
+        transparent: true,
+        opacity: 0.9,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const sparkMat = new THREE.MeshBasicMaterial({
+        color: 0xe0f2fe,
+        transparent: true,
+        opacity: 0.95,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const ring = new THREE.Mesh(impactRingGeom, ringMat);
+      group.add(ring);
+
+      for (let s = 0; s < 4; s++) {
+        const ang = (s / 4) * Math.PI * 2 + Math.PI * 0.25;
+        const spark = new THREE.Mesh(impactSparkGeom, sparkMat);
+        spark.position.set(Math.cos(ang) * 0.24, 0.22, Math.sin(ang) * 0.24);
+        spark.rotation.set(Math.sin(ang) * 0.65, 0, -Math.cos(ang) * 0.65);
+        group.add(spark);
+      }
+
+      group.visible = false;
+      group.frustumCulled = false;
+      group.traverse((obj) => {
+        obj.frustumCulled = false;
+      });
+      this.scene.add(group);
+
+      this.arrowRainImpactPool.push({
+        group,
+        ringMat,
+        sparkMat,
+        active: false,
+        elapsed: 0,
+        duration: 0.26,
+      });
+    }
+  }
+
+  private startArrowRainEffect(casterPos: THREE.Vector3, targetPos: THREE.Vector3) {
+    if (this.arrowRainPool.length === 0) {
+      this.initArrowRainPool();
+    }
+
+    const groundY = this.world.getTerrainHeight(targetPos.x, targetPos.z);
+    const UP_AXIS = new THREE.Vector3(0, 1, 0);
+    const dirScratch = new THREE.Vector3();
+
+    this.triggerSkillVfxLight(casterPos, 0x00e5ff, 2.8, 14.0);
+
+    // Fase 1 (0.0s - 0.35s): 5 anak panah pembuka meluncur lurus ke langit dari busur karakter
+    let launchedSky = 0;
+    for (let i = 0; i < this.arrowRainSkyPool.length && launchedSky < 5; i++) {
+      const slot = this.arrowRainSkyPool[i];
+      if (!slot.active || launchedSky === i) {
+        const spreadAng = (launchedSky / 5) * Math.PI * 2;
+        const vx = Math.cos(spreadAng) * (3.5 + launchedSky * 0.8);
+        const vy = 86 + (launchedSky % 2) * 10;
+        const vz = Math.sin(spreadAng) * (3.5 + launchedSky * 0.8);
+
+        slot.active = true;
+        slot.elapsed = -launchedSky * 0.03;
+        slot.duration = 0.35;
+        slot.vx = vx;
+        slot.vy = vy;
+        slot.vz = vz;
+        slot.trailMat.opacity = 0.92;
+        slot.root.position.set(casterPos.x, casterPos.y + 1.85, casterPos.z);
+        dirScratch.set(vx, vy, vz).normalize();
+        slot.root.quaternion.setFromUnitVectors(UP_AXIS, dirScratch);
+        slot.root.visible = true;
+        launchedSky++;
+      }
+    }
+
+    // Aktifkan lingkaran indikator target AoE di permukaan tanah selama 2.0s penuh
+    let aoeSlotIdx = 0;
+    for (let i = 0; i < this.arrowRainAoERingPool.length; i++) {
+      if (!this.arrowRainAoERingPool[i].active) {
+        aoeSlotIdx = i;
+        break;
+      }
+    }
+    const aoe = this.arrowRainAoERingPool[aoeSlotIdx];
+    if (aoe) {
+      aoe.active = true;
+      aoe.group.position.set(targetPos.x, groundY + 0.15, targetPos.z);
+      aoe.group.scale.set(0.25, 0.25, 0.25);
+      aoe.outerMat.opacity = 0.92;
+      aoe.innerMat.opacity = 0.85;
+      aoe.group.visible = true;
+    }
+
+    // Daftarkan pengendali Badai Panah aktif berdurasi hujan penuh 2.0 detik
+    this.activeArrowRains.push({
+      targetPos: targetPos.clone(),
+      groundY,
+      radius: 5.5,
+      elapsed: 0,
+      rainDuration: 2.0,
+      spawnAccum: 0.09,
+      tickAccum: 0,
+      aoeSlotIdx,
+      spawnWaveIndex: 0,
+    });
+  }
+
+  private spawnPooledRainArrow(centerX: number, centerZ: number, radius: number, spawnWaveIdx: number) {
+    if (this.arrowRainPool.length === 0) return;
+    let slot = this.arrowRainPool[this.arrowRainPoolCursor];
+    // Prioritaskan slot tidak aktif bila ada; bila penuh, daur ulang panah tertancap terlama
+    for (let attempt = 0; attempt < this.arrowRainPool.length; attempt++) {
+      const idx = (this.arrowRainPoolCursor + attempt) % this.arrowRainPool.length;
+      const cand = this.arrowRainPool[idx];
+      if (!cand.active || cand.phase === 'stuck') {
+        slot = cand;
+        this.arrowRainPoolCursor = (idx + 1) % this.arrowRainPool.length;
+        break;
+      }
+    }
+    if (slot === this.arrowRainPool[this.arrowRainPoolCursor]) {
+      this.arrowRainPoolCursor = (this.arrowRainPoolCursor + 1) % this.arrowRainPool.length;
+    }
+
+    const r = Math.sqrt(Math.random()) * (radius * 0.94);
+    const theta = Math.random() * Math.PI * 2;
+    const hitX = centerX + Math.cos(theta) * r;
+    const hitZ = centerZ + Math.sin(theta) * r;
+    const hitGroundY = this.world.getTerrainHeight(hitX, hitZ);
+
+    const slantAngle = ((spawnWaveIdx * 1.1) % (Math.PI * 2)) + (Math.random() - 0.5) * 0.35;
+    const startX = hitX - Math.cos(slantAngle) * 5.2;
+    const startZ = hitZ - Math.sin(slantAngle) * 5.2;
+    const startY = hitGroundY + 28.0 + Math.random() * 4.0;
+
+    const dir = this.arrowRainDirScratch
+      .set(hitX - startX, hitGroundY - startY, hitZ - startZ)
+      .normalize();
+    const speed = 62.0;
+
+    slot.active = true;
+    slot.phase = 'falling';
+    slot.vx = dir.x * speed;
+    slot.vy = dir.y * speed;
+    slot.vz = dir.z * speed;
+    slot.groundY = hitGroundY;
+    slot.stickElapsed = 0;
+
+    slot.root.position.set(startX, startY, startZ);
+    slot.root.quaternion.setFromUnitVectors(this.arrowRainUpAxisScratch, dir);
+    slot.root.scale.set(1, 1, 1);
+    slot.shaftMat.opacity = 1.0;
+    slot.trailMat.opacity = 0.88;
+    slot.trail.visible = true;
+    slot.root.visible = true;
+  }
+
+  private spawnArrowRainImpact(x: number, groundY: number, z: number) {
+    if (this.arrowRainImpactPool.length === 0) return;
+    const slot = this.arrowRainImpactPool[this.arrowRainImpactCursor];
+    this.arrowRainImpactCursor = (this.arrowRainImpactCursor + 1) % this.arrowRainImpactPool.length;
+
+    slot.active = true;
+    slot.elapsed = 0;
+    slot.duration = 0.26;
+    slot.ringMat.opacity = 0.9;
+    slot.sparkMat.opacity = 0.95;
+    slot.group.position.set(x, groundY + 0.12, z);
+    slot.group.rotation.y = Math.random() * Math.PI * 2;
+    slot.group.scale.set(0.35, 0.35, 0.35);
+    slot.group.visible = true;
+  }
+
+  public updateArrowRainEffects(delta: number) {
+    if (delta <= 0) return;
+
+    // 1. Update 5 anak panah pembuka menuju langit
+    for (let i = 0; i < this.arrowRainSkyPool.length; i++) {
+      const s = this.arrowRainSkyPool[i];
+      if (!s.active) continue;
+      s.elapsed += delta;
+      if (s.elapsed < 0) continue;
+      if (s.elapsed >= s.duration) {
+        s.active = false;
+        s.root.visible = false;
+        continue;
+      }
+      s.root.position.x += s.vx * delta;
+      s.root.position.y += s.vy * delta;
+      s.root.position.z += s.vz * delta;
+      const t = s.elapsed / s.duration;
+      s.trailMat.opacity = 0.92 * (1.0 - t * 0.65);
+    }
+
+    // 2. Update seluruh instance aktif Badai Panah (durasi hujan penuh 2.0 detik + tick damage tiap 0.4s)
+    const WINDUP_DELAY = 0.12;
+    for (let i = this.activeArrowRains.length - 1; i >= 0; i--) {
+      const rain = this.activeArrowRains[i];
+      rain.elapsed += delta;
+      const rainElapsed = rain.elapsed - WINDUP_DELAY;
+
+      const aoe = this.arrowRainAoERingPool[rain.aoeSlotIdx];
+      if (aoe && aoe.active) {
+        const ringScale = rain.elapsed < 0.16 ? 0.25 + (rain.elapsed / 0.16) * 0.75 : 1.0 + Math.sin(rain.elapsed * 8.0) * 0.025;
+        aoe.group.scale.set(ringScale, ringScale, ringScale);
+        aoe.outerRing.rotation.y += delta * 1.8;
+        aoe.innerDisc.rotation.y -= delta * 2.4;
+
+        if (rainElapsed > rain.rainDuration - 0.22) {
+          const fadeT = Math.max(0, 1.0 - (rainElapsed - (rain.rainDuration - 0.22)) / 0.22);
+          aoe.outerMat.opacity = 0.92 * fadeT;
+          aoe.innerMat.opacity = 0.85 * fadeT;
+        }
+      }
+
+      if (rainElapsed >= 0 && rainElapsed <= rain.rainDuration) {
+        // Spawn 2-3 anak panah setiap 0.09 detik selama 2.0 detik penuh
+        rain.spawnAccum += delta;
+        while (rain.spawnAccum >= 0.09) {
+          rain.spawnAccum -= 0.09;
+          const burstCount = rain.spawnWaveIndex % 2 === 0 ? 3 : 2;
+          for (let b = 0; b < burstCount; b++) {
+            this.spawnPooledRainArrow(rain.targetPos.x, rain.targetPos.z, rain.radius, rain.spawnWaveIndex);
+          }
+          rain.spawnWaveIndex++;
+          if (rain.spawnWaveIndex % 3 === 1) {
+            soundManager.playBowShoot(false);
+          }
+        }
+
+        // Damage tick AoE konsisten setiap 0.4 detik ke seluruh musuh di dalam radius 5.5
+        rain.tickAccum += delta;
+        if (rain.tickAccum >= 0.4) {
+          rain.tickAccum -= 0.4;
+          if (this.isRunning) {
+            const stats = this.currentStats;
+            const tierMult = 1 + (this.playerTier - 1) * 0.25;
+            for (let e = 0; e < this.enemies.length; e++) {
+              const enemy = this.enemies[e];
+              if (enemy.data?.isDead) continue;
+              const distXZ = Math.hypot(
+                enemy.mesh.position.x - rain.targetPos.x,
+                enemy.mesh.position.z - rain.targetPos.z
+              );
+              if (distXZ <= rain.radius) {
+                const isCrit = Math.random() < 0.22 + stats.agility * 0.02;
+                const baseDmg = (stats.baseAttack + stats.agility * 2.2) * tierMult * 0.36;
+                const finalDmg = Math.max(4, Math.round(isCrit ? baseDmg * 1.85 : baseDmg));
+                this.damageEnemy(enemy, finalDmg, isCrit, 0.2);
+                enemy.slowFactor = 0.45;
+                enemy.slowTimer = 3.0;
+                enemy.armorBreakBonus = 0.15;
+                enemy.armorBreakTimer = 3.0;
+                this.spawnHitStarburst(enemy.mesh.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 0x00e5ff, 1.0);
+              }
+            }
+          }
+        }
+      } else if (rainElapsed > rain.rainDuration + 0.35) {
+        if (aoe) {
+          aoe.active = false;
+          aoe.group.visible = false;
+        }
+        this.activeArrowRains.splice(i, 1);
+      }
+    }
+
+    // 3. Update seluruh 45 anak panah di arrowRainPool (jatuh curam -> menancap 0.45s -> kembali ke pool)
+    for (let i = 0; i < this.arrowRainPool.length; i++) {
+      const arrow = this.arrowRainPool[i];
+      if (!arrow.active) continue;
+
+      if (arrow.phase === 'falling') {
+        arrow.root.position.x += arrow.vx * delta;
+        arrow.root.position.y += arrow.vy * delta;
+        arrow.root.position.z += arrow.vz * delta;
+
+        if (arrow.root.position.y <= arrow.groundY) {
+          arrow.root.position.y = arrow.groundY + 0.52;
+          arrow.phase = 'stuck';
+          arrow.stickElapsed = 0;
+          arrow.trail.visible = false;
+          this.spawnArrowRainImpact(arrow.root.position.x, arrow.groundY, arrow.root.position.z);
+        }
+      } else {
+        arrow.stickElapsed += delta;
+        if (arrow.stickElapsed >= 0.45) {
+          arrow.active = false;
+          arrow.root.visible = false;
+          arrow.shaftMat.opacity = 1.0;
+          arrow.root.scale.set(1, 1, 1);
+        } else if (arrow.stickElapsed > 0.30) {
+          const fadeT = 1.0 - (arrow.stickElapsed - 0.30) / 0.15;
+          arrow.shaftMat.opacity = Math.max(0.05, fadeT);
+          arrow.root.scale.setScalar(Math.max(0.25, fadeT));
+        }
+      }
+    }
+
+    // 4. Update efek cincin & percikan tumbukan panah
+    for (let i = 0; i < this.arrowRainImpactPool.length; i++) {
+      const imp = this.arrowRainImpactPool[i];
+      if (!imp.active) continue;
+      imp.elapsed += delta;
+      if (imp.elapsed >= imp.duration) {
+        imp.active = false;
+        imp.group.visible = false;
+        continue;
+      }
+      const t = imp.elapsed / imp.duration;
+      const scale = 0.35 + t * 1.45;
+      imp.group.scale.set(scale, scale, scale);
+      imp.ringMat.opacity = 0.9 * (1.0 - t);
+      imp.sparkMat.opacity = 0.95 * (1.0 - t);
+    }
   }
 
   private updateCombatVfxPools(delta: number) {
@@ -5291,17 +5946,42 @@ export class GameEngine {
       this.arrowVolleyIndicatorGroup.position.copy(this.camera.position).addScaledVector(fwd, 5.0);
       this.arrowVolleyIndicatorGroup.visible = true;
     }
+    const sampleRainArrow = this.arrowRainPool[0];
+    const sampleSkyArrow = this.arrowRainSkyPool[0];
+    const sampleRainRing = this.arrowRainAoERingPool[0];
+    const sampleRainImpact = this.arrowRainImpactPool[0];
+    if (sampleRainArrow) {
+      sampleRainArrow.root.position.copy(this.camera.position).addScaledVector(fwd, 5.0);
+      sampleRainArrow.trail.visible = true;
+      sampleRainArrow.root.visible = true;
+    }
+    if (sampleSkyArrow) {
+      sampleSkyArrow.root.position.copy(this.camera.position).addScaledVector(fwd, 5.0);
+      sampleSkyArrow.root.visible = true;
+    }
+    if (sampleRainRing) {
+      sampleRainRing.group.position.copy(this.camera.position).addScaledVector(fwd, 5.0);
+      sampleRainRing.group.visible = true;
+    }
+    if (sampleRainImpact) {
+      sampleRainImpact.group.position.copy(this.camera.position).addScaledVector(fwd, 4.5);
+      sampleRainImpact.group.visible = true;
+    }
     await compileFrustum('Assassin combat VFX pools');
     if (sampleCrescent) sampleCrescent.group.visible = false;
     if (sampleSpin) sampleSpin.group.visible = false;
     if (sampleStep) sampleStep.group.visible = false;
     if (sampleSmoke) sampleSmoke.mesh.visible = false;
     if (sampleStreak) sampleStreak.mesh.visible = false;
+    if (sampleRainArrow) sampleRainArrow.root.visible = false;
+    if (sampleSkyArrow) sampleSkyArrow.root.visible = false;
+    if (sampleRainRing) sampleRainRing.group.visible = false;
+    if (sampleRainImpact) sampleRainImpact.group.visible = false;
     if (this.arrowVolleyIndicatorGroup) {
       this.arrowVolleyIndicatorGroup.position.set(0, 0, 0);
       this.arrowVolleyIndicatorGroup.visible = false;
     }
-    await cooperativeYield(4);
+    await cooperativeYield(6);
 
     try {
       SkywardArrowVolleyResourcePool.get().prewarm(this.scene, this.renderer, this.camera);
@@ -8279,74 +8959,8 @@ export class GameEngine {
       });
     }
 
-    SkywardArrowVolleyResourcePool.get().attachToScene(this.scene);
-    const vfxInstance = createSkywardArrowVolleyVfx({
-      casterPos,
-      targetPos,
-      onFlareLaunch: () => {
-        this.triggerSkillVfxLight(casterPos, 0x00e5ff, 2.8, 14.0);
-      },
-      onArrowImpact: (impactPos, _arrowIndex) => {
-        soundManager.playBowShoot(false);
-        this.spawnHitStarburst(impactPos, 0x00e5ff, 0.85);
-        this.triggerSkillVfxLight(impactPos, 0x38bdf8, 1.4, 6.0);
-      },
-      onFinisherImpact: (impactPos) => {
-        soundManager.playBowShoot(true);
-        this.triggerCameraShake(0.25);
-        this.spawnHitStarburst(impactPos, 0x00e5ff, 2.5);
-        this.triggerSkillVfxLight(impactPos, 0x38bdf8, 3.5, 18.0);
-      },
-    });
-
-    if (vfxInstance.group.parent !== this.scene) {
-      this.scene.add(vfxInstance.group);
-    }
-
-    this.addVfx(
-      vfxInstance.group,
-      (delta: number) => {
-        return vfxInstance.update(
-          delta,
-          this.enemies,
-          // Arrow wave / impact damage callback (sinkron via currentStats): 22% Bow Power + Gale Slow & Armor Break
-          (hitEnemy, _impactPos) => {
-            if (!this.isRunning) return;
-            const stats = this.currentStats;
-            const tierMult = 1 + (this.playerTier - 1) * 0.25;
-            const isCrit = Math.random() < 0.20 + stats.agility * 0.02;
-            const baseDmg = (stats.baseAttack + stats.agility * 2.2) * tierMult * 0.22;
-            const finalDmg = Math.max(3, Math.round(isCrit ? baseDmg * 1.85 : baseDmg));
-            this.damageEnemy(hitEnemy, finalDmg, isCrit, 0.15);
-
-            hitEnemy.slowFactor = 0.45;
-            hitEnemy.slowTimer = 3.0;
-            hitEnemy.armorBreakBonus = 0.15;
-            hitEnemy.armorBreakTimer = 3.0;
-          },
-          // Finisher impact damage callback (sinkron via currentStats): 85% Bow Power + Gale Slow & Armor Break
-          (hitEnemies, _impactPos) => {
-            if (!this.isRunning) return;
-            const stats = this.currentStats;
-            const tierMult = 1 + (this.playerTier - 1) * 0.25;
-            const isCrit = Math.random() < 0.25 + stats.agility * 0.02;
-            const baseDmg = (stats.baseAttack + stats.agility * 2.2) * tierMult * 0.85;
-            const finalDmg = Math.max(8, Math.round(isCrit ? baseDmg * 1.9 : baseDmg));
-            for (const enemy of hitEnemies) {
-              this.damageEnemy(enemy, finalDmg, isCrit, 0.4);
-              enemy.slowFactor = 0.45;
-              enemy.slowTimer = 3.0;
-              enemy.armorBreakBonus = 0.15;
-              enemy.armorBreakTimer = 3.0;
-            }
-          }
-        );
-      },
-      () => {
-        vfxInstance.cleanup();
-      },
-      true
-    );
+    // Visual & AoE damage dikelola penuh oleh pool direct scene-added 45-panah (updateArrowRainEffects)
+    this.startArrowRainEffect(casterPos, targetPos);
   }
 
   /**
@@ -11296,14 +11910,17 @@ export class GameEngine {
       const targetRoll = isAstralGlide ? this.mageBankingRoll : 0.0;
       this.playerMesh.group.rotation.z = THREE.MathUtils.lerp(this.playerMesh.group.rotation.z, targetRoll, Math.min(1.0, delta * 8.0));
     } else if (this.charClass === 'rogue') {
-      // Kunci mutlak postur tegak Assassin tanpa forward prowl crouch di sumbu X agar tidak miring saat drag mouse
+      // Kunci orientasi root grup datar, sementara torso atas condong ke depan (+Z) saat sprint
       if (!this.isGaleVaulting) {
         this.playerMesh.group.rotation.x = 0;
         this.playerMesh.group.rotation.z = 0;
       }
       if (this.playerMesh.body) {
-        this.playerMesh.body.rotation.x = (this.isSprinting && isMoving && this.playerStamina > 0) ? 0.32 : 0;
+        const isSprintPosture = this.isSprinting && isMoving && this.playerStamina > 0;
+        this.playerMesh.body.rotation.x = isSprintPosture ? 0.36 : 0;
         this.playerMesh.body.rotation.z = 0;
+        this.playerMesh.body.position.y = isSprintPosture ? 1.16 : 1.18;
+        this.playerMesh.body.position.z = isSprintPosture ? 0.06 : 0;
       }
     } else if (this.charClass === 'warrior') {
       // Requirement 5: Stabilitas postur tegak lurus tanpa tilt/roll goyang saat bergerak, lari, maupun berputar
@@ -11359,59 +11976,66 @@ export class GameEngine {
           const stepFrequency = this.isSprinting ? 19.5 : 13.5;
           this.walkCycle = (this.walkCycle || 0) + delta * stepFrequency * moveSpeed;
 
-          // Ayunan kaki kiri & kanan
+          // Ayunan kaki kiri & kanan (phase sin(walkCycle) 180° berlawanan lengan)
           const legSwing = Math.sin(this.walkCycle);
           const armSwing = Math.cos(this.walkCycle);
 
           const lerpFactor = Math.min(1, delta * 12.0);
           if (isHunterSprint) {
             // ========================================================================
-            // POSTUR & ANIMASI LARI CEPAT AGILE ASSASSIN (DYNAMIC LEAN & WIND STREAKS)
+            // POSTUR & ANIMASI LARI CEPAT AGILE ASSASSIN (DYNAMIC FORWARD LEAN & ATHLETIC PUMP)
             // ========================================================================
-            // 1. Stride cepat lebar dengan tekukan lutut atletis & pantulan vertikal halus
-            this.playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftLeg.rotation.x, legSwing * 0.96, 0.35);
-            this.playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightLeg.rotation.x, -legSwing * 0.96, 0.35);
+            // 1. Stride cepat lebar (±0.88 rad) dengan tekukan lutut atletis & pantulan vertikal halus
+            this.playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftLeg.rotation.x, legSwing * 0.88, 0.35);
+            this.playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightLeg.rotation.x, -legSwing * 0.88, 0.35);
             if (this.playerMesh.leftKnee) {
-              this.playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.78 : 0.14;
+              this.playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.82 : 0.18;
             }
             if (this.playerMesh.rightKnee) {
-              this.playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.78 : 0.14;
+              this.playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.82 : 0.18;
             }
             const sprintBob = Math.abs(Math.sin(this.walkCycle)) * 0.06;
             this.playerMesh.group.position.y = this.playerPos.y + sprintBob;
 
-            // 2. Ayunan lengan atletis natural (standby busur dijaga miring rapi, atau ayunan dinamis lengan kosong / belati)
+            // 2. Ayunan lengan atletis natural (±0.75 rad, 180° berlawanan kaki, tanpa bias kaku ke belakang!)
+            // Catatan koordinat -Y: X negatif mengangkat lengan ke depan (+Z), X positif ke belakang (-Z).
             if (!this.isAttacking) {
               const isBowCarry = this.isWeaponDrawn && this.hunterWeaponMode === 'bow';
-              const targetLeftArmX = isBowCarry ? -0.26 + armSwing * 0.14 : 0.34 - armSwing * 0.56;
-              this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, targetLeftArmX, 0.32);
-              this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, isBowCarry ? 0.16 : 0.14, lerpFactor);
-              this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, isBowCarry ? -0.15 : -0.12, lerpFactor);
-              this.playerMesh.leftArm.position.set(-0.325, 1.40, isBowCarry ? 0.06 : 0.04);
+              const targetLeftArmX = isBowCarry ? -0.34 - legSwing * 0.14 : -0.14 - legSwing * 0.75;
+              const targetRightArmX = isBowCarry ? -0.14 + legSwing * 0.68 : -0.14 + legSwing * 0.75;
+              this.playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.x, targetLeftArmX, 0.35);
+              this.playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.y, isBowCarry ? 0.16 : 0.10, lerpFactor);
+              this.playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.leftArm.rotation.z, isBowCarry ? -0.14 : -0.10, lerpFactor);
+              this.playerMesh.leftArm.position.set(-0.325, 1.38, isBowCarry ? 0.14 : 0.13);
 
-              this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, 0.34 + armSwing * 0.56, 0.32);
-              this.playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.y, -0.14, lerpFactor);
-              this.playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.z, 0.12, lerpFactor);
-              this.playerMesh.rightArm.position.set(0.325, 1.40, 0.04);
+              this.playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.x, targetRightArmX, 0.35);
+              this.playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.y, -0.10, lerpFactor);
+              this.playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(this.playerMesh.rightArm.rotation.z, 0.10, lerpFactor);
+              this.playerMesh.rightArm.position.set(0.325, 1.38, 0.13);
             }
 
-            // 3. Condong ke depan dinamis ~19.5° (0.34 rad) & kepala mendongak ringan (-0.18 rad)
+            // 3. Torso benar-benar condong ke DEPAN (+Z ~20.6° / 0.36 rad) & kepala mendongak (-0.22 rad) agar mata cyan lurus ke depan
             if (this.playerMesh.body) {
               this.playerMesh.body.rotation.reorder('YXZ');
-              this.playerMesh.body.rotation.x = THREE.MathUtils.lerp(this.playerMesh.body.rotation.x, 0.34, lerpFactor);
+              this.playerMesh.body.rotation.x = THREE.MathUtils.lerp(this.playerMesh.body.rotation.x, 0.36, lerpFactor);
+              this.playerMesh.body.position.set(
+                0,
+                THREE.MathUtils.lerp(this.playerMesh.body.position.y, 1.16, lerpFactor),
+                THREE.MathUtils.lerp(this.playerMesh.body.position.z, 0.06, lerpFactor)
+              );
             }
             if (this.playerMesh.head) {
-              this.playerMesh.head.rotation.x = THREE.MathUtils.lerp(this.playerMesh.head.rotation.x, -0.18, lerpFactor);
+              this.playerMesh.head.rotation.x = THREE.MathUtils.lerp(this.playerMesh.head.rotation.x, -0.22, lerpFactor);
               this.playerMesh.head.position.set(
                 0,
-                THREE.MathUtils.lerp(this.playerMesh.head.position.y, 1.48, lerpFactor),
-                THREE.MathUtils.lerp(this.playerMesh.head.position.z, 0.09, lerpFactor)
+                THREE.MathUtils.lerp(this.playerMesh.head.position.y, 1.47, lerpFactor),
+                THREE.MathUtils.lerp(this.playerMesh.head.position.z, 0.12, lerpFactor)
               );
             }
 
             // 4. Kibaran ekor jubah mengikuti kecepatan
             if (this.playerMesh.cape) {
-              const targetCape = 0.44 + Math.abs(Math.sin(this.walkCycle * 0.5)) * 0.14;
+              const targetCape = 0.48 + Math.abs(Math.sin(this.walkCycle * 0.5)) * 0.14;
               this.playerMesh.cape.rotation.x = THREE.MathUtils.lerp(this.playerMesh.cape.rotation.x, targetCape, lerpFactor);
             }
 
@@ -11453,6 +12077,11 @@ export class GameEngine {
 
             if (this.playerMesh.body) {
               this.playerMesh.body.rotation.x = THREE.MathUtils.lerp(this.playerMesh.body.rotation.x, 0, lerpFactor);
+              this.playerMesh.body.position.set(
+                0,
+                THREE.MathUtils.lerp(this.playerMesh.body.position.y, 1.18, lerpFactor),
+                THREE.MathUtils.lerp(this.playerMesh.body.position.z, 0, lerpFactor)
+              );
             }
             if (this.playerMesh.head) {
               this.playerMesh.head.rotation.set(THREE.MathUtils.lerp(this.playerMesh.head.rotation.x, 0, lerpFactor), 0, 0);
@@ -11659,36 +12288,30 @@ export class GameEngine {
           !this.isAimingArrowVolley &&
           this.bowCombatStanceTimer <= 0;
         const lockLerp = Math.min(1, delta * 12.0);
-        const targetBodyLeanX = isHunterSprint ? 0.34 : 0;
+        const targetBodyLeanX = isHunterSprint ? 0.36 : 0;
         if (this.playerMesh.body) {
           this.playerMesh.body.rotation.reorder('YXZ');
           this.playerMesh.body.rotation.x = THREE.MathUtils.lerp(this.playerMesh.body.rotation.x, targetBodyLeanX, lockLerp);
           this.playerMesh.body.rotation.z = 0; // KUNCI MUTLAK: DILARANG MIRING
-        }
-        this.playerMesh.group.traverse((child) => {
-          if (child instanceof THREE.Mesh || child instanceof THREE.Group) {
-            if (
-              child.name.toLowerCase().includes('body') ||
-              child.name.toLowerCase().includes('torso') ||
-              child.name.toLowerCase().includes('chest') ||
-              child === (this.playerMesh as any).body
-            ) {
-              child.rotation.x = THREE.MathUtils.lerp(child.rotation.x, targetBodyLeanX, lockLerp);
-              child.rotation.z = 0;
-            }
+          if (this.charClass === 'rogue') {
+            this.playerMesh.body.position.set(
+              0,
+              THREE.MathUtils.lerp(this.playerMesh.body.position.y, isHunterSprint ? 1.16 : 1.18, lockLerp),
+              THREE.MathUtils.lerp(this.playerMesh.body.position.z, isHunterSprint ? 0.06 : 0, lockLerp)
+            );
           }
-        });
+        }
         if (this.playerMesh.head) {
           if (this.charClass === 'rogue') {
             this.playerMesh.head.rotation.x = THREE.MathUtils.lerp(
               this.playerMesh.head.rotation.x,
-              isHunterSprint ? -0.18 : 0,
+              isHunterSprint ? -0.22 : 0,
               lockLerp
             );
             this.playerMesh.head.position.set(
               0,
-              THREE.MathUtils.lerp(this.playerMesh.head.position.y, isHunterSprint ? 1.48 : 1.50, lockLerp),
-              THREE.MathUtils.lerp(this.playerMesh.head.position.z, isHunterSprint ? 0.09 : 0, lockLerp)
+              THREE.MathUtils.lerp(this.playerMesh.head.position.y, isHunterSprint ? 1.47 : 1.50, lockLerp),
+              THREE.MathUtils.lerp(this.playerMesh.head.position.z, isHunterSprint ? 0.12 : 0, lockLerp)
             );
           } else if (this.charClass === 'mage') {
             this.playerMesh.head.position.set(0, 2.08, 0);
@@ -13243,6 +13866,7 @@ export class GameEngine {
     this.worldEnvironment?.update(delta, this.clock.getElapsedTime());
     this.updateSparks(delta);
     this.updateCombatVfxPools(delta);
+    this.updateArrowRainEffects(delta);
 
     // Update Mage Arcane Shield Timer
     if (this.arcaneShieldTimer > 0) {
@@ -13880,6 +14504,37 @@ export class GameEngine {
     this.hunterArrowPoolGeometries = [];
     this.hunterArrowPoolMaterials.forEach((m) => m.dispose());
     this.hunterArrowPoolMaterials = [];
+
+    // Clean up Badai Panah Arrow Rain Pool
+    this.activeArrowRains = [];
+    this.arrowRainPool.forEach((p) => {
+      this.scene.remove(p.root);
+      p.shaftMat.dispose();
+      p.trailMat.dispose();
+    });
+    this.arrowRainPool = [];
+    this.arrowRainSkyPool.forEach((p) => {
+      this.scene.remove(p.root);
+      p.trailMat.dispose();
+    });
+    this.arrowRainSkyPool = [];
+    this.arrowRainAoERingPool.forEach((p) => {
+      this.scene.remove(p.group);
+      p.outerMat.dispose();
+      p.innerMat.dispose();
+    });
+    this.arrowRainAoERingPool = [];
+    this.arrowRainImpactPool.forEach((p) => {
+      this.scene.remove(p.group);
+      p.ringMat.dispose();
+      p.sparkMat.dispose();
+    });
+    this.arrowRainImpactPool = [];
+    this.arrowRainSharedGeometries.forEach((g) => g.dispose());
+    this.arrowRainSharedGeometries = [];
+    this.arrowRainSharedMaterials.forEach((m) => m.dispose());
+    this.arrowRainSharedMaterials = [];
+    registerActiveWorldSnapshotProvider(null);
 
     // Clean up Hunter Shadow Decoys
     this.shadowDecoyPool.forEach((d) => this.scene.remove(d));

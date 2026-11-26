@@ -2380,36 +2380,44 @@ export async function buildWorldEnvironmentAsync(
   let capturedPropMatrices: Record<string, Float32Array> | undefined;
 
   if (hasAllCachedProps && cachedProps) {
-    // FAST PATH: Langsung muat seluruh matriks InstancedMesh dari IndexedDB
-    onProgress?.(71, 'Memuat dunia dari Cache Browser (Mode Cepat)...');
-    await scheduler.yieldIfNeeded(true);
+    // FAST PATH: Bulk-assign seluruh matriks InstancedMesh dari IndexedDB tanpa sleep dalam loop (cukup 1 rAF)
+    onProgress?.(72, 'Memuat dunia dari Cache Browser (Mode Cepat)...');
 
     oakTrunkMesh = restoreInstancedLayer(oakTrunkGeo, matWoodRustic, cachedProps.oak);
     oakCrownMesh = restoreInstancedLayer(oakCrownGeo, matOakFoliage, cachedProps.oak);
-    envGroup.add(oakTrunkMesh, oakCrownMesh);
-    await scheduler.yieldIfNeeded(true);
-
     pineTrunkMesh = restoreInstancedLayer(pineTrunkGeo, matWoodRustic, cachedProps.pine);
     pineFoliageMesh1 = restoreInstancedLayer(pineConeGeo1, matPineFoliage, cachedProps.pine);
     pineFoliageMesh2 = restoreInstancedLayer(pineConeGeo2, matPineFoliage, cachedProps.pine);
     pineFoliageMesh3 = restoreInstancedLayer(pineConeGeo3, matPineFoliage, cachedProps.pine);
-    envGroup.add(pineTrunkMesh, pineFoliageMesh1, pineFoliageMesh2, pineFoliageMesh3);
-    await scheduler.yieldIfNeeded(true);
-
     boulderMesh = restoreInstancedLayer(boulderGeo, matBoulder, cachedProps.boulder);
-    envGroup.add(boulderMesh);
-    await scheduler.yieldIfNeeded(true);
-
-    onProgress?.(74, 'Memuat dunia dari Cache Browser (Mode Cepat)...');
     plainsGrassMesh = restoreInstancedLayer(plainsGrassGeo, matPlainsGrass, cachedProps.plainsGrass);
-    envGroup.add(plainsGrassMesh);
-    await scheduler.yieldIfNeeded(true);
-
     shrubMesh = restoreInstancedLayer(shrubGeo, matShrub, cachedProps.shrub);
     reefStoneMesh = restoreInstancedLayer(reefStoneGeo, matWetSeaRock, cachedProps.reefStone);
     beachGrassMesh = restoreInstancedLayer(beachGrassGeo, matBeachGrass, cachedProps.beachGrass);
-    envGroup.add(shrubMesh, reefStoneMesh, beachGrassMesh);
-    await scheduler.yieldIfNeeded(true);
+
+    envGroup.add(
+      oakTrunkMesh,
+      oakCrownMesh,
+      pineTrunkMesh,
+      pineFoliageMesh1,
+      pineFoliageMesh2,
+      pineFoliageMesh3,
+      boulderMesh,
+      plainsGrassMesh,
+      shrubMesh,
+      reefStoneMesh,
+      beachGrassMesh
+    );
+
+    capturedPropMatrices = cachedProps;
+    onProgress?.(75, 'Memuat dunia dari Cache Browser (Mode Cepat)...');
+    await new Promise<void>((resolve) => {
+      if (typeof requestAnimationFrame !== 'undefined') {
+        requestAnimationFrame(() => resolve());
+      } else {
+        setTimeout(resolve, 0);
+      }
+    });
   } else {
     // 1. SUB-TAHAP 71%: POHON OAK RINDANG / PINUS HIJAU (BERSKALA PERANGKAT)
     onProgress?.(71, 'Menanam Pohon Oak Rindang (InstancedMesh 71%)...');
@@ -2417,12 +2425,10 @@ export async function buildWorldEnvironmentAsync(
     oakCrownMesh = new THREE.InstancedMesh(oakCrownGeo, matOakFoliage, OAK_COUNT);
 
     let oakAssigned = 0;
-    let oakIter = 0;
     const oakStep = 18;
     for (let x = -600; x < 680 && oakAssigned < OAK_COUNT; x += oakStep) {
       for (let z = -800; z < 100 && oakAssigned < OAK_COUNT; z += oakStep) {
-        oakIter++;
-        if (oakIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
+        if (performance.now() - tLastEnvYield >= 6) {
           await hardYield();
           tLastEnvYield = performance.now();
         }
@@ -2451,7 +2457,7 @@ export async function buildWorldEnvironmentAsync(
     oakTrunkMesh.computeBoundingSphere();
     oakCrownMesh.computeBoundingSphere();
     envGroup.add(oakTrunkMesh, oakCrownMesh);
-    await hardYield();
+    await checkEnvYield();
 
     // 2. SUB-TAHAP 72%: POHON CEMARA SEGITIGA (BERSKALA PERANGKAT)
     onProgress?.(72, 'Menempatkan Rumpun Pohon Cemara (InstancedMesh 72%)...');
@@ -2461,12 +2467,10 @@ export async function buildWorldEnvironmentAsync(
     pineFoliageMesh3 = new THREE.InstancedMesh(pineConeGeo3, matPineFoliage, PINE_COUNT);
 
     let pineAssigned = 0;
-    let pineIter = 0;
     const pineStep = 18;
     for (let x = -607; x < 675 && pineAssigned < PINE_COUNT; x += pineStep) {
       for (let z = -807; z < 105 && pineAssigned < PINE_COUNT; z += pineStep) {
-        pineIter++;
-        if (pineIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
+        if (performance.now() - tLastEnvYield >= 6) {
           await hardYield();
           tLastEnvYield = performance.now();
         }
@@ -2503,19 +2507,17 @@ export async function buildWorldEnvironmentAsync(
     pineFoliageMesh2.computeBoundingSphere();
     pineFoliageMesh3.computeBoundingSphere();
     envGroup.add(pineTrunkMesh, pineFoliageMesh1, pineFoliageMesh2, pineFoliageMesh3);
-    await hardYield();
+    await checkEnvYield();
 
     // 3. SUB-TAHAP 73%: FORMASI BEBATUAN GRANIT & KRISTAL (BERSKALA PERANGKAT)
     onProgress?.(73, 'Membentuk Formasi Bebatuan & Kristal (InstancedMesh 73%)...');
     boulderMesh = new THREE.InstancedMesh(boulderGeo, matBoulder, BOULDER_COUNT);
 
     let boulderAssigned = 0;
-    let boulderIter = 0;
     const boulderStep = 18;
     for (let x = -454; x < 400 && boulderAssigned < BOULDER_COUNT; x += boulderStep) {
       for (let z = -404; z < 180 && boulderAssigned < BOULDER_COUNT; z += boulderStep) {
-        boulderIter++;
-        if (boulderIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
+        if (performance.now() - tLastEnvYield >= 6) {
           await hardYield();
           tLastEnvYield = performance.now();
         }
@@ -2541,19 +2543,17 @@ export async function buildWorldEnvironmentAsync(
     boulderMesh.instanceMatrix.needsUpdate = true;
     boulderMesh.computeBoundingSphere();
     envGroup.add(boulderMesh);
-    await hardYield();
+    await checkEnvYield();
 
     // 4. SUB-TAHAP 74%: RUMPUN RUMPUT HIJAU PADANG RUMPUT (BERSKALA PERANGKAT)
     onProgress?.(74, 'Menumbuhkan Padang Rumput Hijau (InstancedMesh 74%)...');
     plainsGrassMesh = new THREE.InstancedMesh(plainsGrassGeo, matPlainsGrass, PLAINS_GRASS_COUNT);
 
     let pgAssigned = 0;
-    let pgIter = 0;
     const grassStep = 8.0;
     for (let x = -600; x < 680 && pgAssigned < PLAINS_GRASS_COUNT; x += grassStep) {
       for (let z = -800; z < 100 && pgAssigned < PLAINS_GRASS_COUNT; z += grassStep) {
-        pgIter++;
-        if (pgIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
+        if (performance.now() - tLastEnvYield >= 6) {
           await hardYield();
           tLastEnvYield = performance.now();
         }
@@ -2578,19 +2578,17 @@ export async function buildWorldEnvironmentAsync(
     plainsGrassMesh.instanceMatrix.needsUpdate = true;
     plainsGrassMesh.computeBoundingSphere();
     envGroup.add(plainsGrassMesh);
-    await hardYield();
+    await checkEnvYield();
 
     // 5. SUB-TAHAP 75%: SEMAK LIAR, BATU KARANG & VEGETASI PANTAI (BERSKALA PERANGKAT)
     onProgress?.(75, 'Menyebarkan Semak Liar & Vegetasi Pantai (InstancedMesh 75%)...');
     shrubMesh = new THREE.InstancedMesh(shrubGeo, matShrub, SHRUB_COUNT);
 
     let shrubAssigned = 0;
-    let shrubIter = 0;
     const shrubStep = 18;
     for (let x = -600; x < 680 && shrubAssigned < SHRUB_COUNT; x += shrubStep) {
       for (let z = -800; z < 100 && shrubAssigned < SHRUB_COUNT; z += shrubStep) {
-        shrubIter++;
-        if (shrubIter % 25 === 0 || performance.now() - tLastEnvYield > 6) {
+        if (performance.now() - tLastEnvYield >= 6) {
           await hardYield();
           tLastEnvYield = performance.now();
         }
@@ -2615,16 +2613,14 @@ export async function buildWorldEnvironmentAsync(
     shrubMesh.instanceMatrix.needsUpdate = true;
     shrubMesh.computeBoundingSphere();
     envGroup.add(shrubMesh);
-    await hardYield();
+    await checkEnvYield();
 
     // Batu Karang Laut Pesisir (Coastal Reef Stones): 60 Instances
     reefStoneMesh = new THREE.InstancedMesh(reefStoneGeo, matWetSeaRock, REEF_STONE_COUNT);
     let reefAssigned = 0;
-    let reefIter = 0;
     for (let rx = -448; rx <= -410 && reefAssigned < REEF_STONE_COUNT; rx += 7) {
       for (let rz = -240; rz <= -50 && reefAssigned < REEF_STONE_COUNT; rz += 15) {
-        reefIter++;
-        if (reefIter % 20 === 0 || performance.now() - tLastEnvYield > 6) {
+        if (performance.now() - tLastEnvYield >= 6) {
           await hardYield();
           tLastEnvYield = performance.now();
         }
@@ -2651,11 +2647,9 @@ export async function buildWorldEnvironmentAsync(
     // Rumput Gumuk Pantai (Beach Dune Grass): 80 Instances
     beachGrassMesh = new THREE.InstancedMesh(beachGrassGeo, matBeachGrass, BEACH_GRASS_COUNT);
     let bgAssigned = 0;
-    let bgIter = 0;
     for (let gx = -428; gx <= -402 && bgAssigned < BEACH_GRASS_COUNT; gx += 5) {
       for (let gz = -235; gz <= -55 && bgAssigned < BEACH_GRASS_COUNT; gz += 10) {
-        bgIter++;
-        if (bgIter % 20 === 0 || performance.now() - tLastEnvYield > 6) {
+        if (performance.now() - tLastEnvYield >= 6) {
           await hardYield();
           tLastEnvYield = performance.now();
         }
@@ -2678,7 +2672,8 @@ export async function buildWorldEnvironmentAsync(
     beachGrassMesh.computeBoundingSphere();
     envGroup.add(beachGrassMesh);
 
-    if (collectCacheMatrices) {
+    // Selalu tangkap matriks prop aktif agar Instant In-Game Capture tetap instan kapan pun cache diaktifkan
+    if (collectCacheMatrices || true) {
       const sliceActive = (mesh: THREE.InstancedMesh): Float32Array =>
         (mesh.instanceMatrix.array as Float32Array).slice(0, mesh.count * 16);
       capturedPropMatrices = {
@@ -2817,7 +2812,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(desertFloraGroup);
-  await hardYield();
+  await checkEnvYield();
 
   // ============================================================================
   // ZONA M: LEMBAH DANAU TITAN KUNO & PINUS BERSALJU (NORTHWEST TITAN LAKE)
@@ -2966,7 +2961,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(titanLakeGroup);
-  await hardYield();
+  await checkEnvYield();
 
   // ============================================================================
   // ZONA N: KANYON KUNO (NORTHERN RED CANYON MESAS & CANYON CLIFFS)
@@ -3023,7 +3018,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(ancientCanyonGroup);
-  await hardYield();
+  await checkEnvYield();
 
   // ============================================================================
   // ZONA O: HUTAN KABUT ELDORIA (MIST FOREST & FOG EFFECT)
@@ -3088,7 +3083,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(mistForestGroup);
-  await hardYield();
+  await checkEnvYield();
 
   // ============================================================================
   // ZONA P: PUING KASTIL TERBENGKALAI (ABANDONED CASTLE RUINS)
@@ -3140,7 +3135,7 @@ export async function buildWorldEnvironmentAsync(
   }
 
   envGroup.add(castleRuinsGroup);
-  await hardYield();
+  await checkEnvYield();
 
   // ============================================================================
   // ZONA Q: DESA BENTENG VAL-KRAGOR (EAST FORTRESS VILLAGE)
@@ -3192,7 +3187,7 @@ export async function buildWorldEnvironmentAsync(
   });
 
   envGroup.add(valkragorGroup);
-  await hardYield();
+  await checkEnvYield();
 
   // ============================================================================
   // ZONA R: LEMBAH BATU LUMUT (MOSSY ROCK VALLEY & GLADE SPORES)
@@ -3248,7 +3243,7 @@ export async function buildWorldEnvironmentAsync(
   }
 
   envGroup.add(mossValleyGroup);
-  await hardYield();
+  await checkEnvYield();
 
   // ============================================================================
   // ZONA S: HUTAN LINDUNG BARAT DAYA (SOUTHWEST LUSH OAK FOREST)
@@ -3313,7 +3308,7 @@ export async function buildWorldEnvironmentAsync(
     }
   }
   envGroup.add(swForestGroup);
-  await hardYield();
+  await checkEnvYield();
 
   // ============================================================================
   // ANIMASI UPDATE CALLBACK (FLICKERING TORCHES & CAMPFIRE)

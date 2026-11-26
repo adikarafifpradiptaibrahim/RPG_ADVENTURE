@@ -1,38 +1,137 @@
 import { getDeviceProfile } from '../utils/deviceProfiler';
+import {
+  WORLD_BOUNDS,
+  SEA_BED_HEIGHT,
+  BIOMES,
+  RIVER_SPLINES,
+  ROAD_SPLINES,
+  BRIDGE_CONFIGS,
+  WORLD_LANDMARKS,
+  WORLD_LAYOUT_CONFIG,
+} from '../3d/worldData';
+import { exportWorldMapRasterToBlob } from '../mapIllustratedRenderer';
 
 export const WORLD_CACHE_PREF_KEY = 'eldoria_local_world_cache_enabled';
-export const WORLD_CACHE_VERSION = 'eldoria-world-v1';
+export const WORLD_CACHE_VERSION = 'eldoria-modular-v2';
 export const WORLD_CACHE_DB_NAME = 'EldoriaWorldCacheDB';
-export const WORLD_CACHE_STORE_NAME = 'worldChunks';
-const WORLD_CACHE_DB_VERSION = 1;
+export const WORLD_CACHE_STORE_NAME = 'worldModules';
+const WORLD_CACHE_DB_VERSION = 2;
 
-export interface WorldCachePayload {
-  cacheKey: string;
-  version: string;
+export interface TerrainGridHashSpec {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  segmentsX: number;
+  segmentsZ: number;
+}
+
+export interface WorldTerrainModuleData {
   terrainPositions: Float32Array;
   terrainColors: Float32Array;
   terrainNormals: Float32Array;
   heightLookupGrid: Float32Array;
-  worldMapBlob: Blob;
-  propMatrices: Record<string, Float32Array>;
   spatialHeightGrid?: Float32Array;
   spatialFlagsGrid?: Uint8Array;
-  savedAt: number;
-  approxSizeBytes: number;
 }
 
-export type WorldCacheInput = Omit<
-  WorldCachePayload,
-  'cacheKey' | 'version' | 'savedAt' | 'approxSizeBytes'
->;
+export interface WorldMapModuleData {
+  worldMapBlob: Blob;
+}
+
+export interface WorldPropsModuleData {
+  propMatrices: Record<string, Float32Array>;
+}
+
+export type ModularCacheData =
+  | WorldTerrainModuleData
+  | WorldMapModuleData
+  | WorldPropsModuleData;
+
+export interface WorldCacheModuleRecord<T = ModularCacheData> {
+  moduleKey: string;
+  configHash: string;
+  version: string;
+  data: T;
+  byteSize: number;
+  savedAt: number;
+}
+
+export interface WorldModuleHashes {
+  deviceTier: string;
+  terrainKey: string;
+  worldMapKey: string;
+  propsKey: string;
+  terrainHash: string;
+  worldMapHash: string;
+  propsHash: string;
+}
+
+export interface WorldCachePayload {
+  cacheKey: string;
+  version: string;
+  terrainPositions?: Float32Array;
+  terrainColors?: Float32Array;
+  terrainNormals?: Float32Array;
+  heightLookupGrid?: Float32Array;
+  worldMapBlob?: Blob;
+  propMatrices?: Record<string, Float32Array>;
+  spatialHeightGrid?: Float32Array;
+  spatialFlagsGrid?: Uint8Array;
+  savedAt?: number;
+  approxSizeBytes?: number;
+}
+
+export interface ModularWorldCacheLoadResult {
+  hashes: WorldModuleHashes;
+  terrain: WorldTerrainModuleData | null;
+  worldMap: WorldMapModuleData | null;
+  props: WorldPropsModuleData | null;
+  payload: WorldCachePayload | null;
+  hitCount: number;
+}
+
+export interface ActiveWorldSnapshot {
+  terrainPositions: Float32Array;
+  terrainColors: Float32Array;
+  terrainNormals: Float32Array;
+  heightLookupGrid: Float32Array;
+  propMatrices?: Record<string, Float32Array>;
+  spatialHeightGrid?: Float32Array;
+  spatialFlagsGrid?: Uint8Array;
+  worldMapBlob?: Blob | null;
+  terrainGridSpec?: TerrainGridHashSpec;
+}
+
+export type ActiveWorldSnapshotProvider = () => ActiveWorldSnapshot | null;
 
 export interface WorldCacheInfo {
   exists: boolean;
   sizeMB: string;
   savedAt: number | null;
+  moduleCount?: number;
 }
 
-function dispatchWorldCacheEvent(type: 'eldoria_world_cache_changed' | 'eldoria_world_cache_saved'): void {
+let activeSnapshotProvider: ActiveWorldSnapshotProvider | null = null;
+
+export function registerActiveWorldSnapshotProvider(
+  provider: ActiveWorldSnapshotProvider | null
+): void {
+  activeSnapshotProvider = provider;
+}
+
+export function hasActiveWorldSnapshot(): boolean {
+  if (!activeSnapshotProvider) return false;
+  try {
+    return activeSnapshotProvider() !== null;
+  } catch {
+    return false;
+  }
+}
+
+function dispatchWorldCacheEvent(
+  type: 'eldoria_world_cache_changed' | 'eldoria_world_cache_saved'
+): void {
   if (typeof window === 'undefined') return;
   try {
     window.dispatchEvent(new CustomEvent(type));
@@ -41,9 +140,118 @@ function dispatchWorldCacheEvent(type: 'eldoria_world_cache_changed' | 'eldoria_
   }
 }
 
+function canonicalStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return '[' + value.map((item) => canonicalStringify(item)).join(',') + ']';
+  }
+  if (ArrayBuffer.isView(value)) {
+    const view = value as Uint8Array;
+    return `"TypedArray(${view.byteLength})"`;
+  }
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  return (
+    '{' +
+    keys
+      .filter((k) => obj[k] !== undefined)
+      .map((k) => `${JSON.stringify(k)}:${canonicalStringify(obj[k])}`)
+      .join(',') +
+    '}'
+  );
+}
+
 /**
- * Menghasilkan kunci cache unik berbasis versi peta + tier perangkat.
+ * Menghasilkan digest hash deterministik dual 32-bit FNV-1a (16-char hex)
+ * dari konfigurasi world agar perubahan kecil langsung terdeteksi presisi.
  */
+export function computeConfigHash(obj: unknown): string {
+  const input = canonicalStringify(obj);
+  let h1 = 0x811c9dc5;
+  let h2 = 0x9e3779b9;
+  for (let i = 0; i < input.length; i++) {
+    const code = input.charCodeAt(i);
+    h1 ^= code;
+    h1 = Math.imul(h1, 0x01000193);
+    h2 ^= code + (i & 0xff);
+    h2 = Math.imul(h2, 0x85ebca6b);
+  }
+  const hex1 = (h1 >>> 0).toString(16).padStart(8, '0');
+  const hex2 = (h2 >>> 0).toString(16).padStart(8, '0');
+  return `${hex1}${hex2}`;
+}
+
+/**
+ * Menghitung hash konfigurasi independen untuk setiap modul dunia:
+ * - `mod_terrain`: hanya bergantung pada bounds, bioma, sungai, flatten landmark, grid terrain, & tier perangkat
+ * - `mod_worldmap`: hanya bergantung pada bounds, bioma, sungai, jalan, jembatan, & landmark peta
+ * - `mod_props`: hanya bergantung pada vegetasi/prop layout, jalan, landmark, & propDensityScale perangkat
+ * Catatan: Skin karakter, animasi, UI, dan skill TIDAK pernah masuk ke hash apa pun.
+ */
+export function getWorldModuleHashes(
+  terrainGridSpec?: TerrainGridHashSpec
+): WorldModuleHashes {
+  const profile = getDeviceProfile();
+  const landmarkFlattenConfig = Object.values(WORLD_LAYOUT_CONFIG.landmarks).map((lm) => ({
+    id: lm.id,
+    x: lm.x,
+    z: lm.z,
+    r: lm.flattenRadius,
+  }));
+
+  const terrainHash = computeConfigHash({
+    schema: 2,
+    bounds: WORLD_BOUNDS,
+    seaBed: SEA_BED_HEIGHT,
+    biomes: BIOMES,
+    rivers: RIVER_SPLINES,
+    flatten: landmarkFlattenConfig,
+    terrainGrid: terrainGridSpec ?? { segmentsX: 1240, segmentsZ: 1060 },
+    deviceTier: profile.tier,
+  });
+
+  const worldMapHash = computeConfigHash({
+    schema: 2,
+    bounds: WORLD_BOUNDS,
+    biomes: BIOMES,
+    rivers: RIVER_SPLINES,
+    roads: ROAD_SPLINES,
+    bridges: BRIDGE_CONFIGS,
+    landmarks: WORLD_LANDMARKS.map((lm) => ({
+      id: lm.id,
+      nameId: lm.nameId,
+      x: lm.x,
+      z: lm.z,
+      color: lm.color,
+      icon: lm.icon,
+      level: lm.level,
+    })),
+  });
+
+  const propsHash = computeConfigHash({
+    schema: 2,
+    bounds: WORLD_BOUNDS,
+    roads: ROAD_SPLINES,
+    bridges: BRIDGE_CONFIGS,
+    rivers: RIVER_SPLINES,
+    landmarks: landmarkFlattenConfig,
+    propDensityScale: profile.propDensityScale,
+    deviceTier: profile.tier,
+  });
+
+  return {
+    deviceTier: profile.tier,
+    terrainKey: `mod_terrain_${profile.tier}`,
+    worldMapKey: 'mod_worldmap',
+    propsKey: `mod_props_${profile.tier}`,
+    terrainHash,
+    worldMapHash,
+    propsHash,
+  };
+}
+
 export function getWorldCacheKey(): string {
   const profile = getDeviceProfile();
   return `${WORLD_CACHE_VERSION}_${profile.tier}`;
@@ -85,7 +293,11 @@ export async function setWorldCacheEnabled(enabled: boolean): Promise<void> {
 
 function isIndexedDbAvailable(): boolean {
   try {
-    return typeof window !== 'undefined' && typeof window.indexedDB !== 'undefined' && window.indexedDB !== null;
+    return (
+      typeof window !== 'undefined' &&
+      typeof window.indexedDB !== 'undefined' &&
+      window.indexedDB !== null
+    );
   } catch {
     return false;
   }
@@ -98,224 +310,224 @@ function openWorldCacheDB(): Promise<IDBDatabase | null> {
 
   return new Promise((resolve) => {
     try {
-      const request = window.indexedDB.open(WORLD_CACHE_DB_NAME, WORLD_CACHE_DB_VERSION);
+      const req = window.indexedDB.open(WORLD_CACHE_DB_NAME, WORLD_CACHE_DB_VERSION);
 
-      request.onupgradeneeded = () => {
-        const db = request.result;
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (db.objectStoreNames.contains('worldChunks')) {
+          db.deleteObjectStore('worldChunks');
+        }
         if (!db.objectStoreNames.contains(WORLD_CACHE_STORE_NAME)) {
-          db.createObjectStore(WORLD_CACHE_STORE_NAME, { keyPath: 'cacheKey' });
+          db.createObjectStore(WORLD_CACHE_STORE_NAME, { keyPath: 'moduleKey' });
         }
       };
 
-      request.onsuccess = () => {
-        resolve(request.result);
+      req.onsuccess = () => {
+        resolve(req.result);
       };
 
-      request.onerror = () => {
-        console.warn('[WorldCache] Gagal membuka IndexedDB (fallback generate normal):', request.error);
+      req.onerror = () => {
+        console.warn('[WorldCache] IndexedDB tidak dapat dibuka:', req.error);
         resolve(null);
       };
 
-      request.onblocked = () => {
-        console.warn('[WorldCache] Pembukaan IndexedDB diblokir sementara.');
+      req.onblocked = () => {
         resolve(null);
       };
     } catch (err) {
-      console.warn('[WorldCache] Pengecualian saat membuka IndexedDB:', err);
+      console.warn('[WorldCache] Akses IndexedDB diblokir browser (mode privat/kuota):', err);
       resolve(null);
     }
   });
 }
 
-function validateCachePayload(raw: unknown, expectedVersion: string): raw is WorldCachePayload {
-  if (!raw || typeof raw !== 'object') return false;
-  const candidate = raw as Partial<WorldCachePayload>;
-
-  if (candidate.version !== expectedVersion || candidate.cacheKey !== expectedVersion) {
-    return false;
-  }
-  if (
-    !(candidate.terrainPositions instanceof Float32Array) ||
-    candidate.terrainPositions.length === 0 ||
-    !(candidate.terrainColors instanceof Float32Array) ||
-    candidate.terrainColors.length === 0 ||
-    !(candidate.terrainNormals instanceof Float32Array) ||
-    candidate.terrainNormals.length === 0 ||
-    !(candidate.heightLookupGrid instanceof Float32Array) ||
-    candidate.heightLookupGrid.length === 0
-  ) {
-    return false;
-  }
-  if (!(candidate.worldMapBlob instanceof Blob) || candidate.worldMapBlob.size === 0) {
-    return false;
-  }
-  if (!candidate.propMatrices || typeof candidate.propMatrices !== 'object') {
-    return false;
-  }
-
-  for (const val of Object.values(candidate.propMatrices)) {
-    if (!(val instanceof Float32Array)) {
-      return false;
+function computeModuleByteSize(data: ModularCacheData): number {
+  let bytes = 0;
+  if ('terrainPositions' in data) {
+    bytes += data.terrainPositions.byteLength;
+    bytes += data.terrainColors.byteLength;
+    bytes += data.terrainNormals.byteLength;
+    bytes += data.heightLookupGrid.byteLength;
+    if (data.spatialHeightGrid) bytes += data.spatialHeightGrid.byteLength;
+    if (data.spatialFlagsGrid) bytes += data.spatialFlagsGrid.byteLength;
+  } else if ('worldMapBlob' in data) {
+    bytes += data.worldMapBlob.size;
+  } else if ('propMatrices' in data) {
+    for (const key of Object.keys(data.propMatrices)) {
+      bytes += data.propMatrices[key].byteLength;
     }
   }
-
-  return true;
+  return bytes;
 }
 
-function estimatePayloadBytes(input: WorldCacheInput): number {
-  let total =
-    input.terrainPositions.byteLength +
-    input.terrainColors.byteLength +
-    input.terrainNormals.byteLength +
-    input.heightLookupGrid.byteLength +
-    input.worldMapBlob.size;
+function isValidTerrainRecord(data: unknown): data is WorldTerrainModuleData {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as WorldTerrainModuleData;
+  return (
+    d.terrainPositions instanceof Float32Array &&
+    d.terrainColors instanceof Float32Array &&
+    d.terrainNormals instanceof Float32Array &&
+    d.heightLookupGrid instanceof Float32Array
+  );
+}
 
-  if (input.spatialHeightGrid) total += input.spatialHeightGrid.byteLength;
-  if (input.spatialFlagsGrid) total += input.spatialFlagsGrid.byteLength;
+function isValidWorldMapRecord(data: unknown): data is WorldMapModuleData {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as WorldMapModuleData;
+  return d.worldMapBlob instanceof Blob && d.worldMapBlob.size > 0;
+}
 
-  for (const arr of Object.values(input.propMatrices)) {
-    total += arr.byteLength;
-  }
-
-  return total;
+function isValidPropsRecord(data: unknown): data is WorldPropsModuleData {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as WorldPropsModuleData;
+  if (!d.propMatrices || typeof d.propMatrices !== 'object') return false;
+  const requiredKeys = [
+    'oak',
+    'pine',
+    'boulder',
+    'plainsGrass',
+    'shrub',
+    'reefStone',
+    'beachGrass',
+  ];
+  return requiredKeys.every((k) => d.propMatrices[k] instanceof Float32Array);
 }
 
 /**
- * Memuat cache dunia dari IndexedDB.
- * Jika versi tidak cocok atau data rusak/tidak ada/Incognito, menghapus entri usang & mengembalikan `null`.
+ * Memuat seluruh modul dunia secara independen dari IndexedDB dan memverifikasi
+ * kesesuaian configHash per modul (Partial Invalidation).
  */
-export async function loadWorldCache(cacheKey: string = getWorldCacheKey()): Promise<WorldCachePayload | null> {
+export async function loadModularWorldCache(
+  terrainGridSpec?: TerrainGridHashSpec
+): Promise<ModularWorldCacheLoadResult> {
+  const hashes = getWorldModuleHashes(terrainGridSpec);
+  const emptyResult: ModularWorldCacheLoadResult = {
+    hashes,
+    terrain: null,
+    worldMap: null,
+    props: null,
+    payload: null,
+    hitCount: 0,
+  };
+
+  if (!isWorldCacheEnabled()) {
+    return emptyResult;
+  }
+
   const db = await openWorldCacheDB();
-  if (!db) return null;
+  if (!db) {
+    return emptyResult;
+  }
 
   return new Promise((resolve) => {
     try {
       const tx = db.transaction(WORLD_CACHE_STORE_NAME, 'readonly');
       const store = tx.objectStore(WORLD_CACHE_STORE_NAME);
-      const req = store.getAll();
 
-      req.onsuccess = async () => {
-        const records = (req.result || []) as unknown[];
-        db.close();
+      const reqTerrain = store.get(hashes.terrainKey);
+      const reqMap = store.get(hashes.worldMapKey);
+      const reqProps = store.get(hashes.propsKey);
 
-        if (!Array.isArray(records) || records.length === 0) {
-          resolve(null);
-          return;
-        }
+      let terrain: WorldTerrainModuleData | null = null;
+      let worldMap: WorldMapModuleData | null = null;
+      let props: WorldPropsModuleData | null = null;
 
-        let matched: WorldCachePayload | null = null;
-        let hasStaleOrCorrupt = false;
-
-        for (const rec of records) {
-          if (validateCachePayload(rec, cacheKey)) {
-            matched = rec;
-          } else {
-            hasStaleOrCorrupt = true;
-          }
-        }
-
-        if (!matched || hasStaleOrCorrupt) {
-          if (!matched) {
-            // Cache kedaluwarsa / korup: bersihkan & fallback build normal
-            await clearWorldCache();
-            resolve(null);
-            return;
-          }
-          // Ada kecocokan valid + entri usang lain: bersihkan entri usang secara senyap
-          void removeStaleCacheKeys(cacheKey);
-        }
-
-        resolve(matched);
-      };
-
-      req.onerror = () => {
-        console.warn('[WorldCache] Gagal membaca store IndexedDB:', req.error);
-        db.close();
-        resolve(null);
-      };
-    } catch (err) {
-      console.warn('[WorldCache] Error saat loadWorldCache:', err);
-      try {
-        db.close();
-      } catch {
-        // ignore
-      }
-      resolve(null);
-    }
-  });
-}
-
-async function removeStaleCacheKeys(activeKey: string): Promise<void> {
-  const db = await openWorldCacheDB();
-  if (!db) return;
-
-  await new Promise<void>((resolve) => {
-    try {
-      const tx = db.transaction(WORLD_CACHE_STORE_NAME, 'readwrite');
-      const store = tx.objectStore(WORLD_CACHE_STORE_NAME);
-      const keysReq = store.getAllKeys();
-      keysReq.onsuccess = () => {
-        const keys = keysReq.result || [];
-        for (const k of keys) {
-          if (k !== activeKey) {
-            store.delete(k);
-          }
+      reqTerrain.onsuccess = () => {
+        const rec = reqTerrain.result as WorldCacheModuleRecord | undefined;
+        if (rec && rec.configHash === hashes.terrainHash && isValidTerrainRecord(rec.data)) {
+          terrain = rec.data;
         }
       };
+
+      reqMap.onsuccess = () => {
+        const rec = reqMap.result as WorldCacheModuleRecord | undefined;
+        if (rec && rec.configHash === hashes.worldMapHash && isValidWorldMapRecord(rec.data)) {
+          worldMap = rec.data;
+        }
+      };
+
+      reqProps.onsuccess = () => {
+        const rec = reqProps.result as WorldCacheModuleRecord | undefined;
+        if (rec && rec.configHash === hashes.propsHash && isValidPropsRecord(rec.data)) {
+          props = rec.data;
+        }
+      };
+
       tx.oncomplete = () => {
         db.close();
-        resolve();
+        let hitCount = 0;
+        if (terrain) hitCount++;
+        if (worldMap) hitCount++;
+        if (props) hitCount++;
+
+        const payload: WorldCachePayload | null =
+          hitCount > 0
+            ? {
+                cacheKey: getWorldCacheKey(),
+                version: WORLD_CACHE_VERSION,
+                terrainPositions: terrain?.terrainPositions,
+                terrainColors: terrain?.terrainColors,
+                terrainNormals: terrain?.terrainNormals,
+                heightLookupGrid: terrain?.heightLookupGrid,
+                spatialHeightGrid: terrain?.spatialHeightGrid,
+                spatialFlagsGrid: terrain?.spatialFlagsGrid,
+                worldMapBlob: worldMap?.worldMapBlob,
+                propMatrices: props?.propMatrices,
+              }
+            : null;
+
+        resolve({
+          hashes,
+          terrain,
+          worldMap,
+          props,
+          payload,
+          hitCount,
+        });
       };
+
       tx.onerror = () => {
         db.close();
-        resolve();
+        resolve(emptyResult);
+      };
+
+      tx.onabort = () => {
+        db.close();
+        resolve(emptyResult);
       };
     } catch {
-      try {
-        db.close();
-      } catch {
-        // ignore
-      }
-      resolve();
+      db.close();
+      resolve(emptyResult);
     }
   });
 }
 
 /**
- * Menyimpan buffer biner terrain, height lookup, peta 512x512, & matriks prop ke IndexedDB.
- * Aman terhadap QuotaExceededError / mode Incognito.
+ * Menyimpan 1 modul cache dunia secara spesifik (digunakan saat Partial Update).
  */
-export async function saveWorldCache(cacheKey: string, input: WorldCacheInput): Promise<boolean> {
-  if (!isWorldCacheEnabled()) {
-    return false;
-  }
-
+export async function saveModularCache(
+  moduleKey: string,
+  configHash: string,
+  data: ModularCacheData
+): Promise<boolean> {
+  if (!isWorldCacheEnabled()) return false;
   const db = await openWorldCacheDB();
   if (!db) return false;
 
-  const approxSizeBytes = estimatePayloadBytes(input);
-  const record: WorldCachePayload = {
-    cacheKey,
-    version: cacheKey,
-    terrainPositions: input.terrainPositions,
-    terrainColors: input.terrainColors,
-    terrainNormals: input.terrainNormals,
-    heightLookupGrid: input.heightLookupGrid,
-    worldMapBlob: input.worldMapBlob,
-    propMatrices: input.propMatrices,
-    spatialHeightGrid: input.spatialHeightGrid,
-    spatialFlagsGrid: input.spatialFlagsGrid,
+  const byteSize = computeModuleByteSize(data);
+  const record: WorldCacheModuleRecord = {
+    moduleKey,
+    configHash,
+    version: WORLD_CACHE_VERSION,
+    data,
+    byteSize,
     savedAt: Date.now(),
-    approxSizeBytes,
   };
 
   return new Promise((resolve) => {
     try {
       const tx = db.transaction(WORLD_CACHE_STORE_NAME, 'readwrite');
       const store = tx.objectStore(WORLD_CACHE_STORE_NAME);
-
-      // Bersihkan versi cache lama terlebih dahulu agar storage tetap ringkas
-      store.clear();
       store.put(record);
 
       tx.oncomplete = () => {
@@ -323,32 +535,170 @@ export async function saveWorldCache(cacheKey: string, input: WorldCacheInput): 
         dispatchWorldCacheEvent('eldoria_world_cache_changed');
         resolve(true);
       };
-
       tx.onerror = () => {
-        console.warn('[WorldCache] Gagal menyimpan cache (mungkin kuota browser penuh):', tx.error);
         db.close();
         resolve(false);
       };
-
       tx.onabort = () => {
-        console.warn('[WorldCache] Transaksi penyimpanan cache dibatalkan:', tx.error);
         db.close();
         resolve(false);
       };
-    } catch (err) {
-      console.warn('[WorldCache] Pengecualian saveWorldCache:', err);
-      try {
-        db.close();
-      } catch {
-        // ignore
-      }
+    } catch {
+      db.close();
       resolve(false);
     }
   });
 }
 
 /**
- * Menghapus seluruh data cache dunia di IndexedDB secara aman.
+ * Menyimpan seluruh modul dunia yang tersedia ke IndexedDB dalam 1 transaksi atomik.
+ */
+export async function saveAllModularCaches(
+  snapshot: ActiveWorldSnapshot,
+  hashesOverride?: WorldModuleHashes
+): Promise<boolean> {
+  if (!isWorldCacheEnabled()) return false;
+
+  const db = await openWorldCacheDB();
+  if (!db) return false;
+
+  const hashes = hashesOverride ?? getWorldModuleHashes(snapshot.terrainGridSpec);
+  const now = Date.now();
+  const records: WorldCacheModuleRecord[] = [];
+
+  if (
+    snapshot.terrainPositions &&
+    snapshot.terrainColors &&
+    snapshot.terrainNormals &&
+    snapshot.heightLookupGrid
+  ) {
+    const tData: WorldTerrainModuleData = {
+      terrainPositions: new Float32Array(snapshot.terrainPositions),
+      terrainColors: new Float32Array(snapshot.terrainColors),
+      terrainNormals: new Float32Array(snapshot.terrainNormals),
+      heightLookupGrid: new Float32Array(snapshot.heightLookupGrid),
+      spatialHeightGrid: snapshot.spatialHeightGrid
+        ? new Float32Array(snapshot.spatialHeightGrid)
+        : undefined,
+      spatialFlagsGrid: snapshot.spatialFlagsGrid
+        ? new Uint8Array(snapshot.spatialFlagsGrid)
+        : undefined,
+    };
+    records.push({
+      moduleKey: hashes.terrainKey,
+      configHash: hashes.terrainHash,
+      version: WORLD_CACHE_VERSION,
+      data: tData,
+      byteSize: computeModuleByteSize(tData),
+      savedAt: now,
+    });
+  }
+
+  if (snapshot.worldMapBlob && snapshot.worldMapBlob.size > 0) {
+    const mData: WorldMapModuleData = {
+      worldMapBlob: snapshot.worldMapBlob,
+    };
+    records.push({
+      moduleKey: hashes.worldMapKey,
+      configHash: hashes.worldMapHash,
+      version: WORLD_CACHE_VERSION,
+      data: mData,
+      byteSize: computeModuleByteSize(mData),
+      savedAt: now,
+    });
+  }
+
+  if (snapshot.propMatrices && Object.keys(snapshot.propMatrices).length > 0) {
+    const clonedProps: Record<string, Float32Array> = {};
+    for (const k of Object.keys(snapshot.propMatrices)) {
+      clonedProps[k] = new Float32Array(snapshot.propMatrices[k]);
+    }
+    const pData: WorldPropsModuleData = { propMatrices: clonedProps };
+    records.push({
+      moduleKey: hashes.propsKey,
+      configHash: hashes.propsHash,
+      version: WORLD_CACHE_VERSION,
+      data: pData,
+      byteSize: computeModuleByteSize(pData),
+      savedAt: now,
+    });
+  }
+
+  if (records.length === 0) {
+    db.close();
+    return false;
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(WORLD_CACHE_STORE_NAME, 'readwrite');
+      const store = tx.objectStore(WORLD_CACHE_STORE_NAME);
+      for (const rec of records) {
+        store.put(rec);
+      }
+
+      tx.oncomplete = () => {
+        db.close();
+        dispatchWorldCacheEvent('eldoria_world_cache_saved');
+        dispatchWorldCacheEvent('eldoria_world_cache_changed');
+        resolve(true);
+      };
+
+      tx.onerror = (ev) => {
+        console.warn('[WorldCache] Gagal menyimpan modul dunia:', ev);
+        db.close();
+        resolve(false);
+      };
+
+      tx.onabort = () => {
+        db.close();
+        resolve(false);
+      };
+    } catch (err) {
+      console.warn('[WorldCache] Transaksi penyimpanan modul dilewati (Incognito/Kuota):', err);
+      db.close();
+      resolve(false);
+    }
+  });
+}
+
+/**
+ * Instant In-Game Capture: langsung menangkap buffer dunia aktif yang sudah berada
+ * di memori saat tombol "Simpan Cache Dunia" diaktifkan di Pengaturan dalam game.
+ */
+export async function captureAndSaveActiveWorldCache(): Promise<{
+  saved: boolean;
+  sizeMB: string;
+}> {
+  if (!isWorldCacheEnabled() || !activeSnapshotProvider) {
+    return { saved: false, sizeMB: '0' };
+  }
+
+  try {
+    const snapshot = activeSnapshotProvider();
+    if (!snapshot) {
+      return { saved: false, sizeMB: '0' };
+    }
+
+    if (!snapshot.worldMapBlob) {
+      snapshot.worldMapBlob = await exportWorldMapRasterToBlob();
+    }
+
+    const ok = await saveAllModularCaches(snapshot);
+    if (!ok) {
+      return { saved: false, sizeMB: '0' };
+    }
+
+    const info = await getWorldCacheInfo();
+    return { saved: info.exists, sizeMB: info.sizeMB };
+  } catch (err) {
+    console.warn('[WorldCache] Instant in-game capture gagal:', err);
+    return { saved: false, sizeMB: '0' };
+  }
+}
+
+/**
+ * Menghapus seluruh cache dunia di IndexedDB.
  */
 export async function clearWorldCache(): Promise<void> {
   const db = await openWorldCacheDB();
@@ -357,28 +707,30 @@ export async function clearWorldCache(): Promise<void> {
     return;
   }
 
-  await new Promise<void>((resolve) => {
+  return new Promise((resolve) => {
     try {
       const tx = db.transaction(WORLD_CACHE_STORE_NAME, 'readwrite');
       const store = tx.objectStore(WORLD_CACHE_STORE_NAME);
-      store.clear();
+      const req = store.clear();
 
-      tx.oncomplete = () => {
+      req.onsuccess = () => {
         db.close();
         dispatchWorldCacheEvent('eldoria_world_cache_changed');
         resolve();
       };
-      tx.onerror = () => {
+
+      req.onerror = () => {
         db.close();
         dispatchWorldCacheEvent('eldoria_world_cache_changed');
+        resolve();
+      };
+
+      tx.onabort = () => {
+        db.close();
         resolve();
       };
     } catch {
-      try {
-        db.close();
-      } catch {
-        // ignore
-      }
+      db.close();
       dispatchWorldCacheEvent('eldoria_world_cache_changed');
       resolve();
     }
@@ -386,12 +738,12 @@ export async function clearWorldCache(): Promise<void> {
 }
 
 /**
- * Mengembalikan status ukuran & waktu simpan cache lokal untuk UI Pengaturan.
+ * Mengambil informasi ukuran (MB), jumlah modul, & waktu penyimpanan cache dunia lokal.
  */
 export async function getWorldCacheInfo(): Promise<WorldCacheInfo> {
   const db = await openWorldCacheDB();
   if (!db) {
-    return { exists: false, sizeMB: '0', savedAt: null };
+    return { exists: false, sizeMB: '0', savedAt: null, moduleCount: 0 };
   }
 
   return new Promise((resolve) => {
@@ -401,50 +753,52 @@ export async function getWorldCacheInfo(): Promise<WorldCacheInfo> {
       const req = store.getAll();
 
       req.onsuccess = () => {
-        const records = (req.result || []) as Partial<WorldCachePayload>[];
         db.close();
-
-        if (!Array.isArray(records) || records.length === 0) {
-          resolve({ exists: false, sizeMB: '0', savedAt: null });
+        const records = (req.result as WorldCacheModuleRecord[] | undefined) || [];
+        if (records.length === 0) {
+          resolve({ exists: false, sizeMB: '0', savedAt: null, moduleCount: 0 });
           return;
         }
-
         let totalBytes = 0;
-        let latestSavedAt: number | null = null;
-
+        let latestSaved = 0;
         for (const rec of records) {
-          if (typeof rec?.approxSizeBytes === 'number' && rec.approxSizeBytes > 0) {
-            totalBytes += rec.approxSizeBytes;
-          }
-          if (typeof rec?.savedAt === 'number') {
-            latestSavedAt = latestSavedAt === null ? rec.savedAt : Math.max(latestSavedAt, rec.savedAt);
+          totalBytes += typeof rec.byteSize === 'number' ? rec.byteSize : 0;
+          if (typeof rec.savedAt === 'number' && rec.savedAt > latestSaved) {
+            latestSaved = rec.savedAt;
           }
         }
-
-        if (totalBytes <= 0) {
-          resolve({ exists: false, sizeMB: '0', savedAt: null });
-          return;
-        }
-
-        const sizeMB = (totalBytes / (1024 * 1024)).toFixed(1);
+        const mb = totalBytes / (1024 * 1024);
+        const sizeMB = mb >= 10 ? mb.toFixed(1) : Math.max(0.1, mb).toFixed(1);
         resolve({
           exists: true,
           sizeMB,
-          savedAt: latestSavedAt,
+          savedAt: latestSaved || null,
+          moduleCount: records.length,
         });
       };
 
       req.onerror = () => {
         db.close();
-        resolve({ exists: false, sizeMB: '0', savedAt: null });
+        resolve({ exists: false, sizeMB: '0', savedAt: null, moduleCount: 0 });
       };
     } catch {
-      try {
-        db.close();
-      } catch {
-        // ignore
-      }
-      resolve({ exists: false, sizeMB: '0', savedAt: null });
+      db.close();
+      resolve({ exists: false, sizeMB: '0', savedAt: null, moduleCount: 0 });
     }
   });
+}
+
+/**
+ * Wrapper kompatibilitas legacy agar referensi lama tetap aman.
+ */
+export async function loadWorldCache(_cacheKey?: string): Promise<WorldCachePayload | null> {
+  const res = await loadModularWorldCache();
+  return res.payload;
+}
+
+export async function saveWorldCache(
+  _cacheKey: string,
+  input: ActiveWorldSnapshot
+): Promise<boolean> {
+  return saveAllModularCaches(input);
 }

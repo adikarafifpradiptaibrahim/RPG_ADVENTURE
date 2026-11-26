@@ -1116,49 +1116,54 @@ export function animateHunterWalk(
   if (isMoving) {
     if (isSprinting) {
       // ========================================================================
-      // POSTUR & ANIMASI LARI CEPAT AGILE ASSASSIN (DYNAMIC LEAN & ATHLETIC PUMP)
+      // POSTUR & ANIMASI LARI CEPAT AGILE ASSASSIN (DYNAMIC FORWARD LEAN & ATHLETIC PUMP)
       // ========================================================================
-      // 1. Condong ke depan dinamis ~19.5° (0.34 rad) dengan transisi lerp halus
+      // 1. Condong benar-benar ke DEPAN (+Z, ~20.6° / 0.36 rad) dengan jangkar pinggang rapat (z = +0.06)
       if (playerMesh.body) {
         playerMesh.body.rotation.reorder('YXZ');
-        playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0.34, 0.25);
+        playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0.36, 0.25);
         playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, 0.25);
+        playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.16, 0.25);
+        playerMesh.body.position.z = THREE.MathUtils.lerp(playerMesh.body.position.z, 0.06, 0.25);
       }
-      // 2. Kepala mengompensasi sedikit mendongak agar pandangan tetap lurus tajam
+      // 2. Kepala mengompensasi sedikit mendongak (-0.22 rad) agar mata cyan tetap menatap lurus tajam ke depan
       if (playerMesh.head) {
-        playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, -0.18, 0.25);
+        playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, -0.22, 0.25);
         playerMesh.head.position.x = 0;
-        playerMesh.head.position.y = THREE.MathUtils.lerp(playerMesh.head.position.y, 1.48, 0.25);
-        playerMesh.head.position.z = THREE.MathUtils.lerp(playerMesh.head.position.z, 0.09, 0.25);
+        playerMesh.head.position.y = THREE.MathUtils.lerp(playerMesh.head.position.y, 1.47, 0.25);
+        playerMesh.head.position.z = THREE.MathUtils.lerp(playerMesh.head.position.z, 0.12, 0.25);
       }
-      // 3. Stride langkah lebar cepat dengan tekukan lutut atletis & pantulan vertikal (bobbing) halus
+      // 3. Stride langkah lebar cepat (±0.88 rad) dengan tekukan lutut atletis & pantulan vertikal (bobbing 0.06u)
       const legSwing = Math.sin(walkTime);
       const sprintBob = Math.abs(Math.sin(walkTime)) * 0.06;
-      if (playerMesh.leftLeg) playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, legSwing * 0.96, 0.35);
-      if (playerMesh.rightLeg) playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, -legSwing * 0.96, 0.35);
-      if (playerMesh.leftKnee) playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.78 : 0.14;
-      if (playerMesh.rightKnee) playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.78 : 0.14;
+      if (playerMesh.leftLeg) playerMesh.leftLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.leftLeg.rotation.x, legSwing * 0.88, 0.35);
+      if (playerMesh.rightLeg) playerMesh.rightLeg.rotation.x = THREE.MathUtils.lerp(playerMesh.rightLeg.rotation.x, -legSwing * 0.88, 0.35);
+      if (playerMesh.leftKnee) playerMesh.leftKnee.rotation.x = legSwing > 0 ? legSwing * 0.82 : 0.18;
+      if (playerMesh.rightKnee) playerMesh.rightKnee.rotation.x = legSwing < 0 ? -legSwing * 0.82 : 0.18;
 
-      // 4. Ayunan lengan atletis berlawanan dengan kaki (siku ditekuk & belati mengarah belakang-bawah)
+      // 4. Ayunan lengan atletis natural (180° berlawanan dengan kaki, ayunan ±0.75 rad tanpa bias kaku ke belakang!)
+      // Catatan koordinat -Y: rotasi X NEGATIF memajukan lengan ke depan (+Z), rotasi X POSITIF mengayun ke belakang (-Z).
       if (!isAttacking) {
-        const armSwing = Math.cos(walkTime);
+        const isBowCarry = hunterWeaponMode === 'bow';
+        const targetLeftX = isBowCarry ? -0.34 - legSwing * 0.14 : -0.14 - legSwing * 0.75;
+        const targetRightX = isBowCarry ? -0.14 + legSwing * 0.68 : -0.14 + legSwing * 0.75;
         if (playerMesh.leftArm) {
-          playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, 0.34 - armSwing * 0.56, 0.32);
-          playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, 0.14, 0.25);
-          playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, -0.12, 0.25);
-          playerMesh.leftArm.position.set(-0.325, 1.40, 0.04);
+          playerMesh.leftArm.rotation.x = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.x, targetLeftX, 0.35);
+          playerMesh.leftArm.rotation.y = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.y, isBowCarry ? 0.16 : 0.10, 0.25);
+          playerMesh.leftArm.rotation.z = THREE.MathUtils.lerp(playerMesh.leftArm.rotation.z, isBowCarry ? -0.14 : -0.10, 0.25);
+          playerMesh.leftArm.position.set(-0.325, 1.38, isBowCarry ? 0.14 : 0.13);
         }
         if (playerMesh.rightArm) {
-          playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, 0.34 + armSwing * 0.56, 0.32);
-          playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, -0.14, 0.25);
-          playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0.12, 0.25);
-          playerMesh.rightArm.position.set(0.325, 1.40, 0.04);
+          playerMesh.rightArm.rotation.x = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.x, targetRightX, 0.35);
+          playerMesh.rightArm.rotation.y = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.y, -0.10, 0.25);
+          playerMesh.rightArm.rotation.z = THREE.MathUtils.lerp(playerMesh.rightArm.rotation.z, 0.10, 0.25);
+          playerMesh.rightArm.position.set(0.325, 1.38, 0.13);
         }
       }
 
       // 5. Kibaran ekor jubah belakang mengikuti kecepatan lari
       if (playerMesh.cape) {
-        const targetCape = 0.44 + Math.abs(Math.sin(walkTime * 0.5)) * 0.14;
+        const targetCape = 0.48 + Math.abs(Math.sin(walkTime * 0.5)) * 0.14;
         playerMesh.cape.rotation.x = THREE.MathUtils.lerp(playerMesh.cape.rotation.x, targetCape, 0.28);
       }
       playerMesh.group.position.y = playerPosY + sprintBob;
@@ -1167,6 +1172,8 @@ export function animateHunterWalk(
       if (playerMesh.body) {
         playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, 0.25);
         playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, 0.25);
+        playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.18, 0.25);
+        playerMesh.body.position.z = THREE.MathUtils.lerp(playerMesh.body.position.z, 0, 0.25);
       }
       if (playerMesh.head) {
         playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, 0, 0.25);
@@ -1209,6 +1216,8 @@ export function animateHunterWalk(
     if (playerMesh.body) {
       playerMesh.body.rotation.x = THREE.MathUtils.lerp(playerMesh.body.rotation.x, 0, 0.25);
       playerMesh.body.rotation.z = THREE.MathUtils.lerp(playerMesh.body.rotation.z, 0, 0.25);
+      playerMesh.body.position.y = THREE.MathUtils.lerp(playerMesh.body.position.y, 1.18, 0.25);
+      playerMesh.body.position.z = THREE.MathUtils.lerp(playerMesh.body.position.z, 0, 0.25);
     }
     if (playerMesh.head) {
       playerMesh.head.rotation.x = THREE.MathUtils.lerp(playerMesh.head.rotation.x, 0, 0.25);

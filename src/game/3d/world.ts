@@ -399,9 +399,8 @@ export async function buildWorldAsync(
     cachedTerrain!.heightLookupGrid.length === vertexCount;
 
   if (canRestoreCachedTerrain && cachedTerrain) {
-    // FAST PATH: Langsung pasang buffer biner terrain & heightLookupGrid dari IndexedDB
-    onProgress?.(18, 'Memuat dunia dari Cache Browser (Mode Cepat)...');
-    await scheduler.yieldIfNeeded(true);
+    // FAST PATH: Bulk-assign typed arrays langsung ke BufferAttribute tanpa sleep per tahap
+    onProgress?.(20, 'Memuat dunia dari Cache Browser (Mode Cepat)...');
 
     (posAttr.array as Float32Array).set(cachedTerrain.terrainPositions);
     posAttr.needsUpdate = true;
@@ -418,9 +417,15 @@ export async function buildWorldAsync(
     setMeshGroundHeights(cachedTerrain.heightLookupGrid);
 
     onProgress?.(25, 'Memuat dunia dari Cache Browser (Mode Cepat)...');
-    await scheduler.yieldIfNeeded(true);
+    await new Promise<void>((resolve) => {
+      if (typeof requestAnimationFrame !== 'undefined') {
+        requestAnimationFrame(() => resolve());
+      } else {
+        setTimeout(resolve, 0);
+      }
+    });
   } else {
-    // 1. Initial procedural heights sampling (Time-sliced max 20 rows per chunk / 6ms budget)
+    // 1. Initial procedural heights sampling (Pure time-sliced <= 6ms budget)
     onProgress?.(15, 'Membangun Geometri & Heightmap Benua Eldoria (15%)...');
     const rawHeights = new Float32Array(vertexCount);
     const gridW = TERRAIN_GRID.gridW;
@@ -434,7 +439,7 @@ export async function buildWorldAsync(
         const vz = posAttr.getZ(idx) + TERRAIN_GRID.centerZ;
         rawHeights[idx] = getProceduralContinentHeight(vx, vz);
       }
-      if (gz % 20 === 0 || performance.now() - tLast > 6) {
+      if (performance.now() - tLast >= 6) {
         const pct = Math.round(15 + (gz / gridH) * 5);
         onProgress?.(pct, `Membangun Geometri & Heightmap (${pct}%)...`);
         await hardYield();
@@ -442,7 +447,7 @@ export async function buildWorldAsync(
       }
     }
 
-    // 2. Slope clamping and 3x3 smoothing filter (Time-sliced max 20 rows per chunk / 6ms budget)
+    // 2. Slope clamping and 3x3 smoothing filter (Pure time-sliced <= 6ms budget)
     onProgress?.(20, 'Menghaluskan Kontur Elevasi & Palung Sungai (20%)...');
     const smoothedHeights = new Float32Array(rawHeights);
     const maxSlopeDelta = 2.4;
@@ -477,7 +482,7 @@ export async function buildWorldAsync(
           }
           smoothedHeights[idx] = cur;
         }
-        if (gz % 20 === 0 || performance.now() - tLast > 6) {
+        if (performance.now() - tLast >= 6) {
           const pct = Math.round(20 + ((pass * gridH + gz) / (2 * gridH)) * 5);
           onProgress?.(pct, `Menghaluskan Kontur Elevasi (${pct}%)...`);
           await hardYield();
@@ -486,7 +491,7 @@ export async function buildWorldAsync(
       }
     }
 
-    // 3. Vertex colors generated seamlessly (Time-sliced max 20 rows per chunk / 6ms budget)
+    // 3. Vertex colors generated seamlessly (Pure time-sliced <= 6ms budget)
     onProgress?.(25, 'Mewarnai Biome Terrain (25%)...');
     const colors = new Float32Array(vertexCount * 3);
     tLast = performance.now();
@@ -504,7 +509,7 @@ export async function buildWorldAsync(
         colors[idx * 3 + 1] = col[1] / 255;
         colors[idx * 3 + 2] = col[2] / 255;
       }
-      if (gz % 20 === 0 || performance.now() - tLast > 6) {
+      if (performance.now() - tLast >= 6) {
         const pct = Math.round(25 + (gz / gridH) * 5);
         onProgress?.(pct, `Mewarnai Biome Terrain (${pct}%)...`);
         await hardYield();
@@ -665,7 +670,7 @@ export async function buildMainVillage(
   npcs: WorldNPC[]
 ): Promise<{ elderGroup: THREE.Group; elderPos: [number, number, number] }> {
   const villageMainlandY = 2.00;
-  await hardYield();
+  await cooperativeYield(6);
 
   // Village Center at (X: 20, Z: -60)
   const fountainX = 20;
@@ -1010,7 +1015,7 @@ export async function buildMainVillage(
     position: guardPos,
     dialogueId: 'guard_intro',
   });
-  await hardYield();
+  await cooperativeYield(6);
 
   // NPC 3: Anya (Alkemis & Herbalis) - At her potion counter
   const anyaGroup = createCustomNPCMesh('alchemist');
@@ -1045,7 +1050,7 @@ export async function buildMainVillage(
     position: torvaldPos,
     dialogueId: 'blacksmith_torvald',
   });
-  await hardYield();
+  await cooperativeYield(6);
 
   // NPC 5: Lyra the Wandering Bard - Outside tavern terrace
   const bardGroup = createCustomNPCMesh('bard');
@@ -1082,7 +1087,7 @@ export async function buildMainVillage(
     position: jokoPos,
     dialogueId: 'fisherman_joko',
   });
-  await hardYield();
+  await cooperativeYield(6);
 
   // NPC 7: Kael (Warga Desa Muda) - By coastal alleyway
   const kaelGroup = createCustomNPCMesh('villager');
@@ -1119,7 +1124,7 @@ export async function buildMainVillage(
     position: mayaPos,
     dialogueId: 'villager_maya',
   });
-  await hardYield();
+  await cooperativeYield(6);
 
   return { elderGroup, elderPos };
 }
