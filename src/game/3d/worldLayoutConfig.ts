@@ -161,7 +161,7 @@ export const WORLD_LAYOUT_CONFIG: WorldLayoutConfig = {
       z: -560,
       rotationY: 0,
       scale: 1.0,
-      flattenRadius: 55,
+      flattenRadius: 68,
       category: 'boss',
     },
     kawah_boss: {
@@ -173,7 +173,7 @@ export const WORLD_LAYOUT_CONFIG: WorldLayoutConfig = {
       z: -560,
       rotationY: 0,
       scale: 1.0,
-      flattenRadius: 55,
+      flattenRadius: 68,
       category: 'boss',
     },
     desert_sandworm: {

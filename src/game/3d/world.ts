@@ -3486,7 +3486,7 @@ async function populateWorldEntities(
         id: 'wp_boss_crater',
         name: 'Ancient Colosseum Ruins (Titan Kuno)',
         nameId: 'Arena Colosseum World Boss (Lv. 10)',
-        pos: [320, -640],
+        pos: [180, -560],
       },
       {
         id: 'wp_sandworm',

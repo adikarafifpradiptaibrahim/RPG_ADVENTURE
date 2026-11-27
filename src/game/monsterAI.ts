@@ -22,9 +22,9 @@ export const BOSS_ARENA_ZONES: Record<string, BossArenaZone> = {
     nameId: 'Sang Titan Kuno Obsidian',
     bossType: 'titan',
     center: { x: 180, z: -560 },
-    radius: 52,
-    territoryRadius: 52,
-    aggroRange: 34,
+    radius: 76,
+    territoryRadius: 76,
+    aggroRange: 38,
   },
   boss_dragonfang: {
     id: 'boss_dragonfang',
@@ -103,7 +103,7 @@ export function getActiveBossZoneForPosition(
  */
 export class MonsterCombatAI {
   /**
-   * Evaluates the best available skill for Titan Kuno Obsidian (Lv. 8)
+   * Evaluates the best available skill for Titan Kuno Obsidian (Lv. 10 Colossus)
    */
   public static selectTitanSkill(
     distToPlayer: number,
@@ -115,33 +115,33 @@ export class MonsterCombatAI {
     const boulderCd = cdMap.get('boulder_hurl') ?? cdMap.get('rock_throw') ?? 0;
     const punchCd = cdMap.get('heavy_punch') ?? 0;
 
-    // Out of arena engagement range: do not trigger any skills
-    if (distToPlayer > 42.0) {
+    // Out of expanded Colosseum engagement range: do not trigger any skills
+    if (distToPlayer > 54.0) {
       return null;
     }
 
-    // 1. Long-Distance Heavy Leap Slam: Terpicu jika pemain berada jauh (> 18 unit)
-    if (distToPlayer > 18.0 && distToPlayer <= 42.0 && leapSlamCd <= 0) {
+    // 1. Mid/Long-Distance Colossal Leap Slam (14 - 52 unit)
+    if (distToPlayer >= 14.0 && distToPlayer <= 52.0 && leapSlamCd <= 0) {
       return 'titan_leap_slam';
     }
 
-    // 2. High-Priority AOE: Seismic Ground Slam (Jarak dekat/menengah, Cooldown 14s)
-    if (slamCd <= 0 && distToPlayer <= 25) {
+    // 2. Cataclysmic Double Slam (<= 22 unit)
+    if (slamCd <= 0 && distToPlayer <= 22.0) {
       return 'seismic_slam';
     }
 
-    // 3. Long-Range Gap Threat: Boulder Hurl (Jarak > 8 unit, Cooldown 6s)
-    if (distToPlayer > 8.0 && distToPlayer <= 42.0 && boulderCd <= 0) {
-      return 'boulder_hurl';
-    }
-
-    // 4. Mid/Long Ground Wave: Earth Fissure Strike (Jarak > 6 unit, Cooldown 8s)
-    if (distToPlayer > 6.0 && distToPlayer <= 42.0 && fissureCd <= 0) {
+    // 3. Cascading Earth Fissure (Line 44 unit)
+    if (distToPlayer > 9.0 && distToPlayer <= 44.0 && fissureCd <= 0) {
       return 'earth_fissure';
     }
 
-    // 5. Close Melee Threat: Heavy Melee Fist (Jarak <= 4 unit, Cooldown 2s)
-    if (distToPlayer <= 4.2 && punchCd <= 0) {
+    // 4. Molten Monolith Hurl (Parabolic long-range threat)
+    if (distToPlayer > 11.0 && distToPlayer <= 52.0 && boulderCd <= 0) {
+      return 'boulder_hurl';
+    }
+
+    // 5. Colossus Sweeping Cleave (Wide 160° arc <= 10 unit)
+    if (distToPlayer <= 10.0 && punchCd <= 0) {
       return 'heavy_punch';
     }
 

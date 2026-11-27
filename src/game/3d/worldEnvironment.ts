@@ -1761,255 +1761,329 @@ export async function buildWorldEnvironmentAsync(
   envGroup.add(meadowGroup);
 
   // ============================================================================
-  // 5. ZONA H: RERUNTUHAN COLOSSEUM KUNO / ANCIENT COLOSSEUM ARENA (X: -224, Z: -435)
-  // Perbesar skala wilayah boss minimal 2.5x lipat dari ukuran sebelumnya (Radius 52 unit).
-  // Arsitektur Colosseum Kuno:
-  // - Dinding melingkar bertingkat Roman Stone Arches dengan beberapa bagian runtuh alami.
-  // - Lantai arena: hamparan pasir berdebu luas, retakan batu kuno, bercak hangus, pecahan pilar marmer.
-  // - Gapura masuk raksasa (Grand South Entrance Arch) di sisi selatan.
-  // - Tata pencahayaan: 6 obor cawan perunggu berkobar di sekeliling arena.
+  // 5. ZONA H: RERUNTUHAN COLOSSEUM KUNO / ANCIENT COLOSSEUM ARENA [180, -560]
+  // Ekspansi platform batu raksasa radius 60 unit (diameter 120u) + lingkaran megalit Stonehenge & 2 gerbang masuk lebar.
+  // 0 dynamic PointLight: pencahayaan menggunakan material emissive agar tetap 60 FPS saat bertarung.
   // ============================================================================
-  await checkEnvYield(68, 'Membangun Padang Rumput Utara & Arena Colosseum (68%)...');
+  await checkEnvYield(68, 'Membangun Padang Rumput Utara & Arena Colosseum Raksasa (68%)...');
   const colosseumGroup = new THREE.Group();
   colosseumGroup.name = 'ZoneH_AncientColosseumBossArena';
 
   const golemLayout = getLandmarkLayout('bossGolem') || getLandmarkLayout('kawah_boss');
-  const colosseumCenterX = golemLayout?.x ?? 340;
+  const colosseumCenterX = golemLayout?.x ?? 180;
   const colosseumCenterZ = golemLayout?.z ?? -560;
   const craterCenterX = colosseumCenterX;
   const craterCenterZ = colosseumCenterZ;
   const colosseumFloorY = golemLayout?.y ?? 4.50;
-  const arenaRadius = 48.0;
-  const wallRadius = 53.0;
+  const arenaRadius = 60.0;
+  const wallRadius = 64.5;
 
-  // A. Lantai Arena Pasir Berdebu Luas (Dusty Sand Floor)
-  const matColosseumSand = new THREE.MeshStandardMaterial({
-    color: 0xc4b59d,
-    roughness: 0.92,
+  // A. Lantai Batu Arena Colosseum Luas (Radius 60u, Walkable Solid Surface)
+  const matColosseumFloor = new THREE.MeshStandardMaterial({
+    color: 0xb0a390,
+    roughness: 0.9,
+    metalness: 0.08,
     flatShading: true,
   });
+  const matColosseumInnerRing = new THREE.MeshStandardMaterial({
+    color: 0x7c7265,
+    roughness: 0.88,
+    metalness: 0.12,
+  });
+  const matFissureEmissive = new THREE.MeshBasicMaterial({
+    color: 0xea580c,
+    transparent: true,
+    opacity: 0.58,
+  });
+  const matMegalithRune = new THREE.MeshStandardMaterial({
+    color: 0x2d3442,
+    roughness: 0.85,
+    metalness: 0.25,
+    flatShading: true,
+  });
+  const matMegalithEmissive = new THREE.MeshStandardMaterial({
+    color: 0xf97316,
+    emissive: 0xea580c,
+    emissiveIntensity: 1.25,
+  });
+
   const arenaFloor = new THREE.Mesh(
-    new THREE.CircleGeometry(arenaRadius, 48).rotateX(-Math.PI / 2),
-    matColosseumSand
+    new THREE.CylinderGeometry(arenaRadius, arenaRadius + 1.5, 0.35, 56),
+    matColosseumFloor
   );
-  arenaFloor.position.set(colosseumCenterX, colosseumFloorY + 0.02, colosseumCenterZ);
+  arenaFloor.position.set(colosseumCenterX, colosseumFloorY - 0.12, colosseumCenterZ);
   arenaFloor.receiveShadow = true;
   colosseumGroup.add(arenaFloor);
-  registerWalkableSurface(arenaFloor, { label: 'Lantai Arena Colosseum' });
+  registerWalkableSurface(arenaFloor, { label: 'Lantai Utama Colosseum Titan Kuno' });
 
-  // B. Bercak Hangus & Retakan Batu Kuno pada Lantai Arena
+  // B. Medallion Hantaman Tengah & Retakan Magma Kuno Walkable di Lantai Arena
+  const centerMedallion = new THREE.Mesh(
+    new THREE.CylinderGeometry(16.0, 16.5, 0.12, 32),
+    matColosseumInnerRing
+  );
+  centerMedallion.position.set(colosseumCenterX, colosseumFloorY + 0.04, colosseumCenterZ);
+  centerMedallion.receiveShadow = true;
+  colosseumGroup.add(centerMedallion);
+  registerWalkableSurface(centerMedallion, { label: 'Pelat Tengah Colosseum Titan' });
+
+  const craterRing = new THREE.Mesh(
+    new THREE.RingGeometry(15.2, 16.0, 40).rotateX(-Math.PI / 2),
+    matFissureEmissive
+  );
+  craterRing.position.set(colosseumCenterX, colosseumFloorY + 0.11, colosseumCenterZ);
+  colosseumGroup.add(craterRing);
+
+  // 8 Garis Retakan Bekas Hantaman Memancar dari Tengah
+  for (let f = 0; f < 8; f++) {
+    const fAng = (f / 8) * Math.PI * 2 + 0.2;
+    const crack = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.04, 18.0), matDarkSoil);
+    crack.position.set(
+      colosseumCenterX + Math.sin(fAng) * 12.0,
+      colosseumFloorY + 0.08,
+      colosseumCenterZ + Math.cos(fAng) * 12.0
+    );
+    crack.rotation.y = fAng;
+    crack.receiveShadow = true;
+    colosseumGroup.add(crack);
+  }
+
   const scorchCoords = [
-    { dx: -12, dz: -8, r: 4.8 },
-    { dx: 14, dz: 6, r: 5.2 },
-    { dx: -6, dz: 16, r: 3.8 },
-    { dx: 18, dz: -14, r: 4.5 },
-    { dx: 0, dz: 0, r: 6.0 }, // Titik sentral tumbukan
-    { dx: -18, dz: -18, r: 3.5 },
+    { dx: -16, dz: -12, r: 5.2 },
+    { dx: 18, dz: 10, r: 5.8 },
+    { dx: -10, dz: 22, r: 4.5 },
+    { dx: 22, dz: -18, r: 5.0 },
+    { dx: 0, dz: 0, r: 7.5 },
+    { dx: -24, dz: -22, r: 4.2 },
   ];
   scorchCoords.forEach((sc) => {
     const scorch = new THREE.Mesh(
       new THREE.CircleGeometry(sc.r, 20).rotateX(-Math.PI / 2),
       matDarkSoil
     );
-    scorch.position.set(colosseumCenterX + sc.dx, colosseumFloorY + 0.04, colosseumCenterZ + sc.dz);
+    scorch.position.set(colosseumCenterX + sc.dx, colosseumFloorY + 0.11, colosseumCenterZ + sc.dz);
     scorch.receiveShadow = true;
     colosseumGroup.add(scorch);
-    registerWalkableSurface(scorch, { label: 'Lantai Arena Colosseum Scorch' });
+    registerWalkableSurface(scorch, { label: 'Lantai Bekas Hantaman Colosseum' });
   });
 
-  // Pelat Batu Kuno Pecah di Lantai Arena (Cracked Stone Slabs)
-  for (let s = 0; s < 14; s++) {
-    const sAng = (s / 14) * Math.PI * 2;
-    const sDist = 12.0 + (s % 5) * 6.5;
+  // Pelat Batu Kuno Pecah Walkable di Lantai Arena
+  for (let s = 0; s < 18; s++) {
+    const sAng = (s / 18) * Math.PI * 2;
+    const sDist = 18.0 + (s % 5) * 7.2;
     const sx = colosseumCenterX + Math.cos(sAng) * sDist;
     const sz = colosseumCenterZ + Math.sin(sAng) * sDist;
     const slab = new THREE.Mesh(
-      new THREE.BoxGeometry(2.6 + (s % 3) * 0.8, 0.12, 3.2 + (s % 4) * 0.6),
+      new THREE.BoxGeometry(3.2 + (s % 3) * 0.9, 0.14, 3.6 + (s % 4) * 0.7),
       matStoneRuins
     );
-    slab.position.set(sx, colosseumFloorY + 0.06, sz);
+    slab.position.set(sx, colosseumFloorY + 0.07, sz);
     slab.rotation.y = sAng + Math.PI / 4;
     slab.receiveShadow = true;
     colosseumGroup.add(slab);
     registerWalkableSurface(slab, { label: 'Pelat Batu Colosseum' });
   }
 
-  // Pecahan Pilar Marmer Roboh di Lantai Arena (Fallen Marble Column Drums)
+  // Pecahan Pilar Marmer Roboh di Zona Luar Arena (tidak memblokir tengah)
   const fallenPillarOffsets = [
-    { dx: -22, dz: 8, rotY: 0.6, len: 4.2 },
-    { dx: 16, dz: -18, rotY: -0.8, len: 3.6 },
-    { dx: -8, dz: -24, rotY: 1.2, len: 4.8 },
-    { dx: 24, dz: 14, rotY: 2.1, len: 3.5 },
-    { dx: 8, dz: 22, rotY: -1.4, len: 4.0 },
+    { dx: -40, dz: 16, rotY: 0.6, len: 4.8 },
+    { dx: 36, dz: -32, rotY: -0.8, len: 4.2 },
+    { dx: -16, dz: -42, rotY: 1.2, len: 5.0 },
+    { dx: 40, dz: 24, rotY: 2.1, len: 4.0 },
+    { dx: 14, dz: 44, rotY: -1.4, len: 4.4 },
   ];
   fallenPillarOffsets.forEach((fp, idx) => {
     const px = colosseumCenterX + fp.dx;
     const pz = colosseumCenterZ + fp.dz;
     const colMesh = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.75, 0.75, fp.len, 12),
+      new THREE.CylinderGeometry(0.85, 0.85, fp.len, 12),
       matStoneRuins
     );
-    colMesh.position.set(px, colosseumFloorY + 0.75, pz);
+    colMesh.position.set(px, colosseumFloorY + 0.85, pz);
     colMesh.rotation.set(Math.PI / 2, fp.rotY, 0);
     colMesh.castShadow = true;
     colosseumGroup.add(colMesh);
 
-    // Drum potongan pilar patah di dekatnya
-    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.78, 0.78, 1.2, 12), matStoneRuins);
-    drum.position.set(px + Math.cos(fp.rotY) * 2.8, colosseumFloorY + 0.6, pz + Math.sin(fp.rotY) * 2.8);
-    drum.rotation.set(0.3, Math.random() * Math.PI, 0.4);
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.88, 0.88, 1.3, 12), matStoneRuins);
+    drum.position.set(px + Math.cos(fp.rotY) * 3.1, colosseumFloorY + 0.65, pz + Math.sin(fp.rotY) * 3.1);
+    drum.rotation.set(0.3, idx * 1.1, 0.4);
     drum.castShadow = true;
     colosseumGroup.add(drum);
 
-    colliders.push({ type: 'circle', x: px, z: pz, radius: 1.8, label: `Pilar Roboh Colosseum ${idx + 1}` });
+    colliders.push({ type: 'circle', x: px, z: pz, radius: 1.9, label: `Pilar Roboh Colosseum ${idx + 1}` });
   });
 
-  // C. Dinding Melingkar Bertingkat (Roman Stone Arches) di Sekeliling Arena
-  // 24 Bay melingkar di sekeliling arena, menyisakan gapura selatan
-  const totalBays = 24;
+  // C. Dinding Lengkung Colosseum Bertingkat + 2 Gerbang Masuk Lebar (Selatan & Timur)
+  const totalBays = 28;
   for (let b = 0; b < totalBays; b++) {
     if (b > 0 && b % 4 === 0) {
       await cooperativeYield(4);
     }
     const angle = (b / totalBays) * Math.PI * 2;
-    // Celah gapura masuk selatan di sisi Z positif (sekitar angle ~ PI/2, yaitu Z: -382)
-    const isSouthEntrance = Math.abs(angle - Math.PI / 2) < 0.28;
-    if (isSouthEntrance) continue; // Biarkan terbuka untuk gerbang masuk pemain
+    const isSouthEntrance = Math.abs(angle - Math.PI / 2) < 0.25;
+    const isEastEntrance = angle < 0.25 || angle > Math.PI * 2 - 0.25;
+    if (isSouthEntrance || isEastEntrance) continue;
 
     const bx = colosseumCenterX + Math.cos(angle) * wallRadius;
     const bz = colosseumCenterZ + Math.sin(angle) * wallRadius;
     const by = getTerrainHeight(bx, bz);
-
-    // Beberapa bagian dinding runtuh alami (ruined breaches)
-    const isRuined = b === 7 || b === 8 || b === 18 || b === 19;
+    const isRuined = b === 5 || b === 11 || b === 16 || b === 22;
 
     const bayGroup = new THREE.Group();
     bayGroup.position.set(bx, by, bz);
     bayGroup.rotation.y = -angle + Math.PI / 2;
 
-    // Tingkat 1: Pilar Batu dan Lengkungan Bawah (Tier 1 Arcade) - Shared UNIT_BOX Cache
     const pierL = new THREE.Mesh(UNIT_BOX, matStoneRuins);
-    pierL.scale.set(1.6, 7.5, 1.8);
-    pierL.position.set(-2.4, 3.75, 0);
+    pierL.scale.set(1.75, 8.2, 2.0);
+    pierL.position.set(-2.6, 4.1, 0);
     pierL.castShadow = true;
     bayGroup.add(pierL);
 
     const pierR = new THREE.Mesh(UNIT_BOX, matStoneRuins);
-    pierR.scale.set(1.6, 7.5, 1.8);
-    pierR.position.set(2.4, 3.75, 0);
+    pierR.scale.set(1.75, 8.2, 2.0);
+    pierR.position.set(2.6, 4.1, 0);
     pierR.castShadow = true;
     bayGroup.add(pierR);
 
-    // Lintel balok lengkung atas tingkat 1
     const archHeader = new THREE.Mesh(UNIT_BOX, matStoneRuins);
-    archHeader.scale.set(5.6, 1.2, 2.0);
-    archHeader.position.set(0, 7.5 + 0.6, 0);
+    archHeader.scale.set(6.2, 1.35, 2.2);
+    archHeader.position.set(0, 8.6, 0);
     archHeader.castShadow = true;
     bayGroup.add(archHeader);
 
     if (!isRuined) {
-      // Tingkat 2: Galeri Dinding Bertingkat Atas (Tier 2 Gallery)
       const tier2Wall = new THREE.Mesh(UNIT_BOX, matStoneRuins);
-      tier2Wall.scale.set(5.4, 5.5, 1.6);
-      tier2Wall.position.set(0, 8.7 + 2.75, 0);
+      tier2Wall.scale.set(6.0, 6.2, 1.8);
+      tier2Wall.position.set(0, 12.2, 0);
       tier2Wall.castShadow = true;
       bayGroup.add(tier2Wall);
 
-      // Cornice pembatas atas
       const cornice = new THREE.Mesh(UNIT_BOX, matStoneRuins);
-      cornice.scale.set(5.8, 0.8, 2.2);
-      cornice.position.set(0, 14.2 + 0.4, 0);
+      cornice.scale.set(6.4, 0.9, 2.4);
+      cornice.position.set(0, 15.6, 0);
       cornice.castShadow = true;
       bayGroup.add(cornice);
     } else {
-      // Dinding runtuh: puing batu berserakan di dasar
       for (let r = 0; r < 4; r++) {
-        const rubble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.85 + (r % 3) * 0.35, 0), matStoneRuins);
-        rubble.position.set((r - 1.5) * 1.2, 0.5 + (r % 2) * 0.4, (r % 2 === 0 ? 1.0 : -1.0));
+        const rubble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.95 + (r % 3) * 0.35, 0), matStoneRuins);
+        rubble.position.set((r - 1.5) * 1.3, 0.5 + (r % 2) * 0.4, r % 2 === 0 ? 1.1 : -1.1);
         rubble.castShadow = true;
         bayGroup.add(rubble);
       }
     }
 
     colosseumGroup.add(bayGroup);
-    colliders.push({ type: 'circle', x: bx, z: bz, radius: 2.5, label: `Dinding Colosseum Bay ${b + 1}` });
+    colliders.push({ type: 'circle', x: bx, z: bz, radius: 2.8, label: `Dinding Colosseum Bay ${b + 1}` });
   }
 
-  // D. Gapura Masuk Raksasa Sisi Selatan (Grand South Entrance Archway)
-  // Berada di sisi selatan Z = colosseumCenterZ + wallRadius = -382
-  const entrancePortalX = colosseumCenterX;
-  const entrancePortalZ = colosseumCenterZ + wallRadius;
-  const entranceY = getTerrainHeight(entrancePortalX, entrancePortalZ);
+  // D. Lingkaran Batu Megalitik Stonehenge Raksasa di Tepi Terluar (r = 69.5u)
+  const colosseumStonehengeRadius = 69.5;
+  for (let m = 0; m < 12; m++) {
+    const mAng = (m / 12) * Math.PI * 2 + 0.14;
+    if (Math.abs(mAng - Math.PI / 2) < 0.24 || Math.abs(mAng) < 0.24 || Math.abs(mAng - Math.PI * 2) < 0.24) {
+      continue; // Sisakan jalan masuk selatan & timur
+    }
+    const mx = colosseumCenterX + Math.cos(mAng) * colosseumStonehengeRadius;
+    const mz = colosseumCenterZ + Math.sin(mAng) * colosseumStonehengeRadius;
+    const my = getTerrainHeight(mx, mz);
+    const height = 11.5 + (m % 3) * 1.8;
 
-  const portalGroup = new THREE.Group();
-  portalGroup.position.set(entrancePortalX, entranceY, entrancePortalZ);
+    const monolithGroup = new THREE.Group();
+    monolithGroup.position.set(mx, my, mz);
+    monolithGroup.rotation.y = -mAng + Math.PI / 2;
 
-  // Menara Tiang Gerbang Kiri & Kanan Megah
-  const gatePillarGeo = new THREE.BoxGeometry(2.8, 11.0, 3.2);
-  const gatePillarL = new THREE.Mesh(gatePillarGeo, matStoneRuins);
-  gatePillarL.position.set(-6.2, 5.5, 0);
-  gatePillarL.castShadow = true;
-  portalGroup.add(gatePillarL);
+    const pillar = new THREE.Mesh(new THREE.BoxGeometry(3.2, height, 2.2), matMegalithRune);
+    pillar.position.y = height / 2 - 0.3;
+    pillar.castShadow = true;
+    pillar.receiveShadow = true;
+    monolithGroup.add(pillar);
 
-  const gatePillarR = new THREE.Mesh(gatePillarGeo, matStoneRuins);
-  gatePillarR.position.set(6.2, 5.5, 0);
-  gatePillarR.castShadow = true;
-  portalGroup.add(gatePillarR);
+    const runeBand = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.38, 2.35), matMegalithEmissive);
+    runeBand.position.y = height * 0.68;
+    monolithGroup.add(runeBand);
 
-  // Lintel Balok Gapura Lengkung Megah
-  const gateArch = new THREE.Mesh(new THREE.BoxGeometry(14.8, 2.2, 3.6), matStoneRuins);
-  gateArch.position.set(0, 11.0 + 1.1, 0);
-  gateArch.castShadow = true;
-  portalGroup.add(gateArch);
+    if (m % 2 === 0) {
+      // Trilithon stone cap beam
+      const capBeam = new THREE.Mesh(new THREE.BoxGeometry(4.6, 1.35, 2.5), matStoneRuins);
+      capBeam.position.y = height + 0.35;
+      monolithGroup.add(capBeam);
+    }
 
-  // Pedimen segitiga mahkota gerbang
-  const pediment = new THREE.Mesh(new THREE.ConeGeometry(5.5, 2.2, 4), matStoneRuins);
-  pediment.position.set(0, 13.2 + 1.1, 0);
-  pediment.rotation.y = Math.PI / 4;
-  pediment.castShadow = true;
-  portalGroup.add(pediment);
+    colosseumGroup.add(monolithGroup);
+    colliders.push({ type: 'circle', x: mx, z: mz, radius: 2.4, label: `Megalit Stonehenge ${m + 1}` });
+  }
 
-  colosseumGroup.add(portalGroup);
-  colliders.push({ type: 'circle', x: entrancePortalX - 6.2, z: entrancePortalZ, radius: 2.2, label: 'Tiang Kiri Gapura Colosseum' });
-  colliders.push({ type: 'circle', x: entrancePortalX + 6.2, z: entrancePortalZ, radius: 2.2, label: 'Tiang Kanan Gapura Colosseum' });
+  // E. 2 Gapura Masuk Raksasa (Gerbang Selatan & Gerbang Timur)
+  const buildColosseumGate = (gx: number, gz: number, rotY: number, gateLabel: string) => {
+    const gy = getTerrainHeight(gx, gz);
+    const portalGroup = new THREE.Group();
+    portalGroup.position.set(gx, gy, gz);
+    portalGroup.rotation.y = rotY;
 
-  // E. Tata Pencahayaan: 6 Obor Cawan Perunggu Berkobar (Bronze Braziers)
-  const brazierAngles = [
-    0,
-    Math.PI / 3,
-    (2 * Math.PI) / 3,
-    Math.PI,
-    (4 * Math.PI) / 3,
-    (5 * Math.PI) / 3,
-  ];
-  const brazierRadius = 42.0;
+    const gatePillarGeo = new THREE.BoxGeometry(3.4, 14.5, 3.8);
+    const gatePillarL = new THREE.Mesh(gatePillarGeo, matStoneRuins);
+    gatePillarL.position.set(-8.5, 7.25, 0);
+    gatePillarL.castShadow = true;
+    portalGroup.add(gatePillarL);
 
-  brazierAngles.forEach((bAng, bIdx) => {
+    const gatePillarR = new THREE.Mesh(gatePillarGeo, matStoneRuins);
+    gatePillarR.position.set(8.5, 7.25, 0);
+    gatePillarR.castShadow = true;
+    portalGroup.add(gatePillarR);
+
+    const gateArch = new THREE.Mesh(new THREE.BoxGeometry(20.4, 2.8, 4.2), matStoneRuins);
+    gateArch.position.set(0, 14.5 + 1.4, 0);
+    gateArch.castShadow = true;
+    portalGroup.add(gateArch);
+
+    const runeLintel = new THREE.Mesh(new THREE.BoxGeometry(14.0, 0.5, 4.35), matMegalithEmissive);
+    runeLintel.position.set(0, 14.9, 0);
+    portalGroup.add(runeLintel);
+
+    const pediment = new THREE.Mesh(new THREE.ConeGeometry(7.2, 2.8, 4), matStoneRuins);
+    pediment.position.set(0, 17.3 + 1.4, 0);
+    pediment.rotation.y = Math.PI / 4;
+    pediment.castShadow = true;
+    portalGroup.add(pediment);
+
+    colosseumGroup.add(portalGroup);
+    const cosR = Math.cos(rotY);
+    const sinR = Math.sin(rotY);
+    colliders.push({ type: 'circle', x: gx - 8.5 * cosR, z: gz + 8.5 * sinR, radius: 2.5, label: `Tiang Kiri ${gateLabel}` });
+    colliders.push({ type: 'circle', x: gx + 8.5 * cosR, z: gz - 8.5 * sinR, radius: 2.5, label: `Tiang Kanan ${gateLabel}` });
+  };
+
+  buildColosseumGate(colosseumCenterX, colosseumCenterZ + wallRadius, 0, 'Gapura Selatan Colosseum');
+  buildColosseumGate(colosseumCenterX + wallRadius, colosseumCenterZ, Math.PI / 2, 'Gapura Timur Colosseum');
+
+  // F. 8 Anglo Api Kuno Bercahaya Emissive (ZERO dynamic PointLight!)
+  const brazierCount = 8;
+  const brazierRadius = 54.0;
+  for (let bIdx = 0; bIdx < brazierCount; bIdx++) {
+    const bAng = (bIdx / brazierCount) * Math.PI * 2 + Math.PI / 8;
     const brX = colosseumCenterX + Math.cos(bAng) * brazierRadius;
     const brZ = colosseumCenterZ + Math.sin(bAng) * brazierRadius;
-    const brY = getTerrainHeight(brX, brZ);
+    const brY = colosseumFloorY;
 
     const brazierGroup = new THREE.Group();
     brazierGroup.position.set(brX, brY, brZ);
 
-    // Kaki tiang batu berundak
-    const baseStone = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.2, 1.4, 8), matStoneRuins);
-    baseStone.position.y = 0.7;
+    const baseStone = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.5, 1.8, 8), matStoneRuins);
+    baseStone.position.y = 0.9;
     baseStone.castShadow = true;
     brazierGroup.add(baseStone);
 
-    // Cawan perunggu besar
-    const bronzeBowl = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.3, 0.8, 0.7, 12),
-      matCopperCauldron
-    );
-    bronzeBowl.position.y = 1.4 + 0.35;
+    const bronzeBowl = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.0, 0.9, 12), matCopperCauldron);
+    bronzeBowl.position.y = 2.25;
     bronzeBowl.castShadow = true;
     brazierGroup.add(bronzeBowl);
 
-    // Kobaran lidah api membara
-    const flameMesh = new THREE.Mesh(new THREE.ConeGeometry(0.75, 2.2, 8), matOrangeFire);
-    flameMesh.position.y = 2.1 + 1.1;
+    const emberCore = new THREE.Mesh(new THREE.SphereGeometry(0.95, 8, 8), matMegalithEmissive);
+    emberCore.scale.set(1, 0.5, 1);
+    emberCore.position.y = 2.75;
+    brazierGroup.add(emberCore);
+
+    const flameMesh = new THREE.Mesh(new THREE.ConeGeometry(0.95, 2.8, 8), matOrangeFire);
+    flameMesh.position.y = 3.9;
     brazierGroup.add(flameMesh);
 
     animatedFlames.push({
@@ -2018,20 +2092,9 @@ export async function buildWorldEnvironmentAsync(
       speed: 4.2 + (bIdx % 3) * 0.8,
     });
 
-    // Lampu dinamis obor arena
-    const brazierLight = new THREE.PointLight(0xf97316, 2.8, 34);
-    brazierLight.position.set(0, 3.2, 0);
-    brazierGroup.add(brazierLight);
-
-    animatedLights.push({
-      light: brazierLight,
-      baseIntensity: 2.8,
-      speed: 5.5 + (bIdx % 4) * 0.9,
-    });
-
     colosseumGroup.add(brazierGroup);
-    colliders.push({ type: 'circle', x: brX, z: brZ, radius: 1.4, label: `Obor Cawan Colosseum ${bIdx + 1}` });
-  });
+    colliders.push({ type: 'circle', x: brX, z: brZ, radius: 1.7, label: `Anglo Api Kuno Colosseum ${bIdx + 1}` });
+  }
 
   envGroup.add(colosseumGroup);
 

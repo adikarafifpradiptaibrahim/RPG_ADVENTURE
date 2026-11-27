@@ -1176,8 +1176,8 @@ export function getProceduralContinentHeight(x: number, z: number): number {
         mountainTargetH = lerpVal(2.20, targetPeakH, lakeValleyT);
       }
       const distTitanArena = Math.hypot(x - (lm.bossGolem?.x ?? 180), z - (lm.bossGolem?.z ?? -560));
-      if (distTitanArena < 86) {
-        const arenaT = smoothstepBlend(58, 86, distTitanArena);
+      if (distTitanArena < 98) {
+        const arenaT = smoothstepBlend(68, 98, distTitanArena);
         mountainTargetH = lerpVal(4.50, mountainTargetH, arenaT);
       }
 

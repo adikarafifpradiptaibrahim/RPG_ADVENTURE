@@ -868,6 +868,8 @@ export class GameEngine {
     isCripplingSlow?: boolean;
     pooledHostileType?: 'titan_boulder' | 'dragon_fireball';
     pooledHostileIndex?: number;
+    velocity?: THREE.Vector3;
+    gravity?: number;
   }[] = [];
 
   // Developer Testing State & FPS Telemetry (browser-only, default OFF)
@@ -1406,6 +1408,7 @@ export class GameEngine {
     leashRadius?: number;
     attackAnimTimer?: number;
     staggerTimer?: number;
+    lastStepSign?: number;
     velocity?: THREE.Vector3;
     stunTimer?: number;
     slowTimer?: number;
@@ -2916,16 +2919,16 @@ export class GameEngine {
       name: 'Obsidian Titan Golem',
       nameId: 'Sang Titan Kuno Obsidian',
       type: 'boss',
-      level: 8,
-      hp: 850,
-      maxHp: 850,
-      attack: 36,
-      defense: 18,
-      expReward: 800,
-      goldReward: 550,
-      speed: 2.3,
-      attackRange: 4.5,
-      detectRange: 42,
+      level: 10,
+      hp: 1350,
+      maxHp: 1350,
+      attack: 44,
+      defense: 20,
+      expReward: 1200,
+      goldReward: 850,
+      speed: 3.1,
+      attackRange: 8.5,
+      detectRange: 44,
       position: [bossPos[0], by, bossPos[1]],
       isDead: false,
       dropItems: [
@@ -5733,9 +5736,9 @@ export class GameEngine {
   // ============================================================================
   private initBossProjectilePools() {
     if (this.titanBoulderPool.length === 0) {
-      const rockGeo = new THREE.DodecahedronGeometry(0.9, 1);
-      const coreGeo = new THREE.IcosahedronGeometry(0.68, 1);
-      const haloGeo = new THREE.SphereGeometry(1.38, 10, 10);
+      const rockGeo = new THREE.DodecahedronGeometry(1.42, 1);
+      const coreGeo = new THREE.IcosahedronGeometry(1.08, 1);
+      const haloGeo = new THREE.SphereGeometry(2.05, 10, 10);
 
       const rockMat = new THREE.MeshStandardMaterial({
         color: 0x292524,
@@ -6578,7 +6581,7 @@ export class GameEngine {
     nearest.mesh.visible = true;
     const scale =
       nearest.data.id === 'boss_dragonfang' ? 4.2 :
-      nearest.data.id === 'boss_jarrus' ? 1.0 : 3.5;
+      (nearest.data.id === 'boss_jarrus' || nearest.data.id === 'boss_titan') ? 1.0 : 3.5;
     nearest.mesh.scale.set(scale, scale, scale);
     nearest.mesh.quaternion.identity();
     nearest.mesh.rotation.order = 'XYZ';
@@ -6615,8 +6618,8 @@ export class GameEngine {
       const gx = titanEnemy?.spawnPos?.x ?? titanEnemy?.data.position[0] ?? SPAWN_TITAN.x;
       const gz = titanEnemy?.spawnPos?.z ?? titanEnemy?.data.position[2] ?? SPAWN_TITAN.z;
       tx = gx;
-      tz = gz + 32;
-      label = 'Arena Titan Golem';
+      tz = gz + 42;
+      label = 'Colosseum Titan Kuno';
     }
     this.teleportGraceTimer = 0.25;
     this.teleportTo(tx, tz);
@@ -9863,7 +9866,7 @@ export class GameEngine {
 
         this.enemies.forEach((enemy) => {
           if (enemy.data.isDead || hitEnemies.has(enemy.mesh.uuid)) return;
-          if (crescentGroup.position.distanceTo(enemy.mesh.position) <= radius + 0.6) {
+          if (this.isPointHittingEnemy(crescentGroup.position, enemy, radius + 0.6)) {
             hitEnemies.add(enemy.mesh.uuid);
             this.callbacks.onUpdateStats((stats) => {
               const baseDmg = stats.baseAttack + stats.strength * 1.8;
@@ -10210,12 +10213,10 @@ export class GameEngine {
 
           if (projDist >= 0.2 && projDist <= beamLength + 1.2) {
             this._scratchClosestPoint.copy(origin).addScaledVector(fwd, projDist);
-            const distToBeam = enemyPos.distanceTo(this._scratchClosestPoint);
-
             const isBoss = enemy.data.type === 'boss' || enemy.data.id.includes('boss');
             const hitRadius = isBoss ? 4.8 : 2.2;
 
-            if (distToBeam <= hitRadius) {
+            if (this.isPointHittingEnemy(this._scratchClosestPoint, enemy, hitRadius)) {
               this.damageEnemy(enemy, finalDmg, isCrit, isContinuousTick ? 0.05 : 0.35);
 
               this._scratchHitPos.copy(enemyPos);
@@ -12383,6 +12384,32 @@ export class GameEngine {
   }
 
   // Helper to execute melee hit detection with full 360-degree coverage
+  private getBossBodyRadiusBonus(enemy: (typeof this.enemies)[0]): number {
+    if (enemy.data.id === 'boss_titan') return 3.6;
+    if (enemy.data.id === 'boss_dragonfang') return 2.8;
+    if (enemy.data.id === 'boss_jarrus') return 2.0;
+    return 0;
+  }
+
+  private isPointHittingEnemy(
+    point: THREE.Vector3,
+    enemy: (typeof this.enemies)[0],
+    baseRadius: number
+  ): boolean {
+    const ePos = enemy.mesh.position;
+    const maxH =
+      enemy.data.id === 'boss_titan'
+        ? 21.0
+        : enemy.data.id === 'boss_dragonfang'
+          ? 14.0
+          : enemy.data.id === 'boss_jarrus'
+            ? 10.0
+            : 4.5;
+    const dy = point.y - ePos.y;
+    if (dy < -1.5 || dy > maxH) return false;
+    return Math.hypot(point.x - ePos.x, point.z - ePos.z) <= baseRadius + this.getBossBodyRadiusBonus(enemy);
+  }
+
   private executeMeleeAttack(params: {
     range: number;
     coneAngle?: number;
@@ -12411,9 +12438,12 @@ export class GameEngine {
     this.enemies.forEach((enemy) => {
       if (enemy.data.isDead) return;
       const enemyPos = enemy.mesh.position;
-      const dist = this.playerPos.distanceTo(enemyPos);
+      const effectiveDist =
+        Math.hypot(this.playerPos.x - enemyPos.x, this.playerPos.z - enemyPos.z) -
+        this.getBossBodyRadiusBonus(enemy);
+      const dy = Math.abs(this.playerPos.y - enemyPos.y);
 
-      if (dist <= params.range) {
+      if (effectiveDist <= params.range && dy <= (enemy.data.id === 'boss_titan' ? 14.0 : 8.0)) {
         const toEnemy = new THREE.Vector3().subVectors(enemyPos, this.playerPos).normalize();
         const dot = playerForward.dot(toEnemy);
 
@@ -12423,7 +12453,7 @@ export class GameEngine {
         // 3. Otherwise for extended reach, covers a wide sweeping ~220Â° arc (dot > -0.35)
         const hit =
           params.is360 ||
-          dist <= 2.4 ||
+          effectiveDist <= 2.4 ||
           (params.coneAngle !== undefined ? dot > params.coneAngle : dot > -0.35);
 
         if (hit) {
@@ -12728,7 +12758,7 @@ export class GameEngine {
         if (!this.isRunning) return;
         this.enemies.forEach((enemy) => {
           if (enemy.data.isDead) return;
-          if (this.playerPos.distanceTo(enemy.mesh.position) <= 3.2) {
+          if (this.isPointHittingEnemy(this.playerPos, enemy, 3.2)) {
             const dmg = Math.round(stats.baseAttack * 0.75 + stats.baseDefense * 0.8);
             this.damageEnemy(enemy, dmg, false, 1.2);
             this.spawnSparks(enemy.mesh.position, 0xfbbf24, 8, 3.5);
@@ -12803,7 +12833,7 @@ export class GameEngine {
 
       this.enemies.forEach((enemy) => {
         if (enemy.data.isDead) return;
-        if (impactPos.distanceTo(enemy.mesh.position) <= aoeRadius) {
+        if (this.isPointHittingEnemy(impactPos, enemy, aoeRadius)) {
           this.damageEnemy(enemy, finalDmg, true, 2.2);
           this.spawnSparks(enemy.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xffaa00, 16, 4.8);
         }
@@ -13077,7 +13107,7 @@ export class GameEngine {
         const skillDmg = Math.round((stats.baseAttack + stats.agility * 2.5) * 1.5 * (isAmbush ? 1.5 : 1.0));
         this.enemies.forEach((enemy) => {
           if (enemy.data.isDead) return;
-          if (this.playerPos.distanceTo(enemy.mesh.position) <= 4.0) {
+          if (this.isPointHittingEnemy(this.playerPos, enemy, 4.0)) {
             this.damageEnemy(enemy, skillDmg, true, 0.4);
           }
         });
@@ -14285,6 +14315,37 @@ export class GameEngine {
           leg.rotation.x = Math.sin(enemy.walkCycle * 2.2 + legIdx * 0.9) * 0.4;
         }
       }
+    } else if (enemy.data.id === 'boss_titan') {
+      const phase = enemy.walkCycle * 0.55;
+      const swing = Math.sin(phase);
+      if (enemy.parts.leftLeg && enemy.parts.rightLeg) {
+        enemy.parts.leftLeg.rotation.x = swing * 0.36;
+        enemy.parts.rightLeg.rotation.x = -swing * 0.36;
+      }
+      if (enemy.parts.leftArm && enemy.parts.rightArm) {
+        enemy.parts.leftArm.rotation.x = -swing * 0.34;
+        enemy.parts.rightArm.rotation.x = swing * 0.34;
+      }
+      if (enemy.parts.torso) {
+        const baseY = enemy.parts.baseTorsoY ?? 8.4;
+        enemy.parts.torso.position.y = baseY + Math.abs(Math.cos(phase)) * 0.35;
+        enemy.parts.torso.rotation.y = swing * 0.08;
+      }
+      const curSign = swing >= 0 ? 1 : -1;
+      if (enemy.lastStepSign !== undefined && curSign !== enemy.lastStepSign) {
+        const footSideOffset = curSign > 0 ? 1.95 : -1.95;
+        const rotY = enemy.mesh.rotation.y;
+        const footPos = new THREE.Vector3(
+          enemy.mesh.position.x + Math.cos(rotY) * footSideOffset,
+          enemy.mesh.position.y + 0.15,
+          enemy.mesh.position.z - Math.sin(rotY) * footSideOffset
+        );
+        this.spawnSparks(footPos, 0x9ca3af, 6, 3.2);
+        if (this.playerPos.distanceTo(enemy.mesh.position) <= 44.0) {
+          this.triggerCameraShake(0.14);
+        }
+      }
+      enemy.lastStepSign = curSign;
     } else if (enemy.data.type === 'golem' || enemy.data.type === 'boss') {
       if (enemy.parts.leftLeg && enemy.parts.rightLeg) {
         enemy.parts.leftLeg.rotation.x = Math.sin(enemy.walkCycle * 0.7) * 0.35;
@@ -14306,9 +14367,13 @@ export class GameEngine {
       enemy.mesh.rotation.y = enemy.spawnRotY ?? Math.PI;
       return;
     }
-    const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : (enemy.data.id === 'boss_jarrus' ? 1.0 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0)));
+    const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : ((enemy.data.id === 'boss_jarrus' || enemy.data.id === 'boss_titan') ? 1.0 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0)));
     enemy.mesh.scale.set(s, s, s);
     if (enemy.parts) {
+      if (enemy.data.id === 'boss_titan' && enemy.parts.torso) {
+        enemy.parts.torso.position.set(0, enemy.parts.baseTorsoY ?? 8.4, 0);
+        enemy.parts.torso.rotation.set(0, 0, 0);
+      }
       if (enemy.parts.leftLeg) enemy.parts.leftLeg.rotation.set(0, 0, 0);
       if (enemy.parts.rightLeg) enemy.parts.rightLeg.rotation.set(0, 0, 0);
       if (enemy.parts.leftArm) enemy.parts.leftArm.rotation.set(0, 0, 0);
@@ -14341,7 +14406,7 @@ export class GameEngine {
     enemy.mesh.quaternion.identity();
     enemy.mesh.rotation.order = 'XYZ';
     enemy.mesh.rotation.set(0, enemy.spawnRotY ?? 0, 0);
-    const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : (enemy.data.id === 'boss_jarrus' ? 1.0 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0)));
+    const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : ((enemy.data.id === 'boss_jarrus' || enemy.data.id === 'boss_titan') ? 1.0 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0)));
     enemy.mesh.scale.set(s, s, s);
     enemy.mesh.visible = true;
 
@@ -16344,7 +16409,7 @@ export class GameEngine {
       // Boss Titan, Dragon & Worm permanent scale lock on update loop
       if (enemy.data.id === 'boss_dragonfang') {
         enemy.mesh.scale.set(4.2, 4.2, 4.2);
-      } else if (enemy.data.id === 'boss_jarrus') {
+      } else if (enemy.data.id === 'boss_jarrus' || enemy.data.id === 'boss_titan') {
         enemy.mesh.scale.set(1.0, 1.0, 1.0);
       } else if (enemy.data.type === 'boss') {
         enemy.mesh.scale.set(3.5, 3.5, 3.5);
@@ -16413,6 +16478,10 @@ export class GameEngine {
         }
       } else {
         enemy.mesh.visible = true;
+      }
+
+      if (enemy.data.id === 'boss_titan' && this.bossManager) {
+        this.bossManager.updateTitanVisualRig(enemy, delta);
       }
 
       // WORLD BOSS GLOBAL STATE MACHINE DISPATCH (Standby vs Disengaging vs Active Combat)
@@ -16576,7 +16645,12 @@ export class GameEngine {
         enemy.mesh.rotation.y = targetRotY;
 
         if (distToCurrentTarget > enemy.data.attackRange) {
-          const baseSpeed = enemy.data.id === 'boss_dragonfang' ? 5.8 : enemy.data.speed;
+          const baseSpeed =
+            enemy.data.id === 'boss_dragonfang'
+              ? 5.8
+              : enemy.data.id === 'boss_titan' && this.bossManager.titanPhase === 2
+                ? enemy.data.speed * 1.28
+                : enemy.data.speed;
           const moveSpeed = baseSpeed * slowMult * delta;
           ePos.x += toTarget.x * moveSpeed;
           ePos.z += toTarget.z * moveSpeed;
@@ -16649,7 +16723,7 @@ export class GameEngine {
 
   /**
    * Global Standardized Boss Zone, Health Bar, Aggro & Music State Machine
-   * (Berlaku seragam untuk boss_jarrus [r=68, aggro=36], boss_dragonfang [r=58, aggro=36], boss_titan [r=52, aggro=34])
+   * (Berlaku seragam untuk boss_jarrus [r=68, aggro=36], boss_dragonfang [r=74, aggro=38], boss_titan [r=76, aggro=38])
    * 1. Masuk territoryRadius saat combatActive === false:
    *    - Bar HP Boss (Nama + Gelar + HP) langsung tampil. Boss standby & musik tetap BGM lingkungan.
    * 2. Keluar territoryRadius saat combatActive === false:
@@ -16779,7 +16853,7 @@ export class GameEngine {
       // Boss Titan, Dragon & Worm permanent scale lock in multiplayer loop
       if (enemy.data.id === 'boss_dragonfang') {
         enemy.mesh.scale.set(4.2, 4.2, 4.2);
-      } else if (enemy.data.id === 'boss_jarrus') {
+      } else if (enemy.data.id === 'boss_jarrus' || enemy.data.id === 'boss_titan') {
         enemy.mesh.scale.set(1.0, 1.0, 1.0);
       } else if (enemy.data.type === 'boss') {
         enemy.mesh.scale.set(3.5, 3.5, 3.5);
@@ -16944,7 +17018,7 @@ export class GameEngine {
   }
 
   // Spawn flying 3D stone boulder projectile for Titan's Rock Boulder Throw skill (Pre-allocated Pool, ZERO PointLight)
-  private spawnTitanBoulderProjectile(origin: THREE.Vector3, target: THREE.Vector3, damage = 32) {
+  private spawnTitanBoulderProjectile(origin: THREE.Vector3, target: THREE.Vector3, damage = 55) {
     if (this.titanBoulderPool.length === 0) {
       this.initBossProjectilePools();
     }
@@ -16959,7 +17033,15 @@ export class GameEngine {
     slot.group.rotation.set(0, 0, 0);
     slot.group.visible = true;
 
-    const dir = new THREE.Vector3().subVectors(target, origin).normalize();
+    const dx = target.x - origin.x;
+    const dz = target.z - origin.z;
+    const horizDist = Math.hypot(dx, dz);
+    const flightTime = THREE.MathUtils.clamp(horizDist / 24.0, 0.72, 1.75);
+    const gravity = 28.0;
+    const targetGroundY = this.world.getTerrainHeight(target.x, target.z);
+    const vy = (targetGroundY + 0.6 - origin.y + 0.5 * gravity * flightTime * flightTime) / flightTime;
+    const velocity = new THREE.Vector3(dx / flightTime, vy, dz / flightTime);
+    const dir = velocity.clone().normalize();
     const rotAxis = new THREE.Vector3(
       Math.random() - 0.5,
       Math.random() - 0.5,
@@ -16969,13 +17051,15 @@ export class GameEngine {
     this.activeProjectiles.push({
       object: slot.group,
       direction: dir,
-      speed: 22.0,
-      lifetime: 2.5,
+      speed: velocity.length(),
+      velocity,
+      gravity,
+      lifetime: flightTime + 0.6,
       damage,
       isCrit: false,
       vfxType: 'titan_boulder',
       isHostile: true,
-      blastRadius: 3.2,
+      blastRadius: 4.5,
       rotationAxis: rotAxis,
       pooledHostileType: 'titan_boulder',
       pooledHostileIndex: idx,
@@ -17705,8 +17789,14 @@ export class GameEngine {
     for (let i = this.activeProjectiles.length - 1; i >= 0; i--) {
       const proj = this.activeProjectiles[i];
       proj.lifetime -= delta;
-      const moveDistance = proj.speed * delta;
-      proj.object.position.addScaledVector(proj.direction, moveDistance);
+      let moveDistance = proj.speed * delta;
+      if (proj.velocity && proj.gravity !== undefined) {
+        proj.object.position.addScaledVector(proj.velocity, delta);
+        proj.velocity.y -= proj.gravity * delta;
+        moveDistance = proj.velocity.length() * delta;
+      } else {
+        proj.object.position.addScaledVector(proj.direction, moveDistance);
+      }
       if (proj.distanceTraveled !== undefined) {
         proj.distanceTraveled += moveDistance;
       }
@@ -17762,7 +17852,7 @@ export class GameEngine {
                 if (isFireball) {
                   this.bossManager.applyBurnDebuff(3.0);
                 } else {
-                  this.bossManager.applyStunDebuff(0.8, this.playerVel);
+                  this.bossManager.applyStunDebuff(0.7, this.playerVel);
                 }
                 if (nextHp <= 0) {
                   this.respawnPlayerAtLastVisitedTown();
@@ -17806,7 +17896,7 @@ export class GameEngine {
       for (const enemy of this.enemies) {
         if (enemy.data.isDead) continue;
         const hitRadius = proj.isPiercing ? 2.0 : 1.6;
-        if (proj.object.position.distanceTo(enemy.mesh.position) <= hitRadius) {
+        if (this.isPointHittingEnemy(proj.object.position, enemy, hitRadius)) {
           if (proj.isPiercing && proj.hitEnemyIds) {
             const enemyId = enemy.data.id || String(enemy.mesh.id);
             if (!proj.hitEnemyIds.has(enemyId)) {

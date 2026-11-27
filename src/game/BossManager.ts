@@ -76,7 +76,57 @@ export class BossManager {
 
   // Boss internal states keyed by boss ID
   private skillCooldowns: Map<string, Map<string, number>> = new Map();
-  private bossStates: Map<string, 'idle' | 'chase' | 'telegraph' | 'executing' | 'recovery' | 'flying_pursuit' | 'meteor_dive'> = new Map();
+  private bossStates: Map<string, 'idle' | 'chase' | 'telegraph' | 'executing' | 'recovery' | 'flying_pursuit' | 'meteor_dive' | 'titan_leap'> = new Map();
+
+  // Titan Ancient Overdrive Phase 2 & Pre-Allocated Object Pools (ZERO PointLight / runtime allocation)
+  public titanPhase: 1 | 2 = 1;
+  private titanHasTriggeredPhase2 = false;
+  private titanIsCombatActive = false;
+  private titanMaterialsUpdatedPhase: 1 | 2 = 1;
+  private titanLeap: {
+    active: boolean;
+    timer: number;
+    startPos: THREE.Vector3;
+    targetPos: THREE.Vector3;
+    hitApplied: boolean;
+  } = {
+    active: false,
+    timer: 0,
+    startPos: new THREE.Vector3(),
+    targetPos: new THREE.Vector3(),
+    hitApplied: false,
+  };
+  private titanLeapRing: {
+    group: THREE.Group;
+    fillDisc: THREE.Mesh;
+    fillMat: THREE.MeshBasicMaterial;
+  } | null = null;
+  private titanFissurePillars: Array<{
+    active: boolean;
+    delay: number;
+    timer: number;
+    x: number;
+    z: number;
+    groundY: number;
+    targetHeight: number;
+    mesh: THREE.Mesh;
+  }> = [];
+  private titanRubbleChunks: Array<{
+    active: boolean;
+    pos: THREE.Vector3;
+    vel: THREE.Vector3;
+    timer: number;
+    mesh: THREE.Mesh;
+  }> = [];
+  private titanRubbleCursor = 0;
+  private pendingShockwaves: Array<{
+    delay: number;
+    center: THREE.Vector3;
+    startRadius: number;
+    maxRadius: number;
+    speed: number;
+    damage: number;
+  }> = [];
   private stateTimers: Map<string, number> = new Map();
   private activeTelegraphMap: Map<string, ActiveTelegraph> = new Map();
 
@@ -282,6 +332,257 @@ export class BossManager {
     this.callbacks = callbacks;
     this.initSeismicShockwavePool();
     this.initJarrusPools();
+    this.initTitanPools();
+  }
+
+  private initTitanPools() {
+    if (!this.titanLeapRing) {
+      const group = new THREE.Group();
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xf97316,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+      });
+      const fillMat = new THREE.MeshBasicMaterial({
+        color: 0xff3d00,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false,
+      });
+      const outerRing = new THREE.Mesh(new THREE.RingGeometry(10.2, 11.0, 48).rotateX(-Math.PI / 2), ringMat);
+      const fillDisc = new THREE.Mesh(new THREE.CircleGeometry(10.2, 48).rotateX(-Math.PI / 2), fillMat);
+      fillDisc.scale.set(0.05, 1, 0.05);
+      group.add(outerRing, fillDisc);
+      group.visible = false;
+      group.frustumCulled = false;
+      group.traverse((c) => { c.frustumCulled = false; });
+      this.scene.add(group);
+      this.titanLeapRing = { group, fillDisc, fillMat };
+    }
+
+    if (this.titanFissurePillars.length === 0) {
+      const pillarGeo = new THREE.BoxGeometry(2.3, 1.0, 2.3);
+      pillarGeo.translate(0, 0.5, 0);
+      const pillarMat = new THREE.MeshStandardMaterial({
+        color: 0x2d3442,
+        emissive: 0x7c2d12,
+        emissiveIntensity: 0.6,
+        roughness: 0.85,
+        flatShading: true,
+      });
+      for (let i = 0; i < 10; i++) {
+        const mesh = new THREE.Mesh(pillarGeo, pillarMat);
+        mesh.visible = false;
+        mesh.frustumCulled = false;
+        mesh.castShadow = true;
+        this.scene.add(mesh);
+        this.titanFissurePillars.push({
+          active: false,
+          delay: 0,
+          timer: 0,
+          x: 0,
+          z: 0,
+          groundY: 4.5,
+          targetHeight: 6.5,
+          mesh,
+        });
+      }
+    }
+
+    if (this.titanRubbleChunks.length === 0) {
+      const rockGeo = new THREE.DodecahedronGeometry(0.68, 0);
+      const rockMat = new THREE.MeshStandardMaterial({
+        color: 0x292524,
+        emissive: 0x9a3412,
+        emissiveIntensity: 0.45,
+        roughness: 0.9,
+        flatShading: true,
+      });
+      for (let i = 0; i < 18; i++) {
+        const mesh = new THREE.Mesh(rockGeo, rockMat);
+        mesh.visible = false;
+        mesh.frustumCulled = false;
+        this.scene.add(mesh);
+        this.titanRubbleChunks.push({
+          active: false,
+          pos: new THREE.Vector3(),
+          vel: new THREE.Vector3(),
+          timer: 0,
+          mesh,
+        });
+      }
+    }
+  }
+
+  private spawnTitanRubbleBurst(center: THREE.Vector3, count = 14) {
+    if (this.titanRubbleChunks.length === 0) this.initTitanPools();
+    const groundY = this.getTerrainHeight(center.x, center.z);
+    for (let i = 0; i < count; i++) {
+      const slot = this.titanRubbleChunks[this.titanRubbleCursor];
+      this.titanRubbleCursor = (this.titanRubbleCursor + 1) % this.titanRubbleChunks.length;
+      const ang = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+      const spd = 7.5 + Math.random() * 11.0;
+      slot.active = true;
+      slot.timer = 0;
+      slot.pos.set(center.x + Math.cos(ang) * 1.5, groundY + 0.7, center.z + Math.sin(ang) * 1.5);
+      slot.vel.set(Math.cos(ang) * spd, 9.0 + Math.random() * 8.5, Math.sin(ang) * spd);
+      slot.mesh.position.copy(slot.pos);
+      slot.mesh.scale.setScalar(0.85 + Math.random() * 0.75);
+      slot.mesh.visible = true;
+    }
+  }
+
+  private spawnTitanFissureWave(origin: THREE.Vector3, dir: THREE.Vector3, totalLength = 44.0) {
+    if (this.titanFissurePillars.length === 0) this.initTitanPools();
+    const count = this.titanFissurePillars.length;
+    const step = totalLength / count;
+    const norm = dir.clone().setY(0).normalize();
+    for (let i = 0; i < count; i++) {
+      const p = this.titanFissurePillars[i];
+      p.x = origin.x + norm.x * ((i + 1) * step);
+      p.z = origin.z + norm.z * ((i + 1) * step);
+      p.groundY = this.getTerrainHeight(p.x, p.z);
+      p.targetHeight = 4.2 + (i % 3) * 1.35 + (i / count) * 1.5;
+      p.delay = i * 0.06;
+      p.timer = 0;
+      p.active = true;
+      p.mesh.position.set(p.x, p.groundY - 0.5, p.z);
+      p.mesh.rotation.y = Math.atan2(norm.x, norm.z) + (i % 2 === 0 ? 0.25 : -0.25);
+      p.mesh.scale.set(1, 0.05, 1);
+      p.mesh.visible = false;
+    }
+  }
+
+  private updateTitanPools(delta: number) {
+    for (let i = this.pendingShockwaves.length - 1; i >= 0; i--) {
+      const ps = this.pendingShockwaves[i];
+      ps.delay -= delta;
+      if (ps.delay <= 0) {
+        this.spawnSeismicShockwave(ps.center, ps.startRadius, ps.maxRadius, ps.speed, ps.damage);
+        this.pendingShockwaves.splice(i, 1);
+      }
+    }
+
+    for (let i = 0; i < this.titanFissurePillars.length; i++) {
+      const p = this.titanFissurePillars[i];
+      if (!p.active) continue;
+      if (p.delay > 0) {
+        p.delay -= delta;
+        if (p.delay <= 0) {
+          p.mesh.visible = true;
+          this.callbacks.onSpawnSparks?.(new THREE.Vector3(p.x, p.groundY + 0.5, p.z), 0xf97316, 6, 4.0);
+        }
+        continue;
+      }
+      p.timer += delta;
+      let scaleY = 1.0;
+      if (p.timer < 0.2) {
+        scaleY = Math.max(0.05, p.timer / 0.2) * p.targetHeight;
+      } else if (p.timer < 1.1) {
+        scaleY = p.targetHeight;
+      } else if (p.timer < 1.65) {
+        scaleY = Math.max(0.02, 1.0 - (p.timer - 1.1) / 0.55) * p.targetHeight;
+      } else {
+        p.active = false;
+        p.mesh.visible = false;
+        continue;
+      }
+      p.mesh.scale.set(1, scaleY, 1);
+    }
+
+    for (let i = 0; i < this.titanRubbleChunks.length; i++) {
+      const c = this.titanRubbleChunks[i];
+      if (!c.active) continue;
+      c.timer += delta;
+      c.pos.addScaledVector(c.vel, delta);
+      c.vel.y -= 28.0 * delta;
+      const gY = this.getTerrainHeight(c.pos.x, c.pos.z);
+      if (c.pos.y <= gY + 0.35 && c.vel.y < 0) {
+        c.pos.y = gY + 0.35;
+        c.vel.y *= -0.35;
+        c.vel.x *= 0.6;
+        c.vel.z *= 0.6;
+      }
+      c.mesh.position.copy(c.pos);
+      c.mesh.rotation.x += delta * 5.0;
+      c.mesh.rotation.z += delta * 4.2;
+      if (c.timer > 1.2) {
+        const s = Math.max(0.01, 1.0 - (c.timer - 1.2) / 0.4);
+        c.mesh.scale.setScalar(s);
+        if (c.timer >= 1.6) {
+          c.active = false;
+          c.mesh.visible = false;
+        }
+      }
+    }
+  }
+
+  public applyTitanVisualPhase(
+    enemy: { mesh: THREE.Group; parts: Record<string, any> },
+    phase: 1 | 2
+  ) {
+    this.titanMaterialsUpdatedPhase = phase;
+    const mats = enemy.parts?.mats;
+    if (!mats) return;
+    if (phase === 1) {
+      mats.magmaRuneMat?.color.setHex(0xf97316);
+      mats.magmaRuneMat?.emissive.setHex(0xea580c);
+      if (mats.magmaRuneMat) mats.magmaRuneMat.emissiveIntensity = 1.5;
+      mats.coreMat?.color.setHex(0xfdba74);
+      mats.coreMat?.emissive.setHex(0xf97316);
+      if (mats.coreMat) mats.coreMat.emissiveIntensity = 2.25;
+      mats.visorMat?.color.setHex(0x38bdf8);
+      mats.visorMat?.emissive.setHex(0x0ea5e9);
+      if (mats.visorMat) mats.visorMat.emissiveIntensity = 1.85;
+      mats.knuckleMat?.color.setHex(0xfb923c);
+      mats.knuckleMat?.emissive.setHex(0xf97316);
+      if (mats.knuckleMat) mats.knuckleMat.emissiveIntensity = 1.65;
+    } else {
+      mats.magmaRuneMat?.color.setHex(0xff5722);
+      mats.magmaRuneMat?.emissive.setHex(0xff2a00);
+      if (mats.magmaRuneMat) mats.magmaRuneMat.emissiveIntensity = 2.75;
+      mats.coreMat?.color.setHex(0xfff3d6);
+      mats.coreMat?.emissive.setHex(0xff2a00);
+      if (mats.coreMat) mats.coreMat.emissiveIntensity = 3.4;
+      mats.visorMat?.color.setHex(0xffea00);
+      mats.visorMat?.emissive.setHex(0xff2a00);
+      if (mats.visorMat) mats.visorMat.emissiveIntensity = 2.8;
+      mats.knuckleMat?.color.setHex(0xffab40);
+      mats.knuckleMat?.emissive.setHex(0xff2a00);
+      if (mats.knuckleMat) mats.knuckleMat.emissiveIntensity = 2.9;
+    }
+  }
+
+  public updateTitanVisualRig(enemy: { parts?: Record<string, any> }, delta: number) {
+    const p = enemy.parts;
+    if (!p) return;
+    const speedMult = this.titanPhase === 2 ? 1.85 : 1.0;
+    if (p.core) {
+      p.core.rotation.y += 2.2 * speedMult * delta;
+      p.core.rotation.x += 1.1 * speedMult * delta;
+    }
+    if (p.coreRing1) {
+      p.coreRing1.rotation.z += 1.6 * speedMult * delta;
+      p.coreRing1.rotation.y += 0.9 * speedMult * delta;
+    }
+    if (p.coreRing2) {
+      p.coreRing2.rotation.x -= 1.4 * speedMult * delta;
+      p.coreRing2.rotation.z += 1.1 * speedMult * delta;
+    }
+    if (p.crown) {
+      p.crown.position.y = (p.crown.userData?.baseY ?? 2.05) + Math.sin(this.elapsedTime * 2.2) * 0.24;
+      p.crown.rotation.y += 0.42 * speedMult * delta;
+    }
+    if (Array.isArray(p.orbitRunes)) {
+      for (const item of p.orbitRunes) {
+        if (!item?.pivot) continue;
+        item.pivot.rotation.y += (0.55 + item.index * 0.14) * item.side * speedMult * delta;
+        item.pivot.position.y = Math.sin(this.elapsedTime * 2.4 + item.index * 2.1) * 0.24;
+      }
+    }
   }
 
   private initSeismicShockwavePool() {
@@ -365,9 +666,12 @@ export class BossManager {
     if (state === 'telegraph' && activeTel?.skill?.id) {
       stateLabel = `telegraph (${activeTel.skill.id})`;
     }
+    if (bossId === 'boss_titan' && state === 'titan_leap') {
+      stateLabel = timer < 1.1 ? 'titan_leap (1/2 Crouch Windup)' : 'titan_leap (2/2 Colossal Arc)';
+    }
     return {
       state: stateLabel,
-      phase: bossId === 'boss_dragonfang' ? this.dragonPhase : 1,
+      phase: bossId === 'boss_dragonfang' ? this.dragonPhase : (bossId === 'boss_titan' ? this.titanPhase : 1),
       stormFactor: this.extremeWeatherFactor,
       activeSkillId: activeTel?.skill?.id,
     };
@@ -376,6 +680,8 @@ export class BossManager {
   public setBossCombatActive(bossId: string, active: boolean) {
     if (bossId === 'boss_dragonfang') {
       this.ignisIsCombatActive = active;
+    } else if (bossId === 'boss_titan') {
+      this.titanIsCombatActive = active;
     }
   }
 
@@ -481,21 +787,31 @@ export class BossManager {
       this.callbacks.onIgnisVisualReset?.();
     } else if (bossId === 'boss_jarrus') {
       this.resetJarrusState(enemy);
-    } else if (enemy?.mesh) {
-      // Hard-reset Ancient Titan transforms & joints cleanly as well
-      enemy.mesh.quaternion.identity();
-      enemy.mesh.rotation.order = 'XYZ';
-      enemy.mesh.rotation.set(0, enemy.spawnRotY ?? 0, 0);
-      enemy.mesh.scale.set(3.5, 3.5, 3.5);
-      enemy.mesh.visible = true;
-      if (enemy.parts?.torso) {
-        enemy.parts.torso.position.y = 1.35;
-        enemy.parts.torso.rotation.set(0, 0, 0);
+    } else if (bossId === 'boss_titan') {
+      this.titanPhase = 1;
+      this.titanHasTriggeredPhase2 = false;
+      this.titanIsCombatActive = false;
+      this.titanLeap.active = false;
+      this.pendingShockwaves = [];
+      if (this.titanLeapRing) this.titanLeapRing.group.visible = false;
+      this.titanFissurePillars.forEach((p) => { p.active = false; p.mesh.visible = false; });
+      if (enemy?.mesh) {
+        enemy.mesh.quaternion.identity();
+        enemy.mesh.rotation.order = 'XYZ';
+        enemy.mesh.rotation.set(0, enemy.spawnRotY ?? 0, 0);
+        enemy.mesh.scale.set(1.0, 1.0, 1.0);
+        enemy.mesh.visible = true;
+        if (enemy.parts?.torso) {
+          enemy.parts.torso.position.set(0, enemy.parts.baseTorsoY ?? 8.4, 0);
+          enemy.parts.torso.rotation.set(0, 0, 0);
+        }
+        if (enemy.parts?.head) enemy.parts.head.rotation.set(0, 0, 0);
+        if (enemy.parts?.leftArm) enemy.parts.leftArm.rotation.set(0, 0, 0);
+        if (enemy.parts?.rightArm) enemy.parts.rightArm.rotation.set(0, 0, 0);
+        if (enemy.parts?.leftLeg) enemy.parts.leftLeg.rotation.set(0, 0, 0);
+        if (enemy.parts?.rightLeg) enemy.parts.rightLeg.rotation.set(0, 0, 0);
+        this.applyTitanVisualPhase(enemy, 1);
       }
-      if (enemy.parts?.leftArm) enemy.parts.leftArm.rotation.set(0, 0, 0);
-      if (enemy.parts?.rightArm) enemy.parts.rightArm.rotation.set(0, 0, 0);
-      if (enemy.parts?.leftLeg) enemy.parts.leftLeg.rotation.set(0, 0, 0);
-      if (enemy.parts?.rightLeg) enemy.parts.rightLeg.rotation.set(0, 0, 0);
     }
   }
 
@@ -724,6 +1040,7 @@ export class BossManager {
     // 2. Update active seismic shockwaves & Jarrus pooled sand VFX
     this.updateSeismicShockwaves(delta, playerPos, playerVel, isPlayerJumping);
     this.updateJarrusPools(delta, playerPos, playerVel, isPlayerDashing);
+    this.updateTitanPools(delta);
 
     // 3. Update and advance Active Telegraph Indicators
     for (let i = this.telegraphs.length - 1; i >= 0; i--) {
@@ -767,6 +1084,10 @@ export class BossManager {
       }
     } else if (bossId === 'boss_jarrus') {
       this.resetJarrusState();
+    } else if (bossId === 'boss_titan') {
+      this.titanLeap.active = false;
+      this.pendingShockwaves = [];
+      if (this.titanLeapRing) this.titanLeapRing.group.visible = false;
     }
   }
 
@@ -837,6 +1158,29 @@ export class BossManager {
       }
     }
 
+    if (isTitan) {
+      if (
+        !enemy.data.isDead &&
+        enemy.data.hp > 0 &&
+        enemy.data.hp <= enemy.data.maxHp * 0.5 &&
+        this.titanPhase === 1 &&
+        !this.titanHasTriggeredPhase2 &&
+        this.titanIsCombatActive
+      ) {
+        this.titanPhase = 2;
+        this.titanHasTriggeredPhase2 = true;
+        soundManager.playTitanGroundSlam();
+        this.callbacks.onCameraShake(1.25);
+        this.callbacks.onAddFloatingText('🌋 FASE 2: ANCIENT OVERDRIVE! SANG TITAN MEMBARA!', '#ff2a00', 'crit');
+        this.applyTitanVisualPhase(enemy, 2);
+      }
+      if (this.titanPhase === 2 && this.titanHasTriggeredPhase2 && this.titanMaterialsUpdatedPhase !== 2) {
+        this.applyTitanVisualPhase(enemy, 2);
+      } else if (this.titanPhase === 1 && this.titanMaterialsUpdatedPhase !== 1) {
+        this.applyTitanVisualPhase(enemy, 1);
+      }
+    }
+
     const config = isIgnis ? IGNIS_DRAGON_BOSS_CONFIG : (isWorm ? JARRUS_WORM_BOSS_CONFIG : ANCIENT_TITAN_BOSS_CONFIG);
     if (!this.skillCooldowns.has(bossId)) {
       this.registerBoss(bossId, config);
@@ -868,39 +1212,47 @@ export class BossManager {
       } else if (isTitan) {
         const activeTel = this.activeTelegraphMap.get(bossId);
         const skillId = activeTel?.skill?.id;
-        if (skillId === 'titan_leap_slam') {
-          // Ancang-ancang menekuk lutut selama 0.8 detik (knee-bend wind-up)
-          if (enemy.parts?.leftLeg && enemy.parts?.rightLeg) {
-            enemy.parts.leftLeg.rotation.x = 0.55;
-            enemy.parts.rightLeg.rotation.x = 0.55;
-          }
+        const baseTorsoY = enemy.parts?.baseTorsoY ?? 8.4;
+        if (skillId === 'seismic_slam' || skillId === 'earthquake_slam') {
           if (enemy.parts?.torso) {
-            enemy.parts.torso.position.y = 1.35 - 0.5;
+            enemy.parts.torso.position.y = baseTorsoY;
+            enemy.parts.torso.rotation.set(-0.15, 0, 0);
           }
-        } else if (skillId === 'earthquake_slam') {
-          // Raise both colossal stone fists high overhead
           if (enemy.parts?.leftArm && enemy.parts?.rightArm) {
-            enemy.parts.leftArm.rotation.x = -Math.PI * 0.85 + Math.sin(stateTimer * 8) * 0.1;
-            enemy.parts.rightArm.rotation.x = -Math.PI * 0.85 - Math.sin(stateTimer * 8) * 0.1;
+            enemy.parts.leftArm.rotation.set(-Math.PI * 0.88 + Math.sin(stateTimer * 7) * 0.08, 0, -0.15);
+            enemy.parts.rightArm.rotation.set(-Math.PI * 0.88 - Math.sin(stateTimer * 7) * 0.08, 0, 0.15);
           }
         } else if (skillId === 'heavy_punch') {
-          // Pull right fist back ready for shock punch
+          // Sweeping Cleave wind-up: twist torso & pull colossal right arm wide
+          if (enemy.parts?.torso) {
+            enemy.parts.torso.position.y = baseTorsoY;
+            enemy.parts.torso.rotation.set(0.08, -0.48, 0);
+          }
           if (enemy.parts?.rightArm) {
-            enemy.parts.rightArm.rotation.x = -Math.PI * 0.75 + Math.sin(stateTimer * 10) * 0.15;
+            enemy.parts.rightArm.rotation.set(-Math.PI * 0.42, 0, 0.88 + Math.sin(stateTimer * 9) * 0.08);
           }
           if (enemy.parts?.leftArm) {
-            enemy.parts.leftArm.rotation.x = 0.25;
+            enemy.parts.leftArm.rotation.set(0.28, 0, -0.25);
           }
-        } else if (skillId === 'rock_throw') {
-          // Raise both arms overhead lifting giant stone boulder
-          if (enemy.parts?.leftArm && enemy.parts?.rightArm) {
-            enemy.parts.leftArm.rotation.x = -Math.PI * 0.9;
-            enemy.parts.rightArm.rotation.x = -Math.PI * 0.9;
+        } else if (skillId === 'boulder_hurl' || skillId === 'rock_throw') {
+          if (enemy.parts?.torso) {
+            enemy.parts.torso.position.y = baseTorsoY - 0.35;
+            enemy.parts.torso.rotation.set(-0.12, 0, 0);
           }
-        } else {
           if (enemy.parts?.leftArm && enemy.parts?.rightArm) {
-            enemy.parts.leftArm.rotation.x = -Math.PI * 0.7 + Math.sin(stateTimer * 8) * 0.1;
-            enemy.parts.rightArm.rotation.x = -Math.PI * 0.7 - Math.sin(stateTimer * 8) * 0.1;
+            enemy.parts.leftArm.rotation.set(-Math.PI * 0.92, 0, -0.12);
+            enemy.parts.rightArm.rotation.set(-Math.PI * 0.92, 0, 0.12);
+          }
+        } else if (skillId === 'earth_fissure') {
+          if (enemy.parts?.torso) {
+            enemy.parts.torso.position.y = baseTorsoY - 0.5;
+            enemy.parts.torso.rotation.set(0.2, 0, 0);
+          }
+          if (enemy.parts?.rightArm) {
+            enemy.parts.rightArm.rotation.set(-Math.PI * 0.72 + Math.sin(stateTimer * 8) * 0.08, 0, 0);
+          }
+          if (enemy.parts?.leftArm) {
+            enemy.parts.leftArm.rotation.set(0.35, 0, -0.2);
           }
         }
       }
@@ -915,8 +1267,22 @@ export class BossManager {
       return this.updateDragonFlyingPursuit(enemy, playerPos, delta, this.skillCooldowns.get(bossId)!);
     }
 
+    if (currentState === 'titan_leap') {
+      return this.updateTitanLeapSlam(enemy, playerPos, delta, this.skillCooldowns.get(bossId)!, isPlayerJumping, playerVel);
+    }
+
     if (currentState === 'recovery') {
-      if (stateTimer >= 0.6) {
+      if (isTitan && enemy.parts?.torso) {
+        const baseY = enemy.parts.baseTorsoY ?? 8.4;
+        enemy.parts.torso.position.y = THREE.MathUtils.lerp(enemy.parts.torso.position.y, baseY, Math.min(1, delta * 8));
+        enemy.parts.torso.rotation.x = THREE.MathUtils.lerp(enemy.parts.torso.rotation.x, 0, Math.min(1, delta * 8));
+        enemy.parts.torso.rotation.y = THREE.MathUtils.lerp(enemy.parts.torso.rotation.y, 0, Math.min(1, delta * 8));
+        if (enemy.parts.leftArm) enemy.parts.leftArm.rotation.set(0, 0, 0);
+        if (enemy.parts.rightArm) enemy.parts.rightArm.rotation.set(0, 0, 0);
+        if (enemy.parts.leftLeg) enemy.parts.leftLeg.rotation.set(0, 0, 0);
+        if (enemy.parts.rightLeg) enemy.parts.rightLeg.rotation.set(0, 0, 0);
+      }
+      if (stateTimer >= 0.65) {
         this.bossStates.set(bossId, 'chase');
         this.stateTimers.set(bossId, 0);
       }
@@ -1028,34 +1394,48 @@ export class BossManager {
       }
     } else if (isTitan) {
       const selected = MonsterCombatAI.selectTitanSkill(distToPlayer, cdMap);
-      if (selected === 'seismic_slam') {
-        const skill = config.skills.find((s) => s.id === 'seismic_slam') || config.skills.find((s) => s.id === 'earthquake_slam')!;
-        this.startTelegraphCircle(bossId, enemy, ePos, 15.0, skill);
+      const cdMult = this.titanPhase === 2 ? 0.8 : 1.0;
+      if (selected === 'titan_leap_slam') {
+        const skill = config.skills.find((s) => s.id === 'titan_leap_slam')!;
+        this.bossStates.set(bossId, 'titan_leap');
+        this.stateTimers.set(bossId, 0);
+        this.titanLeap.active = true;
+        this.titanLeap.timer = 0;
+        this.titanLeap.startPos.copy(ePos);
+        this.titanLeap.targetPos.copy(aimPos);
+        this.titanLeap.hitApplied = false;
         soundManager.playTitanGroundSlam();
-        this.callbacks.onAddFloatingText('💥 TITAN MENYIAPKAN BOGEM GEMPA BUMI KOLOSAL (AOE)!', '#ef4444', 'crit');
-        cdMap.set('seismic_slam', skill.cooldown);
+        this.callbacks.onAddFloatingText('🗿 TITAN BERSIAP MELOMPAT KOLOSAL! MENJAUH & SIAP LOMPAT!', '#f97316', 'crit');
+        cdMap.set('titan_leap_slam', skill.cooldown * cdMult);
+        return true;
+      } else if (selected === 'seismic_slam') {
+        const skill = config.skills.find((s) => s.id === 'seismic_slam') || config.skills.find((s) => s.id === 'earthquake_slam')!;
+        this.startTelegraphCircle(bossId, enemy, ePos, 18.0, skill);
+        soundManager.playTitanGroundSlam();
+        this.callbacks.onAddFloatingText('💥 TITAN MENGANGKAT KEDUA LENGAN — BOGEM GEMPA BUMI!', '#ef4444', 'crit');
+        cdMap.set('seismic_slam', skill.cooldown * cdMult);
         return true;
       } else if (selected === 'boulder_hurl') {
         const skill = config.skills.find((s) => s.id === 'boulder_hurl') || config.skills.find((s) => s.id === 'rock_throw')!;
-        this.startTelegraphCircle(bossId, enemy, aimPos.clone(), 2.0, skill);
+        this.startTelegraphCircle(bossId, enemy, aimPos.clone(), 4.5, skill);
         soundManager.playTitanGroundSlam();
-        this.callbacks.onAddFloatingText('🪨 TITAN MELEMPAR BONGKAHAN BATU RAKSASA!', '#f59e0b', 'info');
-        cdMap.set('boulder_hurl', skill.cooldown);
+        this.callbacks.onAddFloatingText('🪨 TITAN MELEMPAR BONGKAH MEGALIT MAGMA!', '#f59e0b', 'info');
+        cdMap.set('boulder_hurl', skill.cooldown * cdMult);
         return true;
       } else if (selected === 'earth_fissure') {
         const skill = config.skills.find((s) => s.id === 'earth_fissure')!;
         const toPlayer = new THREE.Vector3(aimPos.x - ePos.x, 0, aimPos.z - ePos.z).normalize();
-        this.startTelegraphLine(bossId, enemy, ePos, toPlayer, Math.min(36, distToPlayer + 6), 4.0, skill);
+        this.startTelegraphLine(bossId, enemy, ePos, toPlayer, 44.0, 5.5, skill);
         soundManager.playTitanGroundSlam();
-        this.callbacks.onAddFloatingText('⚡ GUNCANGAN RETAKAN BUMI MERAMBAT!', '#38bdf8', 'info');
-        cdMap.set('earth_fissure', skill.cooldown);
+        this.callbacks.onAddFloatingText('⚡ GELOMBANG RETAKAN BUMI 10 PILAR BATU!', '#38bdf8', 'info');
+        cdMap.set('earth_fissure', skill.cooldown * cdMult);
         return true;
       } else if (selected === 'heavy_punch') {
         const skill = config.skills.find((s) => s.id === 'heavy_punch')!;
         const toPlayer = new THREE.Vector3(aimPos.x - ePos.x, 0, aimPos.z - ePos.z).normalize();
-        const punchPos = ePos.clone().addScaledVector(toPlayer, 2.5);
-        this.startTelegraphCircle(bossId, enemy, punchPos, 3.8, skill);
-        cdMap.set('heavy_punch', skill.cooldown);
+        enemy.mesh.rotation.y = Math.atan2(toPlayer.x, toPlayer.z);
+        this.startTelegraphCone(bossId, enemy, ePos, toPlayer, 10.0, (160 * Math.PI) / 180, skill);
+        cdMap.set('heavy_punch', skill.cooldown * cdMult);
         return true;
       }
     } else if (isWorm) {
@@ -1077,6 +1457,197 @@ export class BossManager {
    * STATE_FLYING_PURSUIT (Boss Naga Purba Ignis)
    * Eksekusi terbang mulus dalam 3 fase: Take-off, Glide/Dive Rush, dan Landing Slam
    */
+  /**
+   * Colossal Leap Slam (Sang Titan Kuno Obsidian)
+   * Phase 1 (0.0s - 1.1s): Deep crouch knee-bend windup + magma gather + r=11u target lock
+   * Phase 2 (1.1s - 2.45s): Measured heavy high parabola arc (+18u altitude, arms raised sky-high)
+   * Phase 3 (2.45s Impact): 75 direct dmg (r=10u) + shockwave ring (r:5->26u @ 13 u/s, 38 dmg); Fase 2 spawns 2 rings (0.65s apart)!
+   */
+  public updateTitanLeapSlam(
+    enemy: {
+      data: EnemyData;
+      mesh: THREE.Group;
+      parts: Record<string, any>;
+      spawnPos?: THREE.Vector3;
+      leashRadius?: number;
+    },
+    playerPos: THREE.Vector3,
+    delta: number,
+    _cdMap: Map<string, number>,
+    _isPlayerJumping: boolean,
+    playerVel?: THREE.Vector3
+  ): boolean {
+    const bossId = enemy.data.id;
+    const titan = enemy.mesh;
+    const ePos = titan.position;
+    const p = enemy.parts || {};
+    const baseTorsoY = p.baseTorsoY ?? 8.4;
+
+    this.titanLeap.timer += delta;
+    const t = this.titanLeap.timer;
+    const crouchDur = 1.1;
+    const airDur = 1.35;
+    const totalDur = crouchDur + airDur;
+
+    // 1. Crouch Windup (0.0s - 1.1s)
+    if (t < crouchDur) {
+      const cRatio = Math.sin(Math.min(1, t / crouchDur) * Math.PI * 0.5);
+      // Track player/decoy gently only during early windup (< 0.45s) then lock firmly
+      if (t < 0.45) {
+        const resolved = resolveEnemyTarget(ePos, playerPos, this.isPlayerStealthed, this.activeDecoy);
+        if (resolved.targetPos) {
+          this.titanLeap.targetPos.copy(resolved.targetPos);
+        }
+      }
+      // Clamp leap landing safely inside Colosseum
+      const homeX = enemy.spawnPos?.x ?? 180;
+      const homeZ = enemy.spawnPos?.z ?? -560;
+      const maxR = Math.max(24, (enemy.leashRadius ?? 68) - 6.0);
+      const dxC = this.titanLeap.targetPos.x - homeX;
+      const dzC = this.titanLeap.targetPos.z - homeZ;
+      const distC = Math.hypot(dxC, dzC);
+      if (distC > maxR) {
+        this.titanLeap.targetPos.x = homeX + (dxC / distC) * maxR;
+        this.titanLeap.targetPos.z = homeZ + (dzC / distC) * maxR;
+      }
+
+      const toTargetX = this.titanLeap.targetPos.x - ePos.x;
+      const toTargetZ = this.titanLeap.targetPos.z - ePos.z;
+      if (Math.hypot(toTargetX, toTargetZ) > 0.1) {
+        titan.rotation.y = Math.atan2(toTargetX, toTargetZ);
+      }
+
+      if (p.torso) {
+        p.torso.position.y = baseTorsoY - 2.2 * cRatio;
+        p.torso.rotation.set(0.28 * cRatio, 0, 0);
+      }
+      if (p.leftLeg && p.rightLeg) {
+        p.leftLeg.rotation.set(0.72 * cRatio, 0, 0);
+        p.rightLeg.rotation.set(0.72 * cRatio, 0, 0);
+      }
+      if (p.leftArm && p.rightArm) {
+        p.leftArm.rotation.set(0.45 * cRatio, 0, -0.35 * cRatio);
+        p.rightArm.rotation.set(0.45 * cRatio, 0, 0.35 * cRatio);
+      }
+
+      if (this.titanLeapRing) {
+        const gY = this.getTerrainHeight(this.titanLeap.targetPos.x, this.titanLeap.targetPos.z) + 0.1;
+        this.titanLeapRing.group.position.set(this.titanLeap.targetPos.x, gY, this.titanLeap.targetPos.z);
+        this.titanLeapRing.group.visible = true;
+        const fill = Math.max(0.05, t / totalDur);
+        this.titanLeapRing.fillDisc.scale.set(fill, 1, fill);
+        this.titanLeapRing.fillMat.opacity = 0.25 + Math.sin(t * 14) * 0.1;
+      }
+      return true;
+    }
+
+    // 2. Airborne High Parabola (1.1s - 2.45s, peak +18u)
+    if (t < totalDur) {
+      const u = Math.min(1, (t - crouchDur) / airDur);
+      ePos.x = THREE.MathUtils.lerp(this.titanLeap.startPos.x, this.titanLeap.targetPos.x, u);
+      ePos.z = THREE.MathUtils.lerp(this.titanLeap.startPos.z, this.titanLeap.targetPos.z, u);
+      const groundAtPos = this.getTerrainHeight(ePos.x, ePos.z);
+      const arcY = 4.0 * 18.0 * u * (1.0 - u);
+      ePos.y = groundAtPos + arcY;
+
+      if (p.torso) {
+        p.torso.position.y = baseTorsoY;
+        p.torso.rotation.set((u - 0.35) * 0.38, 0, 0);
+      }
+      if (p.leftLeg && p.rightLeg) {
+        p.leftLeg.rotation.set(0.22 * (1 - u), 0, 0);
+        p.rightLeg.rotation.set(-0.18 * (1 - u), 0, 0);
+      }
+      if (p.leftArm && p.rightArm) {
+        p.leftArm.rotation.set(-Math.PI * 0.92, 0, -0.18);
+        p.rightArm.rotation.set(-Math.PI * 0.92, 0, 0.18);
+      }
+      if (this.titanLeapRing) {
+        const fill = Math.min(1, t / totalDur);
+        this.titanLeapRing.fillDisc.scale.set(fill, 1, fill);
+        this.titanLeapRing.fillMat.opacity = 0.42;
+      }
+      return true;
+    }
+
+    // 3. Cataclysmic Landing Impact
+    if (!this.titanLeap.hitApplied) {
+      this.titanLeap.hitApplied = true;
+      ePos.x = this.titanLeap.targetPos.x;
+      ePos.z = this.titanLeap.targetPos.z;
+      const landY = this.getTerrainHeight(ePos.x, ePos.z);
+      ePos.y = landY;
+
+      if (p.torso) {
+        p.torso.position.y = baseTorsoY - 0.8;
+        p.torso.rotation.set(0.24, 0, 0);
+      }
+      if (p.leftLeg && p.rightLeg) {
+        p.leftLeg.rotation.set(0.2, 0, 0);
+        p.rightLeg.rotation.set(0.2, 0, 0);
+      }
+      if (p.leftArm && p.rightArm) {
+        p.leftArm.rotation.set(0.32, 0, -0.25);
+        p.rightArm.rotation.set(0.32, 0, 0.25);
+      }
+      if (this.titanLeapRing) this.titanLeapRing.group.visible = false;
+
+      soundManager.playTitanGroundSlam();
+      this.callbacks.onCameraShake(1.35);
+      const impactPos = new THREE.Vector3(ePos.x, landY + 0.15, ePos.z);
+      this.spawnTitanRubbleBurst(impactPos, 18);
+      this.callbacks.onSpawnShockwave?.(impactPos, 0xf97316, 11.0, 0.55);
+      this.callbacks.onSpawnSparks?.(impactPos, 0xff3d00, 26, 7.5);
+      this.callbacks.onSpawnSparks?.(impactPos, 0xfacc15, 16, 6.0);
+
+      // Decoy hit check
+      if (this.activeDecoy?.active && Math.hypot(this.activeDecoy.position.x - ePos.x, this.activeDecoy.position.z - ePos.z) <= 10.5) {
+        this.callbacks.onDecoyHit?.();
+      }
+
+      // Direct Impact Damage (radius 10u -> 75 dmg + Knockup)
+      const distPlayer = Math.hypot(playerPos.x - ePos.x, playerPos.z - ePos.z);
+      if (distPlayer <= 10.0 && !this.lastIsPlayerDashing) {
+        if (!this.devGodMode) {
+          this.callbacks.onUpdateStats((stats) => {
+            let finalDmg = Math.max(8, 75 - Math.round(stats.baseDefense * 0.45));
+            if (this.callbacks.onDamageAbsorb) finalDmg = this.callbacks.onDamageAbsorb(finalDmg);
+            const nextHp = Math.max(0, stats.hp - finalDmg);
+            if (finalDmg > 0) {
+              this.callbacks.onAddFloatingText(`-${finalDmg} HP (Hantaman Lompatan Kolosal!)`, '#ff1744', 'crit');
+              this.callbacks.onPlayerDamaged?.(finalDmg);
+            }
+            if (nextHp <= 0) this.callbacks.onPlayerDeath?.();
+            return { ...stats, hp: nextHp };
+          });
+        } else {
+          this.callbacks.onAddFloatingText('🛡️ KEBAL (GOD MODE)!', '#38bdf8', 'info');
+        }
+        if (playerVel) {
+          this.applyKnockup(impactPos, playerPos, playerVel);
+        }
+      }
+
+      // Expanding Ground Shockwave Ring (r: 5 -> 26 @ 13 u/s, 38 dmg - jumpable with Spasi!)
+      this.spawnSeismicShockwave(impactPos, 5.0, 26.0, 13.0, 38);
+      if (this.titanPhase === 2) {
+        this.pendingShockwaves.push({
+          delay: 0.65,
+          center: impactPos.clone(),
+          startRadius: 4.5,
+          maxRadius: 26.0,
+          speed: 13.5,
+          damage: 38,
+        });
+      }
+    }
+
+    this.titanLeap.active = false;
+    this.bossStates.set(bossId, 'recovery');
+    this.stateTimers.set(bossId, 0);
+    return true;
+  }
+
   public updateDragonFlyingPursuit(
     enemy: {
       data: EnemyData;
@@ -2081,21 +2652,35 @@ export class BossManager {
     // Play appropriate SFX & Camera Shake
     if (tel.skill.id === 'seismic_slam' || tel.skill.id === 'earthquake_slam') {
       soundManager.playTitanGroundSlam();
-      this.callbacks.onCameraShake(1.2);
-      this.callbacks.onSpawnShockwave?.(tel.center, 0xef4444, 15.0, 0.9);
-      this.callbacks.onSpawnSparks?.(tel.center, 0xf59e0b, 32, 7.0);
+      this.callbacks.onCameraShake(1.3);
+      this.callbacks.onSpawnShockwave?.(impactPos, 0xef4444, 18.0, 0.85);
+      this.callbacks.onSpawnSparks?.(impactPos, 0xf97316, 32, 7.5);
+      this.spawnTitanRubbleBurst(impactPos, 14);
+      this.spawnSeismicShockwave(impactPos, 5.0, 24.0, 12.5, 35);
+      if (this.titanPhase === 2) {
+        this.pendingShockwaves.push({
+          delay: 0.65,
+          center: impactPos.clone(),
+          startRadius: 4.5,
+          maxRadius: 24.0,
+          speed: 13.0,
+          damage: 35,
+        });
+      }
     } else if (tel.skill.id === 'boulder_hurl' || tel.skill.id === 'rock_throw') {
       soundManager.playTitanGroundSlam();
-      this.callbacks.onCameraShake(0.8);
-      // Hormati Stealth: jika pemain bersembunyi setelah telegraph dikunci, tembak tetap menuju koordinat kunci lama (tel.center) atau Decoy
+      this.callbacks.onCameraShake(0.85);
       const boulderTarget =
         this.activeDecoy?.active && (this.isPlayerStealthed || this.activeDecoy.position.distanceTo(tel.center) < playerPos.distanceTo(tel.center))
           ? this.activeDecoy.position.clone()
           : this.isPlayerStealthed
             ? tel.center.clone()
             : playerPos.clone();
+      const originPos = tel.enemy?.mesh
+        ? tel.enemy.mesh.position.clone().add(new THREE.Vector3(0, 15.5, 0))
+        : tel.center.clone().add(new THREE.Vector3(0, 14.0, 0));
       this.callbacks.onSpawnBoulderProjectile?.(
-        tel.center.clone().add(new THREE.Vector3(0, 3.5, 0)),
+        originPos,
         boulderTarget,
         tel.skill.damage
       );
@@ -2104,33 +2689,14 @@ export class BossManager {
       return;
     } else if (tel.skill.id === 'earth_fissure') {
       soundManager.playTitanGroundSlam();
-      this.callbacks.onCameraShake(1.0);
-      // Spawn straight line sequence of stone blocks rupturing from ground
+      this.callbacks.onCameraShake(1.05);
       const fwd = tel.direction || new THREE.Vector3(0, 0, 1);
-      const stepCount = 8;
-      const stepDist = (tel.length || 24.0) / stepCount;
-      for (let s = 1; s <= stepCount; s++) {
-        setTimeout(() => {
-          const pt = tel.center.clone().addScaledVector(fwd, s * stepDist);
-          const py = this.getTerrainHeight(pt.x, pt.z);
-          const pGeo = new THREE.BoxGeometry(1.6, 2.5 + Math.random() * 1.5, 1.6);
-          const pMat = new THREE.MeshStandardMaterial({ color: 0x44403c, roughness: 0.9, flatShading: true });
-          const pMesh = new THREE.Mesh(pGeo, pMat);
-          pMesh.position.set(pt.x, py + 1.0, pt.z);
-          pMesh.rotation.y = Math.random() * Math.PI;
-          this.scene.add(pMesh);
-          this.callbacks.onSpawnSparks?.(pt, 0x0284c7, 6, 3.0);
-          setTimeout(() => {
-            this.scene.remove(pMesh);
-            pGeo.dispose();
-            pMat.dispose();
-          }, 1800);
-        }, s * 70);
-      }
+      this.spawnTitanFissureWave(tel.center, fwd, tel.length || 44.0);
     } else if (tel.skill.id === 'heavy_punch') {
-      soundManager.playHit(true);
-      this.callbacks.onCameraShake(0.65);
-      this.callbacks.onSpawnShockwave?.(tel.center, 0x0284c7, 4.5, 0.4);
+      soundManager.playTitanGroundSlam();
+      this.callbacks.onCameraShake(0.78);
+      this.callbacks.onSpawnShockwave?.(impactPos, 0xf97316, 10.0, 0.45);
+      this.callbacks.onSpawnSparks?.(impactPos, 0xf59e0b, 18, 5.5);
     } else if (tel.skill.id === 'dragon_claw') {
       soundManager.playHit(true);
       this.callbacks.onCameraShake(0.6);
@@ -2231,7 +2797,7 @@ export class BossManager {
         this.applyBurn(skill.effectDuration || 4.0);
       }
     } else if (skill.effect === 'knockback') {
-      const force = skill.id === 'heavy_punch' ? 10.0 : 16.0;
+      const force = skill.id === 'heavy_punch' ? 16.0 : 17.5;
       this.applyKnockback(tel.center, playerPos, playerVel, force);
     } else if (skill.effect === 'knockup') {
       this.applyKnockup(tel.center, playerPos, playerVel);
@@ -4123,6 +4689,25 @@ export class BossManager {
     disposeSimpleGroup(this.jarrusTailConeGroup?.group);
     disposeSimpleGroup(this.jarrusVortexGroup?.group);
     disposeSimpleGroup(this.jarrusSandBombGroup?.group);
+    disposeSimpleGroup(this.titanLeapRing?.group);
+    this.titanLeapRing = null;
+    this.titanFissurePillars.forEach((p, idx) => {
+      this.scene.remove(p.mesh);
+      if (idx === 0) {
+        p.mesh.geometry.dispose();
+        (p.mesh.material as THREE.Material).dispose();
+      }
+    });
+    this.titanFissurePillars = [];
+    this.titanRubbleChunks.forEach((c, idx) => {
+      this.scene.remove(c.mesh);
+      if (idx === 0) {
+        c.mesh.geometry.dispose();
+        (c.mesh.material as THREE.Material).dispose();
+      }
+    });
+    this.titanRubbleChunks = [];
+    this.pendingShockwaves = [];
     this.jarrusTakeoffRing = null;
     this.jarrusLandingRing = null;
     this.jarrusSlamLineGroup = null;

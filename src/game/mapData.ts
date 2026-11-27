@@ -329,7 +329,7 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
   }
 
   // 2. Arena Colosseum World Boss Titan Kuno [180, -560]
-  if (Math.hypot(x - 180, z - -560) <= 65) {
+  if (Math.hypot(x - 180, z - -560) <= 78) {
     return REGIONS.find((r) => r.id === 'kawah_cacing_purba') || REGIONS[11];
   }
 

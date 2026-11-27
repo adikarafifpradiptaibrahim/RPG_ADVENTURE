@@ -1752,6 +1752,405 @@ export function createCheckpointMonumentMesh(unlocked: boolean = false): {
 }
 
 // Enemy models: Slime, Magma Slime, Skeleton, Skeleton Mage, Goblin, Golem, Spider, Frost Wolf, Swamp Crawler, Boss
+/**
+ * Creates the Colossal Sculpted Ancient Rune Obsidian Titan Boss (`boss_titan`)
+ * 1:1 world scale (~20.2 units standing height, V-shaped monolith torso, magma rune veins,
+ * spinning chest reactor core, hovering crown, orbiting shoulder rune stones, & massive gauntlets).
+ */
+export function createTitanBossMesh(): {
+  group: THREE.Group;
+  parts: Record<string, any>;
+} {
+  const group = new THREE.Group();
+  const parts: Record<string, any> = {};
+
+  // Zero-allocation shared materials stored on parts.mats for instant Fase 1 <-> Fase 2 Overdrive switch
+  const obsidianPrimary = new THREE.MeshStandardMaterial({
+    color: 0x1f242d,
+    roughness: 0.72,
+    metalness: 0.34,
+    flatShading: true,
+  });
+  const slateArmor = new THREE.MeshStandardMaterial({
+    color: 0x2d3442,
+    roughness: 0.62,
+    metalness: 0.42,
+    flatShading: true,
+  });
+  const bronzeTrim = new THREE.MeshStandardMaterial({
+    color: 0x9a6b3b,
+    roughness: 0.36,
+    metalness: 0.78,
+    flatShading: true,
+  });
+  const magmaRuneMat = new THREE.MeshStandardMaterial({
+    color: 0xf97316,
+    emissive: 0xea580c,
+    emissiveIntensity: 1.5,
+    roughness: 0.25,
+  });
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: 0xfdba74,
+    emissive: 0xf97316,
+    emissiveIntensity: 2.25,
+    roughness: 0.15,
+    metalness: 0.2,
+  });
+  const visorMat = new THREE.MeshStandardMaterial({
+    color: 0x38bdf8,
+    emissive: 0x0ea5e9,
+    emissiveIntensity: 1.85,
+    roughness: 0.2,
+  });
+  const knuckleMat = new THREE.MeshStandardMaterial({
+    color: 0xfb923c,
+    emissive: 0xf97316,
+    emissiveIntensity: 1.65,
+    roughness: 0.25,
+  });
+
+  parts.mats = {
+    obsidianPrimary,
+    slateArmor,
+    bronzeTrim,
+    magmaRuneMat,
+    coreMat,
+    visorMat,
+    knuckleMat,
+  };
+
+  // ============================================================================
+  // 1. HEAVY PILLAR LEGS (Hip pivot at y = 7.4; bottom of foot flush at y = 0.0)
+  // ============================================================================
+  const buildTitanLeg = (side: -1 | 1): THREE.Group => {
+    const legPivot = new THREE.Group();
+    legPivot.position.set(side * 1.95, 7.4, 0);
+
+    // Thigh stone pillar
+    const thigh = new THREE.Mesh(new THREE.BoxGeometry(2.15, 3.4, 2.35), obsidianPrimary);
+    thigh.position.y = -1.6;
+    thigh.castShadow = true;
+    thigh.receiveShadow = true;
+    legPivot.add(thigh);
+
+    // Thigh bronze collar & side armor
+    const thighPlate = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.5, 2.55), slateArmor);
+    thighPlate.position.y = -1.4;
+    legPivot.add(thighPlate);
+
+    // Sculpted angular knee bastion with glowing rune seam
+    const knee = new THREE.Mesh(new THREE.BoxGeometry(2.35, 1.45, 2.65), slateArmor);
+    knee.position.set(0, -3.4, 0.25);
+    knee.castShadow = true;
+    legPivot.add(knee);
+
+    const kneeRune = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.1, 0.2), magmaRuneMat);
+    kneeRune.position.set(0, -3.4, 1.55);
+    legPivot.add(kneeRune);
+
+    // Flared lower shin column
+    const shin = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.42, 3.0, 6), obsidianPrimary);
+    shin.position.y = -5.2;
+    shin.castShadow = true;
+    legPivot.add(shin);
+
+    // Shin glowing magma vein
+    const shinVein = new THREE.Mesh(new THREE.BoxGeometry(0.32, 2.3, 0.24), magmaRuneMat);
+    shinVein.position.set(0, -5.2, 1.25);
+    legPivot.add(shinVein);
+
+    // Bronze ankle ring
+    const ankleRing = new THREE.Mesh(new THREE.BoxGeometry(2.65, 0.45, 2.85), bronzeTrim);
+    ankleRing.position.y = -6.2;
+    legPivot.add(ankleRing);
+
+    // Massive grounded stone slab foot (bottom at y = -7.4 -> root y = 0.0)
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.2, 3.4), slateArmor);
+    foot.position.set(0, -6.8, 0.35);
+    foot.castShadow = true;
+    foot.receiveShadow = true;
+    legPivot.add(foot);
+
+    return legPivot;
+  };
+
+  const leftLeg = buildTitanLeg(1);
+  const rightLeg = buildTitanLeg(-1);
+  group.add(leftLeg, rightLeg);
+  parts.leftLeg = leftLeg;
+  parts.rightLeg = rightLeg;
+
+  // ============================================================================
+  // 2. MONOLITHIC V-SHAPED TORSO & REACTOR CHEST (Base pivot y = 8.4)
+  // ============================================================================
+  const baseTorsoY = 8.4;
+  parts.baseTorsoY = baseTorsoY;
+  const torso = new THREE.Group();
+  torso.position.set(0, baseTorsoY, 0);
+  group.add(torso);
+  parts.torso = torso;
+
+  // Pelvis & armored stone waist
+  const pelvis = new THREE.Mesh(new THREE.BoxGeometry(4.9, 2.1, 3.3), obsidianPrimary);
+  pelvis.position.y = -0.35;
+  pelvis.castShadow = true;
+  torso.add(pelvis);
+
+  const belt = new THREE.Mesh(new THREE.BoxGeometry(5.3, 0.85, 3.65), bronzeTrim);
+  belt.position.y = 0.6;
+  torso.add(belt);
+
+  const beltCore = new THREE.Mesh(new THREE.OctahedronGeometry(0.65, 0), magmaRuneMat);
+  beltCore.position.set(0, 0.6, 1.85);
+  torso.add(beltCore);
+
+  // Side hip tasset armor slabs
+  for (const side of [-1, 1]) {
+    const tasset = new THREE.Mesh(new THREE.BoxGeometry(0.85, 2.4, 2.9), slateArmor);
+    tasset.position.set(side * 2.85, -0.7, 0);
+    tasset.rotation.z = -side * 0.16;
+    torso.add(tasset);
+  }
+
+  // Lower abdomen sculpted blocks
+  const abdomen = new THREE.Mesh(new THREE.CylinderGeometry(2.85, 2.25, 2.8, 6), obsidianPrimary);
+  abdomen.position.y = 2.0;
+  abdomen.scale.set(1.18, 1, 0.82);
+  abdomen.castShadow = true;
+  torso.add(abdomen);
+
+  // V-shaped giant upper chest bastion (broad heroic Colossus silhouette)
+  const chestCoreBlock = new THREE.Mesh(new THREE.CylinderGeometry(4.4, 2.95, 4.4, 6), obsidianPrimary);
+  chestCoreBlock.position.y = 5.1;
+  chestCoreBlock.scale.set(1.24, 1.0, 0.78);
+  chestCoreBlock.castShadow = true;
+  torso.add(chestCoreBlock);
+
+  // Carved pectoral armor plates flanking center reactor
+  for (const side of [-1, 1]) {
+    const pec = new THREE.Mesh(new THREE.BoxGeometry(2.65, 3.2, 1.45), slateArmor);
+    pec.position.set(side * 2.25, 5.15, 1.55);
+    pec.rotation.y = -side * 0.24;
+    pec.rotation.z = side * 0.14;
+    pec.castShadow = true;
+    torso.add(pec);
+
+    // Diagonal glowing magma rune fissure across pectoral armor
+    const fissure = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.3, 0.22), magmaRuneMat);
+    fissure.position.set(side * 2.35, 5.45, 2.22);
+    fissure.rotation.y = -side * 0.24;
+    fissure.rotation.z = side * 0.38;
+    torso.add(fissure);
+
+    const lowerVein = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.25, 0.2), magmaRuneMat);
+    lowerVein.position.set(side * 1.45, 3.2, 2.05);
+    lowerVein.rotation.z = -side * 0.45;
+    torso.add(lowerVein);
+
+    // Towering dorsal basalt monolith spikes on upper back
+    const backSpire = new THREE.Mesh(new THREE.ConeGeometry(0.95, 4.4, 5), slateArmor);
+    backSpire.position.set(side * 2.0, 7.6, -1.75);
+    backSpire.rotation.x = -0.34;
+    backSpire.rotation.z = -side * 0.24;
+    backSpire.castShadow = true;
+    torso.add(backSpire);
+
+    const backRune = new THREE.Mesh(new THREE.BoxGeometry(0.32, 2.4, 0.28), magmaRuneMat);
+    backRune.position.set(side * 1.9, 6.9, -2.2);
+    backRune.rotation.x = -0.34;
+    torso.add(backRune);
+  }
+
+  // Collarbone & bronze chest frame around Reactor
+  const collarArch = new THREE.Mesh(new THREE.BoxGeometry(6.6, 1.15, 3.8), slateArmor);
+  collarArch.position.set(0, 7.25, -0.1);
+  collarArch.castShadow = true;
+  torso.add(collarArch);
+
+  const reactorHousing = new THREE.Mesh(new THREE.TorusGeometry(1.42, 0.28, 8, 16), bronzeTrim);
+  reactorHousing.position.set(0, 4.95, 2.15);
+  torso.add(reactorHousing);
+
+  // Spinning Ancient Crystal Reactor Core in chest center
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(1.12, 0), coreMat);
+  core.position.set(0, 4.95, 2.15);
+  torso.add(core);
+  parts.core = core;
+
+  const coreRing1 = new THREE.Mesh(new THREE.TorusGeometry(1.75, 0.12, 6, 20), magmaRuneMat);
+  coreRing1.position.set(0, 4.95, 2.18);
+  torso.add(coreRing1);
+  parts.coreRing1 = coreRing1;
+
+  const coreRing2 = new THREE.Mesh(new THREE.TorusGeometry(2.05, 0.1, 6, 20), bronzeTrim);
+  coreRing2.position.set(0, 4.95, 2.12);
+  coreRing2.rotation.x = Math.PI / 3;
+  torso.add(coreRing2);
+  parts.coreRing2 = coreRing2;
+
+  // ============================================================================
+  // 3. HEAD & HOVERING STONE CROWN (World height top ~20.2u)
+  // ============================================================================
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.7, 1.3, 6), obsidianPrimary);
+  neck.position.set(0, 7.8, 0.15);
+  torso.add(neck);
+
+  const head = new THREE.Group();
+  head.position.set(0, 9.15, 0.25);
+  torso.add(head);
+  parts.head = head;
+
+  // Angular monolith cranium + heavy stone brow & jaw guard
+  const cranium = new THREE.Mesh(new THREE.BoxGeometry(2.7, 2.65, 2.75), obsidianPrimary);
+  cranium.castShadow = true;
+  head.add(cranium);
+
+  const browRidge = new THREE.Mesh(new THREE.BoxGeometry(3.05, 0.72, 3.0), slateArmor);
+  browRidge.position.set(0, 0.92, 0.15);
+  head.add(browRidge);
+
+  const jawGuard = new THREE.Mesh(new THREE.BoxGeometry(2.45, 0.85, 2.95), bronzeTrim);
+  jawGuard.position.set(0, -0.78, 0.12);
+  head.add(jawGuard);
+
+  // Recessed glowing ancient visor eye slit
+  const visorFrame = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.48, 0.24), bronzeTrim);
+  visorFrame.position.set(0, 0.25, 1.38);
+  head.add(visorFrame);
+
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.28, 0.3), visorMat);
+  visor.position.set(0, 0.25, 1.42);
+  head.add(visor);
+
+  // Hovering Ancient Stone Crown above head (world Y ~ 19.3..20.2)
+  const crownGroup = new THREE.Group();
+  crownGroup.position.set(0, 2.05, 0);
+  crownGroup.userData.baseY = 2.05;
+  head.add(crownGroup);
+  parts.crown = crownGroup;
+
+  const crownRing = new THREE.Mesh(new THREE.TorusGeometry(1.75, 0.16, 6, 8), bronzeTrim);
+  crownRing.rotation.x = Math.PI / 2;
+  crownGroup.add(crownRing);
+
+  for (let c = 0; c < 6; c++) {
+    const a = (c / 6) * Math.PI * 2;
+    const crownSlab = new THREE.Mesh(new THREE.BoxGeometry(0.62, 1.15, 0.35), slateArmor);
+    crownSlab.position.set(Math.cos(a) * 1.75, 0.35, Math.sin(a) * 1.75);
+    crownSlab.rotation.y = -a + Math.PI / 2;
+    crownSlab.rotation.x = -0.18;
+    const slabGlow = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.7, 0.4), magmaRuneMat);
+    crownSlab.add(slabGlow);
+    crownGroup.add(crownSlab);
+  }
+
+  // ============================================================================
+  // 4. MONOLITHIC FLOATING RUNE PAULDRONS & ORBITING RUNE SHARDS
+  // ============================================================================
+  const orbitRunes: Array<{ pivot: THREE.Group; side: number; index: number }> = [];
+  for (const side of [-1, 1] as const) {
+    const pauldronPivot = new THREE.Group();
+    pauldronPivot.position.set(side * 4.95, 6.25, 0);
+    torso.add(pauldronPivot);
+
+    const upperBastion = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.6, 3.8), slateArmor);
+    upperBastion.rotation.z = -side * 0.28;
+    upperBastion.castShadow = true;
+    pauldronPivot.add(upperBastion);
+
+    const crestSpike = new THREE.Mesh(new THREE.ConeGeometry(1.1, 2.7, 5), obsidianPrimary);
+    crestSpike.position.set(side * 0.65, 1.85, 0);
+    crestSpike.rotation.z = -side * 0.38;
+    pauldronPivot.add(crestSpike);
+
+    const pauldronRune = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.35, 3.92), magmaRuneMat);
+    pauldronRune.rotation.z = -side * 0.28;
+    pauldronPivot.add(pauldronRune);
+
+    if (side === 1) parts.leftPauldron = pauldronPivot;
+    else parts.rightPauldron = pauldronPivot;
+
+    // 3 Small Floating Rune Monolith Shards orbiting around each shoulder bastion
+    const shoulderOrbitGroup = new THREE.Group();
+    pauldronPivot.add(shoulderOrbitGroup);
+    for (let r = 0; r < 3; r++) {
+      const ang = (r / 3) * Math.PI * 2;
+      const rad = 2.65;
+      const shardPivot = new THREE.Group();
+      const shardStone = new THREE.Mesh(new THREE.OctahedronGeometry(0.45, 0), slateArmor);
+      shardStone.scale.set(0.7, 1.55, 0.7);
+      shardStone.position.set(Math.cos(ang) * rad, 0.65 + (r % 2) * 0.5, Math.sin(ang) * rad);
+      const shardGlow = new THREE.Mesh(new THREE.OctahedronGeometry(0.32, 0), magmaRuneMat);
+      shardGlow.position.copy(shardStone.position);
+      shardPivot.add(shardStone, shardGlow);
+      shoulderOrbitGroup.add(shardPivot);
+      orbitRunes.push({ pivot: shardPivot, side, index: r });
+    }
+  }
+  parts.orbitRunes = orbitRunes;
+
+  // ============================================================================
+  // 5. COLOSSAL GAUNTLET ARMS (Pivoted inside Torso so crouches stay aligned)
+  // ============================================================================
+  const buildTitanArm = (side: -1 | 1): THREE.Group => {
+    const armPivot = new THREE.Group();
+    armPivot.position.set(side * 5.2, 5.2, 0);
+
+    // Massive Upper Bicep Column
+    const bicep = new THREE.Mesh(new THREE.BoxGeometry(1.9, 3.6, 2.0), obsidianPrimary);
+    bicep.position.y = -1.7;
+    bicep.castShadow = true;
+    armPivot.add(bicep);
+
+    // Bronze Elbow Gear Ring
+    const elbowRing = new THREE.Mesh(new THREE.BoxGeometry(2.25, 0.65, 2.35), bronzeTrim);
+    elbowRing.position.y = -3.4;
+    armPivot.add(elbowRing);
+
+    // Colossal Flared Stone Gauntlet Forearm
+    const gauntlet = new THREE.Mesh(new THREE.BoxGeometry(2.55, 3.8, 2.65), slateArmor);
+    gauntlet.position.set(side * 0.15, -5.5, 0.15);
+    gauntlet.castShadow = true;
+    armPivot.add(gauntlet);
+
+    // Glowing magma rune conduit down outer gauntlet
+    const forearmRune = new THREE.Mesh(new THREE.BoxGeometry(0.35, 3.1, 0.35), magmaRuneMat);
+    forearmRune.position.set(side * 1.45, -5.4, 0.15);
+    armPivot.add(forearmRune);
+
+    // Bronze wrist bracer
+    const bracer = new THREE.Mesh(new THREE.BoxGeometry(2.75, 0.55, 2.85), bronzeTrim);
+    bracer.position.set(side * 0.15, -4.15, 0.15);
+    armPivot.add(bracer);
+
+    // Massive Carved Fist + Glowing Ember Knuckles
+    const fistBlock = new THREE.Mesh(new THREE.BoxGeometry(2.75, 1.85, 2.85), obsidianPrimary);
+    fistBlock.position.set(side * 0.15, -7.85, 0.25);
+    fistBlock.castShadow = true;
+    armPivot.add(fistBlock);
+
+    for (let k = -1; k <= 1; k++) {
+      const knuckle = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.85, 0.55), knuckleMat);
+      knuckle.position.set(side * 0.15 + k * 0.82, -8.35, 1.55);
+      armPivot.add(knuckle);
+    }
+
+    const thumb = new THREE.Mesh(new THREE.BoxGeometry(0.75, 1.15, 0.95), slateArmor);
+    thumb.position.set(-side * 1.25, -7.8, 0.95);
+    armPivot.add(thumb);
+
+    return armPivot;
+  };
+
+  const leftArm = buildTitanArm(1);
+  const rightArm = buildTitanArm(-1);
+  torso.add(leftArm, rightArm);
+  parts.leftArm = leftArm;
+  parts.rightArm = rightArm;
+
+  return { group, parts };
+}
+
 export function createEnemyMesh(
   type: 'slime' | 'magma_slime' | 'skeleton' | 'skeleton_mage' | 'goblin' | 'golem' | 'spider' | 'frost_wolf' | 'swamp_crawler' | 'boss' | 'dragon' | 'worm'
 ): {
@@ -1763,6 +2162,9 @@ export function createEnemyMesh(
   }
   if (type === 'worm') {
     return createSandwormBossMesh();
+  }
+  if (type === 'boss') {
+    return createTitanBossMesh();
   }
 
   const group = new THREE.Group();
@@ -2261,101 +2663,6 @@ export function createEnemyMesh(
     const eye2 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 6), eyeMat);
     eye2.position.set(-0.16, 0.65, 0.52);
     group.add(eye1, eye2);
-  } else if (type === 'boss') {
-    // Ancient Colossal Obsidian Titan Boss!
-    group.scale.set(3.5, 3.5, 3.5);
-
-    const titanStoneMat = new THREE.MeshStandardMaterial({
-      color: 0x212121,
-      roughness: 0.7,
-      metalness: 0.3,
-      flatShading: true,
-    });
-    const magmaGlowMat = new THREE.MeshStandardMaterial({
-      color: 0xff3d00,
-      emissive: 0xff3d00,
-      emissiveIntensity: 1.0,
-      roughness: 0.2,
-    });
-    const runeCyanMat = new THREE.MeshStandardMaterial({
-      color: 0x00e5ff,
-      emissive: 0x00e5ff,
-      emissiveIntensity: 0.8,
-    });
-
-    // Massive Chest / Core
-    const chestGeo = new THREE.BoxGeometry(1.2, 1.4, 0.9);
-    const chest = new THREE.Mesh(chestGeo, titanStoneMat);
-    chest.position.y = 1.9;
-    chest.castShadow = true;
-    group.add(chest);
-
-    // Glowing Magma Core in chest
-    const coreGeo = new THREE.OctahedronGeometry(0.35, 1);
-    const core = new THREE.Mesh(coreGeo, magmaGlowMat);
-    core.position.set(0, 1.9, 0.42);
-    group.add(core);
-    parts.core = core;
-
-    // Shoulders with spiky stone armor
-    const shoulderGeo = new THREE.ConeGeometry(0.5, 0.8, 5);
-    const leftShoulder = new THREE.Mesh(shoulderGeo, titanStoneMat);
-    leftShoulder.position.set(0.85, 2.5, 0);
-    leftShoulder.rotation.z = -0.4;
-    const rightShoulder = new THREE.Mesh(shoulderGeo, titanStoneMat);
-    rightShoulder.position.set(-0.85, 2.5, 0);
-    rightShoulder.rotation.z = 0.4;
-    group.add(leftShoulder, rightShoulder);
-
-    // Head / Visor
-    const headGeo = new THREE.BoxGeometry(0.65, 0.65, 0.65);
-    const head = new THREE.Mesh(headGeo, titanStoneMat);
-    head.position.y = 2.85;
-    group.add(head);
-
-    // Glowing Single Visor Eye
-    const visorGeo = new THREE.BoxGeometry(0.45, 0.12, 0.1);
-    const visor = new THREE.Mesh(visorGeo, runeCyanMat);
-    visor.position.set(0, 2.85, 0.33);
-    group.add(visor);
-
-    // Giant Fists / Arms
-    const armGeo = new THREE.BoxGeometry(0.45, 1.2, 0.45);
-    armGeo.translate(0, -0.5, 0);
-
-    const leftArm = new THREE.Group();
-    leftArm.position.set(0.95, 2.2, 0);
-    leftArm.add(new THREE.Mesh(armGeo, titanStoneMat));
-    const leftFist = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), magmaGlowMat);
-    leftFist.position.y = -1.1;
-    leftArm.add(leftFist);
-    group.add(leftArm);
-    parts.leftArm = leftArm;
-
-    const rightArm = new THREE.Group();
-    rightArm.position.set(-0.95, 2.2, 0);
-    rightArm.add(new THREE.Mesh(armGeo, titanStoneMat));
-    const rightFist = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), magmaGlowMat);
-    rightFist.position.y = -1.1;
-    rightArm.add(rightFist);
-    group.add(rightArm);
-    parts.rightArm = rightArm;
-
-    // Massive Stone Legs
-    const legGeo = new THREE.BoxGeometry(0.45, 1.1, 0.45);
-    legGeo.translate(0, -0.5, 0);
-
-    const leftLeg = new THREE.Group();
-    leftLeg.position.set(0.4, 1.1, 0);
-    leftLeg.add(new THREE.Mesh(legGeo, titanStoneMat));
-    group.add(leftLeg);
-    parts.leftLeg = leftLeg;
-
-    const rightLeg = new THREE.Group();
-    rightLeg.position.set(-0.4, 1.1, 0);
-    rightLeg.add(new THREE.Mesh(legGeo, titanStoneMat));
-    group.add(rightLeg);
-    parts.rightLeg = rightLeg;
   }
 
   return { group, parts };
