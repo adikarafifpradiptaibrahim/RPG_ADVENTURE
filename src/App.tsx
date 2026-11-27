@@ -57,8 +57,10 @@ import {
 } from './game/storage/devTestingManager';
 import { DevDebugOverlay } from './components/DevDebugOverlay';
 import { DevTeleportPreset } from './components/DeveloperSettingsSection';
+import { useMobileViewport } from './game/utils/mobileViewport';
 
 export default function App() {
+  const { isMobileUi, isMobileLandscape } = useMobileViewport();
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
 
@@ -1422,8 +1424,32 @@ export default function App() {
     handleToggleSpectator,
   ]);
 
+  const isLoadingScreenActive = isInitialLoading || isLoadingGameplay || isLoadingFadeOut;
+  const isPortraitBlocking = isPortrait && !bypassPortrait;
+  const isFullModalOpen =
+    isPauseMenuOpen ||
+    isSettingsOpen ||
+    isInventoryOpen ||
+    isStatsOpen ||
+    isQuestsOpen ||
+    isHelpOpen ||
+    isMapOpen ||
+    dialogueState.isOpen ||
+    shopState.isOpen ||
+    isAuthModalOpen;
+  const isGameplayHudVisible = hasStarted && !isLoadingScreenActive && !isPortraitBlocking;
+  const isGameplayTouchControlsActive =
+    isGameplayHudVisible &&
+    !isFullModalOpen &&
+    !isSpectatorMode &&
+    showTouchControls;
+
   return (
-    <div className="relative w-full h-screen overflow-hidden bg-stone-950 select-none">
+    <div
+      className={`relative w-full h-[100dvh] overflow-hidden bg-stone-950 select-none ${
+        isMobileUi ? 'is-mobile-ui' : ''
+      } ${isMobileLandscape ? 'is-mobile-landscape' : ''}`}
+    >
       {/* 3D WebGL Canvas Viewport - Strictly isolated at base layer (z-index: 0) */}
       <div
         ref={containerRef}
@@ -1466,8 +1492,8 @@ export default function App() {
         message={isInitialLoading ? "Menyiapkan Dunia & Mengompilasi Shader Tiga Dimensi..." : loadingMessage}
       />
 
-      {/* Primary In-Game HUD Overlay */}
-      {hasStarted && (
+      {/* Primary In-Game HUD Overlay (strictly unmounted during Loading, Menu, RoleSelect, & Portrait lock) */}
+      {isGameplayHudVisible && (
         <>
           <HUD
             stats={stats}
@@ -1528,6 +1554,15 @@ export default function App() {
                 }
               }
             }}
+            onMobileAimStart={(slot) => engineRef.current?.startMobileSkillAim(slot)}
+            onMobileAimMove={(slot, nx, ny, overCancel) =>
+              engineRef.current?.updateMobileSkillAim(slot, nx, ny, overCancel)
+            }
+            onMobileAimEnd={(slot, isCancelled, isQuickTap) =>
+              engineRef.current?.releaseMobileSkillAim(slot, isCancelled, isQuickTap)
+            }
+            isTouchControlsVisible={isGameplayTouchControlsActive}
+            isModalOpen={isFullModalOpen}
             isGlacialAiming={isGlacialAiming}
             glacialTarget={glacialTarget}
             isBowAiming={isBowAiming}
@@ -1640,10 +1675,11 @@ export default function App() {
             </div>
           )}
 
-          {/* Virtual Joystick for Touch / Mobile devices (Hidden in spectator mode or when UI is hidden) */}
-          {!isAnyModalOpen && !isSpectatorMode && showTouchControls && (
+          {/* Virtual Joystick for Touch / Mobile devices (Strictly non-rendered outside active gameplay) */}
+          {isGameplayTouchControlsActive && (
             <div className={`transition-opacity duration-200 ${isUIVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
               <VirtualJoystick
+                isVisible={isGameplayTouchControlsActive && isUIVisible}
                 onMove={(vec) => {
                   if (engineRef.current) {
                     engineRef.current.joystickVector = vec;

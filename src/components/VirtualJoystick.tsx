@@ -1,9 +1,11 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Disc, Crosshair, EyeOff } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
+import { useMobileViewport } from '../game/utils/mobileViewport';
 
 export type TouchControlMode = 'joystick' | 'dpad';
 
 const CONTROL_MODE_STORAGE_KEY = 'eldoria_touch_control_mode';
+const CONTROL_MODE_CHANGE_EVENT = 'eldoria_control_mode_changed';
 
 export function getSavedControlMode(): TouchControlMode {
   if (typeof window === 'undefined') return 'joystick';
@@ -18,15 +20,21 @@ export function setSavedControlMode(mode: TouchControlMode): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(CONTROL_MODE_STORAGE_KEY, mode);
+    window.dispatchEvent(new CustomEvent<TouchControlMode>(CONTROL_MODE_CHANGE_EVENT, { detail: mode }));
   } catch { }
 }
 
 interface VirtualJoystickProps {
   onMove: (vector: { x: number; y: number }) => void;
+  isVisible?: boolean;
   onHide?: () => void;
 }
 
-export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide }) => {
+export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
+  onMove,
+  isVisible = true,
+}) => {
+  const { isMobileUi } = useMobileViewport();
   const joystickBaseRef = useRef<HTMLDivElement>(null);
   const dpadBaseRef = useRef<HTMLDivElement>(null);
 
@@ -46,8 +54,21 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
   });
   const [dpadVisual, setDpadVisual] = useState({ up: false, down: false, left: false, right: false });
 
-  // Ergonomic touch dimensions (Optimized for mobile thumb comfort & anti-overlap)
-  const maxRadius = 46;
+  // Sync control mode when changed from Settings -> Kontrol
+  useEffect(() => {
+    const handleModeChanged = (e: Event) => {
+      const custom = e as CustomEvent<TouchControlMode>;
+      const next = custom.detail || getSavedControlMode();
+      if (next === 'joystick' || next === 'dpad') {
+        setControlMode(next);
+      }
+    };
+    window.addEventListener(CONTROL_MODE_CHANGE_EVENT, handleModeChanged);
+    return () => window.removeEventListener(CONTROL_MODE_CHANGE_EVENT, handleModeChanged);
+  }, []);
+
+  // Ergonomic touch dimensions (~116px mobile diameter, 42px knob travel)
+  const maxRadius = isMobileUi ? 42 : 46;
   const DEADZONE = 6;
 
   const sendMove = useCallback(
@@ -260,11 +281,17 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
     }
   };
 
-  const switchMode = (mode: TouchControlMode) => {
-    stopAllMovement();
-    setControlMode(mode);
-    setSavedControlMode(mode);
-  };
+  useEffect(() => {
+    if (!isVisible) {
+      stopAllMovement();
+    }
+  }, [isVisible, stopAllMovement]);
+
+  if (!isVisible) return null;
+
+  const baseSizeClass = isMobileUi ? 'w-[116px] h-[116px]' : 'w-32 h-32 sm:w-36 sm:h-36';
+  const knobSizeClass = isMobileUi ? 'w-11 h-11' : 'w-12 h-12 sm:w-14 sm:h-14';
+  const dpadBtnClass = isMobileUi ? 'w-8 h-8' : 'w-9 h-9 sm:w-10 sm:h-10';
 
   return (
     <div
@@ -273,68 +300,14 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
         userSelect: 'none',
         WebkitUserSelect: 'none',
         pointerEvents: 'auto',
-        bottom: '12px',
-        left: '12px',
+        bottom: 'max(14px, env(safe-area-inset-bottom, 0px))',
+        left: 'max(18px, env(safe-area-inset-left, 0px))',
         zIndex: 9999,
       }}
-      className="touch-control-layer virtual-joystick-root fixed bottom-[12px] left-[12px] z-[9999] select-none flex flex-col items-start gap-1"
+      className={`touch-control-layer virtual-joystick-root fixed z-[9999] select-none flex flex-col items-start transition-opacity duration-150 ${
+        active ? 'opacity-100' : 'opacity-80'
+      }`}
     >
-      {/* Mode Switcher pill */}
-      <div className="flex items-center gap-1 bg-stone-950/90 backdrop-blur-md px-1.5 py-0.5 rounded-full border border-stone-800 text-[9px] text-stone-300 shadow-lg pointer-events-auto">
-        <button
-          type="button"
-          onTouchStart={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            switchMode('joystick');
-          }}
-          onClick={() => switchMode('joystick')}
-          className={`flex items-center gap-1 px-2 py-0.5 rounded-full transition-all cursor-pointer font-bold ${controlMode === 'joystick'
-              ? 'bg-amber-500 text-stone-950 shadow-sm'
-              : 'text-stone-400 hover:text-stone-200'
-            }`}
-        >
-          <Disc className="w-2.5 h-2.5" />
-          <span>Analog</span>
-        </button>
-        <button
-          type="button"
-          onTouchStart={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            switchMode('dpad');
-          }}
-          onClick={() => switchMode('dpad')}
-          className={`flex items-center gap-1 px-2 py-0.5 rounded-full transition-all cursor-pointer font-bold ${controlMode === 'dpad'
-              ? 'bg-amber-500 text-stone-950 shadow-sm'
-              : 'text-stone-400 hover:text-stone-200'
-            }`}
-        >
-          <Crosshair className="w-2.5 h-2.5" />
-          <span>D-Pad</span>
-        </button>
-        {onHide && (
-          <button
-            type="button"
-            onTouchStart={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              stopAllMovement();
-              onHide();
-            }}
-            onClick={() => {
-              stopAllMovement();
-              onHide();
-            }}
-            title="Sembunyikan kontroler layar"
-            className="flex items-center gap-0.5 ml-0.5 px-1 py-0.5 rounded-full bg-stone-800/80 hover:bg-stone-700 text-stone-400 hover:text-white border border-stone-700 transition cursor-pointer"
-          >
-            <EyeOff className="w-2.5 h-2.5 text-stone-300" />
-            <span className="text-[8px]">Tutup</span>
-          </button>
-        )}
-      </div>
-
       {controlMode === 'joystick' ? (
         /* Virtual Analog Stick Base */
         <div
@@ -344,9 +317,9 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
           style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
-          className={`relative w-32 h-32 sm:w-36 sm:h-36 rounded-full backdrop-blur-md border-2 shadow-2xl flex items-center justify-center transition-colors cursor-grab active:cursor-grabbing select-none pointer-events-auto ${active
+          className={`relative ${baseSizeClass} rounded-full backdrop-blur-sm border-2 shadow-2xl flex items-center justify-center transition-colors cursor-grab active:cursor-grabbing select-none pointer-events-auto ${active
               ? 'bg-amber-950/60 border-amber-500/90 shadow-amber-500/40'
-              : 'bg-stone-900/70 border-stone-700/80'
+              : 'bg-stone-900/55 border-stone-600/65'
             }`}
         >
           {/* Cardinal direction indicators */}
@@ -356,20 +329,20 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
           <div className="absolute right-2 w-1.5 h-1.5 rounded-full bg-amber-500/60" />
 
           {/* Inner motion guide dashed circle */}
-          <div className="absolute w-12 h-12 sm:w-14 sm:h-14 rounded-full border border-dashed border-stone-600/50 pointer-events-none" />
+          <div className={`absolute ${knobSizeClass} rounded-full border border-dashed border-stone-500/50 pointer-events-none`} />
 
           {/* Joystick Knob */}
           <div
-            className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 shadow-2xl flex items-center justify-center pointer-events-none ${active
+            className={`${knobSizeClass} rounded-full border-2 shadow-2xl flex items-center justify-center pointer-events-none ${active
                 ? 'bg-gradient-to-b from-amber-400 via-amber-500 to-amber-600 border-amber-200 shadow-amber-500/70 scale-105'
-                : 'bg-gradient-to-b from-stone-700 via-stone-800 to-stone-900 border-stone-500 shadow-black'
+                : 'bg-gradient-to-b from-stone-700/90 via-stone-800/90 to-stone-900/90 border-stone-500/80 shadow-black'
               }`}
             style={{
               transform: `translate(${knobPos.x}px, ${knobPos.y}px)`,
               transition: active ? 'none' : 'transform 0.12s cubic-bezier(0.18, 0.89, 0.32, 1.28)',
             }}
           >
-            <div className="w-4 h-4 rounded-full bg-white/50 shadow-inner" />
+            <div className="w-3.5 h-3.5 rounded-full bg-white/50 shadow-inner" />
           </div>
         </div>
       ) : (
@@ -381,45 +354,45 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onHide
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
           style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
-          className="relative w-32 h-32 sm:w-36 sm:h-36 bg-stone-900/80 backdrop-blur-md rounded-3xl border-2 border-stone-700/80 p-2 flex items-center justify-center shadow-2xl select-none pointer-events-auto"
+          className={`relative ${baseSizeClass} bg-stone-900/60 backdrop-blur-sm rounded-3xl border-2 border-stone-600/70 p-1.5 flex items-center justify-center shadow-2xl select-none pointer-events-auto`}
         >
           <div
-            className={`absolute top-1.5 left-1/2 -translate-x-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center border transition-all pointer-events-none ${dpadVisual.up
+            className={`absolute top-1.5 left-1/2 -translate-x-1/2 ${dpadBtnClass} rounded-xl flex items-center justify-center border transition-all pointer-events-none ${dpadVisual.up
                 ? 'bg-amber-500 text-stone-950 border-amber-300 shadow-md scale-95'
-                : 'bg-stone-800/90 text-stone-200 border-stone-600'
+                : 'bg-stone-800/85 text-stone-200 border-stone-600'
               }`}
           >
-            <ArrowUp className="w-5 h-5" />
+            <ArrowUp className="w-4 h-4" />
           </div>
 
           <div
-            className={`absolute bottom-1.5 left-1/2 -translate-x-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center border transition-all pointer-events-none ${dpadVisual.down
+            className={`absolute bottom-1.5 left-1/2 -translate-x-1/2 ${dpadBtnClass} rounded-xl flex items-center justify-center border transition-all pointer-events-none ${dpadVisual.down
                 ? 'bg-amber-500 text-stone-950 border-amber-300 shadow-md scale-95'
-                : 'bg-stone-800/90 text-stone-200 border-stone-600'
+                : 'bg-stone-800/85 text-stone-200 border-stone-600'
               }`}
           >
-            <ArrowDown className="w-5 h-5" />
+            <ArrowDown className="w-4 h-4" />
           </div>
 
           <div
-            className={`absolute left-1.5 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center border transition-all pointer-events-none ${dpadVisual.left
+            className={`absolute left-1.5 top-1/2 -translate-y-1/2 ${dpadBtnClass} rounded-xl flex items-center justify-center border transition-all pointer-events-none ${dpadVisual.left
                 ? 'bg-amber-500 text-stone-950 border-amber-300 shadow-md scale-95'
-                : 'bg-stone-800/90 text-stone-200 border-stone-600'
+                : 'bg-stone-800/85 text-stone-200 border-stone-600'
               }`}
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4" />
           </div>
 
           <div
-            className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center border transition-all pointer-events-none ${dpadVisual.right
+            className={`absolute right-1.5 top-1/2 -translate-y-1/2 ${dpadBtnClass} rounded-xl flex items-center justify-center border transition-all pointer-events-none ${dpadVisual.right
                 ? 'bg-amber-500 text-stone-950 border-amber-300 shadow-md scale-95'
-                : 'bg-stone-800/90 text-stone-200 border-stone-600'
+                : 'bg-stone-800/85 text-stone-200 border-stone-600'
               }`}
           >
-            <ArrowRight className="w-5 h-5" />
+            <ArrowRight className="w-4 h-4" />
           </div>
 
-          <div className="w-3.5 h-3.5 rounded-full bg-stone-700/80 border border-stone-500/50 pointer-events-none" />
+          <div className="w-3 h-3 rounded-full bg-stone-700/80 border border-stone-500/50 pointer-events-none" />
         </div>
       )}
     </div>

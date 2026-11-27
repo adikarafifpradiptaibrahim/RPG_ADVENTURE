@@ -1,5 +1,6 @@
 import React from 'react';
 import { Sparkles } from 'lucide-react';
+import { useMobileViewport } from '../game/utils/mobileViewport';
 
 interface LoadingScreenProps {
   isLoading: boolean;
@@ -14,13 +15,14 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   message = 'Memuat Dunia & Mengompilasi Shader...',
   progress,
 }) => {
+  const { isMobileLandscape } = useMobileViewport();
   if (!isLoading) return null;
 
   return (
     <div
       role="status"
       aria-live="polite"
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95 select-none transition-opacity duration-500 ${
+      className={`fixed inset-0 z-50 h-[100dvh] flex flex-col items-center justify-center bg-black/95 select-none transition-opacity duration-500 ${
         isFadingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
       style={{
@@ -28,9 +30,9 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
       }}
     >
       {/* Ancient's Quest Logo & Title */}
-      <div className="text-center mb-8 animate-pulse">
+      <div className={`text-center animate-pulse ${isMobileLandscape ? 'mb-3' : 'mb-8'}`}>
         <h1
-          className="text-3xl sm:text-4xl md:text-5xl font-black tracking-widest uppercase font-serif"
+          className={`${isMobileLandscape ? 'text-2xl' : 'text-3xl sm:text-4xl md:text-5xl'} font-black tracking-widest uppercase font-serif`}
           style={{
             color: '#fbbf24',
             textShadow: '0 3px 0 #92400e, 0 6px 16px rgba(0,0,0,0.9), 0 0 25px rgba(245,158,11,0.5)',
@@ -44,7 +46,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
       </div>
 
       {/* Rotating Magic Circle Spinner */}
-      <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center my-4">
+      <div className={`relative flex items-center justify-center ${isMobileLandscape ? 'w-16 h-16 my-2' : 'w-24 h-24 sm:w-28 sm:h-28 my-4'}`}>
         {/* Outer Rune Ring (Slow Clockwise) */}
         <div
           className="absolute inset-0 rounded-full border-2 border-dashed border-amber-400/60 animate-spin"
@@ -65,7 +67,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
       </div>
 
       {/* Loading Status Message & Percentage Progress Bar */}
-      <div className="mt-6 flex flex-col items-center gap-2.5 text-center px-4 w-full max-w-sm sm:max-w-md">
+      <div className={`${isMobileLandscape ? 'mt-3 gap-1.5' : 'mt-6 gap-2.5'} flex flex-col items-center text-center px-4 w-full max-w-sm sm:max-w-md`}>
         <span className="text-sm sm:text-base font-bold text-amber-100 tracking-wide min-h-[1.5rem]">
           {message}
         </span>

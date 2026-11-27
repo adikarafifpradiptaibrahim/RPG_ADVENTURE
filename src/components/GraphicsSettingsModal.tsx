@@ -58,6 +58,7 @@ import {
   DeveloperSettingsSection,
   DevTeleportPreset,
 } from './DeveloperSettingsSection';
+import { useMobileViewport } from '../game/utils/mobileViewport';
 
 interface GraphicsSettingsModalProps {
   isOpen: boolean;
@@ -86,6 +87,7 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
   onTeleportPreset,
   onToggleSpectator,
 }) => {
+  const { isMobileLandscape } = useMobileViewport();
   const [activeTab, setActiveTab] = useState<'grafik' | 'suara' | 'kontrol' | 'akun' | 'dev'>('grafik');
   const [settings, setSettings] = useState<GraphicsSettings>(currentSettings);
 
@@ -262,130 +264,171 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Pengaturan Game"
-      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200 font-sans"
+      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 animate-in fade-in duration-200 font-sans"
     >
       <div
-        style={{
-          maxHeight: '88vh',
-          overflowY: 'auto',
-          WebkitOverflowScrolling: 'touch',
-        }}
-        className="game-modal-card relative w-[94vw] max-w-lg max-h-[88vh] flex flex-col overflow-y-auto modal-scroll-area rounded-2xl border-2 border-cyan-500/50 bg-gradient-to-b from-stone-900 via-stone-950 to-black shadow-2xl shadow-cyan-950/40 text-stone-200"
+        className={`game-modal-card relative flex flex-col rounded-2xl border-2 border-cyan-500/50 bg-gradient-to-b from-stone-900 via-stone-950 to-black shadow-2xl shadow-cyan-950/40 text-stone-200 ${
+          isMobileLandscape
+            ? 'w-[94vw] max-w-[660px] h-[90dvh] max-h-[90dvh] overflow-hidden'
+            : 'w-[94vw] max-w-lg max-h-[88vh] overflow-y-auto modal-scroll-area'
+        }`}
       >
-        {/* Header */}
-        <div className="sticky top-0 z-20 shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-stone-800 bg-stone-950/95">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-cyan-950/60 border border-cyan-500/30 text-cyan-400">
-              <Monitor className="w-5 h-5" />
+        {/* Header: Thin 1-row bar in mobile landscape vs classic header on desktop */}
+        {isMobileLandscape ? (
+          <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b border-stone-800 bg-stone-950/95">
+            <div className="flex items-center gap-2 min-w-0">
+              <Monitor className="w-4 h-4 text-cyan-400 shrink-0" />
+              <h2 className="text-sm font-black text-amber-100 font-serif whitespace-nowrap">
+                Pengaturan
+              </h2>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-[10px] font-bold text-emerald-300 truncate">
+                <span>👤</span>
+                <span className="truncate">{cloudUser ? (cloudUser.displayName || 'Cloud') : guestProfile.displayName}</span>
+              </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-base sm:text-lg font-black text-amber-100 font-serif">
-                  Pengaturan Permainan
-                </h2>
-                {/* Badge Status Akun Guest */}
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-[10px] font-bold text-emerald-300 shadow">
-                  <span>👤</span>
-                  <span>Akun Guest (Tersimpan di Browser)</span>
-                </span>
-              </div>
-              <p className="text-[11px] text-stone-400">
-                ID: {guestProfile.guestId} • {guestProfile.displayName}
-              </p>
-            </div>
+            <button
+              onClick={() => {
+                soundManager.playMenuClick();
+                onClose();
+              }}
+              className="flex items-center justify-center p-1.5 rounded-lg bg-stone-900/90 hover:bg-red-950/80 text-stone-300 hover:text-red-300 border border-stone-700 hover:border-red-500/50 transition cursor-pointer active:scale-95 shrink-0"
+              title="Tutup (Esc)"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            onClick={() => {
-              soundManager.playMenuClick();
-              onClose();
-            }}
-            className="flex items-center justify-center p-2 rounded-xl bg-stone-900/90 hover:bg-red-950/80 text-stone-300 hover:text-red-300 border border-stone-700 hover:border-red-500/50 text-xs font-bold transition cursor-pointer active:scale-95 shadow-lg"
-            title="Tutup (Esc)"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        ) : (
+          <div className="sticky top-0 z-20 shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-stone-800 bg-stone-950/95">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-cyan-950/60 border border-cyan-500/30 text-cyan-400">
+                <Monitor className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base sm:text-lg font-black text-amber-100 font-serif">
+                    Pengaturan Permainan
+                  </h2>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-[10px] font-bold text-emerald-300 shadow">
+                    <span>👤</span>
+                    <span>Akun Guest (Tersimpan di Browser)</span>
+                  </span>
+                </div>
+                <p className="text-[11px] text-stone-400">
+                  ID: {guestProfile.guestId} • {guestProfile.displayName}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                soundManager.playMenuClick();
+                onClose();
+              }}
+              className="flex items-center justify-center p-2 rounded-xl bg-stone-900/90 hover:bg-red-950/80 text-stone-300 hover:text-red-300 border border-stone-700 hover:border-red-500/50 text-xs font-bold transition cursor-pointer active:scale-95 shadow-lg"
+              title="Tutup (Esc)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        )}
 
-        {/* 4 Sub-Tabs Navigation */}
-        <div className="sticky top-[61px] z-15 shrink-0 flex items-center border-b border-stone-800 bg-stone-900/90 backdrop-blur-md px-3 sm:px-6 py-1.5 gap-1.5 overflow-x-auto">
-          <button
-            onClick={() => {
-              soundManager.playMenuClick();
-              setActiveTab('grafik');
-            }}
-            className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-              activeTab === 'grafik'
-                ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/60 shadow'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
-            }`}
+        {/* Body Layout: Left Sidebar + Right Content on Mobile Landscape, Stacked on Desktop */}
+        <div className={isMobileLandscape ? 'flex-1 min-h-0 flex flex-row overflow-hidden' : 'flex flex-col flex-1 min-h-0'}>
+          {/* Sub-Tabs Navigation */}
+          <div
+            className={
+              isMobileLandscape
+                ? 'w-[122px] shrink-0 border-r border-stone-800 bg-stone-950/90 p-1.5 flex flex-col gap-1 overflow-y-auto modal-scroll-area'
+                : 'sticky top-[61px] z-15 shrink-0 flex items-center border-b border-stone-800 bg-stone-900/90 backdrop-blur-md px-3 sm:px-6 py-1.5 gap-1.5 overflow-x-auto'
+            }
           >
-            <Monitor className="w-3.5 h-3.5" />
-            <span>Grafik</span>
-          </button>
+            <button
+              onClick={() => {
+                soundManager.playMenuClick();
+                setActiveTab('grafik');
+              }}
+              className={`${
+                isMobileLandscape ? 'w-full py-2 px-2 justify-start' : 'flex-1 min-w-[70px] py-1.5 px-2 justify-center'
+              } rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'grafik'
+                  ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/60 shadow'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
+              }`}
+            >
+              <Monitor className="w-3.5 h-3.5 shrink-0" />
+              <span>Grafik</span>
+            </button>
 
-          <button
-            onClick={() => {
-              soundManager.playMenuClick();
-              setActiveTab('suara');
-            }}
-            className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-              activeTab === 'suara'
-                ? 'bg-amber-600/30 text-amber-300 border border-amber-500/60 shadow'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
-            }`}
-          >
-            <Volume2 className="w-3.5 h-3.5" />
-            <span>Suara</span>
-          </button>
+            <button
+              onClick={() => {
+                soundManager.playMenuClick();
+                setActiveTab('suara');
+              }}
+              className={`${
+                isMobileLandscape ? 'w-full py-2 px-2 justify-start' : 'flex-1 min-w-[70px] py-1.5 px-2 justify-center'
+              } rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'suara'
+                  ? 'bg-amber-600/30 text-amber-300 border border-amber-500/60 shadow'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
+              }`}
+            >
+              <Volume2 className="w-3.5 h-3.5 shrink-0" />
+              <span>Suara</span>
+            </button>
 
-          <button
-            onClick={() => {
-              soundManager.playMenuClick();
-              setActiveTab('kontrol');
-            }}
-            className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-              activeTab === 'kontrol'
-                ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/60 shadow'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
-            }`}
-          >
-            <Gamepad2 className="w-3.5 h-3.5" />
-            <span>Kontrol</span>
-          </button>
+            <button
+              onClick={() => {
+                soundManager.playMenuClick();
+                setActiveTab('kontrol');
+              }}
+              className={`${
+                isMobileLandscape ? 'w-full py-2 px-2 justify-start' : 'flex-1 min-w-[70px] py-1.5 px-2 justify-center'
+              } rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'kontrol'
+                  ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/60 shadow'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
+              }`}
+            >
+              <Gamepad2 className="w-3.5 h-3.5 shrink-0" />
+              <span>Kontrol</span>
+            </button>
 
-          <button
-            onClick={() => {
-              soundManager.playMenuClick();
-              setActiveTab('akun');
-            }}
-            className={`flex-1 min-w-[78px] py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-              activeTab === 'akun'
-                ? 'bg-purple-600/30 text-purple-300 border border-purple-500/60 shadow'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
-            }`}
-          >
-            <User className="w-3.5 h-3.5" />
-            <span>Akun & Save</span>
-          </button>
+            <button
+              onClick={() => {
+                soundManager.playMenuClick();
+                setActiveTab('akun');
+              }}
+              className={`${
+                isMobileLandscape ? 'w-full py-2 px-2 justify-start' : 'flex-1 min-w-[78px] py-1.5 px-2 justify-center'
+              } rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'akun'
+                  ? 'bg-purple-600/30 text-purple-300 border border-purple-500/60 shadow'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
+              }`}
+            >
+              <User className="w-3.5 h-3.5 shrink-0" />
+              <span>Akun & Save</span>
+            </button>
 
-          <button
-            onClick={() => {
-              soundManager.playMenuClick();
-              setActiveTab('dev');
-            }}
-            className={`flex-1 min-w-[68px] py-1.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-              activeTab === 'dev'
-                ? 'bg-orange-600/30 text-orange-300 border border-orange-500/60 shadow'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
-            }`}
-          >
-            <Wrench className="w-3.5 h-3.5" />
-            <span>Dev</span>
-          </button>
-        </div>
+            <button
+              onClick={() => {
+                soundManager.playMenuClick();
+                setActiveTab('dev');
+              }}
+              className={`${
+                isMobileLandscape ? 'w-full py-2 px-2 justify-start' : 'flex-1 min-w-[68px] py-1.5 px-2 justify-center'
+              } rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'dev'
+                  ? 'bg-orange-600/30 text-orange-300 border border-orange-500/60 shadow'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
+              }`}
+            >
+              <Wrench className="w-3.5 h-3.5 shrink-0" />
+              <span>Dev</span>
+            </button>
+          </div>
 
-        {/* Scrollable Content Body */}
-        <div className="flex-1 overflow-y-auto modal-scroll-area p-4 sm:p-6 space-y-4">
+          {/* Scrollable Content Body */}
+          <div className={`flex-1 min-h-0 overflow-y-auto modal-scroll-area ${isMobileLandscape ? 'p-3 space-y-3' : 'p-4 sm:p-6 space-y-4'}`}>
           {/* TAB 1: GRAFIK */}
           {activeTab === 'grafik' && (
             <div className="space-y-4 animate-in fade-in duration-150">
@@ -1058,6 +1101,7 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
             >
               <span>Simpan & Tutup Pengaturan</span>
             </button>
+          </div>
           </div>
         </div>
       </div>

@@ -44,6 +44,7 @@ import {
   DeveloperSettingsSection,
   DevTeleportPreset,
 } from './DeveloperSettingsSection';
+import { useMobileViewport } from '../game/utils/mobileViewport';
 
 interface PauseModalProps {
   isOpen: boolean;
@@ -83,6 +84,7 @@ export const PauseModal: React.FC<PauseModalProps> = ({
   onTeleportPreset,
   onToggleSpectator,
 }) => {
+  const { isMobileLandscape } = useMobileViewport();
   const [activeTab, setActiveTab] = useState<'grafik' | 'suara' | 'kontrol' | 'dev'>('grafik');
   const [pauseView, setPauseView] = useState<'menu' | 'settings'>('menu');
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<boolean>(false);
@@ -176,11 +178,15 @@ export const PauseModal: React.FC<PauseModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-label="Pause Menu Permainan"
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200 font-sans"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 animate-in fade-in duration-200 font-sans"
       >
-        <div className="game-modal-card relative w-[94vw] max-w-sm flex flex-col rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-stone-900 via-stone-950 to-black p-5 sm:p-6 shadow-2xl shadow-black/95 text-stone-200">
+        <div
+          className={`game-modal-card relative w-[94vw] max-w-sm flex flex-col rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-stone-900 via-stone-950 to-black shadow-2xl shadow-black/95 text-stone-200 ${
+            isMobileLandscape ? 'max-h-[92dvh] overflow-y-auto modal-scroll-area p-3.5' : 'p-5 sm:p-6'
+          }`}
+        >
           {/* Header */}
-          <div className="flex items-center justify-between pb-3.5 border-b border-stone-800">
+          <div className={`flex items-center justify-between border-b border-stone-800 ${isMobileLandscape ? 'pb-2' : 'pb-3.5'}`}>
             <div
               className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-wider uppercase border ${
                 isSingle
@@ -210,32 +216,36 @@ export const PauseModal: React.FC<PauseModalProps> = ({
           </div>
 
           {/* Title */}
-          <div className="text-center my-5">
-            <h2 className="text-2xl font-black text-amber-300 tracking-wider font-serif uppercase drop-shadow">
+          <div className={`text-center ${isMobileLandscape ? 'my-2' : 'my-5'}`}>
+            <h2 className={`${isMobileLandscape ? 'text-lg' : 'text-2xl'} font-black text-amber-300 tracking-wider font-serif uppercase drop-shadow`}>
               PERMAINAN DIJEDA
             </h2>
-            <p className="text-xs text-stone-400 mt-1">
-              {isSingle
-                ? 'Aksi permainan sedang dihentikan sementara'
-                : 'Multiplayer aktif berjalan secara real-time'}
-            </p>
+            {!isMobileLandscape && (
+              <p className="text-xs text-stone-400 mt-1">
+                {isSingle
+                  ? 'Aksi permainan sedang dihentikan sementara'
+                  : 'Multiplayer aktif berjalan secara real-time'}
+              </p>
+            )}
           </div>
 
-          {/* 3 Main Action Buttons */}
-          <div className="flex flex-col gap-3 my-2">
-            {/* Tombol 1: LANJUTKAN (RESUME) */}
+          {/* Main Action Buttons */}
+          <div className={`flex flex-col ${isMobileLandscape ? 'gap-2 my-1' : 'gap-3 my-2'}`}>
             <button
               onClick={onResume}
-              className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 px-4 py-3.5 font-black text-stone-950 text-sm tracking-wide shadow-lg shadow-amber-900/40 transition active:scale-95 cursor-pointer border border-amber-300"
+              className={`flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 px-4 font-black text-stone-950 text-sm tracking-wide shadow-lg shadow-amber-900/40 transition active:scale-95 cursor-pointer border border-amber-300 ${
+                isMobileLandscape ? 'py-2.5' : 'py-3.5'
+              }`}
             >
               <Play className="w-4 h-4 fill-current" />
               <span>LANJUTKAN (RESUME)</span>
-              <span className="ml-auto rounded bg-black/30 px-2 py-0.5 font-mono text-[10px] text-stone-900 font-bold border border-black/20">
-                ESC
-              </span>
+              {!isMobileLandscape && (
+                <span className="ml-auto rounded bg-black/30 px-2 py-0.5 font-mono text-[10px] text-stone-900 font-bold border border-black/20">
+                  ESC
+                </span>
+              )}
             </button>
 
-            {/* Tombol 2: SIMPAN GAME (Hanya Single Player) */}
             {isSingle && (
               <button
                 onClick={() => {
@@ -243,42 +253,46 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                   setSaveSuccessNotice(true);
                   setTimeout(() => setSaveSuccessNotice(false), 2200);
                 }}
-                className={`flex w-full items-center justify-center gap-2.5 rounded-xl border px-4 py-3 font-bold text-sm tracking-wide transition active:scale-95 cursor-pointer shadow-md ${
+                className={`flex w-full items-center justify-center gap-2 rounded-xl border px-4 font-bold text-sm tracking-wide transition active:scale-95 cursor-pointer shadow-md ${
+                  isMobileLandscape ? 'py-2' : 'py-3'
+                } ${
                   saveSuccessNotice
                     ? 'border-emerald-400 bg-emerald-950/80 text-emerald-200'
                     : 'border-blue-500/50 bg-blue-950/60 hover:bg-blue-900/60 hover:border-blue-400 text-blue-100'
                 }`}
               >
                 <Save className="w-4 h-4 text-blue-400" />
-                <span>{saveSuccessNotice ? '✓ PROGRES TERSIMPAN KE BROWSER!' : '💾 SIMPAN GAME (SAVE GAME)'}</span>
+                <span>{saveSuccessNotice ? '✓ TERSIMPAN KE BROWSER!' : 'SIMPAN GAME'}</span>
               </button>
             )}
 
-            {/* Tombol 3: PENGATURAN (SETTINGS) */}
             <button
               onClick={() => setPauseView('settings')}
-              className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-stone-700 bg-stone-900/90 hover:bg-stone-800 hover:border-amber-500/50 px-4 py-3 font-bold text-amber-100 text-sm tracking-wide transition active:scale-95 cursor-pointer shadow-md"
+              className={`flex w-full items-center justify-center gap-2 rounded-xl border border-stone-700 bg-stone-900/90 hover:bg-stone-800 hover:border-amber-500/50 px-4 font-bold text-amber-100 text-sm tracking-wide transition active:scale-95 cursor-pointer shadow-md ${
+                isMobileLandscape ? 'py-2' : 'py-3'
+              }`}
             >
               <Settings className="w-4 h-4 text-amber-400" />
-              <span>PENGATURAN (SETTINGS)</span>
+              <span>PENGATURAN</span>
             </button>
 
-            {/* Tombol 4: KELUAR KE MENU UTAMA (EXIT) */}
             <button
               onClick={isSingle ? onReturnToMainMenu : onDisconnectAndReturnToMainMenu}
-              className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-red-900/50 bg-stone-950/80 hover:bg-red-950/60 hover:border-red-500/60 px-4 py-2.5 font-bold text-red-300 text-xs tracking-wide transition active:scale-95 cursor-pointer mt-1"
+              className={`flex w-full items-center justify-center gap-2 rounded-xl border border-red-900/50 bg-stone-950/80 hover:bg-red-950/60 hover:border-red-500/60 px-4 font-bold text-red-300 text-xs tracking-wide transition active:scale-95 cursor-pointer ${
+                isMobileLandscape ? 'py-2' : 'py-2.5 mt-1'
+              }`}
             >
               <LogOut className="w-4 h-4 text-red-400" />
-              <span>KELUAR KE MENU UTAMA (EXIT)</span>
+              <span>KELUAR KE MENU UTAMA</span>
             </button>
           </div>
 
           {!isSingle && (
-            <div className="mt-3 rounded-xl border border-red-500/40 bg-red-950/40 p-2.5 text-xs text-red-200">
+            <div className="mt-2 rounded-xl border border-red-500/40 bg-red-950/40 p-2 text-xs text-red-200">
               <div className="flex items-start gap-2">
                 <ShieldAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                <p className="text-[10px] text-red-300/90 leading-relaxed">
-                  Permainan multiplayer berjalan real-time. Monster dan pemain lain tetap aktif saat menu terbuka.
+                <p className="text-[10px] text-red-300/90 leading-snug">
+                  Permainan multiplayer berjalan real-time.
                 </p>
               </div>
             </div>
@@ -293,95 +307,118 @@ export const PauseModal: React.FC<PauseModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Pause Menu & Pengaturan"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200 font-sans"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 animate-in fade-in duration-200 font-sans"
     >
       <div
-        style={{
-          maxHeight: '85vh',
-          overflowY: 'auto',
-          WebkitOverflowScrolling: 'touch',
-        }}
-        className="game-modal-card relative w-[94vw] max-w-lg max-h-[85vh] flex flex-col overflow-y-auto modal-scroll-area rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-stone-900 via-stone-950 to-black shadow-2xl shadow-black/95 text-stone-200"
+        className={`game-modal-card relative flex flex-col rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-stone-900 via-stone-950 to-black shadow-2xl shadow-black/95 text-stone-200 ${
+          isMobileLandscape
+            ? 'w-[94vw] max-w-[660px] h-[90dvh] max-h-[90dvh] overflow-hidden'
+            : 'w-[94vw] max-w-lg max-h-[85vh] overflow-y-auto modal-scroll-area'
+        }`}
       >
-        {/* Sticky Header */}
-        <div className="sticky top-0 z-20 shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-stone-800 bg-stone-950/95">
-          <div className="flex items-center gap-2.5">
+        {/* Header: Thin 1-row bar in mobile landscape */}
+        <div
+          className={`shrink-0 flex items-center justify-between border-b border-stone-800 bg-stone-950/95 ${
+            isMobileLandscape ? 'px-3 py-2' : 'sticky top-0 z-20 px-4 sm:px-6 py-3'
+          }`}
+        >
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setPauseView('menu')}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 border border-stone-700 hover:border-amber-500/50 text-xs font-bold transition cursor-pointer active:scale-95 shadow"
+              className={`flex items-center gap-1 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 border border-stone-700 hover:border-amber-500/50 font-bold transition cursor-pointer active:scale-95 shadow ${
+                isMobileLandscape ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-1.5 text-xs'
+              }`}
               title="Kembali ke Menu Pause"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Kembali</span>
             </button>
-            <h2 className="text-base sm:text-lg font-black text-amber-100 tracking-wide font-serif">
-              Pengaturan Sistem
+            <h2 className={`${isMobileLandscape ? 'text-sm' : 'text-base sm:text-lg'} font-black text-amber-100 tracking-wide font-serif whitespace-nowrap`}>
+              Pengaturan
             </h2>
           </div>
 
           <button
             onClick={onResume}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-red-950/80 text-stone-300 hover:text-red-300 border border-stone-700 hover:border-red-500/50 text-xs font-bold transition cursor-pointer active:scale-95 shadow-md"
+            className={`flex items-center gap-1 rounded-xl bg-stone-800 hover:bg-red-950/80 text-stone-300 hover:text-red-300 border border-stone-700 hover:border-red-500/50 font-bold transition cursor-pointer active:scale-95 shadow-md ${
+              isMobileLandscape ? 'p-1.5 text-xs' : 'px-3 py-1.5 text-xs'
+            }`}
             title="Lanjutkan Permainan (Esc)"
           >
             <X className="w-4 h-4" />
-            <span>Tutup (Esc)</span>
+            {!isMobileLandscape && <span>Tutup (Esc)</span>}
           </button>
         </div>
 
-        {/* 3 Sub-Tabs Navigation Bar */}
-        <div className="sticky top-[53px] z-15 shrink-0 flex items-center border-b border-stone-800 bg-stone-900/90 backdrop-blur-md px-3 sm:px-6 py-1.5 gap-2">
-          <button
-            onClick={() => setActiveTab('grafik')}
-            className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'grafik'
-                ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/60 shadow'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
-            }`}
+        {/* Body Layout: Left Sidebar + Right Content on Mobile Landscape */}
+        <div className={isMobileLandscape ? 'flex-1 min-h-0 flex flex-row overflow-hidden' : 'flex flex-col flex-1 min-h-0'}>
+          {/* Sub-Tabs Navigation */}
+          <div
+            className={
+              isMobileLandscape
+                ? 'w-[116px] shrink-0 border-r border-stone-800 bg-stone-950/90 p-1.5 flex flex-col gap-1 overflow-y-auto modal-scroll-area'
+                : 'sticky top-[53px] z-15 shrink-0 flex items-center border-b border-stone-800 bg-stone-900/90 backdrop-blur-md px-3 sm:px-6 py-1.5 gap-2'
+            }
           >
-            <Monitor className="w-3.5 h-3.5" />
-            <span>Grafik</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('grafik')}
+              className={`${
+                isMobileLandscape ? 'w-full py-2 px-2 justify-start' : 'flex-1 py-2 px-2.5 justify-center'
+              } rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'grafik'
+                  ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/60 shadow'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
+              }`}
+            >
+              <Monitor className="w-3.5 h-3.5 shrink-0" />
+              <span>Grafik</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('suara')}
-            className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'suara'
-                ? 'bg-amber-600/30 text-amber-300 border border-amber-500/60 shadow'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
-            }`}
-          >
-            <Volume2 className="w-3.5 h-3.5" />
-            <span>Suara</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('suara')}
+              className={`${
+                isMobileLandscape ? 'w-full py-2 px-2 justify-start' : 'flex-1 py-2 px-2.5 justify-center'
+              } rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'suara'
+                  ? 'bg-amber-600/30 text-amber-300 border border-amber-500/60 shadow'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
+              }`}
+            >
+              <Volume2 className="w-3.5 h-3.5 shrink-0" />
+              <span>Suara</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('kontrol')}
-            className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'kontrol'
-                ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/60 shadow'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
-            }`}
-          >
-            <Gamepad2 className="w-3.5 h-3.5" />
-            <span>Kontrol</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('kontrol')}
+              className={`${
+                isMobileLandscape ? 'w-full py-2 px-2 justify-start' : 'flex-1 py-2 px-2.5 justify-center'
+              } rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'kontrol'
+                  ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/60 shadow'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
+              }`}
+            >
+              <Gamepad2 className="w-3.5 h-3.5 shrink-0" />
+              <span>Kontrol</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('dev')}
-            className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'dev'
-                ? 'bg-orange-600/30 text-orange-300 border border-orange-500/60 shadow'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
-            }`}
-          >
-            <Wrench className="w-3.5 h-3.5" />
-            <span>Dev</span>
-          </button>
-        </div>
+            <button
+              onClick={() => setActiveTab('dev')}
+              className={`${
+                isMobileLandscape ? 'w-full py-2 px-2 justify-start' : 'flex-1 py-2 px-2.5 justify-center'
+              } rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'dev'
+                  ? 'bg-orange-600/30 text-orange-300 border border-orange-500/60 shadow'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
+              }`}
+            >
+              <Wrench className="w-3.5 h-3.5 shrink-0" />
+              <span>Dev</span>
+            </button>
+          </div>
 
-        {/* Scrollable Content Body */}
-        <div className="flex-1 overflow-y-auto modal-scroll-area p-4 sm:p-6 space-y-4">
+          {/* Scrollable Content Body */}
+          <div className={`flex-1 min-h-0 overflow-y-auto modal-scroll-area ${isMobileLandscape ? 'p-3 space-y-3' : 'p-4 sm:p-6 space-y-4'}`}>
           {/* TAB 1: GRAFIK */}
           {activeTab === 'grafik' && (
             <div className="space-y-4 animate-in fade-in duration-150">
@@ -779,6 +816,7 @@ export const PauseModal: React.FC<PauseModalProps> = ({
               <Play className="w-4 h-4 fill-white" />
               <span>Lanjutkan Permainan (Esc)</span>
             </button>
+          </div>
           </div>
         </div>
       </div>

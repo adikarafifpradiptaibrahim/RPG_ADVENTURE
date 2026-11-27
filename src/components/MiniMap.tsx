@@ -19,6 +19,7 @@ interface MiniMapProps {
   currentRegion: RegionInfo;
   markers: MapMarker[];
   onOpenFullMap: () => void;
+  compactMobile?: boolean;
 }
 
 // Persistent Fog-of-War Discovery Memory
@@ -34,6 +35,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({
   currentRegion,
   markers,
   onOpenFullMap,
+  compactMobile = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -365,48 +367,54 @@ export const MiniMap: React.FC<MiniMapProps> = ({
 
   return (
     <div className="flex flex-col items-end gap-1 select-none pointer-events-none">
-      {/* Current Region Badge Header */}
-      <div
-        onClick={onOpenFullMap}
-        className="pointer-events-auto flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-stone-900/95 border border-amber-600/70 rounded-full shadow-2xl backdrop-blur-md cursor-pointer hover:border-amber-400 hover:scale-[1.02] transition-all group max-w-[150px] sm:max-w-none truncate"
-        title="Buka Peta Benua Eldoria (Tekan M)"
-      >
-        <span className="text-xs sm:text-sm drop-shadow">{currentRegion.icon}</span>
-        <span className="text-[10px] sm:text-xs font-bold tracking-wide text-amber-200 group-hover:text-amber-300 truncate">
-          {currentRegion.nameId}
-        </span>
-        <span className="text-[9px] sm:text-[10px] px-1.5 py-0.2 bg-amber-950/80 text-amber-300 border border-amber-700/60 rounded font-mono font-bold flex-shrink-0">
-          Lv.{currentRegion.recommendedLevel}
-        </span>
-      </div>
-
-      {/* Circular Topographical Minimap Container with Zoom Controls */}
-      <div className="flex items-center gap-1.5 pointer-events-auto">
-        {/* Quick Zoom In/Out Buttons (+ / -) */}
-        <div className="flex flex-col gap-1 z-20">
-          <button
-            onClick={() => setZoomLevelIdx((prev) => Math.max(0, prev - 1))}
-            disabled={zoomLevelIdx === 0}
-            className="w-5 h-5 rounded-md bg-stone-900/90 hover:bg-stone-800 disabled:opacity-30 border border-amber-600/50 flex items-center justify-center text-amber-300 text-xs font-bold transition-all shadow-md cursor-pointer active:scale-90"
-            title="Perbesar Radar (+)"
-          >
-            +
-          </button>
-          <button
-            onClick={() => setZoomLevelIdx((prev) => Math.min(zoomRadii.length - 1, prev + 1))}
-            disabled={zoomLevelIdx === zoomRadii.length - 1}
-            className="w-5 h-5 rounded-md bg-stone-900/90 hover:bg-stone-800 disabled:opacity-30 border border-amber-600/50 flex items-center justify-center text-amber-300 text-xs font-bold transition-all shadow-md cursor-pointer active:scale-90"
-            title="Perkecil Radar (-)"
-          >
-            -
-          </button>
-        </div>
-
-        {/* Circular Radar Radar Viewport */}
+      {/* Current Region Badge Header (Desktop only; on Mobile moved to center top) */}
+      {!compactMobile && (
         <div
           onClick={onOpenFullMap}
-          className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden border-2 border-amber-500/70 shadow-2xl bg-stone-950/90 cursor-pointer hover:border-amber-400 group transition-all"
-          title="Klik untuk membuka Peta Dunia Lengkap"
+          className="pointer-events-auto flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-stone-900/95 border border-amber-600/70 rounded-full shadow-2xl backdrop-blur-md cursor-pointer hover:border-amber-400 hover:scale-[1.02] transition-all group max-w-[150px] sm:max-w-none truncate"
+          title="Buka Peta Benua Eldoria (Tekan M)"
+        >
+          <span className="text-xs sm:text-sm drop-shadow">{currentRegion.icon}</span>
+          <span className="text-[10px] sm:text-xs font-bold tracking-wide text-amber-200 group-hover:text-amber-300 truncate">
+            {currentRegion.nameId}
+          </span>
+          <span className="text-[9px] sm:text-[10px] px-1.5 py-0.2 bg-amber-950/80 text-amber-300 border border-amber-700/60 rounded font-mono font-bold flex-shrink-0">
+            Lv.{currentRegion.recommendedLevel}
+          </span>
+        </div>
+      )}
+
+      {/* Circular Topographical Minimap Container */}
+      <div className="flex items-center gap-1.5 pointer-events-auto">
+        {/* Quick Zoom In/Out Buttons (+ / -) — Hidden in compact Mobile mode */}
+        {!compactMobile && (
+          <div className="flex flex-col gap-1 z-20">
+            <button
+              onClick={() => setZoomLevelIdx((prev) => Math.max(0, prev - 1))}
+              disabled={zoomLevelIdx === 0}
+              className="w-5 h-5 rounded-md bg-stone-900/90 hover:bg-stone-800 disabled:opacity-30 border border-amber-600/50 flex items-center justify-center text-amber-300 text-xs font-bold transition-all shadow-md cursor-pointer active:scale-90"
+              title="Perbesar Radar (+)"
+            >
+              +
+            </button>
+            <button
+              onClick={() => setZoomLevelIdx((prev) => Math.min(zoomRadii.length - 1, prev + 1))}
+              disabled={zoomLevelIdx === zoomRadii.length - 1}
+              className="w-5 h-5 rounded-md bg-stone-900/90 hover:bg-stone-800 disabled:opacity-30 border border-amber-600/50 flex items-center justify-center text-amber-300 text-xs font-bold transition-all shadow-md cursor-pointer active:scale-90"
+              title="Perkecil Radar (-)"
+            >
+              -
+            </button>
+          </div>
+        )}
+
+        {/* Circular Radar Viewport (78px compact mobile vs 144px desktop) */}
+        <div
+          onClick={onOpenFullMap}
+          className={`relative rounded-full overflow-hidden border-2 border-amber-500/75 shadow-2xl bg-stone-950/90 cursor-pointer hover:border-amber-400 active:scale-95 group transition-all ${
+            compactMobile ? 'w-[78px] h-[78px]' : 'w-28 h-28 sm:w-36 sm:h-36'
+          }`}
+          title="Ketuk untuk membuka Peta Dunia Lengkap"
         >
           {/* Real-time Procedural Topography Canvas */}
           <canvas
@@ -428,7 +436,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({
               title={blip.title}
             >
               <div
-                className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex items-center justify-center text-[8px] sm:text-[9px] shadow-lg border ${
+                className={`${compactMobile ? 'w-2 h-2 text-[7px]' : 'w-2.5 h-2.5 sm:w-3 sm:h-3 text-[8px] sm:text-[9px]'} rounded-full flex items-center justify-center shadow-lg border ${
                   blip.type === 'boss'
                     ? 'bg-red-600 border-white animate-pulse'
                     : blip.type === 'quest'
@@ -447,27 +455,33 @@ export const MiniMap: React.FC<MiniMapProps> = ({
 
           {/* Cardinal North Compass Marker on Rim */}
           <div
-            className="absolute top-1 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-stone-900/90 border border-amber-400/80 flex items-center justify-center pointer-events-none shadow z-25"
+            className={`absolute top-0.5 left-1/2 -translate-x-1/2 rounded-full bg-stone-900/90 border border-amber-400/80 flex items-center justify-center pointer-events-none shadow z-25 ${
+              compactMobile ? 'w-3 h-3' : 'w-4 h-4'
+            }`}
           >
-            <span className="text-[8px] font-black text-amber-300">N</span>
+            <span className={`${compactMobile ? 'text-[7px]' : 'text-[8px]'} font-black text-amber-300`}>N</span>
           </div>
 
-          {/* Celestial Day/Night Clock Orb at bottom rim */}
-          <div
-            className="absolute bottom-1 right-2 px-1.5 py-0.2 rounded-full bg-black/85 border border-stone-700/80 flex items-center gap-1 text-[8px] font-mono text-stone-300 pointer-events-none shadow z-25"
-          >
-            <span>{dayNight.timeOfDay === 'night' ? '🌙' : dayNight.timeOfDay === 'sunset' ? '🌅' : '☀️'}</span>
-            <span>{dayNight.formattedTime}</span>
-          </div>
+          {/* Celestial Day/Night Clock Orb (Desktop full minimap) */}
+          {!compactMobile && (
+            <div
+              className="absolute bottom-1 right-2 px-1.5 py-0.2 rounded-full bg-black/85 border border-stone-700/80 flex items-center gap-1 text-[8px] font-mono text-stone-300 pointer-events-none shadow z-25"
+            >
+              <span>{dayNight.timeOfDay === 'night' ? '🌙' : dayNight.timeOfDay === 'sunset' ? '🌅' : '☀️'}</span>
+              <span>{dayNight.formattedTime}</span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Coordinate & Hotkey Hint Footer */}
-      <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-stone-950/80 border border-stone-800 text-[9px] font-mono text-stone-400 shadow">
-        <span>X: {Math.round(playerPos.x)}</span>
-        <span>Z: {Math.round(playerPos.z)}</span>
-        <span className="text-amber-400/90 font-bold">[M] Peta</span>
-      </div>
+      {/* Coordinate & Hotkey Hint Footer — Desktop only */}
+      {!compactMobile && (
+        <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-stone-950/80 border border-stone-800 text-[9px] font-mono text-stone-400 shadow">
+          <span>X: {Math.round(playerPos.x)}</span>
+          <span>Z: {Math.round(playerPos.z)}</span>
+          <span className="text-amber-400/90 font-bold">[M] Peta</span>
+        </div>
+      )}
     </div>
   );
 };

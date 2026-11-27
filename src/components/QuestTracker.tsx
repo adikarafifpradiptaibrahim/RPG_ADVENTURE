@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Compass, Gift, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Compass, Gift, ChevronUp, ChevronRight } from 'lucide-react';
 import { Quest } from '../types/game';
+import { useMobileViewport } from '../game/utils/mobileViewport';
 
 export interface QuestTrackerProps {
   activeQuest?: Quest | null;
@@ -8,11 +9,18 @@ export interface QuestTrackerProps {
 }
 
 export const QuestTracker: React.FC<QuestTrackerProps> = ({ activeQuest, onOpenQuests }) => {
-  // Mobile defaults to collapsed so analog zone remains 100% unobstructed
+  const { isMobileUi } = useMobileViewport();
+  // Mobile starts collapsed to keep left-top extra clean, expandable up to 2 lines
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
-    return window.innerWidth <= 768;
+    return window.innerWidth <= 960 || window.innerHeight <= 580;
   });
+
+  useEffect(() => {
+    if (isMobileUi) {
+      setIsCollapsed(true);
+    }
+  }, [isMobileUi]);
 
   if (!activeQuest) return null;
 
@@ -22,10 +30,21 @@ export const QuestTracker: React.FC<QuestTrackerProps> = ({ activeQuest, onOpenQ
   return (
     <div
       id="hud-quest-tracker-container"
-      className="quest-tracker-container pointer-events-none fixed z-30"
+      style={
+        isMobileUi
+          ? {
+              top: 'calc(84px + env(safe-area-inset-top, 0px))',
+              left: 'max(10px, env(safe-area-inset-left, 0px))',
+              maxWidth: '195px',
+            }
+          : undefined
+      }
+      className={`quest-tracker-container pointer-events-none fixed z-30 ${
+        isMobileUi ? 'w-[192px] max-w-[195px]' : ''
+      }`}
     >
       {isCollapsed ? (
-        /* Collapsed pill: compact, minimal, taps header to expand */
+        /* Collapsed pill: 1 compact row with fold/unfold toggle */
         <div
           onClick={() => setIsCollapsed(false)}
           role="button"
@@ -37,15 +56,17 @@ export const QuestTracker: React.FC<QuestTrackerProps> = ({ activeQuest, onOpenQ
               setIsCollapsed(false);
             }
           }}
-          className="quest-tracker-card pointer-events-auto flex items-center gap-1.5 bg-stone-900/90 hover:bg-stone-800/95 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-amber-500/50 shadow-xl cursor-pointer text-[11px] font-bold text-amber-300 transition-all active:scale-95 select-none w-fit max-w-[200px]"
-          title="Klik header untuk membuka detail Misi Petualangan"
+          className={`quest-tracker-card pointer-events-auto flex items-center gap-1.5 bg-stone-900/90 hover:bg-stone-800/95 backdrop-blur-md rounded-xl border border-amber-500/50 shadow-xl cursor-pointer font-bold text-amber-300 transition-all active:scale-95 select-none w-fit ${
+            isMobileUi ? 'px-2 py-1 text-[10px] max-w-[195px]' : 'px-2.5 py-1.5 text-[11px] max-w-[200px]'
+          }`}
+          title="Ketuk untuk membuka Misi Petualangan"
         >
-          <Compass className="w-3.5 h-3.5 text-amber-400 animate-pulse flex-shrink-0" />
-          <span className="truncate text-[11px] font-semibold text-stone-200">
-            Misi Petualangan
+          <Compass className="w-3 h-3 text-amber-400 animate-pulse flex-shrink-0" />
+          <span className="truncate font-semibold text-stone-200">
+            {isMobileUi ? activeQuest.titleId : 'Misi Petualangan'}
           </span>
           <span
-            className={`text-[9px] font-mono px-1 py-0.2 rounded font-bold ${
+            className={`text-[9px] font-mono px-1 py-0.2 rounded font-bold flex-shrink-0 ${
               isCompleted
                 ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40'
                 : 'bg-stone-800 text-stone-300'
@@ -53,38 +74,41 @@ export const QuestTracker: React.FC<QuestTrackerProps> = ({ activeQuest, onOpenQ
           >
             {isCompleted ? '✓' : `${activeQuest.currentCount}/${activeQuest.targetCount}`}
           </span>
-          <ChevronRight className="w-3 h-3 text-stone-400 flex-shrink-0 ml-0.5" />
+          <ChevronRight className="w-3 h-3 text-stone-400 flex-shrink-0" />
         </div>
       ) : (
-        /* Expanded quest card: compact and clean */
+        /* Expanded quest card: compact 2-line chip on mobile, richer card on desktop */
         <div
-          className="quest-tracker-card pointer-events-auto bg-stone-900/90 hover:bg-stone-900/95 backdrop-blur-md p-2.5 sm:p-3 rounded-2xl border border-stone-700/80 hover:border-amber-500/60 shadow-2xl transition-all duration-200 select-none w-48 sm:w-52 md:w-68 max-w-[200px] md:max-w-[280px] group text-[11px]"
+          className={`quest-tracker-card pointer-events-auto bg-stone-900/90 hover:bg-stone-900/95 backdrop-blur-md border border-stone-700/80 hover:border-amber-500/60 shadow-2xl transition-all duration-200 select-none group ${
+            isMobileUi
+              ? 'p-1.5 rounded-xl w-[192px] max-w-[195px] text-[10px]'
+              : 'p-2.5 sm:p-3 rounded-2xl w-64 max-w-[280px] text-[11px]'
+          }`}
         >
-          {/* Header row: Clicking title/chevron folds card */}
-          <div
-            onClick={() => setIsCollapsed(true)}
-            role="button"
-            tabIndex={0}
-            aria-label="Tutup / Lipat Misi"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setIsCollapsed(true);
-              }
-            }}
-            className="flex items-center justify-between gap-1 mb-1 pb-1 border-b border-stone-800/80 cursor-pointer"
-            title="Klik header untuk melipat Misi"
-          >
-            <div className="flex items-center gap-1 flex-1">
-              <Compass className="w-3 h-3 text-amber-400 group-hover:rotate-45 transition-transform flex-shrink-0" />
-              <span className="text-[10px] sm:text-[11px] uppercase tracking-wider font-bold text-amber-400 group-hover:text-amber-300 truncate">
-                Misi Petualangan
+          {/* Line 1: Header + Progress + Collapse button */}
+          <div className="flex items-center justify-between gap-1 pb-0.5 border-b border-stone-800/80">
+            <div
+              onClick={onOpenQuests}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onOpenQuests();
+                }
+              }}
+              className="flex items-center gap-1 flex-1 min-w-0 cursor-pointer"
+              title="Buka Buku Misi Lengkap"
+            >
+              <Compass className="w-3 h-3 text-amber-400 flex-shrink-0" />
+              <span className="text-[9.5px] sm:text-[10.5px] uppercase tracking-wide font-bold text-amber-400 truncate">
+                {isMobileUi ? activeQuest.titleId : 'Misi Petualangan'}
               </span>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-shrink-0">
               <span
-                className={`text-[9px] font-mono px-1.5 py-0.2 rounded font-bold ${
+                className={`text-[9px] font-mono px-1 py-0.2 rounded font-bold ${
                   isCompleted
                     ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40'
                     : 'bg-stone-800 text-stone-300'
@@ -93,16 +117,22 @@ export const QuestTracker: React.FC<QuestTrackerProps> = ({ activeQuest, onOpenQ
                 {isCompleted ? 'Selesai!' : `${activeQuest.currentCount}/${activeQuest.targetCount}`}
               </span>
 
-              <div
-                className="p-0.5 text-stone-400 hover:text-stone-200 rounded cursor-pointer"
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsCollapsed(true);
+                }}
+                aria-label="Lipat Misi"
+                className="p-0.5 text-stone-400 hover:text-stone-100 rounded cursor-pointer"
                 title="Lipat Misi"
               >
                 <ChevronUp className="w-3.5 h-3.5" />
-              </div>
+              </button>
             </div>
           </div>
 
-          {/* Quest Content: Clicking opens full Quest Modal (L) */}
+          {/* Line 2: Objective */}
           <div
             onClick={onOpenQuests}
             role="button"
@@ -113,13 +143,15 @@ export const QuestTracker: React.FC<QuestTrackerProps> = ({ activeQuest, onOpenQ
                 onOpenQuests();
               }
             }}
-            className="cursor-pointer pt-0.5"
+            className="cursor-pointer pt-1"
             title="Klik untuk membuka Buku Misi Lengkap (L)"
           >
-            <h4 className="text-[11px] sm:text-xs font-bold text-stone-100 group-hover:text-amber-200 transition-colors line-clamp-1">
-              {activeQuest.titleId}
-            </h4>
-            <p className="text-[10px] sm:text-[11px] text-stone-400 line-clamp-2 mt-0.5 leading-tight">
+            {!isMobileUi && (
+              <h4 className="text-xs font-bold text-stone-100 group-hover:text-amber-200 transition-colors line-clamp-1">
+                {activeQuest.titleId}
+              </h4>
+            )}
+            <p className={`text-stone-300 leading-tight ${isMobileUi ? 'text-[9.5px] line-clamp-1' : 'text-[11px] text-stone-400 line-clamp-2 mt-0.5'}`}>
               {activeQuest.descriptionId}
             </p>
           </div>
@@ -135,10 +167,10 @@ export const QuestTracker: React.FC<QuestTrackerProps> = ({ activeQuest, onOpenQ
                   onOpenQuests();
                 }
               }}
-              className="mt-1.5 text-center text-[10px] font-bold text-emerald-300 bg-emerald-950/80 py-1 px-1.5 rounded-xl border border-emerald-500/50 flex items-center justify-center gap-1 animate-pulse shadow-md cursor-pointer hover:bg-emerald-900/80 transition"
+              className="mt-1 text-center text-[9.5px] font-bold text-emerald-300 bg-emerald-950/80 py-0.5 px-1.5 rounded-lg border border-emerald-500/50 flex items-center justify-center gap-1 animate-pulse shadow-md cursor-pointer hover:bg-emerald-900/80 transition"
             >
               <Gift className="w-3 h-3 text-emerald-400" />
-              <span>Klaim Hadiah Misi!</span>
+              <span>Klaim Hadiah!</span>
             </div>
           )}
         </div>

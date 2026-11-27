@@ -46,6 +46,8 @@ import {
   CloudUser,
   CloudSyncStatus,
 } from '../game/storage/cloudSyncManager';
+import { useMobileViewport } from '../game/utils/mobileViewport';
+import { MobileAimSlot } from './SkillBar';
 
 interface HUDProps {
   stats: PlayerStats;
@@ -66,6 +68,11 @@ interface HUDProps {
   onAimSkillStart?: (slot: 1 | 2 | 3 | 4) => void;
   onAimSkillMove?: (slot: 1 | 2 | 3 | 4, delta: { x: number; y: number }, aimAngleRad: number) => void;
   onAimSkillEnd?: (slot: 1 | 2 | 3 | 4, isCancelled: boolean) => void;
+  onMobileAimStart?: (slot: MobileAimSlot) => void;
+  onMobileAimMove?: (slot: MobileAimSlot, nx: number, ny: number, isOverCancel: boolean) => void;
+  onMobileAimEnd?: (slot: MobileAimSlot, isCancelled: boolean, isQuickTap: boolean) => void;
+  isTouchControlsVisible?: boolean;
+  isModalOpen?: boolean;
   onJump: () => void;
   onDash?: () => void;
   onRotateCamera?: (deltaX: number, deltaY: number) => void;
@@ -141,6 +148,11 @@ export const HUD: React.FC<HUDProps> = ({
   onAimSkillStart,
   onAimSkillMove,
   onAimSkillEnd,
+  onMobileAimStart,
+  onMobileAimMove,
+  onMobileAimEnd,
+  isTouchControlsVisible = true,
+  isModalOpen = false,
   onJump,
   onDash,
   onRotateCamera,
@@ -184,9 +196,8 @@ export const HUD: React.FC<HUDProps> = ({
   subscribeSkillCooldowns,
   getStealthState,
 }) => {
+  const { isMobileUi } = useMobileViewport();
   const [dayNight, setDayNight] = useState(() => getSharedDayNightSystem().getState());
-  const [dismissMobileTip, setDismissMobileTip] = useState(false);
-  const [isMobileSystemMenuOpen, setIsMobileSystemMenuOpen] = useState(false);
   const [saveNotice, setSaveNotice] = useState(false);
 
   // Cloud Account State
@@ -263,303 +274,529 @@ export const HUD: React.FC<HUDProps> = ({
 
       {/* Top Left: Player Status Orb & Bars */}
       {!isSpectatorMode && (
-        <div className="hud-player-status pointer-events-none absolute top-4 left-4 flex flex-col gap-2 max-w-xs md:max-w-sm z-30">
-          <div className="pointer-events-auto flex items-center gap-3 bg-stone-900/80 backdrop-blur-md p-3 rounded-2xl border border-stone-700/60 shadow-xl">
-            {/* Avatar / Class Icon */}
-            <div className="relative flex-shrink-0">
-              <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl shadow-inner border border-stone-600 ${classBadge.color}`}>
-                {classBadge.icon}
+        isMobileUi ? (
+          <div
+            style={{
+              top: 'max(6px, env(safe-area-inset-top, 0px))',
+              left: 'max(10px, env(safe-area-inset-left, 0px))',
+            }}
+            className="pointer-events-none fixed flex flex-col gap-1 w-[188px] z-30"
+          >
+            <div className="pointer-events-auto flex items-center gap-2 bg-stone-900/85 backdrop-blur-md p-1.5 rounded-xl border border-stone-700/70 shadow-xl">
+              <div className="relative flex-shrink-0">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg shadow-inner border border-stone-600 ${classBadge.color}`}>
+                  {classBadge.icon}
+                </div>
+                <div className="absolute -bottom-1 -right-1 bg-amber-500 text-stone-950 font-black text-[8px] px-1 py-[1px] rounded shadow border border-amber-300 leading-none">
+                  Lv.{stats.level}
+                </div>
               </div>
-              <div className="absolute -bottom-1 -right-1 bg-amber-500 text-stone-950 font-bold text-xs px-1.5 py-0.5 rounded-md shadow border border-amber-300">
-                Lv.{stats.level}
-              </div>
-            </div>
 
-            {/* Vitals Bars */}
-            <div className="flex-1 min-w-[170px] flex flex-col gap-1.5">
-              {/* HP Bar */}
-              <div className="relative w-full h-4 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
-                <div
-                  className="h-full bg-gradient-to-r from-red-600 to-rose-400 transition-all duration-200"
-                  style={{ width: `${hpPercent}%` }}
-                />
-                {/* Secondary Shield Overlay Bar */}
-                {stats.shield !== undefined && stats.shield > 0 && (
+              <div className="flex-1 min-w-0 flex flex-col gap-[3px]">
+                {/* HP Bar */}
+                <div className="relative w-full h-3 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
                   <div
-                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-300/80 via-yellow-100/90 to-amber-200/80 border-r-2 border-white shadow-[0_0_8px_rgba(255,215,0,0.8)] transition-all duration-200"
-                    style={{ width: `${Math.min(100, (stats.shield / (stats.maxShield || stats.maxHp)) * 100)}%` }}
+                    className="h-full bg-gradient-to-r from-red-600 to-rose-400 transition-all duration-200"
+                    style={{ width: `${hpPercent}%` }}
                   />
-                )}
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow">
-                  <Heart className="w-2.5 h-2.5 inline mr-1 text-red-300" />
-                  {Math.round(stats.hp)} / {stats.maxHp} HP
                   {stats.shield !== undefined && stats.shield > 0 && (
-                    <span className="ml-1 text-yellow-300 drop-shadow font-extrabold">(+{Math.round(stats.shield)})</span>
+                    <div
+                      className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-300/80 via-yellow-100/90 to-amber-200/80 border-r border-white transition-all duration-200"
+                      style={{ width: `${Math.min(100, (stats.shield / (stats.maxShield || stats.maxHp)) * 100)}%` }}
+                    />
                   )}
-                </span>
-              </div>
+                  <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white drop-shadow leading-none">
+                    {Math.round(stats.hp)}/{stats.maxHp}
+                  </span>
+                </div>
 
-              {/* MP / Aura Bar */}
-              <div className="relative w-full h-3.5 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
-                <div
-                  className={`h-full transition-all duration-200 ${
-                    stats.characterClass === 'warrior'
-                      ? 'bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-300'
-                      : 'bg-gradient-to-r from-blue-600 to-cyan-400'
-                  }`}
-                  style={{ width: `${mpPercent}%` }}
-                />
-                <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white drop-shadow">
-                  <Sparkles className={`w-2 h-2 inline mr-1 ${stats.characterClass === 'warrior' ? 'text-amber-200' : 'text-cyan-300'}`} />
-                  {Math.round(stats.mp)} / {stats.maxMp} {stats.characterClass === 'warrior' ? 'Aura' : 'MP'}
-                </span>
-              </div>
+                {/* MP / Aura Bar */}
+                <div className="relative w-full h-2.5 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
+                  <div
+                    className={`h-full transition-all duration-200 ${
+                      stats.characterClass === 'warrior'
+                        ? 'bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-300'
+                        : 'bg-gradient-to-r from-blue-600 to-cyan-400'
+                    }`}
+                    style={{ width: `${mpPercent}%` }}
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center text-[7.5px] font-bold text-white drop-shadow leading-none">
+                    {Math.round(stats.mp)}/{stats.maxMp} {stats.characterClass === 'warrior' ? 'Au' : 'MP'}
+                  </span>
+                </div>
 
-              {/* Stamina Bar (Kuning-Emas) */}
-              <div className="relative w-full h-3 bg-stone-800 rounded-full overflow-hidden border border-amber-600/50">
-                <div
-                  className="h-full bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-300 transition-all duration-150"
-                  style={{ width: `${staminaPercent}%` }}
-                />
-                <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-stone-950 drop-shadow-[0_1px_1px_rgba(255,255,255,0.6)]">
-                  <Zap className="w-2.5 h-2.5 inline mr-1 text-amber-900 fill-current" />
-                  {Math.round(stats.stamina)} / {stats.maxStamina} Stamina
-                </span>
+                {/* Stamina Bar */}
+                <div className="relative w-full h-2.5 bg-stone-800 rounded-full overflow-hidden border border-amber-600/50">
+                  <div
+                    className="h-full bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-300 transition-all duration-150"
+                    style={{ width: `${staminaPercent}%` }}
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center text-[7.5px] font-bold text-stone-950 leading-none">
+                    {Math.round(stats.stamina)}/{stats.maxStamina} Stm
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Currency & Stat Points Reminder */}
-          <div className="pointer-events-auto flex items-center gap-2 text-xs">
-            <div className="flex items-center gap-1.5 bg-stone-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-500/30 text-amber-300 font-semibold shadow">
-              <Coins className="w-3.5 h-3.5 text-amber-400" />
-              <span>{stats.gold} Gold</span>
+            {/* Compact Gold & Stat Points Row */}
+            <div className="pointer-events-auto flex items-center gap-1.5 text-[10px]">
+              <div className="flex items-center gap-1 bg-stone-900/85 backdrop-blur-md px-2 py-0.5 rounded-lg border border-amber-500/35 text-amber-300 font-bold shadow">
+                <Coins className="w-3 h-3 text-amber-400" />
+                <span>{stats.gold}</span>
+              </div>
+
+              {stats.statPoints > 0 && (
+                <button
+                  onClick={onOpenStats}
+                  className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-orange-500 text-stone-950 font-black px-2 py-0.5 rounded-lg shadow-lg animate-pulse cursor-pointer border border-amber-200"
+                >
+                  <span>+{stats.statPoints} Poin</span>
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="hud-player-status pointer-events-none absolute top-4 left-4 flex flex-col gap-2 max-w-xs md:max-w-sm z-30">
+            <div className="pointer-events-auto flex items-center gap-3 bg-stone-900/80 backdrop-blur-md p-3 rounded-2xl border border-stone-700/60 shadow-xl">
+              {/* Avatar / Class Icon */}
+              <div className="relative flex-shrink-0">
+                <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl shadow-inner border border-stone-600 ${classBadge.color}`}>
+                  {classBadge.icon}
+                </div>
+                <div className="absolute -bottom-1 -right-1 bg-amber-500 text-stone-950 font-bold text-xs px-1.5 py-0.5 rounded-md shadow border border-amber-300">
+                  Lv.{stats.level}
+                </div>
+              </div>
+
+              {/* Vitals Bars */}
+              <div className="flex-1 min-w-[170px] flex flex-col gap-1.5">
+                {/* HP Bar */}
+                <div className="relative w-full h-4 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
+                  <div
+                    className="h-full bg-gradient-to-r from-red-600 to-rose-400 transition-all duration-200"
+                    style={{ width: `${hpPercent}%` }}
+                  />
+                  {stats.shield !== undefined && stats.shield > 0 && (
+                    <div
+                      className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-300/80 via-yellow-100/90 to-amber-200/80 border-r-2 border-white shadow-[0_0_8px_rgba(255,215,0,0.8)] transition-all duration-200"
+                      style={{ width: `${Math.min(100, (stats.shield / (stats.maxShield || stats.maxHp)) * 100)}%` }}
+                    />
+                  )}
+                  <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow">
+                    <Heart className="w-2.5 h-2.5 inline mr-1 text-red-300" />
+                    {Math.round(stats.hp)} / {stats.maxHp} HP
+                    {stats.shield !== undefined && stats.shield > 0 && (
+                      <span className="ml-1 text-yellow-300 drop-shadow font-extrabold">(+{Math.round(stats.shield)})</span>
+                    )}
+                  </span>
+                </div>
+
+                {/* MP / Aura Bar */}
+                <div className="relative w-full h-3.5 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
+                  <div
+                    className={`h-full transition-all duration-200 ${
+                      stats.characterClass === 'warrior'
+                        ? 'bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-300'
+                        : 'bg-gradient-to-r from-blue-600 to-cyan-400'
+                    }`}
+                    style={{ width: `${mpPercent}%` }}
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white drop-shadow">
+                    <Sparkles className={`w-2 h-2 inline mr-1 ${stats.characterClass === 'warrior' ? 'text-amber-200' : 'text-cyan-300'}`} />
+                    {Math.round(stats.mp)} / {stats.maxMp} {stats.characterClass === 'warrior' ? 'Aura' : 'MP'}
+                  </span>
+                </div>
+
+                {/* Stamina Bar (Kuning-Emas) */}
+                <div className="relative w-full h-3 bg-stone-800 rounded-full overflow-hidden border border-amber-600/50">
+                  <div
+                    className="h-full bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-300 transition-all duration-150"
+                    style={{ width: `${staminaPercent}%` }}
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-stone-950 drop-shadow-[0_1px_1px_rgba(255,255,255,0.6)]">
+                    <Zap className="w-2.5 h-2.5 inline mr-1 text-amber-900 fill-current" />
+                    {Math.round(stats.stamina)} / {stats.maxStamina} Stamina
+                  </span>
+                </div>
+              </div>
             </div>
 
-            {stats.statPoints > 0 && (
-              <button
-                onClick={onOpenStats}
-                className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-bold px-3 py-1.5 rounded-xl shadow-lg animate-pulse cursor-pointer border border-amber-200"
-              >
-                <span>+{stats.statPoints} Poin Status!</span>
-              </button>
-            )}
+            {/* Currency & Stat Points Reminder */}
+            <div className="pointer-events-auto flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-1.5 bg-stone-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-500/30 text-amber-300 font-semibold shadow">
+                <Coins className="w-3.5 h-3.5 text-amber-400" />
+                <span>{stats.gold} Gold</span>
+              </div>
+
+              {stats.statPoints > 0 && (
+                <button
+                  onClick={onOpenStats}
+                  className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-bold px-3 py-1.5 rounded-xl shadow-lg animate-pulse cursor-pointer border border-amber-200"
+                >
+                  <span>+{stats.statPoints} Poin Status!</span>
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )
       )}
 
-      {/* Top Right: MiniMap / Compass / Audio & System Controls - Relocated to top: 15px, right: 15px */}
-      <div
-        style={{ top: '15px', right: '15px' }}
-        className="hud-minimap-cluster pointer-events-none absolute flex flex-col items-end gap-1.5 sm:gap-2.5 max-w-xs z-30"
-      >
-        {/* Desktop System Buttons Row (Visible on PC) */}
-        <div className="pointer-events-none hidden md:flex items-center gap-1.5 flex-wrap justify-end">
-          {/* Game Mode Badge */}
+      {/* Top Right: MiniMap & System Quick Actions */}
+      {isMobileUi ? (
+        <div
+          style={{
+            top: 'max(8px, env(safe-area-inset-top, 0px))',
+            right: 'max(10px, env(safe-area-inset-right, 0px))',
+          }}
+          className="pointer-events-none fixed flex items-start gap-2 z-30"
+        >
+          {/* Compact Icon Utility Buttons (32x32, gap 6px) immediately left of Minimap */}
           {!isSpectatorMode && (
-            gameMode === 'singleplayer' ? (
-              <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-950/80 border border-blue-500/40 text-blue-300 text-[11px] font-bold shadow pointer-events-none">
-                <Shield className="w-3 h-3 text-blue-400" />
-                <span>Solo</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 pointer-events-none">
-                <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-950/80 border border-amber-500/40 text-amber-300 text-[11px] font-bold shadow pointer-events-none">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  <Users className="w-3 h-3 text-amber-400" />
-                  <span>{multiplayerInfo?.onlineCount || 1} Online</span>
-                </div>
-                {onToggleChat && (
+            <div className="pointer-events-auto flex flex-wrap justify-end gap-1.5 max-w-[148px]">
+              <button
+                type="button"
+                onClick={onOpenInventory}
+                className="w-8 h-8 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-stone-700/80 flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer"
+                title="Tas"
+              >
+                <Backpack className="w-4 h-4 text-amber-400" />
+              </button>
+
+              {onOpenShop && (
+                <button
+                  type="button"
+                  onClick={onOpenShop}
+                  className="w-8 h-8 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-amber-500/60 flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer"
+                  title="Toko"
+                >
+                  <ShoppingBag className="w-4 h-4 text-yellow-400" />
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={onOpenStats}
+                className="relative w-8 h-8 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-stone-700/80 flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer"
+                title="Status"
+              >
+                <User className="w-4 h-4 text-blue-400" />
+                {stats.statPoints > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-stone-900 animate-ping" />
+                )}
+              </button>
+
+              {gameMode === 'singleplayer' && onSaveGame ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSaveGame();
+                    setSaveNotice(true);
+                    setTimeout(() => setSaveNotice(false), 2200);
+                  }}
+                  className={`w-8 h-8 rounded-xl border flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer ${
+                    saveNotice
+                      ? 'bg-emerald-950/90 border-emerald-400 text-emerald-300'
+                      : cloudUser
+                      ? 'bg-indigo-950/90 border-indigo-500/60 text-indigo-300'
+                      : 'bg-stone-900/90 border-stone-700/80 text-blue-400'
+                  }`}
+                  title="Simpan Game"
+                >
+                  {cloudUser ? (
+                    syncStatus === 'syncing' ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
+                    ) : (
+                      <Cloud className="w-4 h-4" />
+                    )
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                </button>
+              ) : (
+                onToggleChat && (
                   <button
+                    type="button"
                     onClick={onToggleChat}
-                    title="Buka Chat Multiplayer"
-                    className="pointer-events-auto relative p-2 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-amber-500/40 text-amber-300 text-xs font-bold transition shadow cursor-pointer"
+                    className="relative w-8 h-8 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-amber-500/50 flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer text-amber-300"
+                    title="Chat"
                   >
                     <MessageSquare className="w-4 h-4" />
                     {unreadChatCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center animate-bounce shadow">
+                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-600 text-white text-[8px] font-black flex items-center justify-center">
                         {unreadChatCount}
                       </span>
                     )}
                   </button>
-                )}
-              </div>
-            )
-          )}
-
-          {/* Manual Save Game Quick Button (Single Player) */}
-          {onSaveGame && gameMode === 'singleplayer' && (
-            <button
-              onClick={() => {
-                onSaveGame();
-                setSaveNotice(true);
-                setTimeout(() => setSaveNotice(false), 2200);
-              }}
-              title={
-                cloudUser
-                  ? 'Simpan Game (Otomatis Sinkron ke Cloud & Cache Lokal)'
-                  : 'Simpan Game (Save Game ke Cache Browser)'
-              }
-              className={`pointer-events-auto px-2.5 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow active:scale-95 ${
-                saveNotice
-                  ? 'bg-emerald-950/90 border-emerald-500/60 text-emerald-300'
-                  : cloudUser
-                  ? 'bg-indigo-950/90 hover:bg-indigo-900 border-indigo-500/50 text-indigo-200 hover:text-white'
-                  : 'bg-stone-900/90 hover:bg-stone-800 border-stone-700 text-stone-300 hover:text-white'
-              }`}
-            >
-              {cloudUser ? (
-                syncStatus === 'syncing' ? (
-                  <RefreshCw className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
-                ) : (
-                  <Cloud className={`w-3.5 h-3.5 ${saveNotice ? 'text-emerald-400' : 'text-indigo-400'}`} />
                 )
-              ) : (
-                <Save className={`w-3.5 h-3.5 ${saveNotice ? 'text-emerald-400' : 'text-blue-400'}`} />
               )}
-              <span className="hidden sm:inline">
-                {saveNotice
-                  ? cloudUser
-                    ? 'Cloud Tersimpan!'
-                    : 'Tersimpan!'
-                  : syncStatus === 'syncing'
-                  ? 'Menyinkronkan...'
-                  : cloudUser
-                  ? 'Simpan Cloud'
-                  : 'Simpan'}
-              </span>
-            </button>
-          )}
 
-          {/* Pause / Menu Button (Esc) */}
-          {onOpenMenu && (
-            <button
-              onClick={onOpenMenu}
-              title={gameMode === 'singleplayer' ? 'Pause Permainan & Pengaturan (Esc)' : 'Menu Multiplayer (Esc)'}
-              className="pointer-events-auto px-2.5 py-1.5 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-stone-700 text-stone-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow active:scale-95"
-            >
-              {gameMode === 'singleplayer' ? (
-                <>
-                  <Pause className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">Pause (Esc)</span>
-                </>
-              ) : (
-                <>
-                  <Home className="w-3.5 h-3.5 text-cyan-400" />
-                  <span className="hidden sm:inline">Menu (Esc)</span>
-                </>
+              {onToggleSpectator && (
+                <button
+                  type="button"
+                  onClick={onToggleSpectator}
+                  className={`w-8 h-8 rounded-xl border flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer ${
+                    isSpectatorMode
+                      ? 'bg-sky-950/90 border-sky-400 text-sky-300'
+                      : 'bg-stone-900/90 border-stone-700/80 text-sky-400'
+                  }`}
+                  title="Kamera"
+                >
+                  <Camera className="w-4 h-4" />
+                </button>
               )}
-            </button>
+
+              {onToggleFullscreen && (
+                <button
+                  type="button"
+                  onClick={onToggleFullscreen}
+                  className={`w-8 h-8 rounded-xl border flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer ${
+                    isFullscreen
+                      ? 'bg-emerald-700/90 border-emerald-400 text-white'
+                      : 'bg-stone-900/90 border-stone-700/80 text-stone-300'
+                  }`}
+                  title="Fullscreen"
+                >
+                  {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </button>
+              )}
+
+              {onOpenMenu && (
+                <button
+                  type="button"
+                  onClick={onOpenMenu}
+                  className="w-8 h-8 rounded-xl bg-stone-900/95 hover:bg-stone-800 border border-amber-500/50 flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer"
+                  title="Pause & Pengaturan"
+                >
+                  <Pause className="w-4 h-4 text-amber-400" />
+                </button>
+              )}
+            </div>
           )}
 
-          {onToggleSpectator && (
-            <button
-              onClick={onToggleSpectator}
-              title={
-                isSpectatorMode
-                  ? 'Keluar Mode Spektator (F3)'
-                  : 'Mode Spektator / Kamera Bebas (F3)'
-              }
-              className={`pointer-events-auto p-2 rounded-xl backdrop-blur-md border transition-all cursor-pointer shadow active:scale-95 ${
-                isSpectatorMode
-                  ? 'bg-sky-950/90 border-sky-400 text-sky-300 ring-2 ring-sky-400/50'
-                  : 'bg-stone-900/80 border-stone-700 text-stone-400 hover:text-white'
-              }`}
-            >
-              <Camera className="w-4 h-4 text-sky-400" />
-            </button>
-          )}
-
-          {onToggleFullscreen && (
-            <button
-              onClick={onToggleFullscreen}
-              title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh (Fullscreen untuk HP)'}
-              className={`pointer-events-auto p-2 rounded-xl backdrop-blur-md border transition-all cursor-pointer shadow active:scale-95 ${
-                isFullscreen
-                  ? 'bg-emerald-600/80 border-emerald-400 text-white'
-                  : 'bg-stone-900/80 border-stone-700 text-stone-400 hover:text-white'
-              }`}
-            >
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            </button>
-          )}
+          {/* Compact Circular Minimap (78px, tap to open full World Map) */}
+          <MiniMap
+            playerPos={playerPos}
+            currentRegion={currentRegion}
+            markers={mapMarkers}
+            onOpenFullMap={onOpenMap}
+            compactMobile={true}
+          />
         </div>
+      ) : (
+        <div
+          style={{ top: '15px', right: '15px' }}
+          className="hud-minimap-cluster pointer-events-none absolute flex flex-col items-end gap-1.5 sm:gap-2.5 max-w-xs z-30"
+        >
+          {/* Desktop System Buttons Row (Visible on PC) */}
+          <div className="pointer-events-none flex items-center gap-1.5 flex-wrap justify-end">
+            {!isSpectatorMode && (
+              gameMode === 'singleplayer' ? (
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-950/80 border border-blue-500/40 text-blue-300 text-[11px] font-bold shadow pointer-events-none">
+                  <Shield className="w-3 h-3 text-blue-400" />
+                  <span>Solo</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 pointer-events-none">
+                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-950/80 border border-amber-500/40 text-amber-300 text-[11px] font-bold shadow pointer-events-none">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    <Users className="w-3 h-3 text-amber-400" />
+                    <span>{multiplayerInfo?.onlineCount || 1} Online</span>
+                  </div>
+                  {onToggleChat && (
+                    <button
+                      onClick={onToggleChat}
+                      title="Buka Chat Multiplayer"
+                      className="pointer-events-auto relative p-2 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-amber-500/40 text-amber-300 text-xs font-bold transition shadow cursor-pointer"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      {unreadChatCount > 0 && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center animate-bounce shadow">
+                          {unreadChatCount}
+                        </span>
+                      )}
+                    </button>
+                  )}
+                </div>
+              )
+            )}
 
-        {/* Mobile Single System Menu Button */}
-        <div className="md:hidden pointer-events-none relative flex items-center justify-end">
-          {onOpenMenu && (
-            <button
-              type="button"
-              onClick={onOpenMenu}
-              className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-900/95 hover:bg-stone-800 border border-stone-700/80 text-amber-300 shadow-xl cursor-pointer active:scale-95 transition"
-              title="Menu & Pengaturan"
-            >
-              <Pause className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-xs font-bold tracking-wide">Menu</span>
-            </button>
-          )}
+            {onSaveGame && gameMode === 'singleplayer' && (
+              <button
+                onClick={() => {
+                  onSaveGame();
+                  setSaveNotice(true);
+                  setTimeout(() => setSaveNotice(false), 2200);
+                }}
+                title={
+                  cloudUser
+                    ? 'Simpan Game (Otomatis Sinkron ke Cloud & Cache Lokal)'
+                    : 'Simpan Game (Save Game ke Cache Browser)'
+                }
+                className={`pointer-events-auto px-2.5 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow active:scale-95 ${
+                  saveNotice
+                    ? 'bg-emerald-950/90 border-emerald-500/60 text-emerald-300'
+                    : cloudUser
+                    ? 'bg-indigo-950/90 hover:bg-indigo-900 border-indigo-500/50 text-indigo-200 hover:text-white'
+                    : 'bg-stone-900/90 hover:bg-stone-800 border-stone-700 text-stone-300 hover:text-white'
+                }`}
+              >
+                {cloudUser ? (
+                  syncStatus === 'syncing' ? (
+                    <RefreshCw className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
+                  ) : (
+                    <Cloud className={`w-3.5 h-3.5 ${saveNotice ? 'text-emerald-400' : 'text-indigo-400'}`} />
+                  )
+                ) : (
+                  <Save className={`w-3.5 h-3.5 ${saveNotice ? 'text-emerald-400' : 'text-blue-400'}`} />
+                )}
+                <span>
+                  {saveNotice
+                    ? cloudUser
+                      ? 'Cloud Tersimpan!'
+                      : 'Tersimpan!'
+                    : syncStatus === 'syncing'
+                    ? 'Menyinkronkan...'
+                    : cloudUser
+                    ? 'Simpan Cloud'
+                    : 'Simpan'}
+                </span>
+              </button>
+            )}
+
+            {onOpenMenu && (
+              <button
+                onClick={onOpenMenu}
+                title={gameMode === 'singleplayer' ? 'Pause Permainan & Pengaturan (Esc)' : 'Menu Multiplayer (Esc)'}
+                className="pointer-events-auto px-2.5 py-1.5 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-stone-700 text-stone-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow active:scale-95"
+              >
+                {gameMode === 'singleplayer' ? (
+                  <>
+                    <Pause className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Pause (Esc)</span>
+                  </>
+                ) : (
+                  <>
+                    <Home className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Menu (Esc)</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {onToggleSpectator && (
+              <button
+                onClick={onToggleSpectator}
+                title={
+                  isSpectatorMode
+                    ? 'Keluar Mode Spektator (F3)'
+                    : 'Mode Spektator / Kamera Bebas (F3)'
+                }
+                className={`pointer-events-auto p-2 rounded-xl backdrop-blur-md border transition-all cursor-pointer shadow active:scale-95 ${
+                  isSpectatorMode
+                    ? 'bg-sky-950/90 border-sky-400 text-sky-300 ring-2 ring-sky-400/50'
+                    : 'bg-stone-900/80 border-stone-700 text-stone-400 hover:text-white'
+                }`}
+              >
+                <Camera className="w-4 h-4 text-sky-400" />
+              </button>
+            )}
+
+            {onToggleFullscreen && (
+              <button
+                onClick={onToggleFullscreen}
+                title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
+                className={`pointer-events-auto p-2 rounded-xl backdrop-blur-md border transition-all cursor-pointer shadow active:scale-95 ${
+                  isFullscreen
+                    ? 'bg-emerald-600/80 border-emerald-400 text-white'
+                    : 'bg-stone-900/80 border-stone-700 text-stone-400 hover:text-white'
+                }`}
+              >
+                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </button>
+            )}
+          </div>
+
+          {/* 3D MiniMap Radar */}
+          <MiniMap
+            playerPos={playerPos}
+            currentRegion={currentRegion}
+            markers={mapMarkers}
+            onOpenFullMap={onOpenMap}
+            compactMobile={false}
+          />
         </div>
+      )}
 
-        {/* 3D MiniMap Radar */}
-        <MiniMap
-          playerPos={playerPos}
-          currentRegion={currentRegion}
-          markers={mapMarkers}
-          onOpenFullMap={onOpenMap}
-        />
-      </div>
-
-      {/* Independent Quest Tracker: Positioned at Left side of screen */}
+      {/* Independent Quest Tracker */}
       {!isSpectatorMode && (
         <QuestTracker activeQuest={activeQuest} onOpenQuests={onOpenQuests} />
       )}
 
-      {/* Mobile Landscape Orientation Recommendation Banner */}
-      {!isSpectatorMode && !dismissMobileTip && (
-        <div className="md:hidden pointer-events-auto absolute top-20 left-1/2 -translate-x-1/2 w-[92%] max-w-sm bg-gradient-to-r from-amber-950/95 via-stone-900/95 to-stone-950/95 border border-amber-500/50 rounded-xl p-2.5 shadow-2xl backdrop-blur-md flex items-center justify-between gap-2 z-40 animate-fade-in text-xs text-amber-200">
-          <div className="flex items-center gap-2">
-            <Smartphone className="w-5 h-5 text-amber-400 rotate-90 flex-shrink-0 animate-pulse" />
-            <span className="text-[11px] leading-snug">
-              Bermain di HP? Putar ke <b>Landscape</b> & klik tombol <b>Layar Penuh</b> di pojok kanan atas untuk grafik maksimal!
-            </span>
-          </div>
-          <button
-            onClick={() => setDismissMobileTip(true)}
-            className="p-1 text-stone-400 hover:text-white rounded-lg hover:bg-stone-800/60 cursor-pointer flex-shrink-0"
-            title="Tutup Saran"
-          >
-            ✕
-          </button>
+      {/* Center Top Mobile Biome Pill (Hidden automatically whenever Boss HP Bar or Victory Banner is active) */}
+      {isMobileUi && !isSpectatorMode && !bossState.active && !bossVictoryName && (
+        <div
+          onClick={onOpenMap}
+          style={{
+            top: 'max(6px, env(safe-area-inset-top, 0px))',
+            left: '50%',
+            transform: 'translateX(-50%)',
+          }}
+          className="pointer-events-auto fixed z-25 flex items-center gap-1 px-2.5 py-0.5 bg-stone-900/90 border border-amber-600/70 rounded-full shadow-xl backdrop-blur-md cursor-pointer hover:border-amber-400 max-w-[min(215px,calc(100vw-436px))]"
+          title="Ketuk untuk membuka Peta Dunia"
+        >
+          <span className="text-xs shrink-0">{currentRegion.icon}</span>
+          <span className="text-[10px] font-bold text-amber-200 truncate">{currentRegion.nameId}</span>
+          <span className="text-[9px] px-1 bg-amber-950/85 text-amber-300 border border-amber-700/60 rounded font-mono font-bold shrink-0">
+            Lv.{currentRegion.recommendedLevel}
+          </span>
         </div>
       )}
 
       {/* Absolute Victory Banner (Boss Defeated) */}
       {!isSpectatorMode && bossVictoryName && (
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-1.5 pointer-events-none animate-bounce">
-          <div className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-600/95 via-yellow-400 to-amber-600/95 border-2 border-yellow-200 shadow-[0_0_50px_rgba(234,179,8,0.7)] text-stone-950 font-black tracking-widest text-sm sm:text-base uppercase flex items-center gap-2 drop-shadow-2xl">
+        <div
+          style={{ top: isMobileUi ? 'max(10px, env(safe-area-inset-top, 0px))' : undefined }}
+          className={`fixed left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-1 pointer-events-none animate-bounce ${
+            isMobileUi ? '' : 'top-10'
+          }`}
+        >
+          <div className={`rounded-2xl bg-gradient-to-r from-amber-600/95 via-yellow-400 to-amber-600/95 border-2 border-yellow-200 shadow-[0_0_50px_rgba(234,179,8,0.7)] text-stone-950 font-black tracking-widest uppercase flex items-center gap-1.5 drop-shadow-2xl ${
+            isMobileUi ? 'px-3.5 py-1 text-xs' : 'px-6 py-2.5 text-sm sm:text-base'
+          }`}>
             🏆 KEMENANGAN MUTLAK!
           </div>
-          <span className="text-xs sm:text-sm font-black text-amber-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] tracking-wider">
+          <span className={`${isMobileUi ? 'text-[10px]' : 'text-xs sm:text-sm'} font-black text-amber-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] tracking-wider text-center`}>
             {bossVictoryName} Berhasil Ditaklukkan
           </span>
         </div>
       )}
 
-      {/* Center Top: Boss Health Bar when inside boss territory or engaged in combat */}
+      {/* Center Top: Boss Health Bar */}
       {!isSpectatorMode && bossState.active && (
-        <div className="absolute top-5 left-1/2 -translate-x-1/2 w-80 md:w-[26rem] flex flex-col items-center gap-1 z-20 pointer-events-none">
-          <div className="text-sm font-black tracking-widest text-red-400 uppercase drop-shadow flex items-center gap-1.5">
+        <div
+          style={
+            isMobileUi
+              ? { top: 'max(6px, env(safe-area-inset-top, 0px))' }
+              : undefined
+          }
+          className={`fixed left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5 z-25 pointer-events-none ${
+            isMobileUi ? 'w-[min(245px,calc(100vw-426px))] min-w-[168px]' : 'top-5 w-80 md:w-[26rem] gap-1 z-20'
+          }`}
+        >
+          <div className={`font-black tracking-wider text-red-400 uppercase drop-shadow flex items-center gap-1 truncate max-w-full ${
+            isMobileUi ? 'text-[10.5px]' : 'text-sm tracking-widest gap-1.5'
+          }`}>
             💀 {bossState.name || 'SANG TITAN KUNO OBSIDIAN'}
           </div>
-          {bossState.title && (
+          {!isMobileUi && bossState.title && (
             <div className="text-[11px] font-semibold tracking-wider text-amber-300/90 uppercase drop-shadow -mt-0.5">
               {bossState.title}
             </div>
           )}
           <div
-            className={`w-full h-5 bg-stone-950/90 rounded-full border-2 p-0.5 shadow-2xl overflow-hidden transition-colors ${
-              bossState.combatActive ? 'border-red-500 shadow-red-900/50' : 'border-amber-500/70'
-            }`}
+            className={`w-full bg-stone-950/90 rounded-full border-2 p-0.5 shadow-2xl overflow-hidden transition-colors ${
+              isMobileUi ? 'h-3' : 'h-5'
+            } ${bossState.combatActive ? 'border-red-500 shadow-red-900/50' : 'border-amber-500/70'}`}
           >
             <div
               className={`h-full rounded-full transition-all duration-200 ${
@@ -572,13 +809,13 @@ export const HUD: React.FC<HUDProps> = ({
               }}
             />
           </div>
-          <span className="text-[10px] text-stone-300 font-mono">
+          <span className={`${isMobileUi ? 'text-[8.5px]' : 'text-[10px]'} text-stone-200 font-mono`}>
             {Math.ceil(bossState.hp ?? 0)} / {bossState.maxHp} HP
           </span>
         </div>
       )}
 
-      {/* Center Interactive Prompt (NPC / Chest) - Compact & Raised to top: 38% */}
+      {/* Center Interactive Prompt (NPC / Chest) */}
       {!isSpectatorMode && nearbyPrompt && (
         <div
           id="hud-interaction-prompt-container"
@@ -602,117 +839,22 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-
-      {/* Mobile Compact Menu Strip (Tas, Toko, Status, Misi, Peta) - Centered neatly above Skill Bar */}
-      {!isSpectatorMode && (
-        <div
-          id="hud-mobile-nav-bar"
-          style={{
-            touchAction: 'none',
-            userSelect: 'none',
-            WebkitUserSelect: 'none',
-            pointerEvents: 'auto',
-            width: 'fit-content',
-          }}
-          className="hud-mobile-nav-bar pointer-events-auto fixed bottom-[56px] sm:bottom-[60px] left-1/2 -translate-x-1/2 md:hidden w-fit inline-flex items-center gap-1 bg-stone-950/85 backdrop-blur-md px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-xl border border-stone-800/70 shadow-xl z-35 select-none"
-        >
-        <button
-          type="button"
-          onTouchStart={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onOpenInventory();
-          }}
-          onClick={onOpenInventory}
-          style={{ touchAction: 'none', userSelect: 'none' }}
-          className="touch-control-btn flex flex-col items-center justify-center w-7 h-7 sm:w-7.5 sm:h-7.5 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
-          title="Tas (I)"
-        >
-          <Backpack className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" />
-        </button>
-
-        {onOpenShop && (
-          <button
-            type="button"
-            onTouchStart={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onOpenShop();
-            }}
-            onClick={onOpenShop}
-            style={{ touchAction: 'none', userSelect: 'none' }}
-            className="touch-control-btn flex flex-col items-center justify-center w-7 h-7 sm:w-7.5 sm:h-7.5 bg-stone-900/90 hover:bg-stone-800 text-amber-300 rounded-xl border border-amber-500/60 active:scale-90 transition cursor-pointer"
-            title="Toko (B)"
-          >
-            <ShoppingBag className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-yellow-400" />
-          </button>
-        )}
-
-        <button
-          type="button"
-          onTouchStart={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onOpenStats();
-          }}
-          onClick={onOpenStats}
-          style={{ touchAction: 'none', userSelect: 'none' }}
-          className="touch-control-btn relative flex flex-col items-center justify-center w-7 h-7 sm:w-7.5 sm:h-7.5 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
-          title="Status (C)"
-        >
-          <User className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-400" />
-          {stats.statPoints > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-stone-900 animate-ping" />
-          )}
-        </button>
-
-        <button
-          type="button"
-          onTouchStart={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onOpenQuests();
-          }}
-          onClick={onOpenQuests}
-          style={{ touchAction: 'none', userSelect: 'none' }}
-          className="touch-control-btn flex flex-col items-center justify-center w-7 h-7 sm:w-7.5 sm:h-7.5 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
-          title="Misi (L)"
-        >
-          <Scroll className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400" />
-        </button>
-
-        <button
-          type="button"
-          onTouchStart={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onOpenMap();
-          }}
-          onClick={onOpenMap}
-          style={{ touchAction: 'none', userSelect: 'none' }}
-          className="touch-control-btn flex flex-col items-center justify-center w-7 h-7 sm:w-7.5 sm:h-7.5 bg-stone-900/90 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 active:scale-90 transition cursor-pointer"
-          title="Peta (M)"
-        >
-          <Map className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-400" />
-        </button>
-      </div>
-      )}
-
-                <span className="text-amber-300 text-sm animate-pulse">☄️</span>
+      {/* Casting Progress Bar */}
       {!isSpectatorMode && castingState && castingState.isCasting && (
-        <div className="fixed bottom-20 md:bottom-23 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex flex-col items-center select-none animate-in fade-in duration-150">
-          <div className="relative w-56 sm:w-64 h-6 sm:h-7 bg-stone-950/90 rounded-full border border-amber-500/70 shadow-[0_0_15px_rgba(245,158,11,0.5)] overflow-hidden flex items-center px-2.5">
-            {/* Progress Fill */}
+        <div
+          className={`fixed left-1/2 -translate-x-1/2 z-50 pointer-events-none flex flex-col items-center select-none animate-in fade-in duration-150 ${
+            isMobileUi ? 'bottom-5' : 'bottom-23'
+          }`}
+        >
+          <div className="relative w-52 sm:w-64 h-6 sm:h-7 bg-stone-950/90 rounded-full border border-amber-500/70 shadow-[0_0_15px_rgba(245,158,11,0.5)] overflow-hidden flex items-center px-2.5">
             <div
               className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-600 via-orange-500 to-yellow-400 transition-all duration-75 ease-out rounded-full"
               style={{ width: `${Math.min(100, Math.max(0, castingState.progress * 100))}%` }}
             />
-            {/* Gloss Shimmer */}
             <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/10 to-transparent pointer-events-none" />
-            {/* Content */}
             <div className="relative z-10 w-full flex items-center justify-between text-xs font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-                <span className="text-amber-300 text-sm animate-pulse">☄️</span>
-              <span className="font-mono tracking-wider">{castingState.text}</span>
+              <span className="text-amber-300 text-sm animate-pulse">☄️</span>
+              <span className="font-mono tracking-wider truncate px-1">{castingState.text}</span>
               <span className="text-[10px] text-amber-200/90 font-mono">
                 {Math.round(castingState.progress * 100)}%
               </span>
@@ -721,13 +863,15 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* Primary Skill Bar (Responsive: Mobile Arc at bottom-right vs Desktop Horizontal at bottom-center) */}
-      {!isSpectatorMode && (
+      {/* Primary Skill Bar: strictly hidden when modal is open or touch controls hidden on mobile */}
+      {!isSpectatorMode && !isModalOpen && (!isMobileUi || isTouchControlsVisible) && (
         <SkillBar
           stats={stats}
           hunterWeaponMode={hunterWeaponMode}
           isWeaponDrawn={isWeaponDrawn}
           stealthActive={stealthActive}
+          isVisible={!isSpectatorMode && !isModalOpen && (!isMobileUi || isTouchControlsVisible)}
+          isMobileUi={isMobileUi}
           onPerformAttack={onPerformAttack}
           onAttackStart={onAttackStart}
           onAttackEnd={onAttackEnd}
@@ -735,6 +879,9 @@ export const HUD: React.FC<HUDProps> = ({
           onAimSkillStart={onAimSkillStart}
           onAimSkillMove={onAimSkillMove}
           onAimSkillEnd={onAimSkillEnd}
+          onMobileAimStart={onMobileAimStart}
+          onMobileAimMove={onMobileAimMove}
+          onMobileAimEnd={onMobileAimEnd}
           onJump={onJump}
           onDash={onDash}
           onSwitchHunterWeapon={onSwitchHunterWeapon}
@@ -746,7 +893,7 @@ export const HUD: React.FC<HUDProps> = ({
       )}
 
       {/* Glacial Barrage Hold-to-Aim Arcane Frost Reticle */}
-      {isGlacialAiming && (
+      {!isModalOpen && isGlacialAiming && (
         <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-40 select-none animate-fadeIn">
           {/* Locked Enemy Info Badge (floating smoothly above the reticle) */}
           {glacialTarget && (
@@ -834,8 +981,8 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* Guide Pill Banner - Repositioned cleanly above the Skill Bar at bottom: 108px */}
-      {isGlacialAiming && (
+      {/* Guide Pill Banner (Desktop only — avoids crowding mobile landscape touch UI) */}
+      {!isModalOpen && !isMobileUi && isGlacialAiming && (
         <div
           className="fixed left-1/2 -translate-x-1/2 z-40 pointer-events-none select-none animate-fadeIn flex items-center justify-center whitespace-nowrap"
           style={{ bottom: '108px' }}
@@ -855,7 +1002,7 @@ export const HUD: React.FC<HUDProps> = ({
       )}
 
       {/* Hunter Bow Hold-to-Aim Minecraft Crosshair (+) & Charge Bar */}
-      {isBowAiming && (
+      {!isModalOpen && isBowAiming && (
         <div className="fixed inset-0 pointer-events-none flex flex-col items-center justify-center z-40 select-none animate-fadeIn">
           {/* Sharp Minecraft-style Plus (+) Crosshair: 20px x 20px */}
           <div
@@ -896,8 +1043,8 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* Hunter Bow Guide Pill Banner - at bottom: 108px */}
-      {isBowAiming && (
+      {/* Hunter Bow Guide Pill Banner (Desktop only) */}
+      {!isModalOpen && !isMobileUi && isBowAiming && (
         <div
           className="fixed left-1/2 -translate-x-1/2 z-40 pointer-events-none select-none animate-fadeIn flex items-center justify-center whitespace-nowrap"
           style={{ bottom: '108px' }}
@@ -916,8 +1063,8 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* Hunter Ultimate Badai Panah Agung Guide Pill Banner - at bottom: 108px */}
-      {isArrowVolleyAiming && (
+      {/* Hunter Ultimate Badai Panah Agung Guide Pill Banner (Desktop only) */}
+      {!isModalOpen && !isMobileUi && isArrowVolleyAiming && (
         <div
           className="fixed left-1/2 -translate-x-1/2 z-40 pointer-events-none select-none animate-fadeIn flex items-center justify-center whitespace-nowrap"
           style={{ bottom: '108px' }}
@@ -937,8 +1084,8 @@ export const HUD: React.FC<HUDProps> = ({
       )}
 
       {/* Desktop Bottom Right: Full Menu Navigation Buttons */}
-      {!isSpectatorMode && (
-        <div className="hud-desktop-hotbar pointer-events-auto absolute bottom-5 right-4 hidden md:flex items-center gap-2">
+      {!isSpectatorMode && !isMobileUi && (
+        <div className="hud-desktop-hotbar pointer-events-auto absolute bottom-5 right-4 flex items-center gap-2">
           <button
             onClick={onOpenInventory}
             className="flex flex-col items-center justify-center w-11 h-11 bg-stone-900/80 hover:bg-stone-800 text-stone-200 rounded-xl border border-stone-700 shadow cursor-pointer transition-all active:scale-95"

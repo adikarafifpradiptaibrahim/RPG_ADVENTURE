@@ -829,6 +829,18 @@ export class GameEngine {
   private readonly arrowRainUpAxisScratch = new THREE.Vector3(0, 1, 0);
   private readonly arrowRainDirScratch = new THREE.Vector3();
   private readonly astralForwardAxisScratch = new THREE.Vector3(0, 0, 1);
+  private mobileAimActiveSlot: 'basic' | 'skill1' | 'dash' | 'ult' | null = null;
+  private mobileAimNormalized = { x: 0, y: 0, active: false };
+  private mobileAimOverCancel = false;
+  private mobileStarfallAimGroup: THREE.Group | null = null;
+  private mobileStarfallOuterRing: THREE.Mesh | null = null;
+  private mobileStarfallInnerRing: THREE.Mesh | null = null;
+  private mobileStarfallTargetPoint = new THREE.Vector3();
+  private mobileDashAimGroup: THREE.Group | null = null;
+  private mobileDashRingMesh: THREE.Mesh | null = null;
+  private mobileDashLineMesh: THREE.Line | null = null;
+  private mobileDashTargetPoint = new THREE.Vector3();
+  private readonly mobileAimWorldDir = new THREE.Vector3();
 
   private activeProjectiles: {
     object: THREE.Object3D;
@@ -4782,19 +4794,15 @@ export class GameEngine {
   private touchStartY = 0;
   private isTouchingCamera = false;
   private cameraTouchId: number | null = null;
+  private activeCanvasTouchIds: Set<number> = new Set();
   private initialPinchDist = 0;
   private initialPinchCamDist = 7;
 
   private getCanvasCameraTouches(touches: TouchList): Touch[] {
     const valid: Touch[] = [];
-    const h = window.innerHeight;
-
     for (let i = 0; i < touches.length; i++) {
       const t = touches[i];
-      // Only exclude the bottom-left joystick area (~160px x 160px)
-      const inJoystickZone = t.clientX < 160 && t.clientY > h - 160;
-
-      if (!inJoystickZone) {
+      if (this.activeCanvasTouchIds.has(t.identifier)) {
         valid.push(t);
       }
     }
@@ -4821,12 +4829,24 @@ export class GameEngine {
       return;
     }
 
+    const h = window.innerHeight;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+      const inJoystickZone = touch.clientX < 155 && touch.clientY > h - 155;
+      const isCanvasTarget =
+        touch.target === this.renderer.domElement ||
+        (touch.target instanceof HTMLElement && touch.target.id === 'webgl-canvas-container');
+      if (!inJoystickZone && isCanvasTarget) {
+        this.activeCanvasTouchIds.add(touch.identifier);
+      }
+    }
+
     const camTouches = this.getCanvasCameraTouches(e.touches);
     if (camTouches.length > 0 && e.cancelable) {
       e.preventDefault();
     }
 
-    // If 2 touches are active on camera area, handle pinch zoom
+    // If 2 touches started cleanly on open 3D canvas area, handle pinch zoom
     if (camTouches.length === 2) {
       const t1 = camTouches[0];
       const t2 = camTouches[1];
@@ -4835,19 +4855,17 @@ export class GameEngine {
       return;
     }
 
-    const h = window.innerHeight;
-
-    // Capture touch for camera rotation: entire right screen and non-joystick areas pass through
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const touch = e.changedTouches[i];
-      const inJoystickZone = touch.clientX < 160 && touch.clientY > h - 160;
-
-      if (!inJoystickZone && this.cameraTouchId === null) {
-        this.cameraTouchId = touch.identifier;
-        this.isTouchingCamera = true;
-        this.touchStartX = touch.clientX;
-        this.touchStartY = touch.clientY;
-        break;
+    // Capture primary canvas touch for smooth camera rotation alongside joystick + skill aiming
+    if (this.cameraTouchId === null) {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const touch = e.changedTouches[i];
+        if (this.activeCanvasTouchIds.has(touch.identifier)) {
+          this.cameraTouchId = touch.identifier;
+          this.isTouchingCamera = true;
+          this.touchStartX = touch.clientX;
+          this.touchStartY = touch.clientY;
+          break;
+        }
       }
     }
   };
@@ -4911,17 +4929,23 @@ export class GameEngine {
       return;
     }
 
-    if (this.cameraTouchId !== null) {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === this.cameraTouchId) {
-          this.cameraTouchId = null;
-          this.isTouchingCamera = false;
-          break;
-        }
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const id = e.changedTouches[i].identifier;
+      this.activeCanvasTouchIds.delete(id);
+      if (this.cameraTouchId !== null && id === this.cameraTouchId) {
+        this.cameraTouchId = null;
+        this.isTouchingCamera = false;
       }
     }
-    if (e.touches.length < 2) {
+    const camTouches = this.getCanvasCameraTouches(e.touches);
+    if (camTouches.length < 2) {
       this.initialPinchDist = 0;
+    }
+    if (this.cameraTouchId === null && camTouches.length === 1) {
+      this.cameraTouchId = camTouches[0].identifier;
+      this.isTouchingCamera = true;
+      this.touchStartX = camTouches[0].clientX;
+      this.touchStartY = camTouches[0].clientY;
     }
   };
 
@@ -4957,6 +4981,347 @@ export class GameEngine {
     this.cameraAngleV = clampCameraPitch(
       this.cameraAngleV + deltaY * CAMERA_CONFIG.TOUCH_LOOK_SENSITIVITY_V
     );
+  }
+
+  private computeMobileWorldAim(maxRange: number, defaultDist: number) {
+    const camAngle = this.cameraAngleH;
+    const fwdX = -Math.sin(camAngle);
+    const fwdZ = -Math.cos(camAngle);
+    const rightX = -fwdZ;
+    const rightZ = fwdX;
+    const nx = this.mobileAimNormalized.x;
+    const ny = this.mobileAimNormalized.y;
+    const mag = Math.min(1, Math.hypot(nx, ny));
+    let dirX = fwdX;
+    let dirZ = fwdZ;
+    if (mag > 0.08) {
+      const rx = fwdX * (-ny) + rightX * nx;
+      const rz = fwdZ * (-ny) + rightZ * nx;
+      const len = Math.hypot(rx, rz) || 1;
+      dirX = rx / len;
+      dirZ = rz / len;
+    }
+    const dist = mag > 0.08 ? THREE.MathUtils.lerp(4.0, maxRange, mag) : defaultDist;
+    const targetX = this.playerPos.x + dirX * dist;
+    const targetZ = this.playerPos.z + dirZ * dist;
+    const targetY = getSolidGroundHeight(targetX, targetZ, this.playerPos.y);
+    this.mobileAimWorldDir.set(dirX, 0, dirZ);
+    return { dirX, dirZ, mag, targetX, targetY, targetZ };
+  }
+
+  private ensureMobileStarfallIndicator() {
+    if (this.mobileStarfallAimGroup) return;
+    const group = new THREE.Group();
+    group.name = 'MobileStarfallAimIndicator';
+    group.visible = false;
+    group.frustumCulled = false;
+
+    const outerGeom = new THREE.RingGeometry(14.0, 14.5, 56);
+    outerGeom.rotateX(-Math.PI / 2);
+    const outerMat = new THREE.MeshBasicMaterial({
+      color: 0xa855f7,
+      transparent: true,
+      opacity: 0.78,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const outer = new THREE.Mesh(outerGeom, outerMat);
+    outer.frustumCulled = false;
+    group.add(outer);
+
+    const innerGeom = new THREE.RingGeometry(1.8, 2.3, 36);
+    innerGeom.rotateX(-Math.PI / 2);
+    const innerMat = new THREE.MeshBasicMaterial({
+      color: 0xfde047,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const inner = new THREE.Mesh(innerGeom, innerMat);
+    inner.frustumCulled = false;
+    group.add(inner);
+
+    this.scene.add(group);
+    this.mobileStarfallAimGroup = group;
+    this.mobileStarfallOuterRing = outer;
+    this.mobileStarfallInnerRing = inner;
+  }
+
+  private ensureMobileDashIndicator() {
+    if (this.mobileDashAimGroup) return;
+    const group = new THREE.Group();
+    group.name = 'MobileDashAimIndicator';
+    group.visible = false;
+    group.frustumCulled = false;
+
+    const ringGeom = new THREE.RingGeometry(0.85, 1.15, 32);
+    ringGeom.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const ring = new THREE.Mesh(ringGeom, ringMat);
+    ring.frustumCulled = false;
+    group.add(ring);
+
+    const lineGeom = new THREE.BufferGeometry();
+    lineGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+    const lineMat = new THREE.LineBasicMaterial({
+      color: 0x67e8f9,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+    });
+    const line = new THREE.Line(lineGeom, lineMat);
+    line.frustumCulled = false;
+    group.add(line);
+
+    this.scene.add(group);
+    this.mobileDashAimGroup = group;
+    this.mobileDashRingMesh = ring;
+    this.mobileDashLineMesh = line;
+  }
+
+  private hideMobileAimPreviews() {
+    if (this.mobileStarfallAimGroup) this.mobileStarfallAimGroup.visible = false;
+    if (this.mobileDashAimGroup) this.mobileDashAimGroup.visible = false;
+  }
+
+  private updateMobileStarfallAimFrame() {
+    this.ensureMobileStarfallIndicator();
+    if (!this.mobileStarfallAimGroup) return;
+    const aim = this.computeMobileWorldAim(24.0, 18.0);
+    this.playerRotationY = Math.atan2(aim.dirX, aim.dirZ);
+    if (this.playerMesh?.group) {
+      this.playerMesh.group.rotation.y = this.playerRotationY;
+    }
+    this.mobileStarfallTargetPoint.set(aim.targetX, aim.targetY + 0.08, aim.targetZ);
+    this.mobileStarfallAimGroup.visible = true;
+    this.mobileStarfallAimGroup.position.copy(this.mobileStarfallTargetPoint);
+    if (this.mobileStarfallOuterRing) {
+      const m = this.mobileStarfallOuterRing.material as THREE.MeshBasicMaterial;
+      m.color.setHex(this.mobileAimOverCancel ? 0xef4444 : 0xa855f7);
+      m.opacity = this.mobileAimOverCancel ? 0.45 : 0.78;
+    }
+    if (this.mobileStarfallInnerRing) {
+      const m = this.mobileStarfallInnerRing.material as THREE.MeshBasicMaterial;
+      m.color.setHex(this.mobileAimOverCancel ? 0xf87171 : 0xfde047);
+      m.opacity = this.mobileAimOverCancel ? 0.45 : 0.85;
+    }
+  }
+
+  private updateMobileDashAimFrame(maxRange: number) {
+    this.ensureMobileDashIndicator();
+    if (!this.mobileDashAimGroup) return;
+    const aim = this.computeMobileWorldAim(maxRange, maxRange);
+    const targetY = getSolidGroundHeight(
+      this.playerPos.x + aim.dirX * maxRange,
+      this.playerPos.z + aim.dirZ * maxRange,
+      this.playerPos.y
+    );
+    const endX = this.playerPos.x + aim.dirX * maxRange;
+    const endZ = this.playerPos.z + aim.dirZ * maxRange;
+    if (this.mobileAimNormalized.active) {
+      this.playerRotationY = Math.atan2(aim.dirX, aim.dirZ);
+      if (this.playerMesh?.group) {
+        this.playerMesh.group.rotation.y = this.playerRotationY;
+      }
+    }
+    this.mobileDashTargetPoint.set(endX, targetY + 0.08, endZ);
+    this.mobileDashAimGroup.visible = true;
+    if (this.mobileDashRingMesh) {
+      this.mobileDashRingMesh.position.copy(this.mobileDashTargetPoint);
+      const m = this.mobileDashRingMesh.material as THREE.MeshBasicMaterial;
+      m.color.setHex(this.mobileAimOverCancel ? 0xef4444 : 0x38bdf8);
+      m.opacity = this.mobileAimOverCancel ? 0.45 : 0.85;
+    }
+    if (this.mobileDashLineMesh) {
+      const attr = this.mobileDashLineMesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+      attr.setXYZ(0, this.playerPos.x, this.playerPos.y + 0.25, this.playerPos.z);
+      attr.setXYZ(1, endX, targetY + 0.15, endZ);
+      attr.needsUpdate = true;
+      const m = this.mobileDashLineMesh.material as THREE.LineBasicMaterial;
+      m.color.setHex(this.mobileAimOverCancel ? 0xef4444 : 0x67e8f9);
+    }
+  }
+
+  public startMobileSkillAim(slot: 'basic' | 'skill1' | 'dash' | 'ult') {
+    if (this.isControlsLocked) return;
+    this.mobileAimActiveSlot = slot;
+    this.mobileAimNormalized = { x: 0, y: 0, active: false };
+    this.mobileAimOverCancel = false;
+
+    if (slot === 'basic') {
+      this.startBasicAttack();
+    } else if (slot === 'skill1') {
+      if (this.charClass === 'mage') {
+        this.startAimGlacialBarrage();
+      } else if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
+        this.startAimAstralEagle();
+      } else if (this.charClass === 'warrior') {
+        this.updateMobileDashAimFrame(11.0);
+      }
+    } else if (slot === 'dash') {
+      const dashDist = this.charClass === 'mage' ? 12.0 : this.charClass === 'rogue' ? 9.5 : 4.5;
+      this.updateMobileDashAimFrame(dashDist);
+    } else if (slot === 'ult') {
+      if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
+        this.startAimArrowVolley();
+      } else if (this.charClass === 'mage') {
+        this.updateMobileStarfallAimFrame();
+      } else if (this.charClass === 'warrior') {
+        this.updateMobileDashAimFrame(22.0);
+      }
+    }
+  }
+
+  public updateMobileSkillAim(
+    slot: 'basic' | 'skill1' | 'dash' | 'ult',
+    nx: number,
+    ny: number,
+    isOverCancel: boolean
+  ) {
+    if (this.mobileAimActiveSlot !== slot) return;
+    this.mobileAimOverCancel = isOverCancel;
+    const mag = Math.hypot(nx, ny);
+    this.mobileAimNormalized = { x: nx, y: ny, active: mag > 0.12 };
+
+    if (slot === 'basic') {
+      if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' && this.mobileAimNormalized.active) {
+        const aim = this.computeMobileWorldAim(32.0, 18.0);
+        this.playerRotationY = Math.atan2(aim.dirX, aim.dirZ);
+        if (this.playerMesh?.group) {
+          this.playerMesh.group.rotation.y = this.playerRotationY;
+        }
+      }
+    } else if (slot === 'skill1') {
+      if (this.charClass === 'mage') {
+        this.updateGlacialAimFrame(0);
+      } else if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
+        const aim = this.computeMobileWorldAim(32.0, 18.0);
+        if (this.mobileAimNormalized.active) {
+          this.playerRotationY = Math.atan2(aim.dirX, aim.dirZ);
+          if (this.playerMesh?.group) {
+            this.playerMesh.group.rotation.y = this.playerRotationY;
+          }
+        }
+      } else if (this.charClass === 'warrior') {
+        this.updateMobileDashAimFrame(11.0);
+      }
+    } else if (slot === 'dash') {
+      const dashDist = this.charClass === 'mage' ? 12.0 : this.charClass === 'rogue' ? 9.5 : 4.5;
+      this.updateMobileDashAimFrame(dashDist);
+    } else if (slot === 'ult') {
+      if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
+        this.updateAimArrowVolleyFrame(0);
+      } else if (this.charClass === 'mage') {
+        this.updateMobileStarfallAimFrame();
+      } else if (this.charClass === 'warrior') {
+        this.updateMobileDashAimFrame(22.0);
+      }
+    }
+  }
+
+  public releaseMobileSkillAim(
+    slot: 'basic' | 'skill1' | 'dash' | 'ult',
+    isCancelled: boolean,
+    isQuickTap: boolean
+  ) {
+    this.hideMobileAimPreviews();
+    this.mobileAimOverCancel = false;
+
+    if (isCancelled) {
+      if (slot === 'basic') {
+        this.cancelBowAim();
+        this.callbacks.onAddFloatingText('Dibatalkan', '#94a3b8', 'info');
+      } else if (slot === 'skill1') {
+        if (this.charClass === 'mage') {
+          this.cancelAimGlacialBarrage();
+        } else if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
+          this.cancelAstralEagleAim(true);
+        } else {
+          this.callbacks.onAddFloatingText('Dibatalkan', '#94a3b8', 'info');
+        }
+      } else if (slot === 'ult') {
+        if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
+          this.cancelArrowVolleyAim(true);
+        } else {
+          this.callbacks.onAddFloatingText('Dibatalkan', '#94a3b8', 'info');
+        }
+      } else if (slot === 'dash') {
+        this.callbacks.onAddFloatingText('Dibatalkan', '#94a3b8', 'info');
+      }
+      this.mobileAimActiveSlot = null;
+      this.mobileAimNormalized = { x: 0, y: 0, active: false };
+      return;
+    }
+
+    if (isQuickTap) {
+      this.mobileAimNormalized = { x: 0, y: 0, active: false };
+    }
+
+    if (slot === 'basic') {
+      this.releaseBasicAttack();
+    } else if (slot === 'skill1') {
+      if (this.charClass === 'mage') {
+        this.releaseAimGlacialBarrage(false);
+      } else if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
+        if (isQuickTap) {
+          this.astralEagleAimState.isCharging = false;
+          this.isChargingAstralEagle = false;
+          this.callbacks.onBowAimChange?.(false, 0);
+          this.quickCastAstralEagle();
+        } else {
+          this.releaseAimAstralEagle(false);
+        }
+      } else {
+        if (!isQuickTap && this.mobileAimNormalized.active) {
+          const aim = this.computeMobileWorldAim(11.0, 11.0);
+          this.playerRotationY = Math.atan2(aim.dirX, aim.dirZ);
+          if (this.playerMesh?.group) this.playerMesh.group.rotation.y = this.playerRotationY;
+        }
+        this.castSkill(1);
+      }
+    } else if (slot === 'dash') {
+      this.performDash();
+    } else if (slot === 'ult') {
+      if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
+        if (isQuickTap) {
+          this.isAimingArrowVolley = false;
+          this.arrowVolleyAimState.isCharging = false;
+          if (this.arrowVolleyIndicatorGroup) this.arrowVolleyIndicatorGroup.visible = false;
+          this.callbacks.onArrowVolleyAimChange?.(false);
+          this.quickCastArrowVolley();
+        } else {
+          this.releaseAimArrowVolley(false);
+        }
+      } else if (this.charClass === 'mage') {
+        const starTarget =
+          !isQuickTap && this.mobileAimNormalized.active
+            ? this.mobileStarfallTargetPoint.clone()
+            : undefined;
+        this.startStarfallCasting(starTarget);
+      } else if (this.charClass === 'warrior') {
+        if (!isQuickTap && this.mobileAimNormalized.active) {
+          const aim = this.computeMobileWorldAim(22.0, 22.0);
+          this.playerRotationY = Math.atan2(aim.dirX, aim.dirZ);
+          if (this.playerMesh?.group) this.playerMesh.group.rotation.y = this.playerRotationY;
+        }
+        this.castSkill(2);
+      } else {
+        this.castSkill(4);
+      }
+    }
+
+    this.mobileAimActiveSlot = null;
+    this.mobileAimNormalized = { x: 0, y: 0, active: false };
   }
 
   public zoomCameraByDelta(deltaZoom: number) {
@@ -7853,12 +8218,24 @@ export class GameEngine {
   }
 
   private getBowShotDirection(): THREE.Vector3 {
-    const camFwdX = -Math.sin(this.cameraAngleH);
-    const camFwdZ = -Math.cos(this.cameraAngleH);
-    const camFwdY = -Math.sin(this.cameraAngleV);
-    const camDirXZ = Math.cos(this.cameraAngleV);
-    const baseDir = new THREE.Vector3(camFwdX * camDirXZ, camFwdY, camFwdZ * camDirXZ).normalize();
-    const horizFwd = new THREE.Vector3(camFwdX, 0, camFwdZ).normalize();
+    const hasMobileAim =
+      this.mobileAimNormalized.active &&
+      (this.mobileAimActiveSlot === 'basic' || this.mobileAimActiveSlot === 'skill1');
+    let baseDir: THREE.Vector3;
+    let horizFwd: THREE.Vector3;
+
+    if (hasMobileAim) {
+      const aim = this.computeMobileWorldAim(32, 18);
+      horizFwd = new THREE.Vector3(aim.dirX, 0, aim.dirZ).normalize();
+      baseDir = new THREE.Vector3(aim.dirX, -0.02, aim.dirZ).normalize();
+    } else {
+      const camFwdX = -Math.sin(this.cameraAngleH);
+      const camFwdZ = -Math.cos(this.cameraAngleH);
+      const camFwdY = -Math.sin(this.cameraAngleV);
+      const camDirXZ = Math.cos(this.cameraAngleV);
+      baseDir = new THREE.Vector3(camFwdX * camDirXZ, camFwdY, camFwdZ * camDirXZ).normalize();
+      horizFwd = new THREE.Vector3(camFwdX, 0, camFwdZ).normalize();
+    }
 
     // Auto-assist mild frontal cone targeting toward nearest living enemy in front (<= 26u)
     let bestEnemy: (typeof this.enemies)[0] | null = null;
@@ -9347,7 +9724,7 @@ export class GameEngine {
   }
 
   // --- MAGE CELESTIAL APOCALYPSE (ULTIMATE: 0.8s Cast Time, 14.5 Radius Runic Circle, 14 Glacial Crystals, Giant Magma Meteor & Scorched Crater) ---
-  private startCelestialApocalypseCasting() {
+  private startCelestialApocalypseCasting(overrideTargetPos?: THREE.Vector3) {
     this.isCasting = true;
     this.castingTimer = 0;
     this.castingDuration = 0.8;
@@ -9385,15 +9762,18 @@ export class GameEngine {
       true // Priority VFX: never prune during casting
     );
 
-    // Calculate target impact area in front of character (18 units ahead: radius 14.5)
-    const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
-    let targetPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(18.0));
-    let terrainH = this.world.getTerrainHeight(targetPos.x, targetPos.z);
-    if (isNaN(terrainH) || terrainH < -20 || isNaN(targetPos.x) || isNaN(targetPos.z)) {
+    // Calculate target impact area (Mobile drag target or 18 units ahead: radius 14.5 on solid walkable surface)
+    let targetPos: THREE.Vector3;
+    if (overrideTargetPos) {
+      targetPos = overrideTargetPos.clone();
+      const solidY = getSolidGroundHeight(targetPos.x, targetPos.z, this.playerPos.y);
+      targetPos.y = isNaN(solidY) ? this.playerPos.y : solidY;
+    } else {
+      const fwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
       targetPos = this.playerPos.clone().add(fwd.clone().multiplyScalar(18.0));
-      terrainH = this.world.getTerrainHeight(targetPos.x, targetPos.z);
+      const solidY = getSolidGroundHeight(targetPos.x, targetPos.z, this.playerPos.y);
+      targetPos.y = isNaN(solidY) ? this.playerPos.y : solidY;
     }
-    targetPos.y = Math.max(isNaN(terrainH) ? 0 : terrainH, 0);
 
     // Spawn 14.5 unit radius Glacial Hailstorm & Giant Meteor Barrage at targetPos
     this.spawnCelestialApocalypseBarrage(targetPos);
@@ -9407,7 +9787,7 @@ export class GameEngine {
   }
 
   // Slot 4 - ULTIMATE: Celestial Apocalypse / Starfall
-  public startStarfallCasting() {
+  public startStarfallCasting(overrideTargetPos?: THREE.Vector3) {
     if (this.isControlsLocked || this.isCasting) return;
     if (this.charClass !== 'mage') return;
 
@@ -9429,7 +9809,7 @@ export class GameEngine {
 
       this.skillCooldownsManager.consume('mage_f', this.isZeroCd());
       this.mageUltimateCooldownTimer = this.isZeroCd() ? 0 : SKILL_COOLDOWNS.CELESTIAL_APOCALYPSE;
-      this.startCelestialApocalypseCasting();
+      this.startCelestialApocalypseCasting(overrideTargetPos);
       if (this.devSettings.infiniteEnergy) return stats;
       return { ...stats, mp: Math.max(0, stats.mp - 45) };
     });
@@ -10076,10 +10456,40 @@ export class GameEngine {
   public updateGlacialAimFrame(delta: number = 0) {
     if (!this.isAimGlacialActive && !this.glacialAimState.isCharging) return;
 
-    // Karakter SELALU menghadap searah pandangan kamera ke depan
-    const camFwdX = -Math.sin(this.cameraAngleH);
-    const camFwdZ = -Math.cos(this.cameraAngleH);
-    this.playerRotationY = Math.atan2(camFwdX, camFwdZ);
+    const isMobileDragAim =
+      this.mobileAimActiveSlot === 'skill1' && this.mobileAimNormalized.active;
+    let aimDir: THREE.Vector3;
+
+    if (isMobileDragAim) {
+      const mAim = this.computeMobileWorldAim(32.0, 18.0);
+      this.playerRotationY = Math.atan2(mAim.dirX, mAim.dirZ);
+      this.aimTargetPoint.set(mAim.targetX, mAim.targetY, mAim.targetZ);
+      aimDir = new THREE.Vector3(mAim.dirX, 0, mAim.dirZ).normalize();
+    } else {
+      const camFwdX = -Math.sin(this.cameraAngleH);
+      const camFwdZ = -Math.cos(this.cameraAngleH);
+      this.playerRotationY = Math.atan2(camFwdX, camFwdZ);
+
+      aimDir = new THREE.Vector3();
+      this.camera.getWorldDirection(aimDir);
+
+      let foundGround = false;
+      for (let d = 2.0; d <= 42.0; d += 0.8) {
+        const rayPos = this.camera.position.clone().addScaledVector(aimDir, d);
+        const gy = getSolidGroundHeight(rayPos.x, rayPos.z, this.playerPos.y);
+        if (rayPos.y <= gy + 0.35) {
+          this.aimTargetPoint.set(rayPos.x, gy, rayPos.z);
+          foundGround = true;
+          break;
+        }
+      }
+      if (!foundGround) {
+        this.aimTargetPoint.copy(this.camera.position).addScaledVector(aimDir, 30.0);
+        const gy = getSolidGroundHeight(this.aimTargetPoint.x, this.aimTargetPoint.z, this.playerPos.y);
+        this.aimTargetPoint.y = Math.max(this.aimTargetPoint.y, gy);
+      }
+    }
+
     if (this.playerMesh?.group) {
       this.playerMesh.group.rotation.y = this.playerRotationY;
     }
@@ -10093,36 +10503,17 @@ export class GameEngine {
       if (this.playerMesh.head) this.playerMesh.head.rotation.set(0, 0, 0);
     }
 
-    // Arah bidikan 3D dari tengah kamera (reticle +)
-    const aimDir = new THREE.Vector3();
-    this.camera.getWorldDirection(aimDir);
-
-    // Raycast dari tengah kamera menembus tanah 3D
-    let foundGround = false;
-    for (let d = 2.0; d <= 42.0; d += 0.8) {
-      const rayPos = this.camera.position.clone().addScaledVector(aimDir, d);
-      const gy = this.world.getTerrainHeight(rayPos.x, rayPos.z);
-      if (rayPos.y <= gy + 0.35) {
-        this.aimTargetPoint.set(rayPos.x, gy, rayPos.z);
-        foundGround = true;
-        break;
-      }
-    }
-    if (!foundGround) {
-      this.aimTargetPoint.copy(this.camera.position).addScaledVector(aimDir, 30.0);
-      const gy = this.world.getTerrainHeight(this.aimTargetPoint.x, this.aimTargetPoint.z);
-      this.aimTargetPoint.y = Math.max(this.aimTargetPoint.y, gy);
-    }
-
-    // Soft-lock terdekat di jalur bidik kursor reticle +
+    // Soft-lock terdekat di jalur bidik
     let bestEnemy: (typeof this.enemies)[0] | null = null;
-    let bestDot = 0.70;
+    let bestDot = isMobileDragAim ? 0.82 : 0.70;
+    const originPos = isMobileDragAim ? this.playerPos : this.camera.position;
     for (let e = 0; e < this.enemies.length; e++) {
       const enemy = this.enemies[e];
       if (enemy.data?.isDead) continue;
-      const toE = enemy.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)).sub(this.camera.position);
+      const toE = enemy.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)).sub(originPos);
+      if (isMobileDragAim) toE.y = 0;
       const dist = toE.length();
-      if (dist > 38.0) continue;
+      if (dist > 34.0) continue;
       toE.normalize();
       const dot = aimDir.dot(toE);
       if (dot > bestDot) {
@@ -10153,17 +10544,19 @@ export class GameEngine {
 
     // Update 3D Ground Ring and Curved Trajectory Line
     if (this.aimIndicatorGroup && this.aimIndicatorGroup.visible) {
-      const groundY = this.world.getTerrainHeight(this.aimTargetPoint.x, this.aimTargetPoint.z);
-      const ringY = Math.max(this.aimTargetPoint.y, groundY) + 0.08;
+      const groundY = getSolidGroundHeight(this.aimTargetPoint.x, this.aimTargetPoint.z, this.playerPos.y);
+      const ringY = groundY + 0.08;
       const time = this.clock.getElapsedTime();
       const pulse = 1.0 + Math.sin(time * 6.0) * 0.06;
+      const cancelRed = this.mobileAimOverCancel;
 
       if (this.aimIndicatorGroundRing) {
         this.aimIndicatorGroundRing.position.set(this.aimTargetPoint.x, ringY, this.aimTargetPoint.z);
         this.aimIndicatorGroundRing.rotation.z = time * 0.8;
         this.aimIndicatorGroundRing.scale.set(pulse, pulse, pulse);
         const ringMat = this.aimIndicatorGroundRing.material as THREE.MeshBasicMaterial;
-        ringMat.color.setHex(isLocked ? 0xfbbf24 : 0x38bdf8); // Cyan-Gold when locked
+        ringMat.color.setHex(cancelRed ? 0xef4444 : isLocked ? 0xfbbf24 : 0x38bdf8);
+        ringMat.opacity = cancelRed ? 0.55 : 0.85;
       }
 
       if (this.aimIndicatorInnerRing) {
@@ -10171,13 +10564,14 @@ export class GameEngine {
         this.aimIndicatorInnerRing.rotation.z = -time * 1.2;
         this.aimIndicatorInnerRing.scale.set(pulse, pulse, pulse);
         const innerMat = this.aimIndicatorInnerRing.material as THREE.MeshBasicMaterial;
-        innerMat.color.setHex(isLocked ? 0xfde047 : 0xbae6fd);
+        innerMat.color.setHex(cancelRed ? 0xf87171 : isLocked ? 0xfde047 : 0xbae6fd);
+        innerMat.opacity = cancelRed ? 0.45 : 0.65;
       }
 
       // Curved Trajectory Line from crystals above Mage shoulders down to target point
       if (this.aimTrajectoryLine) {
         const lineMat = this.aimTrajectoryLine.material as THREE.LineBasicMaterial;
-        lineMat.color.setHex(isLocked ? 0xfbbf24 : 0x7dd3fc);
+        lineMat.color.setHex(cancelRed ? 0xef4444 : isLocked ? 0xfbbf24 : 0x7dd3fc);
 
         const startPos = this.playerPos.clone().add(new THREE.Vector3(0, 2.6, 0));
         const endPos = this.aimTargetPoint.clone();
@@ -10726,10 +11120,62 @@ export class GameEngine {
   public updateAimArrowVolleyFrame(delta: number) {
     if (!this.isAimingArrowVolley) return;
 
-    // Karakter SELALU menghadap searah pandangan kamera ke depan
-    const camFwdX = -Math.sin(this.cameraAngleH);
-    const camFwdZ = -Math.cos(this.cameraAngleH);
-    this.playerRotationY = Math.atan2(camFwdX, camFwdZ);
+    const isMobileDragAim =
+      this.mobileAimActiveSlot === 'ult' && this.mobileAimNormalized.active;
+
+    if (isMobileDragAim) {
+      const mAim = this.computeMobileWorldAim(30.0, 14.0);
+      this.playerRotationY = Math.atan2(mAim.dirX, mAim.dirZ);
+      this.arrowVolleyTargetPoint.set(mAim.targetX, mAim.targetY + 0.08, mAim.targetZ);
+    } else {
+      const camFwdX = -Math.sin(this.cameraAngleH);
+      const camFwdZ = -Math.cos(this.cameraAngleH);
+      this.playerRotationY = Math.atan2(camFwdX, camFwdZ);
+
+      const camFwdY = -Math.sin(this.cameraAngleV);
+      const camDirXZ = Math.cos(this.cameraAngleV);
+      const aimDir = new THREE.Vector3(camFwdX * camDirXZ, camFwdY, camFwdZ * camDirXZ).normalize();
+
+      let foundGround = false;
+      for (let d = 4.0; d <= 36.0; d += 1.0) {
+        const tx = this.playerPos.x + aimDir.x * d;
+        const tz = this.playerPos.z + aimDir.z * d;
+        const ty = this.playerPos.y + 1.5 + aimDir.y * d;
+        const gy = getSolidGroundHeight(tx, tz, this.playerPos.y);
+        if (ty <= gy + 0.35) {
+          this.arrowVolleyTargetPoint.set(tx, gy + 0.08, tz);
+          foundGround = true;
+          break;
+        }
+      }
+      if (!foundGround) {
+        this.arrowVolleyTargetPoint.copy(this.playerPos).add(new THREE.Vector3(0, 1.4, 0)).addScaledVector(aimDir, 24.0);
+        const gy = getSolidGroundHeight(this.arrowVolleyTargetPoint.x, this.arrowVolleyTargetPoint.z, this.playerPos.y);
+        this.arrowVolleyTargetPoint.y = gy + 0.08;
+      }
+
+      // Soft-lock terdekat di jalur bidik kamera (untuk desktop / tap tanpa drag manual)
+      let bestEnemy: (typeof this.enemies)[0] | null = null;
+      let bestDot = 0.72;
+      for (let e = 0; e < this.enemies.length; e++) {
+        const enemy = this.enemies[e];
+        if (enemy.data?.isDead) continue;
+        const toE = enemy.mesh.position.clone().sub(this.playerPos);
+        const dist = toE.length();
+        if (dist > 32.0) continue;
+        toE.normalize();
+        const dot = aimDir.dot(toE);
+        if (dot > bestDot) {
+          bestDot = dot;
+          bestEnemy = enemy;
+        }
+      }
+      if (bestEnemy) {
+        const ey = getSolidGroundHeight(bestEnemy.mesh.position.x, bestEnemy.mesh.position.z, this.playerPos.y);
+        this.arrowVolleyTargetPoint.set(bestEnemy.mesh.position.x, ey + 0.08, bestEnemy.mesh.position.z);
+      }
+    }
+
     if (this.playerMesh?.group) {
       this.playerMesh.group.rotation.y = this.playerRotationY;
     }
@@ -10739,54 +11185,23 @@ export class GameEngine {
       animateHunterBowAim(this.playerMesh, 0.65, this.isMoving, this.walkCycle, delta, true);
     }
 
-    // Raycast / step terrain ground along camera aim direction
-    const camFwdY = -Math.sin(this.cameraAngleV);
-    const camDirXZ = Math.cos(this.cameraAngleV);
-    const aimDir = new THREE.Vector3(camFwdX * camDirXZ, camFwdY, camFwdZ * camDirXZ).normalize();
-
-    let foundGround = false;
-    for (let d = 4.0; d <= 36.0; d += 1.0) {
-      const tx = this.playerPos.x + aimDir.x * d;
-      const tz = this.playerPos.z + aimDir.z * d;
-      const ty = this.playerPos.y + 1.5 + aimDir.y * d;
-      const gy = this.world.getTerrainHeight(tx, tz);
-      if (ty <= gy + 0.35) {
-        this.arrowVolleyTargetPoint.set(tx, gy + 0.08, tz);
-        foundGround = true;
-        break;
-      }
-    }
-    if (!foundGround) {
-      this.arrowVolleyTargetPoint.copy(this.playerPos).add(new THREE.Vector3(0, 1.4, 0)).addScaledVector(aimDir, 24.0);
-      const gy = this.world.getTerrainHeight(this.arrowVolleyTargetPoint.x, this.arrowVolleyTargetPoint.z);
-      this.arrowVolleyTargetPoint.y = gy + 0.08;
-    }
-
-    // Soft-lock terdekat di jalur bidik kursor
-    let bestEnemy: (typeof this.enemies)[0] | null = null;
-    let bestDot = 0.72;
-    for (let e = 0; e < this.enemies.length; e++) {
-      const enemy = this.enemies[e];
-      if (enemy.data?.isDead) continue;
-      const toE = enemy.mesh.position.clone().sub(this.playerPos);
-      const dist = toE.length();
-      if (dist > 32.0) continue;
-      toE.normalize();
-      const dot = aimDir.dot(toE);
-      if (dot > bestDot) {
-        bestDot = dot;
-        bestEnemy = enemy;
-      }
-    }
-    if (bestEnemy) {
-      const ey = this.world.getTerrainHeight(bestEnemy.mesh.position.x, bestEnemy.mesh.position.z);
-      this.arrowVolleyTargetPoint.set(bestEnemy.mesh.position.x, ey + 0.08, bestEnemy.mesh.position.z);
-    }
-
-    // Update 3D Ground Ring and Rotating Wind Compass
+    // Update 3D Ground Ring, Cancel Tint, & Rotating Wind Compass
     if (this.arrowVolleyDecalSubgroup) {
       this.arrowVolleyDecalSubgroup.position.copy(this.arrowVolleyTargetPoint);
       this.arrowVolleyDecalSubgroup.rotation.y += delta * 2.0;
+    }
+    if (this.arrowVolleyGroundDecal) {
+      const m = this.arrowVolleyGroundDecal.material as THREE.MeshBasicMaterial;
+      m.color.setHex(this.mobileAimOverCancel ? 0xef4444 : 0x67e8f9);
+      m.opacity = this.mobileAimOverCancel ? 0.45 : 0.85;
+    }
+    if (this.arrowVolleyOuterRing) {
+      const m = this.arrowVolleyOuterRing.material as THREE.MeshBasicMaterial;
+      m.color.setHex(this.mobileAimOverCancel ? 0xf87171 : 0xfde047);
+    }
+    if (this.arrowVolleyTrajectoryLine) {
+      const m = this.arrowVolleyTrajectoryLine.material as THREE.LineBasicMaterial;
+      m.color.setHex(this.mobileAimOverCancel ? 0xef4444 : 0x34d399);
     }
 
     // Update arched trajectory curve from Hunter bow to ground target point
@@ -10996,12 +11411,12 @@ export class GameEngine {
 
     let targetPos: THREE.Vector3;
     if (bestEnemy) {
-      const ey = this.world.getTerrainHeight(bestEnemy.mesh.position.x, bestEnemy.mesh.position.z);
+      const ey = getSolidGroundHeight(bestEnemy.mesh.position.x, bestEnemy.mesh.position.z, this.playerPos.y);
       targetPos = new THREE.Vector3(bestEnemy.mesh.position.x, ey + 0.08, bestEnemy.mesh.position.z);
     } else {
       const tx = this.playerPos.x + camFwd.x * 14.0;
       const tz = this.playerPos.z + camFwd.z * 14.0;
-      const ty = this.world.getTerrainHeight(tx, tz) + 0.08;
+      const ty = getSolidGroundHeight(tx, tz, this.playerPos.y) + 0.08;
       targetPos = new THREE.Vector3(tx, ty, tz);
     }
 
@@ -11723,7 +12138,14 @@ export class GameEngine {
       }
       this.skillCooldownsManager.consume('warrior_dash', this.isZeroCd());
 
-      const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+      const forward =
+        this.mobileAimActiveSlot === 'dash' && this.mobileAimNormalized.active
+          ? this.mobileAimWorldDir.clone().normalize()
+          : new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.playerRotationY);
+      this.playerRotationY = Math.atan2(forward.x, forward.z);
+      if (this.playerMesh?.group) {
+        this.playerMesh.group.rotation.y = this.playerRotationY;
+      }
 
       soundManager.playSkillTerjang();
       this.isDashing = true;
@@ -13420,6 +13842,9 @@ export class GameEngine {
    * If no input is active, defaults to player's facing direction.
    */
   private getPlayerMovementDirection(): THREE.Vector3 {
+    if (this.mobileAimActiveSlot === 'dash' && this.mobileAimNormalized.active && this.mobileAimWorldDir.lengthSq() > 0.01) {
+      return this.mobileAimWorldDir.clone().normalize();
+    }
     const camAngle = this.cameraAngleH;
     const fwdX = -Math.sin(camAngle);
     const fwdZ = -Math.cos(camAngle);
