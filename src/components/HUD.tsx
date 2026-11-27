@@ -78,8 +78,10 @@ interface HUDProps {
   bossState: {
     active: boolean;
     name?: string;
+    title?: string;
     hp?: number;
     maxHp?: number;
+    combatActive?: boolean;
   };
   bossVictoryName?: string | null;
   isMuted: boolean;
@@ -543,22 +545,35 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* Center Top: Boss Health Bar when engaged */}
+      {/* Center Top: Boss Health Bar when inside boss territory or engaged in combat */}
       {!isSpectatorMode && bossState.active && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 w-80 md:w-96 flex flex-col items-center gap-1 z-20 pointer-events-none">
+        <div className="absolute top-5 left-1/2 -translate-x-1/2 w-80 md:w-[26rem] flex flex-col items-center gap-1 z-20 pointer-events-none">
           <div className="text-sm font-black tracking-widest text-red-400 uppercase drop-shadow flex items-center gap-1.5">
             💀 {bossState.name || 'SANG TITAN KUNO OBSIDIAN'}
           </div>
-          <div className="w-full h-5 bg-stone-950/90 rounded-full border-2 border-red-600/80 p-0.5 shadow-2xl overflow-hidden">
+          {bossState.title && (
+            <div className="text-[11px] font-semibold tracking-wider text-amber-300/90 uppercase drop-shadow -mt-0.5">
+              {bossState.title}
+            </div>
+          )}
+          <div
+            className={`w-full h-5 bg-stone-950/90 rounded-full border-2 p-0.5 shadow-2xl overflow-hidden transition-colors ${
+              bossState.combatActive ? 'border-red-500 shadow-red-900/50' : 'border-amber-500/70'
+            }`}
+          >
             <div
-              className="h-full bg-gradient-to-r from-red-600 via-orange-500 to-amber-400 rounded-full transition-all duration-200"
+              className={`h-full rounded-full transition-all duration-200 ${
+                bossState.combatActive
+                  ? 'bg-gradient-to-r from-red-600 via-orange-500 to-amber-400'
+                  : 'bg-gradient-to-r from-amber-700 via-amber-500 to-yellow-400'
+              }`}
               style={{
-                width: `${bossState.hp && bossState.maxHp ? (bossState.hp / bossState.maxHp) * 100 : 100}%`,
+                width: `${bossState.hp !== undefined && bossState.maxHp ? Math.max(0, Math.min(100, (bossState.hp / bossState.maxHp) * 100)) : 100}%`,
               }}
             />
           </div>
           <span className="text-[10px] text-stone-300 font-mono">
-            {bossState.hp} / {bossState.maxHp} HP
+            {Math.ceil(bossState.hp ?? 0)} / {bossState.maxHp} HP
           </span>
         </div>
       )}

@@ -7354,9 +7354,10 @@ export function createSandwormBossMesh(): {
   });
 
   // Struktur Tubuh: 10 segmen silinder beruas (diameter 3.8 unit, panjang total ~32 unit)
+  // Di-flatten langsung di bawah root wormGroup agar Follow-the-Leader spine kinematics bebas gimbal flip
   const segments: THREE.Group[] = [];
   const numSegments = 10;
-  let currentParent: THREE.Group = group;
+  const flatSpacing = 2.65;
 
   for (let i = 0; i < numSegments; i++) {
     const segGroup = new THREE.Group();
@@ -7401,15 +7402,13 @@ export function createSandwormBossMesh(): {
       segGroup.add(sideSpike);
     }
 
-    // Kurva lekukan alami tubuh cacing keluar dari tanah pasir
-    const pitchAngle = i === 0 ? 0.38 : (i < 4 ? -0.14 : -0.20);
-    segGroup.position.set(0, i === 0 ? 4.5 : 0, i === 0 ? 0 : -length * 0.92);
-    segGroup.rotation.x = pitchAngle;
+    // Posisi default lurus sejajar -Z agar sinkron dengan ring-buffer Follow-the-Leader
+    segGroup.position.set(0, 0, -i * flatSpacing);
+    segGroup.rotation.set(0, 0, 0);
 
-    currentParent.add(segGroup);
+    group.add(segGroup);
     segments.push(segGroup);
     parts[`segment_${i}`] = segGroup;
-    currentParent = segGroup;
   }
 
   // Kepala & Mulut Melingkar Mengerikan (Diameter 3.8 unit)

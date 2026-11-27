@@ -2298,8 +2298,8 @@ export async function buildWorldEnvironmentAsync(
   }
 
   function isNearBossArena(x: number, z: number, dist = 55.0): boolean {
-    // 1. Boss Sandworm (Kawah Gurun Barat Daya)
-    if (Math.hypot(x - (-660), z - (-160)) < dist) return true;
+    // 1. Boss Sandworm (Kawah Pusaran Solaria - Jarrus)
+    if (Math.hypot(x - (-840), z - (-260)) < Math.max(dist, 82.0)) return true;
     // 2. Boss Titan (Arena Colosseum Reruntuhan Batu)
     const titanLayout = getLandmarkLayout('bossGolem') || getLandmarkLayout('kawah_boss');
     const tX = titanLayout?.x ?? 340;

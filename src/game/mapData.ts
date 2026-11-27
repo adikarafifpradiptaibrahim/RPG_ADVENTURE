@@ -119,7 +119,7 @@ export const REGIONS: RegionInfo[] = [
     description: 'Endless rolling golden sand dunes, the bustling mud-brick Desert Village of Solaria, the Grand Palace of Sultan Malik, and the ancient pharaoh pyramid.',
     descriptionId: 'Hamparan padang pasir emas di wilayah barat benua! Menampung Piramida Emas, Oase Solaria, dan Istana Megah Sultan Malik.',
     color: '#eab308',
-    bounds: { minX: -800, maxX: -240, minZ: -750, maxZ: 150 },
+    bounds: { minX: -1150, maxX: -240, minZ: -750, maxZ: 150 },
     center: [-500, -420],
     recommendedLevel: 6,
   },
@@ -223,11 +223,11 @@ export const WAYPOINTS: {
   },
   {
     id: 'wp_sandworm',
-    nameId: 'Sarang Cacing Purba Gurun',
+    nameId: 'Kawah Pusaran Solaria (Jarrus)',
     regionId: 'gurun_solaria',
     icon: '🪱',
-    pos: [-580, -220],
-    desc: 'Arena terbuka pusaran pasir habitat Cacing Raksasa Gurun di gurun barat',
+    pos: [-840, -260],
+    desc: 'Cekungan kawah pasir raksasa sarang World Boss Jarrus di pedalaman gurun barat',
   },
   {
     id: 'wp_solaria_village',

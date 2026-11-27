@@ -58,6 +58,9 @@ import {
 import { RemotePlayerData } from '../multiplayer';
 import { GraphicsSettings, loadGraphicsSettings } from '../graphicsSettings';
 import {
+  ANCIENT_TITAN_BOSS_CONFIG,
+  IGNIS_DRAGON_BOSS_CONFIG,
+  JARRUS_WORM_BOSS_CONFIG,
   isInsideSafeZone,
   SPAWN_SANDWORM,
   SPAWN_TITAN,
@@ -181,7 +184,14 @@ export interface GameEngineCallbacks {
   onInteractNPC: (npcId: string) => void;
   onNearbyPrompt: (prompt: string | null, action?: () => void) => void;
   onEnemyStatsUpdate: (enemies: { id: string; name: string; hp: number; maxHp: number; level: number }[]) => void;
-  onBossEncounter: (bossActive: boolean, bossName?: string, bossHp?: number, bossMaxHp?: number) => void;
+  onBossEncounter: (
+    bossActive: boolean,
+    bossName?: string,
+    bossHp?: number,
+    bossMaxHp?: number,
+    bossTitle?: string,
+    combatActive?: boolean
+  ) => void;
   onBossDefeated?: (bossName?: string) => void;
   onSpectatorModeChange?: (active: boolean) => void;
   onHunterWeaponSwitch?: (mode: 'dagger' | 'bow') => void;
@@ -283,11 +293,10 @@ export class GameEngine {
   private cameraTargetOffsetY = 0;
   private cameraAerialZoom = 0;
   private playerStamina = 100;
-  // Zone-Based Boss Combat & BGM System
-  private currentBossZone: BossArenaZone | null = null;
+  // Zone-Based Boss Territory, Combat Aggro, Bar & BGM State Machine
+  private bossCombatStates: Map<string, { combatActive: boolean; disengageTimer: number }> = new Map();
+  private activeBossZoneId: string | null = null;
   private activeBossEnemyData: EnemyData | null = null;
-  private exitBossZoneTimer = 0;
-  private inBossCombatZone = false;
   private unlockedCheckpoints: Set<string> = new Set();
   private lastVisitedTownPos: { id: string; x: number; y: number; z: number; name: string } = (() => {
     try {
@@ -3155,7 +3164,7 @@ export class GameEngine {
       defense: 22,
       expReward: 1650,
       goldReward: 1200,
-      speed: 2.8,
+      speed: 14.5,
       attackRange: 6.5,
       detectRange: SPAWN_SANDWORM.leashRadius,
       position: [SPAWN_SANDWORM.x, wormY, SPAWN_SANDWORM.z],
@@ -3409,7 +3418,9 @@ export class GameEngine {
       }
       e.isReturning = false;
       e.deathTimer = 0;
-      e.leashRadius = e.data.id === 'boss_dragonfang' ? 48 : (e.data.id === 'boss_titan' ? 42 : (e.data.id === 'boss_jarrus' ? 48 : (e.data.type === 'boss' ? 38 : 22)));
+      e.leashRadius =
+        BOSS_ARENA_ZONES[e.data.id]?.territoryRadius ??
+        (e.data.type === 'boss' ? 42 : 22);
     });
     await cooperativeYield(4);
   }
@@ -5609,6 +5620,7 @@ export class GameEngine {
     nearest.mesh.scale.set(scale, scale, scale);
     nearest.mesh.rotation.order = 'XYZ';
     nearest.mesh.rotation.set(0, 0, 0);
+    this.bossCombatStates.delete(nearest.data.id);
     this.resetEnemyPose(nearest);
     this.bossManager?.resetBoss(nearest.data.id, nearest);
 
@@ -5629,9 +5641,9 @@ export class GameEngine {
       tz = 800;
       label = 'Kaldera Naga Ignis';
     } else if (preset === 'jarrus') {
-      tx = -580;
-      tz = -180;
-      label = 'Kawah Cacing Jarrus';
+      tx = -840;
+      tz = -205;
+      label = 'Kawah Pusaran Solaria [-840, -205]';
     } else if (preset === 'titan') {
       const titanEnemy = this.enemies.find((e) => e.data.id === 'boss_titan');
       const gx = titanEnemy?.spawnPos?.x ?? titanEnemy?.data.position[0] ?? SPAWN_TITAN.x;
@@ -12905,6 +12917,10 @@ export class GameEngine {
     }
     enemy.data.hp -= actualDamage;
 
+    if ((enemy.data.type === 'boss' || BOSS_ARENA_ZONES[enemy.data.id]) && enemy.data.hp > 0) {
+      this.notifyBossDamaged(enemy.data.id);
+    }
+
     if (this.gameMode === 'multiplayer') {
       this.callbacks.onLocalMonsterHit?.({
         monsterId: enemy.data.id,
@@ -12930,11 +12946,14 @@ export class GameEngine {
       this.triggerCameraShake(0.06);
     }
 
-    // Visual knockback & hurt flash
-    const knockDir = new THREE.Vector3()
-      .subVectors(enemy.mesh.position, this.playerPos)
-      .normalize();
-    enemy.mesh.position.add(knockDir.multiplyScalar(knockback));
+    // Visual knockback & hurt flash (World Bosses ignore knockback displacement so they never desync from ground/spine)
+    const effectiveKnockback = enemy.data.type === 'boss' ? 0 : knockback;
+    if (effectiveKnockback > 0) {
+      const knockDir = new THREE.Vector3()
+        .subVectors(enemy.mesh.position, this.playerPos)
+        .normalize();
+      enemy.mesh.position.add(knockDir.multiplyScalar(effectiveKnockback));
+    }
 
     // Floating text
     this.callbacks.onAddFloatingText(
@@ -13157,16 +13176,7 @@ export class GameEngine {
 
   private animateEnemyWalk(enemy: (typeof this.enemies)[0], delta: number) {
     if (enemy.data.id === 'boss_jarrus') {
-      if (enemy.parts.teeth) {
-        enemy.parts.teeth.rotation.z += delta * 2.4;
-      }
-      for (let i = 1; i < 10; i++) {
-        const seg = enemy.parts[`segment_${i}`];
-        if (seg) {
-          seg.rotation.y = Math.sin(enemy.walkCycle * 2.5 - i * 0.45) * 0.22;
-          seg.rotation.z = Math.cos(enemy.walkCycle * 2.0 - i * 0.4) * 0.12;
-        }
-      }
+      // Controlled by BossManager Follow-the-Leader spine kinematics
       return;
     }
     if (enemy.data.id === 'boss_dragonfang') {
@@ -15029,8 +15039,6 @@ export class GameEngine {
    * Menghitung deteksi jarak player, pergerakan mengejar player, dan eksekusi serangan lokal di loop requestAnimationFrame.
    */
   private updateMonsterSinglePlayer(delta: number) {
-    let bossInView = false;
-    let activeBoss: EnemyData | null = null;
     const decoyTargetInfo = this.activeShadowDecoy && this.activeShadowDecoy.active
       ? { active: true, position: this.activeShadowDecoy.pos }
       : null;
@@ -15112,32 +15120,89 @@ export class GameEngine {
       }
 
       const slowMult = (enemy.slowTimer && enemy.slowTimer > 0) ? (1 - (enemy.slowFactor || 0.55)) : 1.0;
+      const bossZone = enemy.data.type === 'boss' ? BOSS_ARENA_ZONES[enemy.data.id] : undefined;
       const territoryRadius =
+        bossZone?.territoryRadius ||
         enemy.leashRadius ||
-        (enemy.data.id === 'boss_dragonfang'
-          ? 48
-          : enemy.data.id === 'boss_titan'
-            ? 42
-            : enemy.data.id === 'boss_jarrus'
-              ? 48
-              : enemy.data.type === 'boss'
-                ? 38
-                : 22);
+        (enemy.data.type === 'boss' ? 42 : 22);
+
+      const playerDistFromArena = bossZone
+        ? Math.hypot(this.playerPos.x - bossZone.center.x, this.playerPos.z - bossZone.center.z)
+        : distToPlayer;
 
       // Distance culling berdasarkan pengaturan grafis untuk performa
       const cullDist = Math.min(85, this.graphicsSettings.renderDistance * 0.9);
-      if (distToPlayer > cullDist && distFromSpawn > territoryRadius) {
+      if (
+        distToPlayer > cullDist &&
+        distFromSpawn > territoryRadius &&
+        (!bossZone || playerDistFromArena > territoryRadius + 28)
+      ) {
         enemy.mesh.visible = false;
         return;
       }
       enemy.mesh.visible = true;
 
-      if (enemy.data.type === 'boss' && distToPlayer < 32) {
-        bossInView = true;
-        activeBoss = enemy.data;
+      // WORLD BOSS GLOBAL STATE MACHINE DISPATCH (Standby vs Disengaging vs Active Combat)
+      if (bossZone) {
+        const combatState = this.bossCombatStates.get(enemy.data.id);
+        const combatActive = combatState?.combatActive ?? false;
+        const isDisengaging = combatActive && (combatState?.disengageTimer ?? 0) > 0;
+
+        if (!combatActive) {
+          enemy.isAttacking = false;
+          if (enemy.data.id === 'boss_jarrus') {
+            enemy.isReturning = false;
+            this.bossManager.updateJarrusStandby(enemy, delta, distToPlayer);
+            return;
+          }
+          // Ignis & Titan idle calmly at arena center until player enters aggroRange or attacks inside territory
+          if (distFromSpawn > 1.2) {
+            const toSpawnX = spawnPos.x - ePos.x;
+            const toSpawnZ = spawnPos.z - ePos.z;
+            const dSpawn = Math.hypot(toSpawnX, toSpawnZ) || 1;
+            const returnSpeed = enemy.data.speed * slowMult * delta;
+            ePos.x += (toSpawnX / dSpawn) * Math.min(dSpawn, returnSpeed);
+            ePos.z += (toSpawnZ / dSpawn) * Math.min(dSpawn, returnSpeed);
+            ePos.y = getSolidGroundHeight(ePos.x, ePos.z, ePos.y);
+            enemy.mesh.rotation.y = Math.atan2(toSpawnX, toSpawnZ);
+            enemy.walkCycle += delta * 5.0;
+            this.animateEnemyWalk(enemy, delta);
+            if (enemy.data.hp < enemy.data.maxHp) {
+              enemy.data.hp = Math.min(enemy.data.maxHp, enemy.data.hp + enemy.data.maxHp * 0.12 * delta);
+            }
+          } else {
+            enemy.isReturning = false;
+            this.resetEnemyPose(enemy);
+          }
+          return;
+        }
+
+        if (isDisengaging) {
+          enemy.isAttacking = false;
+          if (enemy.data.id === 'boss_jarrus') {
+            this.bossManager.updateJarrusReturnToCenter(enemy, delta);
+            return;
+          }
+          // Within 5s disengage grace period: retreat smoothly toward center without full HP reset yet
+          if (distFromSpawn > 1.2) {
+            const toSpawnX = spawnPos.x - ePos.x;
+            const toSpawnZ = spawnPos.z - ePos.z;
+            const dSpawn = Math.hypot(toSpawnX, toSpawnZ) || 1;
+            const returnSpeed = enemy.data.speed * slowMult * delta;
+            ePos.x += (toSpawnX / dSpawn) * Math.min(dSpawn, returnSpeed);
+            ePos.z += (toSpawnZ / dSpawn) * Math.min(dSpawn, returnSpeed);
+            ePos.y = getSolidGroundHeight(ePos.x, ePos.z, ePos.y);
+            enemy.mesh.rotation.y = Math.atan2(toSpawnX, toSpawnZ);
+            enemy.walkCycle += delta * 5.5;
+            this.animateEnemyWalk(enemy, delta);
+          } else {
+            this.resetEnemyPose(enemy);
+          }
+          return;
+        }
       }
 
-      // STATE 1: Monster sedang berjalan kembali ke tempat asalnya (Leash Return & Slow Regen)
+      // STATE 1: Monster biasa sedang berjalan kembali ke tempat asalnya (Leash Return & Slow Regen)
       if (enemy.isReturning) {
         const toSpawnX = spawnPos.x - ePos.x;
         const toSpawnZ = spawnPos.z - ePos.z;
@@ -15188,8 +15253,8 @@ export class GameEngine {
         }
       }
 
-      // STATE 2: Deteksi batas wilayah (Jika player membawa monster terlalu jauh dari sarangnya)
-      if (distFromSpawn > territoryRadius || distToPlayer > enemy.data.detectRange * 1.5) {
+      // STATE 2: Deteksi batas wilayah (Monster biasa; World Boss yang sudah combatActive dikawal penuh oleh territoryRadius)
+      if (!bossZone && (distFromSpawn > territoryRadius || distToPlayer > enemy.data.detectRange * 1.5)) {
         if (distFromSpawn > 1.2) {
           enemy.isReturning = true;
           return;
@@ -15199,11 +15264,14 @@ export class GameEngine {
         }
       }
 
-      // STATE 2.5: Boss Specialized Attack Skills & Ground Telegraph Danger Zones (Hanya jika pemain dalam jangkauan & boss di arena)
-      if (enemy.data.type === 'boss' && distToPlayer <= enemy.data.detectRange && distFromSpawn <= territoryRadius) {
-        const isCasting = this.bossManager.updateBossBehavior(enemy, this.playerPos, delta, !this.isGrounded, this.playerVel);
-        if (isCasting) {
-          return;
+      // STATE 2.5: Boss Specialized Attack Skills & Ground Telegraph Danger Zones (Aktif menyeluruh di dalam territoryRadius)
+      if (enemy.data.type === 'boss') {
+        const bossActiveRadius = bossZone ? territoryRadius + 8 : territoryRadius;
+        if (distFromSpawn <= bossActiveRadius && (!bossZone || playerDistFromArena <= territoryRadius)) {
+          const isCasting = this.bossManager.updateBossBehavior(enemy, this.playerPos, delta, !this.isGrounded, this.playerVel);
+          if (isCasting) {
+            return;
+          }
         }
       }
 
@@ -15227,7 +15295,8 @@ export class GameEngine {
       const distToCurrentTarget = resolvedTarget.dist;
 
       // STATE 3: Jika target dalam jarak deteksi dan monster masih di dalam wilayahnya -> kejar & serang
-      if (distToCurrentTarget <= enemy.data.detectRange && distFromSpawn <= territoryRadius) {
+      const engageRange = bossZone ? territoryRadius * 2 : enemy.data.detectRange;
+      if (distToCurrentTarget <= engageRange && distFromSpawn <= territoryRadius) {
         const toTarget = new THREE.Vector3().subVectors(currentTargetPos, ePos).normalize();
         const targetRotY = Math.atan2(toTarget.x, toTarget.z);
         enemy.mesh.rotation.y = targetRotY;
@@ -15280,82 +15349,137 @@ export class GameEngine {
     this.updateBossCombatZoneAndMusic(delta);
   }
 
+  private getBossDisplayTitle(bossId: string): string | undefined {
+    if (bossId === 'boss_jarrus') return JARRUS_WORM_BOSS_CONFIG.titleId || JARRUS_WORM_BOSS_CONFIG.title;
+    if (bossId === 'boss_dragonfang') return IGNIS_DRAGON_BOSS_CONFIG.titleId || IGNIS_DRAGON_BOSS_CONFIG.title;
+    if (bossId === 'boss_titan') return ANCIENT_TITAN_BOSS_CONFIG.titleId || ANCIENT_TITAN_BOSS_CONFIG.title;
+    return undefined;
+  }
+
+  public notifyBossDamaged(bossId: string) {
+    const zone = BOSS_ARENA_ZONES[bossId];
+    if (!zone) return;
+    const boss = this.enemies.find((e) => e.data.id === bossId);
+    if (!boss || boss.data.isDead || (boss.data.hp ?? 0) <= 0) return;
+
+    const playerDistCenter = Math.hypot(this.playerPos.x - zone.center.x, this.playerPos.z - zone.center.z);
+    if (playerDistCenter <= zone.territoryRadius) {
+      const prev = this.bossCombatStates.get(bossId);
+      if (!prev || !prev.combatActive || prev.disengageTimer > 0) {
+        this.bossCombatStates.set(bossId, { combatActive: true, disengageTimer: 0 });
+        boss.isReturning = false;
+      }
+    }
+  }
+
   /**
-   * Zone-Based Combat Trigger & Boss Bar / Music Persistence System
-   * 1. Bounding arena radius: Titan: 42m, Naga: 48m, Sandworm: 48m.
-   * 2. When player distance to boss arena center <= arenaRadius:
-   *    - inBossZone = true
-   *    - Boss Bar remains active and visible regardless of distance from 3D model
-   *    - Play Boss BGM
-   *    - exitBossZoneTimer = 0
-   * 3. When player steps out (> arenaRadius):
-   *    - Countdown exitBossZoneTimer for 5.0 seconds
-   *    - If player re-enters before 5.0s, timer resets to 0 and boss bar/music persist
-   *    - If after 5.0s player stays outside:
-   *      - Fade-out boss bar
-   *      - Cross-fade audio (2.0s) back to chill overworld BGM
-   *      - Boss returns / leashes back to spawn
+   * Global Standardized Boss Zone, Health Bar, Aggro & Music State Machine
+   * (Berlaku seragam untuk boss_jarrus [r=68, aggro=36], boss_dragonfang [r=58, aggro=36], boss_titan [r=52, aggro=34])
+   * 1. Masuk territoryRadius saat combatActive === false:
+   *    - Bar HP Boss (Nama + Gelar + HP) langsung tampil. Boss standby & musik tetap BGM lingkungan.
+   * 2. Keluar territoryRadius saat combatActive === false:
+   *    - Bar HP Boss langsung menghilang (0 detik), musik lingkungan tidak terputus.
+   * 3. Memicu combatActive = true:
+   *    - Saat memasuki aggroRadius tubuh Boss ATAU menyerang/melukai Boss dari dalam territoryRadius.
+   *    - Bar HP terkunci aktif, musik Boss segera dimainkan, Boss bertarung di seluruh territoryRadius.
+   * 4. Keluar territoryRadius saat combatActive === true:
+   *    - Mulai disengageTimer 5.0 detik; Boss mundur ke pusat.
+   *    - Masuk kembali < 5s -> timer reset 0 & pertarungan berlanjut mulus.
+   *    - Melewati 5.0s di luar -> combatActive = false, bar hilang, audio crossfade BGM normal, Boss reset standby.
    */
   private updateBossCombatZoneAndMusic(delta: number) {
-    let playerInsideZone: BossArenaZone | null = null;
-    for (const zone of Object.values(BOSS_ARENA_ZONES)) {
-      const dist = Math.hypot(this.playerPos.x - zone.center.x, this.playerPos.z - zone.center.z);
-      if (dist <= zone.radius) {
-        playerInsideZone = zone;
-        break;
-      }
-    }
+    let displayZone: BossArenaZone | null = null;
+    let displayBoss: (typeof this.enemies)[0] | null = null;
+    let displayCombatActive = false;
 
-    if (playerInsideZone) {
-      const boss = this.enemies.find((e) => e.data.id === playerInsideZone!.id);
-      if (boss && !boss.data.isDead && (boss.data.hp ?? 0) > 0) {
-        this.inBossCombatZone = true;
-        this.currentBossZone = playerInsideZone;
-        this.activeBossEnemyData = boss.data;
-        this.exitBossZoneTimer = 0; // Reset countdown while in arena
-      } else {
-        // Boss is dead
-        this.inBossCombatZone = false;
-        this.currentBossZone = null;
-        this.activeBossEnemyData = null;
-        this.exitBossZoneTimer = 0;
+    let graceZone: BossArenaZone | null = null;
+    let graceBoss: (typeof this.enemies)[0] | null = null;
+
+    for (const zone of Object.values(BOSS_ARENA_ZONES)) {
+      const boss = this.enemies.find((e) => e.data.id === zone.id);
+      const bossAlive = !!boss && !boss.data.isDead && (boss.data.hp ?? 0) > 0;
+      const st = this.bossCombatStates.get(zone.id) || { combatActive: false, disengageTimer: 0 };
+
+      if (!bossAlive) {
+        if (st.combatActive || st.disengageTimer > 0) {
+          st.combatActive = false;
+          st.disengageTimer = 0;
+          this.bossCombatStates.set(zone.id, st);
+        }
+        continue;
       }
-    } else if (this.inBossCombatZone && this.currentBossZone) {
-      // Player stepped outside the arena radius: start countdown 5.0 seconds!
-      this.exitBossZoneTimer += delta;
-      const boss = this.enemies.find((e) => e.data.id === this.currentBossZone!.id);
-      if (boss) {
-        this.activeBossEnemyData = boss.data;
-      }
-      if (this.exitBossZoneTimer >= 5.0 || !boss || boss.data.isDead || (boss.data.hp ?? 0) <= 0) {
-        // 5 seconds elapsed outside: fade out boss bar & crossfade music to chill overworld!
-        this.inBossCombatZone = false;
-        this.currentBossZone = null;
-        this.activeBossEnemyData = null;
-        this.exitBossZoneTimer = 0;
-        soundManager.evadeBossMusic(2.0);
-        if (boss && !boss.data.isDead) {
-          boss.isReturning = true;
+
+      const playerDistCenter = Math.hypot(this.playerPos.x - zone.center.x, this.playerPos.z - zone.center.z);
+
+      if (playerDistCenter <= zone.territoryRadius) {
+        if (!st.combatActive) {
+          const distToBossBodyXZ = Math.hypot(
+            this.playerPos.x - boss!.mesh.position.x,
+            this.playerPos.z - boss!.mesh.position.z
+          );
+          if (
+            distToBossBodyXZ <= zone.aggroRange &&
+            !this.isPlayerStealthed &&
+            !isInsideSafeZone(this.playerPos.x, this.playerPos.z)
+          ) {
+            st.combatActive = true;
+            st.disengageTimer = 0;
+          }
+        } else {
+          st.disengageTimer = 0;
+          boss!.isReturning = false;
+        }
+        displayZone = zone;
+        displayBoss = boss!;
+        displayCombatActive = st.combatActive;
+      } else if (st.combatActive) {
+        st.disengageTimer += delta;
+        if (st.disengageTimer >= 5.0) {
+          st.combatActive = false;
+          st.disengageTimer = 0;
+          this.bossManager.resetBoss(zone.id, boss);
+          if (boss && !boss.data.isDead) {
+            boss.data.hp = boss.data.maxHp;
+            boss.isReturning = true;
+          }
+        } else {
+          graceZone = zone;
+          graceBoss = boss!;
         }
       }
+
+      this.bossCombatStates.set(zone.id, st);
     }
 
-    const isBossActive =
-      this.inBossCombatZone &&
-      this.activeBossEnemyData !== null &&
-      (this.activeBossEnemyData.hp ?? 0) > 0;
+    const chosenZone = displayZone ?? graceZone;
+    const chosenBoss = displayBoss ?? graceBoss;
+    const chosenCombatActive = displayZone ? displayCombatActive : graceZone !== null;
 
-    this.callbacks.onBossEncounter(
-      isBossActive,
-      this.activeBossEnemyData ? this.activeBossEnemyData.nameId : undefined,
-      this.activeBossEnemyData ? this.activeBossEnemyData.hp : undefined,
-      this.activeBossEnemyData ? this.activeBossEnemyData.maxHp : undefined
-    );
+    if (chosenZone && chosenBoss) {
+      this.activeBossZoneId = chosenZone.id;
+      this.activeBossEnemyData = chosenBoss.data;
+      const title = this.getBossDisplayTitle(chosenZone.id);
+      this.callbacks.onBossEncounter(
+        true,
+        chosenBoss.data.nameId || chosenBoss.data.name,
+        chosenBoss.data.hp,
+        chosenBoss.data.maxHp,
+        title,
+        chosenCombatActive
+      );
 
-    if (isBossActive && this.currentBossZone) {
-      soundManager.playBossMusic(this.currentBossZone.bossType);
-    } else if (!this.inBossCombatZone && soundManager.getCurrentBossMusic()) {
-      soundManager.evadeBossMusic(2.0);
+      if (chosenCombatActive) {
+        soundManager.playBossMusic(chosenZone.bossType);
+      } else if (soundManager.getCurrentBossMusic()) {
+        soundManager.evadeBossMusic(1.5);
+      }
+    } else {
+      this.activeBossZoneId = null;
+      this.activeBossEnemyData = null;
+      this.callbacks.onBossEncounter(false, undefined, undefined, undefined, undefined, false);
+      if (soundManager.getCurrentBossMusic()) {
+        soundManager.evadeBossMusic(2.0);
+      }
     }
   }
 
@@ -15366,9 +15490,6 @@ export class GameEngine {
    * Client HANYA merender posisi monster berdasarkan koordinat (X, Z) yang dikirimkan oleh server.js via Socket.io.
    */
   private updateMonsterMultiplayer(delta: number) {
-    let bossInView = false;
-    let activeBoss: EnemyData | null = null;
-
     this.enemies.forEach((enemy) => {
       if (enemy.data.isDead) {
         const target = this.remoteMonsterTargets.get(enemy.data.id);
@@ -15402,11 +15523,6 @@ export class GameEngine {
       }
       enemy.mesh.visible = true;
 
-      if (enemy.data.type === 'boss' && dist < 32) {
-        bossInView = true;
-        activeBoss = enemy.data;
-      }
-
       // Ambil koordinat target (X, Z) yang dikirimkan server.js via Socket.io
       const target = this.remoteMonsterTargets.get(enemy.data.id);
       if (target) {
@@ -15436,11 +15552,14 @@ export class GameEngine {
         while (diffRot > Math.PI) diffRot -= Math.PI * 2;
         enemy.mesh.rotation.y += diffRot * lerpSpeed;
 
-        // Render animasi procedural berdasarkan pergerakan koordinat
-        const movedDist = Math.hypot(ePos.x - prevX, ePos.z - prevZ);
-        const isMoving = movedDist > 0.003;
+        if (enemy.data.id === 'boss_jarrus') {
+          this.bossManager.updateJarrusRemoteSpine(enemy, delta);
+        } else {
+          // Render animasi procedural berdasarkan pergerakan koordinat
+          const movedDist = Math.hypot(ePos.x - prevX, ePos.z - prevZ);
+          const isMoving = movedDist > 0.003;
 
-        if (isMoving) {
+          if (isMoving) {
           enemy.walkCycle += delta * 6;
           if (enemy.data.type === 'slime' || enemy.data.type === 'magma_slime') {
             ePos.y += Math.abs(Math.sin(enemy.walkCycle)) * 0.45;
@@ -15465,6 +15584,7 @@ export class GameEngine {
           } else if (enemy.parts.leftLeg && enemy.parts.rightLeg) {
             enemy.parts.leftLeg.rotation.x = Math.sin(enemy.walkCycle) * 0.5;
             enemy.parts.rightLeg.rotation.x = -Math.sin(enemy.walkCycle) * 0.5;
+          }
           }
         }
       }

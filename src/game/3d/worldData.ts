@@ -98,10 +98,10 @@ export const SEA_BED_HEIGHT = -6.0;
  * Skips all expensive Domain-Warped FBM noise, spline evaluation, and road checks.
  */
 export function isFarOcean(x: number, z: number): boolean {
-  // 1. Fast check for main continent (center [0, -320], max radius 1000)
+  // 1. Fast check for main continent (center [0, -320], max radius 1250 mencakup ekspansi gurun barat)
   const cdx = x;
   const cdz = z - (-320);
-  if (cdx * cdx + cdz * cdz <= 1000000) {
+  if (cdx * cdx + cdz * cdz <= 1562500) {
     return false;
   }
 
@@ -136,11 +136,21 @@ export function isFarOcean(x: number, z: number): boolean {
   return true;
 }
 
+function wrapAngleDiff(a: number, b: number): number {
+  let d = a - b;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
+
 export function getContinentCoastRadius(angle: number, x: number, z: number): number {
   let r = 480;
 
   // 1. Barat Laut: Semenanjung Menjorok Melengkung ke Barat-Utara (Istana Sultan [-540, -540] & Kanyon [-280, -760])
   const nwCape = Math.exp(-Math.pow((angle - (-2.60)) / 0.38, 2)) * 320;
+
+  // 1b. Ekspansi Pedalaman Gurun Barat (-X): memperluas gurun hingga X ~ -1080 agar Kawah Pusaran Solaria [-840, -260] jauh dari pantai (> 90+ unit)
+  const westDesertExpansion = Math.exp(-Math.pow(wrapAngleDiff(angle, 3.04) / 0.44, 2)) * 560;
 
   // 2. Barat Daya: Tanjung Gurun Meruncing ke Laut Selatan (Desa Gurun [-560, -110])
   const swCape = Math.exp(-Math.pow((angle - 2.75) / 0.32, 2)) * 190;
@@ -175,7 +185,7 @@ export function getContinentCoastRadius(angle: number, x: number, z: number): nu
   // 11. Barat Laut: Teluk Cekung sebelum Tanjung Barat Laut (angle ~ -2.05)
   const nwBay = Math.exp(-Math.pow((angle - (-2.05)) / 0.22, 2)) * -170;
 
-  r += nwCape + swCape + swDeepBay + sHarbor + seCape + eastBay + eastMistCape + neSpire1 + neInlet + neSpire2 + northBay + northTitan + nwBay;
+  r += nwCape + westDesertExpansion + swCape + swDeepBay + sHarbor + seCape + eastBay + eastMistCape + neSpire1 + neInlet + neSpire2 + northBay + northTitan + nwBay;
 
   // Domain-Warped Multi-Octave FBM Noise
   const warpX = Math.sin(x * 0.007 + z * 0.005) * 36 + Math.cos(z * 0.014) * 18;
@@ -197,7 +207,7 @@ export function isMainContinentLand(x: number, z: number): boolean {
   const dx = x;
   const dz = z - (-320);
   const distSq = dx * dx + dz * dz;
-  if (distSq > 1000000) return false; // > 1000 units: definitely ocean
+  if (distSq > 1562500) return false; // > 1250 units: definitely ocean
   if (distSq < 90000) return true;    // < 300 units: definitely continent core
   const dist = Math.sqrt(distSq);
   const angle = Math.atan2(dz, dx);
@@ -705,16 +715,16 @@ const RAW_WORLD_LANDMARKS: LandmarkDef[] = [
   },
   {
     id: 'desert_sandworm',
-    name: 'Ancient Sandworm Lair',
-    nameId: 'Sarang Sandworm Gurun',
-    x: -580,
-    z: -220,
-    level: 9,
+    name: 'Solaria Whirlwind Crater',
+    nameId: 'Kawah Pusaran Solaria (Jarrus)',
+    x: -840,
+    z: -260,
+    level: 10,
     type: 'boss',
     icon: '🪱',
     color: '#ea580c',
-    description: 'Wide open sandy wilderness where the colossal Sandworm burrows freely.',
-    descriptionId: 'Gurun pasir terbuka di bagian tengah gurun barat tanpa halangan, sarang perburuan Cacing Raksasa Gurun.',
+    description: 'A vast sunken desert crater surrounded by high dunes and colossal ancient ribs in deep western Solaria, lair of World Boss Jarrus.',
+    descriptionId: 'Cekungan kawah pasir raksasa berbukit pasir tinggi dan kerangka fosil raksasa di pedalaman gurun barat, sarang World Boss Jarrus Sang Cacing Purba.',
     isBoss: true,
     waypointId: 'wp_sandworm',
     labelPosition: 'above',
@@ -1132,11 +1142,26 @@ export function getProceduralContinentHeight(x: number, z: number): number {
         return lm.pyramid?.y ?? 1.50;
       }
 
-      const sandwormX = lm.desert_sandworm?.x ?? -580;
-      const sandwormZ = lm.desert_sandworm?.z ?? -220;
+      const sandwormX = lm.desert_sandworm?.x ?? -840;
+      const sandwormZ = lm.desert_sandworm?.z ?? -260;
+      const sandwormFloorRadius = lm.desert_sandworm?.flattenRadius ?? 55;
+      const sandwormFloorY = lm.desert_sandworm?.y ?? 0.50;
       const distSandworm = Math.hypot(x - sandwormX, z - sandwormZ);
-      if (distSandworm <= (lm.desert_sandworm?.flattenRadius ?? 50)) {
-        return lm.desert_sandworm?.y ?? 0.50;
+      if (distSandworm <= sandwormFloorRadius) {
+        return sandwormFloorY;
+      }
+      if (distSandworm <= 96) {
+        // Bibir bukit pasir melingkar tinggi mengelilingi Kawah Pusaran Solaria (puncak di r ~ 70, lalu turun alami ke bukit pasir gurun)
+        const duneBaseWave = Math.sin(x * 0.025 + z * 0.02) * 1.3 + Math.cos(x * 0.015 - z * 0.02) * 0.6;
+        const outerDesertY = Math.max(2.00, Math.min(4.50, 2.65 + duneBaseWave));
+        const angDune = Math.atan2(z - sandwormZ, x - sandwormX);
+        const rimCrest = 6.2 + Math.sin(angDune * 5.0) * 0.65;
+        if (distSandworm <= 72) {
+          const tRim = smoothstepBlend(sandwormFloorRadius, 72, distSandworm);
+          return lerpVal(sandwormFloorY, rimCrest, tRim);
+        }
+        const tOut = smoothstepBlend(72, 96, distSandworm);
+        return lerpVal(rimCrest, outerDesertY, tOut);
       }
 
       const oasisX = lm.oasis?.x ?? -420;

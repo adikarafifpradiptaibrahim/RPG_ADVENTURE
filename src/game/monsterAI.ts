@@ -8,6 +8,7 @@ export interface BossArenaZone {
   bossType: 'titan' | 'dragon' | 'worm';
   center: { x: number; z: number };
   radius: number;
+  territoryRadius: number;
   aggroRange: number;
 }
 
@@ -20,25 +21,28 @@ export const BOSS_ARENA_ZONES: Record<string, BossArenaZone> = {
     id: 'boss_titan',
     nameId: 'Sang Titan Kuno Obsidian',
     bossType: 'titan',
-    center: { x: 320, z: -640 },
-    radius: 50,
-    aggroRange: 50,
+    center: { x: 180, z: -560 },
+    radius: 52,
+    territoryRadius: 52,
+    aggroRange: 34,
   },
   boss_dragonfang: {
     id: 'boss_dragonfang',
     nameId: 'Ignis, Sang Naga Purba',
     bossType: 'dragon',
     center: { x: 40, z: 840 },
-    radius: 55,
-    aggroRange: 55,
+    radius: 58,
+    territoryRadius: 58,
+    aggroRange: 36,
   },
   boss_jarrus: {
     id: 'boss_jarrus',
     nameId: 'Jarrus, Sang Cacing Purba Solaria',
     bossType: 'worm',
-    center: { x: -660, z: -160 },
-    radius: 55,
-    aggroRange: 55,
+    center: { x: -840, z: -260 },
+    radius: 68,
+    territoryRadius: 68,
+    aggroRange: 36,
   },
 };
 
@@ -240,33 +244,44 @@ export class MonsterCombatAI {
     cdMap: Map<string, number>
   ): string | null {
     // Out of arena engagement range: do not trigger any skills
-    if (distToPlayer > 48.0) {
+    if (distToPlayer > 66.0) {
       return null;
     }
 
     const whirlpoolCd = cdMap.get('sand_whirlpool') ?? 0;
-    const burrowCd = cdMap.get('burrow_burst') ?? 0;
+    const breachCd = cdMap.get('dolphin_breach') ?? 0;
+    const slamCd = cdMap.get('towering_body_slam') ?? 0;
     const spikeCd = cdMap.get('sand_spike_barrage') ?? 0;
-    const tailCd = cdMap.get('tail_slam') ?? 0;
+    const tailCd = cdMap.get('tail_whip') ?? 0;
 
-    // 1. Desperation Mechanic: Sand Whirlpool (HP < 50%, Cooldown 18s)
-    if (currentHp < maxHp * 0.5 && whirlpoolCd <= 0 && distToPlayer <= 45.0) {
+    // 1. Ultimate Priority (HP < 60%, Cooldown 18s): Quicksand Vortex & Sand Bomb
+    if (currentHp < maxHp * 0.6 && whirlpoolCd <= 0 && distToPlayer <= 60.0) {
       return 'sand_whirlpool';
     }
 
-    // 2. Long Distance Eruption: Burrow & Surface Eruption (Jarak > 12 unit, Cooldown 6.5s)
-    if (distToPlayer > 12.0 && distToPlayer <= 48.0 && burrowCd <= 0) {
-      return 'burrow_burst';
+    // 2. Close Range Whip (dist <= 10u, Cooldown 4.0s): Sand-Whip Tail Thrash (250 deg)
+    if (distToPlayer <= 10.0 && tailCd <= 0) {
+      return 'tail_whip';
     }
 
-    // 3. Area Hazard: Sand Spike Barrage (Semua Jarak/Jauh, Cooldown 7s)
-    if (distToPlayer <= 45.0 && spikeCd <= 0) {
+    // 3. Surface Dominance (dist <= 20u, Cooldown 7.5s): Towering Coil & Body Slam
+    if (distToPlayer <= 20.0 && slamCd <= 0) {
+      return 'towering_body_slam';
+    }
+
+    // 4. Agile Mid/Long Leap (10u..58u, Cooldown 5.5s): Dolphin Sand-Breach
+    if (distToPlayer >= 10.0 && distToPlayer <= 58.0 && breachCd <= 0) {
+      return 'dolphin_breach';
+    }
+
+    // 5. Area Hazard (<= 54u, Cooldown 7.0s): Sand Spike Barrage
+    if (distToPlayer <= 54.0 && spikeCd <= 0) {
       return 'sand_spike_barrage';
     }
 
-    // 4. Close Range Defense: Tail Swipe (Jarak <= 6 unit, Cooldown 3s)
-    if (distToPlayer <= 6.2 && tailCd <= 0) {
-      return 'tail_slam';
+    // Fallback when player is in melee-mid and slam/breach slightly overlaps
+    if (breachCd <= 0 && distToPlayer <= 60.0) {
+      return 'dolphin_breach';
     }
 
     return null;

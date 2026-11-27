@@ -366,8 +366,10 @@ export default function App() {
   const [bossState, setBossState] = useState<{
     active: boolean;
     name?: string;
+    title?: string;
     hp?: number;
     maxHp?: number;
+    combatActive?: boolean;
   }>({
     active: false,
   });
@@ -841,20 +843,8 @@ export default function App() {
         promptActionRef.current = action;
       },
       onEnemyStatsUpdate: () => {},
-      onBossEncounter: (active, name, hp, maxHp) => {
-        setBossState({ active, name, hp, maxHp });
-        if (active) {
-          const lower = (name || '').toLowerCase();
-          if (lower.includes('ignis') || lower.includes('dragon')) {
-            soundManager.playBossMusic('dragon');
-          } else if (lower.includes('jarrus') || lower.includes('cacing') || lower.includes('worm')) {
-            soundManager.playBossMusic('worm');
-          } else {
-            soundManager.playBossMusic('titan');
-          }
-        } else if (soundManager.getCurrentBossMusic()) {
-          soundManager.evadeBossMusic(2.5);
-        }
+      onBossEncounter: (active, name, hp, maxHp, title, combatActive) => {
+        setBossState({ active, name, title, hp, maxHp, combatActive });
       },
       onBossDefeated: (name) => {
         setBossVictoryName(name || 'SANG TITAN KUNO OBSIDIAN');

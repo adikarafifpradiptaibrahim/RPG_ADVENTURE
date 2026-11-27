@@ -1977,7 +1977,7 @@ export async function buildValKragorFort(
     const inDragonCaldera = Math.hypot(tx - -40, tz - 340) < 65;
     const inAstraea = Math.hypot(tx - -250, tz - -210) < 60;
     const inTitan = Math.hypot(tx - 235, tz - -380) < 55;
-    const inSandworm = Math.hypot(tx - -30, tz - -220) < 50;
+    const inSandworm = Math.hypot(tx - (-840), tz - (-260)) < 78;
     const inMageTower = Math.hypot(tx - 110, tz - -10) < 30;
     const inMossValley = Math.hypot(tx - 465, tz - 35) < 45;
     if (inSanctuaryMainland || inSanctuaryHarborOcean || inBridgeHighwayCorridor || inValKragor || inDragonCaldera || inAstraea || inTitan || inSandworm || inMageTower || inMossValley) continue;
@@ -2494,19 +2494,20 @@ export async function buildTitanLakeAndCanyon(
   npcs: WorldNPC[]
 ): Promise<void> {
   await cooperativeYield(4);
-  const sinkholeCenter = { x: -660, z: -160 };
+  const sinkholeCenter = { x: -840, z: -260 };
   const sinkholeBaseY = getTerrainHeight(sinkholeCenter.x, sinkholeCenter.z);
 
-  // 1. Partikel & Gelombang Pusaran Pasir Berputar di Dasar Kawah
+  // 1. Partikel & Gelombang Pusaran Pasir Berputar di Dasar Kawah Pusaran Solaria
   const sandVortex = createSandVortexSwirlMesh();
   sandVortex.position.set(sinkholeCenter.x, sinkholeBaseY + 0.05, sinkholeCenter.z);
+  sandVortex.scale.set(1.25, 1.0, 1.25);
   scene.add(sandVortex);
   decorativeProps.push(sandVortex);
 
-  // 2. Cincin Formasi 8 Kerangka Tulang Rusuk Fosil Purba Raksasa (Radius ~43.5 unit di Bibir Kawah)
-  for (let r = 0; r < 8; r++) {
-    const angle = (r / 8) * Math.PI * 2 + 0.2;
-    const rad = 43.5;
+  // 2. Cincin Formasi 12 Kerangka Tulang Rusuk Fosil Purba Raksasa di Tepi Luar Bibir Kawah (Radius 57..62 unit)
+  for (let r = 0; r < 12; r++) {
+    const angle = (r / 12) * Math.PI * 2 + 0.18;
+    const rad = 57.5 + (r % 3) * 2.1;
     const rx = sinkholeCenter.x + Math.cos(angle) * rad;
     const rz = sinkholeCenter.z + Math.sin(angle) * rad;
     if (!isDesertBiome(rx, rz)) continue; // DILARANG SPAWN di padang rumput hijau!
@@ -2514,28 +2515,76 @@ export async function buildTitanLakeAndCanyon(
     const rib = createAncientMonsterRibMesh();
     rib.position.set(rx, ry, rz);
     rib.rotation.y = angle + Math.PI / 2;
-    const s = 1.35;
+    const s = 1.45 + (r % 2) * 0.18;
     rib.scale.set(s, s, s);
     scene.add(rib);
     decorativeProps.push(rib);
-    colliders.push({ type: 'circle', x: rx, z: rz, radius: 1.4, label: 'Fosil Tulang Rusuk Monster Purba' });
+    colliders.push({ type: 'circle', x: rx, z: rz, radius: 1.5, label: 'Fosil Tulang Rusuk Monster Purba' });
   }
 
-  // 3. 6 Obelisk Batu Pasir Kuno Retak Setengah Tertimbun Pasir di Tepi Luar Arena (Radius ~44 unit)
-  for (let o = 0; o < 6; o++) {
-    const angle = (o / 6) * Math.PI * 2;
-    const ox = sinkholeCenter.x + Math.cos(angle) * 44.0;
-    const oz = sinkholeCenter.z + Math.sin(angle) * 44.0;
+  // 3. 8 Obelisk Batu Pasir Kuno Retak Setengah Tertimbun Pasir di Tepi Luar Arena (Radius 60..64 unit)
+  for (let o = 0; o < 8; o++) {
+    const angle = (o / 8) * Math.PI * 2 + 0.12;
+    const rad = 60.0 + (o % 2) * 3.5;
+    const ox = sinkholeCenter.x + Math.cos(angle) * rad;
+    const oz = sinkholeCenter.z + Math.sin(angle) * rad;
     if (!isDesertBiome(ox, oz)) continue; // DILARANG SPAWN di padang rumput hijau!
-    const oy = getTerrainHeight(ox, oz) - 0.6; // Setengah tertimbun pasir
+    const oy = getTerrainHeight(ox, oz) - 0.55; // Setengah tertimbun pasir
     const obelisk = createCrackedSandstoneObeliskMesh();
     obelisk.position.set(ox, oy, oz);
     obelisk.rotation.y = angle + 0.4;
+    const oScale = 1.1 + (o % 2) * 0.2;
+    obelisk.scale.set(oScale, oScale, oScale);
     scene.add(obelisk);
     decorativeProps.push(obelisk);
-    colliders.push({ type: 'circle', x: ox, z: oz, radius: 1.5, label: 'Obelisk Kuno Kawah Cacing' });
+    colliders.push({ type: 'circle', x: ox, z: oz, radius: 1.6, label: 'Obelisk Kuno Kawah Solaria' });
   }
-  // Seluruh lanskap gurun mengandalkan daratan utama terrainMesh alami yang mulus.
+
+  // 4. Formasi Bongkahan Batu Gurun Sandstone & Pilar Alam di Lingkar Luar Kawah (Radius 59..66 unit)
+  const rimRockGeo = new THREE.DodecahedronGeometry(1.85, 1);
+  const rimRockMat = new THREE.MeshStandardMaterial({
+    color: 0xc28e5c,
+    roughness: 0.94,
+    metalness: 0.04,
+    flatShading: true,
+  });
+  for (let b = 0; b < 14; b++) {
+    const angle = (b / 14) * Math.PI * 2 + 0.29;
+    const rad = 59.5 + (b % 4) * 2.0;
+    const bx = sinkholeCenter.x + Math.cos(angle) * rad;
+    const bz = sinkholeCenter.z + Math.sin(angle) * rad;
+    if (!isDesertBiome(bx, bz)) continue;
+    const by = getTerrainHeight(bx, bz);
+    const rock = new THREE.Mesh(rimRockGeo, rimRockMat);
+    const rxScale = 1.15 + (b % 3) * 0.35;
+    const ryScale = 0.75 + (b % 2) * 0.35;
+    const rzScale = 1.05 + ((b + 1) % 3) * 0.3;
+    rock.position.set(bx, by + ryScale * 0.65, bz);
+    rock.scale.set(rxScale, ryScale, rzScale);
+    rock.rotation.set((b % 3) * 0.25, angle, ((b + 1) % 3) * 0.18);
+    rock.castShadow = true;
+    rock.receiveShadow = true;
+    scene.add(rock);
+    decorativeProps.push(rock);
+    colliders.push({ type: 'circle', x: bx, z: bz, radius: 1.85 * Math.max(rxScale, rzScale) * 0.85, label: 'Batu Gurun Kawah Solaria' });
+
+    if (b % 3 === 0) {
+      const pAng = angle + 0.14;
+      const pRad = rad + 2.4;
+      const px = sinkholeCenter.x + Math.cos(pAng) * pRad;
+      const pz = sinkholeCenter.z + Math.sin(pAng) * pRad;
+      if (isDesertBiome(px, pz)) {
+        const py = getTerrainHeight(px, pz) - 0.3;
+        const pillar = createSandstonePillarMesh(0.95 + (b % 2) * 0.25);
+        pillar.position.set(px, py, pz);
+        pillar.rotation.y = pAng;
+        scene.add(pillar);
+        decorativeProps.push(pillar);
+        colliders.push({ type: 'circle', x: px, z: pz, radius: 1.8, label: 'Pilar Batu Pasir Kawah' });
+      }
+    }
+  }
+  // Seluruh lantai arena dalam r<=55 dibiarkan lapang dan rata untuk pertarungan dinamis melawan Jarrus.
 
   // ==========================================
   // 6. THUNDERPEAK LIGHTNING SPIRE & MAGE TOWER SANCTUARY (East Plains Hill: [260, -180])
@@ -3086,7 +3135,7 @@ export async function buildDragonCaldera(
     { id: 'chest_astraea', pos: [-220, 2.0, -220] as [number, number, number] }, // Astraea Imperial Vault
     { id: 'chest_harbor_galleon', pos: [-15.5, 0, 200] as [number, number, number] }, // Harbor Galleon Stash
     { id: 'chest_bridge', pos: [15, 1.35, 110] as [number, number, number] }, // South River Suspension Bridge Cache
-    { id: 'chest_sandworm_cache', pos: [-30, 0.5, -220] as [number, number, number] }, // Ancient Sandworm Sinkhole Cache
+    { id: 'chest_sandworm_cache', pos: [-840, 0.5, -260] as [number, number, number] }, // Ancient Sandworm Sinkhole Cache
   ];
 
   const chests: WorldObjects['chests'] = [];
@@ -3738,9 +3787,9 @@ async function populateWorldEntities(
       },
       {
         id: 'wp_sandworm',
-        name: 'The Great Solaria Sinkhole',
-        nameId: 'Sarang Cacing Purba Gurun',
-        pos: [-660, -160],
+        name: 'Solaria Whirlwind Crater',
+        nameId: 'Kawah Pusaran Solaria (Sarang Jarrus)',
+        pos: [-840, -260],
       },
       {
         id: 'wp_canyon',

@@ -353,6 +353,9 @@ export function renderIllustratedMap(
     [[-480, -240], [-540, -260], [-600, -240]],
     [[-260, -180], [-320, -200], [-380, -180]],
     [[-400, -180], [-460, -200], [-520, -180]],
+    [[-660, -380], [-720, -400], [-780, -380]],
+    [[-680, -200], [-740, -220], [-800, -200]],
+    [[-900, -340], [-960, -360], [-1020, -340]],
   ];
   duneCurves.forEach((d) => {
     const pts = d.map((p) => wToC(p[0], p[1]));
@@ -822,15 +825,15 @@ export function renderIllustratedMap(
     ctx.stroke();
   }
 
-  // 12C2. Sandworm Sinkhole Vortex [-580, -220]
-  const [swX, swY] = wToC(-580, -220);
+  // 12C2. Sandworm Sinkhole Vortex (Kawah Pusaran Solaria [-840, -260])
+  const [swX, swY] = wToC(-840, -260);
   ctx.fillStyle = '#b45309';
   ctx.beginPath();
-  ctx.ellipse(swX, swY, 22, 15, 0, 0, Math.PI * 2);
+  ctx.ellipse(swX, swY, 26, 18, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = '#78350f';
   ctx.beginPath();
-  ctx.ellipse(swX, swY, 13, 9, 0, 0, Math.PI * 2);
+  ctx.ellipse(swX, swY, 15, 10.5, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // 12C2. Solaria Desert Village & Bazaar [-540, -420]
