@@ -691,7 +691,7 @@ export function createRoadSignpostMesh(junction: RoadJunctionDef): THREE.Group {
  * IMPLEMENTASI 3D CONTINUOUS ROAD STRIP (world.ts)
  */
 export function buildWorldRoadNetwork(
-  scene: THREE.Scene,
+  scene: THREE.Object3D,
   getTerrainHeight: (x: number, z: number) => number,
   colliders: WorldCollider[]
 ): THREE.Group {

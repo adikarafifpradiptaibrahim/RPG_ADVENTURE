@@ -32,8 +32,8 @@ export const REGIONS: RegionInfo[] = [
     name: 'Fortress Village Val-Kragor',
     nameId: 'Desa Benteng Val-Kragor',
     icon: '🛡️',
-    description: 'A heavily fortified stronghold with stone ramparts, corner watchtowers, garrison keep, and spiked defense barricades situated in the open eastern plains.',
-    descriptionId: 'Desa benteng pertahanan mandiri di padang rumput tenggara yang lapang! Dilengkapi tembok slate kokoh, menara pengawas, barikade runcing, dan markas Komandan Brann.',
+    description: 'A heavily fortified 110x110 stronghold with stone ramparts, integrated corner watchtowers, barracks, combat training yard, blacksmith, and commander keep.',
+    descriptionId: 'Desa benteng megah 110x110 di tenggara! Dilengkapi 4 menara sudut kokoh, barak prajurit, lapangan latihan, bengkel tempa, rumah warga, serta Aula Komandan & Pandai Besi yang dapat dimasuki.',
     color: '#64748b',
     bounds: { minX: 520, maxX: 640, minZ: 70, maxZ: 190 },
     center: [580, 130],
@@ -44,10 +44,10 @@ export const REGIONS: RegionInfo[] = [
     name: 'Grand Imperial Kingdom of Astraea',
     nameId: 'Ibukota Kerajaan Emas Astraea & Istana Kaisar',
     icon: '👑',
-    description: 'A colossal imperial metropolis situated across the peaceful north-east plains, featuring the grand Sun Palace, towering marble colonnades, royal bazaar, and the Fountain of Immortality.',
-    descriptionId: 'Ibukota kerajaan emas megah di dataran padang rumput timur laut yang damai! Gerbang Barat megah, Istana Kaisar Aurelius, dan alun-alun marmer putih berair mancur abadi.',
+    description: 'A colossal 170x170 imperial metropolis featuring Grand Marble Plaza, medieval districts, bazaar shops & tavern, and Emperor Aurelius 2x Grand Sun Palace with twin-stair balconies.',
+    descriptionId: 'Ibukota kerajaan medieval raksasa (~170x170) dengan Alun-Alun Utama marmer, distrik pasar & tavern, serta Istana Kaisar Aurelius 2x lebih megah lengkap dengan balkon Lantai 2!',
     color: '#fbbf24',
-    bounds: { minX: 380, maxX: 540, minZ: -480, maxZ: -360 },
+    bounds: { minX: 375, maxX: 545, minZ: -505, maxZ: -335 },
     center: [460, -420],
     recommendedLevel: 5,
   },
@@ -344,7 +344,7 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
   }
 
   // 5. Kerajaan Emas Astraea [460, -420]
-  if (Math.hypot(x - 460, z - -420) <= 75) {
+  if (Math.hypot(x - 460, z - -420) <= 105) {
     return REGIONS.find((r) => r.id === 'kerajaan_astraea') || REGIONS[3];
   }
 
@@ -359,7 +359,7 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
   }
 
   // 8. Benteng Val-Kragor [580, 130]
-  if (Math.hypot(x - 580, z - 130) <= 70) {
+  if (Math.hypot(x - 580, z - 130) <= 85) {
     return REGIONS.find((r) => r.id === 'desa_valkragor') || REGIONS[2];
   }
 

@@ -35,6 +35,8 @@ import {
 } from './models';
 export { USE_LEGACY_KNIGHT, USE_LEGACY_MAGE, USE_LEGACY_HUNTER };
 import { buildWorld, buildWorldAsync, WorldObjects, WorldCheckpoint, getTerrainHeight as getProceduralTerrainHeight } from './world';
+import { InteriorPortalDef } from './interiorSystem';
+import { createTrainingDummyMesh } from './models';
 import {
   buildWorldEnvironment,
   buildWorldEnvironmentAsync,
@@ -203,6 +205,8 @@ export interface GameEngineCallbacks {
   onArrowVolleyAimChange?: (isAiming: boolean) => void;
   onCastingUpdate?: (casting: { isCasting: boolean; progress: number; text: string } | null) => void;
   onCheckpointUnlocked?: (id: string, nameId: string, pos: [number, number]) => void;
+  onInteriorFadeChange?: (fadingOut: boolean) => void;
+  onInteriorPortalState?: (portalInfo: { label: string; kind: 'enter' | 'exit' | 'floor'; promptText: string } | null) => void;
   onPreviewRoleSelected?: (role: 'warrior' | 'mage' | 'rogue') => void;
   onPlayerPositionUpdate?: (data: {
     x: number;
@@ -986,6 +990,13 @@ export class GameEngine {
   public isControlsLocked = false;
   public isPaused = false;
   public teleportGraceTimer = 0;
+  public activeInteriorPortal: InteriorPortalDef | null = null;
+  private interiorAutoDwellTimer = 0;
+  private interiorTransitionCooldown = 0;
+  private interiorRearmLocked = false;
+  private isTransitioningInterior = false;
+  private interiorFadeTimers: ReturnType<typeof setTimeout>[] = [];
+  private activeExteriorReturnPos: { x: number; z: number } | null = null;
   public currentPromptAction: (() => void) | null = null;
 
   // Main Menu & 3D Character Selection Scene State
@@ -1379,6 +1390,8 @@ export class GameEngine {
   private posUpdateThrottle = 0;
   private enemies: {
     data: EnemyData;
+    isIndoorDummy?: boolean;
+    interiorId?: string;
     mesh: THREE.Group;
     parts: Record<string, any>;
     baseY: number;
@@ -1531,6 +1544,9 @@ export class GameEngine {
       (x, z) => getExactMeshGroundHeight(x, z),
       this.world.colliders
     );
+    if (this.world?.exteriorWorldGroup && this.worldEnvironment?.group) {
+      this.world.exteriorWorldGroup.add(this.worldEnvironment.group);
+    }
 
     // 3. Connect Day-Night lights
     if (this.world?.hemiLight && this.world?.dirLight) {
@@ -1764,6 +1780,9 @@ export class GameEngine {
       cachedWorld,
       true
     );
+    if (this.world?.exteriorWorldGroup && this.worldEnvironment?.group) {
+      this.world.exteriorWorldGroup.add(this.worldEnvironment.group);
+    }
 
     // Position player mesh on solid ground surface
     const startY = getSolidGroundHeight(this.playerPos.x, this.playerPos.z);
@@ -3554,6 +3573,48 @@ export class GameEngine {
       });
     });
 
+    // Spawn Mage Tower Level 2 Indoor Energy Training Dummies (Immortal Combat Practice)
+    const mtDummySpawns = this.world?.interiorManager?.rooms.get('mage_tower_interior')?.trainingDummySpawns ?? [];
+    mtDummySpawns.forEach((ds) => {
+      const dummyGroup = createTrainingDummyMesh();
+      dummyGroup.position.set(ds.x, ds.y, ds.z);
+      dummyGroup.rotation.y = Math.PI;
+      dummyGroup.visible = false;
+      this.scene.add(dummyGroup);
+      this.enemies.push({
+        data: {
+          id: ds.id,
+          name: ds.name,
+          nameId: ds.nameId,
+          type: 'golem',
+          level: 1,
+          hp: 99999,
+          maxHp: 99999,
+          attack: 0,
+          defense: 0,
+          expReward: 0,
+          goldReward: 0,
+          speed: 0,
+          attackRange: 0,
+          detectRange: 0,
+          position: [ds.x, ds.y, ds.z],
+          isDead: false,
+          dropItems: [],
+        },
+        mesh: dummyGroup,
+        parts: { torso: dummyGroup },
+        baseY: ds.y,
+        attackCooldown: 0,
+        walkCycle: 0,
+        spawnPos: new THREE.Vector3(ds.x, ds.y, ds.z),
+        leashRadius: 0,
+        isReturning: false,
+        deathTimer: 0,
+        isIndoorDummy: true,
+        interiorId: 'mage_tower_interior',
+      });
+    });
+
     // Initialize territory origin points and leash parameters for all monsters
     this.enemies.forEach((e) => {
       if (!e.spawnPos) {
@@ -4109,6 +4170,9 @@ export class GameEngine {
         this.castSkill(1);
       }
     } else if (key === 'e' || code === 'keye') {
+      if (this.triggerActiveInteriorPortal()) {
+        return;
+      }
       // Slot 2 (E):
       // Mage: Arcane Blink [E] / Rogue: Bayangan Pengecoh [E] Dual Mode / Warrior: Shield Dash [E]
       if (this.charClass === 'mage') {
@@ -4806,7 +4870,114 @@ export class GameEngine {
    * 3. Sets character to stand exactly on the interior ground floor (Y = -45.0)
    * 4. Resets 3D camera to behind the shoulder facing into the room without lerping through the void
    */
+  public getActiveGroundHeight(x: number, currentY: number, z: number): number {
+    const activeRoom = this.world?.interiorManager?.activeRoom ?? null;
+    if (activeRoom) {
+      return Math.max(activeRoom.getFallbackFloorY(x, currentY, z), getSolidGroundHeight(x, z, currentY));
+    }
+    return getSolidGroundHeight(x, z, currentY);
+  }
+
+  public triggerActiveInteriorPortal(): boolean {
+    if (this.isTransitioningInterior || this.interiorTransitionCooldown > 0 || !this.world?.interiorManager) {
+      return false;
+    }
+    const match = this.world.interiorManager.findClosestPortal(this.playerPos.x, this.playerPos.y, this.playerPos.z);
+    if (!match) return false;
+    this.executePortalTransition(match.portal);
+    return true;
+  }
+
+  private executePortalTransition(portal: InteriorPortalDef): void {
+    const interiorMgr = this.world?.interiorManager;
+    if (!interiorMgr || this.isTransitioningInterior) return;
+
+    this.isTransitioningInterior = true;
+    this.interiorAutoDwellTimer = 0;
+    this.activeInteriorPortal = null;
+    this.callbacks.onInteriorPortalState?.(null);
+    this.callbacks.onInteriorFadeChange?.(true);
+
+    if (portal.kind === 'enter') {
+      this.activeExteriorReturnPos = { x: portal.markerPos.x, z: portal.markerPos.z };
+    } else if (portal.targetRoomId === null) {
+      this.activeExteriorReturnPos = null;
+    }
+
+    const tSwap = setTimeout(() => {
+      if (!this.world?.interiorManager) {
+        this.isTransitioningInterior = false;
+        this.callbacks.onInteriorFadeChange?.(false);
+        return;
+      }
+
+      const room = this.world.interiorManager.setActiveRoom(portal.targetRoomId);
+      if (this.world.exteriorWorldGroup) {
+        this.world.exteriorWorldGroup.visible = room === null;
+      }
+
+      // Toggle monster visibility & indoor dummy isolation cleanly
+      this.enemies.forEach((e) => {
+        if (e.isIndoorDummy) {
+          e.mesh.visible = room !== null && room.id === e.interiorId;
+        } else {
+          e.mesh.visible = room === null && !e.data.isDead;
+        }
+      });
+
+      // Switch between isolated interior static lighting and day/night exterior sky & lights
+      if (room) {
+        this.world.dirLight.intensity = 0;
+        this.world.hemiLight.intensity = 0;
+        this.scene.background = new THREE.Color(room.bgHex);
+        this.scene.fog = new THREE.FogExp2(room.bgHex, 0.0058);
+      } else {
+        this.dayNightSystem.applyOutdoorLighting(this.scene, this.world.hemiLight, this.world.dirLight, this.playerPos);
+      }
+
+      // Apply exact teleportation destination & facing
+      this.teleportGraceTimer = 0.45;
+      this.interiorTransitionCooldown = 0.85;
+      this.interiorRearmLocked = true;
+      this.playerVel.set(0, 0, 0);
+      this.isGrounded = true;
+      this.playerPos.set(portal.spawnPos.x, portal.spawnPos.y, portal.spawnPos.z);
+      if (portal.spawnPos.rotationY !== undefined) {
+        this.playerRotationY = portal.spawnPos.rotationY;
+        this.cameraAngleH = portal.spawnPos.rotationY + Math.PI;
+      }
+      this.cameraAngleV = 0.22;
+      if (this.playerMesh?.group) {
+        this.playerMesh.group.position.copy(this.playerPos);
+        this.playerMesh.group.rotation.y = this.playerRotationY;
+      }
+
+      // Instant camera snap behind player
+      const camX = this.playerPos.x + Math.sin(this.cameraAngleH) * Math.cos(this.cameraAngleV) * this.cameraDistance;
+      const camZ = this.playerPos.z + Math.cos(this.cameraAngleH) * Math.cos(this.cameraAngleV) * this.cameraDistance;
+      const camY = this.playerPos.y + Math.sin(this.cameraAngleV) * this.cameraDistance + 1.2;
+      this.camera.position.set(camX, camY, camZ);
+      this.camera.lookAt(this.playerPos.x, this.playerPos.y + 1.4, this.playerPos.z);
+
+      soundManager.playCheckpointUnlock();
+      this.callbacks.onAddFloatingText(portal.toastText, room ? '#fbbf24' : '#38bdf8', 'info');
+
+      const tReveal = setTimeout(() => {
+        this.isTransitioningInterior = false;
+        this.callbacks.onInteriorFadeChange?.(false);
+      }, 175);
+      this.interiorFadeTimers.push(tReveal);
+    }, 175);
+
+    this.interiorFadeTimers.push(tSwap);
+  }
+
   public enterMageTower() {
+    const enterPortal = this.world?.interiorManager?.portals.find((p) => p.id === 'mage_tower_interior_enter');
+    if (enterPortal) {
+      this.executePortalTransition(enterPortal);
+      return;
+    }
     const safeSpawn = getSafeInteriorSpawn(1);
 
     if (!validateTeleportCoordinates(safeSpawn)) {
@@ -5715,7 +5886,7 @@ export class GameEngine {
       this.graphicsSettings.enableParticles !== false &&
       !(isMobileRenderDevice() && this.graphicsSettings.preset === 'low');
 
-    if (!particlesEnabled || this.menuMode !== 'gameplay') {
+    if (!particlesEnabled || this.menuMode !== 'gameplay' || (this.world?.interiorManager?.activeRoom ?? null) !== null) {
       this.biomeWeatherOpacity = Math.max(0, this.biomeWeatherOpacity - delta * 3.0);
       this.biomeWeatherMat.opacity = this.biomeWeatherOpacity;
       this.biomeWeatherPoints.visible = this.biomeWeatherOpacity > 0.02;
@@ -13483,7 +13654,7 @@ export class GameEngine {
     // Melesat cepat ~9.5 unit dengan Raycaster / solid collider obstacle check
     let maxDist = 9.5;
     const inInterior = this.playerPos.y < -10;
-    for (const col of this.world.colliders) {
+    for (const col of (this.world?.interiorManager?.activeRoom?.colliders ?? this.world.colliders)) {
       const isInteriorCollider = col.maxY !== undefined && col.maxY < 0;
       if (inInterior !== isInteriorCollider) continue;
 
@@ -13522,7 +13693,7 @@ export class GameEngine {
     const resolved = this.resolveCollisions(targetX, targetZ);
     const targetPos = new THREE.Vector3(
       resolved.x,
-      getSolidGroundHeight(resolved.x, resolved.z, this.playerPos.y),
+      this.getActiveGroundHeight(resolved.x, this.playerPos.y, resolved.z),
       resolved.z
     );
 
@@ -13599,7 +13770,7 @@ export class GameEngine {
     // Raycast Layer Mask: ONLY detect solid environment (buildings, walls, rocks, towers)
     // EXCLUDE enemies, monsters, NPCs, and bosses so player can penetrate through enemies
     const inInterior = this.playerPos.y < -10;
-    for (const col of this.world.colliders) {
+    for (const col of (this.world?.interiorManager?.activeRoom?.colliders ?? this.world.colliders)) {
       const isInteriorCollider = col.maxY !== undefined && col.maxY < 0;
       if (inInterior !== isInteriorCollider) continue;
 
@@ -13626,7 +13797,7 @@ export class GameEngine {
     const resolved = this.resolveCollisions(targetX, targetZ);
     const targetPos = this._scratchTarget.set(
       resolved.x,
-      getSolidGroundHeight(resolved.x, resolved.z, this.playerPos.y),
+      this.getActiveGroundHeight(resolved.x, this.playerPos.y, resolved.z),
       resolved.z
     );
 
@@ -13783,6 +13954,20 @@ export class GameEngine {
     if (enemy.armorBreakTimer && enemy.armorBreakTimer > 0) {
       actualDamage = Math.round(actualDamage * (1 + (enemy.armorBreakBonus || 0.15))); // Armor Break: +15% Damage Taken
     }
+    if (enemy.isIndoorDummy) {
+      const dummyHitPos = enemy.mesh.position.clone().add(new THREE.Vector3(0, 1.3, 0));
+      this.spawnSparks(dummyHitPos, isCrit ? 0x38bdf8 : 0xfbbf24, isCrit ? 12 : 7, 4.5);
+      this.callbacks.onAddFloatingText(
+        isCrit ? `⚡ CRIT -${actualDamage}!` : `-${actualDamage}`,
+        isCrit ? '#38bdf8' : '#fef08a',
+        isCrit ? 'crit' : 'damage'
+      );
+      soundManager.playHit();
+      enemy.data.hp = enemy.data.maxHp;
+      enemy.attackAnimTimer = 0.28;
+      return;
+    }
+
     enemy.data.hp -= actualDamage;
 
     if ((enemy.data.type === 'boss' || BOSS_ARENA_ZONES[enemy.data.id]) && enemy.data.hp > 0) {
@@ -14188,10 +14373,35 @@ export class GameEngine {
   }
 
   private checkInteract(): boolean {
+    if (this.triggerActiveInteriorPortal()) {
+      return true;
+    }
+
     // Execute nearby active prompt action (doors, portals, altars, NPCs, chests) immediately upon [F] key press
     if (this.currentPromptAction) {
       this.currentPromptAction();
       return true;
+    }
+
+    const activeRoom = this.world?.interiorManager?.activeRoom ?? null;
+    if (activeRoom) {
+      for (const npc of activeRoom.npcs) {
+        const dist = this.playerPos.distanceTo(new THREE.Vector3(...npc.position));
+        if (dist < 4.2) {
+          this.callbacks.onInteractNPC(npc.dialogueId || npc.id);
+          return true;
+        }
+      }
+      for (const chest of activeRoom.chests) {
+        if (!chest.opened) {
+          const dist = this.playerPos.distanceTo(new THREE.Vector3(...chest.position));
+          if (dist < 3.4) {
+            this.openChest(chest);
+            return true;
+          }
+        }
+      }
+      return false;
     }
 
     // Check all NPCs in the village and world
@@ -14335,6 +14545,65 @@ export class GameEngine {
 
   // Prevents player from passing through buildings and obstacles
   private resolveCollisions(candidateX: number, candidateZ: number): { x: number; z: number } {
+    const activeRoom = this.world?.interiorManager?.activeRoom ?? null;
+    if (activeRoom) {
+      const playerRadius = 0.65;
+      let resX = candidateX;
+      let resZ = candidateZ;
+      for (let pass = 0; pass < 2; pass++) {
+        for (const col of activeRoom.colliders) {
+          if (col.minY !== undefined && this.playerPos.y + 1.6 < col.minY) continue;
+          if (col.maxY !== undefined && this.playerPos.y > col.maxY) continue;
+          if (col.type === 'circle' && col.x !== undefined && col.z !== undefined && col.radius !== undefined) {
+            const dx = resX - col.x;
+            const dz = resZ - col.z;
+            const minDist = col.radius + playerRadius;
+            const distSq = dx * dx + dz * dz;
+            if (distSq < minDist * minDist) {
+              const dist = Math.sqrt(distSq) || 0.001;
+              const overlap = minDist - dist;
+              resX += (dx / dist) * overlap;
+              resZ += (dz / dist) * overlap;
+            }
+          } else if (
+            col.type === 'box' &&
+            col.minX !== undefined &&
+            col.maxX !== undefined &&
+            col.minZ !== undefined &&
+            col.maxZ !== undefined
+          ) {
+            const closestX = Math.max(col.minX, Math.min(resX, col.maxX));
+            const closestZ = Math.max(col.minZ, Math.min(resZ, col.maxZ));
+            const dx = resX - closestX;
+            const dz = resZ - closestZ;
+            const distSq = dx * dx + dz * dz;
+            if (distSq < playerRadius * playerRadius) {
+              const dist = Math.sqrt(distSq);
+              if (dist > 0.0001) {
+                const overlap = playerRadius - dist;
+                resX += (dx / dist) * overlap;
+                resZ += (dz / dist) * overlap;
+              } else {
+                const left = Math.abs(resX - col.minX);
+                const right = Math.abs(col.maxX - resX);
+                const top = Math.abs(resZ - col.minZ);
+                const bottom = Math.abs(col.maxZ - resZ);
+                const minEdge = Math.min(left, right, top, bottom);
+                if (minEdge === left) resX = col.minX - playerRadius;
+                else if (minEdge === right) resX = col.maxX + playerRadius;
+                else if (minEdge === top) resZ = col.minZ - playerRadius;
+                else resZ = col.maxZ + playerRadius;
+              }
+            }
+          }
+        }
+        const clamped = activeRoom.clampInsideWalls(resX, resZ, playerRadius);
+        resX = clamped.x;
+        resZ = clamped.z;
+      }
+      return { x: resX, z: resZ };
+    }
+
     if (!this.world.colliders || this.world.colliders.length === 0) {
       return { x: candidateX, z: candidateZ };
     }
@@ -14346,7 +14615,7 @@ export class GameEngine {
     // Two-pass resolution cleanly eliminates corner catching and penetrating walls
     const inInterior = this.playerPos.y < -10;
     for (let pass = 0; pass < 2; pass++) {
-      for (const col of this.world.colliders) {
+      for (const col of (this.world?.interiorManager?.activeRoom?.colliders ?? this.world.colliders)) {
         const isInteriorCollider = col.maxY !== undefined && col.maxY < 0;
         if (inInterior !== isInteriorCollider) continue;
 
@@ -14443,6 +14712,31 @@ export class GameEngine {
     }
 
     // Freeze velocity & gravity during teleport transition grace period (prevents falling through void)
+    if (this.interiorTransitionCooldown > 0) {
+      this.interiorTransitionCooldown = Math.max(0, this.interiorTransitionCooldown - delta);
+    }
+
+    if (this.menuMode === 'gameplay' && !this.isTransitioningInterior && this.world?.interiorManager) {
+      const hitPortal = this.world.interiorManager.findClosestPortal(this.playerPos.x, this.playerPos.y, this.playerPos.z);
+      if (this.interiorRearmLocked) {
+        if (!hitPortal) {
+          this.interiorRearmLocked = false;
+        }
+        this.interiorAutoDwellTimer = 0;
+      } else if (this.interiorTransitionCooldown <= 0 && hitPortal && hitPortal.dist <= hitPortal.portal.autoRadius) {
+        this.interiorAutoDwellTimer += delta;
+        if (this.interiorAutoDwellTimer >= 0.4) {
+          this.interiorAutoDwellTimer = 0;
+          this.executePortalTransition(hitPortal.portal);
+          return;
+        }
+      } else {
+        this.interiorAutoDwellTimer = 0;
+      }
+    } else {
+      this.interiorAutoDwellTimer = 0;
+    }
+
     if (this.teleportGraceTimer > 0) {
       this.teleportGraceTimer -= delta;
       this.playerVel.set(0, 0, 0);
@@ -14571,14 +14865,10 @@ export class GameEngine {
       this.playerVel.z = 0;
       this.playerVel.y -= 22 * delta;
       this.playerPos.y += this.playerVel.y * delta;
-      const inThroneRoomLocked = this.playerPos.y < -10 && this.playerPos.x >= -435 && this.playerPos.x <= -395 && this.playerPos.z >= 335 && this.playerPos.z <= 365;
-      const inMageTowerLocked = isInsideMageTowerInterior(this.playerPos.x, this.playerPos.y, this.playerPos.z);
-      let groundY = getSolidGroundHeight(this.playerPos.x, this.playerPos.z, this.playerPos.y);
-      if (inThroneRoomLocked) {
-        groundY = (this.playerPos.x <= -424 && Math.abs(this.playerPos.z - 350) <= 6) ? -24.4 : -25.0;
-      } else if (inMageTowerLocked) {
-        groundY = getMageTowerFloorHeight(this.playerPos.y);
-      }
+      const activeRoomLocked = this.world?.interiorManager?.activeRoom ?? null;
+      const groundY = activeRoomLocked
+        ? this.getActiveGroundHeight(this.playerPos.x, this.playerPos.y, this.playerPos.z)
+        : getSolidGroundHeight(this.playerPos.x, this.playerPos.z, this.playerPos.y);
       if (this.playerPos.y <= groundY) {
         if (!this.isGrounded && this.playerVel.y < -3.5 && this.charClass === 'warrior') {
           soundManager.playSkillLompatLand();
@@ -14838,7 +15128,7 @@ export class GameEngine {
     nextZ = resolved.z;
 
     // 4b. Terrain slope & Cliff climbing physics
-    const targetGroundY = getSolidGroundHeight(nextX, nextZ, this.playerPos.y);
+    const targetGroundY = this.getActiveGroundHeight(nextX, this.playerPos.y, nextZ);
     const heightDiff = targetGroundY - currentGroundY;
     const horizDist = Math.hypot(nextX - oldX, nextZ - oldZ);
     const slope = horizDist > 0.001 ? heightDiff / horizDist : 0;
@@ -14851,10 +15141,10 @@ export class GameEngine {
       if (!canMantle) {
         // Slide smoothly along the cliff face instead of completely locking up
         const resXOnly = this.resolveCollisions(oldX + this.playerVel.x * delta, oldZ);
-        const hDiffX = getSolidGroundHeight(resXOnly.x, oldZ, this.playerPos.y) - currentGroundY;
+        const hDiffX = this.getActiveGroundHeight(resXOnly.x, this.playerPos.y, oldZ) - currentGroundY;
 
         const resZOnly = this.resolveCollisions(oldX, oldZ + this.playerVel.z * delta);
-        const hDiffZ = getSolidGroundHeight(oldX, resZOnly.z, this.playerPos.y) - currentGroundY;
+        const hDiffZ = this.getActiveGroundHeight(oldX, this.playerPos.y, resZOnly.z) - currentGroundY;
 
         if (hDiffX <= 0.95 && Math.abs(this.playerVel.x) > 0.05) {
           nextX = resXOnly.x;
@@ -14921,24 +15211,18 @@ export class GameEngine {
     this.playerPos.y += this.playerVel.y * delta;
 
     // Check if player is inside an Interior Cell (Solaria Throne Room or Mage Tower)
-    const inThroneRoom = this.playerPos.y < -10 && this.playerPos.x >= -435 && this.playerPos.x <= -395 && this.playerPos.z >= 335 && this.playerPos.z <= 365;
-    const inMageTower = isInsideMageTowerInterior(this.playerPos.x, this.playerPos.y, this.playerPos.z);
+    const activeRoom = this.world?.interiorManager?.activeRoom ?? null;
 
-    if (inThroneRoom) {
-      const throneFloorY = (this.playerPos.x <= -424 && Math.abs(this.playerPos.z - 350) <= 6) ? -24.4 : -25.0;
-      if (this.playerPos.y <= throneFloorY) {
-        this.playerPos.y = throneFloorY;
+    if (activeRoom) {
+      const roomFloorY = this.getActiveGroundHeight(this.playerPos.x, this.playerPos.y, this.playerPos.z);
+      if (this.playerPos.y <= roomFloorY + 0.15) {
+        this.playerPos.y = roomFloorY;
         this.playerVel.y = 0;
         this.isGrounded = true;
       }
-    } else if (inMageTower) {
-      // 3-Tier Multi-Floor Solid Interior Floors for Mage Tower
-      const mageFloorY = getMageTowerFloorHeight(this.playerPos.y);
-      if (this.playerPos.y <= mageFloorY + 0.15) {
-        this.playerPos.y = mageFloorY;
-        this.playerVel.y = 0;
-        this.isGrounded = true;
-      }
+      const constrained = activeRoom.clampInsideWalls(this.playerPos.x, this.playerPos.z, 0.65);
+      this.playerPos.x = constrained.x;
+      this.playerPos.z = constrained.z;
     } else {
       // Solid walkable surface collision (terrain + bridges + docks + altars + stairs) and Ocean/Lava surface
       const rawGroundY = getSolidGroundHeight(this.playerPos.x, this.playerPos.z, this.playerPos.y);
@@ -14964,7 +15248,7 @@ export class GameEngine {
     }
 
     // Absolute ground floor clamp: prevent sinking into terrain/surfaces during delta spike or steep slope descents
-    if (!inThroneRoom && !inMageTower) {
+    if (!activeRoom) {
       const rawFloorY = getSolidGroundHeight(this.playerPos.x, this.playerPos.z, this.playerPos.y);
       const minFloorY = inLavaMoatZone && rawFloorY < -0.15 ? -0.15 : rawFloorY;
       if (this.playerPos.y < minFloorY) {
@@ -14975,7 +15259,7 @@ export class GameEngine {
     }
 
     // Sistem Hazard Damage Danau Lahar Kaldera (-18 HP tiap 0.5 detik, hormati God Mode & permukaan solid jembatan)
-    if (!inThroneRoom && !inMageTower && inLavaMoatZone && this.playerPos.y <= 0.65) {
+    if (!activeRoom && inLavaMoatZone && this.playerPos.y <= 0.65) {
       this.lavaDamageTimer += delta;
       if (this.lavaDamageTimer >= 0.5) {
         this.lavaDamageTimer -= 0.5;
@@ -15847,87 +16131,50 @@ export class GameEngine {
   }
 
   private updateNearbyPrompts() {
-    // 0a. Check Taj Mahal Palace Entrance (Overworld -> Throne Room)
-    const distToPalaceGate = Math.hypot(this.playerPos.x - -396, this.playerPos.z - 350);
-    if (distToPalaceGate < 4.5 && this.playerPos.y > -10) {
-      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Istana Sultan Solaria 🕌', () => {
-        this.playerPos.set(-400, -25, 350);
-        this.playerVel.set(0, 0, 0);
-        this.isGrounded = true;
-        this.playerMesh.group.position.copy(this.playerPos);
-        this.camera.position.set(-395, -25 + 3.0, 350);
-        this.camera.lookAt(-415, -25 + 1.8, 350);
-        soundManager.playCheckpointUnlock();
-        this.callbacks.onAddFloatingText('Memasuki Ruang Takhta Sultan Solaria', '#fbbf24', 'info');
-      });
-      return;
-    }
+    const interiorMgr = this.world?.interiorManager;
+    const activeRoom = interiorMgr?.activeRoom ?? null;
 
-    // 0b. Check Throne Room Exit Door (Throne Room -> Overworld)
-    const distToThroneExit = Math.hypot(this.playerPos.x - -400, this.playerPos.z - 350);
-    if (distToThroneExit < 4.0 && this.playerPos.y < -15) {
-      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Pelataran Istana 🚪', () => {
-        const outY = Math.max(0.5, this.world.getTerrainHeight(-395, 350) + 0.5);
-        this.playerPos.set(-395, outY, 350);
-        this.playerVel.set(0, 0, 0);
-        this.isGrounded = true;
-        this.playerMesh.group.position.copy(this.playerPos);
-        this.camera.position.set(-390, outY + 3.5, 350);
-        this.camera.lookAt(-375, outY + 1.4, 350);
-        soundManager.playCheckpointUnlock();
-        this.callbacks.onAddFloatingText('Kembali ke Pelataran Istana Solaria', '#fbbf24', 'info');
-      });
-      return;
-    }
-
-    // 0c. Check Mage Tower Entrance (Overworld -> Level 1 Library: [160, -150])
-    const distToMageTowerDoor = Math.hypot(this.playerPos.x - 160, this.playerPos.z - -142);
-    if (distToMageTowerDoor < 4.5 && this.playerPos.y > -10) {
-      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Masuk Mage Tower Puncak Halilintar ⚡', () => {
-        this.enterMageTower();
-      });
-      return;
-    }
-
-    // 0d. Check Mage Tower Exit Door (Level 1 Library -> Overworld)
-    const distToMageTowerExit = Math.hypot(this.playerPos.x - 160, this.playerPos.z - -143.5);
-    if (distToMageTowerExit < 4.0 && this.playerPos.y <= -42 && this.playerPos.y >= -48) {
-      this.setNearbyPrompt('Tekan [F] / Sentuh untuk Keluar ke Puncak Halilintar 🚪', () => {
-        this.exitMageTower();
-      });
-      return;
-    }
-
-    // 0e. Check Mage Tower Multi-Floor Altar Transits (Lantai 1 <-> Lantai 2 <-> Lantai 3)
-    const distToTowerCenter = Math.hypot(this.playerPos.x - 160, this.playerPos.z - -150);
-    if (distToTowerCenter < 4.5 && this.playerPos.y < -15) {
-      if (this.playerPos.y <= -42) {
-        // Lantai 1 -> Naik ke Lantai 2 (Laboratorium)
-        this.setNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 2 (Laboratorium Alkimia) 🧪', () => {
-          this.teleportMageTowerFloor(2);
-        });
-        return;
-      } else if (this.playerPos.y > -42 && this.playerPos.y <= -34) {
-        // Lantai 2: Pilihan naik ke Lantai 3 atau turun ke Lantai 1
-        if (this.playerPos.z < -149) {
-          this.setNearbyPrompt('Tekan [F] / Sentuh: Naik ke Lantai 3 (Anjungan Observatorium) 🌌', () => {
-            this.teleportMageTowerFloor(3);
-          });
-          return;
-        } else {
-          this.setNearbyPrompt('Tekan [F] / Sentuh: Turun ke Lantai 1 (Perpustakaan & Altar) 📚', () => {
-            this.teleportMageTowerFloor(1);
-          });
-          return;
-        }
-      } else if (this.playerPos.y > -34) {
-        // Lantai 3 -> Turun ke Lantai 2 (Laboratorium)
-        this.setNearbyPrompt('Tekan [F] / Sentuh: Turun ke Lantai 2 (Laboratorium Alkimia) 🧪', () => {
-          this.teleportMageTowerFloor(2);
+    if (interiorMgr) {
+      const match = interiorMgr.findClosestPortal(this.playerPos.x, this.playerPos.y, this.playerPos.z);
+      this.activeInteriorPortal = match ? match.portal : null;
+      this.callbacks.onInteriorPortalState?.(
+        match ? { label: match.portal.label, kind: match.portal.kind, promptText: match.portal.promptText } : null
+      );
+      if (match) {
+        this.setNearbyPrompt(match.portal.promptText, () => {
+          this.triggerActiveInteriorPortal();
         });
         return;
       }
+    } else {
+      this.activeInteriorPortal = null;
     }
+
+    if (activeRoom) {
+      for (const npc of activeRoom.npcs) {
+        const dist = this.playerPos.distanceTo(new THREE.Vector3(...npc.position));
+        if (dist < 4.2) {
+          this.setNearbyPrompt(`Tekan [F] / Sentuh: ${npc.nameId} (${npc.role})`, () => {
+            this.callbacks.onInteractNPC(npc.dialogueId || npc.id);
+          });
+          return;
+        }
+      }
+      for (const chest of activeRoom.chests) {
+        if (!chest.opened) {
+          const dist = this.playerPos.distanceTo(new THREE.Vector3(...chest.position));
+          if (dist < 3.4) {
+            this.setNearbyPrompt('Tekan [F] / Sentuh untuk Buka Peti Harta Karun', () => {
+              this.openChest(chest);
+            });
+            return;
+          }
+        }
+      }
+      this.setNearbyPrompt(null);
+      return;
+    }
+
     // Check all village NPCs
     if (this.world.npcs && this.world.npcs.length > 0) {
       for (const npc of this.world.npcs) {
@@ -16049,7 +16296,24 @@ export class GameEngine {
       isMobileRenderDevice() &&
       (this.graphicsSettings.preset === 'low' || this.graphicsSettings.renderDistance <= 160);
 
+    const activeInteriorRoomId = this.world?.interiorManager?.activeRoom?.id ?? null;
     this.enemies.forEach((enemy, enemyIdx) => {
+      if (enemy.isIndoorDummy) {
+        enemy.mesh.visible = activeInteriorRoomId === enemy.interiorId;
+        if (!enemy.mesh.visible) return;
+        if (enemy.attackAnimTimer && enemy.attackAnimTimer > 0) {
+          enemy.attackAnimTimer = Math.max(0, enemy.attackAnimTimer - delta);
+          enemy.mesh.rotation.z = Math.sin(enemy.attackAnimTimer * 28) * 0.14;
+        } else {
+          enemy.mesh.rotation.z = 0;
+        }
+        return;
+      }
+      if (activeInteriorRoomId !== null) {
+        enemy.mesh.visible = false;
+        return;
+      }
+
       // 1. Mayat Monster & Hitung Mundur Hilangnya Mayat (Corpse Decay)
       if (enemy.data.isDead) {
         if (enemy.deathTimer !== undefined && enemy.deathTimer > 0) {
@@ -17133,7 +17397,7 @@ export class GameEngine {
 
     // Update 24-minute real-time Day-Night Cycle & Celestial Atmosphere
     this.dayNightSystem.update(delta);
-    if (this.world?.hemiLight && this.world?.dirLight) {
+    if (this.world?.hemiLight && this.world?.dirLight && !this.world.interiorManager?.activeRoom) {
       this.dayNightSystem.applyOutdoorLighting(
         this.scene,
         this.world.hemiLight,
@@ -17606,6 +17870,23 @@ export class GameEngine {
 
 
 
+    // Animate InteriorManager portals & interior fixtures
+    if (this.world.interiorManager) {
+      this.world.interiorManager.updateAnimations(elapsed);
+    }
+
+    // Animate monumental exterior rings, apex crystals, & arcane obelisks
+    if (this.world.animatedProps && !this.world.interiorManager?.activeRoom) {
+      for (const ap of this.world.animatedProps) {
+        if (ap.mode === 'bobY') {
+          ap.mesh.position.y = (ap.baseY ?? ap.mesh.position.y) + Math.sin(elapsed * ap.speed + (ap.phase ?? 0)) * 0.65;
+          ap.mesh.rotation.y = elapsed * 0.65;
+        } else {
+          ap.mesh.rotation.y = elapsed * ap.speed + (ap.phase ?? 0);
+        }
+      }
+    }
+
     // Floating crystal spin
     this.world.floatingCrystals.forEach((c, idx) => {
       c.rotation.y = elapsed * 0.8 + idx;
@@ -17791,11 +18072,23 @@ export class GameEngine {
       const targetPosZ = this.isSpectatorMode ? this.spectatorPos.z : this.playerPos.z;
       const targetPosY = this.isSpectatorMode ? this.spectatorPos.y : this.playerPos.y;
       const targetRotY = this.isSpectatorMode ? this.spectatorYaw : this.playerRotationY;
-      const currentReg = getCurrentRegion(targetPosX, targetPosZ);
+      const activeRoomNow = this.world?.interiorManager?.activeRoom ?? null;
+      const mapX = activeRoomNow && this.activeExteriorReturnPos ? this.activeExteriorReturnPos.x : targetPosX;
+      const mapZ = activeRoomNow && this.activeExteriorReturnPos ? this.activeExteriorReturnPos.z : targetPosZ;
+      const baseReg = getCurrentRegion(mapX, mapZ);
+      const currentReg: RegionInfo = activeRoomNow
+        ? {
+            ...baseReg,
+            id: `interior_${activeRoomNow.id}`,
+            name: activeRoomNow.name,
+            nameId: activeRoomNow.name,
+            descriptionId: `Interior — ${activeRoomNow.exteriorName}`,
+          }
+        : baseReg;
       this.callbacks.onPlayerPositionUpdate({
-        x: targetPosX,
+        x: mapX,
         y: targetPosY,
-        z: targetPosZ,
+        z: mapZ,
         rotationY: targetRotY,
         region: currentReg,
         markers,
@@ -17922,6 +18215,8 @@ export class GameEngine {
     this.calderaLightningPool = [];
 
     // Clean up active VFX and projectiles
+    this.interiorFadeTimers.forEach((id) => clearTimeout(id));
+    this.interiorFadeTimers = [];
     this.starfallTimeoutIds.forEach((id) => clearTimeout(id));
     this.starfallTimeoutIds = [];
     if (this.aimIndicatorGroup) {

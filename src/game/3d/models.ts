@@ -8467,137 +8467,193 @@ export function createMageTowerExteriorMesh(): THREE.Group {
 
   const stoneMat = new THREE.MeshStandardMaterial({
     color: 0x1e293b,
-    roughness: 0.85,
-    metalness: 0.2,
+    roughness: 0.84,
+    metalness: 0.22,
     flatShading: true,
   });
   const trimMat = new THREE.MeshStandardMaterial({
     color: 0x334155,
-    roughness: 0.7,
+    roughness: 0.68,
+    metalness: 0.35,
+  });
+  const darkSlateMat = new THREE.MeshStandardMaterial({
+    color: 0x0f172a,
+    roughness: 0.85,
     metalness: 0.3,
   });
   const runeMat = new THREE.MeshStandardMaterial({
     color: 0x38bdf8,
     emissive: 0x00f0ff,
-    emissiveIntensity: 0.85,
-    roughness: 0.3,
+    emissiveIntensity: 0.95,
+    roughness: 0.25,
   });
-  const windowMat = new THREE.MeshStandardMaterial({
-    color: 0x0284c7,
+  const violetRuneMat = new THREE.MeshStandardMaterial({
+    color: 0xa855f7,
+    emissive: 0x9333ea,
+    emissiveIntensity: 0.85,
+    roughness: 0.25,
+  });
+  const stainedGlassMat = new THREE.MeshStandardMaterial({
+    color: 0x0ea5e9,
     emissive: 0x38bdf8,
-    emissiveIntensity: 0.65,
-    roughness: 0.2,
+    emissiveIntensity: 0.72,
+    roughness: 0.18,
   });
   const doorMat = new THREE.MeshStandardMaterial({
-    color: 0x271911,
-    roughness: 0.8,
+    color: 0x24160d,
+    roughness: 0.82,
   });
   const goldRuneMat = new THREE.MeshStandardMaterial({
-    color: 0xf59e0b,
+    color: 0xfbbf24,
     emissive: 0xd97706,
-    emissiveIntensity: 0.5,
+    emissiveIntensity: 0.55,
+    metalness: 0.75,
+    roughness: 0.28,
   });
 
-  // 1. Stepped Octagonal Plinth Foundation
-  const baseStep1 = new THREE.Mesh(new THREE.CylinderGeometry(8.5, 9.2, 1.2, 8), stoneMat);
-  baseStep1.position.y = 0.6;
+  // 1. Monumental 2x Stepped Octagonal Plinth Foundation (anti-sink skirt down to y=-2.5)
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(15.6, 16.4, 3.2, 8), darkSlateMat);
+  skirt.position.y = -1.6;
+  skirt.receiveShadow = true;
+  const baseStep1 = new THREE.Mesh(new THREE.CylinderGeometry(14.8, 15.8, 2.0, 8), stoneMat);
+  baseStep1.position.y = 1.0;
   baseStep1.receiveShadow = true;
-  const baseStep2 = new THREE.Mesh(new THREE.CylinderGeometry(7.4, 8.2, 1.2, 8), trimMat);
-  baseStep2.position.y = 1.8;
+  const baseStep2 = new THREE.Mesh(new THREE.CylinderGeometry(13.2, 14.2, 2.0, 8), trimMat);
+  baseStep2.position.y = 3.0;
   baseStep2.receiveShadow = true;
-  tower.add(baseStep1, baseStep2);
+  tower.add(skirt, baseStep1, baseStep2);
 
-  // 2. Tower Lower Shaft (Level 1 Library)
-  const shaft1 = new THREE.Mesh(new THREE.CylinderGeometry(6.4, 7.2, 8.5, 8), stoneMat);
-  shaft1.position.y = 6.0;
+  // 2. Colossal Lower Sanctum Shaft (Level 1)
+  const shaft1 = new THREE.Mesh(new THREE.CylinderGeometry(11.6, 12.8, 16.0, 8), stoneMat);
+  shaft1.position.y = 12.0;
   shaft1.castShadow = true;
   shaft1.receiveShadow = true;
   tower.add(shaft1);
 
-  // Entrance Portal on South side (+Z)
-  const portalArch = new THREE.Mesh(new THREE.BoxGeometry(3.4, 4.2, 1.2), trimMat);
-  portalArch.position.set(0, 3.8, 6.8);
-  const portalDoor = new THREE.Mesh(new THREE.BoxGeometry(2.4, 3.4, 0.4), doorMat);
-  portalDoor.position.set(0, 3.4, 7.2);
-  const runeDoorFrame = new THREE.Mesh(new THREE.BoxGeometry(2.8, 3.8, 0.2), runeMat);
-  runeDoorFrame.position.set(0, 3.6, 7.05);
+  // 8 Stone Buttress Ribs on Lower Shaft
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2;
+    const buttress = new THREE.Mesh(new THREE.BoxGeometry(1.8, 17.5, 2.2), trimMat);
+    buttress.position.set(Math.sin(ang) * 12.2, 11.2, Math.cos(ang) * 12.2);
+    buttress.rotation.y = ang;
+    buttress.castShadow = true;
+    tower.add(buttress);
+  }
+
+  // Grand Arcane Entrance Portal on South side (+Z, z ~ 12.6..15.2)
+  const portalArch = new THREE.Mesh(new THREE.BoxGeometry(6.4, 8.2, 2.4), trimMat);
+  portalArch.position.set(0, 6.8, 12.6);
+  const portalDoor = new THREE.Mesh(new THREE.BoxGeometry(4.4, 6.4, 0.55), doorMat);
+  portalDoor.position.set(0, 6.2, 13.7);
+  const runeDoorFrame = new THREE.Mesh(new THREE.BoxGeometry(5.1, 7.1, 0.35), runeMat);
+  runeDoorFrame.position.set(0, 6.4, 13.45);
   tower.add(portalArch, portalDoor, runeDoorFrame);
 
-  // Entrance Steps
-  const entranceSteps = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.6, 2.2), stoneMat);
-  entranceSteps.position.set(0, 0.3, 8.0);
-  tower.add(entranceSteps);
+  // Broad Stepped Entrance Staircase facing South
+  for (let s = 0; s < 4; s++) {
+    const step = new THREE.Mesh(new THREE.BoxGeometry(7.6 - s * 0.4, 0.75, 1.4), stoneMat);
+    step.position.set(0, 0.38 + s * 0.72, 16.4 - s * 0.9);
+    step.receiveShadow = true;
+    tower.add(step);
+  }
 
   // Rune Belt 1
-  const runeBelt1 = new THREE.Mesh(new THREE.CylinderGeometry(6.6, 6.6, 0.45, 8), runeMat);
-  runeBelt1.position.y = 10.2;
+  const runeBelt1 = new THREE.Mesh(new THREE.CylinderGeometry(11.9, 11.9, 0.85, 8), runeMat);
+  runeBelt1.position.y = 20.2;
   tower.add(runeBelt1);
 
-  // 3. Tower Middle Shaft (Level 2 Alchemy Lab)
-  const shaft2 = new THREE.Mesh(new THREE.CylinderGeometry(5.4, 6.2, 8.0, 8), stoneMat);
-  shaft2.position.y = 14.2;
+  // 3. Tower Middle Shaft (Level 2 Lab & Training Sanctum)
+  const shaft2 = new THREE.Mesh(new THREE.CylinderGeometry(9.8, 11.2, 15.0, 8), stoneMat);
+  shaft2.position.y = 27.8;
   shaft2.castShadow = true;
   tower.add(shaft2);
 
-  // Arched Windows on Middle Shaft
-  const windowAngles = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
-  windowAngles.forEach((ang) => {
-    const win = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.4, 0.3), windowMat);
-    const wx = Math.sin(ang) * 5.7;
-    const wz = Math.cos(ang) * 5.7;
-    win.position.set(wx, 14.5, wz);
-    win.rotation.y = ang;
-    tower.add(win);
-  });
+  // Tall Stained-Glass Lancet Windows (8 sides)
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    const winFrame = new THREE.Mesh(new THREE.BoxGeometry(2.5, 6.8, 0.5), trimMat);
+    const winGlass = new THREE.Mesh(new THREE.BoxGeometry(1.7, 5.8, 0.25), i % 2 === 0 ? stainedGlassMat : violetRuneMat);
+    const r = 10.35;
+    winFrame.position.set(Math.sin(ang) * r, 28.0, Math.cos(ang) * r);
+    winFrame.rotation.y = ang;
+    winGlass.position.set(Math.sin(ang) * (r + 0.16), 28.0, Math.cos(ang) * (r + 0.16));
+    winGlass.rotation.y = ang;
+    tower.add(winFrame, winGlass);
+  }
 
-  // Rune Belt 2
-  const runeBelt2 = new THREE.Mesh(new THREE.CylinderGeometry(5.6, 5.6, 0.45, 8), goldRuneMat);
-  runeBelt2.position.y = 18.2;
+  // Rune Belt 2 (Golden)
+  const runeBelt2 = new THREE.Mesh(new THREE.CylinderGeometry(10.1, 10.1, 0.85, 8), goldRuneMat);
+  runeBelt2.position.y = 35.6;
   tower.add(runeBelt2);
 
-  // 4. Tower Upper Shaft & Observatory Balcony (Level 3)
-  const shaft3 = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 5.2, 7.5, 8), stoneMat);
-  shaft3.position.y = 21.8;
+  // 4. Upper Observatory Shaft & Balcony (Level 3)
+  const shaft3 = new THREE.Mesh(new THREE.CylinderGeometry(8.2, 9.4, 14.0, 8), stoneMat);
+  shaft3.position.y = 42.6;
   shaft3.castShadow = true;
   tower.add(shaft3);
 
-  // Balcony Ring Platform
-  const balconyRing = new THREE.Mesh(new THREE.CylinderGeometry(6.2, 5.0, 1.2, 8), trimMat);
-  balconyRing.position.y = 25.8;
-  const balustrade = new THREE.Mesh(new THREE.CylinderGeometry(6.2, 6.2, 0.9, 8), runeMat);
-  balustrade.position.y = 26.8;
+  const balconyRing = new THREE.Mesh(new THREE.CylinderGeometry(11.2, 9.2, 2.0, 8), trimMat);
+  balconyRing.position.y = 50.2;
+  const balustrade = new THREE.Mesh(new THREE.CylinderGeometry(11.3, 11.3, 1.3, 8), runeMat);
+  balustrade.position.y = 51.6;
   tower.add(balconyRing, balustrade);
 
-  // 4 Corner Pinnacles with Glowing Mini Crystals
+  // 4 Corner Observatory Spires with Glowing Crystals
   const pinnacleOffsets = [
-    { x: -4.4, z: -4.4 },
-    { x: 4.4, z: -4.4 },
-    { x: -4.4, z: 4.4 },
-    { x: 4.4, z: 4.4 },
+    { x: -7.8, z: -7.8 },
+    { x: 7.8, z: -7.8 },
+    { x: -7.8, z: 7.8 },
+    { x: 7.8, z: 7.8 },
   ];
   pinnacleOffsets.forEach((po) => {
-    const pin = new THREE.Mesh(new THREE.ConeGeometry(0.45, 3.2, 4), trimMat);
-    pin.position.set(po.x, 28.2, po.z);
-    const pinCrys = new THREE.Mesh(new THREE.OctahedronGeometry(0.35), runeMat);
-    pinCrys.position.set(po.x, 30.0, po.z);
+    const pin = new THREE.Mesh(new THREE.ConeGeometry(0.9, 6.0, 4), trimMat);
+    pin.position.set(po.x, 54.4, po.z);
+    const pinCrys = new THREE.Mesh(new THREE.OctahedronGeometry(0.68), violetRuneMat);
+    pinCrys.position.set(po.x, 57.8, po.z);
     tower.add(pin, pinCrys);
   });
 
-  // 5. Gothic Observatory Spire Roof
-  const spire = new THREE.Mesh(new THREE.ConeGeometry(4.2, 8.5, 8), stoneMat);
-  spire.position.y = 30.2;
+  // 5. Colossal Celestial Spire Roof
+  const spire = new THREE.Mesh(new THREE.ConeGeometry(7.8, 16.0, 8), stoneMat);
+  spire.position.y = 59.0;
   spire.castShadow = true;
   tower.add(spire);
 
-  // Apex Levitating Giant Lightning Crystal Core
-  const coreMesh = new THREE.Mesh(new THREE.OctahedronGeometry(1.2), runeMat);
-  coreMesh.position.y = 35.4;
+  // 6. Three Floating Rotating Stone + Rune Arcane Rings around upper spire
+  const animatedRings: THREE.Group[] = [];
+  const ringConfigs = [
+    { radius: 13.0, tube: 0.42, y: 42.5, mat: runeMat, tiltX: 0.12, tiltZ: -0.08, speed: 0.42 },
+    { radius: 11.2, tube: 0.36, y: 50.5, mat: violetRuneMat, tiltX: -0.15, tiltZ: 0.14, speed: -0.58 },
+    { radius: 9.2, tube: 0.34, y: 61.5, mat: goldRuneMat, tiltX: 0.22, tiltZ: 0.1, speed: 0.76 },
+  ];
+  ringConfigs.forEach((rc) => {
+    const ringGroup = new THREE.Group();
+    ringGroup.position.y = rc.y;
+    ringGroup.rotation.set(rc.tiltX, 0, rc.tiltZ);
+    const torus = new THREE.Mesh(new THREE.TorusGeometry(rc.radius, rc.tube, 8, 32), rc.mat);
+    torus.rotation.x = Math.PI / 2;
+    ringGroup.add(torus);
+    // 4 Floating stone glyphs riding the ring
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2;
+      const stoneRune = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.2, 0.7), trimMat);
+      stoneRune.position.set(Math.cos(a) * rc.radius, 0, Math.sin(a) * rc.radius);
+      stoneRune.rotation.y = -a;
+      ringGroup.add(stoneRune);
+    }
+    ringGroup.userData.spinSpeed = rc.speed;
+    tower.add(ringGroup);
+    animatedRings.push(ringGroup);
+  });
+
+  // 7. Giant Levitating Apex Crystal Core (no shadow/PointLight overhead)
+  const coreMesh = new THREE.Mesh(new THREE.OctahedronGeometry(2.4), runeMat);
+  coreMesh.position.y = 70.2;
+  coreMesh.userData.baseY = 70.2;
   tower.add(coreMesh);
 
-  // Pulsing Arcane Light Beacon
-  const coreLight = new THREE.PointLight(0x00f0ff, 2.6, 38);
-  coreLight.position.y = 35.4;
-  tower.add(coreLight);
+  tower.userData.animatedRings = animatedRings;
+  tower.userData.apexCrystal = coreMesh;
 
   return tower;
 }
@@ -8925,4 +8981,165 @@ export function createSorceressMayaMesh(): THREE.Group {
   group.add(grimoire, starlight);
 
   return group;
+}
+
+/**
+ * Multi-story Medieval Townhouse for Astraea Capital (blue slate or royal terracotta roof).
+ */
+export function createMedievalTownhouseMesh(
+  roofStyle: 'blue' | 'terracotta' = 'blue',
+  withAwning = false
+): THREE.Group {
+  const house = new THREE.Group();
+
+  const plinthMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.9, flatShading: true });
+  const groundWallMat = new THREE.MeshStandardMaterial({ color: 0xd6d3d1, roughness: 0.88, flatShading: true });
+  const upperWallMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.85, flatShading: true });
+  const timberMat = new THREE.MeshLambertMaterial({ color: 0x451a03, flatShading: true });
+  const roofColor = roofStyle === 'blue' ? 0x1d4ed8 : 0x9a3412;
+  const roofMat = new THREE.MeshStandardMaterial({ color: roofColor, roughness: 0.72, flatShading: true });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.3, metalness: 0.8 });
+  const winMat = new THREE.MeshBasicMaterial({ color: 0xfde68a });
+
+  // Anti-sink stone foundation
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(7.2, 2.2, 6.8), plinthMat);
+  plinth.position.y = -0.8;
+  plinth.receiveShadow = true;
+  house.add(plinth);
+
+  // Floor 1 Stone Masonry
+  const floor1 = new THREE.Mesh(new THREE.BoxGeometry(6.4, 3.2, 5.8), groundWallMat);
+  floor1.position.y = 1.9;
+  floor1.castShadow = true;
+  floor1.receiveShadow = true;
+  house.add(floor1);
+
+  // Floor 2 Overhanging Half-Timbered Story
+  const floor2 = new THREE.Mesh(new THREE.BoxGeometry(7.0, 3.0, 6.4), upperWallMat);
+  floor2.position.y = 5.0;
+  floor2.castShadow = true;
+  floor2.receiveShadow = true;
+  house.add(floor2);
+
+  // Timber frame beams on corners & mid
+  for (const bx of [-3.4, 0, 3.4]) {
+    for (const bz of [-3.1, 3.1]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.28, 3.05, 0.28), timberMat);
+      post.position.set(bx, 5.0, bz);
+      house.add(post);
+    }
+  }
+
+  // Gabled Roof
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(5.6, 3.8, 4), roofMat);
+  roof.rotation.y = Math.PI / 4;
+  roof.position.y = 8.35;
+  roof.castShadow = true;
+  house.add(roof);
+
+  // Spire Finial & Chimney
+  const finial = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.14, 1.3, 6), goldMat);
+  finial.position.y = 10.6;
+  const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.85, 2.6, 0.85), plinthMat);
+  chimney.position.set(2.0, 8.6, -1.2);
+  house.add(finial, chimney);
+
+  // Front Door & Glowing Windows
+  const door = new THREE.Mesh(new THREE.BoxGeometry(1.25, 2.25, 0.2), timberMat);
+  door.position.set(0, 1.4, 2.96);
+  house.add(door);
+
+  for (const wx of [-2.0, 0, 2.0]) {
+    const win2 = new THREE.Mesh(new THREE.BoxGeometry(0.95, 1.05, 0.15), winMat);
+    win2.position.set(wx, 5.1, 3.22);
+    house.add(win2);
+  }
+  for (const wx of [-1.9, 1.9]) {
+    const win1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.0, 0.15), winMat);
+    win1.position.set(wx, 2.1, 2.94);
+    house.add(win1);
+  }
+
+  if (withAwning) {
+    const awningMat = new THREE.MeshStandardMaterial({
+      color: roofStyle === 'blue' ? 0x0284c7 : 0xd97706,
+      roughness: 0.78,
+    });
+    const awning = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.22, 1.8), awningMat);
+    awning.position.set(0, 2.9, 3.7);
+    awning.rotation.x = 0.24;
+    house.add(awning);
+  }
+
+  return house;
+}
+
+/**
+ * Middle-Eastern Domed Sandstone House for Solaria Desert Kingdom.
+ */
+export function createDesertDomeHouseMesh(variant = 0): THREE.Group {
+  const house = new THREE.Group();
+
+  const sandStoneMat = new THREE.MeshStandardMaterial({
+    color: variant % 2 === 0 ? 0xfef3c7 : 0xfde68a,
+    roughness: 0.9,
+    flatShading: true,
+  });
+  const trimSandMat = new THREE.MeshStandardMaterial({
+    color: 0xd97706,
+    roughness: 0.75,
+    flatShading: true,
+  });
+  const domeColor = variant % 3 === 0 ? 0x0d9488 : variant % 3 === 1 ? 0xfef3c7 : 0xf59e0b;
+  const domeMat = new THREE.MeshStandardMaterial({
+    color: domeColor,
+    roughness: 0.45,
+    metalness: 0.18,
+  });
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x78350f });
+  const winMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+
+  // Anti-sink sandstone plinth
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(7.2, 2.2, 6.8), trimSandMat);
+  plinth.position.y = -0.85;
+  plinth.receiveShadow = true;
+  house.add(plinth);
+
+  // Main Cubic Body
+  const body = new THREE.Mesh(new THREE.BoxGeometry(6.6, 3.8, 6.2), sandStoneMat);
+  body.position.y = 2.1;
+  body.castShadow = true;
+  body.receiveShadow = true;
+  house.add(body);
+
+  // Decorative Roof Cornice Band
+  const cornice = new THREE.Mesh(new THREE.BoxGeometry(7.0, 0.45, 6.6), trimSandMat);
+  cornice.position.y = 4.15;
+  house.add(cornice);
+
+  // Onion / Hemispherical Desert Dome
+  const domeGeo = new THREE.SphereGeometry(2.15, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.62);
+  const dome = new THREE.Mesh(domeGeo, domeMat);
+  dome.position.set(0, 4.3, 0);
+  dome.castShadow = true;
+  house.add(dome);
+
+  const finial = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.95, 8), trimSandMat);
+  finial.position.set(0, 6.65, 0);
+  house.add(finial);
+
+  // Arched Entrance Door & Wooden Pergola Shading
+  const archFrame = new THREE.Mesh(new THREE.BoxGeometry(1.75, 2.55, 0.25), trimSandMat);
+  archFrame.position.set(0, 1.55, 3.12);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(1.25, 2.1, 0.3), woodMat);
+  door.position.set(0, 1.35, 3.16);
+  house.add(archFrame, door);
+
+  for (const wx of [-1.95, 1.95]) {
+    const win = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.05, 0.16), winMat);
+    win.position.set(wx, 2.35, 3.14);
+    house.add(win);
+  }
+
+  return house;
 }

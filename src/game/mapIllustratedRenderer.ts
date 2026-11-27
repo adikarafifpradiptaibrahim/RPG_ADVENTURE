@@ -856,8 +856,18 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12D. Sultan Malik Palace [-540, -540]
+  // 12D. Sultan Malik Grand Desert Kingdom & Reflecting Pool [-540, -540] (~150x150)
   const [sultX, sultY] = wToC(-540, -540);
+  const [sultPlazaX, sultPlazaY] = wToC(-540, -495);
+  // Courtyard low sandstone plaza frame
+  ctx.fillStyle = 'rgba(217, 178, 120, 0.55)';
+  ctx.fillRect(sultPlazaX - 32, sultPlazaY - 32, 64, 64);
+  ctx.strokeStyle = '#d97706';
+  ctx.lineWidth = 1.6;
+  ctx.strokeRect(sultPlazaX - 32, sultPlazaY - 32, 64, 64);
+  // Elongated Turquoise Reflecting Pool in front of stairs
+  ctx.fillStyle = '#06b6d4';
+  ctx.fillRect(sultX - 3.5, sultY + 11, 7, 22);
   ctx.fillStyle = '#f1f5f9';
   ctx.fillRect(sultX - 20, sultY - 7, 40, 18);
   // Onion dome
@@ -887,36 +897,47 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12E. Astraea Imperial Castle & Sun Palace [460, -420]
+  // 12E. Astraea Expanded Imperial Capital City (170x170 at [460, -420])
   const [astX, astY] = wToC(460, -420);
   ctx.fillStyle = '#64748b';
-  ctx.fillRect(astX - 28, astY - 15, 56, 30);
-  ctx.fillStyle = '#94a3b8';
-  ctx.fillRect(astX - 22, astY - 10, 44, 20);
-  ctx.fillStyle = '#cbd5e1';
-  ctx.fillRect(astX - 12, astY - 20, 24, 18);
+  ctx.fillRect(astX - 38, astY - 36, 76, 72);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillRect(astX - 34, astY - 32, 68, 64);
+  // Royal Districts & Grand Sun Palace in north quarter
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(astX - 16, astY - 31, 32, 20);
+  ctx.fillStyle = '#eab308';
+  ctx.beginPath();
+  ctx.arc(astX, astY - 24, 9, 0, Math.PI * 2);
+  ctx.fill();
+  // Central Marble Fountain Plaza
+  ctx.fillStyle = '#38bdf8';
+  ctx.beginPath();
+  ctx.arc(astX, astY + 4, 5, 0, Math.PI * 2);
+  ctx.fill();
+  // South Gate
   ctx.fillStyle = '#1e293b';
   ctx.beginPath();
-  ctx.arc(astX, astY + 15, 5, Math.PI, 0);
+  ctx.arc(astX, astY + 36, 6, Math.PI, 0);
   ctx.fill();
   // Corner towers with gold cones
   const astTowers = [
-    [astX - 28, astY - 15],
-    [astX + 28, astY - 15],
-    [astX - 28, astY + 15],
-    [astX + 28, astY + 15],
+    [astX - 38, astY - 36],
+    [astX + 38, astY - 36],
+    [astX - 38, astY + 36],
+    [astX + 38, astY + 36],
   ];
   astTowers.forEach(([tx, ty]) => {
     ctx.fillStyle = '#475569';
     ctx.beginPath();
-    ctx.arc(tx, ty, 6, 0, Math.PI * 2);
+    ctx.arc(tx, ty, 6.5, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#eab308';
     ctx.beginPath();
-    ctx.moveTo(tx - 6, ty);
-    ctx.lineTo(tx + 6, ty);
-    ctx.lineTo(tx, ty - 12);
+    ctx.moveTo(tx - 6.5, ty);
+    ctx.lineTo(tx + 6.5, ty);
+    ctx.lineTo(tx, ty - 13);
     ctx.closePath();
     ctx.fill();
   });
@@ -929,38 +950,47 @@ export function renderIllustratedMap(
   ctx.fillStyle = '#334155';
   ctx.fillRect(ruinX - 14, ruinY - 14, 7, 21);
 
-  // 12F2. Mage Tower Puncak Halilintar [270, -260]
+  // 12F2. Mage Tower Puncak Halilintar & Circular Arcane Ring Plaza [270, -260]
   const [mtX, mtY] = wToC(270, -260);
+  ctx.strokeStyle = 'rgba(139, 92, 246, 0.75)';
+  ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  ctx.arc(mtX, mtY, 16, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.fillStyle = '#475569';
-  ctx.fillRect(mtX - 8, mtY - 14, 16, 28);
+  ctx.fillRect(mtX - 8, mtY - 15, 16, 30);
   ctx.fillStyle = '#7c3aed';
   ctx.beginPath();
-  ctx.moveTo(mtX - 9, mtY - 14);
-  ctx.lineTo(mtX + 9, mtY - 14);
-  ctx.lineTo(mtX, mtY - 26);
+  ctx.moveTo(mtX - 10, mtY - 15);
+  ctx.lineTo(mtX + 10, mtY - 15);
+  ctx.lineTo(mtX, mtY - 28);
   ctx.closePath();
   ctx.fill();
 
-  // 12G. Desa Benteng Val-Kragor [580, 130]
+  // 12G. Desa Benteng Val-Kragor (110x110 at [580, 130], 4 Integrated Corner Watchtowers)
   const [valX, valY] = wToC(580, 130);
-  ctx.strokeStyle = '#78350f';
-  ctx.lineWidth = 3.6;
-  ctx.strokeRect(valX - 24, valY - 15, 48, 30);
+  ctx.fillStyle = 'rgba(71, 85, 105, 0.45)';
+  ctx.fillRect(valX - 26, valY - 26, 52, 52);
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 3.8;
+  ctx.strokeRect(valX - 26, valY - 26, 52, 52);
   ctx.fillStyle = '#dc2626';
   ctx.beginPath();
-  ctx.moveTo(valX - 11, valY + 5);
-  ctx.lineTo(valX, valY - 9);
-  ctx.lineTo(valX + 11, valY + 5);
+  ctx.moveTo(valX + 4, valY + 6);
+  ctx.lineTo(valX + 14, valY - 9);
+  ctx.lineTo(valX + 24, valY + 6);
   ctx.closePath();
   ctx.fill();
-  [-24, 24].forEach((wx) => {
-    ctx.fillStyle = '#92400e';
-    ctx.fillRect(valX + wx - 3.5, valY - 17, 7, 9);
+  [
+    [-26, -26], [26, -26], [-26, 26], [26, 26],
+  ].forEach(([wx, wy]) => {
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(valX + wx - 4, valY + wy - 4, 8, 8);
     ctx.fillStyle = '#fef08a';
     ctx.beginPath();
-    ctx.moveTo(valX + wx - 4.5, valY - 17);
-    ctx.lineTo(valX + wx + 4.5, valY - 17);
-    ctx.lineTo(valX + wx, valY - 24);
+    ctx.moveTo(valX + wx - 4.5, valY + wy - 4);
+    ctx.lineTo(valX + wx + 4.5, valY + wy - 4);
+    ctx.lineTo(valX + wx, valY + wy - 11);
     ctx.closePath();
     ctx.fill();
   });

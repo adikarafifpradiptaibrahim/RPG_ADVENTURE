@@ -77,7 +77,7 @@ export const WORLD_LAYOUT_CONFIG: WorldLayoutConfig = {
       z: -420,
       rotationY: 0,
       scale: 1.0,
-      flattenRadius: 50,
+      flattenRadius: 128,
       category: 'castle',
     },
     valkragor: {
@@ -89,7 +89,7 @@ export const WORLD_LAYOUT_CONFIG: WorldLayoutConfig = {
       z: 130,
       rotationY: 0,
       scale: 1.0,
-      flattenRadius: 65,
+      flattenRadius: 86,
       category: 'castle',
     },
     abandoned_castle: {
@@ -113,7 +113,7 @@ export const WORLD_LAYOUT_CONFIG: WorldLayoutConfig = {
       z: -420,
       rotationY: 0,
       scale: 1.0,
-      flattenRadius: 35,
+      flattenRadius: 62,
       category: 'desert',
     },
     oasis: {
@@ -149,7 +149,7 @@ export const WORLD_LAYOUT_CONFIG: WorldLayoutConfig = {
       z: -540,
       rotationY: -1.5707963267948966, // -90 deg, facing South towards Desert Village
       scale: 1.0,
-      flattenRadius: 40,
+      flattenRadius: 95,
       category: 'desert',
     },
     bossGolem: {
@@ -221,7 +221,7 @@ export const WORLD_LAYOUT_CONFIG: WorldLayoutConfig = {
       z: -260,
       rotationY: 0,
       scale: 1.0,
-      flattenRadius: 28,
+      flattenRadius: 50,
       category: 'landmark',
     },
     mist_forest: {

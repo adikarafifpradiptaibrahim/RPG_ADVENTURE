@@ -201,8 +201,15 @@ export function getContinentCoastRadius(angle: number, x: number, z: number): nu
  * Pemeriksaan apakah titik (x, z) berada di dalam daratan Benua Utama Eldoria.
  */
 export function isMainContinentLand(x: number, z: number): boolean {
-  // Guaranteed continent land around all eastern & main landmarks (organic radius)
-  if (Math.hypot(x - 580, z - 130) < 140 || Math.hypot(x - 600, z - -50) < 150) return true;
+  // Guaranteed continent land around all expanded capitals, fortresses, palaces & eastern landmarks
+  if (
+    Math.hypot(x - 580, z - 130) < 155 ||
+    Math.hypot(x - 600, z - -50) < 150 ||
+    Math.hypot(x - 460, z - -420) < 150 ||
+    Math.hypot(x - -540, z - -505) < 145
+  ) {
+    return true;
+  }
 
   const dx = x;
   const dz = z - (-320);
@@ -412,39 +419,69 @@ export const ROAD_SPLINES: RoadSplineDef[] = [
     ],
   },
 
-  // 2. POROS TIMUR: Desa Utama [20, -60] -> Jembatan [95, -60] -> Jembatan [200, -168] -> Mage Tower [270, -260] -> Gerbang Selatan Astraea [460, -370]
+  // 2A. POROS TIMUR BAGIAN BARAT: Desa Utama [20, -60] -> Jembatan [95, -60] -> Jembatan [200, -168] -> Jalan Lingkar Mage Tower [247, -237]
   {
     id: 'road_village_astraea',
-    name: 'Jalan Poros Timur: Desa - Mage Tower - Astraea',
+    name: 'Jalan Poros Timur: Desa - Lingkar Mage Tower',
     width: 3.4,
     points: [
       [20, -60],   // Gerbang Timur Desa Utama
-      [76, -60],   // Pangkal Barat Jembatan Poros Timur (segaris lurus ke timur)
+      [76, -60],   // Pangkal Barat Jembatan Poros Timur
       [114, -60],  // Pangkal Timur Jembatan Poros Timur
       [175, -110],
       [200, -148], // Pangkal Selatan Jembatan Menara Sihir Timur
       [200, -188], // Pangkal Utara Jembatan Menara Sihir Timur
-      [230, -225],
-      [270, -260], // Alun-Alun Bukit Kering Mage Tower Puncak Halilintar
-      [360, -320],
-      [460, -370], // Berhenti Tegak Lurus Tepat di Depan Gerbang Selatan Astraea
+      [226, -218],
+      [247, -237], // Tersambung mulus ke sisi Barat Daya Jalan Lingkar Bundaran Sihir (radius 32)
     ],
   },
 
-  // 3. POROS TENGGARA: Mage Tower [270, -260] -> Jembatan [380, -190] -> Puing Kastil Courtyard [535, -45] -> Benteng Val-Kragor [580, 115]
+  // 2B. JALAN LINGKAR BUNDARAN SIHIR MAGE TOWER (Circular Arcane Ring Plaza radius 32 mengitari [270, -260])
+  {
+    id: 'road_mage_plaza_ring',
+    name: 'Jalan Lingkar Bundaran Sihir Mage Tower',
+    width: 3.8,
+    points: [
+      [247, -237], // Barat Daya (Sambungan dari Desa)
+      [270, -228], // Selatan (Depan Tangga Gerbang Mage Tower)
+      [293, -237], // Tenggara (Persimpangan ke Val-Kragor)
+      [302, -260], // Timur
+      [293, -283], // Timur Laut (Persimpangan ke Astraea)
+      [270, -292], // Utara
+      [247, -283], // Barat Laut
+      [238, -260], // Barat
+      [247, -237], // Tutup lingkaran kembali ke Barat Daya
+      [260, -230], // Overlap tangent penutup lingkaran mulus
+    ],
+  },
+
+  // 2C. POROS TIMUR BAGIAN UTARA: Keluar Bundaran Mage Tower [293, -283] -> Gerbang Selatan Ibukota Astraea [460, -335]
+  {
+    id: 'road_mage_astraea',
+    name: 'Jalan Poros Kekaisaran: Lingkar Mage Tower - Ibukota Astraea',
+    width: 3.6,
+    points: [
+      [293, -283], // Persimpangan Timur Laut Bundaran Mage Tower
+      [360, -315],
+      [420, -328],
+      [460, -332], // Berhenti Tegak Lurus Tepat di Depan Gerbang Selatan Kota Megah Astraea (Z=-335)
+    ],
+  },
+
+  // 3. POROS TENGGARA: Keluar Bundaran Mage Tower [293, -237] -> Jembatan [380, -190] -> Puing Kastil [535, -45] -> Gerbang Utara Val-Kragor [580, 72]
   {
     id: 'road_mage_valkragor',
     name: 'Jalan Poros Tenggara: Mage Tower - Puing Kastil - Val-Kragor',
-    width: 3.0,
+    width: 3.2,
     points: [
-      [270, -260], // Simpang Mage Tower
-      [355, -225],
+      [293, -237], // Persimpangan Tenggara Bundaran Mage Tower (bebas badan menara!)
+      [355, -222],
       [380, -210], // Pangkal Utara Jembatan Val-Kragor
       [380, -170], // Pangkal Selatan Jembatan Val-Kragor
       [440, -125],
-      [535, -45],  // Halaman Depan Puing Kastil Terbengkalai (Tidak Membelah Tembok Kastil)
-      [560, 25],
-      [580, 115],  // Berhenti Tepat di Depan Gerbang Selatan Benteng Val-Kragor
+      [535, -45],  // Halaman Depan Puing Kastil Terbengkalai
+      [562, 22],
+      [580, 72],   // Berhenti Tegak Lurus di Depan Gerbang Besi Utara Benteng Val-Kragor (Z=75)
     ],
   },
 
@@ -480,15 +517,15 @@ export const ROAD_SPLINES: RoadSplineDef[] = [
     ],
   },
 
-  // 6. POROS UTARA GURUN: Desa Gurun [-540, -420] -> Berhenti di Depan Gerbang Istana Sultan [-540, -505]
+  // 6. POROS UTARA GURUN: Desa Gurun [-540, -420] -> Berhenti di Depan Gerbang Kota Kerajaan Gurun [-540, -434]
   {
     id: 'road_desert_north',
-    name: 'Jalan Kafilah Pasir Emas: Desa Gurun - Gerbang Istana Sultan',
+    name: 'Jalan Kafilah Pasir Emas: Desa Gurun - Gerbang Kota & Istana Sultan',
     width: 3.4,
     points: [
       [-540, -420], // Desa Gurun Solaria
-      [-540, -470], // Sumbu Lurus Pendekatan dari Selatan
-      [-540, -505], // Berhenti Tegak Lurus Tepat di Depan Gerbang Utama Istana Sultan Malik
+      [-540, -428], // Sumbu Lurus Pendekatan dari Selatan
+      [-540, -434], // Berhenti di Gerbang Plaza Kerajaan Gurun & Kolam Refleksi Istana Sultan
     ],
   },
 ];
@@ -641,15 +678,15 @@ const RAW_WORLD_LANDMARKS: LandmarkDef[] = [
   {
     id: 'sultan_palace',
     name: 'Sultan Malik Grand Palace',
-    nameId: 'Istana Sultan Malik',
+    nameId: 'Kota Gurun & Istana Sultan Malik',
     x: -540,
     z: -540,
     level: 8,
     type: 'palace',
     icon: '🕌',
     color: '#d97706',
-    description: 'The opulent white marble and golden domed desert palace of Sultan Malik al-Solaria in the west dunes.',
-    descriptionId: 'Kompleks istana megah kubah marmer emas penguasa Gurun Pasir Solaria di barat benua.',
+    description: 'The vast golden desert kingdom and white marble domed palace of Sultan Malik with reflecting pools, silk bazaar, and exotic interiors.',
+    descriptionId: 'Kota kerajaan padang pasir Solaria (~150x150 unit) lengkap dengan kolam refleksi air, bazar tenda sutra, rumah kubah, serta Istana Sultan Malik yang megah dan dapat dimasuki.',
     waypointId: 'wp_sultan_palace',
     labelPosition: 'above',
   },
@@ -741,8 +778,8 @@ const RAW_WORLD_LANDMARKS: LandmarkDef[] = [
     type: 'capital',
     icon: '👑',
     color: '#fbbf24',
-    description: 'The monumental golden capital of Emperor Aurelius with grand stone walls, white marble arcades, and imperial guards.',
-    descriptionId: 'Kompleks benteng kastil megah berpilar emas putih dan tahta Kaisar Aurelius di daratan hijau timur-tengah.',
+    description: 'The monumental 170x170 golden imperial city of Emperor Aurelius with Grand Plaza, medieval districts, market tavern, and twin-balcony Sun Palace.',
+    descriptionId: 'Kota benteng medieval raksasa (~170x170 unit) dengan Alun-Alun Utama marmer, distrik pasar & tavern, serta Istana Kaisar 2x lebih megah lengkap dengan aula tahta & balkon Lantai 2.',
     isSafeZone: true,
     waypointId: 'wp_astraea',
     labelPosition: 'above',
@@ -751,14 +788,14 @@ const RAW_WORLD_LANDMARKS: LandmarkDef[] = [
     id: 'mage_tower',
     name: 'Thunderpeak Mage Tower',
     nameId: 'Mage Tower Puncak Halilintar',
-    x: 260,
-    z: -180,
+    x: 270,
+    z: -260,
     level: 4,
     type: 'tower',
     icon: '⚡',
     color: '#8b5cf6',
-    description: 'A grand magical arcane spire on a grassy hill, center of arcane learning and teleportation.',
-    descriptionId: 'Menara penyihir megah di perbukitan timur-tengah, pusat studi sihir dan teleportasi.',
+    description: 'Colossal arcane spire circled by a smooth ring plaza, outdoor spell training grounds, and a 4-floor multi-zone magical interior.',
+    descriptionId: 'Menara penyihir raksasa di tengah bundaran Jalan Lingkar Sihir dengan area pelatihan sihir outdoor serta interior 4 zona bertingkat (Basement, Perpustakaan, Lab Latihan, & Observatorium).',
     waypointId: 'wp_thunderpeak',
     labelPosition: 'below',
   },
@@ -781,14 +818,14 @@ const RAW_WORLD_LANDMARKS: LandmarkDef[] = [
     id: 'valkragor',
     name: 'Fortress Village Val-Kragor',
     nameId: 'Desa Benteng Val-Kragor',
-    x: 660,
-    z: 150,
+    x: 580,
+    z: 130,
     level: 3,
     type: 'fortress',
     icon: '🛡️',
     color: '#3b82f6',
-    description: 'A fortified highland village with wooden palisades, corner watchtowers, blacksmith, and red-roofed cottages.',
-    descriptionId: 'Desa berpagar benteng kayu runcing & tembok batu slate di semenanjung tenggara.',
+    description: 'A vast 110x110 fortified highland stronghold with 4 integrated corner watchtowers, barracks, combat yard, command hall, and forge interior.',
+    descriptionId: 'Desa benteng megah seluas ~110x110 unit dengan 4 menara sudut menyatu tembok, barak prajurit, lapangan latihan, rumah warga, Aula Komandan, & Bengkel Tempa yang bisa dimasuki.',
     waypointId: 'wp_valkragor',
     labelPosition: 'below',
   },
@@ -1080,9 +1117,11 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   const coastR = getContinentCoastRadius(angleCenter, x, z);
 
   if (biome === 'ocean') {
-    const edgeFromValOut = Math.hypot(x - 580, z - 130) - 140;
+    const edgeFromValOut = Math.hypot(x - 580, z - 130) - 155;
     const edgeFromRuinsOut = Math.hypot(x - 600, z - -50) - 150;
-    const dCoast = Math.min(distCenter - coastR, edgeFromValOut, edgeFromRuinsOut);
+    const edgeFromAstraeaOut = Math.hypot(x - 460, z - -420) - 150;
+    const edgeFromSultanOut = Math.hypot(x - -540, z - -505) - 145;
+    const dCoast = Math.min(distCenter - coastR, edgeFromValOut, edgeFromRuinsOut, edgeFromAstraeaOut, edgeFromSultanOut);
     if (dCoast <= 18) {
       return lerpVal(0.05, -4.50, Math.max(0, dCoast) / 18); // Garis pantai pasir landai turun ke laut
     }
@@ -1236,10 +1275,10 @@ export function getProceduralContinentHeight(x: number, z: number): number {
 
     // 3. Ibukota Kerajaan Emas Astraea [460, -420]
     const distAstraea = Math.hypot(x - (lm.astraea?.x ?? 460), z - (lm.astraea?.z ?? -420));
-    const astraeaRadius = lm.astraea?.flattenRadius ?? 50;
+    const astraeaRadius = lm.astraea?.flattenRadius ?? 128;
     if (distAstraea <= astraeaRadius) return lm.astraea?.y ?? 2.00;
-    if (distAstraea <= astraeaRadius + 8) {
-      const t = smoothstepBlend(astraeaRadius, astraeaRadius + 8, distAstraea);
+    if (distAstraea <= astraeaRadius + 16) {
+      const t = smoothstepBlend(astraeaRadius, astraeaRadius + 16, distAstraea);
       return lerpVal(lm.astraea?.y ?? 2.00, basePlainsHeight, t);
     }
 
@@ -1326,9 +1365,11 @@ export function getProceduralContinentHeight(x: number, z: number): number {
   let landH = computeContinentalLandHeight();
 
   // Pita pantai tipis di pinggir garis pantai benua (inCoast 0..14 unit dari garis laut)
-  const edgeInVal = 140 - Math.hypot(x - 580, z - 130);
+  const edgeInVal = 155 - Math.hypot(x - 580, z - 130);
   const edgeInRuins = 150 - Math.hypot(x - 600, z - -50);
-  const inCoast = Math.max(coastR - distCenter, edgeInVal, edgeInRuins);
+  const edgeInAst = 150 - Math.hypot(x - 460, z - -420);
+  const edgeInSlt = 145 - Math.hypot(x - -540, z - -505);
+  const inCoast = Math.max(coastR - distCenter, edgeInVal, edgeInRuins, edgeInAst, edgeInSlt);
   if (inCoast < 14) {
     const tBeach = smoothstepBlend(0, 14, Math.max(0, inCoast));
     landH = lerpVal(0.05, landH, tBeach);

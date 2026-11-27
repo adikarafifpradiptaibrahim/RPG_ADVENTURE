@@ -3506,55 +3506,11 @@ export async function buildWorldEnvironmentAsync(
 
   // ============================================================================
   // ZONA Q: DESA BENTENG VAL-KRAGOR (EAST FORTRESS VILLAGE)
-  // Koordinat Pusat X: 660, Z: 150 (Benteng Slate, Pos Jaga & Barikade Kayu)
+  // Struktural dinding 110x110 & 4 corner watchtower terintegrasi di buildValKragorFort (world.ts).
+  // Barikade & pos jaga lama di sini dihapus agar tidak menghalangi halaman dalam atau menembus tembok.
   // ============================================================================
   const valkragorGroup = new THREE.Group();
   valkragorGroup.name = 'ZoneQ_FortressValKragor';
-
-  // 1. Gerbang Benteng Kayu Runcing & Barikade
-  const valkragorBarricades = [
-    [555, 115], [555, 125], [555, 135], [555, 145],
-    [595, 115], [595, 125], [595, 135], [595, 145],
-  ];
-  valkragorBarricades.forEach(([bx, bz]) => {
-    const by = getTerrainHeight(bx, bz);
-    const post = new THREE.Mesh(new THREE.ConeGeometry(0.35, 3.2, 5), matWoodRustic);
-    post.position.set(bx, by + 1.6, bz);
-    post.castShadow = true;
-    valkragorGroup.add(post);
-  });
-
-  // 2. Pos Jaga Kayu Benteng (Watchtower Mini)
-  const watchtowers = [[552, 110], [598, 110], [552, 150], [598, 150]];
-  watchtowers.forEach(([wx, wz]) => {
-    const wy = getTerrainHeight(wx, wz);
-    const wtGroup = new THREE.Group();
-    wtGroup.position.set(wx, wy, wz);
-
-    for (let lx = -1; lx <= 1; lx += 2) {
-      for (let lz = -1; lz <= 1; lz += 2) {
-        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 8.5, 5), matWoodRustic);
-        leg.position.set(lx * 0.9, 1.75, lz * 0.9);
-        wtGroup.add(leg);
-      }
-    }
-    const plinth = new THREE.Mesh(new THREE.BoxGeometry(2.8, 3.0, 2.8), matWoodDark);
-    plinth.position.y = -1.25;
-    plinth.receiveShadow = true;
-    wtGroup.add(plinth);
-    const floor = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.25, 2.6), matWoodRustic);
-    floor.position.y = 5.8;
-    wtGroup.add(floor);
-    wtGroup.updateMatrixWorld(true);
-    registerWalkableSurface(floor, { label: 'Lantai Pos Pengawas Val-Kragor' });
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(2.0, 1.8, 4), matTentFabric);
-    roof.position.y = 7.2;
-    wtGroup.add(roof);
-
-    valkragorGroup.add(wtGroup);
-    colliders.push({ type: 'circle', x: wx, z: wz, radius: 1.5, label: 'Menara Pos Benteng Val-Kragor' });
-  });
-
   envGroup.add(valkragorGroup);
   await checkEnvYield();
 

@@ -146,6 +146,8 @@ export default function App() {
   const [isSpectatorMode, setIsSpectatorMode] = useState(false);
   const [spectatorSpeed, setSpectatorSpeed] = useState(22);
   const [isUIVisible, setIsUIVisible] = useState(true);
+  const [interiorFading, setInteriorFading] = useState(false);
+  const [interiorPortal, setInteriorPortal] = useState<{ label: string; kind: 'enter' | 'exit' | 'floor'; promptText: string } | null>(null);
 
   // World Map & Minimap Live Position State
   const [playerPos, setPlayerPos] = useState({ x: 0, y: 0, z: 4, rotationY: 0 });
@@ -901,6 +903,12 @@ export default function App() {
       onPreviewRoleSelected: (role) => {
         setPreviewRole(role);
       },
+      onInteriorFadeChange: (fadingOut) => {
+        setInteriorFading(fadingOut);
+      },
+      onInteriorPortalState: (portalInfo) => {
+        setInteriorPortal(portalInfo);
+      },
       onCheckpointUnlocked: (id, nameId) => {
         setUnlockedCheckpoints((prev) => {
           if (prev.includes(id)) return prev;
@@ -1500,6 +1508,7 @@ export default function App() {
             quests={quests}
             floatingTexts={floatingTexts}
             nearbyPrompt={nearbyPrompt}
+            interiorPortal={interiorPortal}
             onPromptClick={() => {
               if (promptActionRef.current) {
                 promptActionRef.current();
@@ -1883,6 +1892,14 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Smooth 0.35s GTA Interior Transition Blackout Overlay */}
+      <div
+        aria-hidden="true"
+        className={`fixed inset-0 z-[120] bg-black pointer-events-none transition-opacity duration-[350ms] ease-in-out ${
+          interiorFading ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
     </div>
   );
 }

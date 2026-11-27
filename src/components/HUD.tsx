@@ -55,6 +55,7 @@ interface HUDProps {
   floatingTexts: FloatingText[];
   nearbyPrompt: string | null;
   onPromptClick?: () => void;
+  interiorPortal?: { label: string; kind: 'enter' | 'exit' | 'floor'; promptText: string } | null;
   onOpenInventory: () => void;
   onOpenShop?: () => void;
   onOpenStats: () => void;
@@ -135,6 +136,7 @@ export const HUD: React.FC<HUDProps> = ({
   floatingTexts,
   nearbyPrompt,
   onPromptClick,
+  interiorPortal = null,
   onOpenInventory,
   onOpenShop,
   onOpenStats,
@@ -876,6 +878,47 @@ export const HUD: React.FC<HUDProps> = ({
           >
             <Sparkles className="w-3 h-3 text-stone-950 flex-shrink-0" />
             <span className="tracking-wide truncate">{nearbyPrompt}</span>
+          </button>
+        </div>
+      )}
+
+      {/* Dedicated Mobile Touch Enter / Exit / Floor Portal Button */}
+      {isMobileUi && !isSpectatorMode && !isModalOpen && interiorPortal && onPromptClick && (
+        <div
+          style={{
+            bottom: '196px',
+            right: 'max(14px, env(safe-area-inset-right))',
+            touchAction: 'none',
+          }}
+          className="fixed z-50 pointer-events-auto select-none"
+        >
+          <button
+            type="button"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onPromptClick();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onPromptClick();
+            }}
+            className={`px-3.5 py-2 rounded-full border-2 font-bold text-xs shadow-xl flex items-center gap-1.5 backdrop-blur-md active:scale-95 transition-transform ${
+              interiorPortal.kind === 'floor'
+                ? 'bg-sky-950/90 border-sky-400 text-sky-200 shadow-sky-500/30'
+                : 'bg-amber-950/90 border-amber-400 text-amber-200 shadow-amber-500/30'
+            }`}
+          >
+            <span className="text-sm leading-none">
+              {interiorPortal.kind === 'floor' ? '✨' : interiorPortal.kind === 'exit' ? '🚪' : '🏛️'}
+            </span>
+            <span>
+              {interiorPortal.kind === 'enter'
+                ? 'Masuk [E]'
+                : interiorPortal.kind === 'exit'
+                  ? 'Keluar [E]'
+                  : 'Lantai [E]'}
+            </span>
           </button>
         </div>
       )}
