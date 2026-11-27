@@ -119,6 +119,77 @@ export const SkillBar: React.FC<SkillBarProps> = ({
   const prevRechargeText = useRef<Record<string, string>>({});
   const prevChargeText = useRef<Record<string, string>>({});
 
+  // Failsafe global pointer listener while aiming (guarantees release / cancel never sticks if finger leaves button)
+  const cancelZoneRef2Ready = true;
+  useEffect(() => {
+    void cancelZoneRef2Ready;
+    const handleGlobalPointerMove = (e: PointerEvent) => {
+      const cur = activeAimRef.current;
+      if (!cur || cur.pointerId !== e.pointerId) return;
+      const rawDx = e.clientX - cur.startX;
+      const rawDy = e.clientY - cur.startY;
+      const dist = Math.hypot(rawDx, rawDy);
+      cur.maxDrag = Math.max(cur.maxDrag, dist);
+      if (!cur.overlayShown && cur.maxDrag >= 8) {
+        cur.overlayShown = true;
+        if (basicHoldTimerRef.current) {
+          clearTimeout(basicHoldTimerRef.current);
+          basicHoldTimerRef.current = null;
+        }
+      }
+      const maxRadius = 38;
+      const clampedDist = Math.min(dist, maxRadius);
+      const kx = dist > 0 ? (rawDx / dist) * clampedDist : 0;
+      const ky = dist > 0 ? (rawDy / dist) * clampedDist : 0;
+      const cancelEl = cancelZoneRef.current || document.getElementById('moba-cancel-zone');
+      let inCancel = false;
+      if (cur.overlayShown && cancelEl) {
+        const rect = cancelEl.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        inCancel = Math.hypot(e.clientX - cx, e.clientY - cy) <= Math.max(rect.width, rect.height) * 0.5 + 16;
+      }
+      cur.overCancel = inCancel;
+      if (cur.overlayShown) {
+        setAimVisual({
+          slot: cur.slot,
+          padCenterX: cur.padCenterX,
+          padCenterY: cur.padCenterY,
+          knobX: kx,
+          knobY: ky,
+          overCancel: inCancel,
+        });
+      }
+      onMobileAimMove?.(cur.slot, kx / maxRadius, ky / maxRadius, inCancel);
+    };
+
+    const handleGlobalPointerEnd = (e: PointerEvent) => {
+      const cur = activeAimRef.current;
+      if (!cur || cur.pointerId !== e.pointerId) return;
+      if (basicHoldTimerRef.current) {
+        clearTimeout(basicHoldTimerRef.current);
+        basicHoldTimerRef.current = null;
+      }
+      const forceCancel = e.type === 'pointercancel';
+      const holdMs = performance.now() - cur.startTime;
+      const isQuickTap = !forceCancel && !cur.overCancel && cur.maxDrag < 12 && holdMs < 240;
+      const isCancelled = forceCancel || cur.overCancel;
+      const slot = cur.slot;
+      activeAimRef.current = null;
+      setAimVisual(null);
+      onMobileAimEnd?.(slot, isCancelled, isQuickTap);
+    };
+
+    window.addEventListener('pointermove', handleGlobalPointerMove, { passive: true });
+    window.addEventListener('pointerup', handleGlobalPointerEnd, { passive: true });
+    window.addEventListener('pointercancel', handleGlobalPointerEnd, { passive: true });
+    return () => {
+      window.removeEventListener('pointermove', handleGlobalPointerMove);
+      window.removeEventListener('pointerup', handleGlobalPointerEnd);
+      window.removeEventListener('pointercancel', handleGlobalPointerEnd);
+    };
+  }, [onMobileAimMove, onMobileAimEnd]);
+
   // Cancel any dangling mobile aim if SkillBar hides cleanly
   useEffect(() => {
     if (!isVisible && activeAimRef.current) {

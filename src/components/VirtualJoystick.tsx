@@ -172,83 +172,44 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
     [sendMove]
   );
 
-  // Global Touch Listeners with ID Tracking (Prevents touch dropping when dragging outside bounds)
+  // Global Pointer Listeners filtered strictly by movePointerId (isolates left thumb from right-thumb aiming)
   useEffect(() => {
-    const activeRef = joystickBaseRef.current || dpadBaseRef.current;
-    if (!activeRef) return;
-
-    const handleTouchStart = (e: TouchEvent) => {
-      // Find touch inside current control element
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        const touch = e.changedTouches[i];
-        const target = touch.target as Node | null;
-        if (activeRef.contains(target) && activeTouchIdRef.current === null) {
-          e.preventDefault();
-          e.stopPropagation();
-          activeTouchIdRef.current = touch.identifier;
-          setActive(true);
-
-          if (controlMode === 'joystick') {
-            updateKnob(touch.clientX, touch.clientY);
-          } else {
-            updateDpadFromCoords(touch.clientX, touch.clientY);
-          }
-          break;
-        }
+    const handleWindowPointerMove = (e: PointerEvent) => {
+      if (activePointerIdRef.current === null || activePointerIdRef.current !== e.pointerId) return;
+      if (e.cancelable) e.preventDefault();
+      if (controlMode === 'joystick') {
+        updateKnob(e.clientX, e.clientY);
+      } else {
+        updateDpadFromCoords(e.clientX, e.clientY);
       }
     };
 
-    const handleTouchMove = (e: TouchEvent) => {
-      if (activeTouchIdRef.current === null) return;
-      for (let i = 0; i < e.touches.length; i++) {
-        const touch = e.touches[i];
-        if (touch.identifier === activeTouchIdRef.current) {
-          e.preventDefault();
-          e.stopPropagation();
-          if (controlMode === 'joystick') {
-            updateKnob(touch.clientX, touch.clientY);
-          } else {
-            updateDpadFromCoords(touch.clientX, touch.clientY);
-          }
-          break;
-        }
-      }
+    const handleWindowPointerEnd = (e: PointerEvent) => {
+      if (activePointerIdRef.current === null || activePointerIdRef.current !== e.pointerId) return;
+      stopAllMovement();
     };
 
-    const handleTouchEnd = (e: TouchEvent) => {
-      if (activeTouchIdRef.current === null) return;
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === activeTouchIdRef.current) {
-          e.preventDefault();
-          e.stopPropagation();
-          stopAllMovement();
-          break;
-        }
-      }
-    };
-
-    window.addEventListener('touchstart', handleTouchStart, { passive: false });
-    window.addEventListener('touchmove', handleTouchMove, { passive: false });
-    window.addEventListener('touchend', handleTouchEnd, { passive: false });
-    window.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+    window.addEventListener('pointermove', handleWindowPointerMove, { passive: false });
+    window.addEventListener('pointerup', handleWindowPointerEnd, { passive: true });
+    window.addEventListener('pointercancel', handleWindowPointerEnd, { passive: true });
 
     return () => {
-      window.removeEventListener('touchstart', handleTouchStart);
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleTouchEnd);
-      window.removeEventListener('touchcancel', handleTouchEnd);
+      window.removeEventListener('pointermove', handleWindowPointerMove);
+      window.removeEventListener('pointerup', handleWindowPointerEnd);
+      window.removeEventListener('pointercancel', handleWindowPointerEnd);
     };
   }, [controlMode, updateKnob, updateDpadFromCoords, stopAllMovement]);
 
-  // Pointer Events Fallback for PC Mouse / Stylus
+  // Unified Multi-Touch Pointer Handlers (Touch, Stylus, & Mouse via isolated pointerId)
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType === 'touch') return; // Handled by Touch Events
+    if (activePointerIdRef.current !== null && activePointerIdRef.current !== e.pointerId) return;
     e.preventDefault();
     e.stopPropagation();
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch { }
     activePointerIdRef.current = e.pointerId;
+    activeTouchIdRef.current = e.pointerId;
     setActive(true);
 
     if (controlMode === 'joystick') {
@@ -259,7 +220,6 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType === 'touch') return;
     if (activePointerIdRef.current !== e.pointerId) return;
     e.preventDefault();
     e.stopPropagation();
@@ -272,10 +232,13 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType === 'touch') return;
     if (activePointerIdRef.current === e.pointerId) {
+      e.preventDefault();
+      e.stopPropagation();
       try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
+        if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }
       } catch { }
       stopAllMovement();
     }

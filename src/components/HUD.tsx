@@ -200,6 +200,48 @@ export const HUD: React.FC<HUDProps> = ({
   const [dayNight, setDayNight] = useState(() => getSharedDayNightSystem().getState());
   const [saveNotice, setSaveNotice] = useState(false);
 
+  // Location Transition Toast (Mobile Landscape): shows for 3.2s ONLY when entering a different region
+  const prevRegionIdRef = useRef<string>(currentRegion.id);
+  const locationToastTimerRef = useRef<number | null>(null);
+  const locationToastClearRef = useRef<number | null>(null);
+  const [locationToast, setLocationToast] = useState<{
+    nameId: string;
+    icon: string;
+    recommendedLevel: number;
+    visible: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    const regionId = currentRegion?.id;
+    if (!regionId) return;
+    if (prevRegionIdRef.current !== regionId) {
+      prevRegionIdRef.current = regionId;
+      if (isMobileUi && !isSpectatorMode) {
+        if (locationToastTimerRef.current) window.clearTimeout(locationToastTimerRef.current);
+        if (locationToastClearRef.current) window.clearTimeout(locationToastClearRef.current);
+        setLocationToast({
+          nameId: currentRegion.nameId,
+          icon: currentRegion.icon,
+          recommendedLevel: currentRegion.recommendedLevel,
+          visible: true,
+        });
+        locationToastTimerRef.current = window.setTimeout(() => {
+          setLocationToast((prev) => (prev ? { ...prev, visible: false } : null));
+        }, 2850);
+        locationToastClearRef.current = window.setTimeout(() => {
+          setLocationToast(null);
+        }, 3250);
+      }
+    }
+  }, [currentRegion?.id, currentRegion?.nameId, currentRegion?.icon, currentRegion?.recommendedLevel, isMobileUi, isSpectatorMode]);
+
+  useEffect(() => {
+    return () => {
+      if (locationToastTimerRef.current) window.clearTimeout(locationToastTimerRef.current);
+      if (locationToastClearRef.current) window.clearTimeout(locationToastClearRef.current);
+    };
+  }, []);
+
   // Cloud Account State
   const [cloudUser, setCloudUser] = useState<CloudUser | null>(() => cloudSyncManager.getUser());
   const [syncStatus, setSyncStatus] = useState<CloudSyncStatus>(() => cloudSyncManager.getStatus());
@@ -277,14 +319,14 @@ export const HUD: React.FC<HUDProps> = ({
         isMobileUi ? (
           <div
             style={{
-              top: 'max(6px, env(safe-area-inset-top, 0px))',
+              top: 'max(4px, env(safe-area-inset-top, 0px))',
               left: 'max(10px, env(safe-area-inset-left, 0px))',
             }}
-            className="pointer-events-none fixed flex flex-col gap-1 w-[188px] z-30"
+            className="pointer-events-none fixed flex flex-col gap-[3px] w-[182px] z-30"
           >
-            <div className="pointer-events-auto flex items-center gap-2 bg-stone-900/85 backdrop-blur-md p-1.5 rounded-xl border border-stone-700/70 shadow-xl">
+            <div className="pointer-events-auto flex items-center gap-1.5 bg-stone-900/85 backdrop-blur-md p-1 rounded-xl border border-stone-700/70 shadow-xl">
               <div className="relative flex-shrink-0">
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg shadow-inner border border-stone-600 ${classBadge.color}`}>
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base shadow-inner border border-stone-600 ${classBadge.color}`}>
                   {classBadge.icon}
                 </div>
                 <div className="absolute -bottom-1 -right-1 bg-amber-500 text-stone-950 font-black text-[8px] px-1 py-[1px] rounded shadow border border-amber-300 leading-none">
@@ -292,9 +334,9 @@ export const HUD: React.FC<HUDProps> = ({
                 </div>
               </div>
 
-              <div className="flex-1 min-w-0 flex flex-col gap-[3px]">
+              <div className="flex-1 min-w-0 flex flex-col gap-[2px]">
                 {/* HP Bar */}
-                <div className="relative w-full h-3 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
+                <div className="relative w-full h-[11px] bg-stone-800 rounded-full overflow-hidden border border-stone-700">
                   <div
                     className="h-full bg-gradient-to-r from-red-600 to-rose-400 transition-all duration-200"
                     style={{ width: `${hpPercent}%` }}
@@ -305,13 +347,13 @@ export const HUD: React.FC<HUDProps> = ({
                       style={{ width: `${Math.min(100, (stats.shield / (stats.maxShield || stats.maxHp)) * 100)}%` }}
                     />
                   )}
-                  <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white drop-shadow leading-none">
+                  <span className="absolute inset-0 flex items-center justify-center text-[7.5px] font-bold text-white drop-shadow leading-none">
                     {Math.round(stats.hp)}/{stats.maxHp}
                   </span>
                 </div>
 
                 {/* MP / Aura Bar */}
-                <div className="relative w-full h-2.5 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
+                <div className="relative w-full h-[9px] bg-stone-800 rounded-full overflow-hidden border border-stone-700">
                   <div
                     className={`h-full transition-all duration-200 ${
                       stats.characterClass === 'warrior'
@@ -320,18 +362,18 @@ export const HUD: React.FC<HUDProps> = ({
                     }`}
                     style={{ width: `${mpPercent}%` }}
                   />
-                  <span className="absolute inset-0 flex items-center justify-center text-[7.5px] font-bold text-white drop-shadow leading-none">
+                  <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold text-white drop-shadow leading-none">
                     {Math.round(stats.mp)}/{stats.maxMp} {stats.characterClass === 'warrior' ? 'Au' : 'MP'}
                   </span>
                 </div>
 
                 {/* Stamina Bar */}
-                <div className="relative w-full h-2.5 bg-stone-800 rounded-full overflow-hidden border border-amber-600/50">
+                <div className="relative w-full h-[9px] bg-stone-800 rounded-full overflow-hidden border border-amber-600/50">
                   <div
                     className="h-full bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-300 transition-all duration-150"
                     style={{ width: `${staminaPercent}%` }}
                   />
-                  <span className="absolute inset-0 flex items-center justify-center text-[7.5px] font-bold text-stone-950 leading-none">
+                  <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold text-stone-950 leading-none">
                     {Math.round(stats.stamina)}/{stats.maxStamina} Stm
                   </span>
                 </div>
@@ -340,7 +382,7 @@ export const HUD: React.FC<HUDProps> = ({
 
             {/* Compact Gold & Stat Points Row */}
             <div className="pointer-events-auto flex items-center gap-1.5 text-[10px]">
-              <div className="flex items-center gap-1 bg-stone-900/85 backdrop-blur-md px-2 py-0.5 rounded-lg border border-amber-500/35 text-amber-300 font-bold shadow">
+              <div className="flex items-center gap-1 bg-stone-900/85 backdrop-blur-md px-2 py-[1px] rounded-lg border border-amber-500/35 text-amber-300 font-bold shadow">
                 <Coins className="w-3 h-3 text-amber-400" />
                 <span>{stats.gold}</span>
               </div>
@@ -348,7 +390,7 @@ export const HUD: React.FC<HUDProps> = ({
               {stats.statPoints > 0 && (
                 <button
                   onClick={onOpenStats}
-                  className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-orange-500 text-stone-950 font-black px-2 py-0.5 rounded-lg shadow-lg animate-pulse cursor-pointer border border-amber-200"
+                  className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-orange-500 text-stone-950 font-black px-2 py-[1px] rounded-lg shadow-lg animate-pulse cursor-pointer border border-amber-200"
                 >
                   <span>+{stats.statPoints} Poin</span>
                 </button>
@@ -441,45 +483,45 @@ export const HUD: React.FC<HUDProps> = ({
         )
       )}
 
-      {/* Top Right: MiniMap & System Quick Actions */}
+      {/* Top Right: MiniMap & 1-Row Thin Utility Actions */}
       {isMobileUi ? (
         <div
           style={{
-            top: 'max(8px, env(safe-area-inset-top, 0px))',
+            top: 'max(6px, env(safe-area-inset-top, 0px))',
             right: 'max(10px, env(safe-area-inset-right, 0px))',
           }}
-          className="pointer-events-none fixed flex items-start gap-2 z-30"
+          className="pointer-events-none fixed flex items-start gap-1.5 z-30"
         >
-          {/* Compact Icon Utility Buttons (32x32, gap 6px) immediately left of Minimap */}
+          {/* Single Horizontal Thin Utility Strip (height 30px, icons 28px, gap 5px) */}
           {!isSpectatorMode && (
-            <div className="pointer-events-auto flex flex-wrap justify-end gap-1.5 max-w-[148px]">
+            <div className="pointer-events-auto flex items-center flex-nowrap gap-[5px] h-[30px]">
               <button
                 type="button"
                 onClick={onOpenInventory}
-                className="w-8 h-8 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-stone-700/80 flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer"
+                className="w-7 h-7 shrink-0 rounded-lg bg-stone-900/90 hover:bg-stone-800 border border-stone-700/80 flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer"
                 title="Tas"
               >
-                <Backpack className="w-4 h-4 text-amber-400" />
+                <Backpack className="w-3.5 h-3.5 text-amber-400" />
               </button>
 
               {onOpenShop && (
                 <button
                   type="button"
                   onClick={onOpenShop}
-                  className="w-8 h-8 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-amber-500/60 flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer"
+                  className="w-7 h-7 shrink-0 rounded-lg bg-stone-900/90 hover:bg-stone-800 border border-amber-500/60 flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer"
                   title="Toko"
                 >
-                  <ShoppingBag className="w-4 h-4 text-yellow-400" />
+                  <ShoppingBag className="w-3.5 h-3.5 text-yellow-400" />
                 </button>
               )}
 
               <button
                 type="button"
                 onClick={onOpenStats}
-                className="relative w-8 h-8 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-stone-700/80 flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer"
+                className="relative w-7 h-7 shrink-0 rounded-lg bg-stone-900/90 hover:bg-stone-800 border border-stone-700/80 flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer"
                 title="Status"
               >
-                <User className="w-4 h-4 text-blue-400" />
+                <User className="w-3.5 h-3.5 text-blue-400" />
                 {stats.statPoints > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-stone-900 animate-ping" />
                 )}
@@ -493,7 +535,7 @@ export const HUD: React.FC<HUDProps> = ({
                     setSaveNotice(true);
                     setTimeout(() => setSaveNotice(false), 2200);
                   }}
-                  className={`w-8 h-8 rounded-xl border flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer ${
+                  className={`w-7 h-7 shrink-0 rounded-lg border flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer ${
                     saveNotice
                       ? 'bg-emerald-950/90 border-emerald-400 text-emerald-300'
                       : cloudUser
@@ -504,12 +546,12 @@ export const HUD: React.FC<HUDProps> = ({
                 >
                   {cloudUser ? (
                     syncStatus === 'syncing' ? (
-                      <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-400" />
                     ) : (
-                      <Cloud className="w-4 h-4" />
+                      <Cloud className="w-3.5 h-3.5" />
                     )
                   ) : (
-                    <Save className="w-4 h-4" />
+                    <Save className="w-3.5 h-3.5" />
                   )}
                 </button>
               ) : (
@@ -517,10 +559,10 @@ export const HUD: React.FC<HUDProps> = ({
                   <button
                     type="button"
                     onClick={onToggleChat}
-                    className="relative w-8 h-8 rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-amber-500/50 flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer text-amber-300"
+                    className="relative w-7 h-7 shrink-0 rounded-lg bg-stone-900/90 hover:bg-stone-800 border border-amber-500/50 flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer text-amber-300"
                     title="Chat"
                   >
-                    <MessageSquare className="w-4 h-4" />
+                    <MessageSquare className="w-3.5 h-3.5" />
                     {unreadChatCount > 0 && (
                       <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-600 text-white text-[8px] font-black flex items-center justify-center">
                         {unreadChatCount}
@@ -534,14 +576,14 @@ export const HUD: React.FC<HUDProps> = ({
                 <button
                   type="button"
                   onClick={onToggleSpectator}
-                  className={`w-8 h-8 rounded-xl border flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer ${
+                  className={`w-7 h-7 shrink-0 rounded-lg border flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer ${
                     isSpectatorMode
                       ? 'bg-sky-950/90 border-sky-400 text-sky-300'
                       : 'bg-stone-900/90 border-stone-700/80 text-sky-400'
                   }`}
                   title="Kamera"
                 >
-                  <Camera className="w-4 h-4" />
+                  <Camera className="w-3.5 h-3.5" />
                 </button>
               )}
 
@@ -549,14 +591,14 @@ export const HUD: React.FC<HUDProps> = ({
                 <button
                   type="button"
                   onClick={onToggleFullscreen}
-                  className={`w-8 h-8 rounded-xl border flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer ${
+                  className={`w-7 h-7 shrink-0 rounded-lg border flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer ${
                     isFullscreen
                       ? 'bg-emerald-700/90 border-emerald-400 text-white'
                       : 'bg-stone-900/90 border-stone-700/80 text-stone-300'
                   }`}
                   title="Fullscreen"
                 >
-                  {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                  {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                 </button>
               )}
 
@@ -564,10 +606,10 @@ export const HUD: React.FC<HUDProps> = ({
                 <button
                   type="button"
                   onClick={onOpenMenu}
-                  className="w-8 h-8 rounded-xl bg-stone-900/95 hover:bg-stone-800 border border-amber-500/50 flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer"
+                  className="w-7 h-7 shrink-0 rounded-lg bg-stone-900/95 hover:bg-stone-800 border border-amber-500/50 flex items-center justify-center shadow-lg active:scale-90 transition cursor-pointer"
                   title="Pause & Pengaturan"
                 >
-                  <Pause className="w-4 h-4 text-amber-400" />
+                  <Pause className="w-3.5 h-3.5 text-amber-400" />
                 </button>
               )}
             </div>
@@ -732,22 +774,21 @@ export const HUD: React.FC<HUDProps> = ({
         <QuestTracker activeQuest={activeQuest} onOpenQuests={onOpenQuests} />
       )}
 
-      {/* Center Top Mobile Biome Pill (Hidden automatically whenever Boss HP Bar or Victory Banner is active) */}
-      {isMobileUi && !isSpectatorMode && !bossState.active && !bossVictoryName && (
+      {/* Temporary Mobile Location Transition Toast (3.2s slide/fade near top-center below utility strip ONLY on region change) */}
+      {isMobileUi && locationToast && !isSpectatorMode && !bossState.active && !bossVictoryName && (
         <div
-          onClick={onOpenMap}
           style={{
-            top: 'max(6px, env(safe-area-inset-top, 0px))',
+            top: 'calc(40px + env(safe-area-inset-top, 0px))',
             left: '50%',
-            transform: 'translateX(-50%)',
           }}
-          className="pointer-events-auto fixed z-25 flex items-center gap-1 px-2.5 py-0.5 bg-stone-900/90 border border-amber-600/70 rounded-full shadow-xl backdrop-blur-md cursor-pointer hover:border-amber-400 max-w-[min(215px,calc(100vw-436px))]"
-          title="Ketuk untuk membuka Peta Dunia"
+          className={`pointer-events-none fixed z-25 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 bg-stone-950/90 border border-amber-500/75 rounded-full shadow-[0_6px_22px_rgba(0,0,0,0.65)] backdrop-blur-md transition-all duration-300 ease-out max-w-[min(240px,calc(100vw-290px))] ${
+            locationToast.visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
+          }`}
         >
-          <span className="text-xs shrink-0">{currentRegion.icon}</span>
-          <span className="text-[10px] font-bold text-amber-200 truncate">{currentRegion.nameId}</span>
-          <span className="text-[9px] px-1 bg-amber-950/85 text-amber-300 border border-amber-700/60 rounded font-mono font-bold shrink-0">
-            Lv.{currentRegion.recommendedLevel}
+          <span className="text-xs shrink-0">{locationToast.icon}</span>
+          <span className="text-[10.5px] font-bold text-amber-200 tracking-wide truncate">{locationToast.nameId}</span>
+          <span className="text-[9px] px-1 bg-amber-950/90 text-amber-300 border border-amber-700/60 rounded font-mono font-bold shrink-0">
+            Lv.{locationToast.recommendedLevel}
           </span>
         </div>
       )}
@@ -755,7 +796,7 @@ export const HUD: React.FC<HUDProps> = ({
       {/* Absolute Victory Banner (Boss Defeated) */}
       {!isSpectatorMode && bossVictoryName && (
         <div
-          style={{ top: isMobileUi ? 'max(10px, env(safe-area-inset-top, 0px))' : undefined }}
+          style={{ top: isMobileUi ? 'calc(40px + env(safe-area-inset-top, 0px))' : undefined }}
           className={`fixed left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-1 pointer-events-none animate-bounce ${
             isMobileUi ? '' : 'top-10'
           }`}
@@ -776,11 +817,11 @@ export const HUD: React.FC<HUDProps> = ({
         <div
           style={
             isMobileUi
-              ? { top: 'max(6px, env(safe-area-inset-top, 0px))' }
+              ? { top: 'calc(40px + env(safe-area-inset-top, 0px))' }
               : undefined
           }
           className={`fixed left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5 z-25 pointer-events-none ${
-            isMobileUi ? 'w-[min(245px,calc(100vw-426px))] min-w-[168px]' : 'top-5 w-80 md:w-[26rem] gap-1 z-20'
+            isMobileUi ? 'w-[min(235px,calc(100vw-296px))] min-w-[168px]' : 'top-5 w-80 md:w-[26rem] gap-1 z-20'
           }`}
         >
           <div className={`font-black tracking-wider text-red-400 uppercase drop-shadow flex items-center gap-1 truncate max-w-full ${

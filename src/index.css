@@ -371,11 +371,11 @@
 (max-width: 767px) {
   /* Quest Tracker on Mobile: Top-Left beneath Player Status & Gold (0% Joystick collision) */
   .quest-tracker-container {
-    top: calc(84px + env(safe-area-inset-top, 0px)) !important;
+    top: calc(74px + env(safe-area-inset-top, 0px)) !important;
     left: max(10px, env(safe-area-inset-left, 0px)) !important;
     right: auto !important;
     transform: none !important;
-    max-width: 195px !important;
+    max-width: 175px !important;
     font-size: 10px !important;
   }
 

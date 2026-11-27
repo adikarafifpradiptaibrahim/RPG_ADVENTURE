@@ -38,10 +38,13 @@ export function detectDeviceCapabilities(): DeviceProfile {
     };
   }
 
+  const hasTouch =
+    typeof navigator !== 'undefined' &&
+    ('ontouchstart' in window || (navigator.maxTouchPoints ?? 0) > 0);
   const isMobile =
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-    ('ontouchstart' in window && window.innerWidth < 768) ||
-    window.innerWidth < 768;
+    window.innerWidth < 768 ||
+    (hasTouch && window.innerHeight <= 580 && window.innerWidth <= 1100);
 
   const cores = navigator.hardwareConcurrency || 4;
   const memory = (navigator as unknown as { deviceMemory?: number }).deviceMemory || 4;

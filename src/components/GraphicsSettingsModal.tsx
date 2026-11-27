@@ -27,7 +27,9 @@ import {
 } from 'lucide-react';
 import {
   GraphicsSettings,
-  GRAPHICS_PRESETS,
+  getGraphicsPresetForDevice,
+  isMobileRenderDevice,
+  loadGraphicsSettings,
   saveGraphicsSettings,
 } from '../game/graphicsSettings';
 import { soundManager } from '../game/audio';
@@ -88,6 +90,7 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
   onToggleSpectator,
 }) => {
   const { isMobileLandscape } = useMobileViewport();
+  const isMobileProfile = isMobileLandscape || isMobileRenderDevice();
   const [activeTab, setActiveTab] = useState<'grafik' | 'suara' | 'kontrol' | 'akun' | 'dev'>('grafik');
   const [settings, setSettings] = useState<GraphicsSettings>(currentSettings);
 
@@ -146,7 +149,7 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
   // Graphics Handlers
   const handleSelectPreset = (preset: 'low' | 'medium' | 'high') => {
     soundManager.playMenuClick();
-    const next = { ...GRAPHICS_PRESETS[preset] };
+    const next = getGraphicsPresetForDevice(preset);
     setSettings(next);
     saveGraphicsSettings(next);
     updateDeviceSettings({ graphics: next });
@@ -451,7 +454,11 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
                       <span className="font-bold text-xs">Low (Ringan)</span>
                       {settings.preset === 'low' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
                     </div>
-                    <span className="text-[10px] text-stone-400 leading-tight">Maksimal FPS untuk HP / GPU terintegrasi</span>
+                    <span className="text-[10px] text-stone-400 leading-tight">
+                      {isMobileProfile
+                        ? 'Anti-Lag HP: Bayangan & rumput mati, jarak pandang hemat 45–60 FPS'
+                        : 'Maksimal FPS untuk HP / GPU terintegrasi'}
+                    </span>
                   </button>
 
                   <button
@@ -466,7 +473,11 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
                       <span className="font-bold text-xs">Medium</span>
                       {settings.preset === 'medium' && <Check className="w-3.5 h-3.5 text-cyan-400" />}
                     </div>
-                    <span className="text-[10px] text-stone-400 leading-tight">Keseimbangan visual dan performa stabil</span>
+                    <span className="text-[10px] text-stone-400 leading-tight">
+                      {isMobileProfile
+                        ? 'Seimbang Mobile: Bayangan dekat ringan (512px) & rumput 35%'
+                        : 'Keseimbangan visual dan performa stabil'}
+                    </span>
                   </button>
 
                   <button
@@ -481,7 +492,11 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
                       <span className="font-bold text-xs">Ultra</span>
                       {settings.preset === 'high' && <Check className="w-3.5 h-3.5 text-amber-400" />}
                     </div>
-                    <span className="text-[10px] text-stone-400 leading-tight">Bayangan tajam & efek partikel penuh</span>
+                    <span className="text-[10px] text-stone-400 leading-tight">
+                      {isMobileProfile
+                        ? 'Flagship HP: Bayangan halus 1024px, rumput 75% & partikel penuh'
+                        : 'Bayangan tajam & efek partikel penuh'}
+                    </span>
                   </button>
                 </div>
               </div>

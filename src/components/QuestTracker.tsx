@@ -33,14 +33,14 @@ export const QuestTracker: React.FC<QuestTrackerProps> = ({ activeQuest, onOpenQ
       style={
         isMobileUi
           ? {
-              top: 'calc(84px + env(safe-area-inset-top, 0px))',
+              top: 'calc(74px + env(safe-area-inset-top, 0px))',
               left: 'max(10px, env(safe-area-inset-left, 0px))',
-              maxWidth: '195px',
+              maxWidth: '175px',
             }
           : undefined
       }
       className={`quest-tracker-container pointer-events-none fixed z-30 ${
-        isMobileUi ? 'w-[192px] max-w-[195px]' : ''
+        isMobileUi ? 'w-[172px] max-w-[175px]' : ''
       }`}
     >
       {isCollapsed ? (

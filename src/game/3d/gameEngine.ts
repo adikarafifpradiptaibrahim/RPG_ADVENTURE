@@ -56,7 +56,7 @@ import {
   subscribeDevTestingSettings,
 } from '../storage/devTestingManager';
 import { RemotePlayerData } from '../multiplayer';
-import { GraphicsSettings, loadGraphicsSettings } from '../graphicsSettings';
+import { GraphicsSettings, isMobileRenderDevice, loadGraphicsSettings } from '../graphicsSettings';
 import {
   ANCIENT_TITAN_BOSS_CONFIG,
   IGNIS_DRAGON_BOSS_CONFIG,
@@ -840,6 +840,9 @@ export class GameEngine {
   private mobileDashRingMesh: THREE.Mesh | null = null;
   private mobileDashLineMesh: THREE.Line | null = null;
   private mobileDashTargetPoint = new THREE.Vector3();
+  private mobileBowAimGroup: THREE.Group | null = null;
+  private mobileBowAimRingMesh: THREE.Mesh | null = null;
+  private mobileBowAimLineMesh: THREE.Line | null = null;
   private readonly mobileAimWorldDir = new THREE.Vector3();
 
   private activeProjectiles: {
@@ -1054,19 +1057,7 @@ export class GameEngine {
       if (this.playerMesh?.group) {
         this.playerMesh.group.visible = true;
       }
-      if (this.renderer) {
-        const profile = getDeviceProfile();
-        this.renderer.setPixelRatio(this.graphicsSettings.renderScale * Math.min(window.devicePixelRatio, profile.maxPixelRatio));
-        this.renderer.shadowMap.enabled = this.graphicsSettings.shadows;
-        this.renderer.shadowMap.autoUpdate = false;
-        if (this.graphicsSettings.shadows) {
-          this.renderer.shadowMap.needsUpdate = true;
-        }
-      }
-      if (this.camera) {
-        this.camera.far = 1200;
-        this.camera.updateProjectionMatrix();
-      }
+      this.applyGraphicsSettings(this.graphicsSettings);
       // Restore vegetation & alive monster meshes for gameplay
       this.worldEnvironment?.setVegetationVisible(true);
       this.enemies.forEach((e) => {
@@ -2024,34 +2015,151 @@ export class GameEngine {
   public applyGraphicsSettings(settings: GraphicsSettings) {
     this.graphicsSettings = settings;
 
-    // 1. Resolution / Pixel ratio scaling (Adapted to device profile)
+    const isMobile = isMobileRenderDevice();
     const profile = getDeviceProfile();
-    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1;
-    this.renderer.setPixelRatio(settings.renderScale * Math.min(dpr, profile.maxPixelRatio));
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
 
-    // 2. Shadows on/off (halves draw calls on low spec)
-    this.renderer.shadowMap.enabled = settings.shadows;
-    this.renderer.shadowMap.autoUpdate = false;
-    if (settings.shadows) {
-      this.renderer.shadowMap.needsUpdate = true;
+    // 1. Resolution / Pixel Ratio Scaling
+    if (isMobile) {
+      let targetRatio = Math.min(dpr, 1.0);
+      if (settings.preset === 'low') {
+        targetRatio = Math.min(dpr, 0.75);
+      } else if (settings.preset === 'high') {
+        targetRatio = Math.min(dpr, 1.5);
+      } else if (settings.preset === 'custom') {
+        targetRatio = Math.min(dpr * settings.renderScale, 1.5);
+      } else {
+        targetRatio = Math.min(dpr, 1.0);
+      }
+      this.renderer.setPixelRatio(Math.max(0.5, targetRatio));
+    } else {
+      this.renderer.setPixelRatio(settings.renderScale * Math.min(dpr, profile.maxPixelRatio));
     }
+
+    // 2. Real-Time Shadow Profile (Mobile Low: OFF | Mobile Med: 512px Basic | Mobile High: 1024px PCFSoft)
+    const shadowsEnabled = isMobile && settings.preset === 'low' ? false : Boolean(settings.shadows);
+    this.renderer.shadowMap.enabled = shadowsEnabled;
+    this.renderer.shadowMap.autoUpdate = false;
+
+    if (isMobile) {
+      if (shadowsEnabled) {
+        const useHighShadow = settings.preset === 'high' || settings.shadowQuality === 'high';
+        this.renderer.shadowMap.type = useHighShadow ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
+        if (this.world?.dirLight) {
+          const dl = this.world.dirLight;
+          dl.castShadow = true;
+          const targetSize = useHighShadow ? 1024 : 512;
+          const targetBounds = useHighShadow ? 75 : 40;
+          if (dl.shadow.mapSize.width !== targetSize || dl.shadow.mapSize.height !== targetSize) {
+            dl.shadow.mapSize.set(targetSize, targetSize);
+            if (dl.shadow.map) {
+              dl.shadow.map.dispose();
+              dl.shadow.map = null;
+            }
+          }
+          dl.shadow.camera.left = -targetBounds;
+          dl.shadow.camera.right = targetBounds;
+          dl.shadow.camera.top = targetBounds;
+          dl.shadow.camera.bottom = -targetBounds;
+          dl.shadow.camera.far = useHighShadow ? 300 : 220;
+          dl.shadow.camera.updateProjectionMatrix();
+        }
+        this.renderer.shadowMap.needsUpdate = true;
+      } else if (this.world?.dirLight) {
+        this.world.dirLight.castShadow = false;
+      }
+    } else {
+      this.renderer.shadowMap.type = THREE.PCFShadowMap;
+      if (this.world?.dirLight) {
+        this.world.dirLight.castShadow = shadowsEnabled;
+      }
+      if (shadowsEnabled) {
+        this.renderer.shadowMap.needsUpdate = true;
+      }
+    }
+
     if (this.scene) {
       this.scene.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
-          (child as THREE.Mesh).castShadow = settings.shadows;
-          (child as THREE.Mesh).receiveShadow = settings.shadows;
+          const mesh = child as THREE.Mesh;
+          mesh.castShadow = shadowsEnabled;
+          mesh.receiveShadow = shadowsEnabled;
+          if (isMobile && !mesh.userData?.pooledVfx && !mesh.name?.includes('Aim') && !mesh.name?.includes('Eagle')) {
+            mesh.frustumCulled = true;
+          }
         }
       });
     }
 
-    // 3. Render Distance / Camera Far & Fog Culling
-    this.camera.far = Math.max(50, settings.renderDistance * profile.drawDistanceScale);
-    this.camera.updateProjectionMatrix();
+    // 3. 3D Instanced Grass Density & Non-Essential Ambient Particles
+    if (isMobile) {
+      const grassScale =
+        settings.preset === 'low' || settings.enableGrass === false
+          ? 0
+          : settings.preset === 'medium'
+          ? 0.35
+          : settings.preset === 'high'
+          ? 0.75
+          : 0.5;
+      this.worldEnvironment?.setGrassDensity?.(grassScale);
 
-    if (this.scene.fog && this.scene.fog instanceof THREE.Fog) {
-      const farDist = settings.renderDistance * profile.drawDistanceScale;
-      this.scene.fog.far = farDist;
-      this.scene.fog.near = farDist * 0.35;
+      const particlesOn = settings.preset !== 'low' && settings.enableParticles !== false;
+      if (this.world?.particles) {
+        this.world.particles.visible = particlesOn;
+      }
+      this.worldEnvironment?.setAmbientEffectsVisible?.(particlesOn);
+    } else {
+      this.worldEnvironment?.setGrassDensity?.(settings.enableGrass === false ? 0 : 1.0);
+      const particlesOn = settings.enableParticles !== false;
+      if (this.world?.particles) {
+        this.world.particles.visible = particlesOn;
+      }
+      this.worldEnvironment?.setAmbientEffectsVisible?.(particlesOn);
+    }
+
+    // 4. Camera Far & Atmospheric Fog Culling (Do not override menu preview camera or spectator mode)
+    let targetFar = Math.max(50, settings.renderDistance * profile.drawDistanceScale);
+    let fogFar = targetFar * 0.92;
+    let fogNear = fogFar * 0.35;
+
+    if (isMobile) {
+      if (settings.preset === 'low') {
+        targetFar = 160;
+        fogFar = 145;
+        fogNear = 50;
+      } else if (settings.preset === 'medium') {
+        targetFar = 260;
+        fogFar = 240;
+        fogNear = 84;
+      } else if (settings.preset === 'high') {
+        targetFar = 420;
+        fogFar = 390;
+        fogNear = 135;
+      } else {
+        targetFar = Math.max(120, Math.min(450, settings.renderDistance));
+        fogFar = targetFar * 0.92;
+        fogNear = fogFar * 0.35;
+      }
+    }
+
+    if (this.menuMode === 'gameplay' && !this.isSpectatorMode) {
+      this.camera.far = targetFar;
+      this.camera.updateProjectionMatrix();
+
+      if (this.scene.fog) {
+        if (isMobile) {
+          const curColor = this.scene.fog.color.clone();
+          if (!(this.scene.fog instanceof THREE.Fog)) {
+            this.scene.fog = new THREE.Fog(curColor, fogNear, fogFar);
+          } else {
+            this.scene.fog.near = fogNear;
+            this.scene.fog.far = fogFar;
+          }
+        } else if (this.scene.fog instanceof THREE.Fog) {
+          this.scene.fog.far = fogFar;
+          this.scene.fog.near = fogNear;
+        }
+      }
     }
   }
 
@@ -5089,9 +5197,77 @@ export class GameEngine {
     this.mobileDashLineMesh = line;
   }
 
+  private ensureMobileBowIndicator() {
+    if (this.mobileBowAimGroup) return;
+    const group = new THREE.Group();
+    group.name = 'MobileBowAimIndicator';
+    group.visible = false;
+    group.frustumCulled = false;
+
+    const ringGeom = new THREE.RingGeometry(0.75, 1.05, 28);
+    ringGeom.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xfbbf24,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const ring = new THREE.Mesh(ringGeom, ringMat);
+    ring.frustumCulled = false;
+    group.add(ring);
+
+    const lineGeom = new THREE.BufferGeometry();
+    lineGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+    const lineMat = new THREE.LineBasicMaterial({
+      color: 0x34d399,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+    });
+    const line = new THREE.Line(lineGeom, lineMat);
+    line.frustumCulled = false;
+    group.add(line);
+
+    this.scene.add(group);
+    this.mobileBowAimGroup = group;
+    this.mobileBowAimRingMesh = ring;
+    this.mobileBowAimLineMesh = line;
+  }
+
+  private updateMobileBowAimFrame(maxRange: number, accentHex: number) {
+    this.ensureMobileBowIndicator();
+    if (!this.mobileBowAimGroup) return;
+    const aim = this.computeMobileWorldAim(maxRange, 18.0);
+    this.playerRotationY = Math.atan2(aim.dirX, aim.dirZ);
+    if (this.playerMesh?.group) {
+      this.playerMesh.group.rotation.y = this.playerRotationY;
+    }
+    const endX = this.playerPos.x + aim.dirX * maxRange;
+    const endZ = this.playerPos.z + aim.dirZ * maxRange;
+    const endY = getSolidGroundHeight(endX, endZ, this.playerPos.y);
+    this.mobileBowAimGroup.visible = true;
+    if (this.mobileBowAimRingMesh) {
+      this.mobileBowAimRingMesh.position.set(aim.targetX, aim.targetY + 0.12, aim.targetZ);
+      const m = this.mobileBowAimRingMesh.material as THREE.MeshBasicMaterial;
+      m.color.setHex(this.mobileAimOverCancel ? 0xef4444 : accentHex);
+      m.opacity = this.mobileAimOverCancel ? 0.5 : 0.88;
+    }
+    if (this.mobileBowAimLineMesh) {
+      const attr = this.mobileBowAimLineMesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+      attr.setXYZ(0, this.playerPos.x, this.playerPos.y + 1.35, this.playerPos.z);
+      attr.setXYZ(1, endX, endY + 0.65, endZ);
+      attr.needsUpdate = true;
+      const m = this.mobileBowAimLineMesh.material as THREE.LineBasicMaterial;
+      m.color.setHex(this.mobileAimOverCancel ? 0xef4444 : accentHex);
+    }
+  }
+
   private hideMobileAimPreviews() {
     if (this.mobileStarfallAimGroup) this.mobileStarfallAimGroup.visible = false;
     if (this.mobileDashAimGroup) this.mobileDashAimGroup.visible = false;
+    if (this.mobileBowAimGroup) this.mobileBowAimGroup.visible = false;
   }
 
   private updateMobileStarfallAimFrame() {
@@ -5195,22 +5371,18 @@ export class GameEngine {
 
     if (slot === 'basic') {
       if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow' && this.mobileAimNormalized.active) {
-        const aim = this.computeMobileWorldAim(32.0, 18.0);
-        this.playerRotationY = Math.atan2(aim.dirX, aim.dirZ);
-        if (this.playerMesh?.group) {
-          this.playerMesh.group.rotation.y = this.playerRotationY;
-        }
+        this.updateMobileBowAimFrame(32.0, 0xfbbf24);
+      } else if (this.mobileBowAimGroup) {
+        this.mobileBowAimGroup.visible = false;
       }
     } else if (slot === 'skill1') {
       if (this.charClass === 'mage') {
         this.updateGlacialAimFrame(0);
       } else if (this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
-        const aim = this.computeMobileWorldAim(32.0, 18.0);
         if (this.mobileAimNormalized.active) {
-          this.playerRotationY = Math.atan2(aim.dirX, aim.dirZ);
-          if (this.playerMesh?.group) {
-            this.playerMesh.group.rotation.y = this.playerRotationY;
-          }
+          this.updateMobileBowAimFrame(36.0, 0x38bdf8);
+        } else if (this.mobileBowAimGroup) {
+          this.mobileBowAimGroup.visible = false;
         }
       } else if (this.charClass === 'warrior') {
         this.updateMobileDashAimFrame(11.0);
@@ -8249,7 +8421,8 @@ export class GameEngine {
       const flatDirX = this._scratchToEnemy.x / flatDist;
       const flatDirZ = this._scratchToEnemy.z / flatDist;
       const dot = horizFwd.x * flatDirX + horizFwd.z * flatDirZ;
-      if (dot < 0.72) continue; // ~44 deg front cone
+      const minConeDot = hasMobileAim ? 0.97 : 0.72; // Strict aim corridor (~14 deg) during manual thumb drag vs wide cone on quick-tap
+      if (dot < minConeDot) continue;
       const score = dot * 2.0 - flatDist * 0.02;
       if (score > bestScore) {
         bestScore = score;
@@ -10869,6 +11042,9 @@ export class GameEngine {
 
   public updateAstralEagleChargeFrame(delta: number) {
     if (!this.astralEagleAimState.isCharging || this.astralEagleAimState.cancelled) return;
+    if (this.mobileAimActiveSlot === 'skill1' && this.mobileAimNormalized.active) {
+      this.updateMobileBowAimFrame(36.0, 0x38bdf8);
+    }
     const holdMs = performance.now() - this.astralEagleAimState.pressStartTime;
     if (holdMs >= 220) {
       this.isChargingAstralEagle = true;
@@ -11668,6 +11844,14 @@ export class GameEngine {
 
   // Helper to dynamically align player facing direction to active movement or closest 360Â° enemy
   private alignPlayerOrientationToInputOrTarget(maxTargetRange = 18): void {
+    if (this.mobileAimActiveSlot !== null && this.mobileAimNormalized.active && this.mobileAimWorldDir.lengthSq() > 0.01) {
+      this.playerRotationY = Math.atan2(this.mobileAimWorldDir.x, this.mobileAimWorldDir.z);
+      if (this.playerMesh?.group) {
+        this.playerMesh.group.rotation.y = this.playerRotationY;
+      }
+      return;
+    }
+
     let inputForward = 0;
     let inputRight = 0;
     if (this.isKeyPressed('w', 'arrowup')) inputForward += 1;
@@ -14067,6 +14251,22 @@ export class GameEngine {
       this.updateGlacialAimFrame(delta);
     }
 
+    // Mobile Right-Thumb Drag Aim live per-frame sync (maintains aim while running / turning camera)
+    if (this.mobileAimActiveSlot !== null && this.mobileAimNormalized.active) {
+      if (this.mobileAimActiveSlot === 'basic' && this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
+        this.updateMobileBowAimFrame(32.0, 0xfbbf24);
+      } else if (this.mobileAimActiveSlot === 'dash') {
+        const dashDist = this.charClass === 'mage' ? 12.0 : this.charClass === 'rogue' ? 9.5 : 4.5;
+        this.updateMobileDashAimFrame(dashDist);
+      } else if (this.mobileAimActiveSlot === 'ult' && this.charClass === 'mage') {
+        this.updateMobileStarfallAimFrame();
+      } else if (this.mobileAimActiveSlot === 'skill1' && this.charClass === 'warrior') {
+        this.updateMobileDashAimFrame(11.0);
+      } else if (this.mobileAimActiveSlot === 'ult' && this.charClass === 'warrior') {
+        this.updateMobileDashAimFrame(22.0);
+      }
+    }
+
     // Hunter Bow: Hold-to-Aim progressive bow charge (>= 0.20s)
     if (this.isHoldingBowAttack && this.charClass === 'rogue' && this.hunterWeaponMode === 'bow') {
       const holdDuration = (performance.now() - this.bowPressStartTime) / 1000;
@@ -14333,20 +14533,26 @@ export class GameEngine {
       this.playerVel.x = moveDirX * targetSpeed;
       this.playerVel.z = moveDirZ * targetSpeed;
 
-      // Rotate player mesh smoothly to facing direction
-      if (
+      const isAimingNow =
         this.isAimGlacialActive ||
         this.glacialAimState.isCharging ||
         this.isAimingBow ||
+        this.isHoldingBowAttack ||
         this.isChargingAstralEagle ||
         this.astralEagleAimState.isCharging ||
         this.isAimingArrowVolley ||
-        this.arrowVolleyAimState.isCharging
-      ) {
-        // Karakter menghadap searah pandangan kamera (strafe movement)
-        const camFwdX = -Math.sin(this.cameraAngleH);
-        const camFwdZ = -Math.cos(this.cameraAngleH);
-        this.playerRotationY = Math.atan2(camFwdX, camFwdZ);
+        this.arrowVolleyAimState.isCharging ||
+        (this.mobileAimActiveSlot !== null && this.mobileAimNormalized.active);
+
+      // Rotate player mesh smoothly to facing direction or keep right-thumb drag aim orientation
+      if (isAimingNow) {
+        if (this.mobileAimActiveSlot !== null && this.mobileAimNormalized.active && this.mobileAimWorldDir.lengthSq() > 0.01) {
+          this.playerRotationY = Math.atan2(this.mobileAimWorldDir.x, this.mobileAimWorldDir.z);
+        } else {
+          const camFwdX = -Math.sin(this.cameraAngleH);
+          const camFwdZ = -Math.cos(this.cameraAngleH);
+          this.playerRotationY = Math.atan2(camFwdX, camFwdZ);
+        }
         if (this.playerMesh?.group) {
           this.playerMesh.group.rotation.y = this.playerRotationY;
         }
@@ -14390,13 +14596,19 @@ export class GameEngine {
         this.isAimGlacialActive ||
         this.glacialAimState.isCharging ||
         this.isAimingBow ||
+        this.isHoldingBowAttack ||
         this.isChargingAstralEagle ||
         this.astralEagleAimState.isCharging ||
-        this.isAimingArrowVolley
+        this.isAimingArrowVolley ||
+        (this.mobileAimActiveSlot !== null && this.mobileAimNormalized.active)
       ) {
-        const camFwdX = -Math.sin(this.cameraAngleH);
-        const camFwdZ = -Math.cos(this.cameraAngleH);
-        this.playerRotationY = Math.atan2(camFwdX, camFwdZ);
+        if (this.mobileAimActiveSlot !== null && this.mobileAimNormalized.active && this.mobileAimWorldDir.lengthSq() > 0.01) {
+          this.playerRotationY = Math.atan2(this.mobileAimWorldDir.x, this.mobileAimWorldDir.z);
+        } else {
+          const camFwdX = -Math.sin(this.cameraAngleH);
+          const camFwdZ = -Math.cos(this.cameraAngleH);
+          this.playerRotationY = Math.atan2(camFwdX, camFwdZ);
+        }
         if (this.playerMesh?.group) {
           this.playerMesh.group.rotation.y = this.playerRotationY;
         }
@@ -15625,7 +15837,11 @@ export class GameEngine {
     this.bossManager.setStealthAndDecoyState(this.isPlayerStealthed, decoyTargetInfo);
     this.bossManager.update(delta, this.playerPos, this.playerVel, this.isDashing || this.isInvulnerable, !this.isGrounded);
 
-    this.enemies.forEach((enemy) => {
+    const isMobileLowPerf =
+      isMobileRenderDevice() &&
+      (this.graphicsSettings.preset === 'low' || this.graphicsSettings.renderDistance <= 160);
+
+    this.enemies.forEach((enemy, enemyIdx) => {
       // 1. Mayat Monster & Hitung Mundur Hilangnya Mayat (Corpse Decay)
       if (enemy.data.isDead) {
         if (enemy.deathTimer !== undefined && enemy.deathTimer > 0) {
@@ -15710,17 +15926,22 @@ export class GameEngine {
         ? Math.hypot(this.playerPos.x - bossZone.center.x, this.playerPos.z - bossZone.center.z)
         : distToPlayer;
 
-      // Distance culling berdasarkan pengaturan grafis untuk performa
-      const cullDist = Math.min(85, this.graphicsSettings.renderDistance * 0.9);
+      // Distance culling & AI/animation throttle (>75u on Mobile Low) berdasarkan pengaturan grafis
+      const cullDist = isMobileLowPerf
+        ? 75
+        : Math.min(85, this.graphicsSettings.renderDistance * 0.9);
       if (
         distToPlayer > cullDist &&
         distFromSpawn > territoryRadius &&
         (!bossZone || playerDistFromArena > territoryRadius + 28)
       ) {
         enemy.mesh.visible = false;
-        return;
+        if (isMobileLowPerf && (this.frameCount + enemyIdx) % 4 !== 0) {
+          return;
+        }
+      } else {
+        enemy.mesh.visible = true;
       }
-      enemy.mesh.visible = true;
 
       // WORLD BOSS GLOBAL STATE MACHINE DISPATCH (Standby vs Disengaging vs Active Combat)
       if (bossZone) {
@@ -16740,7 +16961,9 @@ export class GameEngine {
     this.updateLootPickups(delta);
     this.updateCamera(delta);
     this.updateRemotePlayers(delta);
-    this.worldEnvironment?.update(delta, this.clock.getElapsedTime());
+    if (!isMobileRenderDevice() || this.graphicsSettings.preset !== 'low' || this.frameCount % 2 === 0) {
+      this.worldEnvironment?.update(delta, this.clock.getElapsedTime());
+    }
     this.updateSparks(delta);
     this.updateCombatVfxPools(delta);
     this.updateAstralEagle(delta);
@@ -17186,8 +17409,8 @@ export class GameEngine {
       this.world.oceanMesh.position.y = -0.25 + Math.sin(elapsed * 1.5) * 0.08;
     }
 
-    // Fireflies / ambient particles slow float
-    if (this.world.particles) {
+    // Fireflies / ambient particles slow float (disabled when particles turned off on Mobile Low)
+    if (this.world.particles && this.world.particles.visible) {
       this.world.particles.rotation.y = elapsed * 0.03;
     }
 
@@ -17213,14 +17436,30 @@ export class GameEngine {
       }
     }
 
-    // Optimization 2: Distance LOD for distant background props (>160 units)
-    if (this.posUpdateThrottle % 16 === 0 && this.world.decorativeProps && this.world.decorativeProps.length > 0) {
+    // Optimization 2: Distance LOD for distant background props & NPCs (tighter on Mobile Low)
+    if (this.posUpdateThrottle % 16 === 0) {
+      const isMobLow = isMobileRenderDevice() && (this.graphicsSettings.preset === 'low' || this.graphicsSettings.renderDistance <= 160);
+      const isMobMed = isMobileRenderDevice() && this.graphicsSettings.preset === 'medium';
+      const propMaxDist = isMobLow ? 85 : isMobMed ? 130 : 160;
       const pX = this.playerPos.x;
       const pZ = this.playerPos.z;
-      const maxDistSq = 160 * 160;
-      for (const prop of this.world.decorativeProps) {
-        const distSq = (prop.position.x - pX) ** 2 + (prop.position.z - pZ) ** 2;
-        prop.visible = distSq <= maxDistSq;
+
+      if (this.world.decorativeProps && this.world.decorativeProps.length > 0) {
+        const maxDistSq = propMaxDist * propMaxDist;
+        for (const prop of this.world.decorativeProps) {
+          const distSq = (prop.position.x - pX) ** 2 + (prop.position.z - pZ) ** 2;
+          prop.visible = distSq <= maxDistSq;
+        }
+      }
+
+      if (this.world.npcs && this.world.npcs.length > 0) {
+        const npcDistSqLimit = isMobLow ? 75 * 75 : 220 * 220;
+        for (const npc of this.world.npcs) {
+          if (!npc.group) continue;
+          const dx = npc.position[0] - pX;
+          const dz = npc.position[2] - pZ;
+          npc.group.visible = dx * dx + dz * dz <= npcDistSqLimit;
+        }
       }
     }
 
@@ -17472,6 +17711,12 @@ export class GameEngine {
     if (this.aimIndicatorGroup) {
       this.scene.remove(this.aimIndicatorGroup);
       this.aimIndicatorGroup = null;
+    }
+    if (this.mobileBowAimGroup) {
+      this.scene.remove(this.mobileBowAimGroup);
+      this.mobileBowAimGroup = null;
+      this.mobileBowAimRingMesh = null;
+      this.mobileBowAimLineMesh = null;
     }
     this.activeVfx.forEach((v) => {
       this.scene.remove(v.object);

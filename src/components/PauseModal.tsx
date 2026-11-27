@@ -27,7 +27,8 @@ import {
 import { soundManager } from '../game/audio';
 import {
   GraphicsSettings,
-  GRAPHICS_PRESETS,
+  getGraphicsPresetForDevice,
+  isMobileRenderDevice,
   saveGraphicsSettings,
 } from '../game/graphicsSettings';
 import {
@@ -85,6 +86,7 @@ export const PauseModal: React.FC<PauseModalProps> = ({
   onToggleSpectator,
 }) => {
   const { isMobileLandscape } = useMobileViewport();
+  const isMobileProfile = isMobileLandscape || isMobileRenderDevice();
   const [activeTab, setActiveTab] = useState<'grafik' | 'suara' | 'kontrol' | 'dev'>('grafik');
   const [pauseView, setPauseView] = useState<'menu' | 'settings'>('menu');
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<boolean>(false);
@@ -159,7 +161,7 @@ export const PauseModal: React.FC<PauseModalProps> = ({
 
   // Graphics Handlers
   const handleSelectPreset = (preset: 'low' | 'medium' | 'high') => {
-    const next = { ...GRAPHICS_PRESETS[preset] };
+    const next = getGraphicsPresetForDevice(preset);
     setSettings(next);
     saveGraphicsSettings(next);
     onApplyGraphicsSettings?.(next);
@@ -441,7 +443,9 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                       🥔 Rendah
                       {settings.preset === 'low' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
                     </span>
-                    <p className="text-[10px] text-stone-400 mt-1">Kentang / HP</p>
+                    <p className="text-[10px] text-stone-400 mt-1">
+                      {isMobileProfile ? 'Anti-Lag 45–60 FPS' : 'Kentang / HP'}
+                    </p>
                   </button>
 
                   <button
@@ -456,7 +460,9 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                       ⚡ Standar
                       {settings.preset === 'medium' && <Check className="w-3.5 h-3.5 text-amber-400" />}
                     </span>
-                    <p className="text-[10px] text-stone-400 mt-1">60 FPS Stabil</p>
+                    <p className="text-[10px] text-stone-400 mt-1">
+                      {isMobileProfile ? 'Seimbang + Rumput 35%' : '60 FPS Stabil'}
+                    </p>
                   </button>
 
                   <button
@@ -471,7 +477,9 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                       🌟 Ultra
                       {settings.preset === 'high' && <Check className="w-3.5 h-3.5 text-cyan-400" />}
                     </span>
-                    <p className="text-[10px] text-stone-400 mt-1">Grafis Penuh</p>
+                    <p className="text-[10px] text-stone-400 mt-1">
+                      {isMobileProfile ? 'Flagship + Bayangan 1024px' : 'Grafis Penuh'}
+                    </p>
                   </button>
                 </div>
               </div>

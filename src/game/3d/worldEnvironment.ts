@@ -36,6 +36,8 @@ export interface WorldEnvironmentResult {
   colliders: WorldCollider[];
   update: (delta: number, time: number) => void;
   setVegetationVisible: (visible: boolean) => void;
+  setGrassDensity?: (scale: number) => void;
+  setAmbientEffectsVisible?: (visible: boolean) => void;
   propMatrices?: Record<string, Float32Array>;
 }
 
@@ -3324,6 +3326,8 @@ export async function buildWorldEnvironmentAsync(
   // ============================================================================
   // ANIMASI UPDATE CALLBACK (FLICKERING TORCHES & CAMPFIRE)
   // ============================================================================
+  let ambientEffectsEnabled = true;
+
   const update = (delta: number, time: number) => {
     // Animasi flicker cahaya obor dan api unggun
     animatedLights.forEach((al) => {
@@ -3345,6 +3349,8 @@ export async function buildWorldEnvironmentAsync(
     if (riverWaterTexture) {
       riverWaterTexture.offset.y = (time * 0.16) % 1.0;
     }
+
+    if (!ambientEffectsEnabled) return;
 
     // Animasi kabut melayang perlahan di Hutan Kabut Eldoria
     animatedMistPlanes.forEach((mp) => {
@@ -3392,9 +3398,42 @@ export async function buildWorldEnvironmentAsync(
     windmillHillGroup,
   ];
 
+  const fullPlainsGrassCount = plainsGrassMesh?.count ?? 0;
+  const fullBeachGrassCount = beachGrassMesh?.count ?? 0;
+  let currentGrassDensity = 1.0;
+
+  const setGrassDensity = (scale: number) => {
+    currentGrassDensity = Math.max(0, Math.min(1, scale));
+    if (plainsGrassMesh) {
+      plainsGrassMesh.visible = currentGrassDensity > 0.01;
+      if (plainsGrassMesh.visible && fullPlainsGrassCount > 0) {
+        plainsGrassMesh.count = Math.max(1, Math.floor(fullPlainsGrassCount * currentGrassDensity));
+      }
+    }
+    if (beachGrassMesh) {
+      beachGrassMesh.visible = currentGrassDensity > 0.01;
+      if (beachGrassMesh.visible && fullBeachGrassCount > 0) {
+        beachGrassMesh.count = Math.max(1, Math.floor(fullBeachGrassCount * currentGrassDensity));
+      }
+    }
+  };
+
+  const setAmbientEffectsVisible = (visible: boolean) => {
+    ambientEffectsEnabled = visible;
+    for (let i = 0; i < animatedSpores.length; i++) {
+      animatedSpores[i].mesh.visible = visible;
+    }
+    for (let i = 0; i < animatedMistPlanes.length; i++) {
+      animatedMistPlanes[i].mesh.visible = visible;
+    }
+  };
+
   const setVegetationVisible = (visible: boolean) => {
     for (let i = 0; i < vegetationAndFarGroups.length; i++) {
       vegetationAndFarGroups[i].visible = visible;
+    }
+    if (visible) {
+      setGrassDensity(currentGrassDensity);
     }
   };
 
@@ -3403,6 +3442,8 @@ export async function buildWorldEnvironmentAsync(
     colliders,
     update,
     setVegetationVisible,
+    setGrassDensity,
+    setAmbientEffectsVisible,
     propMatrices: capturedPropMatrices,
   };
 }
@@ -3427,6 +3468,8 @@ export function buildWorldEnvironment(
     colliders,
     update: (delta, time) => { syncResult?.update(delta, time); },
     setVegetationVisible: (visible) => { syncResult?.setVegetationVisible(visible); },
+    setGrassDensity: (scale) => { syncResult?.setGrassDensity?.(scale); },
+    setAmbientEffectsVisible: (visible) => { syncResult?.setAmbientEffectsVisible?.(visible); },
   };
 }
 

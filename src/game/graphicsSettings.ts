@@ -55,17 +55,79 @@ export const GRAPHICS_PRESETS: Record<'low' | 'medium' | 'high', GraphicsSetting
   },
 };
 
+export function isMobileRenderDevice(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  const uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const hasTouch = 'ontouchstart' in window || (navigator.maxTouchPoints ?? 0) > 0;
+  return uaMobile || window.innerWidth < 768 || (hasTouch && window.innerHeight <= 580 && window.innerWidth <= 1100);
+}
+
+export const MOBILE_GRAPHICS_PRESETS: Record<'low' | 'medium' | 'high', GraphicsSettings> = {
+  low: {
+    preset: 'low',
+    renderScale: 0.75,
+    shadows: false,
+    enableShadows: false,
+    shadowQuality: 'low',
+    enableGrass: false,
+    enableParticles: false,
+    enableFog: true,
+    particleDensity: 'low',
+    renderDistance: 160,
+    targetFps: 60,
+  },
+  medium: {
+    preset: 'medium',
+    renderScale: 1.0,
+    shadows: true,
+    enableShadows: true,
+    shadowQuality: 'low',
+    enableGrass: true,
+    enableParticles: true,
+    enableFog: true,
+    particleDensity: 'medium',
+    renderDistance: 260,
+    targetFps: 60,
+  },
+  high: {
+    preset: 'high',
+    renderScale: 1.5,
+    shadows: true,
+    enableShadows: true,
+    shadowQuality: 'high',
+    enableGrass: true,
+    enableParticles: true,
+    enableFog: true,
+    particleDensity: 'high',
+    renderDistance: 420,
+    targetFps: 60,
+  },
+};
+
+export function getGraphicsPresetForDevice(preset: 'low' | 'medium' | 'high'): GraphicsSettings {
+  return isMobileRenderDevice()
+    ? { ...MOBILE_GRAPHICS_PRESETS[preset] }
+    : { ...GRAPHICS_PRESETS[preset] };
+}
+
 const STORAGE_KEY = 'eldoria_graphics_settings';
 
 export function loadGraphicsSettings(): GraphicsSettings {
   if (typeof window === 'undefined') return GRAPHICS_PRESETS.medium;
+  const defaultSettings = isMobileRenderDevice()
+    ? MOBILE_GRAPHICS_PRESETS.medium
+    : GRAPHICS_PRESETS.medium;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed.renderScale === 'number') {
+        const presetName = parsed.preset || 'medium';
+        if (isMobileRenderDevice() && (presetName === 'low' || presetName === 'medium' || presetName === 'high')) {
+          return { ...MOBILE_GRAPHICS_PRESETS[presetName] };
+        }
         return {
-          preset: parsed.preset || 'medium',
+          preset: presetName,
           renderScale: Math.max(0.5, Math.min(1.5, parsed.renderScale)),
           shadows: Boolean(parsed.shadows ?? parsed.enableShadows ?? true),
           enableShadows: Boolean(parsed.enableShadows ?? parsed.shadows ?? true),
@@ -74,7 +136,7 @@ export function loadGraphicsSettings(): GraphicsSettings {
           enableParticles: parsed.enableParticles !== undefined ? Boolean(parsed.enableParticles) : true,
           enableFog: parsed.enableFog !== undefined ? Boolean(parsed.enableFog) : true,
           particleDensity: parsed.particleDensity || 'medium',
-          renderDistance: Math.max(30, Math.min(250, parsed.renderDistance || 90)),
+          renderDistance: Math.max(30, Math.min(500, parsed.renderDistance || defaultSettings.renderDistance)),
           targetFps: parsed.targetFps ?? 60,
         };
       }
@@ -82,7 +144,7 @@ export function loadGraphicsSettings(): GraphicsSettings {
   } catch (e) {
     console.warn('Failed to load graphics settings from localStorage:', e);
   }
-  return GRAPHICS_PRESETS.medium;
+  return { ...defaultSettings };
 }
 
 export function saveGraphicsSettings(settings: GraphicsSettings): void {
