@@ -13,7 +13,7 @@ export interface BossArenaZone {
 }
 
 export const SPAWN_NAGA: [number, number] = [40, 840];
-export const NAGA_CALDERA_RADIUS = 48;
+export const NAGA_CALDERA_RADIUS = 64;
 export const STATE_FLYING_PURSUIT = 'STATE_FLYING_PURSUIT';
 
 export const BOSS_ARENA_ZONES: Record<string, BossArenaZone> = {
@@ -31,9 +31,9 @@ export const BOSS_ARENA_ZONES: Record<string, BossArenaZone> = {
     nameId: 'Ignis, Sang Naga Purba',
     bossType: 'dragon',
     center: { x: 40, z: 840 },
-    radius: 58,
-    territoryRadius: 58,
-    aggroRange: 36,
+    radius: 74,
+    territoryRadius: 74,
+    aggroRange: 38,
   },
   boss_jarrus: {
     id: 'boss_jarrus',
@@ -189,7 +189,7 @@ export class MonsterCombatAI {
     playerDistToCenter?: number
   ): string | null {
     // Out of arena engagement range: do not trigger any skills
-    if (distToPlayer > 48.0) {
+    if (distToPlayer > NAGA_CALDERA_RADIUS + 4.0) {
       return null;
     }
 
@@ -201,23 +201,23 @@ export class MonsterCombatAI {
 
     const inArena = playerDistToCenter !== undefined ? playerDistToCenter <= NAGA_CALDERA_RADIUS : true;
 
-    // 1. SUPREME BOSS SKILL: Meteor Dive / Sky Crash (Jarak 8 - 30 unit, Cooldown 18s)
-    if (inArena && distToPlayer >= 8.0 && distToPlayer <= 30.0 && meteorDiveCd <= 0) {
+    // 1. SUPREME BOSS SKILL: Meteor Dive / Sky Crash (Jarak 8 - 38 unit, Cooldown 18s)
+    if (inArena && distToPlayer >= 8.0 && distToPlayer <= 38.0 && meteorDiveCd <= 0) {
       return 'meteor_dive';
     }
 
-    // 2. High-Priority Mid-Range Flame Breath Beam (Jarak 8 - 25 unit, Cooldown 10s)
-    if (distToPlayer >= 8.0 && distToPlayer <= 25.0 && breathCd <= 0) {
+    // 2. High-Priority Mid-Range Flame Breath Beam (Jarak 8 - 28 unit, Cooldown 10s)
+    if (distToPlayer >= 8.0 && distToPlayer <= 28.0 && breathCd <= 0) {
       return 'flame_breath';
     }
 
     // 3. GAP CLOSER: Flying Dive / Dash Pursuit (Jarak > 12 unit, jika pemain di kaldera & Cooldown <= 0)
-    if (inArena && distToPlayer > 12.0 && distToPlayer <= 48.0 && dashCd <= 0) {
+    if (inArena && distToPlayer > 12.0 && distToPlayer <= NAGA_CALDERA_RADIUS && dashCd <= 0) {
       return 'flying_dash';
     }
 
     // 4. Ranged Bombardment: Fireball Barrage (Jarak > 8 unit, Cooldown 5s)
-    if (distToPlayer > 8.0 && distToPlayer <= 48.0 && fireballCd <= 0) {
+    if (distToPlayer > 8.0 && distToPlayer <= NAGA_CALDERA_RADIUS && fireballCd <= 0) {
       return 'fireball_barrage';
     }
 

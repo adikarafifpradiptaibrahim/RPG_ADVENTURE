@@ -289,11 +289,11 @@ export const DeveloperSettingsSection: React.FC<DeveloperSettingsSectionProps> =
               disabled={actionsDisabled || !onTeleportPreset}
               onClick={() => {
                 const res = onTeleportPreset?.('ignis');
-                showTempFeedback(true, res ? `Teleport ke ${res.label}` : 'Teleport ke Kaldera Naga Ignis [40, 800]');
+                showTempFeedback(true, res ? `Teleport ke ${res.label}` : 'Teleport ke Gerbang Jembatan Kaldera Naga [40, 738]');
               }}
               className="rounded-lg border border-red-500/40 bg-red-950/45 hover:bg-red-900/60 disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-2 text-xs font-semibold text-red-200 transition cursor-pointer text-left"
             >
-              🐉 Naga Ignis <span className="block text-[10px] text-red-300/75 font-mono">[40, 800]</span>
+              🐉 Naga Ignis <span className="block text-[10px] text-red-300/75 font-mono">[40, 738]</span>
             </button>
 
             <button

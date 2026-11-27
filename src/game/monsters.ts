@@ -755,10 +755,10 @@ export const IGNIS_DRAGON_BOSS_CONFIG: BossConfig = {
   defense: 22,
   speed: 2.8,
   attackRange: 5.5,
-  detectRange: 48,
+  detectRange: 64,
   expReward: 1200,
   goldReward: 850,
-  pos: [-40, 340],
+  pos: [40, 840],
   scale: [4.2, 4.2, 4.2],
   skills: [
     {
@@ -934,7 +934,7 @@ export const SPAWN_DRAGON = {
   z: 840,
   homeX: 40,
   homeZ: 840,
-  leashRadius: 55,
+  leashRadius: 64,
 };
 
 export const JARRUS_WORM_BOSS_CONFIG: BossConfig = {

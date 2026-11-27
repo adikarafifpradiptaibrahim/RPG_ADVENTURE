@@ -1054,12 +1054,12 @@ export function renderIllustratedMap(
   drawSmoothSpline(ctx, routeHarborToLighthouse);
   ctx.stroke();
 
-  // Rute 2: Pulau Mercusuar [-220, 460] -> Dermaga Teluk Utara Kaldera Naga [40, 750]
+  // Rute 2: Pulau Mercusuar [-220, 460] -> Dermaga Teluk Utara Kaldera Naga [40, 716]
   const routeLighthouseToDragon: [number, number][] = [
     wToC(-220, 460),
     wToC(-120, 560),
-    wToC(-30, 660),
-    wToC(40, 750),
+    wToC(-30, 650),
+    wToC(40, 716),
   ];
   drawSmoothSpline(ctx, routeLighthouseToDragon);
   ctx.stroke();
@@ -1177,15 +1177,15 @@ export function renderIllustratedMap(
   // Bentuk Organik Bebas Kotak-Kotak & Bebas Datar (Domain-Warped FBM)
   // ==========================================================================
 
-  // A. Pulau Satelit Barat Daya [-75, 875]
-  const [swvX, swvY] = wToC(-75, 875);
+  // A. Pulau Satelit Barat Daya [-138, 892]
+  const [swvX, swvY] = wToC(-138, 892);
   ctx.fillStyle = '#1c1917';
   ctx.beginPath();
-  ctx.ellipse(swvX, swvY, 26, 22, -0.2, 0, Math.PI * 2);
+  ctx.ellipse(swvX, swvY, 24, 20, -0.2, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = '#44403c';
   ctx.beginPath();
-  ctx.ellipse(swvX, swvY, 18, 14, -0.2, 0, Math.PI * 2);
+  ctx.ellipse(swvX, swvY, 16, 13, -0.2, 0, Math.PI * 2);
   ctx.fill();
   // Aliran lava satelit
   ctx.strokeStyle = '#f97316';
@@ -1195,103 +1195,121 @@ export function renderIllustratedMap(
   ctx.lineTo(swvX + 6, swvY + 4);
   ctx.stroke();
 
-  // B. Pulau Satelit Barat Laut [-65, 775]
-  const [nwvX, nwvY] = wToC(-65, 775);
+  // B. Pulau Satelit Barat Laut [-128, 772]
+  const [nwvX, nwvY] = wToC(-128, 772);
   ctx.fillStyle = '#1c1917';
   ctx.beginPath();
-  ctx.ellipse(nwvX, nwvY, 24, 20, 0.3, 0, Math.PI * 2);
+  ctx.ellipse(nwvX, nwvY, 22, 18, 0.3, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = '#292524';
   ctx.beginPath();
-  ctx.ellipse(nwvX, nwvY, 16, 13, 0.3, 0, Math.PI * 2);
+  ctx.ellipse(nwvX, nwvY, 14, 11, 0.3, 0, Math.PI * 2);
   ctx.fill();
 
-  // C. Jembatan Batu Rantai Vulkanik Penghubung ke Pulau Utama
-  // Jembatan 1: Satelit Barat Daya [-75, 875] -> Pulau Utama [40, 840]
-  const [br1StartX, br1StartY] = wToC(-38, 858);
-  const [br1EndX, br1EndY] = wToC(-8, 848);
+  // C. Jembatan Batu Rantai Vulkanik Penghubung ke Tebing Barat Kaldera
+  const [br1StartX, br1StartY] = wToC(-112, 878);
+  const [br1EndX, br1EndY] = wToC(-82, 868);
   ctx.strokeStyle = '#292524';
-  ctx.lineWidth = 4.2;
+  ctx.lineWidth = 4.0;
   ctx.beginPath();
   ctx.moveTo(br1StartX, br1StartY);
   ctx.lineTo(br1EndX, br1EndY);
   ctx.stroke();
   ctx.strokeStyle = '#f97316';
-  ctx.lineWidth = 1.6;
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Jembatan 2: Satelit Barat Laut [-65, 775] -> Pulau Utama [40, 840]
-  const [br2StartX, br2StartY] = wToC(-34, 792);
-  const [br2EndX, br2EndY] = wToC(-4, 808);
+  const [br2StartX, br2StartY] = wToC(-102, 785);
+  const [br2EndX, br2EndY] = wToC(-72, 795);
   ctx.strokeStyle = '#292524';
-  ctx.lineWidth = 4.2;
+  ctx.lineWidth = 4.0;
   ctx.beginPath();
   ctx.moveTo(br2StartX, br2StartY);
   ctx.lineTo(br2EndX, br2EndY);
   ctx.stroke();
   ctx.strokeStyle = '#f97316';
-  ctx.lineWidth = 1.6;
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // D. Pulau Utama Kaldera Naga [40, 840] (Pulau Induk Organik)
+  // D. Pulau Utama Kaldera Naga [40, 840] (Tebing Luar, Danau Lahar r=54..88, Arena Obsidian r=54, Jembatan Obsidian Utara)
   const [volX, volY] = wToC(40, 840);
-  const [dockX, dockY] = wToC(40, 750);
+  const [dockX, dockY] = wToC(40, 716);
+  const [bridgeStartX, bridgeStartY] = wToC(40, 749);
+  const [bridgeEndX, bridgeEndY] = wToC(40, 789);
+  const [rimN_X, rimN_Y] = wToC(40, 840 - 88);
+  const [rimE_X] = wToC(40 + 88, 840);
+  const [islE_X] = wToC(40 + 54, 840);
+  const outerPx = Math.max(46, (rimE_X - volX) * 1.32);
+  const lavaPx = Math.max(32, rimE_X - volX);
+  const islandPx = Math.max(20, islE_X - volX);
 
-  // Garis pantai bebatuan hitam vulkanik (Organic outer silhouette)
+  // Dinding kawah basalt luar (radius 88..132)
   ctx.fillStyle = '#09090b';
   ctx.beginPath();
-  // Poligon kawah organik dengan lekukan teluk utara
-  ctx.ellipse(volX, volY, 48, 42, 0, 0, Math.PI * 2);
+  ctx.ellipse(volX, volY, outerPx, outerPx * 0.92, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Pesisir pantai abu basal
   ctx.fillStyle = '#1c1917';
   ctx.beginPath();
-  ctx.ellipse(volX, volY, 42, 36, 0, 0, Math.PI * 2);
+  ctx.ellipse(volX, volY, lavaPx * 1.15, lavaPx * 1.08, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Lereng tebing kawah bertingkat
-  ctx.fillStyle = '#27272a';
-  ctx.beginPath();
-  ctx.ellipse(volX, volY, 32, 27, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Cincin lahar mendidih bercahaya di lantai kawah
-  const lavaGrad = ctx.createRadialGradient(volX, volY, 3, volX, volY, 24);
-  lavaGrad.addColorStop(0, '#fef08a');
-  lavaGrad.addColorStop(0.3, '#f97316');
-  lavaGrad.addColorStop(0.7, '#ef4444');
-  lavaGrad.addColorStop(1, '#991b1b');
+  // Danau Lahar membara mengelilingi seluruh pulau altar (radius 54..88)
+  const lavaGrad = ctx.createRadialGradient(volX, volY, islandPx * 0.85, volX, volY, lavaPx);
+  lavaGrad.addColorStop(0, '#ea580c');
+  lavaGrad.addColorStop(0.55, '#f97316');
+  lavaGrad.addColorStop(0.85, '#dc2626');
+  lavaGrad.addColorStop(1, '#7f1d1d');
   ctx.fillStyle = lavaGrad;
   ctx.beginPath();
-  ctx.ellipse(volX, volY, 24, 19, 0, 0, Math.PI * 2);
+  ctx.ellipse(volX, volY, lavaPx, lavaPx * 0.94, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Altar Rune Naga di Pusat Kawah [40, 840]
+  // Pulau Altar Utama Basalt-Obsidian di tengah danau lahar (radius ~54)
+  ctx.fillStyle = '#27272a';
+  ctx.beginPath();
+  ctx.ellipse(volX, volY, islandPx, islandPx * 0.94, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#ea580c';
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+
+  // Retakan magma & Altar Rune Naga di pusat kawah [40, 840]
   ctx.fillStyle = '#18181b';
   ctx.beginPath();
-  ctx.arc(volX, volY, 8.5, 0, Math.PI * 2);
+  ctx.arc(volX, volY, 8.0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = '#f59e0b';
   ctx.lineWidth = 1.6;
   ctx.stroke();
 
-  // Celah ngarai jalan masuk dari Dermaga Teluk Utara [40, 750] ke Kawah
-  ctx.fillStyle = '#27272a';
+  // Jalan masuk daratan utara & Jembatan Obsidian Agung [40, 749] -> [40, 789] melintasi lahar
+  ctx.strokeStyle = '#1c1917';
+  ctx.lineWidth = 7.5;
   ctx.beginPath();
-  ctx.moveTo(volX - 7, volY - 18);
-  ctx.lineTo(dockX - 5, dockY + 4);
-  ctx.lineTo(dockX + 5, dockY + 4);
-  ctx.lineTo(volX + 7, volY - 18);
-  ctx.closePath();
-  ctx.fill();
+  ctx.moveTo(dockX, dockY);
+  ctx.lineTo(rimN_X, rimN_Y);
+  ctx.stroke();
 
-  // Dermaga Kayu Hangus di Teluk Utara [40, 750]
+  ctx.strokeStyle = '#09090b';
+  ctx.lineWidth = 7.0;
+  ctx.beginPath();
+  ctx.moveTo(bridgeStartX, bridgeStartY);
+  ctx.lineTo(bridgeEndX, bridgeEndY);
+  ctx.stroke();
+  ctx.strokeStyle = '#f97316';
+  ctx.lineWidth = 2.0;
+  ctx.beginPath();
+  ctx.moveTo(bridgeStartX, bridgeStartY);
+  ctx.lineTo(bridgeEndX, bridgeEndY);
+  ctx.stroke();
+
+  // Dermaga Kayu Hangus di Teluk Utara [40, 716]
   ctx.fillStyle = '#18181b';
-  ctx.fillRect(dockX - 4, dockY - 6, 8, 14);
+  ctx.fillRect(dockX - 4, dockY - 6, 8, 12);
   ctx.strokeStyle = '#d97706';
   ctx.lineWidth = 1.2;
-  ctx.strokeRect(dockX - 4, dockY - 6, 8, 14);
+  ctx.strokeRect(dockX - 4, dockY - 6, 8, 12);
 
   ctx.restore();
 

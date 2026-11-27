@@ -96,7 +96,7 @@ import {
   getLandmarkLayout,
   SAFE_ZONES,
 } from './worldLayoutConfig';
-import { WORLD_BOUNDS } from './worldData';
+import { WORLD_BOUNDS, isPointOnBridgeDeck } from './worldData';
 import {
   MAGE_TOWER_CONFIG,
   isInsideMageTowerInterior,
@@ -297,6 +297,7 @@ export class GameEngine {
   private bossCombatStates: Map<string, { combatActive: boolean; disengageTimer: number }> = new Map();
   private activeBossZoneId: string | null = null;
   private activeBossEnemyData: EnemyData | null = null;
+  private lavaDamageTimer = 0;
   private unlockedCheckpoints: Set<string> = new Set();
   private lastVisitedTownPos: { id: string; x: number; y: number; z: number; name: string } = (() => {
     try {
@@ -1367,6 +1368,7 @@ export class GameEngine {
     attackCooldown: number;
     walkCycle: number;
     spawnPos?: THREE.Vector3;
+    spawnRotY?: number;
     respawnTimer?: number;
     isReturning?: boolean;
     isAttacking?: boolean;
@@ -1550,6 +1552,7 @@ export class GameEngine {
         onAirborneChange: (isAirborne: boolean) => {
           this.isDragonAirborne = isAirborne;
         },
+        onIgnisVisualReset: () => this.clearIgnisPhase2AuraParticles(),
       }
     );
     this.bossManager.setDevFlags(this.devSettings.godMode, this.devSettings.ccImmune);
@@ -1696,6 +1699,7 @@ export class GameEngine {
         onAirborneChange: (isAirborne: boolean) => {
           this.isDragonAirborne = isAirborne;
         },
+        onIgnisVisualReset: () => this.clearIgnisPhase2AuraParticles(),
       }
     );
     this.bossManager.setDevFlags(this.devSettings.godMode, this.devSettings.ccImmune);
@@ -3011,10 +3015,10 @@ export class GameEngine {
     onProgress?.(66, 'Membangkitkan Penguasa Kaldera & Pasukan Monster Gurun (66%)...');
     await cooperativeYield(4);
     const dragonPositions: [number, number][] = [
-      [22, 825],  // Pulau Utama (Dekat celah masuk utara)
-      [58, 832],  // Pulau Utama (Lereng timur kawah)
-      [-75, 875], // Pulau Satelit Barat Daya
-      [-65, 775], // Pulau Satelit Barat Laut
+      [33, 740],   // Penjaga Kepala Utara Jembatan Obsidian
+      [47, 740],   // Penjaga Kepala Utara Jembatan Obsidian
+      [-138, 892], // Pulau Satelit Barat Daya
+      [-128, 772], // Pulau Satelit Barat Laut
     ];
     await spawnGroupAsync(dragonPositions, (pos, idx) => {
       const { group, parts } = createEnemyMesh('magma_slime');
@@ -3107,6 +3111,7 @@ export class GameEngine {
     const { group: wyrmGroup, parts: wyrmParts } = createEnemyMesh('dragon');
     const wyrmY = this.world.getTerrainHeight(wyrmPos[0], wyrmPos[1]);
     wyrmGroup.position.set(wyrmPos[0], wyrmY, wyrmPos[1]);
+    wyrmGroup.rotation.y = Math.PI; // Menghadap Utara menyambut pahlawan di Jembatan Obsidian
     this.scene.add(wyrmGroup);
 
     const wyrmData: EnemyData = {
@@ -3123,7 +3128,7 @@ export class GameEngine {
       goldReward: 850,
       speed: 2.8,
       attackRange: 5.5,
-      detectRange: 48,
+      detectRange: 64,
       position: [wyrmPos[0], wyrmY, wyrmPos[1]],
       isDead: false,
       dropItems: [
@@ -3137,6 +3142,9 @@ export class GameEngine {
       mesh: wyrmGroup,
       parts: wyrmParts,
       baseY: wyrmY,
+      spawnPos: new THREE.Vector3(wyrmPos[0], wyrmY, wyrmPos[1]),
+      spawnRotY: Math.PI,
+      leashRadius: 64,
       attackCooldown: 0,
       walkCycle: 0,
     };
@@ -5338,6 +5346,19 @@ export class GameEngine {
     bolt.group.visible = true;
   }
 
+  private clearIgnisPhase2AuraParticles() {
+    if (this.ignisAuraPoints) {
+      for (let i = 0; i < this.IGNIS_AURA_PARTICLE_COUNT; i++) {
+        this.ignisAuraLifes[i] = 0;
+        this.ignisAuraPositions[i * 3] = 0;
+        this.ignisAuraPositions[i * 3 + 1] = -999;
+        this.ignisAuraPositions[i * 3 + 2] = 0;
+      }
+      this.ignisAuraPoints.visible = false;
+      (this.ignisAuraPoints.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+    }
+  }
+
   private updateCalderaStormAndAura(delta: number, elapsed: number) {
     const stormFactor = this.bossManager?.extremeWeatherFactor || 0;
     const ignis = this.cachedIgnisEnemy;
@@ -5348,6 +5369,28 @@ export class GameEngine {
       this.bossManager?.dragonPhase === 2
     );
     const distPlayerToCaldera = Math.hypot(this.playerPos.x - SPAWN_NAGA[0], this.playerPos.z - SPAWN_NAGA[1]);
+
+    // 0. Pulse Lava Lake emissive & animate rising caldera lava embers (0 dynamic PointLight)
+    if (this.world?.lavaSurfaceMat) {
+      this.world.lavaSurfaceMat.emissiveIntensity = 1.72 + Math.sin(elapsed * 2.4) * 0.28;
+    }
+    if (this.world?.lavaEmbers) {
+      const showEmbers = distPlayerToCaldera <= 175.0;
+      this.world.lavaEmbers.visible = showEmbers;
+      if (showEmbers) {
+        const posAttr = this.world.lavaEmbers.geometry.attributes.position as THREE.BufferAttribute;
+        const arr = posAttr.array as Float32Array;
+        const count = posAttr.count;
+        for (let i = 0; i < count; i++) {
+          const idxY = i * 3 + 1;
+          arr[idxY] += delta * (1.2 + (i % 5) * 0.28);
+          if (arr[idxY] > 5.8) {
+            arr[idxY] = 0.2;
+          }
+        }
+        posAttr.needsUpdate = true;
+      }
+    }
 
     // 1. Update Ignis Phase 2 Volcanic Berserk Aura Particles (Smoke & Magma Embers)
     if (this.ignisAuraPoints && this.ignisAuraMat) {
@@ -5570,6 +5613,9 @@ export class GameEngine {
     // Set ke tepat di bawah ambang 50% (misal 49.5%) agar Fase 2 Ignis & Whirlpool Jarrus langsung aktif
     const phase2Hp = Math.max(1, Math.floor(nearest.data.maxHp * 0.5) - 1);
     nearest.data.hp = Math.min(nearest.data.hp, phase2Hp);
+    this.bossCombatStates.set(nearest.data.id, { combatActive: true, disengageTimer: 0 });
+    this.bossManager?.setBossCombatActive(nearest.data.id, true);
+    nearest.isReturning = false;
     const bossName = nearest.data.nameId || nearest.data.name;
     this.callbacks.onAddFloatingText(`⚡ [DEV] ${bossName} dipaksa ke Fase 2 (${nearest.data.hp}/${nearest.data.maxHp} HP)!`, '#f59e0b', 'crit');
     return { ok: true, message: `${bossName} diatur ke Fase 2 (${nearest.data.hp} HP).` };
@@ -5618,11 +5664,15 @@ export class GameEngine {
       nearest.data.id === 'boss_dragonfang' ? 4.2 :
       nearest.data.id === 'boss_jarrus' ? 1.0 : 3.5;
     nearest.mesh.scale.set(scale, scale, scale);
+    nearest.mesh.quaternion.identity();
     nearest.mesh.rotation.order = 'XYZ';
-    nearest.mesh.rotation.set(0, 0, 0);
+    nearest.mesh.rotation.set(0, nearest.spawnRotY ?? 0, 0);
     this.bossCombatStates.delete(nearest.data.id);
     this.resetEnemyPose(nearest);
     this.bossManager?.resetBoss(nearest.data.id, nearest);
+    if (nearest.data.id === 'boss_dragonfang') {
+      this.clearIgnisPhase2AuraParticles();
+    }
 
     const bossName = nearest.data.nameId || nearest.data.name;
     this.callbacks.onAddFloatingText(`🔄 [DEV] ${bossName} direset ke HP penuh (Fase 1)!`, '#38bdf8', 'crit');
@@ -5638,8 +5688,8 @@ export class GameEngine {
     let label = 'Desa Utama Eldoria';
     if (preset === 'ignis') {
       tx = 40;
-      tz = 800;
-      label = 'Kaldera Naga Ignis';
+      tz = 738;
+      label = 'Gerbang Jembatan Obsidian Kaldera [40, 738]';
     } else if (preset === 'jarrus') {
       tx = -840;
       tz = -205;
@@ -5654,6 +5704,10 @@ export class GameEngine {
     }
     this.teleportGraceTimer = 0.25;
     this.teleportTo(tx, tz);
+    if (preset === 'ignis') {
+      this.playerRotationY = 0; // Menghadap Selatan melintasi Jembatan Obsidian menuju Ignis
+      this.cameraAngleH = Math.PI;
+    }
     this.callbacks.onAddFloatingText(`🧭 [DEV] Teleportasi: ${label}`, '#22d3ee', 'crit');
     return { ok: true, label };
   }
@@ -13033,6 +13087,11 @@ export class GameEngine {
     enemy.mesh.rotation.z = (Math.random() - 0.5) * 0.4;
     const corpseGroundY = this.world.getTerrainHeight(enemy.mesh.position.x, enemy.mesh.position.z);
     enemy.mesh.position.y = corpseGroundY + 0.12;
+    if (enemy.data.id === 'boss_dragonfang') {
+      this.bossCombatStates.delete(enemy.data.id);
+      this.bossManager?.setBossCombatActive('boss_dragonfang', false);
+      this.clearIgnisPhase2AuraParticles();
+    }
 
     // Drop guaranteed monster crafting material
     const material = MONSTER_MATERIALS[enemy.data.type];
@@ -13181,11 +13240,27 @@ export class GameEngine {
     }
     if (enemy.data.id === 'boss_dragonfang') {
       if (enemy.parts.leftWing && enemy.parts.rightWing) {
-        enemy.parts.leftWing.rotation.z = Math.sin(enemy.walkCycle * 2) * 0.35;
-        enemy.parts.rightWing.rotation.z = -Math.sin(enemy.walkCycle * 2) * 0.35;
+        const flap = Math.sin(enemy.walkCycle * 2);
+        enemy.parts.leftWing.rotation.z = flap * 0.35;
+        enemy.parts.rightWing.rotation.z = -flap * 0.35;
+        if (enemy.parts.leftElbow && enemy.parts.rightElbow) {
+          enemy.parts.leftElbow.rotation.z = Math.sin(enemy.walkCycle * 2 - 0.45) * 0.22;
+          enemy.parts.rightElbow.rotation.z = -Math.sin(enemy.walkCycle * 2 - 0.45) * 0.22;
+        }
       }
       if (enemy.parts.tail) {
-        enemy.parts.tail.rotation.y = Math.sin(enemy.walkCycle * 0.8) * 0.4;
+        enemy.parts.tail.rotation.y = Math.sin(enemy.walkCycle * 0.8) * 0.32;
+      }
+      if (Array.isArray(enemy.parts.tailSegments)) {
+        for (let tIdx = 0; tIdx < enemy.parts.tailSegments.length; tIdx++) {
+          const seg = enemy.parts.tailSegments[tIdx];
+          if (seg?.rotation) {
+            seg.rotation.y = Math.sin(enemy.walkCycle * 1.1 - tIdx * 0.45) * 0.14;
+          }
+        }
+      }
+      if (enemy.parts.jaw) {
+        enemy.parts.jaw.rotation.x = 0.08 + Math.max(0, Math.sin(enemy.walkCycle * 0.9)) * 0.12;
       }
       if (enemy.parts.frontLeftLeg && enemy.parts.frontRightLeg) {
         enemy.parts.frontLeftLeg.rotation.x = Math.sin(enemy.walkCycle * 0.8) * 0.35;
@@ -13227,6 +13302,11 @@ export class GameEngine {
   }
 
   private resetEnemyPose(enemy: (typeof this.enemies)[0]) {
+    if (enemy.data.id === 'boss_dragonfang' && this.bossManager) {
+      this.bossManager.resetDragonSkeletonPose(enemy);
+      enemy.mesh.rotation.y = enemy.spawnRotY ?? Math.PI;
+      return;
+    }
     const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : (enemy.data.id === 'boss_jarrus' ? 1.0 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0)));
     enemy.mesh.scale.set(s, s, s);
     if (enemy.parts) {
@@ -13241,27 +13321,50 @@ export class GameEngine {
   }
 
   public respawnEnemy(enemy: (typeof this.enemies)[0], explicitHp?: number) {
+    // 1. Reset HP, dead flag, & all combat status flags BEFORE AI runs
     enemy.data.isDead = false;
     enemy.data.hp = explicitHp ?? enemy.data.maxHp;
     enemy.respawnTimer = 0;
     enemy.deathTimer = 0;
     enemy.isReturning = false;
+    enemy.isAttacking = false;
     enemy.attackCooldown = 0;
+    enemy.stunTimer = 0;
+    enemy.slowTimer = 0;
+    enemy.brittleTimer = 0;
+    enemy.armorBreakTimer = 0;
+    enemy.velocity?.set(0, 0, 0);
 
+    // 2. Hard reset root transform & facing orientation (fixes crooked/tilted corpse after Ignis respawn)
     const spawn = enemy.spawnPos || new THREE.Vector3(...enemy.data.position);
     const spawnY = this.world.getTerrainHeight(spawn.x, spawn.z);
     enemy.mesh.position.set(spawn.x, spawnY, spawn.z);
-    enemy.mesh.rotation.set(0, 0, 0);
+    enemy.mesh.quaternion.identity();
+    enemy.mesh.rotation.order = 'XYZ';
+    enemy.mesh.rotation.set(0, enemy.spawnRotY ?? 0, 0);
     const s = enemy.data.id === 'boss_dragonfang' ? 4.2 : (enemy.data.id === 'boss_jarrus' ? 1.0 : (enemy.data.type === 'boss' ? 3.5 : (enemy.data.type === 'golem' ? 1.35 : 1.0)));
     enemy.mesh.scale.set(s, s, s);
     enemy.mesh.visible = true;
+
+    // 3. Hard reset skeleton pose, Phase 1 materials, weather, and aura particles for Bosses
     this.resetEnemyPose(enemy);
+    const isBoss =
+      enemy.data.type === 'boss' ||
+      enemy.data.id === 'boss_dragonfang' ||
+      enemy.data.id === 'boss_jarrus' ||
+      enemy.data.id === 'boss_titan';
+    if (isBoss) {
+      this.bossCombatStates.delete(enemy.data.id);
+      this.bossManager?.resetBoss(enemy.data.id, enemy);
+      if (enemy.data.id === 'boss_dragonfang') {
+        this.clearIgnisPhase2AuraParticles();
+      }
+    }
 
     if (!this.scene.children.includes(enemy.mesh)) {
       this.scene.add(enemy.mesh);
     }
 
-    const isBoss = enemy.data.type === 'boss';
     this.spawnShockwaveRing(new THREE.Vector3(spawn.x, spawnY + 0.1, spawn.z), isBoss ? 0xef4444 : 0x22c55e, isBoss ? 6.5 : 3.2, 0.8);
     this.spawnHitStarburst(new THREE.Vector3(spawn.x, spawnY + 1.2, spawn.z), isBoss ? 0xff4500 : 0x4ade80, 2.2);
 
@@ -13753,6 +13856,18 @@ export class GameEngine {
       this.syncHunterWeaponModel();
     }
 
+    // Cek zona Danau Lahar Kaldera Naga (radius 53.3..89.2 di luar jembatan & koridor masuk utara)
+    const distCalderaLava = Math.hypot(this.playerPos.x - 40, this.playerPos.z - 840);
+    const onCalderaBridge = isPointOnBridgeDeck(this.playerPos.x, this.playerPos.z, 0.3);
+    const inNorthBridgeEntry =
+      Math.abs(this.playerPos.x - 40) <= 5.4 && this.playerPos.z >= 742 && this.playerPos.z <= 795;
+    const inLavaMoatZone =
+      distCalderaLava >= 53.3 &&
+      distCalderaLava <= 89.2 &&
+      !onCalderaBridge &&
+      !inNorthBridgeEntry;
+    const isWadingInLava = inLavaMoatZone && this.playerPos.y <= 0.65;
+
     let targetSpeed = baseSpeed;
     if (this.isAimGlacialActive || this.glacialAimState.isCharging) {
       targetSpeed = baseSpeed * 0.55; // 55% normal movement speed while aiming Glacial Barrage
@@ -13766,6 +13881,9 @@ export class GameEngine {
       }
       if (this.bossManager?.playerDebuffs?.isSlowed) {
         targetSpeed *= 0.5; // Efek Slow -50% pergerakan dari Boss / Sand Spikes
+      }
+      if (isWadingInLava) {
+        targetSpeed *= 0.70; // Hambatan gerak lahar kental -30% (tetap bisa lompat/dash keluar)
       }
       if (this.isDashing) {
         targetSpeed = this.charClass === 'rogue' ? 24.0 : this.charClass === 'warrior' ? 19.0 : 16.0;
@@ -13977,8 +14095,9 @@ export class GameEngine {
         this.isGrounded = true;
       }
     } else {
-      // Solid walkable surface collision (terrain + bridges + docks + altars + stairs) and Ocean water surface
-      const groundY = getSolidGroundHeight(this.playerPos.x, this.playerPos.z, this.playerPos.y);
+      // Solid walkable surface collision (terrain + bridges + docks + altars + stairs) and Ocean/Lava surface
+      const rawGroundY = getSolidGroundHeight(this.playerPos.x, this.playerPos.z, this.playerPos.y);
+      const groundY = inLavaMoatZone && rawGroundY < -0.15 ? -0.15 : rawGroundY;
       if (this.playerPos.z > 22 && this.playerPos.x >= -65 && this.playerPos.x <= 105 && groundY < -0.2) {
         const waterSurfaceY = -0.25;
         if (this.playerPos.y <= waterSurfaceY) {
@@ -14001,12 +14120,48 @@ export class GameEngine {
 
     // Absolute ground floor clamp: prevent sinking into terrain/surfaces during delta spike or steep slope descents
     if (!inThroneRoom && !inMageTower) {
-      const minFloorY = getSolidGroundHeight(this.playerPos.x, this.playerPos.z, this.playerPos.y);
+      const rawFloorY = getSolidGroundHeight(this.playerPos.x, this.playerPos.z, this.playerPos.y);
+      const minFloorY = inLavaMoatZone && rawFloorY < -0.15 ? -0.15 : rawFloorY;
       if (this.playerPos.y < minFloorY) {
         this.playerPos.y = minFloorY;
         this.playerVel.y = 0;
         this.isGrounded = true;
       }
+    }
+
+    // Sistem Hazard Damage Danau Lahar Kaldera (-18 HP tiap 0.5 detik, hormati God Mode & permukaan solid jembatan)
+    if (!inThroneRoom && !inMageTower && inLavaMoatZone && this.playerPos.y <= 0.65) {
+      this.lavaDamageTimer += delta;
+      if (this.lavaDamageTimer >= 0.5) {
+        this.lavaDamageTimer -= 0.5;
+        this.spawnSparks(
+          new THREE.Vector3(this.playerPos.x, Math.max(0.15, this.playerPos.y + 0.25), this.playerPos.z),
+          0xff5722,
+          10,
+          4.5
+        );
+        soundManager.playHit();
+        if (!this.devSettings.godMode) {
+          this.callbacks.onUpdateStats((stats) => {
+            // Mengabaikan sebagian armor (~12% defense) agar lahar terasa mematikan ~18 HP
+            const rawLavaDmg = Math.max(12, 18 - Math.round(stats.baseDefense * 0.12));
+            const finalLavaDmg = Math.max(0, this.absorbDamageWithShield(rawLavaDmg).remainingDamage);
+            const nextHp = Math.max(0, stats.hp - finalLavaDmg);
+            if (finalLavaDmg > 0) {
+              this.callbacks.onAddFloatingText(`🔥 TERBAKAR LAHAR! -${finalLavaDmg}`, '#ff3d00', 'damage');
+              this.handlePlayerTookDamage(finalLavaDmg);
+            }
+            if (nextHp <= 0) {
+              this.respawnPlayerAtLastVisitedTown();
+            }
+            return { ...stats, hp: nextHp };
+          });
+        } else {
+          this.callbacks.onAddFloatingText('🔥 KEBAL LAHAR (GOD MODE)!', '#38bdf8', 'info');
+        }
+      }
+    } else {
+      this.lavaDamageTimer = 0;
     }
 
     // Cataclysmic Leap Slam: Deteksi pendaratan presisi saat menyentuh tanah
@@ -15147,6 +15302,7 @@ export class GameEngine {
         const combatState = this.bossCombatStates.get(enemy.data.id);
         const combatActive = combatState?.combatActive ?? false;
         const isDisengaging = combatActive && (combatState?.disengageTimer ?? 0) > 0;
+        this.bossManager.setBossCombatActive(enemy.data.id, combatActive);
 
         if (!combatActive) {
           enemy.isAttacking = false;
@@ -15367,6 +15523,7 @@ export class GameEngine {
       const prev = this.bossCombatStates.get(bossId);
       if (!prev || !prev.combatActive || prev.disengageTimer > 0) {
         this.bossCombatStates.set(bossId, { combatActive: true, disengageTimer: 0 });
+        this.bossManager?.setBossCombatActive(bossId, true);
         boss.isReturning = false;
       }
     }

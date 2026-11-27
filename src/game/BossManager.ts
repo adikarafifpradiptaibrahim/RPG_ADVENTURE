@@ -60,6 +60,7 @@ export interface BossManagerCallbacks {
   onDecoyHit?: () => void;
   onAirborneChange?: (isAirborne: boolean) => void;
   onCameraFocusBoss?: (bossPos: THREE.Vector3, weight: number) => void;
+  onIgnisVisualReset?: () => void;
 }
 
 /**
@@ -94,7 +95,12 @@ export class BossManager {
   // Dragon Phase 2 Enrage & Caldera Storm Weather
   public dragonPhase: 1 | 2 = 1;
   public extremeWeatherFactor: number = 0;
-  private ignisLastKnownAlive: boolean = true;
+  private stormFactorTarget: number = 0;
+  private ignisHasTriggeredPhase2: boolean = false;
+  private ignisIsEnraged: boolean = false;
+  private ignisPhase2AuraActive: boolean = false;
+  private ignisIsCombatActive: boolean = false;
+  private ignisLastKnownAlive: boolean = false;
   private ignisMaterialsUpdatedPhase: 1 | 2 = 1;
 
   // Developer Testing Flags (synced from devTestingManager, default false)
@@ -367,8 +373,56 @@ export class BossManager {
     };
   }
 
+  public setBossCombatActive(bossId: string, active: boolean) {
+    if (bossId === 'boss_dragonfang') {
+      this.ignisIsCombatActive = active;
+    }
+  }
+
   /**
-   * Resets a specific boss's AI state, cooldowns, telegraphs, and Phase 1 visuals cleanly.
+   * Hard-resets all Ignis joints & transforms to standby ground posture (0 twisted / tilted limbs)
+   */
+  public resetDragonSkeletonPose(enemy: {
+    mesh: THREE.Group;
+    parts?: Record<string, any>;
+  }) {
+    if (!enemy?.mesh) return;
+    enemy.mesh.quaternion.identity();
+    enemy.mesh.rotation.order = 'XYZ';
+    enemy.mesh.rotation.set(0, 0, 0);
+    enemy.mesh.scale.set(4.2, 4.2, 4.2);
+
+    const p = enemy.parts;
+    if (!p) return;
+    if (p.torso) {
+      p.torso.position.set(0, 1.44, 0.05);
+      p.torso.rotation.set(0, 0, 0);
+    }
+    if (p.neck) p.neck.rotation.set(0, 0, 0);
+    if (p.head) p.head.rotation.set(0, 0, 0);
+    if (p.jaw) p.jaw.rotation.set(0, 0, 0);
+    if (p.leftWing) p.leftWing.rotation.set(-0.14, 0.16, 0);
+    if (p.rightWing) p.rightWing.rotation.set(-0.14, -0.16, 0);
+    if (p.leftElbow) p.leftElbow.rotation.set(0, 0, 0);
+    if (p.rightElbow) p.rightElbow.rotation.set(0, 0, 0);
+    if (p.frontLeftLeg) p.frontLeftLeg.rotation.set(0, 0, 0);
+    if (p.frontRightLeg) p.frontRightLeg.rotation.set(0, 0, 0);
+    if (p.leftLeg) p.leftLeg.rotation.set(0, 0, 0);
+    if (p.rightLeg) p.rightLeg.rotation.set(0, 0, 0);
+    if (p.tail) p.tail.rotation.set(0, 0, 0);
+    if (Array.isArray(p.tailSegments)) {
+      const restPitches = [-0.26, -0.18, 0.08, 0.14, 0.10];
+      for (let i = 0; i < p.tailSegments.length; i++) {
+        const seg = p.tailSegments[i];
+        if (seg?.rotation) {
+          seg.rotation.set(restPitches[i] ?? 0, 0, 0);
+        }
+      }
+    }
+  }
+
+  /**
+   * Resets a specific boss's AI state, cooldowns, telegraphs, skeleton joints, and Phase 1 visuals cleanly.
    */
   public resetBoss(
     bossId: string,
@@ -376,6 +430,10 @@ export class BossManager {
       data: EnemyData;
       mesh: THREE.Group;
       parts: Record<string, any>;
+      spawnPos?: THREE.Vector3;
+      spawnRotY?: number;
+      isReturning?: boolean;
+      deathTimer?: number;
     }
   ) {
     // Remove any active telegraphs belonging to this boss
@@ -395,31 +453,72 @@ export class BossManager {
           : ANCIENT_TITAN_BOSS_CONFIG;
 
     this.registerBoss(bossId, config);
-    this.bossStates.set(bossId, 'chase');
+    this.bossStates.set(bossId, 'idle');
     this.stateTimers.set(bossId, 0);
 
     if (bossId === 'boss_dragonfang') {
       this.dragonPhase = 1;
-      this.ignisLastKnownAlive = true;
+      this.ignisHasTriggeredPhase2 = false;
+      this.ignisIsEnraged = false;
+      this.ignisPhase2AuraActive = false;
+      this.ignisIsCombatActive = false;
+      this.ignisLastKnownAlive = !(enemy?.data?.isDead);
+      this.extremeWeatherFactor = 0;
+      this.stormFactorTarget = 0;
       this.isDragonAirborne = false;
       this.callbacks.onAirborneChange?.(false);
       this.removeMeteorDiveIndicator();
       this.meteorDiveTarget = null;
+      this.flyingPursuitLockedTarget = null;
       this.orbitFireball1Fired = false;
       this.orbitFireball2Fired = false;
-      if (enemy) {
-        enemy.mesh.rotation.order = 'XYZ';
-        enemy.mesh.rotation.x = 0;
-        enemy.mesh.rotation.z = 0;
-        this.resetDragonPhase1Visuals(enemy);
+      if (enemy?.mesh) {
+        this.resetDragonSkeletonPose(enemy);
+        enemy.mesh.rotation.y = enemy.spawnRotY ?? Math.PI;
+        enemy.mesh.visible = true;
+        this.applyDragonVisualPhase(enemy, 1);
       }
+      this.callbacks.onIgnisVisualReset?.();
     } else if (bossId === 'boss_jarrus') {
       this.resetJarrusState(enemy);
+    } else if (enemy?.mesh) {
+      // Hard-reset Ancient Titan transforms & joints cleanly as well
+      enemy.mesh.quaternion.identity();
+      enemy.mesh.rotation.order = 'XYZ';
+      enemy.mesh.rotation.set(0, enemy.spawnRotY ?? 0, 0);
+      enemy.mesh.scale.set(3.5, 3.5, 3.5);
+      enemy.mesh.visible = true;
+      if (enemy.parts?.torso) {
+        enemy.parts.torso.position.y = 1.35;
+        enemy.parts.torso.rotation.set(0, 0, 0);
+      }
+      if (enemy.parts?.leftArm) enemy.parts.leftArm.rotation.set(0, 0, 0);
+      if (enemy.parts?.rightArm) enemy.parts.rightArm.rotation.set(0, 0, 0);
+      if (enemy.parts?.leftLeg) enemy.parts.leftLeg.rotation.set(0, 0, 0);
+      if (enemy.parts?.rightLeg) enemy.parts.rightLeg.rotation.set(0, 0, 0);
     }
   }
 
   /**
-   * Forces Ignis (or nearby boss) visual & phase state cleanly
+   * Switches all Ignis materials between Phase 1 (Primal Crimson) and Phase 2 (Volcanic Obsidian Magma).
+   * 100% zero-allocation and 100% reversible upon respawn/reset.
+   */
+  public applyDragonVisualPhase(
+    enemy: {
+      mesh: THREE.Group;
+      parts: Record<string, any>;
+    },
+    phase: 1 | 2
+  ) {
+    if (phase === 1) {
+      this.resetDragonPhase1Visuals(enemy);
+    } else {
+      this.updateDragonPhase2Visuals(enemy);
+    }
+  }
+
+  /**
+   * Forces Ignis materials back to 100% normal Phase 1 Primal Crimson Dragon palette
    */
   public resetDragonPhase1Visuals(enemy: {
     mesh: THREE.Group;
@@ -428,41 +527,67 @@ export class BossManager {
     const mats = enemy.parts?.mats;
     if (mats) {
       if (mats.scale) {
-        mats.scale.color.setHex(0x141212);
+        mats.scale.color.setHex(0x3b1518);
         mats.scale.emissive.setHex(0x000000);
         mats.scale.emissiveIntensity = 0;
-        mats.scale.roughness = 0.72;
+        mats.scale.roughness = 0.68;
+      }
+      if (mats.scaleSecondary) {
+        mats.scaleSecondary.color.setHex(0x25181c);
+        mats.scaleSecondary.emissive.setHex(0x000000);
+        mats.scaleSecondary.emissiveIntensity = 0;
+        mats.scaleSecondary.roughness = 0.72;
+      }
+      if (mats.underbelly) {
+        mats.underbelly.color.setHex(0x6b3424);
+        mats.underbelly.emissive.setHex(0x1a0804);
+        mats.underbelly.emissiveIntensity = 0.12;
+      }
+      if (mats.spine) {
+        mats.spine.color.setHex(0x331c1d);
+        mats.spine.emissive.setHex(0x000000);
+        mats.spine.emissiveIntensity = 0;
       }
       if (mats.lava) {
-        mats.lava.color.setHex(0xd32f2f);
-        mats.lava.emissive.setHex(0xff3d00);
-        mats.lava.emissiveIntensity = 1.6;
+        mats.lava.color.setHex(0xf59e0b);
+        mats.lava.emissive.setHex(0xf59e0b);
+        mats.lava.emissiveIntensity = 1.2;
       }
       if (mats.horn) {
-        mats.horn.color.setHex(0x1f0c0c);
-        mats.horn.emissive.setHex(0xaa2200);
-        mats.horn.emissiveIntensity = 0.45;
+        mats.horn.color.setHex(0x2d2626);
+        mats.horn.emissive.setHex(0x000000);
+        mats.horn.emissiveIntensity = 0;
+      }
+      if (mats.hornTip) {
+        mats.hornTip.color.setHex(0x2d2626);
+        mats.hornTip.emissive.setHex(0x000000);
+        mats.hornTip.emissiveIntensity = 0;
       }
       if (mats.claw) {
-        mats.claw.color.setHex(0x1c1414);
-        mats.claw.emissive.setHex(0x450a0a);
-        mats.claw.emissiveIntensity = 0.25;
+        mats.claw.color.setHex(0x262020);
+        mats.claw.emissive.setHex(0x000000);
+        mats.claw.emissiveIntensity = 0;
       }
       if (mats.eye) {
-        mats.eye.color.setHex(0xff5722);
-        mats.eye.emissive.setHex(0xff3d00);
-        mats.eye.emissiveIntensity = 2.0;
+        mats.eye.color.setHex(0xf59e0b);
+        mats.eye.emissive.setHex(0xf59e0b);
+        mats.eye.emissiveIntensity = 1.2;
+      }
+      if (mats.mawGlow) {
+        mats.mawGlow.color.setHex(0xb45309);
+        mats.mawGlow.emissive.setHex(0xea580c);
+        mats.mawGlow.emissiveIntensity = 0.8;
       }
       if (mats.wingOuter) {
-        mats.wingOuter.color.setHex(0x260909);
-        mats.wingOuter.emissive.setHex(0x1a0404);
-        mats.wingOuter.emissiveIntensity = 0.3;
-        mats.wingOuter.roughness = 0.72;
+        mats.wingOuter.color.setHex(0x4a181c);
+        mats.wingOuter.emissive.setHex(0x160506);
+        mats.wingOuter.emissiveIntensity = 0.15;
+        mats.wingOuter.roughness = 0.74;
       }
       if (mats.wingVein) {
-        mats.wingVein.color.setHex(0x991b1b);
-        mats.wingVein.emissive.setHex(0xff4500);
-        mats.wingVein.emissiveIntensity = 0.95;
+        mats.wingVein.color.setHex(0x5c2024);
+        mats.wingVein.emissive.setHex(0x3b0f12);
+        mats.wingVein.emissiveIntensity = 0.22;
       }
     }
     this.ignisMaterialsUpdatedPhase = 1;
@@ -475,25 +600,36 @@ export class BossManager {
     if (!mats) return;
 
     if (this.ignisMaterialsUpdatedPhase !== 2) {
-      // Charred volcanic obsidian main scales (dark charred body contrast)
+      // Charred volcanic obsidian primary & secondary scales
       if (mats.scale) {
-        mats.scale.color.setHex(0x161214);
+        mats.scale.color.setHex(0x161114);
         mats.scale.emissive.setHex(0x1f0500);
-        mats.scale.emissiveIntensity = 0.25;
+        mats.scale.emissiveIntensity = 0.22;
         mats.scale.roughness = 0.78;
       }
+      if (mats.scaleSecondary) {
+        mats.scaleSecondary.color.setHex(0x1c1416);
+        mats.scaleSecondary.emissive.setHex(0x220400);
+        mats.scaleSecondary.emissiveIntensity = 0.20;
+        mats.scaleSecondary.roughness = 0.78;
+      }
+      if (mats.underbelly) {
+        mats.underbelly.color.setHex(0x3a1610);
+        mats.underbelly.emissive.setHex(0x450a0a);
+        mats.underbelly.emissiveIntensity = 0.45;
+      }
       if (mats.wingOuter) {
-        mats.wingOuter.color.setHex(0x161214);
-        mats.wingOuter.emissive.setHex(0x1f0500);
+        mats.wingOuter.color.setHex(0x1e1216);
+        mats.wingOuter.emissive.setHex(0x1a0404);
         mats.wingOuter.emissiveIntensity = 0.22;
         mats.wingOuter.roughness = 0.78;
       }
       this.ignisMaterialsUpdatedPhase = 2;
     }
 
-    // Dynamic molten pulse ONLY on magma cracks, eyes, inner jaw/maw, horns, dorsal spines, claws, & inner wing veins
+    // Dynamic molten pulse ONLY on eyes, inner jaw/maw, chest magma cracks, dorsal spines, horn tips, claws, & wing membrane veins
     const pulse01 = 0.5 + 0.5 * Math.sin(this.elapsedTime * 6.0);
-    const moltenIntensity = 1.8 + pulse01 * 1.0; // 1.8 - 2.8
+    const moltenIntensity = 1.8 + pulse01 * 0.8; // 1.8 - 2.6
     this._lavaColBlend.copy(this._lavaColA).lerp(this._lavaColB, pulse01);
 
     if (mats.lava) {
@@ -501,20 +637,35 @@ export class BossManager {
       mats.lava.emissive.copy(this._lavaColBlend);
       mats.lava.emissiveIntensity = moltenIntensity;
     }
+    if (mats.spine) {
+      mats.spine.color.setHex(0x2d0e0a);
+      mats.spine.emissive.copy(this._lavaColBlend);
+      mats.spine.emissiveIntensity = moltenIntensity;
+    }
     if (mats.horn) {
-      mats.horn.color.setHex(0x2a0e0a);
-      mats.horn.emissive.copy(this._lavaColBlend);
-      mats.horn.emissiveIntensity = moltenIntensity;
+      mats.horn.color.setHex(0x221010);
+      mats.horn.emissive.setHex(0x661200);
+      mats.horn.emissiveIntensity = 0.4;
+    }
+    if (mats.hornTip) {
+      mats.hornTip.color.setHex(0x3a1008);
+      mats.hornTip.emissive.copy(this._lavaColBlend);
+      mats.hornTip.emissiveIntensity = moltenIntensity;
     }
     if (mats.claw) {
       mats.claw.color.setHex(0x2d100a);
       mats.claw.emissive.copy(this._lavaColBlend);
-      mats.claw.emissiveIntensity = moltenIntensity;
+      mats.claw.emissiveIntensity = moltenIntensity * 0.75;
     }
     if (mats.eye) {
       mats.eye.color.copy(this._lavaColBlend);
       mats.eye.emissive.copy(this._lavaColBlend);
       mats.eye.emissiveIntensity = moltenIntensity;
+    }
+    if (mats.mawGlow) {
+      mats.mawGlow.color.copy(this._lavaColBlend);
+      mats.mawGlow.emissive.copy(this._lavaColBlend);
+      mats.mawGlow.emissiveIntensity = moltenIntensity;
     }
     if (mats.wingVein) {
       mats.wingVein.color.copy(this._lavaColBlend);
@@ -549,16 +700,22 @@ export class BossManager {
     this.elapsedTime += delta;
     this.lastIsPlayerDashing = isPlayerDashing;
 
-    // 0. Update Caldera Storm Weather Factor (smooth 2.5s build-up, 4.5s recovery)
+    // 0. Update Caldera Storm Weather Factor (smooth 2.5s build-up, 4.5s recovery, strictly 0 in Phase 1 / dead)
     const distToCaldera = Math.hypot(playerPos.x - SPAWN_NAGA[0], playerPos.z - SPAWN_NAGA[1]);
-    if (this.ignisLastKnownAlive && this.dragonPhase === 2) {
-      if (distToCaldera <= 68.0) {
-        this.extremeWeatherFactor = Math.min(1.0, this.extremeWeatherFactor + delta / 2.5);
-      } else if (distToCaldera > 72.0) {
-        this.extremeWeatherFactor = Math.max(0.0, this.extremeWeatherFactor - delta / 4.5);
-      }
-    } else if (this.extremeWeatherFactor > 0) {
-      this.extremeWeatherFactor = Math.max(0.0, this.extremeWeatherFactor - delta / 4.5);
+    if (
+      this.ignisLastKnownAlive &&
+      this.dragonPhase === 2 &&
+      this.ignisHasTriggeredPhase2 &&
+      distToCaldera <= 95.0
+    ) {
+      this.stormFactorTarget = 1.0;
+    } else if (!this.ignisLastKnownAlive || this.dragonPhase === 1 || distToCaldera > 98.0) {
+      this.stormFactorTarget = 0.0;
+    }
+    if (this.extremeWeatherFactor < this.stormFactorTarget) {
+      this.extremeWeatherFactor = Math.min(this.stormFactorTarget, this.extremeWeatherFactor + delta / 2.5);
+    } else if (this.extremeWeatherFactor > this.stormFactorTarget) {
+      this.extremeWeatherFactor = Math.max(this.stormFactorTarget, this.extremeWeatherFactor - delta / 4.5);
     }
 
     // 1. Update Player Status Debuffs (Stun & Burn DoT)
@@ -653,20 +810,30 @@ export class BossManager {
       return false;
     }
 
-    // Dragon Phase 2 (Volcanic Berserk) & Dynamic Pulsing Lava Cracks
+    // Dragon Phase 2 (Volcanic Berserk) — strictly requires alive, combatActive, not yet triggered, and HP <= 50%
     if (isIgnis) {
-      this.ignisLastKnownAlive = true;
-      if (enemy.data.hp <= enemy.data.maxHp * 0.5 && this.dragonPhase === 1) {
+      this.ignisLastKnownAlive = !enemy.data.isDead && enemy.data.hp > 0;
+      if (
+        !enemy.data.isDead &&
+        enemy.data.hp > 0 &&
+        enemy.data.hp <= enemy.data.maxHp * 0.5 &&
+        this.dragonPhase === 1 &&
+        !this.ignisHasTriggeredPhase2 &&
+        this.ignisIsCombatActive
+      ) {
         this.dragonPhase = 2;
+        this.ignisHasTriggeredPhase2 = true;
+        this.ignisIsEnraged = true;
+        this.ignisPhase2AuraActive = true;
         soundManager.playDragonRoar();
         this.callbacks.onCameraShake(1.2);
         this.callbacks.onAddFloatingText('🔥 IGNIS MERAUNG! FASE 2: VOLCANIC BERSERK AKTIF!', '#ff3d00', 'crit');
       }
 
-      if (this.dragonPhase === 2) {
-        this.updateDragonPhase2Visuals(enemy);
+      if (this.dragonPhase === 2 && this.ignisHasTriggeredPhase2) {
+        this.applyDragonVisualPhase(enemy, 2);
       } else if (this.ignisMaterialsUpdatedPhase !== 1) {
-        this.resetDragonPhase1Visuals(enemy);
+        this.applyDragonVisualPhase(enemy, 1);
       }
     }
 
@@ -682,13 +849,21 @@ export class BossManager {
     // If currently telegraphing or executing, boss locks in place and winds up
     if (currentState === 'telegraph' || currentState === 'executing') {
       if (isIgnis) {
-        // Flap wings and arch neck back while telegraphing
+        // Flap wings & elbow joints, arch neck, and open hinged jaw roaring during wind-up
         if (enemy.parts?.neck) {
           enemy.parts.neck.rotation.x = -0.3 + Math.sin(stateTimer * 8) * 0.15;
         }
+        if (enemy.parts?.jaw) {
+          enemy.parts.jaw.rotation.x = 0.34 + Math.sin(stateTimer * 10) * 0.12;
+        }
         if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
-          enemy.parts.leftWing.rotation.z = Math.sin(stateTimer * 10) * 0.3;
-          enemy.parts.rightWing.rotation.z = -Math.sin(stateTimer * 10) * 0.3;
+          const flap = Math.sin(stateTimer * 10);
+          enemy.parts.leftWing.rotation.z = flap * 0.32;
+          enemy.parts.rightWing.rotation.z = -flap * 0.32;
+          if (enemy.parts.leftElbow && enemy.parts.rightElbow) {
+            enemy.parts.leftElbow.rotation.z = flap * 0.25;
+            enemy.parts.rightElbow.rotation.z = -flap * 0.25;
+          }
         }
       } else if (isTitan) {
         const activeTel = this.activeTelegraphMap.get(bossId);
@@ -763,10 +938,10 @@ export class BossManager {
     if (distToPlayer > enemy.data.detectRange) {
       return false; // Out of detection range, do not cast boss skills
     }
-    const homeX = enemy.spawnPos ? enemy.spawnPos.x : (isWorm ? -660 : (isTitan ? 320 : 40));
-    const homeZ = enemy.spawnPos ? enemy.spawnPos.z : (isWorm ? -160 : (isTitan ? -640 : 840));
+    const homeX = enemy.spawnPos ? enemy.spawnPos.x : (isWorm ? -840 : (isTitan ? 180 : 40));
+    const homeZ = enemy.spawnPos ? enemy.spawnPos.z : (isWorm ? -260 : (isTitan ? -560 : 840));
     const distFromHome = Math.hypot(ePos.x - homeX, ePos.z - homeZ);
-    const maxLeash = enemy.leashRadius || 48;
+    const maxLeash = enemy.leashRadius || 64;
     if (distFromHome > maxLeash) {
       return false; // Beyond leash territory
     }
@@ -777,8 +952,8 @@ export class BossManager {
       const meteorDiveCd = cdMap.get('meteor_dive') ?? 0;
       const flyingCooldown = cdMap.get('flying_dash') ?? cdMap.get('flying_pursuit') ?? 0;
 
-      // 1. SUPREME BOSS SKILL: Meteor Dive / Sky Crash (Jarak 8 - 30 unit, Cooldown 18s)
-      if (distToCenter <= NAGA_CALDERA_RADIUS && distToPlayer >= 8.0 && distToPlayer <= 30.0 && meteorDiveCd <= 0) {
+      // 1. SUPREME BOSS SKILL: Meteor Dive / Sky Crash (Jarak 8 - 38 unit di arena kaldera, Cooldown 18s)
+      if (distToCenter <= NAGA_CALDERA_RADIUS && distToPlayer >= 8.0 && distToPlayer <= 38.0 && meteorDiveCd <= 0) {
         this.bossStates.set(bossId, 'meteor_dive');
         this.stateTimers.set(bossId, 0);
         this.dragonTakeoffStartPos.copy(ePos);
@@ -927,23 +1102,19 @@ export class BossManager {
     // ==========================================
     // 3. PENGECUALIAN & FALLBACK
     // ==========================================
-    // Pastikan naga TIDAK TERBANG keluar dari radius kaldera 48 unit.
-    // Jika pemain keluar batas, naga membatalkan terbang dan kembali ke pusat sarang.
-    if (distPlayerToCenter > NAGA_CALDERA_RADIUS || distNagaToCenter > NAGA_CALDERA_RADIUS + 2.0) {
-      this.bossStates.set(bossId, 'chase');
-      this.stateTimers.set(bossId, 0);
-      cdMap.set('flying_dash', 9.0);
-      cdMap.set('flying_pursuit', 9.0);
-      enemy.isReturning = true;
+      // Pastikan naga TIDAK TERBANG keluar dari radius kaldera aman
+      if (distPlayerToCenter > NAGA_CALDERA_RADIUS + 4.0 || distNagaToCenter > NAGA_CALDERA_RADIUS + 8.0) {
+        this.bossStates.set(bossId, 'chase');
+        this.stateTimers.set(bossId, 0);
+        cdMap.set('flying_dash', 9.0);
+        cdMap.set('flying_pursuit', 9.0);
+        enemy.isReturning = true;
 
-      // Pendaratan darurat ke tanah
-      nagaPos.y = this.getTerrainHeight(nagaPos.x, nagaPos.z);
-      if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
-        enemy.parts.leftWing.rotation.set(0, 0, 0);
-        enemy.parts.rightWing.rotation.set(0, 0, 0);
+        // Pendaratan darurat ke tanah
+        nagaPos.y = this.getTerrainHeight(nagaPos.x, nagaPos.z);
+        this.resetDragonSkeletonPose(enemy);
+        return false;
       }
-      return false;
-    }
 
     const groundY = this.getTerrainHeight(nagaPos.x, nagaPos.z);
     const targetFlightY = groundY + 5.5;
@@ -968,10 +1139,15 @@ export class BossManager {
       naga.rotation.x = THREE.MathUtils.lerp(naga.rotation.x, -0.18, delta * 6.0);
       naga.rotation.z = 0;
 
-      // Animasi rotasi sayap mengepak lebar & kuat:
+      // Animasi rotasi sayap + siku mengepak lebar & kuat:
       if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
-        enemy.parts.leftWing.rotation.z = Math.sin(stateTimer * 20.0) * 0.6;
-        enemy.parts.rightWing.rotation.z = -Math.sin(stateTimer * 20.0) * 0.6;
+        const wingSwing = Math.sin(stateTimer * 20.0);
+        enemy.parts.leftWing.rotation.z = wingSwing * 0.6;
+        enemy.parts.rightWing.rotation.z = -wingSwing * 0.6;
+        if (enemy.parts.leftElbow && enemy.parts.rightElbow) {
+          enemy.parts.leftElbow.rotation.z = Math.sin(stateTimer * 20.0 - 0.5) * 0.35;
+          enemy.parts.rightElbow.rotation.z = -Math.sin(stateTimer * 20.0 - 0.5) * 0.35;
+        }
       }
       if (enemy.parts?.neck) {
         enemy.parts.neck.rotation.x = -0.3 + Math.sin(stateTimer * 10.0) * 0.15;
@@ -999,9 +1175,7 @@ export class BossManager {
     if (distToNavTarget <= 4.8 || stateTimer >= 4.2) {
       // Naga mendarat ke tanah:
       nagaPos.y = groundY;
-      naga.rotation.order = 'XYZ';
-      naga.rotation.x = 0;
-      naga.rotation.z = 0;
+      this.resetDragonSkeletonPose(enemy);
       this.flyingPursuitLockedTarget = null;
 
       // Hasilkan efek benturan tanah (ground slam)
@@ -1107,11 +1281,16 @@ export class BossManager {
       naga.rotation.z = 0;
     }
 
-    // Sayap mengepak kuat meluncur:
-    if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
-      enemy.parts.leftWing.rotation.z = Math.sin(stateTimer * 14.0) * 0.45;
-      enemy.parts.rightWing.rotation.z = -Math.sin(stateTimer * 14.0) * 0.45;
-    }
+      // Sayap + siku mengepak kuat meluncur:
+      if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
+        const flap = Math.sin(stateTimer * 14.0);
+        enemy.parts.leftWing.rotation.z = flap * 0.45;
+        enemy.parts.rightWing.rotation.z = -flap * 0.45;
+        if (enemy.parts.leftElbow && enemy.parts.rightElbow) {
+          enemy.parts.leftElbow.rotation.z = Math.sin(stateTimer * 14.0 - 0.4) * 0.28;
+          enemy.parts.rightElbow.rotation.z = -Math.sin(stateTimer * 14.0 - 0.4) * 0.28;
+        }
+      }
     if (enemy.parts?.tail) {
       enemy.parts.tail.rotation.y = Math.sin(stateTimer * 8.0) * 0.35;
     }
@@ -1206,11 +1385,17 @@ export class BossManager {
       naga.rotation.x = -0.28 * (1.0 - easeT * 0.5); // Hidung sedikit mendongak naik
       naga.rotation.z = THREE.MathUtils.lerp(0, 0.28, easeT); // Mulai miring masuk orbit
 
-      // Kepakan sayap lebar bertenaga
+      // Kepakan sayap lebar bertenaga (terhubung bahu & siku)
       if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
-        enemy.parts.leftWing.rotation.z = Math.sin(stateTimer * 18.0) * 0.72;
-        enemy.parts.rightWing.rotation.z = -Math.sin(stateTimer * 18.0) * 0.72;
+        const wingSwing = Math.sin(stateTimer * 18.0);
+        enemy.parts.leftWing.rotation.z = wingSwing * 0.68;
+        enemy.parts.rightWing.rotation.z = -wingSwing * 0.68;
+        if (enemy.parts.leftElbow && enemy.parts.rightElbow) {
+          enemy.parts.leftElbow.rotation.z = Math.sin(stateTimer * 18.0 - 0.55) * 0.42;
+          enemy.parts.rightElbow.rotation.z = -Math.sin(stateTimer * 18.0 - 0.55) * 0.42;
+        }
       }
+      if (enemy.parts?.jaw) enemy.parts.jaw.rotation.x = 0.32;
       if (enemy.parts?.neck) {
         enemy.parts.neck.rotation.x = -0.35 + Math.sin(stateTimer * 10.0) * 0.12;
       }
@@ -1260,11 +1445,17 @@ export class BossManager {
       const bankFadeOut = Math.min(1.0, (7.0 - orbitTime) / 0.5);
       naga.rotation.z = 0.48 * Math.min(bankFadeIn, bankFadeOut);
 
-      // Kepakan sayap ritmis & gerakan ekor
+      // Kepakan sayap ritmis & gerakan siku/ekor luwes
       if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
-        enemy.parts.leftWing.rotation.z = Math.sin(orbitTime * 11.0) * 0.52;
-        enemy.parts.rightWing.rotation.z = -Math.sin(orbitTime * 11.0) * 0.52;
+        const flap = Math.sin(orbitTime * 11.0);
+        enemy.parts.leftWing.rotation.z = flap * 0.52;
+        enemy.parts.rightWing.rotation.z = -flap * 0.52;
+        if (enemy.parts.leftElbow && enemy.parts.rightElbow) {
+          enemy.parts.leftElbow.rotation.z = Math.sin(orbitTime * 11.0 - 0.5) * 0.34;
+          enemy.parts.rightElbow.rotation.z = -Math.sin(orbitTime * 11.0 - 0.5) * 0.34;
+        }
       }
+      if (enemy.parts?.jaw) enemy.parts.jaw.rotation.x = 0.18 + Math.sin(orbitTime * 5.0) * 0.10;
       if (enemy.parts?.neck) {
         enemy.parts.neck.rotation.x = -0.18 + Math.sin(orbitTime * 5.0) * 0.1;
       }
@@ -1419,26 +1610,10 @@ export class BossManager {
     impactPos.y = this.getTerrainHeight(impactPos.x, impactPos.z);
     nagaPos.copy(impactPos);
 
-    // Reset postur naga tegak di tanah
-    naga.rotation.order = 'XYZ';
-    naga.rotation.x = 0;
-    naga.rotation.z = 0;
+    this.resetDragonSkeletonPose(enemy);
     const toPlayer = this._scratchV1.set(playerPos.x - nagaPos.x, 0, playerPos.z - nagaPos.z);
     if (toPlayer.lengthSq() > 0.001) {
       naga.rotation.y = Math.atan2(toPlayer.x, toPlayer.z);
-    }
-    if (enemy.parts?.leftWing && enemy.parts?.rightWing) {
-      enemy.parts.leftWing.rotation.set(0, 0, 0);
-      enemy.parts.rightWing.rotation.set(0, 0, 0);
-    }
-    if (enemy.parts?.neck) enemy.parts.neck.rotation.x = 0;
-    if (enemy.parts?.frontLeftLeg && enemy.parts?.frontRightLeg) {
-      enemy.parts.frontLeftLeg.rotation.set(0, 0, 0);
-      enemy.parts.frontRightLeg.rotation.set(0, 0, 0);
-    }
-    if (enemy.parts?.leftLeg && enemy.parts?.rightLeg) {
-      enemy.parts.leftLeg.rotation.set(0, 0, 0);
-      enemy.parts.rightLeg.rotation.set(0, 0, 0);
     }
 
     // 1. Direct Impact Damage (Radius 6.5 unit): 85 damage + High Knockup

@@ -128,10 +128,10 @@ export const REGIONS: RegionInfo[] = [
     name: 'Dragonfang Caldera Archipelago',
     nameId: 'Kepulauan Kaldera Naga (Lv. 12)',
     icon: '🐉',
-    description: 'A colossal volcanic archipelago across the south sea featuring 3 organic volcanic islands, smoking magma pools, charred docks, basalt spires, and the primal dragon altar.',
-    descriptionId: 'Gugusan 3 pulau vulkanik berbahaya di seberang samudra selatan! Aliran lahar pijar mendidih, jembatan batu rantai, pilar basal heksagonal, dan Altar Rune World Boss Naga Purba Ignis.',
+    description: 'A colossal volcanic caldera across the south sea featuring an enlarged obsidian arena island ringed by a blazing lava lake, crossed via a grand north obsidian bridge.',
+    descriptionId: 'Kaldera vulkanik megah di samudra selatan dengan pulau altar basalt-obsidian luas dikelilingi danau lahar pijar, dihubungkan jembatan batu obsidian kolosal menuju sarang Naga Purba Ignis.',
     color: '#dc2626',
-    bounds: { minX: -120, maxX: 160, minZ: 720, maxZ: 960 },
+    bounds: { minX: -195, maxX: 195, minZ: 700, maxZ: 995 },
     center: [40, 840],
     recommendedLevel: 12,
   },
@@ -320,11 +320,11 @@ export const WAYPOINTS: {
 ];
 
 export function getCurrentRegion(x: number, z: number): RegionInfo {
-  // 1. Dragonfang Caldera Archipelago (3 Organic Volcanic Islands [40, 840])
+  // 1. Dragonfang Caldera Archipelago (Expanded Caldera + Lava Moat + Satellites [40, 840])
   const distDragonMain = Math.hypot(x - 40, z - 840);
-  const distDragonSW = Math.hypot(x - -75, z - 875);
-  const distDragonNW = Math.hypot(x - -65, z - 775);
-  if (distDragonMain <= 115 || distDragonSW <= 55 || distDragonNW <= 50) {
+  const distDragonSW = Math.hypot(x - -138, z - 892);
+  const distDragonNW = Math.hypot(x - -128, z - 772);
+  if (distDragonMain <= 148 || distDragonSW <= 55 || distDragonNW <= 50) {
     return REGIONS.find((r) => r.id === 'kaldera_naga_api') || REGIONS[10];
   }
 

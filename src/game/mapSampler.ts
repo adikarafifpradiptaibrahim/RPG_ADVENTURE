@@ -244,10 +244,15 @@ export function getTerrainVertexColor(worldX: number, worldZ: number, height: nu
 
   // 4. Bioma Vulkanik Kaldera Naga di Selatan Jauh
   if (b === 'volcano') {
-    if (height < 2.0 || Math.hypot(worldX - 40, worldZ - 840) < 18) {
-      return [220, 38, 38]; // Lava magma membara
+    if (height < 0.35) {
+      return [234, 88, 12]; // Dasar danau lahar membara (#ea580c)
     }
-    return [35, 30, 28]; // Basalt hitam vulkanik
+    const rockNoise = 0.5 + 0.5 * Math.sin(worldX * 0.08 + worldZ * 0.07);
+    return [
+      Math.round(28 + rockNoise * 14),
+      Math.round(24 + rockNoise * 10),
+      Math.round(24 + rockNoise * 10),
+    ]; // Batuan basalt-obsidian gelap berlapis (bebas warna merah-muda polos)
   }
 
   // 5. Pita Pasir Pantai Tipis (#e6d296 / [230, 210, 150])

@@ -105,10 +105,10 @@ export function isFarOcean(x: number, z: number): boolean {
     return false;
   }
 
-  // 2. Dragon Caldera Archipelago [40, 840] (radius 165)
+  // 2. Dragon Caldera Archipelago [40, 840] (expanded volcanic ring + satellite islands radius 245)
   const ddx = x - 40;
   const ddz = z - 840;
-  if (ddx * ddx + ddz * ddz <= 27225) {
+  if (ddx * ddx + ddz * ddz <= 60025) {
     return false;
   }
 
@@ -242,9 +242,9 @@ export function getBiomeAt(x: number, z: number): BiomeType {
 
   // A. Gugusan 3 Pulau Vulkanik Kaldera Naga di Laut Selatan Jauh [Pusat: 40, 840]
   const distDragonMain = Math.hypot(x - 40, z - 840);
-  const distDragonSW = Math.hypot(x - -75, z - 875);
-  const distDragonNW = Math.hypot(x - -65, z - 775);
-  if (distDragonMain < 115 || distDragonSW < 55 || distDragonNW < 50) {
+  const distDragonSW = Math.hypot(x - -138, z - 892);
+  const distDragonNW = Math.hypot(x - -128, z - 772);
+  if (distDragonMain < 148 || distDragonSW < 55 || distDragonNW < 50) {
     return 'volcano';
   }
 
@@ -948,59 +948,78 @@ export function getProceduralContinentHeight(x: number, z: number): number {
 
   // B. Gugusan 3 Pulau Vulkanik Kaldera Naga di Laut Selatan Jauh [Pusat: 40, 840]
   if (biome === 'volcano') {
-    // Tumpuan tebing ujung jembatan rantai SW & NW hanya di bibir daratan pulau (saluran tengah digali -2.50 oleh BRIDGE_CONFIGS)
+    // Tumpuan tebing ujung jembatan rantai SW & NW di lereng tebing barat kaldera -> satelit
     if (
-      Math.hypot(x - (-38), z - 858) <= 6.5 ||
-      Math.hypot(x - (-8), z - 848) <= 6.5 ||
-      Math.hypot(x - (-34), z - 792) <= 6.5 ||
-      Math.hypot(x - (-4), z - 808) <= 6.5
+      Math.hypot(x - (-112), z - 878) <= 7.0 ||
+      Math.hypot(x - (-82), z - 868) <= 7.0 ||
+      Math.hypot(x - (-102), z - 785) <= 7.0 ||
+      Math.hypot(x - (-72), z - 795) <= 7.0
     ) {
-      return 2.30;
+      return 3.00;
     }
 
-    const distSW = Math.hypot(x - (lm.caldera_sw_satellite?.x ?? -75), z - (lm.caldera_sw_satellite?.z ?? 875)) + Math.sin(x * 0.06 - z * 0.05) * 3.2;
-    if (distSW <= 48) {
+    const distSW = Math.hypot(x - (lm.caldera_sw_satellite?.x ?? -138), z - (lm.caldera_sw_satellite?.z ?? 892)) + Math.sin(x * 0.06 - z * 0.05) * 3.0;
+    if (distSW <= 46) {
       if (distSW <= 18) return lm.caldera_sw_satellite?.y ?? 6.50;
-      if (distSW <= 36) {
-        const t = smoothstepBlend(18, 36, distSW);
+      if (distSW <= 34) {
+        const t = smoothstepBlend(18, 34, distSW);
         return lerpVal(lm.caldera_sw_satellite?.y ?? 6.50, 0.35, t);
       }
-      const t = smoothstepBlend(36, 48, distSW);
+      const t = smoothstepBlend(34, 46, distSW);
       return lerpVal(0.35, -4.50, t);
     }
 
-    const distNW = Math.hypot(x - (lm.caldera_nw_satellite?.x ?? -65), z - (lm.caldera_nw_satellite?.z ?? 775)) + Math.cos(x * 0.05 + z * 0.06) * 3.0;
-    if (distNW <= 44) {
+    const distNW = Math.hypot(x - (lm.caldera_nw_satellite?.x ?? -128), z - (lm.caldera_nw_satellite?.z ?? 772)) + Math.cos(x * 0.05 + z * 0.06) * 2.8;
+    if (distNW <= 42) {
       if (distNW <= 16) return lm.caldera_nw_satellite?.y ?? 5.50;
-      if (distNW <= 32) {
-        const t = smoothstepBlend(16, 32, distNW);
+      if (distNW <= 30) {
+        const t = smoothstepBlend(16, 30, distNW);
         return lerpVal(lm.caldera_nw_satellite?.y ?? 5.50, 0.35, t);
       }
-      const t = smoothstepBlend(32, 44, distNW);
+      const t = smoothstepBlend(30, 42, distNW);
       return lerpVal(0.35, -4.50, t);
     }
 
-    const fbmMain = Math.sin(x * 0.045 + z * 0.035) * 6.5 + Math.cos(x * 0.09 - z * 0.07) * 3.5;
-    const distMain = Math.hypot(x - (lm.caldera?.x ?? 40), z - (lm.caldera?.z ?? 840)) + fbmMain;
+    const cx = lm.caldera?.x ?? 40;
+    const cz = lm.caldera?.z ?? 840;
+    const radialDist = Math.hypot(x - cx, z - cz);
 
-    const inNorthGorge = x >= 26 && x <= 54 && z >= 745 && z <= 838;
-    if (inNorthGorge) {
-      const gorgeT = smoothstepBlend(745, 825, z);
-      return lerpVal(0.50, 2.50, gorgeT);
+    // Koridor Akses Utara dari Dermaga [40, 716] -> Kepala Jembatan Obsidian Agung [40, 749] -> Pulau Arena [40, 789]
+    const inNorthApproachHeadland = Math.abs(x - cx) <= 13.5 && z >= 714 && z <= 753;
+    if (inNorthApproachHeadland) {
+      if (z >= 730) return 2.50;
+      const shoreT = smoothstepBlend(716, 730, z);
+      return lerpVal(0.50, 2.50, shoreT);
     }
 
-    if (distMain <= 36) return 2.50;
-    if (distMain <= 80) {
-      const ridgeT = (distMain - 36) / 44;
-      const ridgeH = 2.50 + Math.sin(ridgeT * Math.PI) * 14.5 + Math.sin((x + z) * 0.06) * 2.5;
+    // 1. Pulau Utama Arena Kaldera Naga (Radius rata ~54 unit, elevasi datar Y = 2.50)
+    if (radialDist <= 53.5) {
+      return 2.50;
+    }
+    if (radialDist <= 56.5) {
+      const cliffT = smoothstepBlend(53.5, 56.5, radialDist);
+      return lerpVal(2.50, -2.20, cliffT);
+    }
+
+    // 2. Dasar Danau / Parit Lahar Lebar Mengelilingi Seluruh Pulau Arena (Radius 56.5 .. 88.0)
+    if (radialDist <= 88.0) {
+      return -2.20;
+    }
+
+    // 3. Dinding Tebing Kawah Vulkanik Tinggi Mengitari Danau Lahar (Radius 88 .. 142)
+    const rimNoise = Math.sin(x * 0.055 + z * 0.045) * 4.0 + Math.cos(x * 0.09 - z * 0.08) * 2.2;
+    const outerDist = radialDist + rimNoise;
+    if (outerDist <= 116) {
+      const ridgeT = Math.max(0, Math.min(1, (radialDist - 88) / 28));
+      const ridgeH = 2.50 + Math.sin(ridgeT * Math.PI) * 16.5 + Math.sin((x + z) * 0.06) * 2.5;
       return Math.max(2.50, ridgeH);
     }
-    if (distMain <= 98) {
-      const t = smoothstepBlend(80, 98, distMain);
-      return lerpVal(4.20, 0.35, t);
+    if (outerDist <= 130) {
+      const t = smoothstepBlend(116, 130, outerDist);
+      return lerpVal(4.50, 0.35, t);
     }
-    if (distMain <= 118) {
-      const t = smoothstepBlend(98, 118, distMain);
+    if (outerDist <= 146) {
+      const t = smoothstepBlend(130, 146, outerDist);
       return lerpVal(0.35, -4.50, t);
     }
     return -4.50;

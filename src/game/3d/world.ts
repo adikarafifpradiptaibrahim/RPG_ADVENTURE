@@ -75,6 +75,7 @@ import {
   createWoodBarricadeMesh,
   createStoneBridgePierMesh,
   createStoneArchBridgeMesh,
+  createObsidianDragonBridgeMesh,
   createDockStairRampMesh,
   createDockShorelineBoardwalkMesh,
   createBarracksMesh,
@@ -175,6 +176,8 @@ export interface WorldObjects {
   checkpoints: WorldCheckpoint[];
   particles: THREE.Points;
   lavaParticles?: THREE.Points;
+  lavaSurfaceMat?: THREE.MeshStandardMaterial;
+  lavaEmbers?: THREE.Points;
   decorativeProps?: THREE.Object3D[];
   pointLights?: THREE.PointLight[];
   dirLight?: THREE.DirectionalLight;
@@ -967,7 +970,7 @@ export async function buildMainVillage(
     [16.5, -44], [23.5, -44],
     [16.5, -30], [23.5, -30],
     [16.5, -20], [23.5, -20],
-    [16.5, -4],  [23.5, -4],
+    [16.5, -4], [23.5, -4],
     // East Astraea Highway
     [34, -63.5], [34, -56.5],
     [48, -63.5], [48, -56.5],
@@ -1814,11 +1817,18 @@ export async function buildValKragorFort(
       const leftBankDropY = leftTerrainY - b.y - 0.14;
       const rightBankDropY = rightTerrainY - b.y - 0.14;
 
-      bridgeMesh = createStoneArchBridgeMesh(b.length, b.width, Math.max(2.7, b.y + 2.6), {
-        leftBankDropY,
-        rightBankDropY,
-        rampLength: 3.4,
-      });
+      bridgeMesh =
+        b.id === 'bridge_caldera_north'
+          ? createObsidianDragonBridgeMesh(b.length, b.width, 5.4, {
+            leftBankDropY,
+            rightBankDropY,
+            rampLength: 4.6,
+          })
+          : createStoneArchBridgeMesh(b.length, b.width, Math.max(2.7, b.y + 2.6), {
+            leftBankDropY,
+            rightBankDropY,
+            rampLength: 3.4,
+          });
       bridgeMesh.position.set(b.x, b.y, b.z);
       bridgeMesh.rotation.y = b.rotationY;
       scene.add(bridgeMesh);
@@ -2737,7 +2747,7 @@ export async function buildTitanLakeAndCanyon(
     colliders.push({ type: 'circle', x: pos.x, z: pos.z, radius: 1.2, label: 'Pilar Petir Melayang' });
   });
 
-await cooperativeYield(4);
+  await cooperativeYield(4);
 }
 
 
@@ -2748,7 +2758,11 @@ export async function buildDragonCaldera(
   decorativeProps: THREE.Object3D[],
   pointLights: THREE.PointLight[],
   onProgress?: (percent: number, statusText: string) => void
-): Promise<{ chests: WorldObjects['chests'] }> {
+): Promise<{
+  chests: WorldObjects['chests'];
+  lavaSurfaceMat?: THREE.MeshStandardMaterial;
+  lavaEmbers?: THREE.Points;
+}> {
   let tLast = performance.now();
   const checkCalderaYield = async (pct?: number, text?: string) => {
     if (performance.now() - tLast > 6) {
@@ -2763,143 +2777,294 @@ export async function buildDragonCaldera(
   const dragonArenaBaseY = 2.50;
 
   // ============================================================================
-  // 1. PULAU UTAMA KALDERA NAGA [40, 840]
+  // 1. PULAU UTAMA KALDERA NAGA [40, 840] (Radius Arena ~54 unit + Danau Lahar + Jembatan Obsidian)
+  // ZERO dynamic PointLight! Seluruh cahaya menggunakan MeshBasicMaterial/emissive + pooled particles.
   // ============================================================================
 
-  // A. Altar Batu Rune Naga (Pusat Kawah [40, 840])
-  onProgress?.(52, 'Membangun Altar Rune Naga (52%)...');
+  // A. Platform Pulau Tempur Basalt-Obsidian Berlapis (Radius ~54 unit, 100% Walkable)
+  onProgress?.(52, 'Membangun Pulau Basalt-Obsidian & Danau Lahar Kaldera (52%)...');
+  const arenaPlatformGroup = new THREE.Group();
+  arenaPlatformGroup.name = 'DragonCalderaMainPlatform';
+  arenaPlatformGroup.position.set(dragonArenaCenter.x, dragonArenaBaseY, dragonArenaCenter.z);
+
+  const basaltPlatformMat = new THREE.MeshStandardMaterial({
+    color: 0x1c1919,
+    roughness: 0.88,
+    metalness: 0.24,
+    flatShading: true,
+  });
+  const obsidianTrimMat = new THREE.MeshStandardMaterial({
+    color: 0x09090b,
+    roughness: 0.45,
+    metalness: 0.58,
+    flatShading: true,
+  });
+  const magmaFissureMat = new THREE.MeshStandardMaterial({
+    color: 0xea580c,
+    emissive: 0xf97316,
+    emissiveIntensity: 1.55,
+    roughness: 0.28,
+  });
+
+  // Lapisan tebing basalt utama menyatu hingga dasar danau lahar
+  const baseCliffCyl = new THREE.Mesh(new THREE.CylinderGeometry(54.0, 56.8, 4.9, 44), basaltPlatformMat);
+  baseCliffCyl.position.y = -2.45; // Top permukaan tepat di +0.0 (world Y = 2.50)
+  baseCliffCyl.receiveShadow = true;
+  baseCliffCyl.userData.walkableSurface = true;
+  arenaPlatformGroup.add(baseCliffCyl);
+
+  // Tepi bingkai batu obsidian luar di pinggiran pulau (r = 52.8..54.4)
+  const rimRing = new THREE.Mesh(new THREE.CylinderGeometry(54.3, 54.6, 0.26, 44), obsidianTrimMat);
+  rimRing.position.y = -0.13;
+  rimRing.receiveShadow = true;
+  rimRing.userData.walkableSurface = true;
+  arenaPlatformGroup.add(rimRing);
+
+  // Jalur retakan magma bercahaya oranye-merah di permukaan lantai batu altar (100% walkable)
+  const crackRadialCount = 12;
+  for (let c = 0; c < crackRadialCount; c++) {
+    const ang = (c / crackRadialCount) * Math.PI * 2;
+    // Sisakan jalur mulut jembatan utara (-Math.PI / 2) bersih dari retakan
+    const angDiffNorth = Math.abs(Math.atan2(Math.sin(ang + Math.PI / 2), Math.cos(ang + Math.PI / 2)));
+    if (angDiffNorth < 0.20) continue;
+    const midR = 31.0;
+    const crackLen = 28.0;
+    const crack = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.03, crackLen), magmaFissureMat);
+    crack.position.set(Math.cos(ang) * midR, 0.008, Math.sin(ang) * midR);
+    crack.rotation.y = -ang + Math.PI / 2;
+    crack.userData.walkableSurface = true;
+    arenaPlatformGroup.add(crack);
+  }
+  const outerMagmaVeinRing = new THREE.Mesh(new THREE.RingGeometry(39.6, 40.3, 48), magmaFissureMat);
+  outerMagmaVeinRing.rotation.x = -Math.PI / 2;
+  outerMagmaVeinRing.position.y = 0.01;
+  outerMagmaVeinRing.userData.walkableSurface = true;
+  arenaPlatformGroup.add(outerMagmaVeinRing);
+
+  scene.add(arenaPlatformGroup);
+  registerWalkableSurface(arenaPlatformGroup, { label: 'Platform Pulau Arena Kaldera Naga' });
+
+  // B. Altar Cincin Rune Naga Kuno di Pusat Arena [40, 840]
   const altarGroup = new THREE.Group();
   altarGroup.name = 'DragonRuneAltar';
 
-  // Stepped circular dais
-  const daisMat = new THREE.MeshStandardMaterial({
-    color: 0x18181b,
-    roughness: 0.35,
-    metalness: 0.7,
-    flatShading: true,
-  });
-  const daisBase = new THREE.Mesh(new THREE.CylinderGeometry(15.0, 16.5, 0.7, 32), daisMat);
-  daisBase.position.y = 0.35;
+  const daisBase = new THREE.Mesh(new THREE.CylinderGeometry(14.5, 16.0, 0.5, 32), obsidianTrimMat);
+  daisBase.position.y = 0.25;
   daisBase.userData.walkableSurface = true;
   altarGroup.add(daisBase);
 
-  const daisTop = new THREE.Mesh(new THREE.CylinderGeometry(12.5, 13.5, 0.6, 32), daisMat);
-  daisTop.position.y = 0.95;
+  const daisTop = new THREE.Mesh(new THREE.CylinderGeometry(11.8, 12.6, 0.45, 32), obsidianTrimMat);
+  daisTop.position.y = 0.72;
   daisTop.userData.walkableSurface = true;
   altarGroup.add(daisTop);
 
-  // Fiery glowing runic outer circle
-  const runeRingGeo = new THREE.RingGeometry(10.5, 12.2, 32);
+  // Cincin Rune Naga bercahaya di atas dais (walkable)
+  const runeRingGeo = new THREE.RingGeometry(9.6, 11.4, 36);
   runeRingGeo.rotateX(-Math.PI / 2);
-  const runeRingMat = new THREE.MeshStandardMaterial({
-    color: 0xff3d00,
-    emissive: 0xff1744,
-    emissiveIntensity: 2.2,
-    roughness: 0.2,
-    transparent: true,
-    opacity: 0.9,
-  });
-  const runeRingMesh = new THREE.Mesh(runeRingGeo, runeRingMat);
-  runeRingMesh.position.y = 1.26;
+  const runeRingMesh = new THREE.Mesh(runeRingGeo, magmaFissureMat);
+  runeRingMesh.position.y = 0.96;
   runeRingMesh.userData.walkableSurface = true;
   altarGroup.add(runeRingMesh);
 
-  // Central dragon summoning fire bowl (non-walkable, dihalangi collider)
-  const brazierGeo = new THREE.CylinderGeometry(2.2, 1.2, 1.4, 8);
-  const brazierMesh = new THREE.Mesh(brazierGeo, daisMat);
-  brazierMesh.position.y = 1.95;
+  // Anglo api pemanggil naga kuno di titik paling pusat altar (non-walkable, dihalangi collider r = 2.4)
+  const brazierMesh = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 1.2, 1.3, 8), obsidianTrimMat);
+  brazierMesh.position.y = 1.55;
   brazierMesh.userData.nonWalkable = true;
   altarGroup.add(brazierMesh);
 
-  // Roaring primal fire flame
-  const flameGeo = new THREE.ConeGeometry(1.6, 3.4, 8);
-  const flameMat = new THREE.MeshStandardMaterial({
-    color: 0xff6d00,
-    emissive: 0xff3d00,
-    emissiveIntensity: 3.0,
-    roughness: 0.15,
-  });
-  const flameMesh = new THREE.Mesh(flameGeo, flameMat);
-  flameMesh.position.y = 3.8;
+  const flameMesh = new THREE.Mesh(new THREE.ConeGeometry(1.5, 3.0, 8), new THREE.MeshBasicMaterial({ color: 0xff6d00 }));
+  flameMesh.position.y = 3.25;
   flameMesh.userData.nonWalkable = true;
   altarGroup.add(flameMesh);
 
-  // Local central altar light
-  const altarLight = new THREE.PointLight(0xff3d00, 3.8, 55);
-  altarLight.position.set(0, 4.2, 0);
-  altarGroup.add(altarLight);
-  pointLights.push(altarLight);
+  const altarHalo = new THREE.Mesh(
+    new THREE.SphereGeometry(2.4, 10, 10),
+    new THREE.MeshBasicMaterial({
+      color: 0xff3d00,
+      transparent: true,
+      opacity: 0.30,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+  );
+  altarHalo.position.y = 3.2;
+  altarHalo.userData.nonWalkable = true;
+  altarGroup.add(altarHalo);
 
   altarGroup.position.set(dragonArenaCenter.x, dragonArenaBaseY, dragonArenaCenter.z);
   scene.add(altarGroup);
   registerWalkableSurface(altarGroup, { label: 'Altar Rune Naga Kaldera' });
-  colliders.push({ type: 'circle', x: dragonArenaCenter.x, z: dragonArenaCenter.z, radius: 2.5, label: 'Altar Rune Naga' });
+  colliders.push({ type: 'circle', x: dragonArenaCenter.x, z: dragonArenaCenter.z, radius: 2.3, label: 'Altar Rune Naga' });
 
-  // B. 4 Pilar Rune Naga Obsidian di Sudut Altar (Radius 14.5 unit)
-  const altarPillars = [
-    { x: dragonArenaCenter.x, z: dragonArenaCenter.z - 14.5, label: 'Pilar Rune Naga Utara' },
-    { x: dragonArenaCenter.x, z: dragonArenaCenter.z + 14.5, label: 'Pilar Rune Naga Selatan' },
-    { x: dragonArenaCenter.x + 14.5, z: dragonArenaCenter.z, label: 'Pilar Rune Naga Timur' },
-    { x: dragonArenaCenter.x - 14.5, z: dragonArenaCenter.z, label: 'Pilar Rune Naga Barat' },
-  ];
-  for (let p = 0; p < altarPillars.length; p++) {
-    await checkCalderaYield(52, 'Membangun Pilar Rune Naga Obsidian (52%)...');
-    const dp = altarPillars[p];
-    const pY = getTerrainHeight(dp.x, dp.z);
+  // C. 7 Pilar Obsidian Anglo Api & Lengkungan Tulang Vulkanik di Pinggiran Paling Luar Platform (r = 50..52.5)
+  const perimeterCount = 8;
+  const brazierFlameMat = new THREE.MeshBasicMaterial({ color: 0xff6d00 });
+  const brazierHaloMat = new THREE.MeshBasicMaterial({
+    color: 0xff3d00,
+    transparent: true,
+    opacity: 0.35,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  const perimeterPillarPoints: Array<{ x: number; z: number; angle: number }> = [];
+  for (let p = 0; p < perimeterCount; p++) {
+    await checkCalderaYield(52, 'Menata Pilar Obsidian Pinggiran Kaldera (52%)...');
+    const angle = (p / perimeterCount) * Math.PI * 2;
+    // Sisakan sisi mulut Jembatan Obsidian Utara (-Math.PI / 2) bersih 100%
+    const angDiffNorth = Math.abs(Math.atan2(Math.sin(angle + Math.PI / 2), Math.cos(angle + Math.PI / 2)));
+    if (angDiffNorth < 0.35) continue;
+
+    const rPillar = 50.5;
+    const px = dragonArenaCenter.x + Math.cos(angle) * rPillar;
+    const pz = dragonArenaCenter.z + Math.sin(angle) * rPillar;
+    perimeterPillarPoints.push({ x: px, z: pz, angle });
+
     const pGroup = new THREE.Group();
-
-    const colGeo = new THREE.CylinderGeometry(0.75, 1.6, 9.0, 6);
-    const colMat = new THREE.MeshStandardMaterial({
-      color: 0x09090b,
-      roughness: 0.25,
-      metalness: 0.85,
-      flatShading: true,
-    });
-    const colMesh = new THREE.Mesh(colGeo, colMat);
-    colMesh.position.y = 4.5;
+    const colMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 1.55, 8.8, 6), obsidianTrimMat);
+    colMesh.position.y = 4.4;
+    colMesh.castShadow = true;
     pGroup.add(colMesh);
 
-    // Visual glowing fire braziers atop each obsidian pillar (zero per-pillar PointLight for 60 FPS Caldera performance)
-    const topFlame = new THREE.Mesh(
-      new THREE.ConeGeometry(0.62, 1.5, 6),
-      new THREE.MeshBasicMaterial({ color: 0xff6d00 })
-    );
-    topFlame.position.y = 9.75;
+    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 0.65, 0.7, 8), basaltPlatformMat);
+    bowl.position.y = 9.0;
+    pGroup.add(bowl);
+
+    const topFlame = new THREE.Mesh(new THREE.ConeGeometry(0.75, 1.9, 6), brazierFlameMat);
+    topFlame.position.y = 10.0;
     pGroup.add(topFlame);
 
-    const topHalo = new THREE.Mesh(
-      new THREE.SphereGeometry(1.15, 8, 8),
-      new THREE.MeshBasicMaterial({
-        color: 0xff3d00,
-        transparent: true,
-        opacity: 0.35,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      })
-    );
-    topHalo.position.y = 9.6;
+    const topHalo = new THREE.Mesh(new THREE.SphereGeometry(1.3, 8, 8), brazierHaloMat);
+    topHalo.position.y = 9.85;
     pGroup.add(topHalo);
 
-    pGroup.position.set(dp.x, pY, dp.z);
+    pGroup.position.set(px, dragonArenaBaseY, pz);
     scene.add(pGroup);
-    colliders.push({ type: 'circle', x: dp.x, z: dp.z, radius: 1.6, label: dp.label });
+    colliders.push({ type: 'circle', x: px, z: pz, radius: 1.65, label: 'Pilar Obsidian Anglo Kaldera' });
   }
 
-  // C. Fosil Tengkorak Naga Purba Raksasa & Tulang Rusuk (Tertimbun Abu di Sisi Utara Altar)
+  // Lengkungan batu vulkanik / tulang raksasa di bingkai terluar (r = 52.0, menghadap luar arena)
+  for (let a = 0; a < perimeterPillarPoints.length; a++) {
+    if (a % 2 !== 0) continue;
+    const pt = perimeterPillarPoints[a];
+    const archRib = createAncientMonsterRibMesh();
+    archRib.position.set(
+      dragonArenaCenter.x + Math.cos(pt.angle + 0.36) * 52.0,
+      dragonArenaBaseY,
+      dragonArenaCenter.z + Math.sin(pt.angle + 0.36) * 52.0
+    );
+    archRib.rotation.y = pt.angle + 0.36 + Math.PI / 2;
+    archRib.scale.set(1.5, 1.5, 1.5);
+    scene.add(archRib);
+  }
+
+  // Fosil Tengkorak Naga Purba di sisi selatan-barat paling pinggir arena (r = 46, aman dari tengah arena)
   const dragonFossil = createDragonSkullBonesMesh();
-  dragonFossil.position.set(dragonArenaCenter.x, dragonArenaBaseY, dragonArenaCenter.z - 18);
+  dragonFossil.position.set(dragonArenaCenter.x - 32, dragonArenaBaseY, dragonArenaCenter.z + 32);
+  dragonFossil.rotation.y = -Math.PI * 0.25;
   scene.add(dragonFossil);
   colliders.push({
-    type: 'box',
-    minX: dragonArenaCenter.x - 6,
-    maxX: dragonArenaCenter.x + 6,
-    minZ: dragonArenaCenter.z - 24,
-    maxZ: dragonArenaCenter.z - 12,
+    type: 'circle',
+    x: dragonArenaCenter.x - 32,
+    z: dragonArenaCenter.z + 32,
+    radius: 4.5,
     label: 'Fosil Tengkorak Naga Purba',
   });
 
-  // D. Formasi Kolom Basalt Heksagonal Alami & Runcing (InstancedMesh untuk performa maksimal)
-  // Menghiasi lereng tebing kawah bertingkat (Radius 46 s.d. 78 unit) dengan tinggi & kemiringan acak
+  // D. Danau Lahar Lebar Mengelilingi Seluruh Pulau Arena (innerR = 52.5, outerR = 90.0)
+  // Pola tekstur prosedural magma + retakan kerak hitam tipis (0 PointLight)
+  let lavaSurfaceMat: THREE.MeshStandardMaterial | undefined;
+  let lavaEmbers: THREE.Points | undefined;
+  {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#ea580c';
+      ctx.fillRect(0, 0, 256, 256);
+
+      // Pendar magma kuning-oranye menyala
+      for (let i = 0; i < 48; i++) {
+        const x = (i * 53) % 256;
+        const y = (i * 97) % 256;
+        const r = 18 + (i % 4) * 10;
+        const g = ctx.createRadialGradient(x, y, 2, x, y, r);
+        g.addColorStop(0, '#fde047');
+        g.addColorStop(0.45, '#f97316');
+        g.addColorStop(1, 'rgba(234, 88, 12, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Garis-garis tipis kerak obsidian gelap di atas aliran lahar
+      ctx.strokeStyle = '#1c110d';
+      ctx.lineWidth = 3.2;
+      for (let k = 0; k < 28; k++) {
+        const sx = (k * 41) % 256;
+        const sy = (k * 73) % 256;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + ((k % 3) - 1) * 32 + 18, sy + ((k % 2) * 2 - 1) * 24);
+        ctx.lineTo(sx + ((k % 3) - 1) * 14 + 34, sy + 36);
+        ctx.stroke();
+      }
+    }
+    const lavaTex = new THREE.CanvasTexture(canvas);
+    lavaTex.wrapS = THREE.RepeatWrapping;
+    lavaTex.wrapT = THREE.RepeatWrapping;
+    lavaTex.repeat.set(8, 3);
+
+    lavaSurfaceMat = new THREE.MeshStandardMaterial({
+      color: 0xf97316,
+      map: lavaTex,
+      emissive: 0xea580c,
+      emissiveMap: lavaTex,
+      emissiveIntensity: 1.85,
+      roughness: 0.35,
+      metalness: 0.1,
+    });
+    const lavaMoatGeo = new THREE.RingGeometry(52.5, 90.0, 64, 4);
+    lavaMoatGeo.rotateX(-Math.PI / 2);
+    const lavaMoatMesh = new THREE.Mesh(lavaMoatGeo, lavaSurfaceMat);
+    lavaMoatMesh.position.set(dragonArenaCenter.x, 0.05, dragonArenaCenter.z);
+    lavaMoatMesh.userData.nonWalkable = true;
+    scene.add(lavaMoatMesh);
+
+    // Pooled bara api naik dari permukaan danau lahar (160 titik, frustumCulled = false)
+    const emberCount = 160;
+    const emberPos = new Float32Array(emberCount * 3);
+    const emberCol = new Float32Array(emberCount * 3);
+    for (let e = 0; e < emberCount; e++) {
+      const ang = (e / emberCount) * Math.PI * 2 + (e % 7) * 0.21;
+      const rad = 54.5 + ((e * 37) % 33);
+      emberPos[e * 3] = dragonArenaCenter.x + Math.cos(ang) * rad;
+      emberPos[e * 3 + 1] = 0.25 + ((e * 17) % 50) * 0.12;
+      emberPos[e * 3 + 2] = dragonArenaCenter.z + Math.sin(ang) * rad;
+      emberCol[e * 3] = 1.0;
+      emberCol[e * 3 + 1] = 0.38 + (e % 4) * 0.14;
+      emberCol[e * 3 + 2] = 0.05;
+    }
+    const emberGeo = new THREE.BufferGeometry();
+    const emberAttr = new THREE.BufferAttribute(emberPos, 3);
+    emberAttr.setUsage(THREE.DynamicDrawUsage);
+    emberGeo.setAttribute('position', emberAttr);
+    emberGeo.setAttribute('color', new THREE.BufferAttribute(emberCol, 3));
+    const emberMat = new THREE.PointsMaterial({
+      size: 0.65,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.88,
+      depthWrite: false,
+    });
+    lavaEmbers = new THREE.Points(emberGeo, emberMat);
+    lavaEmbers.frustumCulled = false;
+    scene.add(lavaEmbers);
+  }
+
+  // E. Formasi Kolom Basalt Heksagonal di Tebing Dinding Luar Kawah (Radius 90..114, melewati Danau Lahar)
   const basaltMat = new THREE.MeshStandardMaterial({
     color: 0x18181b,
     roughness: 0.85,
@@ -2908,23 +3073,23 @@ export async function buildDragonCaldera(
   });
   const basaltBaseGeo = new THREE.CylinderGeometry(0.8, 1.0, 1.0, 6);
   basaltBaseGeo.translate(0, 0.5, 0);
-  const basaltInstMesh = new THREE.InstancedMesh(basaltBaseGeo, basaltMat, 28);
+  const basaltInstMesh = new THREE.InstancedMesh(basaltBaseGeo, basaltMat, 32);
   let basaltCount = 0;
   const basaltDummy = new THREE.Object3D();
 
-  for (let i = 0; i < 28; i++) {
-    await checkCalderaYield(53, 'Membangun Formasi Basalt Kaldera (53%)...');
-    const angle = (i / 28) * Math.PI * 2;
-    // Hindari jalur celah ngarai masuk utara (sudut sekitar -Math.PI / 2)
-    if (angle > -Math.PI * 0.65 && angle < -Math.PI * 0.35) continue;
+  for (let i = 0; i < 32; i++) {
+    await checkCalderaYield(54, 'Membangun Tebing Kolom Basalt Kaldera (54%)...');
+    const angle = (i / 32) * Math.PI * 2;
+    const angDiffNorth = Math.abs(Math.atan2(Math.sin(angle + Math.PI / 2), Math.cos(angle + Math.PI / 2)));
+    if (angDiffNorth < 0.25) continue;
 
-    const r = 48 + (i % 5) * 6.0;
+    const r = 91 + (i % 5) * 4.8;
     const bx = dragonArenaCenter.x + Math.cos(angle) * r;
     const bz = dragonArenaCenter.z + Math.sin(angle) * r;
     const by = getTerrainHeight(bx, bz);
 
-    const colH = 6.0 + (i % 4) * 3.5;
-    const colR = 1.4 + (i % 3) * 0.4;
+    const colH = 8.0 + (i % 4) * 4.0;
+    const colR = 1.6 + (i % 3) * 0.45;
 
     basaltDummy.position.set(bx, by, bz);
     basaltDummy.scale.set(colR, colH, colR);
@@ -2932,70 +3097,45 @@ export async function buildDragonCaldera(
     basaltDummy.updateMatrix();
     basaltInstMesh.setMatrixAt(basaltCount++, basaltDummy.matrix);
 
-    colliders.push({ type: 'circle', x: bx, z: bz, radius: colR, label: 'Formasi Basalt Kawah' });
+    colliders.push({ type: 'circle', x: bx, z: bz, radius: colR, label: 'Tebing Basalt Luar Kaldera' });
   }
   basaltInstMesh.count = basaltCount;
   basaltInstMesh.instanceMatrix.needsUpdate = true;
   basaltInstMesh.computeBoundingSphere();
   scene.add(basaltInstMesh);
 
-  // E. Kolam & Retakan Lahar Merah Menyala di Seputar Kaldera
-  const lavaRingGeo = new THREE.RingGeometry(24.0, 32.0, 36);
-  lavaRingGeo.rotateX(-Math.PI / 2);
-  const lavaRingMat = new THREE.MeshStandardMaterial({
-    color: 0xff3700,
-    emissive: 0xff2200,
-    emissiveIntensity: 1.8,
-    roughness: 0.2,
-    transparent: true,
-    opacity: 0.85,
-  });
-  const lavaRingMesh = new THREE.Mesh(lavaRingGeo, lavaRingMat);
-  lavaRingMesh.position.set(dragonArenaCenter.x, dragonArenaBaseY + 0.04, dragonArenaCenter.z);
-  scene.add(lavaRingMesh);
+  // Jalan Batu Hitam Pendek dari Dermaga Utara [40, 722] menuju Kepala Jembatan Obsidian [40, 749]
+  const northRoadSlab = new THREE.Mesh(new THREE.BoxGeometry(10.0, 0.28, 22.0), basaltPlatformMat);
+  northRoadSlab.position.set(40, 2.38, 738);
+  northRoadSlab.receiveShadow = true;
+  northRoadSlab.userData.walkableSurface = true;
+  scene.add(northRoadSlab);
+  registerWalkableSurface(northRoadSlab, { label: 'Jalan Batu Gerbang Kaldera Utara' });
 
-  // Retakan lahar aktif
-  const lavaCrackCoords = [
-    { x: dragonArenaCenter.x, z: dragonArenaCenter.z - 10, r: 4.8 },
-    { x: dragonArenaCenter.x + 16, z: dragonArenaCenter.z - 6, r: 4.5 },
-    { x: dragonArenaCenter.x - 16, z: dragonArenaCenter.z - 6, r: 4.5 },
-    { x: dragonArenaCenter.x + 18, z: dragonArenaCenter.z + 12, r: 4.6 },
-    { x: dragonArenaCenter.x - 18, z: dragonArenaCenter.z + 12, r: 4.6 },
-    { x: dragonArenaCenter.x, z: dragonArenaCenter.z + 18, r: 5.0 },
-  ];
-  for (let i = 0; i < lavaCrackCoords.length; i++) {
-    const lc = lavaCrackCoords[i];
-    await checkCalderaYield(54, 'Menata Retakan Lahar Aktif Kaldera (54%)...');
-    const crack = createLavaCrackMesh(lc.r);
-    const cy = getTerrainHeight(lc.x, lc.z);
-    crack.position.set(lc.x, cy + 0.02, lc.z);
-    scene.add(crack);
-  }
-
-  // F. Dermaga Kayu Hangus di Teluk Utara Pulau [40, 750] (Titik Labuh Kapal)
+  // F. Dermaga Kayu Hangus di Teluk Utara Pulau [40, 716] (Titik Labuh Kapal menuju Jembatan Obsidian)
   const charredDockMat = new THREE.MeshStandardMaterial({
     color: 0x27272a,
     roughness: 0.9,
     metalness: 0.1,
     flatShading: true,
   });
-  const dockPier = new THREE.Mesh(new THREE.BoxGeometry(5.0, 0.45, 18.0), charredDockMat);
-  dockPier.position.set(40, 0.45, 750);
+  const dockPier = new THREE.Mesh(new THREE.BoxGeometry(6.0, 0.45, 18.0), charredDockMat);
+  dockPier.position.set(40, 0.55, 716);
   dockPier.userData.walkableSurface = true;
   scene.add(dockPier);
   registerWalkableSurface(dockPier, { label: 'Dermaga Kayu Hangus Kaldera' });
-  // Tiang pancang dermaga hangus (InstancedMesh)
-  const dockPileGeo = new THREE.CylinderGeometry(0.25, 0.25, 3.5, 6);
+
+  const dockPileGeo = new THREE.CylinderGeometry(0.25, 0.25, 3.8, 6);
   const dockPileMesh = new THREE.InstancedMesh(dockPileGeo, charredDockMat, 8);
   let pileIdx = 0;
   const pileDummy = new THREE.Object3D();
-  for (let pz = 743; pz <= 757; pz += 4.5) {
+  for (let pz = 709; pz <= 723; pz += 4.5) {
     await checkCalderaYield();
-    pileDummy.position.set(37.3, 0.2, pz);
+    pileDummy.position.set(36.8, 0.2, pz);
     pileDummy.updateMatrix();
     dockPileMesh.setMatrixAt(pileIdx++, pileDummy.matrix);
 
-    pileDummy.position.set(42.7, 0.2, pz);
+    pileDummy.position.set(43.2, 0.2, pz);
     pileDummy.updateMatrix();
     dockPileMesh.setMatrixAt(pileIdx++, pileDummy.matrix);
   }
@@ -3003,25 +3143,22 @@ export async function buildDragonCaldera(
   dockPileMesh.instanceMatrix.needsUpdate = true;
   dockPileMesh.computeBoundingSphere();
   scene.add(dockPileMesh);
-  // Pembatas tepi kiri & kanan dermaga (membiarkan dek tengah 100% bisa diinjak pemain)
   colliders.push(
-    { type: 'box', minX: 37.0, maxX: 37.5, minZ: 741, maxZ: 759, label: 'Tepi Barat Dermaga Kayu Hangus' },
-    { type: 'box', minX: 42.5, maxX: 43.0, minZ: 741, maxZ: 759, label: 'Tepi Timur Dermaga Kayu Hangus' }
+    { type: 'box', minX: 36.5, maxX: 37.0, minZ: 707, maxZ: 725, label: 'Tepi Barat Dermaga Kayu Hangus' },
+    { type: 'box', minX: 43.0, maxX: 43.5, minZ: 707, maxZ: 725, label: 'Tepi Timur Dermaga Kayu Hangus' }
   );
 
-  // G. Jembatan Rantai Vulkanik SW & NW ke Pulau Satelit dibangun terpadu melalui BRIDGE_CONFIGS (tanpa duplikasi mesh X-overlap)
-
-  // H. Lingkungan Pulau Satelit Barat Daya [-75, 875]
+  // H. Lingkungan Pulau Satelit Barat Daya [-138, 892]
   const swRock = createVolcanicBasaltRockMesh(2.2);
-  swRock.position.set(-75, 6.50, 875);
+  swRock.position.set(-138, 6.50, 892);
   scene.add(swRock);
-  colliders.push({ type: 'circle', x: -75, z: 875, radius: 2.8, label: 'Puncak Satelit Vulkanik Barat Daya' });
+  colliders.push({ type: 'circle', x: -138, z: 892, radius: 2.8, label: 'Puncak Satelit Vulkanik Barat Daya' });
 
-  // I. Lingkungan Pulau Satelit Barat Laut [-65, 775]
+  // I. Lingkungan Pulau Satelit Barat Laut [-128, 772]
   const nwSpire = createVolcanicPillarMesh();
-  nwSpire.position.set(-65, 5.50, 775);
+  nwSpire.position.set(-128, 5.50, 772);
   scene.add(nwSpire);
-  colliders.push({ type: 'circle', x: -65, z: 775, radius: 2.2, label: 'Pilar Obsidian Satelit Barat Laut' });
+  colliders.push({ type: 'circle', x: -128, z: 772, radius: 2.2, label: 'Pilar Obsidian Satelit Barat Laut' });
 
   // ============================================================================
   // 2. KEPULAUAN PERANTARA SELATAN & BARAT (ARCHIPELAGO PHASE 1)
@@ -3129,7 +3266,7 @@ export async function buildDragonCaldera(
     { id: 'chest_solaria_palace', pos: [340, 2.0, -280] as [number, number, number] }, // Solaria Sultan Vault
     { id: 'chest_solaria', pos: [-20, 1.5, -320] as [number, number, number] }, // Solaria Pyramid Gold
     { id: 'chest_solaria_oasis', pos: [20, 0.5, -240] as [number, number, number] }, // Solaria Hidden Oasis
-    { id: 'chest_dragoncaldera', pos: [40, 2.5, 840] as [number, number, number] }, // Dragon Caldera Hoard (Pusat Altar)
+    { id: 'chest_dragoncaldera', pos: [40, 3.0, 829] as [number, number, number] }, // Dragon Caldera Hoard (Tepi Altar Rune)
     { id: 'chest_lighthouse', pos: [-218, 6.2, 462] as [number, number, number] }, // Peti Harta Karun Pulau Mercusuar
     { id: 'chest_pirate', pos: [-495, 0.5, 620] as [number, number, number] }, // Peti Harta Karun Bajak Laut
     { id: 'chest_astraea', pos: [-220, 2.0, -220] as [number, number, number] }, // Astraea Imperial Vault
@@ -3158,7 +3295,7 @@ export async function buildDragonCaldera(
   }
 
   await hardYield();
-  return { chests };
+  return { chests, lavaSurfaceMat, lavaEmbers };
 }
 
 
@@ -3219,7 +3356,11 @@ async function populateWorldEntities(
   // ==========================================
   onProgress?.(52, 'Membangun Gugusan Kepulauan Kaldera Naga (52%)...');
   await hardYield();
-  const { chests } = await buildDragonCaldera(scene, getTerrainHeight, colliders, decorativeProps, pointLights, onProgress);
+  const {
+    chests,
+    lavaSurfaceMat,
+    lavaEmbers,
+  } = await buildDragonCaldera(scene, getTerrainHeight, colliders, decorativeProps, pointLights, onProgress);
 
   // ==========================================
   // 7. SACRED SPRING, REGIONAL LANDMARKS & CHECKPOINTS (57% - 61%)
@@ -3875,6 +4016,8 @@ async function populateWorldEntities(
     floatingCrystals,
     checkpoints,
     particles,
+    lavaSurfaceMat,
+    lavaEmbers,
     decorativeProps,
     pointLights,
     dirLight,

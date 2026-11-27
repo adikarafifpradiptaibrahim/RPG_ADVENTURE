@@ -812,7 +812,7 @@ const WorldMapModalComponent: React.FC<WorldMapModalProps> = ({
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#dc2626]" />
-                    <span>Kaldera Sarang Naga</span>
+                    <span>Kaldera, Danau Lahar & Jembatan Obsidian</span>
                   </div>
                 </div>
               </div>
