@@ -187,9 +187,9 @@ export class SpatialLookupGrid {
     this.flagsGrid.fill(0);
     this.heightGrid.fill(0);
 
-    // 1. Rasterize Roads (7.0 unit clearance buffer)
+    // 1. Rasterize Roads (9.5 unit strict Road Clearance Zone)
     const roads = getSampledRoads();
-    const roadMargin = 7.0;
+    const roadMargin = 9.5;
     const roadMarginSq = roadMargin * roadMargin;
     for (let r = 0; r < roads.length; r++) {
       const pts = roads[r].coarsePoints2D;
@@ -251,10 +251,10 @@ export class SpatialLookupGrid {
       this.markCircle(lm.x, lm.z, 45.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);
     }
 
-    // 6. Mark Farmyards
-    this.markBox(-62, -38, 153, 168, FLAG_BLOCKED_FARMYARD | FLAG_BLOCKED_GENERAL);
-    this.markBox(-62, -38, 120, 136, FLAG_BLOCKED_FARMYARD | FLAG_BLOCKED_GENERAL);
-    this.markBox(-36, -16, 120, 136, FLAG_BLOCKED_FARMYARD | FLAG_BLOCKED_GENERAL);
+    // 6. Mark Farmyards (Dry Sanctuary Southwest Plains)
+    this.markBox(-66, -42, -46, -29, FLAG_BLOCKED_FARMYARD | FLAG_BLOCKED_GENERAL);
+    this.markBox(-66, -42, -28, -11, FLAG_BLOCKED_FARMYARD | FLAG_BLOCKED_GENERAL);
+    this.markBox(-41, -22, -28, -11, FLAG_BLOCKED_FARMYARD | FLAG_BLOCKED_GENERAL);
 
     // 7. Grid Heights & Biomes Sampling with Time-Slicing
     for (let row = 0; row < SPATIAL_ROWS; row++) {

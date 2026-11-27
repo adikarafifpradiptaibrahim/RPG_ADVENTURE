@@ -9,6 +9,10 @@ import {
   getProceduralContinentHeight,
   distToSegment,
   isFarOcean,
+  isMainContinentLand,
+  getDistanceToNearestRoad,
+  getDistanceToRiver as getWorldDistanceToRiver,
+  WATER_LEVEL,
   SEA_BED_HEIGHT,
   worldToBridgeLocal,
 } from './worldData';
@@ -71,6 +75,307 @@ export function getSharedMaterial(
     MaterialCache.set(key, mat);
   }
   return mat;
+}
+
+function isPointDryLand(px: number, pz: number, extraMargin = 0): boolean {
+  if (isFarOcean(px, pz)) return false;
+  const biome = getBiomeAt(px, pz);
+  if (biome === 'ocean' || biome === 'lake') return false;
+  if (getWorldDistanceToRiver(px, pz) < 8.5 + extraMargin) return false;
+  if (Math.hypot(px - 60, pz - -820) < 58 + extraMargin) return false;
+  if (biome !== 'volcano' && !isMainContinentLand(px, pz)) {
+    const onOffshoreIsland =
+      Math.hypot(px - -220, pz - 460) < 54 ||
+      Math.hypot(px - -520, pz - 620) < 66 ||
+      Math.hypot(px - -780, pz - 280) < 60;
+    if (!onOffshoreIsland) return false;
+  }
+  const h = getExactMeshGroundHeight(px, pz, true);
+  return h > WATER_LEVEL + 1.2;
+}
+
+/**
+ * Strict global dry-land validator for buildings, gardens, foliage, ruins, & props:
+ * Verifies center + 4 perimeter edge points (at distance `radius`) are strictly dry land
+ * with elevation > WATER_LEVEL + 1.2 and inside valid continent/island landmass.
+ */
+export function isValidDryLand(x: number, z: number, radius = 0): boolean {
+  if (!isPointDryLand(x, z, Math.min(3.5, radius * 0.25))) return false;
+  if (radius > 0) {
+    if (!isPointDryLand(x + radius, z)) return false;
+    if (!isPointDryLand(x - radius, z)) return false;
+    if (!isPointDryLand(x, z + radius)) return false;
+    if (!isPointDryLand(x, z - radius)) return false;
+  }
+  return true;
+}
+
+const sharedRuinStoneMat = new THREE.MeshStandardMaterial({
+  color: 0x64748b,
+  roughness: 0.9,
+  metalness: 0.06,
+  flatShading: true,
+});
+const sharedRuinTrimMat = new THREE.MeshStandardMaterial({
+  color: 0x475569,
+  roughness: 0.85,
+  metalness: 0.1,
+  flatShading: true,
+});
+const sharedRuinMossMat = new THREE.MeshStandardMaterial({
+  color: 0x4d7c0f,
+  roughness: 0.88,
+  flatShading: true,
+});
+const sharedRuinVineMat = new THREE.MeshStandardMaterial({
+  color: 0x65a30d,
+  roughness: 0.85,
+  flatShading: true,
+});
+const sharedRuinAltarRuneMat = new THREE.MeshStandardMaterial({
+  color: 0x38bdf8,
+  emissive: 0x0284c7,
+  emissiveIntensity: 1.4,
+  roughness: 0.35,
+});
+
+/**
+ * Redesigned Authentic Ancient Temple Ruins Complex (*Reruntuhan Kuil Kuno*)
+ * - Cracked mossy floor slabs registered to `registerWalkableSurface()`
+ * - Broken stone archways overhead (open walkthrough underneath, per-pier collision only)
+ * - Cracked fluted columns of varied height + climbing green moss & vines
+ * - Central weathered stone altar on walkable dais
+ * - Zero enclosing box collider / zero rotated AABB invisible barriers!
+ */
+export function createAncientTempleRuinsComplex(
+  parentGroup: THREE.Group,
+  centerX: number,
+  centerZ: number,
+  getHeightFn: (x: number, z: number) => number,
+  colliders: WorldCollider[],
+  options?: {
+    tileCount?: number;
+    archCount?: number;
+    pillarCount?: number;
+    seedOffset?: number;
+  }
+): void {
+  const tileCount = options?.tileCount ?? 18;
+  const archCount = options?.archCount ?? 2;
+  const pillarCount = options?.pillarCount ?? 7;
+  const seed = options?.seedOffset ?? 0;
+
+  if (!isValidDryLand(centerX, centerZ, 12) || getDistanceToNearestRoad(centerX, centerZ) < 20) {
+    return;
+  }
+
+  // 1. Cracked Mossy Temple Courtyard Floor Slabs (Walkable)
+  for (let i = 0; i < tileCount; i++) {
+    const ang = (i / tileCount) * Math.PI * 2 + seed * 0.3;
+    const dist = i < 6 ? 3.2 : 5.8 + (i % 3) * 3.4;
+    const tx = centerX + Math.cos(ang) * dist;
+    const tz = centerZ + Math.sin(ang) * dist;
+    if (!isValidDryLand(tx, tz, 2.0) || getDistanceToNearestRoad(tx, tz) < 9.5) continue;
+    const ty = getHeightFn(tx, tz);
+    const rad = 1.6 + ((i * 7 + seed) % 5) * 0.25;
+
+    const slab = new THREE.Mesh(
+      new THREE.CylinderGeometry(rad, rad * 1.06, 0.24, 6),
+      i % 3 === 0 ? sharedRuinTrimMat : sharedRuinStoneMat
+    );
+    slab.position.set(tx, ty + 0.12, tz);
+    slab.rotation.y = (i * 1.1 + seed) % Math.PI;
+    slab.receiveShadow = true;
+    parentGroup.add(slab);
+    registerWalkableSurface(slab, { label: 'Lantai Ubin Reruntuhan Kuil Kuno' });
+
+    if (i % 2 === 0) {
+      const mossPatch = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.45 + (i % 3) * 0.14, 0),
+        i % 4 === 0 ? sharedRuinMossMat : sharedRuinVineMat
+      );
+      mossPatch.scale.set(1.3, 0.32, 1.1);
+      mossPatch.position.set(tx + Math.cos(ang) * (rad * 0.55), ty + 0.24, tz + Math.sin(ang) * (rad * 0.55));
+      parentGroup.add(mossPatch);
+    }
+  }
+
+  // 2. Central Weathered Ancient Stone Altar on Walkable Dais
+  const altarY = getHeightFn(centerX, centerZ);
+  const dais1 = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.6, 0.36, 8), sharedRuinTrimMat);
+  dais1.position.set(centerX, altarY + 0.18, centerZ);
+  dais1.receiveShadow = true;
+  parentGroup.add(dais1);
+  registerWalkableSurface(dais1, { label: 'Pelataran Tangga Altar Kuil' });
+
+  const dais2 = new THREE.Mesh(new THREE.CylinderGeometry(2.8, 3.1, 0.32, 8), sharedRuinStoneMat);
+  dais2.position.set(centerX, altarY + 0.52, centerZ);
+  dais2.receiveShadow = true;
+  parentGroup.add(dais2);
+  registerWalkableSurface(dais2, { label: 'Podium Altar Kuil Kuno' });
+
+  const altarGroup = new THREE.Group();
+  altarGroup.position.set(centerX, altarY + 0.68, centerZ);
+
+  const altarPedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.25, 1.25, 6), sharedRuinTrimMat);
+  altarPedestal.position.y = 0.62;
+  altarPedestal.castShadow = true;
+  altarGroup.add(altarPedestal);
+
+  const altarSlab = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.26, 1.4), sharedRuinStoneMat);
+  altarSlab.position.y = 1.32;
+  altarSlab.rotation.y = 0.25;
+  altarSlab.castShadow = true;
+  altarGroup.add(altarSlab);
+
+  const runeRing = new THREE.Mesh(new THREE.RingGeometry(1.5, 1.85, 16), sharedRuinAltarRuneMat);
+  runeRing.rotation.x = -Math.PI / 2;
+  runeRing.position.y = 0.04;
+  altarGroup.add(runeRing);
+
+  const brokenStele = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.48, 1.65, 5), sharedRuinStoneMat);
+  brokenStele.position.set(0.1, 2.0, -0.15);
+  brokenStele.rotation.z = -0.14;
+  altarGroup.add(brokenStele);
+
+  const altarMoss = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55, 0), sharedRuinMossMat);
+  altarMoss.scale.set(1.2, 0.4, 0.9);
+  altarMoss.position.set(-0.75, 0.22, 0.6);
+  altarGroup.add(altarMoss);
+
+  parentGroup.add(altarGroup);
+  colliders.push({ type: 'circle', x: centerX, z: centerZ, radius: 1.35, label: 'Altar Batu Kuil Kuno' });
+
+  // 3. Broken Stone Archways (*Lengkungan Gerbang Batu Patah*)
+  const archSpanHalf = 3.2;
+  for (let a = 0; a < archCount; a++) {
+    const archAng = seed * 0.4 + (a * Math.PI) / Math.max(1, archCount * 0.65);
+    const archDist = 11.2;
+    const ax = centerX + Math.cos(archAng) * archDist;
+    const az = centerZ + Math.sin(archAng) * archDist;
+    if (!isValidDryLand(ax, az, 4.0) || getDistanceToNearestRoad(ax, az) < 10.5) continue;
+
+    const ay = getHeightFn(ax, az);
+    const perpX = -Math.sin(archAng);
+    const perpZ = Math.cos(archAng);
+    const leftX = ax - perpX * archSpanHalf;
+    const leftZ = az - perpZ * archSpanHalf;
+    const rightX = ax + perpX * archSpanHalf;
+    const rightZ = az + perpZ * archSpanHalf;
+    if (getDistanceToNearestRoad(leftX, leftZ) < 9.5 || getDistanceToNearestRoad(rightX, rightZ) < 9.5) continue;
+
+    const archHeight = 4.6 + (a % 2) * 0.6;
+    [
+      { x: leftX, z: leftZ, h: archHeight },
+      { x: rightX, z: rightZ, h: archHeight * 0.92 },
+    ].forEach((pier, pIdx) => {
+      const py = getHeightFn(pier.x, pier.z);
+      const pierBase = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.65, 1.45), sharedRuinTrimMat);
+      pierBase.position.set(pier.x, py + 0.32, pier.z);
+      pierBase.rotation.y = archAng;
+      parentGroup.add(pierBase);
+
+      const pierCol = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.68, pier.h, 7), sharedRuinStoneMat);
+      pierCol.position.set(pier.x, py + pier.h * 0.5 + 0.4, pier.z);
+      pierCol.castShadow = true;
+      parentGroup.add(pierCol);
+
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.42, 1.35), sharedRuinTrimMat);
+      cap.position.set(pier.x, py + pier.h + 0.55, pier.z);
+      cap.rotation.y = archAng;
+      parentGroup.add(cap);
+
+      const moss = new THREE.Mesh(new THREE.DodecahedronGeometry(0.45, 0), sharedRuinMossMat);
+      moss.position.set(pier.x, py + 0.8 + pIdx * 1.1, pier.z);
+      moss.scale.set(1.1, 0.6, 1.1);
+      parentGroup.add(moss);
+
+      // Accurate circular collider strictly around each stone pier (archway doorway completely open!)
+      colliders.push({ type: 'circle', x: pier.x, z: pier.z, radius: 0.9, label: 'Tiang Gerbang Batu Kuil' });
+    });
+
+    // Cracked overhead stone arch lintel & half-broken arch stones
+    const lintelLeft = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.72, 3.8), sharedRuinStoneMat);
+    lintelLeft.position.set(
+      ax - perpX * (archSpanHalf * 0.45),
+      ay + archHeight + 0.85,
+      az - perpZ * (archSpanHalf * 0.45)
+    );
+    lintelLeft.rotation.y = archAng;
+    lintelLeft.rotation.x = 0.08;
+    lintelLeft.castShadow = true;
+    parentGroup.add(lintelLeft);
+
+    const lintelRight = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.68, 2.7), sharedRuinTrimMat);
+    lintelRight.position.set(
+      ax + perpX * (archSpanHalf * 0.52),
+      ay + archHeight + 0.55,
+      az + perpZ * (archSpanHalf * 0.52)
+    );
+    lintelRight.rotation.y = archAng;
+    lintelRight.rotation.x = -0.14;
+    lintelRight.castShadow = true;
+    parentGroup.add(lintelRight);
+
+    const vine = new THREE.Mesh(new THREE.DodecahedronGeometry(0.65, 0), sharedRuinVineMat);
+    vine.position.set(ax - perpX * 1.1, ay + archHeight + 1.15, az - perpZ * 1.1);
+    vine.scale.set(1.4, 0.5, 1.2);
+    parentGroup.add(vine);
+  }
+
+  // 4. Varied-Height Cracked Stone Columns + Moss Clumps (wide walkspace between every column)
+  for (let p = 0; p < pillarCount; p++) {
+    const pAng = seed * 0.7 + (p / pillarCount) * Math.PI * 2 + 0.35;
+    const pDist = 8.5 + (p % 3) * 3.2;
+    const px = centerX + Math.cos(pAng) * pDist;
+    const pz = centerZ + Math.sin(pAng) * pDist;
+    if (!isValidDryLand(px, pz, 1.5) || getDistanceToNearestRoad(px, pz) < 9.5) continue;
+
+    const py = getHeightFn(px, pz);
+    const colH = 2.4 + ((p * 11 + seed) % 5) * 0.75;
+
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.98, 0.45, 8), sharedRuinTrimMat);
+    base.position.set(px, py + 0.22, pz);
+    parentGroup.add(base);
+
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.66, colH, 7), sharedRuinStoneMat);
+    shaft.position.set(px, py + 0.45 + colH * 0.5, pz);
+    shaft.rotation.z = ((p % 3) - 1) * 0.05;
+    shaft.castShadow = true;
+    parentGroup.add(shaft);
+
+    // Slanted chipped broken stone crown atop column
+    const chip = new THREE.Mesh(new THREE.ConeGeometry(0.56, 0.7, 5), sharedRuinTrimMat);
+    chip.position.set(px, py + 0.45 + colH + 0.2, pz);
+    chip.rotation.set(0.35, p * 0.9, 0.22);
+    parentGroup.add(chip);
+
+    // Creeping moss around column base & mid-shaft
+    const moss = new THREE.Mesh(new THREE.DodecahedronGeometry(0.42, 0), p % 2 === 0 ? sharedRuinMossMat : sharedRuinVineMat);
+    moss.scale.set(1.25, 0.55, 1.15);
+    moss.position.set(px + 0.45, py + 0.42, pz + 0.3);
+    parentGroup.add(moss);
+
+    colliders.push({ type: 'circle', x: px, z: pz, radius: 0.95, label: 'Pilar Kuil Kuno Retak' });
+  }
+
+  // 5. Scattered Mossy Fallen Masonry Chunks on Outskirts (decorative low rubble off path)
+  for (let f = 0; f < 4; f++) {
+    const fAng = seed + f * 1.57 + 0.8;
+    const fx = centerX + Math.cos(fAng) * 14.5;
+    const fz = centerZ + Math.sin(fAng) * 14.5;
+    if (!isValidDryLand(fx, fz, 1.5) || getDistanceToNearestRoad(fx, fz) < 9.5) continue;
+    const fy = getHeightFn(fx, fz);
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.56, 2.2, 7), sharedRuinStoneMat);
+    drum.position.set(fx, fy + 0.45, fz);
+    drum.rotation.set(0.1, fAng, Math.PI / 2 - 0.12);
+    drum.castShadow = true;
+    parentGroup.add(drum);
+    const vinePatch = new THREE.Mesh(new THREE.DodecahedronGeometry(0.38, 0), sharedRuinVineMat);
+    vinePatch.scale.set(1.4, 0.45, 1.0);
+    vinePatch.position.set(fx, fy + 0.65, fz);
+    parentGroup.add(vinePatch);
+  }
 }
 
 /**
@@ -164,18 +469,21 @@ export async function buildWorldEnvironmentAsync(
   const matWildflower = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.7, flatShading: true });
   const matMossStone = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.85, flatShading: true });
 
-  // Helper deteksi batas pekarangan pertanian untuk isolasi vegetasi instanced & bebatuan alami
+
+  /**
+   * Helper deteksi batas pekarangan pertanian di Barat Daya Desa Utama [20, -60]
+   */
   function isInsideFarmYard(x: number, z: number): boolean {
-    if (x >= -62 && x <= -38 && z >= 153 && z <= 168) return true; // Pekarangan 1 (Utara)
-    if (x >= -62 && x <= -38 && z >= 120 && z <= 136) return true; // Pekarangan 2 (Selatan)
-    if (x >= -36 && x <= -16 && z >= 120 && z <= 136) return true; // Pekarangan 3 (Gandum)
+    if (x >= -66 && x <= -42 && z >= -46 && z <= -29) return true; // Pekarangan 1 (Utara Barat)
+    if (x >= -66 && x <= -42 && z >= -28 && z <= -11) return true; // Pekarangan 2 (Selatan Barat)
+    if (x >= -41 && x <= -22 && z >= -28 && z <= -11) return true; // Pekarangan 3 (Gandum Timur)
     return false;
   }
 
   function isInsideCastleOrFort(x: number, z: number): boolean {
     if (Math.abs(x - 460) <= 35 && Math.abs(z - -420) <= 35) return true; // Astraea
     if (Math.abs(x - 660) <= 35 && Math.abs(z - 150) <= 35) return true;  // Val-Kragor
-    if (Math.hypot(x - 580, z - -60) <= 28) return true;                  // Castle Ruins
+    if (Math.hypot(x - 608, z - -50) <= 22 || Math.hypot(x - 456, z - -62) <= 22) return true; // Ancient Temple Ruins
     if (Math.abs(x - -680) <= 35 && Math.abs(z - -620) <= 35) return true; // Sultan Palace
     return false;
   }
@@ -213,8 +521,8 @@ export async function buildWorldEnvironmentAsync(
         }
       }
 
-      // ROAD CLEARANCE: Batas aman minimal 6.5 unit dari garis tengah jalan setapak
-      if (isPointNearRoad(px, pz, 6.5)) continue;
+      // STRICT ROAD CLEARANCE (>= 9.5u) & DRY LAND VALIDATOR
+      if (getDistanceToNearestRoad(px, pz) < 9.5 || !isValidDryLand(px, pz, 0.8)) continue;
 
       const py = getTerrainHeight(px, pz);
 
@@ -250,7 +558,7 @@ export async function buildWorldEnvironmentAsync(
 
         const midX = (px + nextX) * 0.5;
         const midZ = (pz + nextZ) * 0.5;
-        if (isPointNearRoad(midX, midZ, 6.5)) continue;
+        if (getDistanceToNearestRoad(midX, midZ) < 9.5 || !isValidDryLand(midX, midZ, 0.8)) continue;
 
         const midY = (py + getTerrainHeight(nextX, nextZ)) * 0.5;
         const segLen = Math.hypot(nextX - px, nextZ - pz);
@@ -291,28 +599,29 @@ export async function buildWorldEnvironmentAsync(
     createRusticFenceSegment(maxX, minZ, maxX, maxZ);
   }
 
-  // Pekarangan 1: Sayap Kiri / Utara Alun-Alun Baru (Z: 154 s.d 167)
-  createEnclosedFarmYard(-60, -40, 154, 167, 'south', -52, -48);
+  // Pekarangan 1: Daratan Kering Barat Laut Desa Utama (Z: -44 s.d -31)
+  createEnclosedFarmYard(-64, -44, -44, -31, 'north', -56, -52);
 
-  // Pekarangan 2: Sayap Kanan / Selatan Alun-Alun Baru (Z: 122 s.d 135)
-  createEnclosedFarmYard(-60, -40, 122, 135, 'north', -52, -48);
+  // Pekarangan 2: Daratan Kering Barat Daya Desa Utama (Z: -26 s.d -13)
+  createEnclosedFarmYard(-64, -44, -26, -13, 'south', -56, -52);
 
-  // Pekarangan 3: Ladang Gandum & Lumbung Timur (Z: 122 s.d 135)
-  createEnclosedFarmYard(-36, -18, 122, 135, 'north', -29, -25);
+  // Pekarangan 3: Ladang Gandum & Lumbung Barat Pelabuhan (Z: -26 s.d -13)
+  createEnclosedFarmYard(-40, -24, -26, -13, 'north', -34, -30);
 
-  // 3 Petak Kebun Sayur Berpematang Kayu di Dalam Pekarangan Rapi
+  // 3 Petak Kebun Sayur Berpematang Kayu di Dalam Pekarangan Kering Sanctuary
   const gardenPatches = [
     // Kebun 1: Di dalam Pekarangan 1 (Utara), Cabbage & Carrot
-    { x: -50, z: 160.5, w: 14, d: 5.5, cropType: 'cabbage_carrot' },
+    { x: -54, z: -37.5, w: 14, d: 5.5, cropType: 'cabbage_carrot' },
     // Kebun 2: Di dalam Pekarangan 2 (Selatan), Pumpkin & Veggies
-    { x: -50, z: 128.5, w: 14, d: 5.5, cropType: 'pumpkin_veggies' },
+    { x: -54, z: -19.5, w: 14, d: 5.5, cropType: 'pumpkin_veggies' },
     // Kebun 3: Di dalam Pekarangan 3 (Gandum), Wheat Field
-    { x: -27, z: 128.5, w: 13, d: 4.8, cropType: 'wheat' },
+    { x: -32, z: -19.5, w: 12, d: 4.8, cropType: 'wheat' },
   ];
 
   gardenPatches.forEach((patch) => {
-    // Road clearance check (minimal 6.5 unit bebas hambatan)
-    if (isPointNearRoad(patch.x, patch.z, 6.5)) return;
+    // Strict road & dry-land check across full patch footprint
+    const patchRadius = Math.max(patch.w, patch.d) * 0.5;
+    if (getDistanceToNearestRoad(patch.x, patch.z) < 9.5 || !isValidDryLand(patch.x, patch.z, patchRadius)) return;
 
     const y = getTerrainHeight(patch.x, patch.z);
 
@@ -396,24 +705,24 @@ export async function buildWorldEnvironmentAsync(
     }
   });
 
-  // 9 Tumpukan Jerami (Haystack Emas): Terkumpul Rapi di Sudut-Sudut Pekarangan
+  // 9 Tumpukan Jerami (Haystack Emas): Terkumpul Rapi di Sudut-Sudut Pekarangan Kering
   const haystacks = [
-    // Sudut Pekarangan 1 (Utara)
-    { x: -57.0, z: 163.0, r: 1.4, h: 1.8 },
-    { x: -54.2, z: 163.5, r: 1.2, h: 1.5 },
-    { x: -55.8, z: 159.5, r: 1.1, h: 1.4 },
-    // Sudut Pekarangan 2 (Selatan)
-    { x: -57.0, z: 125.0, r: 1.5, h: 1.9 },
-    { x: -54.2, z: 124.0, r: 1.3, h: 1.6 },
-    { x: -56.5, z: 128.0, r: 1.1, h: 1.4 },
-    // Sudut Pekarangan 3 (Gandum)
-    { x: -33.5, z: 125.5, r: 1.5, h: 1.9 },
-    { x: -31.0, z: 127.5, r: 1.2, h: 1.5 },
-    { x: -33.2, z: 129.5, r: 1.1, h: 1.4 },
+    // Sudut Pekarangan 1
+    { x: -61.0, z: -34.0, r: 1.4, h: 1.8 },
+    { x: -58.2, z: -33.5, r: 1.2, h: 1.5 },
+    { x: -59.8, z: -37.5, r: 1.1, h: 1.4 },
+    // Sudut Pekarangan 2
+    { x: -61.0, z: -23.0, r: 1.5, h: 1.9 },
+    { x: -58.2, z: -24.0, r: 1.3, h: 1.6 },
+    { x: -60.5, z: -20.0, r: 1.1, h: 1.4 },
+    // Sudut Pekarangan 3
+    { x: -37.5, z: -22.5, r: 1.5, h: 1.9 },
+    { x: -35.0, z: -20.5, r: 1.2, h: 1.5 },
+    { x: -37.2, z: -18.5, r: 1.1, h: 1.4 },
   ];
 
   haystacks.forEach((hs) => {
-    if (isPointNearRoad(hs.x, hs.z, 6.5)) return;
+    if (getDistanceToNearestRoad(hs.x, hs.z) < 9.5 || !isValidDryLand(hs.x, hs.z, hs.r)) return;
 
     const y = getTerrainHeight(hs.x, hs.z);
     const hayGroup = new THREE.Group();
@@ -431,7 +740,7 @@ export async function buildWorldEnvironmentAsync(
 
   // 2 Gerobak Dorong Kayu & Peti Barang Dagangan di Sisi Pintu Gerbang Pekarangan
   function createWoodenCart(x: number, z: number, rotY: number) {
-    if (isPointNearRoad(x, z, 6.5)) return;
+    if (getDistanceToNearestRoad(x, z) < 9.5 || !isValidDryLand(x, z, 1.8)) return;
 
     const y = getTerrainHeight(x, z);
     const cart = new THREE.Group();
@@ -469,20 +778,19 @@ export async function buildWorldEnvironmentAsync(
     colliders.push({ type: 'circle', x, z, radius: 1.4, label: 'Gerobak Kayu' });
   }
 
-  // Gerobak 1 terparkir di dekat pintu gerbang Pekarangan 1 (Utara)
-  createWoodenCart(-48, 151.5, 0.2);
-  // Gerobak 2 terparkir di dekat pintu gerbang Pekarangan 2 (Selatan)
-  createWoodenCart(-48, 137.5, -0.25);
+  // Gerobak 1 & 2 di dekat pintu gerbang pekarangan barat desa
+  createWoodenCart(-51.5, -28.8, 0.2);
+  createWoodenCart(-30.5, -28.5, -0.25);
 
   // Tumpukan peti barang di dekat gerobak dan pagar
   const crateClusters = [
-    { x: -52.5, z: 152.0 },
-    { x: -44.0, z: 151.5 },
-    { x: -52.0, z: 137.0 },
-    { x: -44.5, z: 137.5 },
+    { x: -56.5, z: -28.5 },
+    { x: -48.0, z: -28.8 },
+    { x: -36.5, z: -28.5 },
+    { x: -27.5, z: -28.5 },
   ];
   crateClusters.forEach((cc) => {
-    if (isPointNearRoad(cc.x, cc.z, 6.5)) return;
+    if (getDistanceToNearestRoad(cc.x, cc.z) < 9.5 || !isValidDryLand(cc.x, cc.z, 1.5)) return;
 
     const cy = getTerrainHeight(cc.x, cc.z);
     [
@@ -501,130 +809,128 @@ export async function buildWorldEnvironmentAsync(
   envGroup.add(farmGroup);
 
   // ============================================================================
-  // 2. ZONA B: RERUNTUHAN PILAR KUNO / ANCIENT RUINS (X: -80 s.d. -130, Z: 50 s.d. 100)
+  // 2. ZONA B: RERUNTUHAN PILAR KUNO / ANCIENT RUINS (Relocated to Dry SE Plains X: 145, Z: 5)
   // ============================================================================
   await checkEnvYield(65, 'Membangun Reruntuhan Pilar Kuno & Sarang Monster (65%)...');
   const ruinsGroup = new THREE.Group();
   ruinsGroup.name = 'ZoneB_AncientRuins';
 
-  const ruinsCenterX = -105;
-  const ruinsCenterZ = 75;
-  const ruinsBaseY = getTerrainHeight(ruinsCenterX, ruinsCenterZ);
+  const ruinsCenterX = 145;
+  const ruinsCenterZ = 5;
+  if (isValidDryLand(ruinsCenterX, ruinsCenterZ, 22) && getDistanceToNearestRoad(ruinsCenterX, ruinsCenterZ) >= 9.5) {
+    const ruinsBaseY = getTerrainHeight(ruinsCenterX, ruinsCenterZ);
 
-  // Pelataran Ubin Batu Retak Melingkar (Radius 22 unit)
-  const plazaRadius = 22;
-  const plazaSlabCount = 28;
-  for (let i = 0; i < plazaSlabCount; i++) {
-    const angle = (i / plazaSlabCount) * Math.PI * 2;
-    const rDist = 4.0 + (i % 3) * 6.5;
-    const sx = ruinsCenterX + Math.cos(angle) * rDist;
-    const sz = ruinsCenterZ + Math.sin(angle) * rDist;
-    const sy = getTerrainHeight(sx, sz);
+    // Pelataran Ubin Batu Retak Melingkar (Radius 20 unit) — hanya pada daratan kering sah!
+    const plazaSlabCount = 24;
+    for (let i = 0; i < plazaSlabCount; i++) {
+      const angle = (i / plazaSlabCount) * Math.PI * 2;
+      const rDist = 4.0 + (i % 3) * 5.8;
+      const sx = ruinsCenterX + Math.cos(angle) * rDist;
+      const sz = ruinsCenterZ + Math.sin(angle) * rDist;
+      if (!isValidDryLand(sx, sz, 2.2) || getDistanceToNearestRoad(sx, sz) < 9.5) continue;
+      const sy = getTerrainHeight(sx, sz);
 
-    const slab = new THREE.Mesh(
-      new THREE.CylinderGeometry(2.2 + Math.random() * 1.2, 2.4 + Math.random() * 1.2, 0.22, 6),
-      matStoneRuins
-    );
-    slab.position.set(sx, sy + 0.1, sz);
-    slab.rotation.y = Math.random() * Math.PI;
-    ruinsGroup.add(slab);
-    registerWalkableSurface(slab, { label: 'Ubin Reruntuhan Kuno' });
+      const slab = new THREE.Mesh(
+        new THREE.CylinderGeometry(2.1 + Math.random() * 1.0, 2.3 + Math.random() * 1.0, 0.22, 6),
+        matStoneRuins
+      );
+      slab.position.set(sx, sy + 0.1, sz);
+      slab.rotation.y = Math.random() * Math.PI;
+      ruinsGroup.add(slab);
+      registerWalkableSurface(slab, { label: 'Ubin Reruntuhan Kuno' });
+    }
+
+    // Lingkaran Runik Sihir Cyan Pusat di Tengah Reruntuhan
+    const centerPlazaRing = new THREE.Mesh(new THREE.RingGeometry(2.5, 3.8, 16), matCyanRune);
+    centerPlazaRing.rotateX(-Math.PI / 2);
+    centerPlazaRing.position.set(ruinsCenterX, ruinsBaseY + 0.14, ruinsCenterZ);
+    ruinsGroup.add(centerPlazaRing);
+    registerWalkableSurface(centerPlazaRing, { label: 'Pusat Reruntuhan Kuno' });
+
+    // Bongkahan Pilar Roboh & Patah Tergeletak di Daratan Kering
+    const fallenPillars = [
+      { x: ruinsCenterX - 10, z: ruinsCenterZ - 9, len: 4.2, r: 0.8, rotY: 0.65 },
+      { x: ruinsCenterX + 11, z: ruinsCenterZ + 7, len: 3.5, r: 0.75, rotY: -0.85 },
+      { x: ruinsCenterX - 13, z: ruinsCenterZ + 11, len: 4.8, r: 0.85, rotY: 1.2 },
+      { x: ruinsCenterX + 9, z: ruinsCenterZ - 11, len: 3.0, r: 0.7, rotY: -0.3 },
+    ];
+
+    fallenPillars.forEach((fp) => {
+      if (!isValidDryLand(fp.x, fp.z, 2.2) || getDistanceToNearestRoad(fp.x, fp.z) < 9.5) return;
+      const y = getTerrainHeight(fp.x, fp.z);
+      const brokenCol = new THREE.Group();
+      brokenCol.position.set(fp.x, y + fp.r * 0.9, fp.z);
+      brokenCol.rotation.y = fp.rotY;
+
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(fp.r, fp.r, fp.len, 8), matStoneRuins);
+      shaft.rotateZ(Math.PI / 2);
+      brokenCol.add(shaft);
+
+      const chunk1 = new THREE.Mesh(new THREE.DodecahedronGeometry(fp.r * 0.7, 0), matStoneRuins);
+      chunk1.position.set(fp.len * 0.55, -0.2, 0.2);
+      const chunk2 = new THREE.Mesh(new THREE.DodecahedronGeometry(fp.r * 0.6, 0), matStoneRuins);
+      chunk2.position.set(-fp.len * 0.55, -0.2, -0.15);
+      brokenCol.add(chunk1, chunk2);
+
+      ruinsGroup.add(brokenCol);
+      colliders.push({ type: 'circle', x: fp.x, z: fp.z, radius: fp.len * 0.45, label: 'Pilar Roboh' });
+    });
+
+    // 4 Cawan Obor Api Sihir Biru Menyala di Sudut Reruntuhan
+    const braziers = [
+      { x: ruinsCenterX - 14, z: ruinsCenterZ - 14 },
+      { x: ruinsCenterX + 14, z: ruinsCenterZ - 14 },
+      { x: ruinsCenterX - 14, z: ruinsCenterZ + 14 },
+      { x: ruinsCenterX + 14, z: ruinsCenterZ + 14 },
+    ];
+
+    braziers.forEach((br, bIdx) => {
+      if (!isValidDryLand(br.x, br.z, 1.5) || getDistanceToNearestRoad(br.x, br.z) < 9.5) return;
+      const by = getTerrainHeight(br.x, br.z);
+      const bStand = new THREE.Group();
+      bStand.position.set(br.x, by, br.z);
+
+      const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 1.3, 6), matStoneRuins);
+      pedestal.position.y = 0.65;
+      const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.35, 0.35, 8), matStoneDarkCrag);
+      bowl.position.y = 1.45;
+
+      const blueFlame = new THREE.Mesh(new THREE.OctahedronGeometry(0.32, 0), matBlueFire);
+      blueFlame.position.y = 1.75;
+      bStand.add(pedestal, bowl, blueFlame);
+
+      const bLight = new THREE.PointLight(0x00f0ff, 1.8, 18);
+      bLight.position.set(br.x, by + 1.85, br.z);
+      ruinsGroup.add(bLight);
+
+      animatedLights.push({ light: bLight, baseIntensity: 1.8, speed: 7 + bIdx });
+      animatedFlames.push({ mesh: blueFlame, baseScale: new THREE.Vector3(1, 1.35, 1), speed: 8 + bIdx });
+
+      ruinsGroup.add(bStand);
+      colliders.push({ type: 'circle', x: br.x, z: br.z, radius: 0.85, label: 'Cawan Obor Biru' });
+    });
   }
-
-  // Lingkaran Runik Sihir Cyan Pusat di Tengah Reruntuhan
-  const centerPlazaRing = new THREE.Mesh(new THREE.RingGeometry(2.5, 3.8, 16), matCyanRune);
-  centerPlazaRing.rotateX(-Math.PI / 2);
-  centerPlazaRing.position.set(ruinsCenterX, ruinsBaseY + 0.14, ruinsCenterZ);
-  ruinsGroup.add(centerPlazaRing);
-  registerWalkableSurface(centerPlazaRing, { label: 'Pusat Reruntuhan Kuno' });
-
-  // Bongkahan Pilar Roboh & Patah Tergeletak di Rumput
-  const fallenPillars = [
-    { x: -115, z: 66, len: 4.2, r: 0.8, rotY: 0.65 },
-    { x: -94, z: 82, len: 3.5, r: 0.75, rotY: -0.85 },
-    { x: -118, z: 86, len: 4.8, r: 0.85, rotY: 1.2 },
-    { x: -96, z: 64, len: 3.0, r: 0.7, rotY: -0.3 },
-  ];
-
-  fallenPillars.forEach((fp) => {
-    if (!isStrictLandForProps(fp.x, fp.z, getTerrainHeight)) return;
-    const y = getTerrainHeight(fp.x, fp.z);
-    const brokenCol = new THREE.Group();
-    brokenCol.position.set(fp.x, y + fp.r * 0.9, fp.z);
-    brokenCol.rotation.y = fp.rotY;
-
-    // Batang pilar silinder merebah
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(fp.r, fp.r, fp.len, 8), matStoneRuins);
-    shaft.rotateZ(Math.PI / 2);
-    brokenCol.add(shaft);
-
-    // Retakan batu pecahan di ujung pilar
-    const chunk1 = new THREE.Mesh(new THREE.DodecahedronGeometry(fp.r * 0.7, 0), matStoneRuins);
-    chunk1.position.set(fp.len * 0.55, -0.2, 0.2);
-    const chunk2 = new THREE.Mesh(new THREE.DodecahedronGeometry(fp.r * 0.6, 0), matStoneRuins);
-    chunk2.position.set(-fp.len * 0.55, -0.2, -0.15);
-    brokenCol.add(chunk1, chunk2);
-
-    ruinsGroup.add(brokenCol);
-    colliders.push({ type: 'circle', x: fp.x, z: fp.z, radius: fp.len * 0.45, label: 'Pilar Roboh' });
-  });
-
-  // 4 Cawan Obor Api Sihir Biru Menyala di Sudut Reruntuhan
-  const braziers = [
-    { x: ruinsCenterX - 14, z: ruinsCenterZ - 14 },
-    { x: ruinsCenterX + 14, z: ruinsCenterZ - 14 },
-    { x: ruinsCenterX - 14, z: ruinsCenterZ + 14 },
-    { x: ruinsCenterX + 14, z: ruinsCenterZ + 14 },
-  ];
-
-  braziers.forEach((br, bIdx) => {
-    const by = getTerrainHeight(br.x, br.z);
-    const bStand = new THREE.Group();
-    bStand.position.set(br.x, by, br.z);
-
-    // Kaki tiang tumpuan batu bertakik
-    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 1.3, 6), matStoneRuins);
-    pedestal.position.y = 0.65;
-    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.35, 0.35, 8), matStoneDarkCrag);
-    bowl.position.y = 1.45;
-
-    // Api sihir biru
-    const blueFlame = new THREE.Mesh(new THREE.OctahedronGeometry(0.32, 0), matBlueFire);
-    blueFlame.position.y = 1.75;
-    bStand.add(pedestal, bowl, blueFlame);
-
-    // Cahaya point light biru
-    const bLight = new THREE.PointLight(0x00f0ff, 1.8, 18);
-    bLight.position.set(br.x, by + 1.85, br.z);
-    ruinsGroup.add(bLight);
-
-    animatedLights.push({ light: bLight, baseIntensity: 1.8, speed: 7 + bIdx });
-    animatedFlames.push({ mesh: blueFlame, baseScale: new THREE.Vector3(1, 1.35, 1), speed: 8 + bIdx });
-
-    ruinsGroup.add(bStand);
-    colliders.push({ type: 'circle', x: br.x, z: br.z, radius: 0.85, label: 'Cawan Obor Biru' });
-  });
 
   envGroup.add(ruinsGroup);
 
   // ============================================================================
-  // 3. ZONA C: SARANG MONSTER LIAR / BEAST LAIR (X: -170 s.d. -230, Z: 70 s.d. 130)
+  // 3. ZONA C: SARANG MONSTER LIAR / BEAST LAIR (Dry SE Grassland: X: 215, Z: 45)
   // ============================================================================
   await checkEnvYield(65, 'Membangun Reruntuhan Pilar Kuno & Sarang Monster (65%)...');
   const beastGroup = new THREE.Group();
   beastGroup.name = 'ZoneC_BeastLair';
 
-  const lairCenterX = -200;
-  const lairCenterZ = 100;
+  const lairCenterX = 215;
+  const lairCenterZ = 45;
 
-  // Formasi Tebing Batu Tajam Melingkar Menyerupai Sarang / Gua Terbuka
+  // Formasi Tebing Batu Tajam Melingkar Menyerupai Sarang / Gua Terbuka (Hanya di daratan kering)
   const cragCount = 14;
   for (let i = 0; i < cragCount; i++) {
-    // Membentuk tapal kuda terbuka ke arah Timur
     const angle = 0.45 * Math.PI + (i / cragCount) * 1.55 * Math.PI;
     const rDist = 18 + (i % 2) * 5;
     const cx = lairCenterX + Math.cos(angle) * rDist;
     const cz = lairCenterZ + Math.sin(angle) * rDist;
+    if (!isValidDryLand(cx, cz, 2.5) || getDistanceToNearestRoad(cx, cz) < 9.5) continue;
     const cy = getTerrainHeight(cx, cz);
 
     const cragHeight = 5.5 + Math.random() * 4.5;
@@ -639,27 +945,25 @@ export async function buildWorldEnvironmentAsync(
     colliders.push({ type: 'circle', x: cx, z: cz, radius: cragWidth * 0.85, label: 'Tebing Batu Sarang' });
   }
 
-  // 4 Pohon Mati Meranggas (Gnarled Dead Trees Tanpa Dedaunan)
+  // 4 Pohon Mati Meranggas
   const deadTrees = [
-    { x: -186, z: 86 },
-    { x: -218, z: 92 },
-    { x: -214, z: 116 },
-    { x: -188, z: 120 },
+    { x: lairCenterX + 14, z: lairCenterZ - 14 },
+    { x: lairCenterX - 18, z: lairCenterZ - 8 },
+    { x: lairCenterX - 14, z: lairCenterZ + 16 },
+    { x: lairCenterX + 12, z: lairCenterZ + 20 },
   ];
 
   deadTrees.forEach((dt) => {
-    if (isDesertBiome(dt.x, dt.z)) return;
+    if (isDesertBiome(dt.x, dt.z) || !isValidDryLand(dt.x, dt.z, 1.5) || getDistanceToNearestRoad(dt.x, dt.z) < 9.5) return;
     const dy = getTerrainHeight(dt.x, dt.z);
     const dTree = new THREE.Group();
     dTree.position.set(dt.x, dy, dt.z);
 
-    // Batang bengkok
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.45, 4.2, 5), matWoodDark);
     trunk.position.y = 2.1;
     trunk.rotation.z = (Math.random() - 0.5) * 0.25;
     dTree.add(trunk);
 
-    // 3 Cabang ranting kering mencuat
     for (let b = 0; b < 3; b++) {
       const branchAngle = (b / 3) * Math.PI * 2;
       const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.16, 2.2, 4), matWoodDark);
@@ -675,12 +979,13 @@ export async function buildWorldEnvironmentAsync(
 
   // Tulang Belulang & Sisa Kayu Lapuk
   const bonePiles = [
-    { x: -196, z: 98 },
-    { x: -206, z: 104 },
-    { x: -192, z: 110 },
+    { x: lairCenterX + 4, z: lairCenterZ - 2 },
+    { x: lairCenterX - 6, z: lairCenterZ + 4 },
+    { x: lairCenterX + 8, z: lairCenterZ + 10 },
   ];
 
   bonePiles.forEach((bp) => {
+    if (!isValidDryLand(bp.x, bp.z, 1.5) || getDistanceToNearestRoad(bp.x, bp.z) < 9.5) return;
     const by = getTerrainHeight(bp.x, bp.z);
     const boneGroup = new THREE.Group();
     boneGroup.position.set(bp.x, by + 0.1, bp.z);
@@ -1007,17 +1312,16 @@ export async function buildWorldEnvironmentAsync(
   envGroup.add(outpostGroup);
 
   // ============================================================================
-  // 5. ZONA E: SABANA & LERENG BUKIT PADANG RUMPUT (X: -290 s.d -350, Z: 80 s.d 150)
+  // 5. ZONA E: SABANA & LERENG BUKIT PADANG RUMPUT (Dry SE Coastal Downs X: 320..365, Z: 75..120)
   // ============================================================================
   await checkEnvYield(67, 'Membangun Wilayah Sabana & Pesisir Barat (67%)...');
   const savannaGroup = new THREE.Group();
   savannaGroup.name = 'ZoneE_SavannaHills';
 
-  // Gugusan Bebatuan Besar (Rock Clusters) dengan Variasi Skala
+  // Gugusan Bebatuan Besar (Rock Clusters) di daratan kering tenggara
   const rockClusters = [
-    // Gugusan Punggung Bukit Barat
     {
-      cx: -332, cz: 108, rocks: [
+      cx: 325, cz: 82, rocks: [
         { dx: 0, dz: 0, s: [2.6, 2.2, 2.4], rot: 0.4 },
         { dx: 2.2, dz: 1.2, s: [1.8, 1.6, 1.9], rot: -0.8 },
         { dx: -1.9, dz: -1.4, s: [2.1, 1.9, 1.8], rot: 1.2 },
@@ -1025,18 +1329,16 @@ export async function buildWorldEnvironmentAsync(
         { dx: -2.4, dz: 1.8, s: [1.4, 1.2, 1.5], rot: 0.9 },
       ]
     },
-    // Gugusan Puncak Lereng Utara
     {
-      cx: -306, cz: 136, rocks: [
+      cx: 350, cz: 105, rocks: [
         { dx: 0, dz: 0, s: [2.8, 2.4, 2.5], rot: 1.1 },
         { dx: 2.4, dz: -0.8, s: [2.0, 1.7, 1.9], rot: -0.5 },
         { dx: -2.1, dz: 1.4, s: [1.6, 1.4, 1.7], rot: 0.3 },
         { dx: 1.2, dz: 2.1, s: [1.4, 1.1, 1.4], rot: -1.2 },
       ]
     },
-    // Gugusan Lembah Sabana Selatan
     {
-      cx: -342, cz: 92, rocks: [
+      cx: 332, cz: 112, rocks: [
         { dx: 0, dz: 0, s: [2.5, 2.0, 2.3], rot: -0.7 },
         { dx: 1.8, dz: 1.5, s: [1.9, 1.6, 1.8], rot: 0.6 },
         { dx: -1.7, dz: -1.6, s: [1.7, 1.3, 1.6], rot: -1.1 },
@@ -1047,7 +1349,7 @@ export async function buildWorldEnvironmentAsync(
   ];
 
   rockClusters.forEach((rc) => {
-    if (isPointNearRoad(rc.cx, rc.cz, 6.5)) return;
+    if (getDistanceToNearestRoad(rc.cx, rc.cz) < 9.5 || !isValidDryLand(rc.cx, rc.cz, 3.5)) return;
     rc.rocks.forEach((r) => {
       const rx = rc.cx + r.dx;
       const rz = rc.cz + r.dz;
@@ -1061,21 +1363,19 @@ export async function buildWorldEnvironmentAsync(
     colliders.push({ type: 'circle', x: rc.cx, z: rc.cz, radius: 3.5, label: 'Gugusan Batu Sabana' });
   });
 
-  // Kelompok Pohon Cemara Lebat di Punggung Bukit Noise
+  // Kelompok Pohon Cemara Lebat di Bukit Sabana Kering
   const hillPines = [
-    { x: -315, z: 120, s: 1.25 },
-    { x: -319, z: 125, s: 1.1 },
-    { x: -322, z: 118, s: 1.35 },
-    { x: -312, z: 115, s: 1.05 },
-    { x: -326, z: 128, s: 1.2 },
-    { x: -330, z: 134, s: 1.15 },
-    { x: -324, z: 112, s: 1.3 },
+    { x: 338, z: 78, s: 1.25 },
+    { x: 344, z: 85, s: 1.1 },
+    { x: 334, z: 92, s: 1.35 },
+    { x: 342, z: 98, s: 1.05 },
+    { x: 356, z: 88, s: 1.2 },
+    { x: 360, z: 96, s: 1.15 },
+    { x: 320, z: 95, s: 1.3 },
   ];
 
   hillPines.forEach((hp) => {
-    if (isDesertBiome(hp.x, hp.z)) return;
-    if (getBiomeAt(hp.x, hp.z) === 'ocean') return;
-    if (isPointNearRoad(hp.x, hp.z, 6.5)) return;
+    if (isDesertBiome(hp.x, hp.z) || !isValidDryLand(hp.x, hp.z, 1.5) || getDistanceToNearestRoad(hp.x, hp.z) < 9.5) return;
     const hy = getTerrainHeight(hp.x, hp.z);
     const pGroup = new THREE.Group();
     pGroup.position.set(hp.x, hy, hp.z);
@@ -1097,18 +1397,18 @@ export async function buildWorldEnvironmentAsync(
 
   // Kelompok Pohon Rindang Oak Lebat
   const hillOaks = [
-    { x: -298, z: 95, s: 1.2 },
-    { x: -304, z: 102, s: 1.35 },
-    { x: -308, z: 90, s: 1.15 },
-    { x: -335, z: 142, s: 1.25 },
-    { x: -340, z: 146, s: 1.1 },
-    { x: -344, z: 138, s: 1.3 },
-    { x: -300, z: 115, s: 1.1 },
-    { x: -332, z: 98, s: 1.2 },
+    { x: 315, z: 75, s: 1.2 },
+    { x: 322, z: 102, s: 1.35 },
+    { x: 312, z: 108, s: 1.15 },
+    { x: 355, z: 112, s: 1.25 },
+    { x: 362, z: 104, s: 1.1 },
+    { x: 348, z: 74, s: 1.3 },
+    { x: 328, z: 72, s: 1.1 },
+    { x: 358, z: 78, s: 1.2 },
   ];
 
   hillOaks.forEach((ho) => {
-    if (isDesertBiome(ho.x, ho.z)) return;
+    if (isDesertBiome(ho.x, ho.z) || !isValidDryLand(ho.x, ho.z, 1.5) || getDistanceToNearestRoad(ho.x, ho.z) < 9.5) return;
     const oy = getTerrainHeight(ho.x, ho.z);
     const oGroup = new THREE.Group();
     oGroup.position.set(ho.x, oy, ho.z);
@@ -1210,12 +1510,17 @@ export async function buildWorldEnvironmentAsync(
   ];
 
   coastalPalms.forEach((cp) => {
+    if (!isValidDryLand(cp.x, cp.z, 1.5) || getDistanceToNearestRoad(cp.x, cp.z) < 9.5) return;
     createPalmTree(cp.x, cp.z, cp.lean, cp.dir, cp.s);
   });
 
-  // Reruntuhan Perahu Kayu Karam di Dekat Garis Pantai
-  const wreckX = -428;
-  const wreckZ = -135;
+  // Reruntuhan Perahu Kayu Karam di Dekat Garis Pantai (hanya di pantai kering bebas jalan)
+  let wreckX = -428;
+  let wreckZ = -135;
+  if (!isValidDryLand(wreckX, wreckZ, 2.0)) {
+    wreckX = -402;
+    wreckZ = -135;
+  }
   const wreckY = getTerrainHeight(wreckX, wreckZ);
   const wreckGroup = new THREE.Group();
   wreckGroup.position.set(wreckX, wreckY + 0.3, wreckZ);
@@ -1272,8 +1577,10 @@ export async function buildWorldEnvironmentAsync(
     wreckGroup.add(cMesh);
   });
 
-  coastGroup.add(wreckGroup);
-  colliders.push({ type: 'circle', x: wreckX, z: wreckZ, radius: 4.8, label: 'Bangkai Perahu Karam' });
+  if (isValidDryLand(wreckX, wreckZ, 1.5) && getDistanceToNearestRoad(wreckX, wreckZ) >= 9.5) {
+    coastGroup.add(wreckGroup);
+    colliders.push({ type: 'circle', x: wreckX, z: wreckZ, radius: 4.8, label: 'Bangkai Perahu Karam' });
+  }
 
   // Formasi Batu Karang Laut di Bibir Air (Sea Reef Rocks)
   const coastalReefs = [
@@ -1312,6 +1619,7 @@ export async function buildWorldEnvironmentAsync(
   ];
 
   coastalReefs.forEach((cr) => {
+    if (getBiomeAt(cr.x, cr.z) === 'ocean' || getTerrainHeight(cr.x, cr.z) < WATER_LEVEL - 0.1 || getDistanceToNearestRoad(cr.x, cr.z) < 9.5) return;
     cr.rocks.forEach((r) => {
       const rx = cr.x + r.dx;
       const rz = cr.z + r.dz;
@@ -1339,44 +1647,47 @@ export async function buildWorldEnvironmentAsync(
   // 1. Puncak Pemandangan Bukit Padang Rumput (Scenic Hill Overlook di X: -77, Z: -45)
   const landmarkX = -77;
   const landmarkZ = -45;
-  const landmarkY = getTerrainHeight(landmarkX, landmarkZ);
+  if (isValidDryLand(landmarkX, landmarkZ, 2.5) && getDistanceToNearestRoad(landmarkX, landmarkZ) >= 9.5) {
+    const landmarkY = getTerrainHeight(landmarkX, landmarkZ);
 
-  // Megalit Kuno Puncak Bukit (Weather-worn Waypoint Monolith)
-  const monolith = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 1.15, 3.8, 6), matStoneRuins);
-  monolith.position.set(landmarkX, landmarkY + 1.9, landmarkZ);
-  monolith.rotation.y = 0.45;
-  monolith.castShadow = true;
-  meadowGroup.add(monolith);
-  colliders.push({ type: 'circle', x: landmarkX, z: landmarkZ, radius: 1.4, label: 'Megalit Padang Rumput' });
+    // Megalit Kuno Puncak Bukit (Weather-worn Waypoint Monolith)
+    const monolith = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 1.15, 3.8, 6), matStoneRuins);
+    monolith.position.set(landmarkX, landmarkY + 1.9, landmarkZ);
+    monolith.rotation.y = 0.45;
+    monolith.castShadow = true;
+    meadowGroup.add(monolith);
+    colliders.push({ type: 'circle', x: landmarkX, z: landmarkZ, radius: 1.4, label: 'Megalit Padang Rumput' });
 
-  // Lingkaran Rune Kuno Lemah di dasar Megalit
-  const runeRing = new THREE.Mesh(
-    new THREE.RingGeometry(1.5, 1.9, 16),
-    new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.65, side: THREE.DoubleSide })
-  );
-  runeRing.rotation.x = -Math.PI / 2;
-  runeRing.position.set(landmarkX, landmarkY + 0.04, landmarkZ);
-  meadowGroup.add(runeRing);
+    // Lingkaran Rune Kuno Lemah di dasar Megalit
+    const runeRing = new THREE.Mesh(
+      new THREE.RingGeometry(1.5, 1.9, 16),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.65, side: THREE.DoubleSide })
+    );
+    runeRing.rotation.x = -Math.PI / 2;
+    runeRing.position.set(landmarkX, landmarkY + 0.04, landmarkZ);
+    meadowGroup.add(runeRing);
 
-  // Batang Kayu Tumbang Berlumut / Bangku Kayu Rustic Alami
-  const logX = -74.5;
-  const logZ = -42.5;
-  const logY = getTerrainHeight(logX, logZ);
-  const mossyLog = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 3.6, 6), matWoodRustic);
-  mossyLog.position.set(logX, logY + 0.32, logZ);
-  mossyLog.rotation.z = Math.PI / 2;
-  mossyLog.rotation.y = 0.65;
-  mossyLog.castShadow = true;
-  meadowGroup.add(mossyLog);
-  colliders.push({ type: 'circle', x: logX, z: logZ, radius: 1.2, label: 'Batang Kayu Berlumut' });
+    // Batang Kayu Tumbang Berlumut / Bangku Kayu Rustic Alami
+    const logX = -74.5;
+    const logZ = -42.5;
+    if (isValidDryLand(logX, logZ, 1.5) && getDistanceToNearestRoad(logX, logZ) >= 9.5) {
+      const logY = getTerrainHeight(logX, logZ);
+      const mossyLog = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 3.6, 6), matWoodRustic);
+      mossyLog.position.set(logX, logY + 0.32, logZ);
+      mossyLog.rotation.z = Math.PI / 2;
+      mossyLog.rotation.y = 0.65;
+      mossyLog.castShadow = true;
+      meadowGroup.add(mossyLog);
+      colliders.push({ type: 'circle', x: logX, z: logZ, radius: 1.2, label: 'Batang Kayu Berlumut' });
+    }
+  }
 
-  // 2. CEKUNGAN MONSTER SERIGALA RIMBA / WILD WOLF HOLLOW (Pusat [ -170, -55 ])
-  // Terletak di dataran terbuka barat, berjarak > 190 unit dari pusat desa
-  const wolfLairX = -170;
-  const wolfLairZ = -55;
+  // 2. CEKUNGAN MONSTER SERIGALA RIMBA / WILD WOLF HOLLOW (Direlokasi ke Daratan Aman [-95, -245])
+  const wolfLairX = -95;
+  const wolfLairZ = -245;
   const wolfLairY = getTerrainHeight(wolfLairX, wolfLairZ);
 
-  // Formasi 9 Batu Runcing Mengelilingi Cekungan Tapal Kuda (Sharp Dark Crags - strictly outside river & road)
+  // Formasi 9 Batu Runcing Mengelilingi Cekungan Tapal Kuda (Sharp Dark Crags - strictly dry & clear of river/road)
   const sharpCragCount = 9;
   for (let sc = 0; sc < sharpCragCount; sc++) {
     const scAngle = 0.3 * Math.PI + (sc / sharpCragCount) * 1.5 * Math.PI;
@@ -1384,8 +1695,7 @@ export async function buildWorldEnvironmentAsync(
     const rcX = wolfLairX + Math.cos(scAngle) * scDist;
     const rcZ = wolfLairZ + Math.sin(scAngle) * scDist;
 
-    // Strict river and road exclusion to eliminate crags in river at [-66, -88]
-    if (getDistanceToRiver(rcX, rcZ) < 14.0 || isPointNearRoad(rcX, rcZ, 7.0)) continue;
+    if (!isValidDryLand(rcX, rcZ, 2.5) || getDistanceToNearestRoad(rcX, rcZ) < 9.5) continue;
 
     const rcY = getTerrainHeight(rcX, rcZ);
 
@@ -1403,12 +1713,12 @@ export async function buildWorldEnvironmentAsync(
 
   // 3 Batang Pohon Mati Meranggas (Twisted Dead Trees)
   const deadTreeCoords = [
-    { x: -88, z: -57 },
-    { x: -103, z: -63 },
-    { x: -94, z: -76 },
+    { x: -88, z: -238 },
+    { x: -103, z: -244 },
+    { x: -94, z: -258 },
   ];
   deadTreeCoords.forEach((dt) => {
-    if (isDesertBiome(dt.x, dt.z)) return;
+    if (isDesertBiome(dt.x, dt.z) || !isValidDryLand(dt.x, dt.z, 1.5) || getDistanceToNearestRoad(dt.x, dt.z) < 9.5) return;
     const dty = getTerrainHeight(dt.x, dt.z);
     const deadTree = new THREE.Group();
     deadTree.position.set(dt.x, dty, dt.z);
@@ -1895,7 +2205,7 @@ export async function buildWorldEnvironmentAsync(
     const sz = mossGladeZ + Math.sin(sAng) * stonehengeRadius;
 
     // ROAD CLEARANCE & WATER EXCLUSION: Minimal 4.5 unit dari garis tengah jalan batu & dilarang di perairan
-    if (isPointNearRoad(sx, sz, 4.5) || !isStrictLandForProps(sx, sz, getTerrainHeight)) continue;
+    if (getDistanceToNearestRoad(sx, sz) < 9.5 || !isValidDryLand(sx, sz, 2.0)) continue;
 
     const sy = getTerrainHeight(sx, sz);
 
@@ -1922,7 +2232,7 @@ export async function buildWorldEnvironmentAsync(
     const fx = mossGladeX + Math.cos(fAng) * 3.2;
     const fz = mossGladeZ + Math.sin(fAng) * 3.2;
 
-    if (isPointNearRoad(fx, fz, 4.5)) continue;
+    if (getDistanceToNearestRoad(fx, fz) < 9.5 || !isValidDryLand(fx, fz, 1.0)) continue;
 
     const fy = getTerrainHeight(fx, fz);
 
@@ -1937,59 +2247,60 @@ export async function buildWorldEnvironmentAsync(
   }
 
   // ----------------------------------------------------------------------------
-  // POI B: POS PENJAGA RUSAK / RUINED WATCHPOST (X: -420, Z: 50)
-  // Reruntuhan pondasi batu bata lumut, sisa tiang kayu menara, & gerobak rusak
+  // POI B: POS PENJAGA RUSAK / RUINED WATCHPOST (Direlokasi ke Daratan Aman X: -340, Z: -145)
   // ----------------------------------------------------------------------------
-  const watchpostX = -420;
-  const watchpostZ = 50;
-  const watchposY = getTerrainHeight(watchpostX, watchpostZ);
+  const watchpostX = -340;
+  const watchpostZ = -145;
+  if (isValidDryLand(watchpostX, watchpostZ, 4.0) && getDistanceToNearestRoad(watchpostX, watchpostZ) >= 12.0) {
+    const watchposY = getTerrainHeight(watchpostX, watchpostZ);
 
-  // Pondasi Dinding Batu Reruntuhan L-Shape
-  const wallGeo1 = new THREE.BoxGeometry(6.5, 1.8, 1.2);
-  const wall1 = new THREE.Mesh(wallGeo1, matStoneRuins);
-  wall1.position.set(watchpostX, watchposY + 0.9, watchpostZ);
-  wall1.castShadow = true;
-  westPOIGroup.add(wall1);
-  colliders.push({ type: 'box', minX: watchpostX - 3.4, maxX: watchpostX + 3.4, minZ: watchpostZ - 0.7, maxZ: watchpostZ + 0.7, label: 'Dinding Pos Rusak' });
+    // Pondasi Dinding Batu Reruntuhan L-Shape
+    const wallGeo1 = new THREE.BoxGeometry(6.5, 1.8, 1.2);
+    const wall1 = new THREE.Mesh(wallGeo1, matStoneRuins);
+    wall1.position.set(watchpostX, watchposY + 0.9, watchpostZ);
+    wall1.castShadow = true;
+    westPOIGroup.add(wall1);
+    colliders.push({ type: 'box', minX: watchpostX - 3.4, maxX: watchpostX + 3.4, minZ: watchpostZ - 0.7, maxZ: watchpostZ + 0.7, label: 'Dinding Pos Rusak' });
 
-  const wallGeo2 = new THREE.BoxGeometry(1.2, 1.4, 5.0);
-  const wall2 = new THREE.Mesh(wallGeo2, matStoneRuins);
-  wall2.position.set(watchpostX - 2.8, watchposY + 0.7, watchpostZ + 2.5);
-  wall2.castShadow = true;
-  westPOIGroup.add(wall2);
+    const wallGeo2 = new THREE.BoxGeometry(1.2, 1.4, 5.0);
+    const wall2 = new THREE.Mesh(wallGeo2, matStoneRuins);
+    wall2.position.set(watchpostX - 2.8, watchposY + 0.7, watchpostZ + 2.5);
+    wall2.castShadow = true;
+    westPOIGroup.add(wall2);
 
-  // Sisa Tiang Menara Pengawas Kayu Miring
-  const ruinedPost = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.35, 4.2, 6), matWoodDark);
-  ruinedPost.position.set(watchpostX + 2.2, watchposY + 1.9, watchpostZ + 1.8);
-  ruinedPost.rotation.z = 0.22;
-  ruinedPost.castShadow = true;
-  westPOIGroup.add(ruinedPost);
+    // Sisa Tiang Menara Pengawas Kayu Miring
+    const ruinedPost = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.35, 4.2, 6), matWoodDark);
+    ruinedPost.position.set(watchpostX + 2.2, watchposY + 1.9, watchpostZ + 1.8);
+    ruinedPost.rotation.z = 0.22;
+    ruinedPost.castShadow = true;
+    westPOIGroup.add(ruinedPost);
 
-  // Reruntuhan Gerobak Kayu Patah Roda Miring
-  const cartX = watchpostX + 2.0;
-  const cartZ = watchpostZ - 3.2;
-  const cartY = getTerrainHeight(cartX, cartZ);
+    // Reruntuhan Gerobak Kayu Patah Roda Miring
+    const cartX = watchpostX + 2.0;
+    const cartZ = watchpostZ - 3.2;
+    const cartY = getTerrainHeight(cartX, cartZ);
 
-  const cartBody = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.45, 2.6), matWoodRustic);
-  cartBody.position.set(cartX, cartY + 0.4, cartZ);
-  cartBody.rotation.set(0.12, 0.45, -0.15);
-  cartBody.castShadow = true;
-  westPOIGroup.add(cartBody);
+    const cartBody = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.45, 2.6), matWoodRustic);
+    cartBody.position.set(cartX, cartY + 0.4, cartZ);
+    cartBody.rotation.set(0.12, 0.45, -0.15);
+    cartBody.castShadow = true;
+    westPOIGroup.add(cartBody);
 
-  const wheelBroken = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.18, 12), matWoodRustic);
-  wheelBroken.position.set(cartX - 1.1, cartY + 0.3, cartZ);
-  wheelBroken.rotation.z = Math.PI / 2.3;
-  westPOIGroup.add(wheelBroken);
+    const wheelBroken = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.18, 12), matWoodRustic);
+    wheelBroken.position.set(cartX - 1.1, cartY + 0.3, cartZ);
+    wheelBroken.rotation.z = Math.PI / 2.3;
+    westPOIGroup.add(wheelBroken);
 
-  // Peti Kayu & Tong Terbengkalai
-  const crateBroken = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), matWoodRustic);
-  crateBroken.position.set(watchpostX - 1.0, watchposY + 0.4, watchpostZ - 2.0);
-  crateBroken.rotation.y = 0.5;
-  westPOIGroup.add(crateBroken);
+    // Peti Kayu & Tong Terbengkalai
+    const crateBroken = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), matWoodRustic);
+    crateBroken.position.set(watchpostX - 1.0, watchposY + 0.4, watchpostZ - 2.0);
+    crateBroken.rotation.y = 0.5;
+    westPOIGroup.add(crateBroken);
 
-  const barrelOld = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, 1.0, 10), matWineBarrel);
-  barrelOld.position.set(watchpostX + 0.5, watchposY + 0.5, watchpostZ - 2.4);
-  westPOIGroup.add(barrelOld);
+    const barrelOld = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, 1.0, 10), matWineBarrel);
+    barrelOld.position.set(watchpostX + 0.5, watchposY + 0.5, watchpostZ - 2.4);
+    westPOIGroup.add(barrelOld);
+  }
 
   // ----------------------------------------------------------------------------
   // POI C: KEBUN PINUS KABUT / FOGGY PINE WOODS (X: -430, Z: -90)
@@ -2000,7 +2311,7 @@ export async function buildWorldEnvironmentAsync(
   for (let pt = 0; pt < 7; pt++) {
     const ptx = pineWoodX + (pt % 3) * 6.5 - 6.5;
     const ptz = pineWoodZ + Math.floor(pt / 3) * 7.0 - 7.0;
-    if (isDesertBiome(ptx, ptz)) continue;
+    if (isDesertBiome(ptx, ptz) || !isValidDryLand(ptx, ptz, 1.5) || getDistanceToNearestRoad(ptx, ptz) < 9.5) continue;
     const pty = getTerrainHeight(ptx, ptz);
 
     const fPineTrunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.45, 3.2, 5), matWoodDark);
@@ -2031,6 +2342,7 @@ export async function buildWorldEnvironmentAsync(
 
   const wmCenterX = 288;
   const wmCenterZ = 137;
+  const wmCanBuild = isValidDryLand(wmCenterX, wmCenterZ, 4.5) && getDistanceToNearestRoad(wmCenterX, wmCenterZ) >= 9.5;
   const wmBaseY = getTerrainHeight(wmCenterX, wmCenterZ);
 
   // A. Kincir Angin Kayu Klasik (Classic Wooden Windmill)
@@ -2095,12 +2407,15 @@ export async function buildWorldEnvironmentAsync(
   windmillTower.add(bladesGroup);
   windmillBladesGroup = bladesGroup;
 
-  windmillHillGroup.add(windmillTower);
-  colliders.push({ type: 'circle', x: wmCenterX, z: wmCenterZ, radius: 4.4, label: 'Menara Kincir Angin' });
+  if (wmCanBuild) {
+    windmillHillGroup.add(windmillTower);
+    colliders.push({ type: 'circle', x: wmCenterX, z: wmCenterZ, radius: 4.4, label: 'Menara Kincir Angin' });
+  }
 
   // B. Pondok Kayu Kecil Gembala (Shepherd's Cottage)
   const cotX = 274;
   const cotZ = 142;
+  const cotCanBuild = isValidDryLand(cotX, cotZ, 3.5) && getDistanceToNearestRoad(cotX, cotZ) >= 9.5;
   const cotY = getTerrainHeight(cotX, cotZ);
 
   const cottage = new THREE.Group();
@@ -2142,8 +2457,10 @@ export async function buildWorldEnvironmentAsync(
   windowLight.position.set(-1.2, 1.8, 3.2);
   cottage.add(windowLight);
 
-  windmillHillGroup.add(cottage);
-  colliders.push({ type: 'box', minX: cotX - 3.4, maxX: cotX + 3.4, minZ: cotZ - 2.8, maxZ: cotZ + 2.8, label: 'Pondok Gembala' });
+  if (cotCanBuild) {
+    windmillHillGroup.add(cottage);
+    colliders.push({ type: 'box', minX: cotX - 3.4, maxX: cotX + 3.4, minZ: cotZ - 2.8, maxZ: cotZ + 2.8, label: 'Pondok Gembala' });
+  }
 
   // C. Tumpukan Jerami Emas (Haystacks)
   const hayCoords = [
@@ -2154,6 +2471,7 @@ export async function buildWorldEnvironmentAsync(
     { x: 269, z: 146 },
   ];
   hayCoords.forEach((hc) => {
+    if (!isValidDryLand(hc.x, hc.z, 1.5) || getDistanceToNearestRoad(hc.x, hc.z) < 9.5) return;
     const hy = getTerrainHeight(hc.x, hc.z);
     const hayGroup = new THREE.Group();
     hayGroup.position.set(hc.x, hy, hc.z);
@@ -2182,6 +2500,7 @@ export async function buildWorldEnvironmentAsync(
   ];
   for (let i = 0; i < corralPosts.length; i++) {
     const [px, pz] = corralPosts[i];
+    if (!isValidDryLand(px, pz, 1.0) || getDistanceToNearestRoad(px, pz) < 9.5) continue;
     const py = getTerrainHeight(px, pz);
 
     // Tiang pagar
@@ -2216,6 +2535,7 @@ export async function buildWorldEnvironmentAsync(
     { x: 277, z: 131, rot: -1.2 },
   ];
   sheepCoords.forEach((sc) => {
+    if (!isValidDryLand(sc.x, sc.z, 1.0) || getDistanceToNearestRoad(sc.x, sc.z) < 9.5) return;
     const sy = getTerrainHeight(sc.x, sc.z);
     const sheep = new THREE.Group();
     sheep.position.set(sc.x, sy, sc.z);
@@ -2254,6 +2574,7 @@ export async function buildWorldEnvironmentAsync(
     [310, 128],
   ];
   oakHillCoords.forEach(([ox, oz], oIdx) => {
+    if (!isValidDryLand(ox, oz, 1.5) || getDistanceToNearestRoad(ox, oz) < 9.5) return;
     const oy = getTerrainHeight(ox, oz);
     const oak = new THREE.Group();
     oak.position.set(ox, oy, oz);
@@ -2446,7 +2767,7 @@ export async function buildWorldEnvironmentAsync(
         const ox = x + (0.15 + Math.random() * 0.7) * oakStep;
         const oz = z + (0.15 + Math.random() * 0.7) * oakStep;
 
-        if (isFarOcean(ox, oz) || spatialGrid.isBlocked(ox, oz) || spatialGrid.isDesert(ox, oz) || spatialGrid.isOcean(ox, oz) || isNearBridge(ox, oz) || isNearBossArena(ox, oz)) continue;
+        if (isFarOcean(ox, oz) || spatialGrid.isBlocked(ox, oz) || spatialGrid.isDesert(ox, oz) || spatialGrid.isOcean(ox, oz) || isNearBridge(ox, oz) || isNearBossArena(ox, oz) || !isValidDryLand(ox, oz, 1.5) || getDistanceToNearestRoad(ox, oz) < 9.5) continue;
         const oy = spatialGrid.getHeight(ox, oz);
         if (oy < 0.25 || oy > 4.5) continue;
 
@@ -2488,7 +2809,7 @@ export async function buildWorldEnvironmentAsync(
         const px = x + (0.15 + Math.random() * 0.7) * pineStep;
         const pz = z + (0.15 + Math.random() * 0.7) * pineStep;
 
-        if (isFarOcean(px, pz) || spatialGrid.isBlocked(px, pz) || spatialGrid.isDesert(px, pz) || spatialGrid.isOcean(px, pz) || isNearBridge(px, pz) || isNearBossArena(px, pz)) continue;
+        if (isFarOcean(px, pz) || spatialGrid.isBlocked(px, pz) || spatialGrid.isDesert(px, pz) || spatialGrid.isOcean(px, pz) || isNearBridge(px, pz) || isNearBossArena(px, pz) || !isValidDryLand(px, pz, 1.5) || getDistanceToNearestRoad(px, pz) < 9.5) continue;
         const py = spatialGrid.getHeight(px, pz);
         if (py < 0.25 || py > 5.0) continue;
 
@@ -2535,7 +2856,7 @@ export async function buildWorldEnvironmentAsync(
         const bx = x + (0.15 + Math.random() * 0.7) * boulderStep;
         const bz = z + (0.15 + Math.random() * 0.7) * boulderStep;
 
-        if (isFarOcean(bx, bz) || spatialGrid.isBlocked(bx, bz) || spatialGrid.isDesert(bx, bz) || spatialGrid.isOcean(bx, bz) || isNearBridge(bx, bz) || isNearBossArena(bx, bz)) continue;
+        if (isFarOcean(bx, bz) || spatialGrid.isBlocked(bx, bz) || spatialGrid.isDesert(bx, bz) || spatialGrid.isOcean(bx, bz) || isNearBridge(bx, bz) || isNearBossArena(bx, bz) || !isValidDryLand(bx, bz, 1.5) || getDistanceToNearestRoad(bx, bz) < 9.5) continue;
         const by = spatialGrid.getHeight(bx, bz);
         if (by < 0.2) continue;
 
@@ -2571,7 +2892,7 @@ export async function buildWorldEnvironmentAsync(
         const gx = x + (0.15 + Math.random() * 0.7) * grassStep;
         const gz = z + (0.15 + Math.random() * 0.7) * grassStep;
 
-        if (isFarOcean(gx, gz) || spatialGrid.isBlocked(gx, gz) || spatialGrid.isDesert(gx, gz) || spatialGrid.isOcean(gx, gz) || isNearBridge(gx, gz) || isNearBossArena(gx, gz)) continue;
+        if (isFarOcean(gx, gz) || spatialGrid.isBlocked(gx, gz) || spatialGrid.isDesert(gx, gz) || spatialGrid.isOcean(gx, gz) || isNearBridge(gx, gz) || isNearBossArena(gx, gz) || !isValidDryLand(gx, gz, 1.0) || getDistanceToNearestRoad(gx, gz) < 9.5) continue;
         const gy = spatialGrid.getHeight(gx, gz);
         if (gy < 0.25 || gy > 4.5) continue;
 
@@ -2606,7 +2927,7 @@ export async function buildWorldEnvironmentAsync(
         const sx = x + (0.15 + Math.random() * 0.7) * shrubStep;
         const sz = z + (0.15 + Math.random() * 0.7) * shrubStep;
 
-        if (isFarOcean(sx, sz) || spatialGrid.isBlocked(sx, sz) || spatialGrid.isDesert(sx, sz) || spatialGrid.isOcean(sx, sz) || isNearBridge(sx, sz) || isNearBossArena(sx, sz)) continue;
+        if (isFarOcean(sx, sz) || spatialGrid.isBlocked(sx, sz) || spatialGrid.isDesert(sx, sz) || spatialGrid.isOcean(sx, sz) || isNearBridge(sx, sz) || isNearBossArena(sx, sz) || !isValidDryLand(sx, sz, 1.0) || getDistanceToNearestRoad(sx, sz) < 9.5) continue;
         const sy = spatialGrid.getHeight(sx, sz);
         if (sy < 0.2) continue;
 
@@ -2635,8 +2956,9 @@ export async function buildWorldEnvironmentAsync(
           await hardYield();
           tLastEnvYield = performance.now();
         }
-        if (spatialGrid.isDesert(rx, rz)) continue;
+        if (spatialGrid.isDesert(rx, rz) || getBiomeAt(rx, rz) === 'ocean' || getDistanceToNearestRoad(rx, rz) < 9.5) continue;
         const ry = spatialGrid.getHeight(rx, rz);
+        if (ry < WATER_LEVEL - 0.15) continue;
 
         const sX = 0.8 + Math.random() * 1.4;
         const sY = 0.6 + Math.random() * 1.2;
@@ -2664,7 +2986,7 @@ export async function buildWorldEnvironmentAsync(
           await hardYield();
           tLastEnvYield = performance.now();
         }
-        if (spatialGrid.isDesert(gx, gz)) continue;
+        if (spatialGrid.isDesert(gx, gz) || !isValidDryLand(gx, gz, 1.0) || getDistanceToNearestRoad(gx, gz) < 9.5) continue;
         const gy = spatialGrid.getHeight(gx, gz);
         if (gy < 0.25) continue;
 
@@ -2734,7 +3056,7 @@ export async function buildWorldEnvironmentAsync(
     [-380, -500], [-420, -530], [-460, -570], [-510, -540], [-540, -490], [-480, -620],
   ];
   cactusCoords.forEach(([cx, cz]) => {
-    if (!isDesertBiome(cx, cz)) return;
+    if (!isDesertBiome(cx, cz) || !isValidDryLand(cx, cz, 1.5) || getDistanceToNearestRoad(cx, cz) < 9.5) return;
     const cy = getTerrainHeight(cx, cz);
     if (cy < 0.2) return;
 
@@ -2781,7 +3103,7 @@ export async function buildWorldEnvironmentAsync(
     [-560, -310], [-580, -320], [-490, -350], [-450, -320], [-310, -340], [-370, -370],
   ];
   cragCoords.forEach(([rx, rz]) => {
-    if (!isDesertBiome(rx, rz)) return;
+    if (!isDesertBiome(rx, rz) || !isValidDryLand(rx, rz, 1.5) || getDistanceToNearestRoad(rx, rz) < 9.5) return;
     const ry = getTerrainHeight(rx, rz);
     if (ry < 0.2) return;
 
@@ -2801,7 +3123,7 @@ export async function buildWorldEnvironmentAsync(
     [-280, -310], [-330, -270], [-390, -240], [-470, -220], [-520, -260], [-560, -280],
   ];
   dryTreeCoords.forEach(([tx, tz]) => {
-    if (!isDesertBiome(tx, tz)) return;
+    if (!isDesertBiome(tx, tz) || !isValidDryLand(tx, tz, 1.5) || getDistanceToNearestRoad(tx, tz) < 9.5) return;
     const ty = getTerrainHeight(tx, tz);
     if (ty < 0.2) return;
 
@@ -2840,9 +3162,14 @@ export async function buildWorldEnvironmentAsync(
     transparent: true,
     opacity: 0.88,
   });
-  const matSnowPine = new THREE.MeshStandardMaterial({
-    color: 0xe0f2fe,
-    roughness: 0.95,
+  const matAlpineEvergreen = new THREE.MeshStandardMaterial({
+    color: 0x14532d,
+    roughness: 0.85,
+    flatShading: true,
+  });
+  const matAlpineSnowCap = new THREE.MeshStandardMaterial({
+    color: 0xf1f5f9,
+    roughness: 0.65,
     flatShading: true,
   });
   const matTitanStone = new THREE.MeshStandardMaterial({
@@ -2851,8 +3178,56 @@ export async function buildWorldEnvironmentAsync(
     metalness: 0.2,
     flatShading: true,
   });
+  const matMountainCliff = new THREE.MeshStandardMaterial({
+    color: 0x475569,
+    roughness: 0.9,
+    metalness: 0.08,
+    flatShading: true,
+  });
+  const matMountainSnow = new THREE.MeshStandardMaterial({
+    color: 0xf1f5f9,
+    roughness: 0.62,
+    flatShading: true,
+  });
 
-  // 1. Permukaan Air Danau Titan (Radius 42 unit di elevasi Y = -0.35)
+  function addSnowCappedAlpinePine(px: number, pz: number, s: number, label: string) {
+    if (!isValidDryLand(px, pz, 1.5) || getDistanceToNearestRoad(px, pz) < 9.5) return;
+    if (Math.hypot(px - 60, pz - -820) < 62 || Math.hypot(px - 180, pz - -560) < 68) return;
+    const py = getTerrainHeight(px, pz);
+    if (py < 0.2) return;
+
+    const spGroup = new THREE.Group();
+    spGroup.position.set(px, py, pz);
+    spGroup.scale.setScalar(s);
+
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.48, 3.2, 5), matWoodDark);
+    trunk.position.y = 1.6;
+    trunk.castShadow = true;
+    spGroup.add(trunk);
+
+    const tiers = [
+      { r: 2.35, h: 3.0, y: 3.5 },
+      { r: 1.75, h: 2.5, y: 5.1 },
+      { r: 1.15, h: 2.0, y: 6.5 },
+    ];
+    tiers.forEach((t, idx) => {
+      const greenCone = new THREE.Mesh(new THREE.ConeGeometry(t.r, t.h, 6), matAlpineEvergreen);
+      greenCone.position.y = t.y;
+      greenCone.rotation.y = idx * 0.4;
+      greenCone.castShadow = true;
+      spGroup.add(greenCone);
+
+      const snowCone = new THREE.Mesh(new THREE.ConeGeometry(t.r * 0.68, t.h * 0.56, 6), matAlpineSnowCap);
+      snowCone.position.y = t.y + t.h * 0.25;
+      snowCone.rotation.y = idx * 0.4 + 0.18;
+      spGroup.add(snowCone);
+    });
+
+    titanLakeGroup.add(spGroup);
+    colliders.push({ type: 'circle', x: px, z: pz, radius: 1.0 * s, label });
+  }
+
+  // 1. Permukaan Air Danau Titan (Radius 58 unit di elevasi Y = -0.35)
   const lakeGeo = new THREE.CircleGeometry(58, 48);
   lakeGeo.rotateX(-Math.PI / 2);
   const lakeMesh = new THREE.Mesh(lakeGeo, matLakeWater);
@@ -2864,7 +3239,7 @@ export async function buildWorldEnvironmentAsync(
   monolithAngles.forEach((ang) => {
     const mx = 60 + Math.cos(ang) * 62;
     const mz = -820 + Math.sin(ang) * 62;
-    if (!isStrictLandForProps(mx, mz, getTerrainHeight)) return; // DILARANG SPAWN DI AIR DANAU/SUNGAI!
+    if (!isValidDryLand(mx, mz, 1.5) || getDistanceToNearestRoad(mx, mz) < 9.5) return;
     const my = getTerrainHeight(mx, mz);
     const mHeight = 5.0 + Math.random() * 3.5;
     const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.6, mHeight, 1.6), matTitanStone);
@@ -2875,47 +3250,77 @@ export async function buildWorldEnvironmentAsync(
     colliders.push({ type: 'circle', x: mx, z: mz, radius: 1.2, label: 'Monolit Titan Kuno' });
   });
 
-  // 3. Pohon Pinus Bersalju Mengelilingi Lereng Danau
+  // 3. Rangkaian Pegunungan Salju Raksasa Utara (Tinggi 45 - 115 Unit, Tebing Batu Slate & Puncak Salju Putih Tajam)
+  const alpinePeaks: [number, number, number, number][] = [
+    [-195, -915, 46, 98],  [-160, -965, 50, 112], [-110, -990, 48, 108],
+    [-45, -1010, 52, 115], [25, -1015, 50, 110],  [95, -995, 48, 105],
+    [160, -960, 46, 96],   [215, -905, 44, 92],   [245, -840, 40, 82],
+    [-210, -835, 38, 78],  [-170, -790, 34, 68],  [-135, -890, 38, 84],
+    [-85, -935, 42, 92],   [125, -925, 36, 76],   [188, -875, 40, 86],
+    [225, -770, 35, 64],   [-185, -730, 32, 58],  [-125, -720, 30, 52],
+    [-65, -700, 29, 48],   [165, -705, 31, 54],   [230, -685, 32, 56],
+    [-150, -845, 30, 62],
+  ];
+  alpinePeaks.forEach(([mx, mz, baseR, peakH], idx) => {
+    if (!isValidDryLand(mx, mz, 5.0)) return;
+    if (Math.hypot(mx - 60, mz - -820) < 82) return;
+    if (Math.hypot(mx - 180, mz - -560) < 88) return;
+    if (Math.hypot(mx - -49, mz - -828) < 48) return;
+    if (getDistanceToNearestRoad(mx, mz) < 22) return;
+
+    const my = getTerrainHeight(mx, mz);
+    const mGroup = new THREE.Group();
+    mGroup.position.set(mx, my - 2.0, mz);
+    mGroup.rotation.y = (idx * 1.13) % (Math.PI * 2);
+
+    // Tebing utama batu slate bersegi
+    const cliff = new THREE.Mesh(new THREE.ConeGeometry(baseR, peakH, 7), matMountainCliff);
+    cliff.position.y = peakH * 0.5;
+    cliff.scale.set(1.0, 1.0, 0.88);
+    cliff.castShadow = true;
+    cliff.receiveShadow = true;
+    mGroup.add(cliff);
+
+    // Bahu puncak sekunder untuk siluet pegunungan alami
+    const shoulder = new THREE.Mesh(new THREE.ConeGeometry(baseR * 0.65, peakH * 0.72, 6), matMountainCliff);
+    shoulder.position.set(baseR * 0.36, peakH * 0.36, -baseR * 0.18);
+    shoulder.rotation.y = 0.7;
+    shoulder.receiveShadow = true;
+    mGroup.add(shoulder);
+
+    // Puncak selimut salju tajam putih bersih di 48% bagian atas gunung
+    const snowH = peakH * 0.52;
+    const snowCap = new THREE.Mesh(new THREE.ConeGeometry(baseR * 0.55, snowH, 7), matMountainSnow);
+    snowCap.position.y = peakH - snowH * 0.48;
+    snowCap.scale.set(1.0, 1.0, 0.88);
+    snowCap.receiveShadow = true;
+    mGroup.add(snowCap);
+
+    // Salju kecil pada bahu puncak
+    const shoulderSnow = new THREE.Mesh(new THREE.ConeGeometry(baseR * 0.34, peakH * 0.32, 6), matMountainSnow);
+    shoulderSnow.position.set(baseR * 0.36, peakH * 0.58, -baseR * 0.18);
+    shoulderSnow.rotation.y = 0.7;
+    mGroup.add(shoulderSnow);
+
+    titanLakeGroup.add(mGroup);
+    colliders.push({ type: 'circle', x: mx, z: mz, radius: baseR * 0.42, label: 'Puncak Gunung Salju Utara' });
+  });
+
+  // 4. Pohon Pinus Hijau Gelap Bertopi Salju Mengelilingi Lereng Danau & Pegunungan Utara
   const snowPineCoords: [number, number][] = [
     [50, -880], [60, -760], [70, -885], [90, -870], [120, -855],
     [130, -805], [125, -775], [105, -760], [45, -765], [30, -795],
     [20, -840], [80, -890], [110, -875], [120, -825], [40, -770],
+    [-55, -800], [-30, -850], [-75, -830], [-60, -870], [-20, -790],
+    [-95, -795], [-115, -825], [-85, -855], [-45, -750], [5, -875],
+    [10, -745], [85, -735], [140, -740], [160, -815], [148, -860],
   ];
-  snowPineCoords.forEach(([spx, spz]) => {
-    if (!isStrictLandForProps(spx, spz, getTerrainHeight)) return; // DILARANG SPAWN DI AIR!
-    const spy = getTerrainHeight(spx, spz);
-    if (spy < -0.1) return;
-
-    const spGroup = new THREE.Group();
-    spGroup.position.set(spx, spy, spz);
-    const s = 1.0 + Math.random() * 0.5;
-    spGroup.scale.set(s, s, s);
-
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.45, 3.0, 5), matWoodDark);
-    trunk.position.y = 1.5;
-    trunk.castShadow = true;
-    spGroup.add(trunk);
-
-    const c1 = new THREE.Mesh(new THREE.ConeGeometry(2.2, 2.8, 5), matSnowPine);
-    c1.position.y = 3.5;
-    c1.castShadow = true;
-    spGroup.add(c1);
-
-    const c2 = new THREE.Mesh(new THREE.ConeGeometry(1.7, 2.4, 5), matSnowPine);
-    c2.position.y = 5.0;
-    c2.castShadow = true;
-    spGroup.add(c2);
-
-    const c3 = new THREE.Mesh(new THREE.ConeGeometry(1.1, 1.9, 5), matSnowPine);
-    c3.position.y = 6.4;
-    c3.castShadow = true;
-    spGroup.add(c3);
-
-    titanLakeGroup.add(spGroup);
-    colliders.push({ type: 'circle', x: spx, z: spz, radius: 0.9 * s, label: 'Pinus Salju Titan' });
+  snowPineCoords.forEach(([spx, spz], pIdx) => {
+    const scale = 1.0 + (pIdx % 4) * 0.16;
+    addSnowCappedAlpinePine(spx, spz, scale, 'Pinus Salju Utara');
   });
 
-  // 4. Bongkahan Batu Es & Pinus Bersalju di Lereng Pegunungan Salju Utara
+  // 5. Bongkahan Batu Es & Pinus Bertopi Salju di Lereng Pegunungan Salju Utara
   const matIceBoulder = new THREE.MeshStandardMaterial({
     color: 0xcfe8f7,
     roughness: 0.35,
@@ -2936,11 +3341,15 @@ export async function buildWorldEnvironmentAsync(
     { x: -40, z: -740, type: 'boulder', scale: 1.8 },
     { x: 150, z: -750, type: 'pine', scale: 1.2 },
     { x: 190, z: -720, type: 'boulder', scale: 2.2 },
+    { x: -65, z: -848, type: 'boulder', scale: 1.9 },
+    { x: -32, z: -808, type: 'boulder', scale: 1.6 },
+    { x: -88, z: -815, type: 'pine', scale: 1.25 },
   ];
   alpineSlopeProps.forEach((asp) => {
-    if (!isStrictLandForProps(asp.x, asp.z, getTerrainHeight)) return;
+    if (!isValidDryLand(asp.x, asp.z, 2.0) || getDistanceToNearestRoad(asp.x, asp.z) < 9.5) return;
+    if (Math.hypot(asp.x - -49, asp.z - -828) < 10) return;
     const aspy = getTerrainHeight(asp.x, asp.z);
-    if (aspy < 4.0) return;
+    if (aspy < 0.5) return;
 
     if (asp.type === 'boulder') {
       const bMesh = new THREE.Mesh(new THREE.DodecahedronGeometry(asp.scale, 1), matIceBoulder);
@@ -2950,24 +3359,7 @@ export async function buildWorldEnvironmentAsync(
       titanLakeGroup.add(bMesh);
       colliders.push({ type: 'circle', x: asp.x, z: asp.z, radius: asp.scale * 0.9, label: 'Bongkahan Batu Es' });
     } else {
-      const spGroup = new THREE.Group();
-      spGroup.position.set(asp.x, aspy, asp.z);
-      spGroup.scale.setScalar(asp.scale);
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.45, 3.2, 5), matWoodDark);
-      trunk.position.y = 1.6;
-      trunk.castShadow = true;
-      const c1 = new THREE.Mesh(new THREE.ConeGeometry(2.3, 3.0, 5), matSnowPine);
-      c1.position.y = 3.6;
-      c1.castShadow = true;
-      const c2 = new THREE.Mesh(new THREE.ConeGeometry(1.7, 2.5, 5), matSnowPine);
-      c2.position.y = 5.2;
-      c2.castShadow = true;
-      const c3 = new THREE.Mesh(new THREE.ConeGeometry(1.1, 2.0, 5), matSnowPine);
-      c3.position.y = 6.6;
-      c3.castShadow = true;
-      spGroup.add(trunk, c1, c2, c3);
-      titanLakeGroup.add(spGroup);
-      colliders.push({ type: 'circle', x: asp.x, z: asp.z, radius: 1.0 * asp.scale, label: 'Pinus Salju Pegunungan' });
+      addSnowCappedAlpinePine(asp.x, asp.z, asp.scale, 'Pinus Salju Pegunungan');
     }
   });
 
@@ -3097,54 +3489,18 @@ export async function buildWorldEnvironmentAsync(
   await checkEnvYield();
 
   // ============================================================================
-  // ZONA P: PUING KASTIL TERBENGKALAI (ABANDONED CASTLE RUINS)
-  // Koordinat Pusat X: 580, Z: -60 (Pilar Runtuh & Tembok Batu Slate)
+  // ZONA P: RERUNTUHAN KUIL KUNO (ANCIENT TEMPLE RUINS) - X: 608, Z: -50
+  // Terbuka, jauh dari jalan raya (>= 25 unit), tanpa invisible barrier
   // ============================================================================
-  await checkEnvYield(79, 'Membangun Puing Kastil & Benteng Val-Kragor (79%)...');
+  await checkEnvYield(79, 'Membangun Reruntuhan Kuil Kuno & Benteng Val-Kragor (79%)...');
   const castleRuinsGroup = new THREE.Group();
   castleRuinsGroup.name = 'ZoneP_AbandonedCastleRuins';
-
-  // 1. Dinding Reruntuhan Batu Slate Berlubang
-  const wallCoords = [
-    { x: 578, z: -70, w: 14, h: 4.5, rot: 0 },
-    { x: 602, z: -70, w: 12, h: 3.5, rot: 0 },
-    { x: 575, z: -55, w: 16, h: 4.0, rot: Math.PI / 2 },
-    { x: 605, z: -50, w: 12, h: 3.0, rot: Math.PI / 2 },
-    { x: 585, z: -50, w: 8, h: 2.2, rot: 0.4 },
-  ];
-  wallCoords.forEach((wc) => {
-    const wy = getTerrainHeight(wc.x, wc.z);
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(wc.w, wc.h, 1.2), matStoneRuins);
-    wall.position.set(wc.x, wy + wc.h / 2, wc.z);
-    wall.rotation.y = wc.rot;
-    wall.castShadow = true;
-    castleRuinsGroup.add(wall);
-    colliders.push({ type: 'box', minX: wc.x - wc.w / 2, maxX: wc.x + wc.w / 2, minZ: wc.z - 1.2, maxZ: wc.z + 1.2, label: 'Dinding Kastil Reruntuhan' });
+  createAncientTempleRuinsComplex(castleRuinsGroup, 608, -50, getTerrainHeight, colliders, {
+    tileCount: 20,
+    archCount: 2,
+    pillarCount: 8,
+    seedOffset: 3,
   });
-
-  // 2. Menara Bundar Rusak & Pilar Patah
-  const ruinedTowers = [[572, -73], [608, -73], [608, -47]];
-  ruinedTowers.forEach(([tx, tz]) => {
-    const ty = getTerrainHeight(tx, tz);
-    const tower = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.8, 6.0, 8), matStoneDarkCrag);
-    tower.position.set(tx, ty + 3.0, tz);
-    tower.castShadow = true;
-    castleRuinsGroup.add(tower);
-    colliders.push({ type: 'circle', x: tx, z: tz, radius: 2.7, label: 'Menara Kastil Runtuh' });
-  });
-
-  // 3. Batuan Puing Berserakan di Lantai Kastil
-  for (let i = 0; i < 12; i++) {
-    const rx = 580 + Math.random() * 22;
-    const rz = -70 + Math.random() * 20;
-    const ry = getTerrainHeight(rx, rz);
-    const debris = new THREE.Mesh(new THREE.DodecahedronGeometry(0.6 + Math.random() * 0.6, 0), matStoneRuins);
-    debris.position.set(rx, ry + 0.4, rz);
-    debris.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-    debris.castShadow = true;
-    castleRuinsGroup.add(debris);
-  }
-
   envGroup.add(castleRuinsGroup);
   await checkEnvYield();
 
@@ -3229,6 +3585,7 @@ export async function buildWorldEnvironmentAsync(
     [578, -125, 4.2], [560, -120, 2.2], [590, -128, 3.0],
   ];
   mossRocks.forEach(([mx, mz, s]) => {
+    if (!isValidDryLand(mx, mz, s) || getDistanceToNearestRoad(mx, mz) < 9.5) return;
     const my = getTerrainHeight(mx, mz);
     const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 1), matMossGladeRock);
     rock.position.set(mx, my + s * 0.7, mz);
@@ -3243,6 +3600,7 @@ export async function buildWorldEnvironmentAsync(
   for (let sp = 0; sp < 16; sp++) {
     const sx = 565 + Math.random() * 32;
     const sz = -135 + Math.random() * 30;
+    if (!isValidDryLand(sx, sz, 1.0) || getDistanceToNearestRoad(sx, sz) < 9.5) continue;
     const sy = getTerrainHeight(sx, sz) + 0.8 + Math.random() * 2.2;
     const spore = new THREE.Mesh(new THREE.SphereGeometry(0.16, 4, 4), matGladeSpore);
     spore.position.set(sx, sy, sz);
@@ -3286,14 +3644,14 @@ export async function buildWorldEnvironmentAsync(
   const swCanopyGeo1 = new THREE.DodecahedronGeometry(2.4, 1);
   const swCanopyGeo2 = new THREE.DodecahedronGeometry(1.8, 1);
 
-  for (let tx = -310; tx <= -190; tx += 24) {
-    for (let tz = 60; tz <= 140; tz += 22) {
+  for (let tx = 165; tx <= 330; tx += 24) {
+    for (let tz = 15; tz <= 125; tz += 22) {
       const jx = tx + (Math.random() - 0.5) * 14;
       const jz = tz + (Math.random() - 0.5) * 14;
-      if (getBiomeAt(jx, jz) === 'ocean') continue;
-      if (isPointNearRoad(jx, jz, 6.5)) continue;
+      if (getBiomeAt(jx, jz) === 'ocean' || isDesertBiome(jx, jz)) continue;
+      if (!isValidDryLand(jx, jz, 2.0) || getDistanceToNearestRoad(jx, jz) < 9.5) continue;
       const jy = getTerrainHeight(jx, jz);
-      if (jy < 0.2) continue;
+      if (jy < 0.5) continue;
 
       const tGroup = new THREE.Group();
       tGroup.position.set(jx, jy, jz);
@@ -3317,7 +3675,7 @@ export async function buildWorldEnvironmentAsync(
       tGroup.add(c2);
 
       swForestGroup.add(tGroup);
-      colliders.push({ type: 'circle', x: jx, z: jz, radius: 1.1 * s, label: 'Pohon Ek Hutan Barat Daya' });
+      colliders.push({ type: 'circle', x: jx, z: jz, radius: 1.1 * s, label: 'Pohon Ek Hutan Tenggara' });
     }
   }
   envGroup.add(swForestGroup);

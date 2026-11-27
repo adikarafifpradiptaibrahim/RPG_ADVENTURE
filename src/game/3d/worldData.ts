@@ -176,11 +176,11 @@ export function getContinentCoastRadius(angle: number, x: number, z: number): nu
   const neInlet = Math.exp(-Math.pow((angle - (-0.75)) / 0.12, 2)) * -140;
   const neSpire2 = Math.exp(-Math.pow((angle - (-0.92)) / 0.16, 2)) * 270;
 
-  // 9. Utara: Teluk Cekung antara Timur Laut dan Pegunungan Titan (angle ~ -1.25)
-  const northBay = Math.exp(-Math.pow((angle - (-1.25)) / 0.18, 2)) * -150;
+  // 9. Utara: Teluk Cekung halus antara Timur Laut dan Pegunungan Titan (angle ~ -1.12)
+  const northBay = Math.exp(-Math.pow((angle - (-1.12)) / 0.16, 2)) * -60;
 
-  // 10. Utara: Pesisir Pegunungan Salju Titan & Kanyon [60, -820] (angle ~ -1.60)
-  const northTitan = Math.exp(-Math.pow((angle - (-1.60)) / 0.28, 2)) * 180;
+  // 10. Utara: Pesisir Pegunungan Salju Titan Lebar (mengitari Danau Titan di Utara, Barat Laut, & Timur Laut)
+  const northTitan = Math.exp(-Math.pow((angle - (-1.54)) / 0.48, 2)) * 300;
 
   // 11. Barat Laut: Teluk Cekung sebelum Tanjung Barat Laut (angle ~ -2.05)
   const nwBay = Math.exp(-Math.pow((angle - (-2.05)) / 0.22, 2)) * -170;
@@ -272,8 +272,8 @@ export function getBiomeAt(x: number, z: number): BiomeType {
     return 'lake';
   }
 
-  // E. Pegunungan Salju Utara di Sekitar Danau Titan (Hanya Z < -640 dan -180 < X < 260)
-  if (x > -180 && x < 260 && z < -640) {
+  // E. Pegunungan Salju Utara di Sekitar Danau Titan (Hanya Z < -620 dan -220 < X < 270)
+  if (x > -220 && x < 270 && z < -620) {
     return 'snow';
   }
 
@@ -506,6 +506,8 @@ export function getDistanceToRoad(px: number, pz: number): number {
   }
   return minDist;
 }
+
+export const getDistanceToNearestRoad = getDistanceToRoad;
 
 export function isPointOnRoad(px: number, pz: number, margin = 2.0): boolean {
   return getDistanceToRoad(px, pz) <= margin;
@@ -1104,33 +1106,40 @@ export function getProceduralContinentHeight(x: number, z: number): number {
 
   // Hitung elevasi daratan murni (termasuk landmark & jalan) sebelum dipotong tepi pantai & palung sungai halus
   const computeContinentalLandHeight = (): number => {
-    // E. Rangkaian Pegunungan Salju Utara (Z: -600 s.d. -1100, X: -240 s.d. 300)
-    if (z < -580 && x > -240 && x < 300) {
+    // E. Rangkaian Pegunungan Salju Utara (Z: -590 s.d. -1120, X: -250 s.d. 310)
+    if (z < -590 && x > -250 && x < 310) {
       const distLake = Math.hypot(x - (lm.danau_titan?.x ?? 60), z - (lm.danau_titan?.z ?? -820));
 
-      const slopeZ = smoothstepBlend(-580, -750, -z);
-      const slopeW = smoothstepBlend(-240, -150, x);
-      const slopeE = smoothstepBlend(300, 210, x);
+      const slopeZ = smoothstepBlend(-590, -760, -z);
+      const slopeW = smoothstepBlend(-250, -145, x);
+      const slopeE = smoothstepBlend(310, 200, x);
       const massifEnvelope = slopeZ * slopeW * slopeE;
 
+      // Rangkaian punggung gunung batu bersalju di Utara, Barat Laut & Timur Laut mengelilingi Lembah Danau Titan
       const peakSum =
-        36 * Math.exp(-((x - -130) * (x - -130) + (z - -890) * (z - -890)) / (2 * 65 * 65)) +
-        42 * Math.exp(-((x - -50) * (x - -50) + (z - -970) * (z - -970)) / (2 * 72 * 72)) +
-        40 * Math.exp(-((x - 50) * (x - 50) + (z - -1010) * (z - -1010)) / (2 * 75 * 75)) +
-        38 * Math.exp(-((x - 150) * (x - 150) + (z - -950) * (z - -950)) / (2 * 68 * 68)) +
-        32 * Math.exp(-((x - 220) * (x - 220) + (z - -880) * (z - -880)) / (2 * 60 * 60)) +
-        26 * Math.exp(-((x - -170) * (x - -170) + (z - -800) * (z - -800)) / (2 * 55 * 55)) +
-        25 * Math.exp(-((x - 200) * (x - 200) + (z - -770) * (z - -770)) / (2 * 50 * 50));
+        54 * Math.exp(-((x - -145) * (x - -145) + (z - -860) * (z - -860)) / (2 * 64 * 64)) +
+        62 * Math.exp(-((x - -90) * (x - -90) + (z - -950) * (z - -950)) / (2 * 70 * 70)) +
+        68 * Math.exp(-((x - 45) * (x - 45) + (z - -990) * (z - -990)) / (2 * 78 * 78)) +
+        60 * Math.exp(-((x - 155) * (x - 155) + (z - -940) * (z - -940)) / (2 * 68 * 68)) +
+        52 * Math.exp(-((x - 210) * (x - 210) + (z - -845) * (z - -845)) / (2 * 62 * 62)) +
+        38 * Math.exp(-((x - -150) * (x - -150) + (z - -760) * (z - -760)) / (2 * 56 * 56)) +
+        36 * Math.exp(-((x - 190) * (x - 190) + (z - -745) * (z - -745)) / (2 * 54 * 54));
 
-      const ridged1 = (1.0 - Math.abs(Math.sin(x * 0.018 + z * 0.014))) * 7.0;
-      const ridged2 = (1.0 - Math.abs(Math.cos(x * 0.032 - z * 0.028))) * 4.5;
-      const microDetail = Math.sin((x + z) * 0.055) * 1.8;
-      const targetPeakH = Math.max(18.0, Math.min(42.0, peakSum + ridged1 + ridged2 + microDetail));
+      const ridged1 = (1.0 - Math.abs(Math.sin(x * 0.020 + z * 0.015))) * 10.5;
+      const ridged2 = (1.0 - Math.abs(Math.cos(x * 0.036 - z * 0.030))) * 6.5;
+      const microDetail = Math.sin((x + z) * 0.055) * 2.2;
+      const targetPeakH = Math.max(12.0, Math.min(72.0, peakSum + ridged1 + ridged2 + microDetail));
 
       let mountainTargetH = targetPeakH;
-      if (distLake < 115) {
-        const lakeValleyT = smoothstepBlend(48, 115, distLake);
-        mountainTargetH = lerpVal(2.00, targetPeakH, lakeValleyT);
+      // Lembah danau & dataran eksplorasi tetap rata agar danau/arena tidak tertutup tebing
+      if (distLake < 118) {
+        const lakeValleyT = smoothstepBlend(58, 118, distLake);
+        mountainTargetH = lerpVal(2.20, targetPeakH, lakeValleyT);
+      }
+      const distTitanArena = Math.hypot(x - (lm.bossGolem?.x ?? 180), z - (lm.bossGolem?.z ?? -560));
+      if (distTitanArena < 86) {
+        const arenaT = smoothstepBlend(58, 86, distTitanArena);
+        mountainTargetH = lerpVal(4.50, mountainTargetH, arenaT);
       }
 
       return lerpVal(basePlainsHeight, mountainTargetH, massifEnvelope);

@@ -42,6 +42,7 @@ import {
   getExactMeshGroundHeight,
 } from './worldEnvironment';
 import { getSolidGroundHeight } from './walkableSurfaceSystem';
+import { getBiomeAt } from './worldData';
 import { BossManager } from '../BossManager';
 import { BOSS_ARENA_ZONES, BossArenaZone, SPAWN_NAGA, resolveEnemyTarget } from '../monsterAI';
 import { createHunterModel } from './playerModel';
@@ -894,6 +895,19 @@ export class GameEngine {
   private calderaStormColors = new Float32Array(220 * 3);
   private calderaStormVelocities = new Float32Array(220 * 3);
   private calderaStormMat: THREE.PointsMaterial | null = null;
+
+  // Pooled Biome-Locked Weather System (Snow ONLY in northern snow biome, clear day in Desa Utama, warm dust in Desert)
+  private readonly BIOME_WEATHER_COUNT = 240;
+  private biomeWeatherPoints: THREE.Points | null = null;
+  private biomeWeatherPositions = new Float32Array(240 * 3);
+  private biomeWeatherColors = new Float32Array(240 * 3);
+  private biomeWeatherVelocities = new Float32Array(240 * 3);
+  private biomeWeatherPhases = new Float32Array(240);
+  private biomeWeatherMat: THREE.PointsMaterial | null = null;
+  private biomeWeatherTex: THREE.CanvasTexture | null = null;
+  private biomeWeatherOpacity = 0;
+  private biomeWeatherActiveCount = 0;
+  private lastBiomeWeatherMode: 'none' | 'snow' | 'desert' | 'fireflies' = 'none';
   private readonly CALDERA_STORM_PARTICLE_COUNT = 220;
 
   private ignisAuraPoints: THREE.Points | null = null;
@@ -1457,6 +1471,7 @@ export class GameEngine {
     this.initHunterArrowPool();
     this.initBossProjectilePools();
     this.initCalderaStormPools();
+    this.initBiomeWeatherPool();
 
     // Sync local-only Developer & Testing settings (default OFF)
     this.devSettings = getEffectiveDevTestingSettings();
@@ -5632,6 +5647,199 @@ export class GameEngine {
         this.ignisFireballPool.push({ active: false, group });
       }
     }
+  }
+
+  private initBiomeWeatherPool() {
+    if (this.biomeWeatherPoints) return;
+
+    // Generate soft circular radial sprite texture once so flakes are soft circles, never sharp squares
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const grad = ctx.createRadialGradient(16, 16, 1, 16, 16, 15);
+      grad.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+      grad.addColorStop(0.45, 'rgba(255, 255, 255, 0.78)');
+      grad.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 32, 32);
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    this.biomeWeatherTex = tex;
+
+    for (let i = 0; i < this.BIOME_WEATHER_COUNT; i++) {
+      const i3 = i * 3;
+      this.biomeWeatherPositions[i3] = (Math.random() - 0.5) * 56;
+      this.biomeWeatherPositions[i3 + 1] = 1 + Math.random() * 22;
+      this.biomeWeatherPositions[i3 + 2] = (Math.random() - 0.5) * 56;
+      this.biomeWeatherVelocities[i3] = (Math.random() - 0.5) * 1.5;
+      this.biomeWeatherVelocities[i3 + 1] = -(3.4 + Math.random() * 1.8);
+      this.biomeWeatherVelocities[i3 + 2] = (Math.random() - 0.5) * 1.2;
+      this.biomeWeatherPhases[i] = Math.random() * Math.PI * 2;
+      this.biomeWeatherColors[i3] = 0.95;
+      this.biomeWeatherColors[i3 + 1] = 0.98;
+      this.biomeWeatherColors[i3 + 2] = 1.0;
+    }
+
+    const geo = new THREE.BufferGeometry();
+    const posAttr = new THREE.BufferAttribute(this.biomeWeatherPositions, 3);
+    posAttr.setUsage(THREE.DynamicDrawUsage);
+    const colAttr = new THREE.BufferAttribute(this.biomeWeatherColors, 3);
+    colAttr.setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute('position', posAttr);
+    geo.setAttribute('color', colAttr);
+
+    const mat = new THREE.PointsMaterial({
+      size: 0.42,
+      map: tex,
+      alphaTest: 0.03,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+
+    const points = new THREE.Points(geo, mat);
+    points.visible = false;
+    points.frustumCulled = false;
+    this.scene.add(points);
+    this.biomeWeatherPoints = points;
+    this.biomeWeatherMat = mat;
+  }
+
+  private updateBiomeWeather(delta: number, elapsed: number) {
+    if (!this.biomeWeatherPoints || !this.biomeWeatherMat || !this.world) return;
+
+    const particlesEnabled =
+      this.graphicsSettings.enableParticles !== false &&
+      !(isMobileRenderDevice() && this.graphicsSettings.preset === 'low');
+
+    if (!particlesEnabled || this.menuMode !== 'gameplay') {
+      this.biomeWeatherOpacity = Math.max(0, this.biomeWeatherOpacity - delta * 3.0);
+      this.biomeWeatherMat.opacity = this.biomeWeatherOpacity;
+      this.biomeWeatherPoints.visible = this.biomeWeatherOpacity > 0.02;
+      return;
+    }
+
+    const px = this.playerPos.x;
+    const pz = this.playerPos.z;
+    const py = this.playerPos.y;
+    const biome = getBiomeAt(px, pz);
+    const isNightOrDusk = this.dayNightSystem.isVillageLanternTime();
+
+    let targetMode: 'none' | 'snow' | 'desert' | 'fireflies' = 'none';
+    let targetOpacity = 0;
+    let targetCount = 0;
+
+    if (biome === 'snow') {
+      targetMode = 'snow';
+      targetOpacity = 0.85;
+      targetCount = this.BIOME_WEATHER_COUNT;
+    } else if (biome === 'desert') {
+      targetMode = 'desert';
+      targetOpacity = 0.36;
+      targetCount = 110;
+    } else if ((biome === 'grassland' || biome === 'lake') && isNightOrDusk) {
+      targetMode = 'fireflies';
+      targetOpacity = 0.42;
+      targetCount = 60;
+    }
+
+    // Reseed colors and initial heights immediately when changing weather mode
+    if (targetMode !== 'none' && targetMode !== this.lastBiomeWeatherMode) {
+      this.lastBiomeWeatherMode = targetMode;
+      this.biomeWeatherActiveCount = targetCount;
+      this.biomeWeatherPoints.geometry.setDrawRange(0, targetCount);
+
+      for (let i = 0; i < this.BIOME_WEATHER_COUNT; i++) {
+        const i3 = i * 3;
+        this.biomeWeatherPositions[i3] = px + (Math.random() - 0.5) * 54;
+        this.biomeWeatherPositions[i3 + 2] = pz + (Math.random() - 0.5) * 54;
+
+        if (targetMode === 'snow') {
+          this.biomeWeatherPositions[i3 + 1] = py + Math.random() * 20;
+          this.biomeWeatherVelocities[i3] = 2.6 + (Math.random() - 0.3) * 2.2;
+          this.biomeWeatherVelocities[i3 + 1] = -(3.4 + Math.random() * 1.8);
+          this.biomeWeatherVelocities[i3 + 2] = 0.8 + (Math.random() - 0.5) * 1.4;
+          this.biomeWeatherColors[i3] = 0.95;
+          this.biomeWeatherColors[i3 + 1] = 0.98;
+          this.biomeWeatherColors[i3 + 2] = 1.0;
+        } else if (targetMode === 'desert') {
+          this.biomeWeatherPositions[i3 + 1] = py + 0.5 + Math.random() * 7.5;
+          this.biomeWeatherVelocities[i3] = 5.2 + Math.random() * 2.4;
+          this.biomeWeatherVelocities[i3 + 1] = -(0.2 + Math.random() * 0.4);
+          this.biomeWeatherVelocities[i3 + 2] = 1.4 + (Math.random() - 0.5) * 1.5;
+          this.biomeWeatherColors[i3] = 0.95;
+          this.biomeWeatherColors[i3 + 1] = 0.74;
+          this.biomeWeatherColors[i3 + 2] = 0.38;
+        } else {
+          this.biomeWeatherPositions[i3 + 1] = py + 0.8 + Math.random() * 5.0;
+          this.biomeWeatherVelocities[i3] = (Math.random() - 0.5) * 0.9;
+          this.biomeWeatherVelocities[i3 + 1] = (Math.random() - 0.5) * 0.35;
+          this.biomeWeatherVelocities[i3 + 2] = (Math.random() - 0.5) * 0.9;
+          this.biomeWeatherColors[i3] = 1.0;
+          this.biomeWeatherColors[i3 + 1] = 0.91;
+          this.biomeWeatherColors[i3 + 2] = 0.52;
+        }
+      }
+      this.biomeWeatherMat.size = targetMode === 'snow' ? 0.42 : targetMode === 'desert' ? 0.28 : 0.32;
+      (this.biomeWeatherPoints.geometry.attributes.color as THREE.BufferAttribute).needsUpdate = true;
+      (this.biomeWeatherPoints.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+    }
+
+    const fadeRate = targetOpacity > this.biomeWeatherOpacity ? 1.8 : 2.8;
+    this.biomeWeatherOpacity += (targetOpacity - this.biomeWeatherOpacity) * Math.min(1, delta * fadeRate);
+    this.biomeWeatherMat.opacity = this.biomeWeatherOpacity;
+
+    if (this.biomeWeatherOpacity <= 0.015) {
+      this.biomeWeatherPoints.visible = false;
+      if (targetMode === 'none') {
+        this.lastBiomeWeatherMode = 'none';
+      }
+      return;
+    }
+
+    this.biomeWeatherPoints.visible = true;
+    const count = this.biomeWeatherActiveCount || targetCount || this.BIOME_WEATHER_COUNT;
+    const halfSpan = 28;
+    const activeMode = targetMode !== 'none' ? targetMode : this.lastBiomeWeatherMode;
+
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      const phase = this.biomeWeatherPhases[i];
+
+      if (activeMode === 'snow') {
+        this.biomeWeatherPositions[i3] += (this.biomeWeatherVelocities[i3] + Math.sin(elapsed * 1.3 + phase) * 0.85) * delta;
+        this.biomeWeatherPositions[i3 + 1] += this.biomeWeatherVelocities[i3 + 1] * delta;
+        this.biomeWeatherPositions[i3 + 2] += (this.biomeWeatherVelocities[i3 + 2] + Math.cos(elapsed * 1.1 + phase) * 0.65) * delta;
+        if (this.biomeWeatherPositions[i3 + 1] < py - 1.5) {
+          this.biomeWeatherPositions[i3 + 1] = py + 17 + Math.random() * 5;
+        }
+      } else if (activeMode === 'desert') {
+        this.biomeWeatherPositions[i3] += this.biomeWeatherVelocities[i3] * delta;
+        this.biomeWeatherPositions[i3 + 1] += (this.biomeWeatherVelocities[i3 + 1] + Math.sin(elapsed * 2.0 + phase) * 0.25) * delta;
+        this.biomeWeatherPositions[i3 + 2] += this.biomeWeatherVelocities[i3 + 2] * delta;
+        if (this.biomeWeatherPositions[i3 + 1] < py + 0.2 || this.biomeWeatherPositions[i3 + 1] > py + 9.0) {
+          this.biomeWeatherPositions[i3 + 1] = py + 0.8 + Math.random() * 6.5;
+        }
+      } else {
+        this.biomeWeatherPositions[i3] += (this.biomeWeatherVelocities[i3] + Math.sin(elapsed * 0.9 + phase) * 0.35) * delta;
+        this.biomeWeatherPositions[i3 + 1] += Math.sin(elapsed * 1.6 + phase) * 0.45 * delta;
+        this.biomeWeatherPositions[i3 + 2] += (this.biomeWeatherVelocities[i3 + 2] + Math.cos(elapsed * 0.8 + phase) * 0.35) * delta;
+      }
+
+      // Wrap seamlessly horizontally around player position
+      const dx = this.biomeWeatherPositions[i3] - px;
+      if (dx > halfSpan) this.biomeWeatherPositions[i3] -= halfSpan * 2;
+      else if (dx < -halfSpan) this.biomeWeatherPositions[i3] += halfSpan * 2;
+
+      const dz = this.biomeWeatherPositions[i3 + 2] - pz;
+      if (dz > halfSpan) this.biomeWeatherPositions[i3 + 2] -= halfSpan * 2;
+      else if (dz < -halfSpan) this.biomeWeatherPositions[i3 + 2] += halfSpan * 2;
+    }
+
+    (this.biomeWeatherPoints.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
   }
 
   private initCalderaStormPools() {
@@ -17409,10 +17617,8 @@ export class GameEngine {
       this.world.oceanMesh.position.y = -0.25 + Math.sin(elapsed * 1.5) * 0.08;
     }
 
-    // Fireflies / ambient particles slow float (disabled when particles turned off on Mobile Low)
-    if (this.world.particles && this.world.particles.visible) {
-      this.world.particles.rotation.y = elapsed * 0.03;
-    }
+    // Pooled Biome-Locked Weather (snow only in northern snow biome, clean Desa Utama day, fireflies at dusk/night, desert dust)
+    this.updateBiomeWeather(delta, elapsed);
 
     // Optimization 1: Dynamic PointLights (Keep only 4 closest lights active, village lanterns active only at night 18:00 - 05:30)
     if (this.posUpdateThrottle % 8 === 0 && this.scenePointLights.length > 0) {
@@ -17686,6 +17892,16 @@ export class GameEngine {
       this.calderaStormMat?.dispose();
       this.calderaStormPoints = null;
       this.calderaStormMat = null;
+    }
+
+    if (this.biomeWeatherPoints) {
+      this.scene.remove(this.biomeWeatherPoints);
+      this.biomeWeatherPoints.geometry.dispose();
+      this.biomeWeatherMat?.dispose();
+      this.biomeWeatherTex?.dispose();
+      this.biomeWeatherPoints = null;
+      this.biomeWeatherMat = null;
+      this.biomeWeatherTex = null;
     }
 
     if (this.ignisAuraPoints) {

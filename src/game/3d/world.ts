@@ -99,13 +99,15 @@ import {
 import { buildWorldRoadNetwork, isPointOnRoad } from '../RoadSystem';
 import { checkFrameBudget, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield, hardYield } from './frameBudget';
 import { SpatialLookupGrid } from './spatialGrid';
-import { BRIDGE_CONFIGS, isStrictLandForProps, WATER_LEVEL, distToSegment } from './worldData';
+import { BRIDGE_CONFIGS, isStrictLandForProps, WATER_LEVEL, distToSegment, getDistanceToNearestRoad } from './worldData';
 import { SmoothLoadScheduler } from '../utils/asyncLoader';
 import type { WorldCachePayload } from '../storage/worldCacheManager';
 import {
   TERRAIN_GRID,
   setMeshGroundHeights,
   getExactMeshGroundHeight,
+  isValidDryLand,
+  createAncientTempleRuinsComplex,
 } from './worldEnvironment';
 import {
   clearWalkableSurfaces,
@@ -1100,7 +1102,7 @@ export async function buildMainVillage(
 
   // NPC 6: Nelayan Pak Joko (Coastal Fisherman on extended harbor pier)
   const jokoGroup = createCustomNPCMesh('fisherman');
-  const jokoPos: [number, number, number] = [42.0, 1.85, 100.0]; // At seaward harbor pier head looking out to open sea
+  const jokoPos: [number, number, number] = [20.0, 1.85, 49.0]; // At seaward harbor pier head looking out to open sea
   jokoGroup.position.set(...jokoPos);
   jokoGroup.rotation.y = Math.PI; // Facing South towards open ocean
   scene.add(jokoGroup);
@@ -1895,30 +1897,32 @@ export async function buildValKragorFort(
   // 3. ANCIENT SUNKEN RUINS OF VAEL (Upstream Far-West Outskirts: X: -105..-135, Z: 25..55)
   // Separated far from village settlement border (> 100 units from village plaza)
   // ==========================================
-  // Monumental Ancient Archway Gate (West Entrance at X: -105, Z: 32)
-  const ancientArch = createAncientArchMesh();
-  const archY = getTerrainHeight(-105, 32);
-  ancientArch.position.set(-105, archY, 32);
-  ancientArch.rotation.y = Math.PI / 2;
-  scene.add(ancientArch);
-  colliders.push(
-    { type: 'circle', x: -105, z: 29.5, radius: 0.9, label: 'Pilar Gapura Kuno Kiri' },
-    { type: 'circle', x: -105, z: 34.5, radius: 0.9, label: 'Pilar Gapura Kuno Kanan' }
-  );
+  // Monumental Ancient Archway Gate (Direlokasi ke Daratan Aman Tenggara X: 145, Z: 5)
+  if (isValidDryLand(145, 5, 3.0) && getDistanceToNearestRoad(145, 5) >= 9.5) {
+    const ancientArch = createAncientArchMesh();
+    const archY = getTerrainHeight(145, 5);
+    ancientArch.position.set(145, archY, 5);
+    ancientArch.rotation.y = Math.PI / 2;
+    scene.add(ancientArch);
+    colliders.push(
+      { type: 'circle', x: 145, z: 2.5, radius: 0.9, label: 'Pilar Gapura Kuno Kiri' },
+      { type: 'circle', x: 145, z: 7.5, radius: 0.9, label: 'Pilar Gapura Kuno Kanan' }
+    );
+  }
 
-  // Spatial Ancient Pillars scattered across the ruined sanctuary
+  // Spatial Ancient Pillars scattered across the dry ruined sanctuary
   const ruinsPositions = [
-    { x: -112, z: 26 },
-    { x: -120, z: 32 },
-    { x: -115, z: 42 },
-    { x: -128, z: 24 },
-    { x: -135, z: 36 },
-    { x: -130, z: 48 },
-    { x: -122, z: 52 },
-    { x: -110, z: 48 },
+    { x: 138, z: -1 },
+    { x: 130, z: 5 },
+    { x: 135, z: 15 },
+    { x: 122, z: -3 },
+    { x: 115, z: 9 },
+    { x: 120, z: 21 },
+    { x: 128, z: 25 },
+    { x: 140, z: 21 },
   ];
   ruinsPositions.forEach((pos) => {
-    if (!isStrictLandForProps(pos.x, pos.z, getTerrainHeight)) return;
+    if (!isValidDryLand(pos.x, pos.z, 1.5) || getDistanceToNearestRoad(pos.x, pos.z) < 9.5) return;
     const pillar = createAncientPillarMesh();
     const py = getTerrainHeight(pos.x, pos.z);
     pillar.position.set(pos.x, py, pos.z);
@@ -1928,33 +1932,27 @@ export async function buildValKragorFort(
   });
 
   // ==========================================
-  // 4. MYSTIC FOREST & MANA CRYSTALS (Hutan Pinus Mistis: X: -80..-40, Z: 80..140)
+  // 4. MYSTIC FOREST & MANA CRYSTALS (Direlokasi ke Daratan Aman X: 128..174, Z: 42..94)
   // ==========================================
-  // floatingCrystals passed as argument
-  const monolith1 = createCrystalMonolithMesh();
-  monolith1.group.position.set(-60, getTerrainHeight(-60, 100), 100);
-  scene.add(monolith1.group);
-  floatingCrystals.push(monolith1.crystal);
-
-  const monolith2 = createCrystalMonolithMesh();
-  monolith2.group.position.set(-50, getTerrainHeight(-50, 120), 120);
-  scene.add(monolith2.group);
-  floatingCrystals.push(monolith2.crystal);
-
-  const monolith3 = createCrystalMonolithMesh();
-  monolith3.group.position.set(-70, getTerrainHeight(-70, 90), 90);
-  scene.add(monolith3.group);
-  floatingCrystals.push(monolith3.crystal);
+  [
+    { x: 148, z: 60 },
+    { x: 158, z: 76 },
+    { x: 138, z: 52 },
+  ].forEach(({ x: mx, z: mz }) => {
+    if (!isValidDryLand(mx, mz, 2.0) || getDistanceToNearestRoad(mx, mz) < 9.5) return;
+    const mono = createCrystalMonolithMesh();
+    mono.group.position.set(mx, getTerrainHeight(mx, mz), mz);
+    scene.add(mono.group);
+    floatingCrystals.push(mono.crystal);
+  });
 
   // Mystic Pine Forest dense groves
   for (let i = 0; i < 45; i++) {
     if (i > 0 && i % 15 === 0) await cooperativeYield(4);
-    const px = -80 + Math.random() * 40;
-    const pz = 80 + Math.random() * 60;
-    // DILARANG SPAWN di biome gurun!
+    const px = 128 + Math.random() * 46;
+    const pz = 42 + Math.random() * 52;
     if (isDesertBiome(px, pz)) continue;
-    // Pembersihan rintangan jalan: Jangan spawn pohon di atas jalan
-    if (isPointOnRoad(px, pz)) continue;
+    if (isPointOnRoad(px, pz) || getDistanceToNearestRoad(px, pz) < 9.5 || !isValidDryLand(px, pz, 1.5)) continue;
 
     const py = getTerrainHeight(px, pz);
     const pine = createTreeMesh('pine');
@@ -1974,10 +1972,10 @@ export async function buildValKragorFort(
     const angle = Math.random() * Math.PI * 2;
     const dist = 30 + Math.random() * 120;
     const tx = Math.cos(angle) * dist;
-    const tz = 180 + Math.sin(angle) * dist;
+    const tz = -190 + Math.sin(angle) * dist;
 
-    // Strict Anti-Overlap & Cross-Biome Exclusion: DILARANG SPAWN di biome gurun atau laut!
-    if (!isStrictLandForProps(tx, tz, getTerrainHeight)) continue;
+    // Strict Anti-Overlap & Cross-Biome Exclusion: hanya daratan kering & bebas jalan >= 9.5 unit
+    if (!isValidDryLand(tx, tz, 1.5) || getDistanceToNearestRoad(tx, tz) < 9.5) continue;
     if (isDesertBiome(tx, tz)) continue;
     if (getDistanceToRiver(tx, tz) < 18.0) continue;
     const inSanctuaryMainland = (tx >= -70 && tx <= -10 && tz >= 115 && tz <= 175);
@@ -2015,27 +2013,27 @@ export async function buildValKragorFort(
 
   // Curated Village Landscaping Trees (InstancedMesh - High Performance 60 FPS, Zero Stutter!)
   const curatedVillageTrees: { x: number; z: number; type: 'oak' | 'fantasy' | 'pine'; scale: number }[] = [
-    // West Residential Backyards (Apple & Oak orchard)
-    { x: -65, z: 135, type: 'oak', scale: 1.1 },
-    { x: -65, z: 147, type: 'oak', scale: 1.2 },
-    { x: -65, z: 159, type: 'oak', scale: 1.1 },
-    // East Residential Backyards (Lush Garden)
-    { x: -14, z: 135, type: 'oak', scale: 1.1 },
-    { x: -14, z: 147, type: 'oak', scale: 1.2 },
-    { x: -14, z: 159, type: 'oak', scale: 1.1 },
-    // Flanking North Gate
-    { x: -47, z: 125, type: 'pine', scale: 1.2 },
-    { x: -33, z: 125, type: 'pine', scale: 1.2 },
-    // North Garden behind Elder Lodge & Tavern
-    { x: -14, z: 163, type: 'oak', scale: 1.0 },
-    { x: 14, z: 163, type: 'oak', scale: 1.0 },
-    // Coastal Palm / Pine near beach sand
-    { x: -28, z: 202, type: 'oak', scale: 1.15 },
-    { x: 28, z: 202, type: 'oak', scale: 1.15 },
+    // Pekarangan Barat Desa Utama [20, -60]
+    { x: -24, z: -46, type: 'oak', scale: 1.1 },
+    { x: -24, z: -58, type: 'oak', scale: 1.2 },
+    { x: -24, z: -70, type: 'oak', scale: 1.1 },
+    // Pekarangan Timur Desa Utama
+    { x: 58, z: -46, type: 'oak', scale: 1.1 },
+    { x: 58, z: -58, type: 'oak', scale: 1.2 },
+    { x: 58, z: -70, type: 'oak', scale: 1.1 },
+    // Gerbang Utara Desa Utama
+    { x: 12, z: -88, type: 'pine', scale: 1.2 },
+    { x: 28, z: -88, type: 'pine', scale: 1.2 },
+    // Taman Belakang Penginapan & Balairung
+    { x: 6, z: -92, type: 'oak', scale: 1.0 },
+    { x: 34, z: -92, type: 'oak', scale: 1.0 },
+    // Pinggiran Pesisir Kering Selatan Desa
+    { x: -12, z: -16, type: 'oak', scale: 1.15 },
+    { x: 52, z: -16, type: 'oak', scale: 1.15 },
   ];
 
   const villageTreesData = curatedVillageTrees
-    .filter(vt => !isPointOnRoad(vt.x, vt.z) && !isDesertBiome(vt.x, vt.z))
+    .filter(vt => !isPointOnRoad(vt.x, vt.z) && !isDesertBiome(vt.x, vt.z) && isValidDryLand(vt.x, vt.z, 1.5) && getDistanceToNearestRoad(vt.x, vt.z) >= 9.5)
     .map(vt => {
       colliders.push({
         type: 'circle',
@@ -3256,10 +3254,10 @@ export async function buildDragonCaldera(
   // 3. TREASURE CHESTS (Across all active continent & archipelago zones)
   // ==========================================
   const chestData = [
-    { id: 'chest_village', pos: [-32, 0.25, 138] as [number, number, number] }, // Alun-Alun Desa Sanctuary
-    { id: 'chest_beach', pos: [-18.2, 1.85, 215] as [number, number, number] }, // Pelabuhan Pier Head Platform
-    { id: 'chest_ruins', pos: [-120, 0, 32] as [number, number, number] }, // Ancient ruins altar
-    { id: 'chest_forest', pos: [-60, 0, 110] as [number, number, number] }, // Whispering Mystic Forest
+    { id: 'chest_village', pos: [14, 2.0, -52] as [number, number, number] }, // Alun-Alun Desa Sanctuary
+    { id: 'chest_beach', pos: [20, 1.85, 47] as [number, number, number] }, // Pelabuhan Pier Head Platform
+    { id: 'chest_ruins', pos: [145, 0, 5] as [number, number, number] }, // Ancient ruins altar
+    { id: 'chest_forest', pos: [148, 0, 60] as [number, number, number] }, // Whispering Mystic Forest
     { id: 'chest_titan', pos: [-182, 0.2, -244] as [number, number, number] }, // Ancient Titan Basin
     { id: 'chest_valkragor', pos: [332, 2.5, 115] as [number, number, number] }, // Val-Kragor Keep Secret Vault
     { id: 'chest_thunderpeak', pos: [110, 4.5, -10] as [number, number, number] }, // Thunderpeak Mage Tower Relic
@@ -3270,8 +3268,8 @@ export async function buildDragonCaldera(
     { id: 'chest_lighthouse', pos: [-218, 6.2, 462] as [number, number, number] }, // Peti Harta Karun Pulau Mercusuar
     { id: 'chest_pirate', pos: [-495, 0.5, 620] as [number, number, number] }, // Peti Harta Karun Bajak Laut
     { id: 'chest_astraea', pos: [-220, 2.0, -220] as [number, number, number] }, // Astraea Imperial Vault
-    { id: 'chest_harbor_galleon', pos: [-15.5, 0, 200] as [number, number, number] }, // Harbor Galleon Stash
-    { id: 'chest_bridge', pos: [15, 1.35, 110] as [number, number, number] }, // South River Suspension Bridge Cache
+    { id: 'chest_harbor_galleon', pos: [20, 1.85, 36] as [number, number, number] }, // Harbor Galleon Stash
+    { id: 'chest_bridge', pos: [95, 2.0, -50] as [number, number, number] }, // Eastern River Approach Cache
     { id: 'chest_sandworm_cache', pos: [-840, 0.5, -260] as [number, number, number] }, // Ancient Sandworm Sinkhole Cache
   ];
 
@@ -3596,8 +3594,9 @@ async function populateWorldEntities(
     const r = 8.0 + ((m * 19) % 24);
     const mx = 465 + mvDX + Math.cos(angle) * r;
     const mz = 35 + mvDZ + Math.sin(angle) * r;
-    const my = getTerrainHeight(mx, mz);
     const mRadius = 1.1 + ((m * 3) % 4) * 0.35;
+    if (!isValidDryLand(mx, mz, mRadius + 0.5) || getDistanceToNearestRoad(mx, mz) < 9.5) continue;
+    const my = getTerrainHeight(mx, mz);
 
     const megalith = new THREE.Group();
     megalith.position.set(mx, my, mz);
@@ -3635,6 +3634,7 @@ async function populateWorldEntities(
     const dist = 14 + (tr % 3) * 6;
     const tx = 465 + mvDX + Math.cos(angle) * dist;
     const tz = 35 + mvDZ + Math.sin(angle) * dist;
+    if (!isValidDryLand(tx, tz, 1.5) || getDistanceToNearestRoad(tx, tz) < 9.5) continue;
     const ty = getTerrainHeight(tx, tz);
     const tree = createTreeMesh(tr % 2 === 0 ? 'fantasy' : 'oak');
     tree.position.set(tx, ty, tz);
@@ -3655,6 +3655,7 @@ async function populateWorldEntities(
     const sDist = 6 + (s % 5) * 4.5;
     const sx = 465 + mvDX + Math.cos(sAngle) * sDist;
     const sz = 35 + mvDZ + Math.sin(sAngle) * sDist;
+    if (!isValidDryLand(sx, sz, 1.0) || getDistanceToNearestRoad(sx, sz) < 9.5) continue;
     const sy = getTerrainHeight(sx, sz);
     const shrub = new THREE.Mesh(shrubGeo, shrubMat);
     shrub.position.set(sx, sy + 0.35, sz);
@@ -3712,7 +3713,7 @@ async function populateWorldEntities(
     const r = Math.sqrt((t + 1) / 160) * 58;
     const tx = 335 + mfDX + Math.cos(angle) * r;
     const tz = -140 + mfDZ + Math.sin(angle) * r;
-    if (isPointOnRoad(tx, tz)) continue;
+    if (isPointOnRoad(tx, tz) || getDistanceToNearestRoad(tx, tz) < 9.5 || !isValidDryLand(tx, tz, 1.5)) continue;
     const ty = getTerrainHeight(tx, tz);
     const scale = 0.85 + ((t * 7) % 6) * 0.12;
 
@@ -3746,74 +3747,17 @@ async function populateWorldEntities(
   await cooperativeYield(4);
 
   // ==========================================
-  // 10D. REGIONAL LANDMARK: PUING KASTIL TERBENGKALAI (X: 420, Z: -140)
-  // Tembok benteng kastil masa lalu, menara patah berlumut, dan pilar batu roboh
+  // 10D. REGIONAL LANDMARK: RERUNTUHAN KUIL KUNO TIMUR (X: 456, Z: -62)
+  // Direlokasi aman >= 35 unit dari jalan raya, desain kuil terbuka tanpa invisible barrier
   // ==========================================
-  const crDX = 195; // 420 - 225
-  const crDZ = -105; // -140 - (-35)
   const castleRuinsGroup = new THREE.Group();
   castleRuinsGroup.name = 'Region_CastleRuins';
-  const ruinsBaseY = getTerrainHeight(225 + crDX, -35 + crDZ);
-
-  const ruinsStoneMat = new THREE.MeshStandardMaterial({
-    color: 0x52525b,
-    roughness: 0.95,
-    metalness: 0.05,
-    flatShading: true,
+  createAncientTempleRuinsComplex(castleRuinsGroup, 456, -62, getTerrainHeight, colliders, {
+    tileCount: 22,
+    archCount: 3,
+    pillarCount: 8,
+    seedOffset: 7,
   });
-
-  const ruinedWallCoords = [
-    { x: 215 + crDX, z: -35 + crDZ, length: 14, rotY: 0 },
-    { x: 235 + crDX, z: -35 + crDZ, length: 12, rotY: 0 },
-    { x: 225 + crDX, z: -45 + crDZ, length: 18, rotY: Math.PI / 2 },
-    { x: 225 + crDX, z: -25 + crDZ, length: 12, rotY: Math.PI / 2 },
-  ];
-  ruinedWallCoords.forEach((rw) => {
-    const wall = new THREE.Mesh(
-      new THREE.BoxGeometry(rw.length, 3.2, 1.8),
-      ruinsStoneMat
-    );
-    wall.position.set(rw.x, ruinsBaseY + 1.6, rw.z);
-    wall.rotation.y = rw.rotY;
-    wall.castShadow = true;
-    castleRuinsGroup.add(wall);
-    colliders.push({
-      type: 'box',
-      minX: rw.x - rw.length / 2,
-      maxX: rw.x + rw.length / 2,
-      minZ: rw.z - 1.2,
-      maxZ: rw.z + 1.2,
-      label: 'Tembok Kastil Reruntuhan',
-    });
-  });
-
-  const brokenTower = new THREE.Mesh(
-    new THREE.CylinderGeometry(2.4, 2.8, 5.5, 8),
-    ruinsStoneMat
-  );
-  brokenTower.position.set(214 + crDX, ruinsBaseY + 2.75, -45 + crDZ);
-  brokenTower.castShadow = true;
-  castleRuinsGroup.add(brokenTower);
-  colliders.push({ type: 'circle', x: 214 + crDX, z: -45 + crDZ, radius: 2.8, label: 'Menara Patah Kastil' });
-
-  const fallenPillarCoords = [
-    { x: 222 + crDX, z: -32 + crDZ, rotZ: 1.35, rotY: 0.4 },
-    { x: 228 + crDX, z: -38 + crDZ, rotZ: 1.45, rotY: -0.6 },
-    { x: 220 + crDX, z: -40 + crDZ, rotZ: 0.15, rotY: 0.2 },
-    { x: 230 + crDX, z: -30 + crDZ, rotZ: 0.18, rotY: -0.3 },
-  ];
-  fallenPillarCoords.forEach((fp) => {
-    const pillar = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.55, 0.65, 4.2, 6),
-      ruinsStoneMat
-    );
-    pillar.position.set(fp.x, ruinsBaseY + 0.8, fp.z);
-    pillar.rotation.set(0, fp.rotY, fp.rotZ);
-    pillar.castShadow = true;
-    castleRuinsGroup.add(pillar);
-    colliders.push({ type: 'circle', x: fp.x, z: fp.z, radius: 1.2, label: 'Pilar Roboh Reruntuhan' });
-  });
-
   scene.add(castleRuinsGroup);
 
   // ==========================================
@@ -3970,25 +3914,18 @@ async function populateWorldEntities(
     });
   });
 
-  // Ambient Forest / Valley Fireflies
+  // Cuaca & partikel ambien kini ditangani terpadu per bioma oleh Pooled Biome Weather di GameEngine
   const particleGeo = new THREE.BufferGeometry();
-  const particleCount = 200;
-  const particlePos = new Float32Array(particleCount * 3);
-  for (let i = 0; i < particleCount * 3; i += 3) {
-    particlePos[i] = (Math.random() - 0.5) * 140;
-    particlePos[i + 1] = 1 + Math.random() * 9;
-    particlePos[i + 2] = (Math.random() - 0.5) * 140;
-  }
-  particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePos, 3));
-
+  particleGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
   const particleMat = new THREE.PointsMaterial({
     color: 0xfff59d,
-    size: 0.35,
+    size: 0.01,
     transparent: true,
-    opacity: 0.85,
-    blending: THREE.AdditiveBlending,
+    opacity: 0,
+    depthWrite: false,
   });
   const particles = new THREE.Points(particleGeo, particleMat);
+  particles.visible = false;
   scene.add(particles);
 
   // Frustum Culling on all meshes & Dynamic PointLights registration
