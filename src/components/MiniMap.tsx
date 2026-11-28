@@ -167,8 +167,16 @@ export const MiniMap: React.FC<MiniMapProps> = ({
         ctx.arc(cx, cz, 13 * scalePx, Math.PI - 1.15, Math.PI + 1.15);
         ctx.stroke();
       } else {
-        const w = interiorRoomInfo.id.includes('palace') ? 56 : 26;
-        const d = interiorRoomInfo.id.includes('palace') ? 78 : 22;
+        const w = interiorRoomInfo.id.includes('palace')
+          ? 56
+          : interiorRoomInfo.id.includes('valkragor_command')
+            ? 40
+            : 26;
+        const d = interiorRoomInfo.id.includes('palace')
+          ? 74
+          : interiorRoomInfo.id.includes('valkragor_command')
+            ? 34
+            : 22;
         ctx.strokeRect(cx - (w * 0.5) * scalePx, cz - (d * 0.5) * scalePx, w * scalePx, d * scalePx);
       }
     } else {
@@ -351,7 +359,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({
 
     ctx.restore();
     ctx.restore();
-  }, [playerPos.x, playerPos.z, playerPos.rotationY, discoveredChunks, radarRadius, interiorRoomInfo?.id, interiorRoomInfo?.localX, interiorRoomInfo?.localZ]);
+  }, [playerPos.x, playerPos.z, playerPos.rotationY, discoveredChunks, radarRadius, interiorRoomInfo?.id, interiorRoomInfo?.floorLabel, interiorRoomInfo?.localX, interiorRoomInfo?.localZ]);
 
   /**
    * updateMinimapIcons():
@@ -432,20 +440,28 @@ export const MiniMap: React.FC<MiniMapProps> = ({
 
   return (
     <div className="flex flex-col items-end gap-1 select-none pointer-events-none">
-      {/* Current Region Badge Header (Desktop only; on Mobile moved to center top) */}
+      {/* Current Region / Active Interior Badge Header (Desktop only; on Mobile moved to center top) */}
       {!compactMobile && (
         <div
           onClick={onOpenFullMap}
-          className="pointer-events-auto flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-stone-900/95 border border-amber-600/70 rounded-full shadow-2xl backdrop-blur-md cursor-pointer hover:border-amber-400 hover:scale-[1.02] transition-all group max-w-[150px] sm:max-w-none truncate"
+          className="pointer-events-auto flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-stone-900/95 border border-amber-600/70 rounded-full shadow-2xl backdrop-blur-md cursor-pointer hover:border-amber-400 hover:scale-[1.02] transition-all group max-w-[240px] sm:max-w-[300px] truncate"
           title="Buka Peta Benua Eldoria (Tekan M)"
         >
-          <span className="text-xs sm:text-sm drop-shadow">{currentRegion.icon}</span>
+          <span className="text-xs sm:text-sm drop-shadow">
+            {interiorRoomInfo ? (interiorRoomInfo.id.includes('mage_tower') ? '🏰' : '🏛️') : currentRegion.icon}
+          </span>
           <span className="text-[10px] sm:text-xs font-bold tracking-wide text-amber-200 group-hover:text-amber-300 truncate">
-            {currentRegion.nameId}
+            {interiorRoomInfo ? interiorRoomInfo.roomName : currentRegion.nameId}
           </span>
-          <span className="text-[9px] sm:text-[10px] px-1.5 py-0.2 bg-amber-950/80 text-amber-300 border border-amber-700/60 rounded font-mono font-bold flex-shrink-0">
-            Lv.{currentRegion.recommendedLevel}
-          </span>
+          {interiorRoomInfo ? (
+            <span className="text-[9px] sm:text-[10px] px-1.5 py-0.2 bg-sky-950/90 text-sky-300 border border-sky-600/60 rounded font-bold flex-shrink-0">
+              {interiorRoomInfo.floorLabel.split(':')[0].trim()}
+            </span>
+          ) : (
+            <span className="text-[9px] sm:text-[10px] px-1.5 py-0.2 bg-amber-950/80 text-amber-300 border border-amber-700/60 rounded font-mono font-bold flex-shrink-0">
+              Lv.{currentRegion.recommendedLevel}
+            </span>
+          )}
         </div>
       )}
 

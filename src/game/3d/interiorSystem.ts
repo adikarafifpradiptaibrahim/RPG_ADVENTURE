@@ -206,6 +206,14 @@ export function createDoorMarkerMesh(
 // 2. REUSABLE ARCHITECTURAL & FURNITURE HELPERS (LOW OVERHEAD, ZERO DYNAMIC POINTLIGHTS)
 // ============================================================================
 
+const sharedInvisibleRampMat = new THREE.MeshBasicMaterial({
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+  colorWrite: false,
+  side: THREE.DoubleSide,
+});
+
 function addBoxWall(
   parent: THREE.Group,
   colliders: WorldCollider[],
@@ -231,7 +239,7 @@ function addBoxWall(
     minZ: origin.z + lz - d * 0.5,
     maxZ: origin.z + lz + d * 0.5,
     minY: origin.y + ly - h * 0.5,
-    maxY: origin.y + ly + h * 0.5 + 1.5,
+    maxY: origin.y + ly + h * 0.5 + 0.35,
     label,
   });
   return wall;
@@ -246,7 +254,7 @@ function addWalkableSlab(
   ly: number,
   lz: number,
   mat: THREE.Material,
-  label: string
+  _label: string
 ): THREE.Mesh {
   const slab = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
   slab.position.set(lx, ly, lz);
@@ -280,10 +288,11 @@ function addStaircase(
     const stepH = topY - startY + 0.35;
     const zCenter = startZ + dirZ * (i + 0.5) * stepRun;
 
+    // Visual treads marked nonWalkable; continuous smooth invisible ramp handles movement cleanly
     const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(width, stepH, stepRun + 0.08), stepMat);
     stepMesh.position.set(centerX, startY - 0.35 + stepH * 0.5, zCenter);
     stepMesh.receiveShadow = true;
-    stepMesh.userData.walkableSurface = true;
+    stepMesh.userData.nonWalkable = true;
     parent.add(stepMesh);
 
     const trim = new THREE.Mesh(new THREE.BoxGeometry(width + 0.08, 0.05, 0.14), trimMat);
@@ -291,6 +300,17 @@ function addStaircase(
     trim.userData.nonWalkable = true;
     parent.add(trim);
   }
+
+  // Smooth continuous walkable ramp slab spanning startY -> endY with slight lip extensions
+  const rampRun = Math.abs(totalRun) + 0.45;
+  const rampSlope = Math.atan2(totalRise, rampRun);
+  const rampLen = Math.hypot(totalRise, rampRun);
+  const ramp = new THREE.Mesh(new THREE.BoxGeometry(width + 0.12, 0.14, rampLen), sharedInvisibleRampMat);
+  ramp.position.set(centerX, (startY + endY) * 0.5 - 0.05, (startZ + endZ) * 0.5);
+  ramp.rotation.x = dirZ > 0 ? -rampSlope : rampSlope;
+  ramp.visible = true;
+  ramp.userData.walkableSurface = true;
+  parent.add(ramp);
 
   // Non-walkable decorative side balustrades
   const slopeAngle = Math.atan2(totalRise, Math.abs(totalRun));
@@ -304,6 +324,269 @@ function addStaircase(
     rail.userData.nonWalkable = true;
     parent.add(rail);
   }
+}
+
+/** Partition wall along Z or X with an open walkable central archway and height-aware colliders */
+function addPartitionWallWithArch(
+  parent: THREE.Group,
+  colliders: WorldCollider[],
+  origin: Transform,
+  axis: 'x' | 'z',
+  fixedCoord: number,
+  spanStart: number,
+  spanEnd: number,
+  archCenter: number,
+  archWidth: number,
+  baseY: number,
+  wallHeight: number,
+  wallThick: number,
+  wallMat: THREE.Material,
+  trimMat: THREE.Material,
+  label: string
+) {
+  const halfArch = archWidth * 0.5;
+  const leftLen = archCenter - halfArch - spanStart;
+  const rightLen = spanEnd - (archCenter + halfArch);
+  const archTopH = Math.max(0.8, wallHeight - 4.0);
+  const archTopY = baseY + 4.0 + archTopH * 0.5;
+
+  const placeSegment = (centerAlong: number, len: number, segLabel: string) => {
+    if (len <= 0.1) return;
+    if (axis === 'z') {
+      addBoxWall(
+        parent,
+        colliders,
+        origin,
+        wallThick,
+        wallHeight,
+        len,
+        fixedCoord,
+        baseY + wallHeight * 0.5,
+        centerAlong,
+        wallMat,
+        segLabel
+      );
+    } else {
+      addBoxWall(
+        parent,
+        colliders,
+        origin,
+        len,
+        wallHeight,
+        wallThick,
+        centerAlong,
+        baseY + wallHeight * 0.5,
+        fixedCoord,
+        wallMat,
+        segLabel
+      );
+    }
+  };
+
+  placeSegment(spanStart + leftLen * 0.5, leftLen, label);
+  placeSegment(archCenter + halfArch + rightLen * 0.5, rightLen, label);
+
+  // Overhead lintel + ornate jamb pillars framing the doorway (nonWalkable visual)
+  const lintelGeo =
+    axis === 'z'
+      ? new THREE.BoxGeometry(wallThick + 0.14, archTopH, archWidth + 0.35)
+      : new THREE.BoxGeometry(archWidth + 0.35, archTopH, wallThick + 0.14);
+  const lintel = new THREE.Mesh(lintelGeo, wallMat);
+  lintel.position.set(
+    axis === 'z' ? fixedCoord : archCenter,
+    archTopY,
+    axis === 'z' ? archCenter : fixedCoord
+  );
+  lintel.userData.nonWalkable = true;
+  parent.add(lintel);
+
+  const trimGeo =
+    axis === 'z'
+      ? new THREE.BoxGeometry(wallThick + 0.24, 0.28, archWidth + 0.5)
+      : new THREE.BoxGeometry(archWidth + 0.5, 0.28, wallThick + 0.24);
+  const trim = new THREE.Mesh(trimGeo, trimMat);
+  trim.position.set(
+    axis === 'z' ? fixedCoord : archCenter,
+    baseY + 4.0,
+    axis === 'z' ? archCenter : fixedCoord
+  );
+  trim.userData.nonWalkable = true;
+  parent.add(trim);
+
+  for (const sideSign of [-1, 1]) {
+    const jambOffset = archCenter + sideSign * halfArch;
+    const jamb = new THREE.Mesh(new THREE.BoxGeometry(wallThick + 0.26, 4.15, wallThick + 0.26), trimMat);
+    jamb.position.set(
+      axis === 'z' ? fixedCoord : jambOffset,
+      baseY + 2.075,
+      axis === 'z' ? jambOffset : fixedCoord
+    );
+    jamb.userData.nonWalkable = true;
+    parent.add(jamb);
+  }
+}
+
+function createArabicArchGroup(span: number, pillarTopY: number, archMat: THREE.Material, accentMat: THREE.Material): THREE.Group {
+  const g = new THREE.Group();
+  g.userData.nonWalkable = true;
+  const half = span * 0.5;
+  const archHeight = 2.65;
+  const segments = 6;
+  // Two symmetric graceful pointed curves meeting at central apex
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < segments; i++) {
+      const t0 = i / segments;
+      const t1 = (i + 1) / segments;
+      const z0 = side * half * (1 - t0);
+      const z1 = side * half * (1 - t1);
+      const y0 = pillarTopY + Math.sin(t0 * Math.PI * 0.5) * archHeight;
+      const y1 = pillarTopY + Math.sin(t1 * Math.PI * 0.5) * archHeight;
+      const len = Math.hypot(y1 - y0, z1 - z0) + 0.08;
+      const seg = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.42, len), archMat);
+      seg.position.set(0, (y0 + y1) * 0.5, (z0 + z1) * 0.5);
+      seg.rotation.x = Math.atan2(y1 - y0, z1 - z0) * -1;
+      seg.userData.nonWalkable = true;
+      g.add(seg);
+    }
+  }
+  const keystone = new THREE.Mesh(new THREE.OctahedronGeometry(0.42), accentMat);
+  keystone.position.set(0, pillarTopY + archHeight, 0);
+  keystone.userData.nonWalkable = true;
+  g.add(keystone);
+  return g;
+}
+
+function createWallTorchMesh(ironMat: THREE.Material): THREE.Group {
+  const g = new THREE.Group();
+  g.userData.nonWalkable = true;
+  const sconce = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.08, 0.65, 6), ironMat);
+  sconce.rotation.x = 0.35;
+  const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.14, 0.22, 8), ironMat);
+  bowl.position.set(0, 0.34, 0.12);
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.55, 6), new THREE.MeshBasicMaterial({ color: 0xf97316 }));
+  flame.position.set(0, 0.68, 0.12);
+  const core = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.35, 5), new THREE.MeshBasicMaterial({ color: 0xfef08a }));
+  core.position.set(0, 0.62, 0.12);
+  g.add(sconce, bowl, flame, core);
+  return g;
+}
+
+function createCanopyBedMesh(woodMat: THREE.Material, drapeColor: number, trimMat: THREE.Material): THREE.Group {
+  const g = new THREE.Group();
+  const fabric = new THREE.MeshLambertMaterial({ color: drapeColor, side: THREE.DoubleSide });
+  const sheet = new THREE.MeshLambertMaterial({ color: 0xfef3c7 });
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.55, 4.4), woodMat);
+  frame.position.y = 0.28;
+  const mattress = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.45, 4.0), sheet);
+  mattress.position.y = 0.68;
+  const quilt = new THREE.Mesh(new THREE.BoxGeometry(3.12, 0.16, 2.75), fabric);
+  quilt.position.set(0, 0.9, 0.6);
+  for (const px of [-0.75, 0.75]) {
+    const pillow = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.22, 0.7), sheet);
+    pillow.position.set(px, 0.98, -1.4);
+    g.add(pillow);
+  }
+  for (const [px, pz] of [[-1.6, -2.1], [1.6, -2.1], [-1.6, 2.1], [1.6, 2.1]]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 3.6, 8), trimMat);
+    post.position.set(px, 1.8, pz);
+    g.add(post);
+  }
+  const topCanopy = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.22, 4.5), fabric);
+  topCanopy.position.y = 3.6;
+  g.add(frame, mattress, quilt, topCanopy);
+  return g;
+}
+
+function createArmorStandMesh(ironMat: THREE.Material, accentMat: THREE.Material, woodMat: THREE.Material): THREE.Group {
+  const g = new THREE.Group();
+  const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.8, 0.35, 8), woodMat);
+  plinth.position.y = 0.18;
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.1, 6), woodMat);
+  pole.position.y = 1.2;
+  const chestPlate = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.3, 0.85, 8), ironMat);
+  chestPlate.position.y = 1.5;
+  const pauldronL = new THREE.Mesh(new THREE.SphereGeometry(0.22, 6, 5), accentMat);
+  pauldronL.position.set(-0.42, 1.82, 0);
+  const pauldronR = pauldronL.clone();
+  pauldronR.position.x = 0.42;
+  const helm = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.42, 8), ironMat);
+  helm.position.y = 2.18;
+  g.add(plinth, pole, chestPlate, pauldronL, pauldronR, helm);
+  return g;
+}
+
+function createStudyDeskMesh(woodMat: THREE.Material, trimMat: THREE.Material): THREE.Group {
+  const g = new THREE.Group();
+  const top = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.18, 1.6), woodMat);
+  top.position.y = 1.05;
+  g.add(top);
+  for (const [lx, lz] of [[-1.35, -0.6], [1.35, -0.6], [-1.35, 0.6], [1.35, 0.6]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.05, 0.18), woodMat);
+    leg.position.set(lx, 0.52, lz);
+    g.add(leg);
+  }
+  const book = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.12, 0.42), new THREE.MeshLambertMaterial({ color: 0x991b1b }));
+  book.position.set(-0.4, 1.2, 0.1);
+  const globeStand = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.24, 0.25, 8), trimMat);
+  globeStand.position.set(0.95, 1.25, -0.2);
+  const globeBall = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 8), trimMat);
+  globeBall.position.set(0.95, 1.6, -0.2);
+  const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.28, 6), new THREE.MeshBasicMaterial({ color: 0xfef08a }));
+  candle.position.set(-1.1, 1.28, -0.35);
+  g.add(book, globeStand, globeBall, candle);
+  return g;
+}
+
+function createChairMesh(woodMat: THREE.Material, cushionColor: number): THREE.Group {
+  const g = new THREE.Group();
+  const cush = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.16, 0.65), new THREE.MeshLambertMaterial({ color: cushionColor }));
+  cush.position.y = 0.56;
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.12, 0.72), woodMat);
+  seat.position.y = 0.44;
+  const back = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.78, 0.12), woodMat);
+  back.position.set(0, 0.85, -0.3);
+  g.add(seat, cush, back);
+  for (const [lx, lz] of [[-0.3, -0.3], [0.3, -0.3], [-0.3, 0.3], [0.3, 0.3]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.44, 0.1), woodMat);
+    leg.position.set(lx, 0.22, lz);
+    g.add(leg);
+  }
+  return g;
+}
+
+function createGoldenUrnMesh(goldMat: THREE.Material): THREE.Group {
+  const pts = [
+    new THREE.Vector2(0.0, 0.0),
+    new THREE.Vector2(0.45, 0.0),
+    new THREE.Vector2(0.28, 0.32),
+    new THREE.Vector2(0.68, 0.95),
+    new THREE.Vector2(0.58, 1.45),
+    new THREE.Vector2(0.32, 1.72),
+    new THREE.Vector2(0.48, 1.95),
+  ];
+  const g = new THREE.Group();
+  const urn = new THREE.Mesh(new THREE.LatheGeometry(pts, 12), goldMat);
+  g.add(urn);
+  return g;
+}
+
+function createPalmPlanterMesh(potMat: THREE.Material): THREE.Group {
+  const g = new THREE.Group();
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.78, 0.54, 0.95, 10), potMat);
+  pot.position.y = 0.48;
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 2.8, 7), new THREE.MeshLambertMaterial({ color: 0x78350f }));
+  trunk.position.y = 2.1;
+  g.add(pot, trunk);
+  const frondMat = new THREE.MeshLambertMaterial({ color: 0x15803d, side: THREE.DoubleSide });
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const frond = new THREE.Mesh(new THREE.ConeGeometry(0.38, 1.75, 4), frondMat);
+    frond.position.set(Math.cos(a) * 0.72, 3.35, Math.sin(a) * 0.72);
+    frond.rotation.z = -Math.cos(a) * 0.95;
+    frond.rotation.x = Math.sin(a) * 0.95;
+    g.add(frond);
+  }
+  return g;
 }
 
 function createChandelierGroup(radius: number, goldMat: THREE.Material, glowColor = 0xfef08a): THREE.Group {
@@ -466,7 +749,7 @@ function sampleRoomFloorHeight(room: InteriorRoom, worldX: number, currentY: num
   const fallback = Math.max(room.minFloorY, room.getFallbackFloorY(worldX, currentY, worldZ));
   if (room.walkableMeshes.length === 0) return fallback;
 
-  _interiorRayOrigin.set(worldX, currentY + 1.55, worldZ);
+  _interiorRayOrigin.set(worldX, currentY + 1.15, worldZ);
   _interiorRaycaster.set(_interiorRayOrigin, _interiorDownVec);
   _interiorRaycaster.near = 0.01;
   _interiorRaycaster.far = 24.0;
@@ -474,7 +757,7 @@ function sampleRoomFloorHeight(room: InteriorRoom, worldX: number, currentY: num
   const hits = _interiorRaycaster.intersectObjects(room.walkableMeshes, false);
   for (let i = 0; i < hits.length; i++) {
     const hitY = hits[i].point.y;
-    if (hitY <= currentY + 1.35 && hitY >= room.minFloorY - 0.5) {
+    if (hitY <= currentY + 0.85 && hitY >= room.minFloorY - 0.5) {
       return Math.max(room.minFloorY, hitY);
     }
   }
@@ -547,11 +830,12 @@ function addTowerSpiralStairs(
     const cx = -Math.cos(t) * rMid;
     const cz = Math.sin(t) * rMid;
 
+    // Visual treads marked nonWalkable so continuous smooth helical ramp handles walking smoothly
     const step = new THREE.Mesh(new THREE.BoxGeometry(stairW, thickness, treadDepth), stepMat);
     step.position.set(cx, stepTopY - thickness * 0.5, cz);
     step.rotation.y = t;
     step.receiveShadow = true;
-    step.userData.walkableSurface = true;
+    step.userData.nonWalkable = true;
     rootGroup.add(step);
 
     if (i % 3 === 0 || i === steps - 1) {
@@ -561,6 +845,38 @@ function addTowerSpiralStairs(
       rootGroup.add(innerPost);
     }
   }
+
+  // Smooth continuous helical invisible walkable ramp covering mouth transitions + full staircase arc
+  const arcSegs = 40;
+  const rampVerts: number[] = [];
+  const rampIndices: number[] = [];
+  const rampInner = rInner - 0.25;
+  const rampOuter = rOuter + 0.25;
+  const extStart = angleStart - 0.14;
+  const extEnd = angleEnd + 0.14;
+  for (let s = 0; s <= arcSegs; s++) {
+    const u = s / arcSegs;
+    const ang = extStart + u * (extEnd - extStart);
+    const stairFrac = THREE.MathUtils.clamp((ang - angleStart) / (angleEnd - angleStart), 0, 1);
+    const ry = THREE.MathUtils.lerp(fromY, toY, stairFrac) + 0.015;
+    const ix = -Math.cos(ang) * rampInner;
+    const iz = Math.sin(ang) * rampInner;
+    const ox = -Math.cos(ang) * rampOuter;
+    const oz = Math.sin(ang) * rampOuter;
+    rampVerts.push(ix, ry, iz, ox, ry, oz);
+    if (s < arcSegs) {
+      const base = s * 2;
+      rampIndices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
+    }
+  }
+  const rampGeo = new THREE.BufferGeometry();
+  rampGeo.setAttribute('position', new THREE.Float32BufferAttribute(rampVerts, 3));
+  rampGeo.setIndex(rampIndices);
+  rampGeo.computeVertexNormals();
+  const rampMesh = new THREE.Mesh(rampGeo, sharedInvisibleRampMat);
+  rampMesh.visible = true;
+  rampMesh.userData.walkableSurface = true;
+  rootGroup.add(rampMesh);
 
   // Upper floor stairwell guardrails so player uses stair mouths cleanly without walking off the side edge
   const guardSteps = 7;
@@ -653,13 +969,15 @@ function buildShellRoom(
 
 /** 3A. AULA KOMANDAN BENTENG VAL-KRAGOR (28 x 26 x 8) */
 function createValKragorCommandHall(origin: Transform): { room: InteriorRoom; exitPos: Transform; spawnInPos: Transform } {
-  const w = 28;
-  const d = 26;
-  const h = 11.5;
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x3f4756, roughness: 0.85, flatShading: true });
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.88, flatShading: true });
-  const ceilMat = new THREE.MeshStandardMaterial({ color: 0x261d17, roughness: 0.9 });
-  const woodMat = new THREE.MeshLambertMaterial({ color: 0x4a3222, flatShading: true });
+  const w = 40;
+  const d = 34;
+  const h = 13.5;
+  const upperY = 5.4;
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.8, flatShading: true });
+  const upperFloorMat = new THREE.MeshStandardMaterial({ color: 0x5c3d28, roughness: 0.85, flatShading: true });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x3b4859, roughness: 0.84, flatShading: true });
+  const ceilMat = new THREE.MeshStandardMaterial({ color: 0x2c221c, roughness: 0.9 });
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x5d3b24, flatShading: true });
   const ironMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.85, roughness: 0.35 });
   const bannerMat = new THREE.MeshLambertMaterial({ color: 0x991b1b, side: THREE.DoubleSide });
   const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8, roughness: 0.25 });
@@ -675,25 +993,25 @@ function createValKragorCommandHall(origin: Transform): { room: InteriorRoom; ex
     floorMat,
     wallMat,
     ceilMat,
-    3.6
+    4.2
   );
 
   // Heavy Timber Ceiling Beams
   for (let z = -halfD + 4; z <= halfD - 4; z += 5.5) {
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(w - 1, 0.45, 0.55), woodMat);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(w - 1, 0.5, 0.6), woodMat);
     beam.position.set(0, h - 0.25, z);
     beam.userData.nonWalkable = true;
     rootGroup.add(beam);
   }
 
-  // Crimson War Rug running to War Table & Throne
-  const carpet = createCarpetMesh(6.5, 17.5, 0x7f1d1d, 0xd97706);
-  carpet.position.set(0, 0, -0.5);
+  // Crimson War Rug running down Central Tactical Hall
+  const carpet = createCarpetMesh(6.2, 23.0, 0x7f1d1d, 0xd97706);
+  carpet.position.set(0, 0, -1.5);
   rootGroup.add(carpet);
 
-  // Grand Tactical War Map Table in Center
+  // Grand Tactical War Map Table in Center + Officer Chairs
   const warTable = createImperialWarTableMesh();
-  warTable.scale.set(1.25, 1.05, 1.25);
+  warTable.scale.set(1.28, 1.05, 1.28);
   warTable.position.set(0, 0, -1.5);
   rootGroup.add(warTable);
   colliders.push({
@@ -703,73 +1021,277 @@ function createValKragorCommandHall(origin: Transform): { room: InteriorRoom; ex
     minZ: origin.z - 3.6,
     maxZ: origin.z + 0.6,
     minY: origin.y,
-    maxY: origin.y + 2.5,
+    maxY: origin.y + 2.6,
     label: 'Meja Peta Taktik Perang',
   });
+  for (const [cx, cz, ry] of [[-2.9, -1.5, Math.PI / 2], [2.9, -1.5, -Math.PI / 2], [0, 1.3, 0]] as [number, number, number][]) {
+    const ch = createChairMesh(woodMat, 0x7f1d1d);
+    ch.position.set(cx, 0, cz);
+    ch.rotation.y = ry;
+    rootGroup.add(ch);
+  }
 
-  // Flanking Stone Pillars with Hanging War Banners
-  for (const px of [-7.5, 7.5]) {
-    for (const pz of [-6.5, 1.5, 8.0]) {
-      const col = new THREE.Mesh(new THREE.BoxGeometry(1.1, h, 1.1), wallMat);
+  // Flanking Stone Pillars along Central Aisle with Hanging War Banners
+  for (const px of [-9.0, 9.0]) {
+    for (const pz of [-9.5, 1.5, 9.5]) {
+      const col = new THREE.Mesh(new THREE.BoxGeometry(1.15, h, 1.15), wallMat);
       col.position.set(px, h * 0.5, pz);
       col.userData.nonWalkable = true;
-      const banner = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 3.6), bannerMat);
-      banner.position.set(px + (px < 0 ? 0.62 : -0.62), 4.6, pz);
+      const banner = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 3.8), bannerMat);
+      banner.position.set(px + (px < 0 ? 0.65 : -0.65), 4.4, pz);
       banner.rotation.y = Math.PI / 2;
       rootGroup.add(col, banner);
-      colliders.push({ type: 'circle', x: origin.x + px, z: origin.z + pz, radius: 0.78, label: 'Pilar Aula Benteng' });
+      colliders.push({
+        type: 'circle',
+        x: origin.x + px,
+        z: origin.z + pz,
+        radius: 0.8,
+        minY: origin.y,
+        maxY: origin.y + h,
+        label: 'Pilar Aula Benteng',
+      });
     }
   }
 
-  // Stone Fireplace along North-West Wall
+  // Roaring Stone Fireplace & Wall War Map on North Wall + Scroll Cabinet
   const fire = createFireplaceNoLight(wallMat, woodMat);
-  fire.position.set(-7.5, 0, -halfD + 0.85);
+  fire.position.set(-5.6, 0, -halfD + 0.9);
   rootGroup.add(fire);
   colliders.push({
     type: 'box',
-    minX: origin.x - 9.2,
-    maxX: origin.x - 5.8,
+    minX: origin.x - 7.4,
+    maxX: origin.x - 3.8,
     minZ: origin.z - halfD,
-    maxZ: origin.z - halfD + 1.8,
+    maxZ: origin.z - halfD + 1.9,
+    minY: origin.y,
+    maxY: origin.y + 5.2,
     label: 'Perapian Batu Komandan',
   });
 
-  // War Banners on North Wall
-  for (const bx of [-2.8, 0, 2.8]) {
-    const wallBanner = new THREE.Mesh(new THREE.BoxGeometry(1.8, 4.2, 0.08), bannerMat);
-    wallBanner.position.set(bx, 4.6, -halfD + 0.45);
-    const goldCrest = new THREE.Mesh(new THREE.OctahedronGeometry(0.32), goldMat);
-    goldCrest.position.set(bx, 5.1, -halfD + 0.52);
-    rootGroup.add(wallBanner, goldCrest);
+  // Large Tactical Wall Map behind Commander
+  const mapBoardFrame = new THREE.Mesh(new THREE.BoxGeometry(5.4, 3.2, 0.16), woodMat);
+  mapBoardFrame.position.set(0, 3.1, -halfD + 0.48);
+  const mapBoardCanvas = new THREE.Mesh(
+    new THREE.BoxGeometry(4.9, 2.7, 0.2),
+    new THREE.MeshLambertMaterial({ color: 0xe7d3a7 })
+  );
+  mapBoardCanvas.position.set(0, 3.1, -halfD + 0.52);
+  rootGroup.add(mapBoardFrame, mapBoardCanvas);
+
+  // Scroll Cabinet along North-East
+  const scrollCab = createLargeBookcase(3.2, 4.4, woodMat, [0xd97706, 0x991b1b, 0xb45309]);
+  scrollCab.position.set(5.6, 0, -halfD + 0.85);
+  rootGroup.add(scrollCab);
+  colliders.push({
+    type: 'box',
+    minX: origin.x + 3.9,
+    maxX: origin.x + 7.3,
+    minZ: origin.z - halfD,
+    maxZ: origin.z - halfD + 1.4,
+    minY: origin.y,
+    maxY: origin.y + 4.8,
+    label: 'Lemari Gulungan Perang',
+  });
+
+  // Glowing Perimeter Wall Torches (Floor 1 & Floor 2, zero dynamic PointLights)
+  for (const tx of [-halfW + 0.55, halfW - 0.55]) {
+    for (const tz of [-11.5, -2.5, 6.5]) {
+      const torch = createWallTorchMesh(ironMat);
+      torch.position.set(tx, 3.4, tz);
+      torch.rotation.y = tx < 0 ? Math.PI / 2 : -Math.PI / 2;
+      rootGroup.add(torch);
+    }
   }
 
-  // Weapon Racks flanking East & West Walls
-  for (const [wx, wz, rot] of [
-    [-halfW + 1.2, -5.0, Math.PI / 2],
-    [-halfW + 1.2, 2.0, Math.PI / 2],
-    [halfW - 1.2, -5.0, -Math.PI / 2],
-    [halfW - 1.2, 2.0, -Math.PI / 2],
-  ] as [number, number, number][]) {
+  // Floor 1 Side Rooms Partition Walls (X = -10.0 West Armory & X = +10.0 East Officers' Mess)
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'z', -10.0, -halfD + 0.4, 6.5, -4.5, 4.8, 0, upperY, 0.55, wallMat, woodMat, 'Dinding Gudang Senjata');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'z', 10.0, -halfD + 0.4, 6.5, -4.5, 4.8, 0, upperY, 0.55, wallMat, woodMat, 'Dinding Ruang Istirahat Perwira');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', 6.5, -halfW + 0.4, -10.0, -15.0, 4.8, 0, upperY, 0.55, wallMat, woodMat, 'Gerbang Gudang Senjata');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', 6.5, 10.0, halfW - 0.4, 15.0, 4.8, 0, upperY, 0.55, wallMat, woodMat, 'Gerbang Ruang Istirahat Perwira');
+
+  // ROOM 1A (WEST FLOOR 1): GUDANG SENJATA & BAJA (Armory)
+  for (const wz of [-11.5, -4.5, 2.2]) {
     const rack = createWeaponRackMesh();
-    rack.position.set(wx, 0, wz);
-    rack.rotation.y = rot;
+    rack.position.set(-halfW + 1.3, 0, wz);
+    rack.rotation.y = Math.PI / 2;
     rootGroup.add(rack);
-    colliders.push({ type: 'circle', x: origin.x + wx, z: origin.z + wz, radius: 1.0, label: 'Rak Senjata Perang' });
+    colliders.push({
+      type: 'circle',
+      x: origin.x - halfW + 1.3,
+      z: origin.z + wz,
+      radius: 1.0,
+      minY: origin.y,
+      maxY: origin.y + 3.5,
+      label: 'Rak Senjata Perang',
+    });
   }
+  for (const az of [-12.5, 1.5]) {
+    const stand = createArmorStandMesh(ironMat, goldMat, woodMat);
+    stand.position.set(-14.2, 0, az);
+    stand.rotation.y = Math.PI / 2;
+    rootGroup.add(stand);
+    colliders.push({
+      type: 'circle',
+      x: origin.x - 14.2,
+      z: origin.z + az,
+      radius: 0.9,
+      minY: origin.y,
+      maxY: origin.y + 3.2,
+      label: 'Manekin Armor Baja',
+    });
+  }
+  const benchTop = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.05, 3.4), woodMat);
+  benchTop.position.set(-14.8, 0.525, -4.5);
+  const anvil = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.55, 0.65), ironMat);
+  anvil.position.set(-14.8, 1.32, -4.5);
+  rootGroup.add(benchTop, anvil);
+  colliders.push({
+    type: 'box',
+    minX: origin.x - 16.0,
+    maxX: origin.x - 13.6,
+    minZ: origin.z - 6.3,
+    maxZ: origin.z - 2.7,
+    minY: origin.y,
+    maxY: origin.y + 2.4,
+    label: 'Meja Perawatan Senjata',
+  });
 
-  // Chandeliers (emissive glow only — no dynamic lights)
-  const chFront = createChandelierGroup(1.5, ironMat, 0xffa726);
-  chFront.position.set(0, h - 0.2, 3.0);
-  const chBack = createChandelierGroup(1.5, ironMat, 0xffa726);
+  // ROOM 1B (EAST FLOOR 1): RUANG ISTIRAHAT & MAKAN PERWIRA (Officers' Mess Hall)
+  const messTable = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.0, 8.2), woodMat);
+  messTable.position.set(14.8, 0.5, -5.0);
+  rootGroup.add(messTable);
+  for (let mz = -8.0; mz <= -2.0; mz += 2.0) {
+    const mug = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.34, 8), goldMat);
+    mug.position.set(14.5 + (mz % 4 === 0 ? 0.35 : -0.35), 1.17, mz);
+    rootGroup.add(mug);
+  }
+  colliders.push({
+    type: 'box',
+    minX: origin.x + 13.6,
+    maxX: origin.x + 16.0,
+    minZ: origin.z - 9.2,
+    maxZ: origin.z - 0.8,
+    minY: origin.y,
+    maxY: origin.y + 2.2,
+    label: 'Meja Makan Perwira',
+  });
+  for (const bx of [13.0, 16.6]) {
+    const bench = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.52, 7.6), woodMat);
+    bench.position.set(bx, 0.26, -5.0);
+    rootGroup.add(bench);
+  }
+  // Stacked Ale Barrels against North-East Wall
+  for (const [bx, by, bz] of [[14.5, 0.65, -14.8], [16.2, 0.65, -14.8], [15.35, 1.85, -14.8]] as [number, number, number][]) {
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.56, 1.3, 10), woodMat);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(bx, by, bz);
+    rootGroup.add(barrel);
+  }
+  colliders.push({
+    type: 'box',
+    minX: origin.x + 13.6,
+    maxX: origin.x + 17.2,
+    minZ: origin.z - 16.0,
+    maxZ: origin.z - 13.6,
+    minY: origin.y,
+    maxY: origin.y + 3.0,
+    label: 'Rak Tong Persediaan',
+  });
+
+  // FLOOR 2 (upperY = 5.4): UPPER OVERLOOK BALCONY & COMMANDER'S PRIVATE QUARTERS
+  addWalkableSlab(rootGroup, 10.2, 0.45, 24.0, -14.9, upperY - 0.225, -5.0, upperFloorMat, 'Lantai 2 Sayap Barat Komandan');
+  addWalkableSlab(rootGroup, 10.2, 0.45, 24.0, 14.9, upperY - 0.225, -5.0, upperFloorMat, 'Balkon Atas Timur Benteng');
+  addWalkableSlab(rootGroup, 20.0, 0.45, 6.2, 0, upperY - 0.225, -13.9, upperFloorMat, 'Jembatan Balkon Atas Utara');
+
+  // Timber Staircase ascending East Wing from Y=0 (Z=15.0) to Y=5.4 (Z=6.8) with Smooth Ramp
+  addStaircase(rootGroup, 3.8, 16, 0, upperY, 15.0, 6.8, 15.0, woodMat, goldMat, ironMat);
+
+  // Upper Balcony Guardrails (strictly height-aware: Y >= upperY - 0.3)
+  const addUpperRail = (rw: number, rd: number, rx: number, rz: number) => {
+    const rMesh = new THREE.Mesh(new THREE.BoxGeometry(rw, 1.0, rd), woodMat);
+    rMesh.position.set(rx, upperY + 0.5, rz);
+    rMesh.userData.nonWalkable = true;
+    rootGroup.add(rMesh);
+    colliders.push({
+      type: 'box',
+      minX: origin.x + rx - rw * 0.5 - 0.1,
+      maxX: origin.x + rx + rw * 0.5 + 0.1,
+      minZ: origin.z + rz - rd * 0.5 - 0.1,
+      maxZ: origin.z + rz + rd * 0.5 + 0.1,
+      minY: origin.y + upperY - 0.3,
+      maxY: origin.y + upperY + 3.0,
+      label: 'Pagar Balkon Atas Benteng',
+    });
+  };
+  addUpperRail(0.32, 17.8, 10.0, -1.9); // East overlook edge
+  addUpperRail(0.32, 17.8, -10.0, -1.9); // West overlook edge (with North open bridge!)
+  addUpperRail(20.0, 0.32, 0, -10.8); // North bridge inner edge
+
+  // Commander's Private Quarters Partition + Archway on Floor 2 West (-20..-10, -17..+6)
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'z', -10.0, -halfD + 0.4, -1.0, -13.6, 4.4, upperY, h - upperY, 0.5, wallMat, woodMat, 'Pintu Kamar Pribadi Komandan');
+  addBoxWall(rootGroup, colliders, origin, 10.0, h - upperY, 0.5, -15.0, upperY + (h - upperY) * 0.5, 6.2, wallMat, 'Dinding Selatan Kamar Komandan');
+
+  // Inside Commander's Private Quarters: Heavy Timber Bed, Writing Desk, Tactical Bookcase, Heirloom Shield
+  const cmdBed = createCanopyBedMesh(woodMat, 0x7f1d1d, woodMat);
+  cmdBed.position.set(-16.6, upperY, -5.2);
+  rootGroup.add(cmdBed);
+  colliders.push({
+    type: 'box',
+    minX: origin.x - 18.5,
+    maxX: origin.x - 14.7,
+    minZ: origin.z - 7.6,
+    maxZ: origin.z - 2.8,
+    minY: origin.y + upperY,
+    maxY: origin.y + upperY + 3.8,
+    label: 'Ranjang Komandan Benteng',
+  });
+
+  const cmdDesk = createStudyDeskMesh(woodMat, goldMat);
+  cmdDesk.position.set(-13.8, upperY, -10.5);
+  cmdDesk.rotation.y = Math.PI;
+  const cmdChair = createChairMesh(woodMat, 0x7f1d1d);
+  cmdChair.position.set(-13.8, upperY, -9.2);
+  cmdChair.rotation.y = Math.PI;
+  rootGroup.add(cmdDesk, cmdChair);
+  colliders.push({
+    type: 'box',
+    minX: origin.x - 15.6,
+    maxX: origin.x - 12.0,
+    minZ: origin.z - 11.5,
+    maxZ: origin.z - 9.4,
+    minY: origin.y + upperY,
+    maxY: origin.y + upperY + 2.4,
+    label: 'Meja Tulis Komandan',
+  });
+
+  const cmdBooks = createLargeBookcase(3.4, 4.4, woodMat, [0x991b1b, 0xd97706, 0x1e3a8a]);
+  cmdBooks.position.set(-18.8, upperY, -11.5);
+  cmdBooks.rotation.y = Math.PI / 2;
+  rootGroup.add(cmdBooks);
+  colliders.push({
+    type: 'box',
+    minX: origin.x - 19.6,
+    maxX: origin.x - 18.0,
+    minZ: origin.z - 13.4,
+    maxZ: origin.z - 9.6,
+    minY: origin.y + upperY,
+    maxY: origin.y + upperY + 4.8,
+    label: 'Rak Buku Strategi Komandan',
+  });
+
+  // Chandeliers hanging down Central Hall
+  const chFront = createChandelierGroup(1.8, ironMat, 0xffa726);
+  chFront.position.set(0, h - 0.2, 4.5);
+  const chBack = createChandelierGroup(1.8, ironMat, 0xffa726);
   chBack.position.set(0, h - 0.2, -6.5);
   rootGroup.add(chFront, chBack);
 
-  // Chest & NPC
-  const chest = createChestProp('chest_vk_command', 9.2, 0, -9.5, origin, colliders);
+  // Treasure Chest in Commander's Private Quarters + Tactician Haldor in War Hall
+  const chest = createChestProp('chest_vk_command', -16.8, upperY, -14.8, origin, colliders);
   rootGroup.add(chest.group);
 
   const captainGroup = createCustomNPCMesh('commander');
-  captainGroup.position.set(0, 0, -6.8);
+  captainGroup.position.set(0, 0, -7.2);
   captainGroup.rotation.y = 0;
   rootGroup.add(captainGroup);
 
@@ -792,7 +1314,7 @@ function createValKragorCommandHall(origin: Transform): { room: InteriorRoom; ex
         nameId: 'Perwira Taktik Benteng Haldor',
         role: 'Panglima Meja Perang',
         group: captainGroup,
-        position: [origin.x, origin.y, origin.z - 6.8],
+        position: [origin.x, origin.y, origin.z - 7.2],
         dialogueId: 'commander_brann',
         icon: '⚔️',
       },
@@ -800,15 +1322,18 @@ function createValKragorCommandHall(origin: Transform): { room: InteriorRoom; ex
     chests: [chest],
     ambientSkyHex: 0xfef3c7,
     ambientGroundHex: 0x475569,
-    ambientIntensity: 0.92,
-    hemiIntensity: 1.15,
-    dirIntensity: 1.0,
+    ambientIntensity: 1.05,
+    hemiIntensity: 1.25,
+    dirIntensity: 1.05,
     bgHex: 0x1e293b,
     fogHex: 0x1e293b,
     animatedParts: [],
-    getFallbackFloorY: () => origin.y,
+    getFallbackFloorY: (_wx, wy) => (wy - origin.y >= 4.0 ? origin.y + upperY : origin.y),
     getFloorHeight: (wx, wy, wz) => sampleRoomFloorHeight(room, wx, wy, wz),
-    getFloorLabel: () => 'Lantai 1: Aula Komandan Benteng',
+    getFloorLabel: (wy) =>
+      wy - origin.y >= 4.0
+        ? 'Lantai 2: Kamar Komandan & Balkon Atas'
+        : 'Lantai 1: Aula Taktik, Gudang & Perwira',
     clampInsideWalls: (wx, wz, r) => ({
       x: THREE.MathUtils.clamp(wx, origin.x - halfW + 0.8 + r, origin.x + halfW - 0.8 - r),
       z: THREE.MathUtils.clamp(wz, origin.z - halfD + 0.8 + r, origin.z + halfD - 0.8 - r),
@@ -997,10 +1522,12 @@ function createAstraeaImperialPalaceInterior(origin: Transform): { room: Interio
   const whiteMarble = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.2, metalness: 0.08 });
   const blueMarble = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.25, metalness: 0.14 });
   const goldTrim = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.22, metalness: 0.88 });
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.35 });
-  const ceilMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.45 });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.32 });
+  const ceilMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.4 });
   const bannerBlue = new THREE.MeshLambertMaterial({ color: 0x1d4ed8, side: THREE.DoubleSide });
+  const velvetRed = new THREE.MeshLambertMaterial({ color: 0x991b1b, side: THREE.DoubleSide });
   const woodMat = new THREE.MeshLambertMaterial({ color: 0x5d4037, flatShading: true });
+  const steelMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.25 });
   const sunGlow = new THREE.MeshBasicMaterial({ color: 0xfef08a });
 
   const { rootGroup, colliders, halfW, halfD } = buildShellRoom(
@@ -1018,7 +1545,7 @@ function createAstraeaImperialPalaceInterior(origin: Transform): { room: Interio
   );
 
   // Gleaming White-Blue Checkered Marble Floor Inlay along Nave
-  for (let ix = -12; ix <= 12; ix += 4) {
+  for (let ix = -10; ix <= 10; ix += 4) {
     for (let iz = -24; iz <= 28; iz += 4) {
       if ((Math.abs(ix / 4) + Math.abs(iz / 4)) % 2 === 1) {
         const inlay = new THREE.Mesh(new THREE.BoxGeometry(3.85, 0.025, 3.85), blueMarble);
@@ -1041,12 +1568,12 @@ function createAstraeaImperialPalaceInterior(origin: Transform): { room: Interio
   skyDome.scale.set(1, 0.42, 1);
   rootGroup.add(domeRing, skyDome);
 
-  // Grand Crimson-and-Gold Carpet stretching down 62 units
-  const runner = createCarpetMesh(6.0, 58.0, 0x991b1b, 0xf59e0b);
-  runner.position.set(0, 0, 5.0);
+  // Grand Crimson-and-Gold Carpet stretching down Central Nave
+  const runner = createCarpetMesh(5.8, 56.0, 0x991b1b, 0xf59e0b);
+  runner.position.set(0, 0, 6.0);
   rootGroup.add(runner);
 
-  // Stepped Throne Dais at North End + Walkable Steps
+  // Stepped Throne Dais at North End + Ornate Silk Canopy Pavilion
   addStaircase(rootGroup, 14.0, 4, 0, 1.4, -22.5, -26.5, 0, whiteMarble, goldTrim, goldTrim);
   addWalkableSlab(rootGroup, 20.0, 1.4, 12.0, 0, 0.7, -32.5, whiteMarble, 'Podium Singgasana Kaisar');
 
@@ -1054,24 +1581,37 @@ function createAstraeaImperialPalaceInterior(origin: Transform): { room: Interio
   throne.scale.set(1.35, 1.35, 1.35);
   throne.position.set(0, 1.4, -34.8);
   rootGroup.add(throne);
+  for (const [cx, cz] of [[-3.1, -33.2], [3.1, -33.2], [-3.1, -36.5], [3.1, -36.5]]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 4.8, 8), goldTrim);
+    post.position.set(cx, 3.8, cz);
+    post.userData.nonWalkable = true;
+    rootGroup.add(post);
+  }
+  const canopyRoof = new THREE.Mesh(new THREE.BoxGeometry(6.8, 0.35, 4.0), velvetRed);
+  canopyRoof.position.set(0, 6.25, -34.85);
+  const canopyTrim = new THREE.Mesh(new THREE.BoxGeometry(7.0, 0.25, 4.2), goldTrim);
+  canopyTrim.position.set(0, 6.05, -34.85);
+  rootGroup.add(canopyRoof, canopyTrim);
   colliders.push({
     type: 'box',
     minX: origin.x - 2.0,
     maxX: origin.x + 2.0,
     minZ: origin.z - 36.8,
     maxZ: origin.z - 33.4,
+    minY: origin.y,
+    maxY: origin.y + 6.5,
     label: 'Takhta Kaisar Aurelius',
   });
 
   // Glowing Golden Sun Rose Window behind Throne
   const sunWin = new THREE.Mesh(new THREE.CircleGeometry(4.2, 24), sunGlow);
-  sunWin.position.set(0, 9.0, -halfD + 0.42);
+  sunWin.position.set(0, 9.6, -halfD + 0.42);
   const sunRing = new THREE.Mesh(new THREE.TorusGeometry(4.3, 0.35, 8, 24), goldTrim);
-  sunRing.position.set(0, 9.0, -halfD + 0.45);
+  sunRing.position.set(0, 9.6, -halfD + 0.45);
   rootGroup.add(sunWin, sunRing);
 
-  // 2 Rows of Colossal Fluted Marble Pillars with Royal Banners
-  for (const cx of [-11.0, 11.0]) {
+  // 2 Rows of Colossal Fluted Marble Pillars with Royal Blue-Gold Silk Banners along Nave (X = ±12.2)
+  for (const cx of [-12.2, 12.2]) {
     for (const cz of [-20, -10, 0, 10, 20, 30]) {
       const base = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.7, 1.9), blueMarble);
       base.position.set(cx, 0.35, cz);
@@ -1084,40 +1624,271 @@ function createAstraeaImperialPalaceInterior(origin: Transform): { room: Interio
       banner.position.set(cx + (cx < 0 ? 0.92 : -0.92), 7.5, cz);
       banner.rotation.y = Math.PI / 2;
       rootGroup.add(base, col, cap, banner);
-      colliders.push({ type: 'circle', x: origin.x + cx, z: origin.z + cz, radius: 1.05, label: 'Pilar Marmer Agung' });
+      colliders.push({
+        type: 'circle',
+        x: origin.x + cx,
+        z: origin.z + cz,
+        radius: 1.05,
+        minY: origin.y,
+        maxY: origin.y + h,
+        label: 'Pilar Marmer Agung',
+      });
     }
   }
 
-  // Twin Walkable 2nd Floor Balconies (Y = 5.4) + Twin Access Staircases!
-  const balcY = 5.4;
-  // West Balcony Deck (X: -27.5..-19.5, Z: -38..28)
-  addWalkableSlab(rootGroup, 8.2, 0.45, 68.0, -23.5, balcY - 0.225, -4.0, whiteMarble, 'Balkon Lantai 2 Sayap Barat');
-  // East Balcony Deck (X: 19.5..27.5, Z: -38..28)
-  addWalkableSlab(rootGroup, 8.2, 0.45, 68.0, 23.5, balcY - 0.225, -4.0, whiteMarble, 'Balkon Lantai 2 Sayap Timur');
-  // North Overlook Bridge Balcony connecting West & East above rear wall (X: -20..20, Z: -38..-31)
-  addWalkableSlab(rootGroup, 40.0, 0.45, 6.5, 0, balcY - 0.225, -36.5, whiteMarble, 'Balkon Lantai 2 Sayap Utara');
+  // Twin Royal Banquet Tables flanking Nave on Floor 1 (clear of central carpet & pillars!)
+  for (const sideX of [-7.0, 7.0]) {
+    const banquet = createImperialBanquetTableMesh();
+    banquet.position.set(sideX, 0, 4.0);
+    banquet.rotation.y = Math.PI / 2;
+    rootGroup.add(banquet);
+    for (const cz of [0.5, 4.0, 7.5]) {
+      const cIn = createChairMesh(woodMat, 0x1d4ed8);
+      cIn.position.set(sideX + (sideX < 0 ? 1.55 : -1.55), 0, cz);
+      cIn.rotation.y = sideX < 0 ? -Math.PI / 2 : Math.PI / 2;
+      rootGroup.add(cIn);
+    }
+    colliders.push({
+      type: 'box',
+      minX: origin.x + sideX - 1.6,
+      maxX: origin.x + sideX + 1.6,
+      minZ: origin.z - 0.5,
+      maxZ: origin.z + 8.5,
+      minY: origin.y,
+      maxY: origin.y + 2.5,
+      label: 'Meja Perjamuan Kerajaan',
+    });
+  }
 
-  // Balcony Protective Railings & Colliders (only active when up at Y >= 4.0)
-  for (const bx of [-19.5, 19.5]) {
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.05, 66.0), goldTrim);
-    rail.position.set(bx, balcY + 0.55, -3.0);
+  // Floor 1 Side Rooms Partition Walls (Y = 0..5.4, Open Archways from Central Aisles!)
+  const balcY = 5.6;
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'z', -15.2, -26.0, 14.0, -6.0, 5.2, 0, balcY, 0.55, wallMat, goldTrim, 'Dinding Perpustakaan Kerajaan');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'z', 15.2, -26.0, 14.0, -6.0, 5.2, 0, balcY, 0.55, wallMat, goldTrim, 'Dinding Ruang Dewan Bangsawan');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', -26.0, -halfW + 0.5, -15.2, -21.5, 4.4, 0, balcY, 0.55, wallMat, goldTrim, 'Gerbang Utara Perpustakaan');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', -26.0, 15.2, halfW - 0.5, 21.5, 4.4, 0, balcY, 0.55, wallMat, goldTrim, 'Gerbang Utara Ruang Dewan');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', 14.0, -halfW + 0.5, -15.2, -21.5, 4.8, 0, balcY, 0.55, wallMat, goldTrim, 'Gerbang Selatan Perpustakaan');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', 14.0, 15.2, halfW - 0.5, 21.5, 4.8, 0, balcY, 0.55, wallMat, goldTrim, 'Gerbang Selatan Ruang Dewan');
+
+  // FLOOR 1 ROOM A (WEST WING): PERPUSTAKAAN KERAJAAN & ARSIP
+  const libRug = createCarpetMesh(9.2, 26.0, 0x1e3a8a, 0xf59e0b);
+  libRug.position.set(-21.5, 0, -6.0);
+  rootGroup.add(libRug);
+  const libColors = [0x991b1b, 0x1d4ed8, 0x059669, 0xd97706];
+  for (const lz of [-20.0, -11.0, -2.0, 7.0]) {
+    const bc = createLargeBookcase(3.8, 4.6, woodMat, libColors);
+    bc.position.set(-halfW + 1.0, 0, lz);
+    bc.rotation.y = Math.PI / 2;
+    rootGroup.add(bc);
+    colliders.push({
+      type: 'box',
+      minX: origin.x - halfW + 0.3,
+      maxX: origin.x - halfW + 1.8,
+      minZ: origin.z + lz - 2.1,
+      maxZ: origin.z + lz + 2.1,
+      minY: origin.y,
+      maxY: origin.y + 4.8,
+      label: 'Rak Buku Perpustakaan Kerajaan',
+    });
+  }
+  const scholarDesk = createStudyDeskMesh(woodMat, goldTrim);
+  scholarDesk.position.set(-21.5, 0, -6.0);
+  scholarDesk.rotation.y = Math.PI / 2;
+  const scholarChair = createChairMesh(woodMat, 0x1d4ed8);
+  scholarChair.position.set(-20.0, 0, -6.0);
+  scholarChair.rotation.y = -Math.PI / 2;
+  rootGroup.add(scholarDesk, scholarChair);
+  colliders.push({
+    type: 'box',
+    minX: origin.x - 22.8,
+    maxX: origin.x - 20.2,
+    minZ: origin.z - 8.0,
+    maxZ: origin.z - 4.0,
+    minY: origin.y,
+    maxY: origin.y + 2.4,
+    label: 'Meja Baca & Bola Dunia',
+  });
+
+  // FLOOR 1 ROOM B (EAST WING): RUANG DEWAN BANGSAWAN (Noble Council Chamber)
+  const councilRug = createCarpetMesh(9.2, 26.0, 0x7f1d1d, 0xf59e0b);
+  councilRug.position.set(21.5, 0, -6.0);
+  rootGroup.add(councilRug);
+  const councilTable = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.05, 11.5), woodMat);
+  councilTable.position.set(21.5, 0.525, -5.5);
+  const councilTopTrim = new THREE.Mesh(new THREE.BoxGeometry(3.35, 0.08, 11.65), goldTrim);
+  councilTopTrim.position.set(21.5, 1.06, -5.5);
+  rootGroup.add(councilTable, councilTopTrim);
+  colliders.push({
+    type: 'box',
+    minX: origin.x + 19.7,
+    maxX: origin.x + 23.3,
+    minZ: origin.z - 11.4,
+    maxZ: origin.z + 0.4,
+    minY: origin.y,
+    maxY: origin.y + 2.4,
+    label: 'Meja Panjang Dewan Bangsawan',
+  });
+  for (const cz of [-9.5, -5.5, -1.5]) {
+    for (const sideSign of [-1, 1]) {
+      const nc = createChairMesh(woodMat, 0x991b1b);
+      nc.position.set(21.5 + sideSign * 2.3, 0, cz);
+      nc.rotation.y = sideSign < 0 ? -Math.PI / 2 : Math.PI / 2;
+      rootGroup.add(nc);
+    }
+  }
+  const eastFire = createFireplaceNoLight(wallMat, woodMat);
+  eastFire.position.set(halfW - 0.9, 0, -18.5);
+  eastFire.rotation.y = -Math.PI / 2;
+  rootGroup.add(eastFire);
+  colliders.push({
+    type: 'box',
+    minX: origin.x + halfW - 1.9,
+    maxX: origin.x + halfW,
+    minZ: origin.z - 20.3,
+    maxZ: origin.z - 16.7,
+    minY: origin.y,
+    maxY: origin.y + 5.2,
+    label: 'Perapian Marmer Ruang Dewan',
+  });
+  for (const pz of [-10.0, -1.0, 8.0]) {
+    const pFrame = new THREE.Mesh(new THREE.BoxGeometry(0.14, 2.8, 2.2), goldTrim);
+    pFrame.position.set(halfW - 0.48, 3.0, pz);
+    const pArt = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.3, 1.75), bannerBlue);
+    pArt.position.set(halfW - 0.5, 3.0, pz);
+    rootGroup.add(pFrame, pArt);
+  }
+
+  // FLOOR 2 (balcY = 5.6): WALKABLE U-GALLERY BALCONIES + ROYAL BEDCHAMBER & CROWN TREASURY
+  addWalkableSlab(rootGroup, 13.2, 0.45, 66.0, -21.4, balcY - 0.225, -5.0, whiteMarble, 'Balkon Lantai 2 Sayap Barat');
+  addWalkableSlab(rootGroup, 13.2, 0.45, 66.0, 21.4, balcY - 0.225, -5.0, whiteMarble, 'Balkon Lantai 2 Sayap Timur');
+  addWalkableSlab(rootGroup, 29.6, 0.45, 9.6, 0, balcY - 0.225, -33.2, whiteMarble, 'Balkon Lantai 2 Sayap Utara');
+
+  // Balcony Protective Railings & Height-Aware Colliders (Y >= balcY - 0.3)
+  for (const bx of [-15.0, 15.0]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.05, 56.5), goldTrim);
+    rail.position.set(bx, balcY + 0.55, 0.2);
     rail.userData.nonWalkable = true;
     rootGroup.add(rail);
     colliders.push({
       type: 'box',
       minX: origin.x + bx - 0.25,
       maxX: origin.x + bx + 0.25,
-      minZ: origin.z - 33.0,
-      maxZ: origin.z + 29.0,
-      minY: origin.y + balcY - 0.5,
+      minZ: origin.z - 28.0,
+      maxZ: origin.z + 28.5,
+      minY: origin.y + balcY - 0.4,
       maxY: origin.y + balcY + 3.0,
       label: 'Pagar Balkon Istana',
     });
   }
+  const northRail = new THREE.Mesh(new THREE.BoxGeometry(29.8, 1.05, 0.35), goldTrim);
+  northRail.position.set(0, balcY + 0.55, -28.4);
+  northRail.userData.nonWalkable = true;
+  rootGroup.add(northRail);
+  colliders.push({
+    type: 'box',
+    minX: origin.x - 15.0,
+    maxX: origin.x + 15.0,
+    minZ: origin.z - 28.7,
+    maxZ: origin.z - 28.1,
+    minY: origin.y + balcY - 0.4,
+    maxY: origin.y + balcY + 3.0,
+    label: 'Pagar Balkon Utara Istana',
+  });
 
-  // Twin Marble Staircases Ascending from Ground (Y=0, Z=33) to Balcony Decks (Y=5.4, Z=23)
-  addStaircase(rootGroup, 4.2, 16, 0, balcY, 35.0, 24.0, -23.5, whiteMarble, goldTrim, blueMarble);
-  addStaircase(rootGroup, 4.2, 16, 0, balcY, 35.0, 24.0, 23.5, whiteMarble, goldTrim, blueMarble);
+  // Twin Wide Marble Staircases Ascending from Ground (Y=0, Z=35) to Balcony Decks (Y=5.6, Z=23.5) with Smooth Ramps
+  addStaircase(rootGroup, 4.6, 16, 0, balcY, 35.0, 23.5, -21.5, whiteMarble, goldTrim, blueMarble);
+  addStaircase(rootGroup, 4.6, 16, 0, balcY, 35.0, 23.5, 21.5, whiteMarble, goldTrim, blueMarble);
+
+  // Floor 2 Side Luxury Room Partitions (Y = balcY..balcY + 6.4, Open Arch from Front Gallery Z = -1 & Overlook!)
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', -1.0, -halfW + 0.5, -15.2, -21.5, 4.8, balcY, 6.2, 0.5, wallMat, goldTrim, 'Gerbang Kamar Tidur Kaisar');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', -25.0, -halfW + 0.5, -15.2, -21.5, 4.4, balcY, 6.2, 0.5, wallMat, goldTrim, 'Gerbang Belakang Kamar Kaisar');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', -1.0, 15.2, halfW - 0.5, 21.5, 4.8, balcY, 6.2, 0.5, wallMat, goldTrim, 'Gerbang Galeri Pusaka');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', -25.0, 15.2, halfW - 0.5, 21.5, 4.4, balcY, 6.2, 0.5, wallMat, goldTrim, 'Gerbang Belakang Galeri Pusaka');
+
+  // FLOOR 2 ROOM A (WEST UPPER): KAMAR TIDUR UTAMA KAISAR
+  const bedRug = createCarpetMesh(8.2, 16.0, 0x991b1b, 0xf59e0b);
+  bedRug.position.set(-21.5, balcY, -13.0);
+  rootGroup.add(bedRug);
+  const royalBed = createCanopyBedMesh(woodMat, 0x991b1b, goldTrim);
+  royalBed.position.set(-22.8, balcY, -16.5);
+  rootGroup.add(royalBed);
+  colliders.push({
+    type: 'box',
+    minX: origin.x - 24.8,
+    maxX: origin.x - 20.8,
+    minZ: origin.z - 19.0,
+    maxZ: origin.z - 14.0,
+    minY: origin.y + balcY,
+    maxY: origin.y + balcY + 4.0,
+    label: 'Ranjang Kanopi Kaisar',
+  });
+  const wardrobe = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4.4, 3.6), woodMat);
+  wardrobe.position.set(-halfW + 1.2, balcY + 2.2, -11.0);
+  const mirrorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.8, 1.8), goldTrim);
+  mirrorFrame.position.set(-halfW + 0.55, balcY + 2.2, -6.5);
+  const deskF2 = createStudyDeskMesh(woodMat, goldTrim);
+  deskF2.position.set(-21.2, balcY, -6.2);
+  const chairF2 = createChairMesh(woodMat, 0x991b1b);
+  chairF2.position.set(-21.2, balcY, -4.7);
+  chairF2.rotation.y = Math.PI;
+  rootGroup.add(wardrobe, mirrorFrame, deskF2, chairF2);
+  colliders.push(
+    {
+      type: 'box',
+      minX: origin.x - halfW + 0.3,
+      maxX: origin.x - halfW + 2.1,
+      minZ: origin.z - 13.0,
+      maxZ: origin.z - 9.0,
+      minY: origin.y + balcY,
+      maxY: origin.y + balcY + 4.6,
+      label: 'Lemari Pakaian Kerajaan',
+    },
+    {
+      type: 'box',
+      minX: origin.x - 23.0,
+      maxX: origin.x - 19.4,
+      minZ: origin.z - 7.2,
+      maxZ: origin.z - 5.2,
+      minY: origin.y + balcY,
+      maxY: origin.y + balcY + 2.4,
+      label: 'Meja Tulis Pribadi',
+    }
+  );
+
+  // FLOOR 2 ROOM B (EAST UPPER): GALERI PUSAKA & HARTA TAHTA
+  const treasRug = createCarpetMesh(8.2, 16.0, 0x1d4ed8, 0xf59e0b);
+  treasRug.position.set(21.5, balcY, -13.0);
+  rootGroup.add(treasRug);
+  for (const az of [-8.0, -17.5]) {
+    const armor = createArmorStandMesh(steelMat, goldTrim, whiteMarble);
+    armor.position.set(18.2, balcY, az);
+    armor.rotation.y = Math.PI / 2;
+    const casePed = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.3, 2.2), blueMarble);
+    casePed.position.set(24.8, balcY + 0.65, az);
+    const swordBlade = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.6, 0.22), goldTrim);
+    swordBlade.position.set(24.8, balcY + 2.1, az);
+    rootGroup.add(armor, casePed, swordBlade);
+    colliders.push(
+      {
+        type: 'circle',
+        x: origin.x + 18.2,
+        z: origin.z + az,
+        radius: 0.9,
+        minY: origin.y + balcY,
+        maxY: origin.y + balcY + 3.2,
+        label: 'Manekin Baju Zirah Kerajaan',
+      },
+      {
+        type: 'box',
+        minX: origin.x + 23.9,
+        maxX: origin.x + 25.7,
+        minZ: origin.z + az - 1.3,
+        maxZ: origin.z + az + 1.3,
+        minY: origin.y + balcY,
+        maxY: origin.y + balcY + 3.0,
+        label: 'Etalase Pusaka Kerajaan',
+      }
+    );
+  }
 
   // 3 Colossal Crystal Chandeliers Hanging down the Grand Hall
   for (const cz of [-18, 0, 18]) {
@@ -1133,40 +1904,19 @@ function createAstraeaImperialPalaceInterior(origin: Transform): { room: Interio
     ks.position.set(kx, 0, -22.0);
     ks.rotation.y = rot;
     rootGroup.add(ks);
-    colliders.push({ type: 'circle', x: origin.x + kx, z: origin.z - 22.0, radius: 1.2, label: 'Patung Ksatria Pengawal' });
+    colliders.push({
+      type: 'circle',
+      x: origin.x + kx,
+      z: origin.z - 22.0,
+      radius: 1.2,
+      minY: origin.y,
+      maxY: origin.y + 4.8,
+      label: 'Patung Ksatria Pengawal',
+    });
   }
 
-  // Side Wing Banquet & Strategy Galleries (Ground Floor under Balconies)
-  const banquet = createImperialBanquetTableMesh();
-  banquet.position.set(16.0, 0, 0);
-  banquet.rotation.y = Math.PI / 2;
-  rootGroup.add(banquet);
-  colliders.push({
-    type: 'box',
-    minX: origin.x + 14.0,
-    maxX: origin.x + 18.0,
-    minZ: origin.z - 4.5,
-    maxZ: origin.z + 4.5,
-    maxY: origin.y + 3.5,
-    label: 'Meja Perjamuan Agung',
-  });
-
-  const warMap = createImperialWarTableMesh();
-  warMap.position.set(-16.0, 0, 0);
-  warMap.rotation.y = Math.PI / 2;
-  rootGroup.add(warMap);
-  colliders.push({
-    type: 'box',
-    minX: origin.x - 18.0,
-    maxX: origin.x - 14.0,
-    minZ: origin.z - 3.5,
-    maxZ: origin.z + 3.5,
-    maxY: origin.y + 3.5,
-    label: 'Meja Dewan Kekaisaran',
-  });
-
-  // Chest in Imperial Treasury Corner + Royal NPC
-  const chest = createChestProp('chest_astraea_palace', -22.5, 0, -32.0, origin, colliders);
+  // Royal Treasury Chest on Floor 2 Crown Treasury + Preserved Emperor & Chamberlain NPCs
+  const chest = createChestProp('chest_astraea_palace', 21.8, balcY, -21.5, origin, colliders);
   rootGroup.add(chest.group);
 
   const emperorNPC = createCustomNPCMesh('emperor');
@@ -1175,16 +1925,9 @@ function createAstraeaImperialPalaceInterior(origin: Transform): { room: Interio
   rootGroup.add(emperorNPC);
 
   const stewardNPC = createCustomNPCMesh('marshal');
-  stewardNPC.position.set(5.5, 0, 12.0);
+  stewardNPC.position.set(5.5, 0, 16.0);
   stewardNPC.rotation.y = -Math.PI / 4;
   rootGroup.add(stewardNPC);
-
-  // Decorative wood benches on Balcony Lantai 2
-  for (const bx of [-23.5, 23.5]) {
-    const bench = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.65, 3.2), woodMat);
-    bench.position.set(bx, balcY + 0.32, -8.0);
-    rootGroup.add(bench);
-  }
 
   const room: InteriorRoom = {
     id: 'astraea_imperial_palace',
@@ -1215,7 +1958,7 @@ function createAstraeaImperialPalaceInterior(origin: Transform): { room: Interio
         nameId: 'Kepala Rumah Tangga Istana',
         role: 'Penasihat Istana Kaisar',
         group: stewardNPC,
-        position: [origin.x + 5.5, origin.y, origin.z + 12.0],
+        position: [origin.x + 5.5, origin.y, origin.z + 16.0],
         dialogueId: 'marshal_vane',
         icon: '📜',
       },
@@ -1223,15 +1966,18 @@ function createAstraeaImperialPalaceInterior(origin: Transform): { room: Interio
     chests: [chest],
     ambientSkyHex: 0xfef3c7,
     ambientGroundHex: 0x475569,
-    ambientIntensity: 0.95,
-    hemiIntensity: 1.15,
-    dirIntensity: 1.0,
+    ambientIntensity: 1.05,
+    hemiIntensity: 1.25,
+    dirIntensity: 1.08,
     bgHex: 0x1e293b,
     fogHex: 0x1e293b,
     animatedParts: [],
-    getFallbackFloorY: () => origin.y,
+    getFallbackFloorY: (_wx, wy) => (wy - origin.y >= 4.2 ? origin.y + balcY : origin.y),
     getFloorHeight: (wx, wy, wz) => sampleRoomFloorHeight(room, wx, wy, wz),
-    getFloorLabel: (wy) => (wy - origin.y >= 4.2 ? 'Lantai 2: Balkon Emas Kekaisaran' : 'Lantai 1: Singgasana Kaisar'),
+    getFloorLabel: (wy) =>
+      wy - origin.y >= 4.2
+        ? 'Lantai 2: Kamar Kaisar & Galeri Pusaka'
+        : 'Lantai 1: Singgasana, Perpustakaan & Dewan',
     clampInsideWalls: (wx, wz, r) => ({
       x: THREE.MathUtils.clamp(wx, origin.x - halfW + 0.9 + r, origin.x + halfW - 0.9 - r),
       z: THREE.MathUtils.clamp(wz, origin.z - halfD + 0.9 + r, origin.z + halfD - 0.9 - r),
@@ -1429,14 +2175,18 @@ function createAstraeaTavernInterior(origin: Transform): { room: InteriorRoom; e
 /** 3E. ISTANA SULTAN SOLARIA (56 x 76 x 16 — MARMER GADING, EMAS, MOSAIK TOSKA, KOLAM REFLEKSI, LENGKUNGAN ISLAM) */
 function createSolariaSultanPalaceInterior(origin: Transform): { room: InteriorRoom; exitPos: Transform; spawnInPos: Transform } {
   const w = 56;
-  const d = 76;
-  const h = 20.0;
+  const d = 74;
+  const h = 21.0;
+  const galY = 5.6;
   const ivoryMarble = new THREE.MeshStandardMaterial({ color: 0xfef9c3, roughness: 0.24, metalness: 0.06 });
   const warmSandstone = new THREE.MeshStandardMaterial({ color: 0xf5deb3, roughness: 0.45 });
   const turquoiseTile = new THREE.MeshStandardMaterial({ color: 0x0d9488, roughness: 0.22, metalness: 0.25 });
   const lapisAccent = new THREE.MeshStandardMaterial({ color: 0x0369a1, roughness: 0.28, metalness: 0.35 });
   const goldMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.18, metalness: 0.9 });
   const ceilMat = new THREE.MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.4 });
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x6b3e1b, flatShading: true });
+  const silkRed = new THREE.MeshLambertMaterial({ color: 0x991b1b, side: THREE.DoubleSide });
+  const silkTeal = new THREE.MeshLambertMaterial({ color: 0x0f766e, side: THREE.DoubleSide });
   const poolWaterMat = new THREE.MeshStandardMaterial({
     color: 0x22d3ee,
     roughness: 0.08,
@@ -1460,53 +2210,104 @@ function createSolariaSultanPalaceInterior(origin: Transform): { room: InteriorR
     5.6
   );
 
-  // Exotic Turquoise Mosaic Floor Frame around Central Pool
-  const mosaicFrame = new THREE.Mesh(new THREE.BoxGeometry(12.2, 0.04, 34.0), turquoiseTile);
-  mosaicFrame.position.set(0, 0.02, 4.0);
+  // Exotic Turquoise Mosaic Border around Central Reflecting Pool (Z = -5.5..17.5)
+  const mosaicFrame = new THREE.Mesh(new THREE.BoxGeometry(9.4, 0.04, 26.2), turquoiseTile);
+  mosaicFrame.position.set(0, 0.02, 6.0);
   mosaicFrame.userData.nonWalkable = true;
   rootGroup.add(mosaicFrame);
 
-  // Crystal-Clear Central Reflecting Pool (Width 7.2 x Length 28.0) with Marble Curb
-  const poolBasin = new THREE.Mesh(new THREE.BoxGeometry(7.6, 0.32, 28.4), whiteRim(goldMat));
-  poolBasin.position.set(0, 0.16, 4.0);
-  const poolWater = new THREE.Mesh(new THREE.PlaneGeometry(7.0, 27.6), poolWaterMat);
+  // Sleek Turquoise Reflecting Pool (Width 6.2 x Length 23.0) with Low Gold-Marble Curbs & Arched Central Bridge
+  const poolBasin = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.28, 23.4), goldMat);
+  poolBasin.position.set(0, 0.14, 6.0);
+  const poolWater = new THREE.Mesh(new THREE.PlaneGeometry(6.0, 22.8), poolWaterMat);
   poolWater.rotation.x = -Math.PI / 2;
-  poolWater.position.set(0, 0.35, 4.0);
+  poolWater.position.set(0, 0.30, 6.0);
   rootGroup.add(poolBasin, poolWater);
 
-  // Keep player safely around reflecting pool edges (walkable gold walkways on East & West + North & South!)
-  colliders.push({
-    type: 'box',
-    minX: origin.x - 3.6,
-    maxX: origin.x + 3.6,
-    minZ: origin.z + 4.0 - 14.0,
-    maxZ: origin.z + 4.0 + 14.0,
-    maxY: origin.y + 1.5,
-    label: 'Kolam Refleksi Air Istana Sultan',
-  });
+  // Walkable Marble Bridge crossing Pool Center (Z = 4.5..7.5)
+  addWalkableSlab(rootGroup, 7.6, 0.36, 3.0, 0, 0.22, 6.0, ivoryMarble, 'Jembatan Marmer Kolam Refleksi');
+  for (const rz of [4.65, 7.35]) {
+    const bRail = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.62, 0.16), goldMat);
+    bRail.position.set(0, 0.7, rz);
+    bRail.userData.nonWalkable = true;
+    rootGroup.add(bRail);
+  }
+  // Pool colliders split strictly North & South of center bridge so walking aisles & bridge is effortless
+  colliders.push(
+    {
+      type: 'box',
+      minX: origin.x - 3.2,
+      maxX: origin.x + 3.2,
+      minZ: origin.z - 5.6,
+      maxZ: origin.z + 4.3,
+      minY: origin.y,
+      maxY: origin.y + 1.5,
+      label: 'Kolam Refleksi Utara',
+    },
+    {
+      type: 'box',
+      minX: origin.x - 3.2,
+      maxX: origin.x + 3.2,
+      minZ: origin.z + 7.7,
+      maxZ: origin.z + 17.6,
+      minY: origin.y,
+      maxY: origin.y + 1.5,
+      label: 'Kolam Refleksi Selatan',
+    }
+  );
+
+  // Clean Non-Overlapping Persian Carpets flanking Pool & Throne Procession
+  const carpetNorth = createCarpetMesh(7.6, 13.5, 0x991b1b, 0xfbbf24);
+  carpetNorth.position.set(0, 0, -14.2);
+  const carpetEast = createCarpetMesh(4.0, 22.0, 0x0f766e, 0xfbbf24);
+  carpetEast.position.set(8.2, 0, 6.0);
+  const carpetWest = createCarpetMesh(4.0, 22.0, 0x991b1b, 0xfbbf24);
+  carpetWest.position.set(-8.2, 0, 6.0);
+  rootGroup.add(carpetNorth, carpetEast, carpetWest);
+
+  // Ornamental Desert Palm Planters & Embossed Golden Urns bordering Pool & Aisle
+  for (const [px, pz] of [[-5.4, -5.0], [5.4, -5.0], [-5.4, 17.0], [5.4, 17.0]]) {
+    const palm = createPalmPlanterMesh(ivoryMarble);
+    palm.position.set(px, 0, pz);
+    rootGroup.add(palm);
+    colliders.push({
+      type: 'circle',
+      x: origin.x + px,
+      z: origin.z + pz,
+      radius: 0.85,
+      minY: origin.y,
+      maxY: origin.y + 4.2,
+      label: 'Pot Palem Istana',
+    });
+  }
+  for (const ux of [-5.2, 5.2]) {
+    const urn = createGoldenUrnMesh(goldMat);
+    urn.position.set(ux, 0, 1.5);
+    rootGroup.add(urn);
+    colliders.push({
+      type: 'circle',
+      x: origin.x + ux,
+      z: origin.z + 1.5,
+      radius: 0.72,
+      minY: origin.y,
+      maxY: origin.y + 2.4,
+      label: 'Guci Emas Kebesaran',
+    });
+  }
 
   // High Exotic Turquoise-and-Gold Arabian Onion Dome Vault overhead
   const domeHalo = new THREE.Mesh(new THREE.TorusGeometry(15.0, 0.85, 10, 32), goldMat);
   domeHalo.rotation.x = Math.PI / 2;
-  domeHalo.position.set(0, h - 0.35, 0);
+  domeHalo.position.set(0, h - 0.35, -2.0);
   const arabDome = new THREE.Mesh(
     new THREE.SphereGeometry(15.0, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
     new THREE.MeshBasicMaterial({ color: 0x0f766e, side: THREE.BackSide })
   );
-  arabDome.position.set(0, h - 0.3, 0);
+  arabDome.position.set(0, h - 0.3, -2.0);
   arabDome.scale.set(1, 0.45, 1);
   rootGroup.add(domeHalo, arabDome);
 
-  // Persian Carpets surrounding the Reflecting Pool & Leading to Sultan Throne
-  const carpetNorth = createCarpetMesh(9.0, 12.0, 0x991b1b, 0xfbbf24);
-  carpetNorth.position.set(0, 0, -16.5);
-  const carpetEast = createCarpetMesh(5.5, 28.0, 0x0f766e, 0xfbbf24);
-  carpetEast.position.set(8.8, 0, 4.0);
-  const carpetWest = createCarpetMesh(5.5, 28.0, 0x991b1b, 0xfbbf24);
-  carpetWest.position.set(-8.8, 0, 4.0);
-  rootGroup.add(carpetNorth, carpetEast, carpetWest);
-
-  // Stepped Sultan Dais & Ornate Golden Throne at North End
+  // Stepped Sultan Dais & Ornate Canopy Golden Throne at North End
   addStaircase(rootGroup, 15.0, 4, 0, 1.5, -21.5, -25.5, 0, ivoryMarble, goldMat, goldMat);
   addWalkableSlab(rootGroup, 22.0, 1.5, 12.0, 0, 0.75, -31.5, ivoryMarble, 'Podium Singgasana Sultan');
 
@@ -1514,84 +2315,278 @@ function createSolariaSultanPalaceInterior(origin: Transform): { room: InteriorR
   sultanThrone.scale.set(1.4, 1.35, 1.4);
   sultanThrone.position.set(0, 1.5, -33.5);
   rootGroup.add(sultanThrone);
+  for (const [cx, cz] of [[-3.3, -31.8], [3.3, -31.8], [-3.3, -35.2], [3.3, -35.2]]) {
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 4.9, 8), goldMat);
+    p.position.set(cx, 3.95, cz);
+    p.userData.nonWalkable = true;
+    rootGroup.add(p);
+  }
+  const sultanCanopy = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.36, 4.0), silkTeal);
+  sultanCanopy.position.set(0, 6.4, -33.5);
+  const sultanCanopyTrim = new THREE.Mesh(new THREE.BoxGeometry(7.4, 0.24, 4.2), goldMat);
+  sultanCanopyTrim.position.set(0, 6.2, -33.5);
+  rootGroup.add(sultanCanopy, sultanCanopyTrim);
   colliders.push({
     type: 'box',
     minX: origin.x - 2.0,
     maxX: origin.x + 2.0,
     minZ: origin.z - 35.5,
     maxZ: origin.z - 32.0,
+    minY: origin.y,
+    maxY: origin.y + 6.8,
     label: 'Singgasana Emas Sultan Malik',
   });
 
-  // Colonnade with Sculpted Pointed Islamic Arches (East & West aisles)
-  for (const ax of [-13.5, 13.5]) {
+  // Colonnade with True Sculpted Ivory Marble & Gold Pointed Islamic Archways (no awkward diagonal sticks!)
+  for (const ax of [-12.6, 12.6]) {
     const colZs = [-20, -10, 0, 10, 20, 30];
     colZs.forEach((cz, idx) => {
-      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.8, h - 1.5, 12), ivoryMarble);
+      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.78, h - 1.5, 12), ivoryMarble);
       col.position.set(ax, h * 0.5, cz);
       col.userData.nonWalkable = true;
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 0.7, 0.85, 8), turquoiseTile);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 0.68, 0.85, 8), turquoiseTile);
       cap.position.set(ax, h - 1.5, cz);
       rootGroup.add(col, cap);
-      colliders.push({ type: 'circle', x: origin.x + ax, z: origin.z + cz, radius: 0.95, label: 'Pilar Lengkung Istana Sultan' });
+      colliders.push({
+        type: 'circle',
+        x: origin.x + ax,
+        z: origin.z + cz,
+        radius: 0.92,
+        minY: origin.y,
+        maxY: origin.y + h,
+        label: 'Pilar Lengkung Istana Sultan',
+      });
 
-      // Pointed Islamic Arch linking adjacent Z columns
       if (idx < colZs.length - 1) {
         const midZ = (cz + colZs[idx + 1]) * 0.5;
-        const archLeft = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.75, 5.4), goldMat);
-        archLeft.position.set(ax, 6.2, midZ - 2.1);
-        archLeft.rotation.x = 0.42;
-        const archRight = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.75, 5.4), goldMat);
-        archRight.position.set(ax, 6.2, midZ + 2.1);
-        archRight.rotation.x = -0.42;
-        const keystone = new THREE.Mesh(new THREE.OctahedronGeometry(0.45), lapisAccent);
-        keystone.position.set(ax, 7.25, midZ);
-        rootGroup.add(archLeft, archRight, keystone);
+        const arch = createArabicArchGroup(10.0, 5.8, warmSandstone, lapisAccent);
+        arch.position.set(ax, 0, midZ);
+        rootGroup.add(arch);
       }
     });
   }
 
-  // Hanging Golden Arabesque Lanterns down East & West Aisles & Over Pool
-  for (const lz of [-15, -5, 5, 15, 25]) {
-    for (const lx of [-6.5, 6.5]) {
+  // Hanging Golden Arabesque Moroccan Lanterns down Nave & Over Pool
+  for (const lz of [-14, -4, 6, 16, 26]) {
+    for (const lx of [-6.8, 6.8]) {
       const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 3.8, 5), goldMat);
       chain.position.set(lx, h - 2.1, lz);
-      const lamp = new THREE.Mesh(new THREE.OctahedronGeometry(0.65), lanternGlow);
+      const lamp = new THREE.Mesh(new THREE.OctahedronGeometry(0.62), lanternGlow);
       lamp.position.set(lx, h - 4.2, lz);
-      const cage = new THREE.Mesh(new THREE.CylinderGeometry(0.68, 0.48, 1.1, 6, 1, true), goldMat);
+      const cage = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.45, 1.05, 6, 1, true), goldMat);
       cage.position.set(lx, h - 4.2, lz);
       rootGroup.add(chain, lamp, cage);
     }
   }
 
-  // Upper Walkable Mezzanine Galleries (Balkon Galeri Lantai Atas Y = 5.6) + Twin Staircases
-  const galY = 5.6;
-  addWalkableSlab(rootGroup, 8.0, 0.45, 64.0, -23.5, galY - 0.225, -4.0, warmSandstone, 'Galeri Atas Barat Istana Sultan');
-  addWalkableSlab(rootGroup, 8.0, 0.45, 64.0, 23.5, galY - 0.225, -4.0, warmSandstone, 'Galeri Atas Timur Istana Sultan');
-  addWalkableSlab(rootGroup, 40.0, 0.45, 6.0, 0, galY - 0.225, -34.5, warmSandstone, 'Galeri Atas Utara Istana Sultan');
+  // Floor 1 Side Luxury Wing Partitions (X = ±15.4, Open Arch Doorways at Z = -6.0)
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'z', -15.4, -26.0, 14.0, -6.0, 5.2, 0, galY, 0.55, warmSandstone, goldMat, 'Dinding Ruang Majlis Sultan');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'z', 15.4, -26.0, 14.0, -6.0, 5.2, 0, galY, 0.55, warmSandstone, goldMat, 'Dinding Gudang Harta Karun Gurun');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', -26.0, -halfW + 0.5, -15.4, -21.5, 4.4, 0, galY, 0.55, warmSandstone, goldMat, 'Gerbang Utara Majlis');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', -26.0, 15.4, halfW - 0.5, 21.5, 4.4, 0, galY, 0.55, warmSandstone, goldMat, 'Gerbang Utara Harta Gurun');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', 14.0, -halfW + 0.5, -15.4, -21.5, 4.8, 0, galY, 0.55, warmSandstone, goldMat, 'Gerbang Selatan Majlis');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', 14.0, 15.4, halfW - 0.5, 21.5, 4.8, 0, galY, 0.55, warmSandstone, goldMat, 'Gerbang Selatan Harta Gurun');
 
-  for (const gx of [-19.6, 19.6]) {
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.0, 62.0), goldMat);
-    rail.position.set(gx, galY + 0.5, -3.0);
+  // FLOOR 1 ROOM A (WEST WING): RUANG MAJLIS & JAMUAN SULTAN
+  const majlisRug = createCarpetMesh(9.4, 24.0, 0x991b1b, 0xfbbf24);
+  majlisRug.position.set(-21.5, 0, -6.0);
+  rootGroup.add(majlisRug);
+  // U-Shaped Silk Floor Divans around Ornate Low Brass Tea Tray Table
+  const teaTableTop = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 1.9, 0.42, 12), goldMat);
+  teaTableTop.position.set(-21.5, 0.55, -6.0);
+  const teaPot = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 8), lapisAccent);
+  teaPot.position.set(-21.5, 0.92, -6.0);
+  rootGroup.add(teaTableTop, teaPot);
+  colliders.push({
+    type: 'circle',
+    x: origin.x - 21.5,
+    z: origin.z - 6.0,
+    radius: 2.25,
+    minY: origin.y,
+    maxY: origin.y + 1.8,
+    label: 'Meja Teh & Jamuan Sultan',
+  });
+  for (const [dx, dz, bw, bd] of [[-21.5, -11.2, 7.6, 1.8], [-25.6, -6.0, 1.8, 9.2], [-21.5, -0.8, 7.6, 1.8]] as [number, number, number, number][]) {
+    const divanBase = new THREE.Mesh(new THREE.BoxGeometry(bw, 0.48, bd), woodMat);
+    divanBase.position.set(dx, 0.24, dz);
+    const cushion = new THREE.Mesh(new THREE.BoxGeometry(bw - 0.2, 0.34, bd - 0.2), silkTeal);
+    cushion.position.set(dx, 0.62, dz);
+    rootGroup.add(divanBase, cushion);
+    colliders.push({
+      type: 'box',
+      minX: origin.x + dx - bw * 0.5,
+      maxX: origin.x + dx + bw * 0.5,
+      minZ: origin.z + dz - bd * 0.5,
+      maxZ: origin.z + dz + bd * 0.5,
+      minY: origin.y,
+      maxY: origin.y + 1.6,
+      label: 'Sofa Bantal Sutra Majlis',
+    });
+  }
+
+  // FLOOR 1 ROOM B (EAST WING): GUDANG HARTA KARUN GURUN (Desert Treasury)
+  const treasDesertRug = createCarpetMesh(9.4, 24.0, 0x0f766e, 0xfbbf24);
+  treasDesertRug.position.set(21.5, 0, -6.0);
+  rootGroup.add(treasDesertRug);
+  for (const tz of [-13.5, -6.0, 1.5]) {
+    const ped = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.9, 2.2), ivoryMarble);
+    ped.position.set(21.5, 0.45, tz);
+    const urn = createGoldenUrnMesh(goldMat);
+    urn.position.set(21.5, 0.9, tz);
+    rootGroup.add(ped, urn);
+    colliders.push({
+      type: 'box',
+      minX: origin.x + 20.3,
+      maxX: origin.x + 22.7,
+      minZ: origin.z + tz - 1.2,
+      maxZ: origin.z + tz + 1.2,
+      minY: origin.y,
+      maxY: origin.y + 3.2,
+      label: 'Guci Emas & Permata Gurun',
+    });
+  }
+  // Rolled Silk Carpet Stack along East Wall
+  for (let i = 0; i < 4; i++) {
+    const roll = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.32, 0.32, 3.4, 10),
+      i % 2 === 0 ? silkRed : lapisAccent
+    );
+    roll.rotation.x = Math.PI / 2;
+    roll.position.set(halfW - 1.2 - (i % 2) * 0.72, 0.4 + Math.floor(i / 2) * 0.65, -10.5);
+    rootGroup.add(roll);
+  }
+  colliders.push({
+    type: 'box',
+    minX: origin.x + halfW - 2.2,
+    maxX: origin.x + halfW - 0.5,
+    minZ: origin.z - 12.4,
+    maxZ: origin.z - 8.6,
+    minY: origin.y,
+    maxY: origin.y + 2.0,
+    label: 'Gulungan Karpet Sutra Mewah',
+  });
+
+  // FLOOR 2 (galY = 5.6): UPPER MEZZANINE BALCONIES + SULTAN BEDCHAMBER & DESERT OBSERVATORY
+  addWalkableSlab(rootGroup, 13.0, 0.45, 64.0, -21.5, galY - 0.225, -4.0, warmSandstone, 'Galeri Atas Barat Istana Sultan');
+  addWalkableSlab(rootGroup, 13.0, 0.45, 64.0, 21.5, galY - 0.225, -4.0, warmSandstone, 'Galeri Atas Timur Istana Sultan');
+  addWalkableSlab(rootGroup, 30.0, 0.45, 9.6, 0, galY - 0.225, -32.2, warmSandstone, 'Galeri Atas Utara Istana Sultan');
+
+  for (const gx of [-15.2, 15.2]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.0, 56.0), goldMat);
+    rail.position.set(gx, galY + 0.5, 0.5);
     rail.userData.nonWalkable = true;
     rootGroup.add(rail);
     colliders.push({
       type: 'box',
       minX: origin.x + gx - 0.25,
       maxX: origin.x + gx + 0.25,
-      minZ: origin.z - 32.0,
-      maxZ: origin.z + 28.0,
-      minY: origin.y + galY - 0.5,
+      minZ: origin.z - 27.5,
+      maxZ: origin.z + 28.5,
+      minY: origin.y + galY - 0.4,
       maxY: origin.y + galY + 3.0,
       label: 'Pagar Galeri Atas Istana',
     });
   }
+  const northGalRail = new THREE.Mesh(new THREE.BoxGeometry(30.4, 1.0, 0.35), goldMat);
+  northGalRail.position.set(0, galY + 0.5, -27.4);
+  northGalRail.userData.nonWalkable = true;
+  rootGroup.add(northGalRail);
+  colliders.push({
+    type: 'box',
+    minX: origin.x - 15.2,
+    maxX: origin.x + 15.2,
+    minZ: origin.z - 27.7,
+    maxZ: origin.z - 27.1,
+    minY: origin.y + galY - 0.4,
+    maxY: origin.y + galY + 3.0,
+    label: 'Pagar Galeri Utara Istana',
+  });
 
-  addStaircase(rootGroup, 4.2, 16, 0, galY, 34.0, 23.0, -23.5, ivoryMarble, goldMat, turquoiseTile);
-  addStaircase(rootGroup, 4.2, 16, 0, galY, 34.0, 23.0, 23.5, ivoryMarble, goldMat, turquoiseTile);
+  // Twin Marble Staircases ascending from Ground (Y=0, Z=34) to Gallery (Y=5.6, Z=22.5) with Smooth Ramps
+  addStaircase(rootGroup, 4.6, 16, 0, galY, 34.0, 22.5, -21.5, ivoryMarble, goldMat, turquoiseTile);
+  addStaircase(rootGroup, 4.6, 16, 0, galY, 34.0, 22.5, 21.5, ivoryMarble, goldMat, turquoiseTile);
 
-  // Chest & NPCs inside Sultan Palace
-  const chest = createChestProp('chest_sultan_interior', 22.0, 0, -30.0, origin, colliders);
+  // Floor 2 Upper Luxury Chambers Partitions (Y = galY..galY + 6.4)
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', -1.0, -halfW + 0.5, -15.4, -21.5, 4.8, galY, 6.2, 0.5, warmSandstone, goldMat, 'Gerbang Kamar Tidur Sultan');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', -24.5, -halfW + 0.5, -15.4, -21.5, 4.4, galY, 6.2, 0.5, warmSandstone, goldMat, 'Gerbang Belakang Kamar Sultan');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', -1.0, 15.4, halfW - 0.5, 21.5, 4.8, galY, 6.2, 0.5, warmSandstone, goldMat, 'Gerbang Observatorium Gurun');
+  addPartitionWallWithArch(rootGroup, colliders, origin, 'x', -24.5, 15.4, halfW - 0.5, 21.5, 4.4, galY, 6.2, 0.5, warmSandstone, goldMat, 'Gerbang Belakang Observatorium');
+
+  // FLOOR 2 ROOM A (WEST UPPER): KAMAR TIDUR SULTAN
+  const sultanBedRug = createCarpetMesh(8.2, 16.0, 0x0f766e, 0xfbbf24);
+  sultanBedRug.position.set(-21.5, galY, -12.5);
+  rootGroup.add(sultanBedRug);
+  const sultanBed = createCanopyBedMesh(woodMat, 0x0d9488, goldMat);
+  sultanBed.position.set(-22.5, galY, -16.0);
+  const sultanDesk = createStudyDeskMesh(woodMat, goldMat);
+  sultanDesk.position.set(-21.5, galY, -6.2);
+  const sultanChair = createChairMesh(woodMat, 0x0d9488);
+  sultanChair.position.set(-21.5, galY, -4.6);
+  sultanChair.rotation.y = Math.PI;
+  rootGroup.add(sultanBed, sultanDesk, sultanChair);
+  colliders.push(
+    {
+      type: 'box',
+      minX: origin.x - 24.5,
+      maxX: origin.x - 20.5,
+      minZ: origin.z - 18.5,
+      maxZ: origin.z - 13.5,
+      minY: origin.y + galY,
+      maxY: origin.y + galY + 4.0,
+      label: 'Ranjang Sutra Sultan',
+    },
+    {
+      type: 'box',
+      minX: origin.x - 23.3,
+      maxX: origin.x - 19.7,
+      minZ: origin.z - 7.2,
+      maxZ: origin.z - 5.2,
+      minY: origin.y + galY,
+      maxY: origin.y + galY + 2.4,
+      label: 'Meja Rias Sultan',
+    }
+  );
+
+  // FLOOR 2 ROOM B (EAST UPPER): OBSERVATORIUM & PERPUSTAKAAN GURUN
+  const obsRug = createCarpetMesh(8.2, 16.0, 0x991b1b, 0xfbbf24);
+  obsRug.position.set(21.5, galY, -12.5);
+  rootGroup.add(obsRug);
+  const astroBase = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.3, 1.1, 10), ivoryMarble);
+  astroBase.position.set(21.2, galY + 0.55, -12.0);
+  const astroRing1 = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.09, 8, 24), goldMat);
+  astroRing1.position.set(21.2, galY + 2.5, -12.0);
+  const astroRing2 = new THREE.Mesh(new THREE.TorusGeometry(1.05, 0.08, 8, 20), lapisAccent);
+  astroRing2.position.set(21.2, galY + 2.5, -12.0);
+  astroRing2.rotation.x = Math.PI / 3;
+  rootGroup.add(astroBase, astroRing1, astroRing2);
+  colliders.push({
+    type: 'circle',
+    x: origin.x + 21.2,
+    z: origin.z - 12.0,
+    radius: 1.5,
+    minY: origin.y + galY,
+    maxY: origin.y + galY + 4.5,
+    label: 'Astrolab Bintang Gurun',
+  });
+  for (const sz of [-8.0, -17.0]) {
+    const desertShelf = createLargeBookcase(3.4, 4.4, woodMat, [0xd97706, 0x0d9488, 0x991b1b]);
+    desertShelf.position.set(halfW - 1.0, galY, sz);
+    desertShelf.rotation.y = -Math.PI / 2;
+    rootGroup.add(desertShelf);
+    colliders.push({
+      type: 'box',
+      minX: origin.x + halfW - 1.8,
+      maxX: origin.x + halfW - 0.2,
+      minZ: origin.z + sz - 1.9,
+      maxZ: origin.z + sz + 1.9,
+      minY: origin.y + galY,
+      maxY: origin.y + galY + 4.8,
+      label: 'Rak Kitab Bintang Gurun',
+    });
+  }
+
+  // Chest & NPCs inside Sultan Palace (Treasure Chest in Upper Observatory Wing)
+  const chest = createChestProp('chest_sultan_interior', 21.8, galY, -21.0, origin, colliders);
   rootGroup.add(chest.group);
 
   const sultanNPC = createCustomNPCMesh('emperor');
@@ -1634,15 +2629,21 @@ function createSolariaSultanPalaceInterior(origin: Transform): { room: InteriorR
     chests: [chest],
     ambientSkyHex: 0xfef3c7,
     ambientGroundHex: 0x115e59,
-    ambientIntensity: 0.95,
-    hemiIntensity: 1.15,
-    dirIntensity: 1.0,
+    ambientIntensity: 1.05,
+    hemiIntensity: 1.25,
+    dirIntensity: 1.08,
     bgHex: 0x162438,
     fogHex: 0x162438,
-    animatedParts: [],
-    getFallbackFloorY: () => origin.y,
+    animatedParts: [
+      { mesh: astroRing1, mode: 'spinY', speed: 0.85, baseY: galY + 2.5, phase: 0 },
+      { mesh: astroRing2, mode: 'tiltSpin', speed: 0.65, baseY: galY + 2.5, phase: 1.0 },
+    ],
+    getFallbackFloorY: (_wx, wy) => (wy - origin.y >= 4.4 ? origin.y + galY : origin.y),
     getFloorHeight: (wx, wy, wz) => sampleRoomFloorHeight(room, wx, wy, wz),
-    getFloorLabel: (wy) => (wy - origin.y >= 4.4 ? 'Lantai 2: Galeri Atas Istana Sultan' : 'Lantai 1: Aula Kolam Refleksi'),
+    getFloorLabel: (wy) =>
+      wy - origin.y >= 4.4
+        ? 'Lantai 2: Kamar Sultan, Observatorium & Galeri'
+        : 'Lantai 1: Kolam Refleksi, Majlis & Harta Gurun',
     clampInsideWalls: (wx, wz, r) => ({
       x: THREE.MathUtils.clamp(wx, origin.x - halfW + 0.9 + r, origin.x + halfW - 0.9 - r),
       z: THREE.MathUtils.clamp(wz, origin.z - halfD + 0.9 + r, origin.z + halfD - 0.9 - r),
@@ -1853,9 +2854,10 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
   const npcs: InteriorNPCData[] = [];
   const animatedParts: InteriorRoom['animatedParts'] = [];
 
-  const slateMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8, metalness: 0.18 });
-  const darkStone = new THREE.MeshStandardMaterial({ color: 0x1e1b4b, roughness: 0.88, flatShading: true });
-  const woodMat = new THREE.MeshLambertMaterial({ color: 0x451a03, flatShading: true });
+  const slateMat = new THREE.MeshStandardMaterial({ color: 0x28304d, roughness: 0.72, metalness: 0.16 });
+  const darkStone = new THREE.MeshStandardMaterial({ color: 0x2f3659, roughness: 0.76, flatShading: true });
+  const wallStoneMat = new THREE.MeshStandardMaterial({ color: 0x262c44, roughness: 0.78, side: THREE.DoubleSide });
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x6b3e1b, flatShading: true });
   const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85, roughness: 0.25 });
   const runeCyan = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
   const runeViolet = new THREE.MeshBasicMaterial({ color: 0xc084fc });
@@ -1868,6 +2870,27 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
     metalness: 0.3,
   });
 
+  // Helper adding 6 emissive crystal sconces around each floor perimeter (0 PointLights)
+  const addMageWallSconces = (floorY: number, crystalMat: THREE.Material) => {
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.52;
+      const sx = Math.cos(a) * (radius - 0.65);
+      const sz = Math.sin(a) * (radius - 0.65);
+      const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.32, 0.42), goldMat);
+      bracket.position.set(sx, floorY + 4.4, sz);
+      bracket.userData.nonWalkable = true;
+      const orb = new THREE.Mesh(new THREE.OctahedronGeometry(0.36), crystalMat);
+      orb.position.set(sx, floorY + 5.0, sz);
+      orb.userData.nonWalkable = true;
+      rootGroup.add(bracket, orb);
+    }
+    const trimBand = new THREE.Mesh(new THREE.TorusGeometry(radius - 0.18, 0.16, 6, 36), goldMat);
+    trimBand.rotation.x = Math.PI / 2;
+    trimBand.position.y = floorY + 0.12;
+    trimBand.userData.nonWalkable = true;
+    rootGroup.add(trimBand);
+  };
+
   // -----------------------------------------------------------
   // FLOOR 0 (localY = -14): ARCANE BASEMENT & VAULT
   // -----------------------------------------------------------
@@ -1878,13 +2901,11 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
   floor0Mesh.userData.walkableSurface = true;
   rootGroup.add(floor0Mesh);
 
-  const wall0 = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius, radius, floorStep, 28, 1, true),
-    new THREE.MeshStandardMaterial({ color: 0x17142e, roughness: 0.9, side: THREE.DoubleSide })
-  );
+  const wall0 = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, floorStep, 28, 1, true), wallStoneMat);
   wall0.position.y = f0Y + floorStep * 0.5;
   wall0.userData.nonWalkable = true;
   rootGroup.add(wall0);
+  addMageWallSconces(f0Y, runeViolet);
 
   // Vault Sigil & Sealed Energy Crystal Containment Tubes
   const vaultRing = new THREE.Mesh(new THREE.RingGeometry(4.0, 5.2, 28), runeViolet);
@@ -1933,13 +2954,18 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
   floor1Mesh.userData.walkableSurface = true;
   rootGroup.add(floor1Mesh);
 
-  const wall1 = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius, radius, floorStep, 28, 1, true),
-    new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.88, side: THREE.DoubleSide })
-  );
+  const wall1 = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, floorStep, 28, 1, true), wallStoneMat);
   wall1.position.y = f1Y + floorStep * 0.5;
   wall1.userData.nonWalkable = true;
   rootGroup.add(wall1);
+  addMageWallSconces(f1Y, runeCyan);
+
+  // Luminous Arcane Star Ring around Floor 1 Center
+  const f1RuneRing = new THREE.Mesh(new THREE.RingGeometry(4.4, 5.1, 32), runeCyan);
+  f1RuneRing.rotation.x = -Math.PI / 2;
+  f1RuneRing.position.y = f1Y + 0.03;
+  f1RuneRing.userData.nonWalkable = true;
+  rootGroup.add(f1RuneRing);
 
   // Grand Star Carpet & Portal Archway on South Wall
   const libCarpet = createCarpetMesh(6.5, 22.0, 0x312e81, 0x38bdf8);
@@ -2032,13 +3058,18 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
   floor2Mesh.userData.walkableSurface = true;
   rootGroup.add(floor2Mesh);
 
-  const wall2 = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius, radius, floorStep, 28, 1, true),
-    new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.85, side: THREE.DoubleSide })
-  );
+  const wall2 = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, floorStep, 28, 1, true), wallStoneMat);
   wall2.position.y = f2Y + floorStep * 0.5;
   wall2.userData.nonWalkable = true;
   rootGroup.add(wall2);
+  addMageWallSconces(f2Y, emeraldGlow);
+
+  // Subtle brighter training zone runes on Floor 2
+  const f2OuterRing = new THREE.Mesh(new THREE.RingGeometry(8.6, 9.2, 32), runeCyan);
+  f2OuterRing.rotation.x = -Math.PI / 2;
+  f2OuterRing.position.y = f2Y + 0.025;
+  f2OuterRing.userData.nonWalkable = true;
+  rootGroup.add(f2OuterRing);
 
   // Alchemy Tables stocked with glowing potions
   for (const ax of [-8.0, 8.0]) {
@@ -2137,18 +3168,22 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
   floor3Mesh.userData.walkableSurface = true;
   rootGroup.add(floor3Mesh);
 
-  const wall3 = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius, radius, floorStep, 28, 1, true),
-    new THREE.MeshStandardMaterial({ color: 0x1e1b4b, roughness: 0.85, side: THREE.DoubleSide })
-  );
+  const wall3 = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, floorStep, 28, 1, true), wallStoneMat);
   wall3.position.y = f3Y + floorStep * 0.5;
   wall3.userData.nonWalkable = true;
   rootGroup.add(wall3);
+  addMageWallSconces(f3Y, runeCyan);
 
-  // Starry Glass Observatory Dome overhead
+  const f3RuneRing = new THREE.Mesh(new THREE.RingGeometry(5.6, 6.2, 32), runeViolet);
+  f3RuneRing.rotation.x = -Math.PI / 2;
+  f3RuneRing.position.y = f3Y + 0.03;
+  f3RuneRing.userData.nonWalkable = true;
+  rootGroup.add(f3RuneRing);
+
+  // Starry Observatory Dome overhead
   const starDome = new THREE.Mesh(
     new THREE.SphereGeometry(radius, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: 0x1e293b, side: THREE.DoubleSide })
+    new THREE.MeshBasicMaterial({ color: 0x253052, side: THREE.DoubleSide })
   );
   starDome.position.y = f3Y + floorStep - 0.4;
   starDome.scale.set(1, 0.55, 1);
@@ -2209,123 +3244,12 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
   rootGroup.add(sanctumChest.group);
   chests.push(sanctumChest);
 
-  // Continuous Walkable Arcane Spiral Staircases connecting all 4 floors on West Arc (r=11.5..14.5)
+  // Continuous Walkable Arcane Spiral Staircases connecting all 4 floors on West Arc (manual climbing only — 0 floor teleport pads)
   addTowerSpiralStairs(rootGroup, colliders, origin, f0Y, f1Y, 11.5, 14.5, -1.10, 1.10, 28, darkStone, goldMat);
   addTowerSpiralStairs(rootGroup, colliders, origin, f1Y, f2Y, 11.5, 14.5, -1.10, 1.10, 28, slateMat, goldMat);
   addTowerSpiralStairs(rootGroup, colliders, origin, f2Y, f3Y, 11.5, 14.5, -1.10, 1.10, 28, darkStone, goldMat);
 
-  // Glowing GTA Floor Teleport Portals between all 4 floors (East / North-East perimeter, clear of spiral stairs)
   const portals: InteriorPortalDef[] = [];
-  const addFloorPortal = (
-    pid: string,
-    label: string,
-    promptText: string,
-    toastText: string,
-    mx: number,
-    my: number,
-    mz: number,
-    sx: number,
-    sy: number,
-    sz: number,
-    rotY: number,
-    colorHex: number,
-    targetRoomId: string | null,
-    kind: 'floor' | 'exit'
-  ) => {
-    const marker = createDoorMarkerMesh(pid, colorHex);
-    marker.group.position.set(mx, my, mz);
-    rootGroup.add(marker.group);
-    portals.push({
-      id: pid,
-      roomId: 'mage_tower_interior',
-      kind,
-      label,
-      promptText,
-      toastText,
-      targetRoomId,
-      markerPos: { x: origin.x + mx, y: origin.y + my, z: origin.z + mz },
-      spawnPos: { x: origin.x + sx, y: origin.y + sy, z: origin.z + sz, rotationY: rotY },
-      triggerRadius: 2.8,
-      autoRadius: 1.35,
-      colorHex,
-      markerMesh: marker.group,
-      arrowGroup: marker.arrowGroup,
-      outerRing: marker.outerRing,
-      innerDisc: marker.innerDisc,
-    });
-  };
-
-  // Floor 1 -> Basement (Floor 0) & Floor 0 -> Floor 1
-  addFloorPortal(
-    'mt_f1_to_f0',
-    'Turun ke Bawah Tanah (Arcane Vault)',
-    'Turun ke Basement Arcane Vault (E / Ketuk)',
-    'Basement: Arcane Vault',
-    11.5, f1Y, 9.5,
-    0, f0Y + 0.05, -6.5, 0,
-    0xa855f7,
-    'mage_tower_interior',
-    'floor'
-  );
-  addFloorPortal(
-    'mt_f0_to_f1',
-    'Naik ke Lantai 1 (Perpustakaan Agung)',
-    'Naik ke Lantai 1 Perpustakaan (E / Ketuk)',
-    'Lantai 1: Aula Utama & Perpustakaan Agung',
-    0, f0Y, -12.0,
-    7.5, f1Y + 0.05, 8.0, Math.PI * 0.75,
-    0x38bdf8,
-    'mage_tower_interior',
-    'floor'
-  );
-
-  // Floor 1 -> Floor 2 & Floor 2 -> Floor 1
-  addFloorPortal(
-    'mt_f1_to_f2',
-    'Naik ke Lantai 2 (Lab & Ruang Latihan)',
-    'Naik ke Lantai 2 Lab & Latihan (E / Ketuk)',
-    'Lantai 2: Lab & Ruang Latihan',
-    11.5, f1Y, -9.5,
-    7.0, f2Y + 0.05, -7.5, Math.PI * 0.25,
-    0x38bdf8,
-    'mage_tower_interior',
-    'floor'
-  );
-  addFloorPortal(
-    'mt_f2_to_f1',
-    'Turun ke Lantai 1 (Perpustakaan Agung)',
-    'Turun ke Lantai 1 Perpustakaan (E / Ketuk)',
-    'Lantai 1: Aula Utama & Perpustakaan Agung',
-    11.5, f2Y, 9.5,
-    7.5, f1Y + 0.05, -7.5, -Math.PI * 0.25,
-    0xa855f7,
-    'mage_tower_interior',
-    'floor'
-  );
-
-  // Floor 2 -> Floor 3 & Floor 3 -> Floor 2
-  addFloorPortal(
-    'mt_f2_to_f3',
-    'Naik ke Lantai 3 (Puncak Observatorium)',
-    'Naik ke Lantai 3 Observatorium (E / Ketuk)',
-    'Lantai 3: Observatorium Agung',
-    11.5, f2Y, -9.5,
-    0, f3Y + 0.05, -7.5, 0,
-    0x38bdf8,
-    'mage_tower_interior',
-    'floor'
-  );
-  addFloorPortal(
-    'mt_f3_to_f2',
-    'Turun ke Lantai 2 (Lab & Ruang Latihan)',
-    'Turun ke Lantai 2 Lab & Latihan (E / Ketuk)',
-    'Lantai 2: Lab & Ruang Latihan',
-    10.5, f3Y, -10.5,
-    7.0, f2Y + 0.05, -7.5, -Math.PI * 0.75,
-    0xa855f7,
-    'mage_tower_interior',
-    'floor'
-  );
 
   const room: InteriorRoom = {
     id: 'mage_tower_interior',
@@ -2343,12 +3267,12 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
     chests,
     trainingDummySpawns,
     ambientSkyHex: 0xe0e7ff,
-    ambientGroundHex: 0x312e81,
-    ambientIntensity: 0.92,
-    hemiIntensity: 1.15,
-    dirIntensity: 1.0,
-    bgHex: 0x171c36,
-    fogHex: 0x171c36,
+    ambientGroundHex: 0x3b446b,
+    ambientIntensity: 1.2,
+    hemiIntensity: 1.35,
+    dirIntensity: 1.15,
+    bgHex: 0x202742,
+    fogHex: 0x202742,
     animatedParts,
     getFallbackFloorY: (_wx, wy, _wz) => {
       const localY = wy - origin.y;
@@ -2360,9 +3284,9 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
     getFloorHeight: (wx, wy, wz) => sampleRoomFloorHeight(room, wx, wy, wz),
     getFloorLabel: (wy) => {
       const localY = wy - origin.y;
-      if (localY >= f3Y - 5) return 'Lantai 3: Observatorium Agung';
-      if (localY >= f2Y - 5) return 'Lantai 2: Lab & Ruang Latihan';
-      if (localY >= f1Y - 5) return 'Lantai 1: Perpustakaan Agung';
+      if (localY >= f3Y - 4.5) return 'Lantai 3: Observatorium Agung';
+      if (localY >= f2Y - 4.5) return 'Lantai 2: Lab & Ruang Latihan';
+      if (localY >= f1Y - 4.5) return 'Lantai 1: Perpustakaan Agung';
       return 'Basement: Arcane Vault';
     },
     clampInsideWalls: (wx, wz, r) => {

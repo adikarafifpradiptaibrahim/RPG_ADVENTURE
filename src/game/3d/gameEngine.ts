@@ -15067,8 +15067,10 @@ export class GameEngine {
       let resZ = candidateZ;
       for (let pass = 0; pass < 2; pass++) {
         for (const col of activeRoom.colliders) {
-          if (col.minY !== undefined && this.playerPos.y + 1.6 < col.minY) continue;
-          if (col.maxY !== undefined && this.playerPos.y > col.maxY) continue;
+          const playerMinY = this.playerPos.y;
+          const playerMaxY = playerMinY + 1.8;
+          if (col.maxY !== undefined && playerMinY >= col.maxY - 0.25) continue;
+          if (col.minY !== undefined && playerMaxY <= col.minY + 0.1) continue;
           if (col.type === 'circle' && col.x !== undefined && col.z !== undefined && col.radius !== undefined) {
             const dx = resX - col.x;
             const dz = resZ - col.z;
@@ -15135,8 +15137,10 @@ export class GameEngine {
         if (inInterior !== isInteriorCollider) continue;
 
         // Check vertical height bounds (prevents collider bleed between stacked interior floors)
-        if (col.minY !== undefined && (this.playerPos.y + 1.8) < col.minY) continue;
-        if (col.maxY !== undefined && this.playerPos.y > col.maxY) continue;
+        const extPlayerMinY = this.playerPos.y;
+        const extPlayerMaxY = extPlayerMinY + 1.8;
+        if (col.minY !== undefined && extPlayerMaxY <= col.minY + 0.1) continue;
+        if (col.maxY !== undefined && extPlayerMinY >= col.maxY - 0.25) continue;
 
         if (
           col.type === 'box' &&
@@ -15632,10 +15636,13 @@ export class GameEngine {
       this.mageBankingRoll = THREE.MathUtils.lerp(this.mageBankingRoll, 0, Math.min(1.0, delta * 8.0));
     }
 
-    // 4. Calculate movement with building collisions & cliff climbing physics
+    // 4. Calculate movement with building collisions & cliff/stair climbing physics
     const oldX = this.playerPos.x;
     const oldZ = this.playerPos.z;
-    const currentGroundY = getSolidGroundHeight(oldX, oldZ, this.playerPos.y);
+    const activeRoomStart = this.world?.interiorManager?.activeRoom ?? null;
+    const currentGroundY = activeRoomStart
+      ? this.getActiveGroundHeight(oldX, this.playerPos.y, oldZ)
+      : getSolidGroundHeight(oldX, oldZ, this.playerPos.y);
 
     let nextX = oldX + this.playerVel.x * delta;
     let nextZ = oldZ + this.playerVel.z * delta;
@@ -15645,15 +15652,40 @@ export class GameEngine {
     nextX = resolved.x;
     nextZ = resolved.z;
 
-    // 4b. Terrain slope & Cliff climbing physics
+    // 4b. Terrain slope & Interior step-up / Cliff climbing physics
     const targetGroundY = this.getActiveGroundHeight(nextX, this.playerPos.y, nextZ);
     const heightDiff = targetGroundY - currentGroundY;
     const horizDist = Math.hypot(nextX - oldX, nextZ - oldZ);
     const slope = horizDist > 0.001 ? heightDiff / horizDist : 0;
 
-    // Normal hill slopes and mountain inclines can be traversed smoothly
-    if (heightDiff > 1.3 && slope > 3.2) {
-      // Sheer cliff wall!
+    if (activeRoomStart) {
+      // Interior multi-floor traversal: allow smooth ramps & stairs up to maxStepUp = 0.85
+      const interiorMaxStepUp = 0.85;
+      if (heightDiff > interiorMaxStepUp) {
+        const canMantle = !this.isGrounded && (this.playerPos.y + 1.4 >= targetGroundY);
+        if (!canMantle) {
+          const resXOnly = this.resolveCollisions(oldX + this.playerVel.x * delta, oldZ);
+          const hDiffX = this.getActiveGroundHeight(resXOnly.x, this.playerPos.y, oldZ) - currentGroundY;
+
+          const resZOnly = this.resolveCollisions(oldX, oldZ + this.playerVel.z * delta);
+          const hDiffZ = this.getActiveGroundHeight(oldX, this.playerPos.y, resZOnly.z) - currentGroundY;
+
+          if (hDiffX <= interiorMaxStepUp && Math.abs(this.playerVel.x) > 0.05) {
+            nextX = resXOnly.x;
+            nextZ = oldZ;
+          } else if (hDiffZ <= interiorMaxStepUp && Math.abs(this.playerVel.z) > 0.05) {
+            nextX = oldX;
+            nextZ = resZOnly.z;
+          } else {
+            nextX = oldX;
+            nextZ = oldZ;
+            this.playerVel.x *= 0.5;
+            this.playerVel.z *= 0.5;
+          }
+        }
+      }
+    } else if (heightDiff > 1.3 && slope > 3.2) {
+      // Normal hill slopes and mountain inclines can be traversed smoothly; sheer cliff wall!
       const canMantle = !this.isGrounded && (this.playerPos.y + 1.4 >= targetGroundY);
 
       if (!canMantle) {
@@ -15751,6 +15783,21 @@ export class GameEngine {
       const constrained = activeRoom.clampInsideWalls(this.playerPos.x, this.playerPos.z, 0.65);
       this.playerPos.x = constrained.x;
       this.playerPos.z = constrained.z;
+      const liveFloorLabel = activeRoom.getFloorLabel(this.playerPos.y);
+      const liveX = Math.round(this.playerPos.x);
+      const liveZ = Math.round(this.playerPos.z);
+      const liveSig = `${activeRoom.id}:${liveFloorLabel}:${liveX}:${liveZ}`;
+      if (liveSig !== this.lastInteriorRoomSig) {
+        this.lastInteriorRoomSig = liveSig;
+        this.callbacks.onInteriorRoomChange?.({
+          id: activeRoom.id,
+          roomName: activeRoom.name,
+          floorLabel: liveFloorLabel,
+          localX: liveX,
+          localZ: liveZ,
+          canExit: true,
+        });
+      }
     } else {
       // Solid walkable surface collision (terrain + bridges + docks + altars + stairs) and Ocean/Lava surface
       const rawGroundY = getSolidGroundHeight(this.playerPos.x, this.playerPos.z, this.playerPos.y);
