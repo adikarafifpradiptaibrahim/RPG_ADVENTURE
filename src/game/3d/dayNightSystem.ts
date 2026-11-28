@@ -2,15 +2,21 @@ import * as THREE from 'three';
 
 export interface DayNightKeyframe {
   time: number; // 0.0 to 1.0 (0.0 = midnight, 0.25 = 06:00, 0.5 = 12:00, 0.75 = 18:00)
-  skyColor: number;
+  zenithColor: number;
+  horizonColor: number;
   groundColor: number;
+  skyColor: number; // hemisphere sky bounce
+  hemiGroundColor: number;
   ambientIntensity: number;
+  moonAmbientIntensity: number;
   dirColor: number;
   dirIntensity: number;
-  dirPosition: [number, number, number];
   fogColor: number;
   fogDensity: number;
-  backgroundColor: number;
+  sunsetGlowColor: number;
+  sunsetStrength: number;
+  cloudColor: number;
+  starVisibility: number;
   phase: 'dawn' | 'day' | 'sunset' | 'night';
   phaseNameId: string;
   icon: string;
@@ -28,164 +34,241 @@ export interface DayNightState {
   isNight: boolean;
 }
 
-// 10 Detailed Celestial Keyframes around the 24-hour cycle
+export interface SkyAtmosphereState {
+  zenithColor: THREE.Color;
+  horizonColor: THREE.Color;
+  groundColor: THREE.Color;
+  sunDir: THREE.Vector3;
+  moonDir: THREE.Vector3;
+  sunsetGlowColor: THREE.Color;
+  sunsetStrength: number;
+  cloudColor: THREE.Color;
+  starVisibility: number;
+  isNight: boolean;
+}
+
+// 4-Phase Time-of-Day Keyframes around 24 hours:
+// - Pagi (05:30 - 08:30): Peach-gold horizon (#fdba74) -> clear sky blue (#38bdf8)
+// - Siang (08:30 - 16:00): Fresh sky blue (#2563eb) -> warm pale blue horizon (#bae6fd)
+// - Sore / Senja (16:00 - 19:00): Sunset orange-red horizon (#f97316 / #e11d48) -> twilight purple-blue (#312e81)
+// - Malam (19:00 - 05:30): Deep night blue (#090e1a -> #16233d, NEVER dead black!) + soft moonlit ambient
 const KEYFRAMES: DayNightKeyframe[] = [
-  // 1. Tengah Malam (Midnight - 00:00)
+  // 00:00 Midnight
   {
     time: 0.0,
-    skyColor: 0x141a29,
-    groundColor: 0x090e17,
-    ambientIntensity: 0.32,
-    dirColor: 0x7a9fc7,
-    dirIntensity: 0.38,
-    dirPosition: [-30, 85, -45],
-    fogColor: 0x0a101d,
-    fogDensity: 0.012,
-    backgroundColor: 0x070c16,
+    zenithColor: 0x090e1a,
+    horizonColor: 0x16233d,
+    groundColor: 0x0b1222,
+    skyColor: 0x3b5998,
+    hemiGroundColor: 0x18243d,
+    ambientIntensity: 0.56,
+    moonAmbientIntensity: 0.42,
+    dirColor: 0x93c5fd,
+    dirIntensity: 0.52,
+    fogColor: 0x132038,
+    fogDensity: 0.010,
+    sunsetGlowColor: 0x1e293b,
+    sunsetStrength: 0.0,
+    cloudColor: 0x2c3d5e,
+    starVisibility: 1.0,
     phase: 'night',
     phaseNameId: 'Tengah Malam',
     icon: '🌙',
   },
-  // 2. Dini Hari (Late Night - 03:00)
+  // 04:30 Late Night
   {
-    time: 0.125,
-    skyColor: 0x161e33,
-    groundColor: 0x0b111e,
-    ambientIntensity: 0.3,
-    dirColor: 0x88a7d0,
-    dirIntensity: 0.35,
-    dirPosition: [-10, 80, -35],
-    fogColor: 0x0d1424,
-    fogDensity: 0.0125,
-    backgroundColor: 0x0a0f1c,
+    time: 0.1875,
+    zenithColor: 0x090e1a,
+    horizonColor: 0x16233d,
+    groundColor: 0x0c1424,
+    skyColor: 0x425b91,
+    hemiGroundColor: 0x1a2640,
+    ambientIntensity: 0.56,
+    moonAmbientIntensity: 0.42,
+    dirColor: 0x93c5fd,
+    dirIntensity: 0.50,
+    fogColor: 0x14223a,
+    fogDensity: 0.010,
+    sunsetGlowColor: 0x3b2d54,
+    sunsetStrength: 0.10,
+    cloudColor: 0x314366,
+    starVisibility: 0.95,
     phase: 'night',
     phaseNameId: 'Dini Hari',
     icon: '🌌',
   },
-  // 3. Fajar Mula (First Light - 05:00)
+  // 05:30 Dawn Break (Pagi Starts)
   {
-    time: 0.208,
-    skyColor: 0x3a2e4c,
-    groundColor: 0x1a1525,
-    ambientIntensity: 0.44,
-    dirColor: 0xc084fc,
-    dirIntensity: 0.48,
-    dirPosition: [50, 40, -10],
-    fogColor: 0x251e36,
-    fogDensity: 0.012,
-    backgroundColor: 0x1e172e,
+    time: 0.2292,
+    zenithColor: 0x1e3a6e,
+    horizonColor: 0xfdba74,
+    groundColor: 0x3b271e,
+    skyColor: 0xfdba74,
+    hemiGroundColor: 0x2f2536,
+    ambientIntensity: 0.64,
+    moonAmbientIntensity: 0.22,
+    dirColor: 0xfdba74,
+    dirIntensity: 0.72,
+    fogColor: 0xf5b37c,
+    fogDensity: 0.0105,
+    sunsetGlowColor: 0xf97316,
+    sunsetStrength: 0.95,
+    cloudColor: 0xfed7aa,
+    starVisibility: 0.25,
     phase: 'dawn',
-    phaseNameId: 'Fajar Mula',
-    icon: '✨',
-  },
-  // 4. Fajar Emas / Matahari Terbit (Golden Sunrise - 06:30)
-  {
-    time: 0.271,
-    skyColor: 0xfb923c,
-    groundColor: 0x5a3118,
-    ambientIntensity: 0.65,
-    dirColor: 0xff9e64,
-    dirIntensity: 0.98,
-    dirPosition: [90, 35, 15],
-    fogColor: 0xfca5a5,
-    fogDensity: 0.0115,
-    backgroundColor: 0xfb923c,
-    phase: 'dawn',
-    phaseNameId: 'Fajar Emas',
+    phaseNameId: 'Fajar Pagi',
     icon: '🌅',
   },
-  // 5. Pagi Segar (Fresh Morning - 08:30)
+  // 07:00 Early Morning (Pagi Cerah: Peach-Gold Horizon -> Clear Sky Blue #38bdf8)
   {
-    time: 0.354,
-    skyColor: 0x90caf9,
-    groundColor: 0x4a3728,
-    ambientIntensity: 0.85,
+    time: 0.2917,
+    zenithColor: 0x38bdf8,
+    horizonColor: 0xfdba74,
+    groundColor: 0x4b5563,
+    skyColor: 0x7dd3fc,
+    hemiGroundColor: 0x5c4738,
+    ambientIntensity: 0.78,
+    moonAmbientIntensity: 0.0,
     dirColor: 0xfef08a,
-    dirIntensity: 1.2,
-    dirPosition: [75, 70, 30],
-    fogColor: 0x90caf9,
-    fogDensity: 0.0118,
-    backgroundColor: 0x90caf9,
-    phase: 'day',
+    dirIntensity: 1.08,
+    fogColor: 0xfde68a,
+    fogDensity: 0.0102,
+    sunsetGlowColor: 0xfdba74,
+    sunsetStrength: 0.60,
+    cloudColor: 0xfff7ed,
+    starVisibility: 0.0,
+    phase: 'dawn',
     phaseNameId: 'Pagi Cerah',
     icon: '🌤️',
   },
-  // 6. Siang Terik (High Noon - 12:00)
+  // 08:30 Mid-Morning Transition into Day
   {
-    time: 0.5,
-    skyColor: 0x90caf9,
-    groundColor: 0x4a3728,
-    ambientIntensity: 0.9,
-    dirColor: 0xfff9c4,
-    dirIntensity: 1.3,
-    dirPosition: [35, 105, 35],
-    fogColor: 0x90caf9,
-    fogDensity: 0.012,
-    backgroundColor: 0x90caf9,
+    time: 0.3542,
+    zenithColor: 0x2563eb,
+    horizonColor: 0xbae6fd,
+    groundColor: 0x4b5d46,
+    skyColor: 0x93c5fd,
+    hemiGroundColor: 0x4a5d40,
+    ambientIntensity: 0.85,
+    moonAmbientIntensity: 0.0,
+    dirColor: 0xfff7cc,
+    dirIntensity: 1.24,
+    fogColor: 0xbae6fd,
+    fogDensity: 0.0105,
+    sunsetGlowColor: 0xfef08a,
+    sunsetStrength: 0.15,
+    cloudColor: 0xf8fafc,
+    starVisibility: 0.0,
     phase: 'day',
-    phaseNameId: 'Siang Terik',
+    phaseNameId: 'Pagi Segar',
     icon: '☀️',
   },
-  // 7. Sore Hangat (Golden Afternoon - 15:30)
+  // 12:30 High Noon (Siang: Fresh Blue #2563eb -> Hazy Warm Horizon #bae6fd)
   {
-    time: 0.646,
+    time: 0.5208,
+    zenithColor: 0x2563eb,
+    horizonColor: 0xbae6fd,
+    groundColor: 0x526548,
     skyColor: 0x93c5fd,
-    groundColor: 0x4a5d46,
-    ambientIntensity: 0.74,
+    hemiGroundColor: 0x4c5e3f,
+    ambientIntensity: 0.90,
+    moonAmbientIntensity: 0.0,
+    dirColor: 0xfffbeb,
+    dirIntensity: 1.32,
+    fogColor: 0xbae6fd,
+    fogDensity: 0.0105,
+    sunsetGlowColor: 0xfef3c7,
+    sunsetStrength: 0.08,
+    cloudColor: 0xffffff,
+    starVisibility: 0.0,
+    phase: 'day',
+    phaseNameId: 'Siang Cerah',
+    icon: '☀️',
+  },
+  // 16:00 Afternoon Sunset Begins (Sore Starts)
+  {
+    time: 0.6667,
+    zenithColor: 0x3b82f6,
+    horizonColor: 0xfdba74,
+    groundColor: 0x4a3d33,
+    skyColor: 0x93c5fd,
+    hemiGroundColor: 0x4a4538,
+    ambientIntensity: 0.76,
+    moonAmbientIntensity: 0.0,
     dirColor: 0xfef08a,
-    dirIntensity: 1.15,
-    dirPosition: [-30, 85, 45],
-    fogColor: 0xfef3c7,
-    fogDensity: 0.0118,
-    backgroundColor: 0xfde68a,
+    dirIntensity: 1.10,
+    fogColor: 0xfde68a,
+    fogDensity: 0.0108,
+    sunsetGlowColor: 0xf97316,
+    sunsetStrength: 0.45,
+    cloudColor: 0xffedd5,
+    starVisibility: 0.0,
     phase: 'day',
     phaseNameId: 'Sore Hangat',
     icon: '⛅',
   },
-  // 8. Senja Emas (Golden Hour Sunset - 18:00)
+  // 17:45 Vivid Golden-Crimson Sunset (Sore/Senja: Orange-Red #f97316/#e11d48 -> Purple-Blue #312e81)
   {
-    time: 0.75,
-    skyColor: 0x3b5b8a, // Biru senja lembut zenith
-    groundColor: 0x4a5d46, // Pantulan tanah alami
-    ambientIntensity: 0.65,
-    dirColor: 0xffbe76, // Emas hangat matahari sore
-    dirIntensity: 0.95,
-    dirPosition: [-95, 28, 30],
-    fogColor: 0xf29e5a, // Oranye persik keemasan hangat
-    fogDensity: 0.0115,
-    backgroundColor: 0xf29e5a,
+    time: 0.7396,
+    zenithColor: 0x312e81,
+    horizonColor: 0xf97316,
+    groundColor: 0x2a1824,
+    skyColor: 0xf97316,
+    hemiGroundColor: 0x3d232b,
+    ambientIntensity: 0.66,
+    moonAmbientIntensity: 0.14,
+    dirColor: 0xfb923c,
+    dirIntensity: 0.88,
+    fogColor: 0xea6a47,
+    fogDensity: 0.0112,
+    sunsetGlowColor: 0xe11d48,
+    sunsetStrength: 1.15,
+    cloudColor: 0xfdba74,
+    starVisibility: 0.18,
     phase: 'sunset',
-    phaseNameId: 'Senja Emas',
+    phaseNameId: 'Senja Lembayung',
     icon: '🌇',
   },
-  // 9. Petang / Senja Ungu (Dusk Twilight - 19:30)
+  // 19:00 Twilight Dusk -> Night Transition
   {
-    time: 0.812,
+    time: 0.7917,
+    zenithColor: 0x161c3a,
+    horizonColor: 0x312e81,
+    groundColor: 0x11172a,
     skyColor: 0x4338ca,
-    groundColor: 0x1e1b4b,
-    ambientIntensity: 0.42,
-    dirColor: 0x818cf8,
-    dirIntensity: 0.52,
-    dirPosition: [-80, 15, 10],
-    fogColor: 0x312e81,
-    fogDensity: 0.0122,
-    backgroundColor: 0x1e1b4b,
+    hemiGroundColor: 0x1b233b,
+    ambientIntensity: 0.56,
+    moonAmbientIntensity: 0.36,
+    dirColor: 0x93c5fd,
+    dirIntensity: 0.54,
+    fogColor: 0x1b2544,
+    fogDensity: 0.0105,
+    sunsetGlowColor: 0xe11d48,
+    sunsetStrength: 0.35,
+    cloudColor: 0x3c4b70,
+    starVisibility: 0.78,
     phase: 'sunset',
-    phaseNameId: 'Petang Ungu',
+    phaseNameId: 'Petang Berbintang',
     icon: '🌆',
   },
-  // 10. Malam Hari (Nightfall - 21:30)
+  // 21:00 Full Moonlit Night
   {
-    time: 0.896,
-    skyColor: 0x1e1b4b,
-    groundColor: 0x0f172a,
-    ambientIntensity: 0.35,
-    dirColor: 0x7a9fc7,
-    dirIntensity: 0.4,
-    dirPosition: [-55, 60, -35],
-    fogColor: 0x111827,
-    fogDensity: 0.012,
-    backgroundColor: 0x0f172a,
+    time: 0.875,
+    zenithColor: 0x090e1a,
+    horizonColor: 0x16233d,
+    groundColor: 0x0b1222,
+    skyColor: 0x3b5998,
+    hemiGroundColor: 0x18243d,
+    ambientIntensity: 0.56,
+    moonAmbientIntensity: 0.42,
+    dirColor: 0x93c5fd,
+    dirIntensity: 0.52,
+    fogColor: 0x132038,
+    fogDensity: 0.010,
+    sunsetGlowColor: 0x1e293b,
+    sunsetStrength: 0.0,
+    cloudColor: 0x2c3d5e,
+    starVisibility: 1.0,
     phase: 'night',
     phaseNameId: 'Malam Berbintang',
     icon: '🌙',
@@ -193,37 +276,51 @@ const KEYFRAMES: DayNightKeyframe[] = [
 ];
 
 export class DayNightSystem {
-  // Duration in seconds for a complete 24-hour cycle (240s = 4 minutes real-time)
   private cycleDuration: number;
-  // Normalized time 0.0 to 1.0 (starts at 0.33 ~= 08:00 AM bright morning)
   private timeOfDay: number;
-  private isPaused: boolean = false;
 
-  // Reusable THREE.Color instances to avoid garbage collection pressure
+  // Reusable THREE objects to avoid garbage collection pressure
   private tempColorA = new THREE.Color();
   private tempColorB = new THREE.Color();
-  private interpolatedSky = new THREE.Color();
+  private interpolatedZenith = new THREE.Color();
+  private interpolatedHorizon = new THREE.Color();
   private interpolatedGround = new THREE.Color();
+  private interpolatedSky = new THREE.Color();
+  private interpolatedHemiGround = new THREE.Color();
   private interpolatedDir = new THREE.Color();
   private interpolatedFog = new THREE.Color();
-  private interpolatedBg = new THREE.Color();
+  private interpolatedSunset = new THREE.Color();
+  private interpolatedCloud = new THREE.Color();
+  private _sunDir = new THREE.Vector3(1, 0, -0.22).normalize();
+  private _moonDir = new THREE.Vector3(-1, 0, 0.18).normalize();
+  private _lightDir = new THREE.Vector3();
+
+  private readonly _skyAtmoState: SkyAtmosphereState;
 
   constructor(initialTimeOfDay: number = 0.35, cycleDurationSeconds: number = 1440) {
     this.timeOfDay = initialTimeOfDay % 1.0;
     this.cycleDuration = Math.max(30, cycleDurationSeconds);
+    this._skyAtmoState = {
+      zenithColor: this.interpolatedZenith,
+      horizonColor: this.interpolatedHorizon,
+      groundColor: this.interpolatedGround,
+      sunDir: this._sunDir,
+      moonDir: this._moonDir,
+      sunsetGlowColor: this.interpolatedSunset,
+      sunsetStrength: 0,
+      cloudColor: this.interpolatedCloud,
+      starVisibility: 0,
+      isNight: false,
+    };
   }
 
   /**
-   * Lentera Desa & Obor: Otomatis menyala saat in-game time memasuki pukul 18:00 (0.75)
-   * dan padam pada pukul 05:30 (0.22916)
+   * Lentera Desa & Obor: otomatis menyala pukul 18:00 (0.75) s/d 05:30 (0.2292)
    */
   public isVillageLanternTime(): boolean {
-    return this.timeOfDay >= 0.75 || this.timeOfDay < (5.5 / 24);
+    return this.timeOfDay >= 0.75 || this.timeOfDay < 5.5 / 24;
   }
 
-  /**
-   * Set cycle duration in real seconds (e.g. 240 seconds for 4-minute full day)
-   */
   public setCycleDuration(durationSeconds: number) {
     this.cycleDuration = Math.max(30, durationSeconds);
   }
@@ -232,9 +329,6 @@ export class DayNightSystem {
     return this.cycleDuration;
   }
 
-  /**
-   * Directly sets the normalized time of day (0.0 to 1.0)
-   */
   public setTimeOfDay(normalizedTime: number) {
     this.timeOfDay = ((normalizedTime % 1.0) + 1.0) % 1.0;
   }
@@ -243,129 +337,145 @@ export class DayNightSystem {
     return this.timeOfDay;
   }
 
-  /**
-   * Advance time based on delta in-game seconds
-   */
   public update(delta: number, isPaused: boolean = false) {
     if (isPaused) return;
     const rate = 1.0 / this.cycleDuration;
     this.timeOfDay = (this.timeOfDay + delta * rate) % 1.0;
   }
 
-  /**
-   * Computes human-readable time (00:00 to 23:59), phase name, icon, and progress
-   */
   public getState(): DayNightState {
     const totalMinutes = Math.floor(this.timeOfDay * 24 * 60);
     const hours = Math.floor(totalMinutes / 60) % 24;
     const minutes = totalMinutes % 60;
     const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 
-    // Find current active keyframe
-    const { k1, k2, factor } = this.getKeyframePair(this.timeOfDay);
-    const activeKeyframe = factor < 0.5 ? k1 : k2;
-
-    const isNight = this.timeOfDay < 0.22 || this.timeOfDay > 0.83;
+    const { k1 } = this.getKeyframePair(this.timeOfDay);
+    const isNight = hours >= 19 || hours < 6;
 
     return {
       timeOfDay: this.timeOfDay,
       hours,
       minutes,
       timeString,
-      phase: activeKeyframe.phase,
-      phaseNameId: activeKeyframe.phaseNameId,
-      icon: activeKeyframe.icon,
+      phase: k1.phase,
+      phaseNameId: k1.phaseNameId,
+      icon: k1.icon,
       progress: this.timeOfDay,
       isNight,
     };
   }
 
-  /**
-   * Finds the two surrounding keyframes and interpolation factor
-   */
   private getKeyframePair(t: number): { k1: DayNightKeyframe; k2: DayNightKeyframe; factor: number } {
-    const n = KEYFRAMES.length;
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < KEYFRAMES.length; i++) {
       const k1 = KEYFRAMES[i];
-      const nextIndex = (i + 1) % n;
-      const k2 = KEYFRAMES[nextIndex];
+      const nextIdx = (i + 1) % KEYFRAMES.length;
+      const k2 = KEYFRAMES[nextIdx];
 
-      let t1 = k1.time;
+      const t1 = k1.time;
       let t2 = k2.time;
+      let curT = t;
 
-      if (t2 < t1) {
-        // Wraps around midnight (e.g. from 0.896 to 0.0)
-        t2 += 1.0;
-        let testT = t;
-        if (testT < t1) {
-          testT += 1.0;
-        }
-        if (testT >= t1 && testT <= t2) {
-          const factor = (testT - t1) / (t2 - t1);
-          return { k1, k2, factor: Math.max(0, Math.min(1, factor)) };
-        }
-      } else {
-        if (t >= t1 && t <= t2) {
-          const factor = (t - t1) / (t2 - t1);
-          return { k1, k2, factor: Math.max(0, Math.min(1, factor)) };
-        }
+      if (nextIdx === 0) {
+        t2 = 1.0;
+      }
+
+      if (curT >= t1 && curT <= t2) {
+        const span = Math.max(0.0001, t2 - t1);
+        const factor = (curT - t1) / span;
+        return { k1, k2, factor };
       }
     }
-
-    // Fallback if boundary edge
     return { k1: KEYFRAMES[0], k2: KEYFRAMES[1], factor: 0 };
   }
 
-  /**
-   * Smoothly apply gradual lighting shifts to Three.js scene, ambient/hemi light, and directional sun/moon light
-   */
+  private updateSunMoonDirections() {
+    // 06:00 (0.25) -> 0 rad (+X East), 12:00 (0.50) -> PI/2 (+Y Zenith), 18:00 (0.75) -> PI (-X West)
+    const sunAngle = (this.timeOfDay - 0.25) * Math.PI * 2;
+    this._sunDir.set(Math.cos(sunAngle), Math.sin(sunAngle), -0.22).normalize();
+
+    // Moon orbits opposite Sun (rises East +X at dusk, peaks zenith at midnight, sets West -X at dawn)
+    const moonAngle = sunAngle + Math.PI;
+    this._moonDir.set(Math.cos(moonAngle), Math.sin(moonAngle), 0.18).normalize();
+  }
+
+  public getSkyAtmosphere(): SkyAtmosphereState {
+    const { k1, k2, factor } = this.getKeyframePair(this.timeOfDay);
+    const easedFactor = factor * factor * (3 - 2 * factor);
+
+    this.updateSunMoonDirections();
+
+    const lerpHex = (c1: number, c2: number, out: THREE.Color) => {
+      this.tempColorA.setHex(c1);
+      this.tempColorB.setHex(c2);
+      out.copy(this.tempColorA).lerp(this.tempColorB, easedFactor);
+    };
+
+    lerpHex(k1.zenithColor, k2.zenithColor, this.interpolatedZenith);
+    lerpHex(k1.horizonColor, k2.horizonColor, this.interpolatedHorizon);
+    lerpHex(k1.groundColor, k2.groundColor, this.interpolatedGround);
+    lerpHex(k1.sunsetGlowColor, k2.sunsetGlowColor, this.interpolatedSunset);
+    lerpHex(k1.cloudColor, k2.cloudColor, this.interpolatedCloud);
+
+    this._skyAtmoState.sunsetStrength = THREE.MathUtils.lerp(k1.sunsetStrength, k2.sunsetStrength, easedFactor);
+    this._skyAtmoState.starVisibility = THREE.MathUtils.lerp(k1.starVisibility, k2.starVisibility, easedFactor);
+    this._skyAtmoState.isNight = this._sunDir.y < 0.04;
+    return this._skyAtmoState;
+  }
+
   public applyOutdoorLighting(
     scene: THREE.Scene,
     hemiLight: THREE.HemisphereLight,
     dirLight: THREE.DirectionalLight,
-    targetPos?: THREE.Vector3
+    targetPos?: THREE.Vector3,
+    moonAmbientLight?: THREE.AmbientLight | null
   ) {
     const { k1, k2, factor } = this.getKeyframePair(this.timeOfDay);
-
-    // Smoothstep easing for ultra-gradual color transitions
     const easedFactor = factor * factor * (3 - 2 * factor);
+    const atmo = this.getSkyAtmosphere();
 
-    // 1. Shift Ambient / Hemisphere Sky & Ground Colors
+    // 1. Shift Hemisphere Light
     this.tempColorA.setHex(k1.skyColor);
     this.tempColorB.setHex(k2.skyColor);
     this.interpolatedSky.copy(this.tempColorA).lerp(this.tempColorB, easedFactor);
     hemiLight.color.copy(this.interpolatedSky);
 
-    this.tempColorA.setHex(k1.groundColor);
-    this.tempColorB.setHex(k2.groundColor);
-    this.interpolatedGround.copy(this.tempColorA).lerp(this.tempColorB, easedFactor);
-    hemiLight.groundColor.copy(this.interpolatedGround);
+    this.tempColorA.setHex(k1.hemiGroundColor);
+    this.tempColorB.setHex(k2.hemiGroundColor);
+    this.interpolatedHemiGround.copy(this.tempColorA).lerp(this.tempColorB, easedFactor);
+    hemiLight.groundColor.copy(this.interpolatedHemiGround);
 
-    // Shift Ambient Intensity
-    hemiLight.intensity = THREE.MathUtils.lerp(
-      k1.ambientIntensity,
-      k2.ambientIntensity,
-      easedFactor
-    );
+    hemiLight.intensity = THREE.MathUtils.lerp(k1.ambientIntensity, k2.ambientIntensity, easedFactor);
 
-    // 2. Shift Directional Light (Sun / Moon) Color & Intensity
+    // Optional soft moonlit AmbientLight fill so night terrain & buildings remain readable (NEVER pitch black)
+    if (moonAmbientLight) {
+      moonAmbientLight.color.setHex(0x4769a6);
+      moonAmbientLight.intensity = THREE.MathUtils.lerp(
+        k1.moonAmbientIntensity,
+        k2.moonAmbientIntensity,
+        easedFactor
+      );
+    }
+
+    // 2. Shift Directional Light (Sun by day, soft moonlight by night)
     this.tempColorA.setHex(k1.dirColor);
     this.tempColorB.setHex(k2.dirColor);
     this.interpolatedDir.copy(this.tempColorA).lerp(this.tempColorB, easedFactor);
     dirLight.color.copy(this.interpolatedDir);
+    dirLight.intensity = THREE.MathUtils.lerp(k1.dirIntensity, k2.dirIntensity, easedFactor);
 
-    dirLight.intensity = THREE.MathUtils.lerp(
-      k1.dirIntensity,
-      k2.dirIntensity,
-      easedFactor
-    );
+    // Track real East -> West celestial trajectory of whichever orb is above horizon
+    const activeCelestial = this._sunDir.y >= 0.04 ? this._sunDir : this._moonDir;
+    this._lightDir.copy(activeCelestial);
+    this._lightDir.y = Math.max(0.24, this._lightDir.y); // Prevent flat extreme horizon shadow acne
+    this._lightDir.normalize();
 
-    // 3. Shift Directional Light Position across the Celestial Arc
-    const posX = THREE.MathUtils.lerp(k1.dirPosition[0], k2.dirPosition[0], easedFactor);
-    const posY = THREE.MathUtils.lerp(k1.dirPosition[1], k2.dirPosition[1], easedFactor);
-    const posZ = THREE.MathUtils.lerp(k1.dirPosition[2], k2.dirPosition[2], easedFactor);
+    const dist = 115;
     if (targetPos) {
-      dirLight.position.set(targetPos.x + posX, posY, targetPos.z + posZ);
+      dirLight.position.set(
+        targetPos.x + this._lightDir.x * dist,
+        this._lightDir.y * dist,
+        targetPos.z + this._lightDir.z * dist
+      );
       if (dirLight.target) {
         dirLight.target.position.set(targetPos.x, targetPos.y, targetPos.z);
         if (!dirLight.target.parent) {
@@ -373,17 +483,14 @@ export class DayNightSystem {
         }
       }
     } else {
-      dirLight.position.set(posX, posY, posZ);
+      dirLight.position.set(this._lightDir.x * dist, this._lightDir.y * dist, this._lightDir.z * dist);
     }
 
-    // 4. Shift Atmospheric Sky Background & Fog Color
-    this.tempColorA.setHex(k1.backgroundColor);
-    this.tempColorB.setHex(k2.backgroundColor);
-    this.interpolatedBg.copy(this.tempColorA).lerp(this.tempColorB, easedFactor);
+    // 3. Background fallback & Fog matched cleanly to SkyDome Horizon Color
     if (scene.background instanceof THREE.Color) {
-      scene.background.copy(this.interpolatedBg);
+      scene.background.copy(atmo.horizonColor);
     } else {
-      scene.background = this.interpolatedBg.clone();
+      scene.background = atmo.horizonColor.clone();
     }
 
     this.tempColorA.setHex(k1.fogColor);
@@ -399,15 +506,12 @@ export class DayNightSystem {
     }
   }
 
-  /**
-   * Returns current interpolated fog and background colors for exterior restoration
-   */
   public getCurrentAtmosphere(): { fogColor: THREE.Color; bgColor: THREE.Color; fogDensity: number } {
     const { k1, k2, factor } = this.getKeyframePair(this.timeOfDay);
     const easedFactor = factor * factor * (3 - 2 * factor);
 
     const fog = new THREE.Color(k1.fogColor).lerp(new THREE.Color(k2.fogColor), easedFactor);
-    const bg = new THREE.Color(k1.backgroundColor).lerp(new THREE.Color(k2.backgroundColor), easedFactor);
+    const bg = new THREE.Color(k1.horizonColor).lerp(new THREE.Color(k2.horizonColor), easedFactor);
     const density = THREE.MathUtils.lerp(k1.fogDensity, k2.fogDensity, easedFactor);
 
     return { fogColor: fog, bgColor: bg, fogDensity: density };

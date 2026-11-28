@@ -443,15 +443,83 @@ export function getBridgeLayout(id: string): WorldBridgeLayout | undefined {
 }
 
 /**
- * 5. DEFINISI ZONA AMAN PEMUKIMAN (SAFE_ZONES) & TITIK RESPAWN CHECKPOINT
- * Radius perlindungan 95-130 unit di seluruh 6 pemukiman utama Eldoria:
- * 1. Desa Utama Eldoria [20, -60] - radius 120
- * 2. Pelabuhan Sanctuary [20, 20] - radius 95
- * 3. Desa Gurun Solaria [-540, -420] - radius 110
- * 4. Ibukota Kerajaan Astraea [460, -420] - radius 130
- * 5. Benteng Val-Kragor [580, 130] - radius 110
- * 6. Istana Sultan Taj Mahal [-540, -540] - radius 110
+ * 5. DEFINISI RESMI PEMUKIMAN AMAN (SAFE_SETTLEMENTS), SAFE_ZONES, & TITIK MASUK BOSS AMAN
+ * Seluruh plazaPos berada di alun-alun terbuka yang tervalidasi bebas tabrakan bangunan/air mancur.
  */
+export interface SafeSettlementDef {
+  id: string;
+  waypointId: string;
+  name: string;
+  nameId: string;
+  x: number;
+  z: number;
+  radius: number;
+  plazaPos: { x: number; z: number; rotationY: number };
+}
+
+export const SAFE_SETTLEMENTS: SafeSettlementDef[] = [
+  {
+    id: 'town_sanctuary',
+    waypointId: 'wp_village',
+    name: 'Sanctuary Village',
+    nameId: 'Desa Utama Eldoria',
+    x: 20,
+    z: -60,
+    radius: 120,
+    plazaPos: { x: 20, z: -48, rotationY: 0 },
+  },
+  {
+    id: 'town_harbor',
+    waypointId: 'wp_harbor',
+    name: 'Sanctuary Coastal Harbor',
+    nameId: 'Pelabuhan Sanctuary',
+    x: 20,
+    z: 20,
+    radius: 85,
+    plazaPos: { x: 20, z: 12, rotationY: 0 },
+  },
+  {
+    id: 'town_valkragor',
+    waypointId: 'wp_valkragor',
+    name: 'Fortress Val-Kragor',
+    nameId: 'Benteng Val-Kragor',
+    x: 580,
+    z: 130,
+    radius: 110,
+    plazaPos: { x: 580, z: 118, rotationY: 0 },
+  },
+  {
+    id: 'town_astraea',
+    waypointId: 'wp_astraea',
+    name: 'Grand Imperial Capital Astraea',
+    nameId: 'Ibukota Astraea',
+    x: 460,
+    z: -420,
+    radius: 130,
+    plazaPos: { x: 460, z: -372, rotationY: Math.PI },
+  },
+  {
+    id: 'town_sultan_palace',
+    waypointId: 'wp_sultan_palace',
+    name: 'Solaria Sultanate City',
+    nameId: 'Kota Gurun Sultan',
+    x: -540,
+    z: -506,
+    radius: 135,
+    plazaPos: { x: -540, z: -468, rotationY: Math.PI },
+  },
+  {
+    id: 'town_mage_tower',
+    waypointId: 'wp_thunderpeak',
+    name: 'Thunderpeak Mage Tower Plaza',
+    nameId: 'Bundaran Mage Tower',
+    x: 270,
+    z: -260,
+    radius: 65,
+    plazaPos: { x: 270, z: -236, rotationY: Math.PI },
+  },
+];
+
 export interface SafeZoneDef {
   id: string;
   waypointId: string;
@@ -462,76 +530,69 @@ export interface SafeZoneDef {
   radius: number;
   respawnX: number;
   respawnZ: number;
+  rotationY?: number;
 }
 
-export const SAFE_ZONES: SafeZoneDef[] = [
-  {
-    id: 'town_sanctuary',
-    waypointId: 'wp_village',
-    name: 'Sanctuary Village',
-    nameId: 'Desa Utama Eldoria',
-    x: 20,
-    z: -60,
-    radius: 120,
-    respawnX: 20,
-    respawnZ: -55,
+export const SAFE_ZONES: SafeZoneDef[] = SAFE_SETTLEMENTS.map((s) => ({
+  id: s.id,
+  waypointId: s.waypointId,
+  name: s.name,
+  nameId: s.nameId,
+  x: s.x,
+  z: s.z,
+  radius: s.radius,
+  respawnX: s.plazaPos.x,
+  respawnZ: s.plazaPos.z,
+  rotationY: s.plazaPos.rotationY,
+}));
+
+export interface BossSafeEntranceDef {
+  bossId: 'boss_dragonfang' | 'boss_titan' | 'boss_jarrus';
+  presetId: 'ignis' | 'titan' | 'jarrus';
+  waypointId: string;
+  label: string;
+  x: number;
+  z: number;
+  rotationY: number;
+}
+
+export const BOSS_SAFE_ENTRANCES: Record<'boss_dragonfang' | 'boss_titan' | 'boss_jarrus', BossSafeEntranceDef> = {
+  boss_dragonfang: {
+    bossId: 'boss_dragonfang',
+    presetId: 'ignis',
+    waypointId: 'wp_dragoncaldera',
+    label: 'Gerbang Luar Jembatan Obsidian Kaldera [40, 738]',
+    x: 40,
+    z: 738,
+    rotationY: 0, // Facing South straight across Obsidian Bridge toward Ignis
   },
-  {
-    id: 'town_harbor',
-    waypointId: 'wp_harbor',
-    name: 'Sanctuary Coastal Harbor',
-    nameId: 'Pelabuhan Sanctuary',
-    x: 20,
-    z: 20,
-    radius: 95,
-    respawnX: 20,
-    respawnZ: 10,
+  boss_titan: {
+    bossId: 'boss_titan',
+    presetId: 'titan',
+    waypointId: 'wp_boss_crater',
+    label: 'Gerbang Luar Selatan Colosseum Titan [180, -478]',
+    x: 180,
+    z: -478,
+    rotationY: Math.PI, // Facing North straight into South Colosseum Gate
   },
-  {
-    id: 'town_solaria',
-    waypointId: 'wp_solaria_village',
-    name: 'Solaria Desert Village',
-    nameId: 'Desa Gurun Solaria',
-    x: -540,
-    z: -420,
-    radius: 110,
-    respawnX: -540,
-    respawnZ: -415,
+  boss_jarrus: {
+    bossId: 'boss_jarrus',
+    presetId: 'jarrus',
+    waypointId: 'wp_sandworm',
+    label: 'Punggung Bukit Pasir Luar Kawah Jarrus [-840, -184]',
+    x: -840,
+    z: -184,
+    rotationY: Math.PI, // Facing North toward Swirling Crater
   },
-  {
-    id: 'town_astraea',
-    waypointId: 'wp_astraea',
-    name: 'Grand Imperial Capital Astraea',
-    nameId: 'Ibukota Kerajaan Astraea',
-    x: 460,
-    z: -420,
-    radius: 130,
-    respawnX: 460,
-    respawnZ: -370,
-  },
-  {
-    id: 'town_valkragor',
-    waypointId: 'wp_valkragor',
-    name: 'Fortress Val-Kragor',
-    nameId: 'Benteng Val-Kragor',
-    x: 580,
-    z: 130,
-    radius: 110,
-    respawnX: 580,
-    respawnZ: 115,
-  },
-  {
-    id: 'town_sultan_palace',
-    waypointId: 'wp_sultan_palace',
-    name: 'Sultan Malik Grand Palace',
-    nameId: 'Istana Sultan Taj Mahal',
-    x: -540,
-    z: -540,
-    radius: 110,
-    respawnX: -540,
-    respawnZ: -505,
-  },
-];
+};
+
+export function getSettlementById(id?: string | null): SafeSettlementDef {
+  if (id) {
+    const found = SAFE_SETTLEMENTS.find((s) => s.id === id);
+    if (found) return found;
+  }
+  return SAFE_SETTLEMENTS[0];
+}
 
 /**
  * Cek apakah sebuah koordinat berada di dalam salah satu SAFE_ZONE pemukiman.

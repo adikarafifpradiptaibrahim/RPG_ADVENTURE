@@ -2,18 +2,17 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
-import { GraphicsSettings } from './graphicsSettings';
+import { GraphicsSettings, isMobileRenderDevice } from './graphicsSettings';
 
 /**
  * Post-Processing Manager & Pipeline Optimization
- * 
- * Specifically configured according to Eldoria engine requirements:
- * 1. Low and Medium presets bypass heavy screen-space passes (NO UnrealBloomPass, NO DepthOfField / BokehPass).
- * 2. Scene uses lightweight THREE.HemisphereLight + THREE.ACESFilmicToneMapping for rich environmental depth with zero GPU burden.
- * 3. Lightweight FXAAPass is engaged during downscaled resolutions (e.g. 50% / 65% renderScale) to smooth geometric edges.
- * 4. Player input and movement physics updates are strictly decoupled and executed BEFORE the render pass.
+ *
+ * - Bypassed completely in Low / Medium / Mobile without Bloom so GPU fillrate remains minimal.
+ * - Enables subtle high-threshold UnrealBloomPass for PC High/Ultra when enableBloomGlow is ON.
+ * - FXAAPass engaged for downscaled resolution smoothing or when enabled.
  */
 export class PostProcessingManager {
   private renderer: THREE.WebGLRenderer;
@@ -23,9 +22,10 @@ export class PostProcessingManager {
 
   private composer: EffectComposer | null = null;
   private renderPass: RenderPass | null = null;
+  private bloomPass: UnrealBloomPass | null = null;
   private outputPass: OutputPass | null = null;
   private fxaaPass: ShaderPass | null = null;
-  private useFxaa: boolean = false;
+  private useComposer = false;
 
   constructor(
     renderer: THREE.WebGLRenderer,
@@ -39,52 +39,56 @@ export class PostProcessingManager {
     this.camera = camera;
     this.container = container;
 
-    // Apply baseline ACES Filmic Tone Mapping to renderer
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
-
     this.initPipeline(settings);
   }
 
   private initPipeline(settings: GraphicsSettings) {
+    const w = this.container.clientWidth || window.innerWidth || 1280;
+    const h = this.container.clientHeight || window.innerHeight || 720;
+
     this.composer = new EffectComposer(this.renderer);
     this.renderPass = new RenderPass(this.scene, this.camera);
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(Math.max(1, w / 2), Math.max(1, h / 2)), 0.24, 0.35, 0.88);
     this.outputPass = new OutputPass();
     this.fxaaPass = new ShaderPass(FXAAShader);
 
     this.composer.addPass(this.renderPass);
+    this.composer.addPass(this.bloomPass);
     this.composer.addPass(this.outputPass);
     this.composer.addPass(this.fxaaPass);
 
     this.applySettings(settings);
   }
 
-  /**
-   * Re-evaluates postprocessing passes when settings change.
-   * Guarantees that heavy Bloom/DoF are never attached in Medium or Low modes.
-   */
   public applySettings(settings: GraphicsSettings) {
-    if (!this.composer || !this.fxaaPass) return;
+    if (!this.composer || !this.fxaaPass || !this.bloomPass) return;
 
-    // Fast Approximate Anti-Aliasing is enabled when downscaled or explicitly requested
-    this.useFxaa = settings.renderScale < 1.0 || Boolean(settings.fxaa);
-    this.fxaaPass.enabled = this.useFxaa;
+    const isMobile = isMobileRenderDevice();
+    const bloomActive = !isMobile && Boolean(settings.enableBloomGlow) && (settings.preset === 'high' || settings.preset === 'ultra' || settings.preset === 'custom');
+    const fxaaActive = settings.renderScale < 1.0 || Boolean(settings.fxaa);
 
-    this.updateResolution();
+    this.bloomPass.enabled = bloomActive;
+    this.fxaaPass.enabled = fxaaActive;
+    this.useComposer = bloomActive || (isMobile === false && fxaaActive && settings.preset === 'ultra');
+
+    if (this.useComposer) {
+      this.updateResolution();
+    }
   }
 
-  /**
-   * Updates resolution uniforms for FXAA pass to match current canvas buffer size.
-   */
   public updateResolution() {
     if (!this.container || !this.composer || !this.fxaaPass) return;
 
-    const w = this.container.clientWidth || window.innerWidth;
-    const h = this.container.clientHeight || window.innerHeight;
+    const w = this.container.clientWidth || window.innerWidth || 1280;
+    const h = this.container.clientHeight || window.innerHeight || 720;
     const pixelRatio = this.renderer.getPixelRatio();
 
     this.composer.setPixelRatio(pixelRatio);
     this.composer.setSize(w, h);
+
+    if (this.bloomPass) {
+      this.bloomPass.setSize(Math.max(1, Math.floor(w / 2)), Math.max(1, Math.floor(h / 2)));
+    }
 
     const bufferW = Math.max(1, Math.floor(w * pixelRatio));
     const bufferH = Math.max(1, Math.floor(h * pixelRatio));
@@ -98,12 +102,8 @@ export class PostProcessingManager {
     }
   }
 
-  /**
-   * Renders the frame cleanly.
-   * Player movement and logic must be updated prior to calling this method.
-   */
   public render() {
-    if (this.useFxaa && this.composer) {
+    if (this.useComposer && this.composer) {
       this.composer.render();
     } else {
       this.renderer.render(this.scene, this.camera);
@@ -123,6 +123,7 @@ export class PostProcessingManager {
       this.composer.dispose();
       this.composer = null;
     }
+    this.bloomPass = null;
     this.renderPass = null;
     this.outputPass = null;
     this.fxaaPass = null;

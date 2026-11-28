@@ -301,11 +301,11 @@ export const DeveloperSettingsSection: React.FC<DeveloperSettingsSectionProps> =
               disabled={actionsDisabled || !onTeleportPreset}
               onClick={() => {
                 const res = onTeleportPreset?.('jarrus');
-                showTempFeedback(true, res ? `Teleport ke ${res.label}` : 'Teleport ke Kawah Jarrus [-840, -205]');
+                showTempFeedback(true, res ? `Teleport ke ${res.label}` : 'Teleport ke Tepi Kawah Jarrus [-840, -184]');
               }}
               className="rounded-lg border border-amber-500/40 bg-amber-950/45 hover:bg-amber-900/60 disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-2 text-xs font-semibold text-amber-200 transition cursor-pointer text-left"
             >
-              🪱 Cacing Jarrus <span className="block text-[10px] text-amber-300/75 font-mono">[-840, -205]</span>
+              🪱 Cacing Jarrus <span className="block text-[10px] text-amber-300/75 font-mono">Bukit Aman [-840, -184]</span>
             </button>
 
             <button
@@ -313,11 +313,11 @@ export const DeveloperSettingsSection: React.FC<DeveloperSettingsSectionProps> =
               disabled={actionsDisabled || !onTeleportPreset}
               onClick={() => {
                 const res = onTeleportPreset?.('titan');
-                showTempFeedback(true, res ? `Teleport ke ${res.label}` : 'Teleport ke Arena Titan Kuno');
+                showTempFeedback(true, res ? `Teleport ke ${res.label}` : 'Teleport ke Gerbang Colosseum Titan [180, -478]');
               }}
               className="rounded-lg border border-emerald-500/40 bg-emerald-950/45 hover:bg-emerald-900/60 disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-2 text-xs font-semibold text-emerald-200 transition cursor-pointer text-left"
             >
-              🗿 Titan Kuno <span className="block text-[10px] text-emerald-300/75 font-mono">Altar Hutan</span>
+              🗿 Titan Kuno <span className="block text-[10px] text-emerald-300/75 font-mono">Gerbang Luar [180, -478]</span>
             </button>
 
             <button

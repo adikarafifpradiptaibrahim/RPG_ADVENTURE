@@ -3777,6 +3777,7 @@ export async function buildWorldEnvironmentAsync(
 
   const fullPlainsGrassCount = plainsGrassMesh?.count ?? 0;
   const fullBeachGrassCount = beachGrassMesh?.count ?? 0;
+  const fullShrubCount = shrubMesh?.count ?? 0;
   let currentGrassDensity = 1.0;
 
   const setGrassDensity = (scale: number) => {
@@ -3791,6 +3792,13 @@ export async function buildWorldEnvironmentAsync(
       beachGrassMesh.visible = currentGrassDensity > 0.01;
       if (beachGrassMesh.visible && fullBeachGrassCount > 0) {
         beachGrassMesh.count = Math.max(1, Math.floor(fullBeachGrassCount * currentGrassDensity));
+      }
+    }
+    if (shrubMesh) {
+      shrubMesh.visible = currentGrassDensity > 0.01;
+      if (shrubMesh.visible && fullShrubCount > 0) {
+        const shrubScale = Math.max(0.2, currentGrassDensity);
+        shrubMesh.count = Math.max(1, Math.floor(fullShrubCount * shrubScale));
       }
     }
   };

@@ -27,10 +27,13 @@ import {
 import { soundManager } from '../game/audio';
 import {
   GraphicsSettings,
+  SkyQuality,
   getGraphicsPresetForDevice,
   isMobileRenderDevice,
+  loadGraphicsSettings,
   saveGraphicsSettings,
 } from '../game/graphicsSettings';
+import { updateDeviceSettings } from '../game/storage/guestSaveManager';
 import {
   TouchControlMode,
   getSavedControlMode,
@@ -107,25 +110,16 @@ export const PauseModal: React.FC<PauseModalProps> = ({
   const [controlMode, setControlModeState] = useState<TouchControlMode>(() => getSavedControlMode());
   const [mouseSensitivity, setMouseSensitivityState] = useState<number>(() => getMouseSensitivityMultiplier());
 
-  // Graphics State
+  // Graphics State (isolated per PC vs Mobile profile)
   const [settings, setSettings] = useState<GraphicsSettings>(() => {
-    return (
-      initialGraphicsSettings || {
-        preset: 'medium',
-        renderScale: 1.0,
-        enableGrass: true,
-        enableShadows: true,
-        shadowQuality: 'medium',
-        enableParticles: true,
-        enablePostProcessing: true,
-        enableBloom: false,
-        enableVignette: false,
-        maxLights: 4,
-        targetFps: 60,
-        enableFog: true,
-      }
-    );
+    return initialGraphicsSettings || loadGraphicsSettings(isMobileProfile);
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      setSettings(loadGraphicsSettings(isMobileProfile));
+    }
+  }, [isOpen, isMobileProfile]);
 
   if (!isOpen) return null;
 
@@ -160,17 +154,19 @@ export const PauseModal: React.FC<PauseModalProps> = ({
   };
 
   // Graphics Handlers
-  const handleSelectPreset = (preset: 'low' | 'medium' | 'high') => {
-    const next = getGraphicsPresetForDevice(preset);
+  const handleSelectPreset = (preset: 'low' | 'medium' | 'high' | 'ultra') => {
+    const next = getGraphicsPresetForDevice(preset, isMobileProfile);
     setSettings(next);
-    saveGraphicsSettings(next);
+    saveGraphicsSettings(next, isMobileProfile);
+    updateDeviceSettings({ graphics: next });
     onApplyGraphicsSettings?.(next);
   };
 
   const handleUpdateGraphics = (partial: Partial<GraphicsSettings>) => {
     const next: GraphicsSettings = { ...settings, ...partial, preset: 'custom' };
     setSettings(next);
-    saveGraphicsSettings(next);
+    saveGraphicsSettings(next, isMobileProfile);
+    updateDeviceSettings({ graphics: next });
     onApplyGraphicsSettings?.(next);
   };
 
@@ -424,13 +420,23 @@ export const PauseModal: React.FC<PauseModalProps> = ({
           {/* TAB 1: GRAFIK */}
           {activeTab === 'grafik' && (
             <div className="space-y-4 animate-in fade-in duration-150">
+              {/* Device Profile Indicator */}
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-cyan-500/40 bg-cyan-950/25 px-3 py-2">
+                <span className="text-xs font-bold text-cyan-200">
+                  {isMobileProfile ? '📱 Profil Grafik Mobile' : '🖥️ Profil Grafik PC'}
+                </span>
+                <span className="text-[10px] text-stone-400">
+                  {isMobileProfile ? 'graphics_mobile' : 'graphics_pc'}
+                </span>
+              </div>
+
               {/* Presets Cepat */}
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-stone-400 flex items-center gap-1.5 mb-2">
                   <Zap className="w-3.5 h-3.5 text-amber-400" />
-                  Preset Cepat Kualitas
+                  Preset Kualitas ({isMobileProfile ? 'Mobile' : 'PC'})
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className={`grid ${isMobileProfile ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'} gap-2`}>
                   <button
                     onClick={() => handleSelectPreset('low')}
                     className={`p-2.5 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
@@ -440,11 +446,11 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                     }`}
                   >
                     <span className="font-bold text-xs flex items-center justify-between">
-                      🥔 Rendah
+                      Low
                       {settings.preset === 'low' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
                     </span>
                     <p className="text-[10px] text-stone-400 mt-1">
-                      {isMobileProfile ? 'Anti-Lag 45–60 FPS' : 'Kentang / HP'}
+                      {isMobileProfile ? '0 Shadow • 0.75x • 160m' : '0 Shadow • 1.0x • 320m'}
                     </p>
                   </button>
 
@@ -457,11 +463,11 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                     }`}
                   >
                     <span className="font-bold text-xs flex items-center justify-between">
-                      ⚡ Standar
+                      Medium
                       {settings.preset === 'medium' && <Check className="w-3.5 h-3.5 text-amber-400" />}
                     </span>
                     <p className="text-[10px] text-stone-400 mt-1">
-                      {isMobileProfile ? 'Seimbang + Rumput 35%' : '60 FPS Stabil'}
+                      {isMobileProfile ? '512px • 1.0x • 250m' : '1024px • 1.25x • 520m'}
                     </p>
                   </button>
 
@@ -474,88 +480,121 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                     }`}
                   >
                     <span className="font-bold text-xs flex items-center justify-between">
-                      🌟 Ultra
+                      High
                       {settings.preset === 'high' && <Check className="w-3.5 h-3.5 text-cyan-400" />}
                     </span>
                     <p className="text-[10px] text-stone-400 mt-1">
-                      {isMobileProfile ? 'Flagship + Bayangan 1024px' : 'Grafis Penuh'}
+                      {isMobileProfile ? '1024px • 1.4x • 380m' : '1536px • 1.6x • 740m'}
                     </p>
                   </button>
-                </div>
-              </div>
 
-              {/* Kualitas Bayangan */}
-              <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-stone-200">Kualitas Bayangan (Shadows)</span>
-                  <span className="text-xs font-bold text-cyan-300 uppercase">
-                    {!settings.enableShadows ? 'Mati' : settings.shadowQuality}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5 text-xs">
-                  <button
-                    onClick={() => handleUpdateGraphics({ enableShadows: false })}
-                    className={`py-1.5 px-2 rounded-lg font-bold transition cursor-pointer ${
-                      !settings.enableShadows
-                        ? 'bg-red-600/30 text-red-300 border border-red-500/60'
-                        : 'bg-stone-800/60 text-stone-400 hover:text-white'
-                    }`}
-                  >
-                    Mati (Off)
-                  </button>
-                  <button
-                    onClick={() => handleUpdateGraphics({ enableShadows: true, shadowQuality: 'low' })}
-                    className={`py-1.5 px-2 rounded-lg font-bold transition cursor-pointer ${
-                      settings.enableShadows && settings.shadowQuality === 'low'
-                        ? 'bg-amber-600/30 text-amber-300 border border-amber-500/60'
-                        : 'bg-stone-800/60 text-stone-400 hover:text-white'
-                    }`}
-                  >
-                    Rendah
-                  </button>
-                  <button
-                    onClick={() => handleUpdateGraphics({ enableShadows: true, shadowQuality: 'high' })}
-                    className={`py-1.5 px-2 rounded-lg font-bold transition cursor-pointer ${
-                      settings.enableShadows && settings.shadowQuality === 'high'
-                        ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/60'
-                        : 'bg-stone-800/60 text-stone-400 hover:text-white'
-                    }`}
-                  >
-                    Tinggi
-                  </button>
-                </div>
-              </div>
-
-              {/* Resolusi Render */}
-              <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-stone-200">Resolusi Render</span>
-                  <span className="text-xs font-mono font-bold text-amber-300">{settings.renderScale}x</span>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5 text-xs">
-                  {[0.75, 1.0, 1.25].map((scale) => (
+                  {!isMobileProfile && (
                     <button
-                      key={scale}
-                      onClick={() => handleUpdateGraphics({ renderScale: scale })}
-                      className={`py-1.5 px-2 rounded-lg font-bold transition cursor-pointer ${
-                        settings.renderScale === scale
-                          ? 'bg-amber-600/30 text-amber-300 border border-amber-500/60'
-                          : 'bg-stone-800/60 text-stone-400 hover:text-white'
+                      onClick={() => handleSelectPreset('ultra')}
+                      className={`p-2.5 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                        settings.preset === 'ultra'
+                          ? 'border-purple-500 bg-purple-950/45 text-purple-200 shadow'
+                          : 'border-stone-800 bg-stone-900/60 hover:bg-stone-800 text-stone-300'
                       }`}
                     >
-                      {scale}x {scale === 0.75 ? '(Ringan)' : scale === 1.0 ? '(Native)' : '(Tajam)'}
+                      <span className="font-bold text-xs flex items-center justify-between">
+                        Ultra
+                        {settings.preset === 'ultra' && <Check className="w-3.5 h-3.5 text-purple-400" />}
+                      </span>
+                      <p className="text-[10px] text-stone-400 mt-1">
+                        2048px • 2.0x • 950m
+                      </p>
                     </button>
-                  ))}
+                  )}
                 </div>
               </div>
 
-              {/* Toggles Rumput, Partikel, & Kabut */}
+              {/* Kualitas Bayangan & Resolusi */}
+              <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-stone-200">Resolusi Bayangan</span>
+                  <span className="text-xs font-bold text-cyan-300 uppercase">
+                    {!settings.enableShadows ? 'Mati' : `${settings.shadowResolution ?? 1024}px`}
+                  </span>
+                </div>
+                <div className={`grid ${isMobileProfile ? 'grid-cols-3' : 'grid-cols-4'} gap-1.5 text-xs`}>
+                  {(isMobileProfile ? [0, 512, 1024] : [0, 1024, 1536, 2048]).map((res) => {
+                    const active = res === 0 ? !settings.enableShadows : Boolean(settings.enableShadows) && (settings.shadowResolution ?? 1024) === res;
+                    return (
+                      <button
+                        key={res}
+                        onClick={() =>
+                          handleUpdateGraphics(
+                            res === 0
+                              ? { shadows: false, enableShadows: false, shadowResolution: 0 }
+                              : {
+                                  shadows: true,
+                                  enableShadows: true,
+                                  shadowResolution: res,
+                                  shadowQuality: res >= 2048 ? 'ultra' : res >= 1024 ? 'high' : 'low',
+                                }
+                          )
+                        }
+                        className={`py-1.5 px-2 rounded-lg font-bold transition cursor-pointer ${
+                          active
+                            ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/60'
+                            : 'bg-stone-800/60 text-stone-400 hover:text-white'
+                        }`}
+                      >
+                        {res === 0 ? 'Mati' : `${res}px`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Jarak Render & Kualitas Langit */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-stone-300 font-semibold">Jarak Render</span>
+                    <span className="font-mono text-amber-300 font-bold">{settings.renderDistance}m</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={isMobileProfile ? '140' : '320'}
+                    max={isMobileProfile ? '380' : '950'}
+                    step={isMobileProfile ? '10' : '20'}
+                    value={settings.renderDistance}
+                    onChange={(e) => handleUpdateGraphics({ renderDistance: parseInt(e.target.value, 10) })}
+                    className="w-full accent-amber-500 cursor-pointer"
+                  />
+                </div>
+
+                <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-stone-300 font-semibold">Kualitas Langit</span>
+                    <span className="text-xs font-mono uppercase text-sky-300 font-bold">{settings.skyQuality || 'medium'}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 text-[10px]">
+                    {(['low', 'medium', 'high'] as SkyQuality[]).map((sq) => (
+                      <button
+                        key={sq}
+                        onClick={() => handleUpdateGraphics({ skyQuality: sq })}
+                        className={`py-1 rounded font-bold uppercase cursor-pointer ${
+                          (settings.skyQuality || 'medium') === sq
+                            ? 'bg-sky-600/35 text-sky-200 border border-sky-400/70'
+                            : 'bg-stone-800/70 text-stone-400'
+                        }`}
+                      >
+                        {sq}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Toggles Rumput, Partikel, Bloom, & Kabut */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                {/* Rumput */}
                 <div className="flex items-center justify-between rounded-xl border border-stone-800 bg-stone-950/70 p-3">
-                  <span className="text-stone-300">Rumput & Vegetasi</span>
+                  <span className="text-stone-300">Rumput & Bunga</span>
                   <button
-                    onClick={() => handleUpdateGraphics({ enableGrass: !settings.enableGrass })}
+                    onClick={() => handleUpdateGraphics({ enableGrass: !settings.enableGrass, grassDensity: !settings.enableGrass ? 0.8 : 0 })}
                     className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${
                       settings.enableGrass
                         ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/60'
@@ -566,7 +605,20 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                   </button>
                 </div>
 
-                {/* Partikel */}
+                <div className="flex items-center justify-between rounded-xl border border-stone-800 bg-stone-950/70 p-3">
+                  <span className="text-stone-300">Post-Bloom & Glow</span>
+                  <button
+                    onClick={() => handleUpdateGraphics({ enableBloomGlow: !settings.enableBloomGlow })}
+                    className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${
+                      settings.enableBloomGlow
+                        ? 'bg-amber-600/30 text-amber-300 border border-amber-500/60'
+                        : 'bg-stone-800 text-stone-500'
+                    }`}
+                  >
+                    {settings.enableBloomGlow ? 'ON' : 'OFF'}
+                  </button>
+                </div>
+
                 <div className="flex items-center justify-between rounded-xl border border-stone-800 bg-stone-950/70 p-3">
                   <span className="text-stone-300">Efek Partikel</span>
                   <button
@@ -581,9 +633,8 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                   </button>
                 </div>
 
-                {/* Efek Kabut */}
-                <div className="flex items-center justify-between rounded-xl border border-stone-800 bg-stone-950/70 p-3 sm:col-span-2">
-                  <span className="text-stone-300">Efek Kabut Atmosfer (Atmospheric Fog)</span>
+                <div className="flex items-center justify-between rounded-xl border border-stone-800 bg-stone-950/70 p-3">
+                  <span className="text-stone-300">Kabut Atmosfer</span>
                   <button
                     onClick={() => handleUpdateGraphics({ enableFog: !settings.enableFog })}
                     className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${

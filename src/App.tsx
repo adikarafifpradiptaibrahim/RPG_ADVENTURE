@@ -147,6 +147,16 @@ export default function App() {
   const [isSpectatorMode, setIsSpectatorMode] = useState(false);
   const [spectatorSpeed, setSpectatorSpeed] = useState(22);
   const [isUIVisible, setIsUIVisible] = useState(true);
+  const lastSettlementIdRef = useRef<string>((() => {
+    try {
+      const saved = localStorage.getItem('eldoria_last_visited_town');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed.id === 'string') return parsed.id;
+      }
+    } catch {}
+    return 'town_sanctuary';
+  })());
   const [interiorFading, setInteriorFading] = useState(false);
   const [interiorPortal, setInteriorPortal] = useState<{ label: string; kind: 'enter' | 'exit' | 'floor'; promptText: string } | null>(null);
   const [interiorRoomInfo, setInteriorRoomInfo] = useState<InteriorRoomInfoPayload | null>(null);
@@ -523,13 +533,18 @@ export default function App() {
       const currentStats = statsRef.current;
       const role = currentStats.characterClass || characterClass;
       const pos = playerPosRef.current;
-      const regionName = currentRegionRef.current?.nameId || currentRegionRef.current?.name || 'Desa Sanctuary';
+      const safeExterior = engineRef.current?.getSafeExteriorSavePosition();
+      const regionName = currentRegionRef.current?.nameId || currentRegionRef.current?.name || 'Desa Utama Eldoria';
 
       const roleData: RoleSaveData = {
         stats: { ...currentStats },
         inventory: [...inventoryRef.current],
         quests: [...questsRef.current],
-        lastPosition: { x: pos.x, y: 0, z: pos.z },
+        lastPosition: safeExterior ? { x: safeExterior.x, y: safeExterior.y, z: safeExterior.z } : { x: pos.x, y: 0, z: pos.z },
+        lastSafeExteriorPos: safeExterior
+          ? { x: safeExterior.x, y: safeExterior.y, z: safeExterior.z, rotationY: safeExterior.rotationY }
+          : { x: pos.x, y: 0, z: pos.z, rotationY: pos.rotationY },
+        lastVisitedSettlementId: safeExterior?.settlementId || lastSettlementIdRef.current || 'town_sanctuary',
         lastRegion: regionName,
         savedAt: Date.now(),
         playTimeSeconds: playTimeRef.current,
@@ -641,15 +656,15 @@ export default function App() {
       engineRef.current.clearRemotePlayers();
       engineRef.current.setMenuMode('gameplay');
 
-      // Teleport to saved position if continuing
-      if (continueRole && savedRole?.lastPosition) {
-        const { x, z } = savedRole.lastPosition;
-        if (typeof x === 'number' && typeof z === 'number' && !isNaN(x) && !isNaN(z)) {
-          engineRef.current.teleportTo(x, z);
-          setTimeout(() => {
-            addFloatingText(`Melanjutkan petualangan Lv. ${savedRole.stats.level}!`, '#38bdf8', 'info');
-          }, 300);
+      // Smart Safe-Resume: validate saved coordinates (interior/lava/ocean/boss -> safe edge or settlement plaza)
+      if (continueRole && savedRole) {
+        if (savedRole.lastVisitedSettlementId) {
+          lastSettlementIdRef.current = savedRole.lastVisitedSettlementId;
         }
+        engineRef.current.resolveAndTeleportSavedResume(savedRole);
+        setTimeout(() => {
+          addFloatingText(`Melanjutkan petualangan Lv. ${savedRole.stats.level}!`, '#38bdf8', 'info');
+        }, 300);
       }
     }
 
@@ -913,6 +928,9 @@ export default function App() {
       },
       onInteriorRoomChange: (roomInfo) => {
         setInteriorRoomInfo(roomInfo);
+      },
+      onSettlementCheckpointChange: (settlementId) => {
+        lastSettlementIdRef.current = settlementId;
       },
       onCheckpointUnlocked: (id, nameId) => {
         setUnlockedCheckpoints((prev) => {

@@ -1,5 +1,12 @@
 import { CharacterClass, Item, PlayerStats, Quest } from '../../types/game';
-import { GraphicsSettings, GRAPHICS_PRESETS } from '../graphicsSettings';
+import {
+  GraphicsSettings,
+  PC_GRAPHICS_PRESETS,
+  MOBILE_GRAPHICS_PRESETS,
+  isMobileRenderDevice,
+  loadGraphicsSettings,
+  saveGraphicsSettings,
+} from '../graphicsSettings';
 import { TouchControlMode } from '../../components/VirtualJoystick';
 import { soundManager } from '../audio';
 import { setMouseSensitivityMultiplier, getMouseSensitivityMultiplier } from '../CameraControls';
@@ -16,6 +23,8 @@ export interface GuestProfile {
 
 export interface DeviceSettings {
   graphics: GraphicsSettings;
+  graphicsPc?: GraphicsSettings;
+  graphicsMobile?: GraphicsSettings;
   cameraSensitivity: number;
   audio: {
     isMuted: boolean;
@@ -39,6 +48,8 @@ export interface RoleSaveData {
   inventory: Item[];
   quests: Quest[];
   lastPosition: { x: number; y: number; z: number };
+  lastSafeExteriorPos?: { x: number; y: number; z: number; rotationY?: number };
+  lastVisitedSettlementId?: string;
   lastRegion: string;
   savedAt: number;
   playTimeSeconds: number;
@@ -74,7 +85,9 @@ export function getDefaultDeviceSettings(): DeviceSettings {
   } catch {}
 
   return {
-    graphics: { ...GRAPHICS_PRESETS.medium },
+    graphics: isMobileRenderDevice() ? { ...MOBILE_GRAPHICS_PRESETS.medium } : { ...PC_GRAPHICS_PRESETS.medium },
+    graphicsPc: { ...PC_GRAPHICS_PRESETS.medium },
+    graphicsMobile: { ...MOBILE_GRAPHICS_PRESETS.medium },
     cameraSensitivity: 1.0,
     audio: {
       isMuted: false,
@@ -158,11 +171,11 @@ export function getGuestSaveData(): EldoriaGuestSaveData {
       createdAt: parsed.guestProfile?.createdAt || Date.now(),
     };
 
+    const isMob = isMobileRenderDevice();
     const deviceSettings: DeviceSettings = {
-      graphics: {
-        ...defaults.deviceSettings.graphics,
-        ...(parsed.deviceSettings?.graphics || {}),
-      },
+      graphics: loadGraphicsSettings(isMob),
+      graphicsPc: parsed.deviceSettings?.graphicsPc || loadGraphicsSettings(false),
+      graphicsMobile: parsed.deviceSettings?.graphicsMobile || loadGraphicsSettings(true),
       cameraSensitivity:
         typeof parsed.deviceSettings?.cameraSensitivity === 'number'
           ? parsed.deviceSettings.cameraSensitivity
@@ -195,8 +208,10 @@ export function getGuestSaveData(): EldoriaGuestSaveData {
             stats: rData.stats,
             inventory: Array.isArray(rData.inventory) ? rData.inventory : [],
             quests: Array.isArray(rData.quests) ? rData.quests : [],
-            lastPosition: rData.lastPosition || { x: -40, y: 0, z: 148 },
-            lastRegion: rData.lastRegion || 'Desa Sanctuary',
+            lastPosition: rData.lastPosition || { x: 20, y: 0, z: -48 },
+            lastSafeExteriorPos: rData.lastSafeExteriorPos,
+            lastVisitedSettlementId: rData.lastVisitedSettlementId,
+            lastRegion: rData.lastRegion || 'Desa Utama Eldoria',
             savedAt: rData.savedAt || Date.now(),
             playTimeSeconds: rData.playTimeSeconds || 0,
           };
@@ -266,10 +281,20 @@ export function getDeviceSettings(): DeviceSettings {
  */
 export function updateDeviceSettings(partial: Partial<DeviceSettings>): void {
   const full = getGuestSaveData();
-  full.deviceSettings = {
+  const isMob = isMobileRenderDevice();
+  const merged: DeviceSettings = {
     ...full.deviceSettings,
     ...partial,
   };
+  if (partial.graphics) {
+    saveGraphicsSettings(partial.graphics, isMob);
+    if (isMob) {
+      merged.graphicsMobile = { ...partial.graphics };
+    } else {
+      merged.graphicsPc = { ...partial.graphics };
+    }
+  }
+  full.deviceSettings = merged;
   saveGuestSaveData(full);
   applyDeviceSettings(full.deviceSettings);
 }

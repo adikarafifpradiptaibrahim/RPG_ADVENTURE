@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import {
   GraphicsSettings,
+  SkyQuality,
   getGraphicsPresetForDevice,
   isMobileRenderDevice,
   loadGraphicsSettings,
@@ -135,6 +136,7 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
       const data = getGuestSaveData();
       setGuestProfileState(data.guestProfile);
       setDisplayNameInput(data.guestProfile.displayName);
+      setSettings(loadGraphicsSettings(isMobileProfile));
       setResetConfirmStep('none');
       setResetSuccessNotice(false);
       setManualSyncMsg(null);
@@ -142,16 +144,16 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
       setBgmVolumeState(soundManager.getBgmVolume());
       setSfxVolumeState(soundManager.getSfxVolume());
     }
-  }, [isOpen]);
+  }, [isOpen, isMobileProfile]);
 
   if (!isOpen) return null;
 
   // Graphics Handlers
-  const handleSelectPreset = (preset: 'low' | 'medium' | 'high') => {
+  const handleSelectPreset = (preset: 'low' | 'medium' | 'high' | 'ultra') => {
     soundManager.playMenuClick();
-    const next = getGraphicsPresetForDevice(preset);
+    const next = getGraphicsPresetForDevice(preset, isMobileProfile);
     setSettings(next);
-    saveGraphicsSettings(next);
+    saveGraphicsSettings(next, isMobileProfile);
     updateDeviceSettings({ graphics: next });
     onApply(next);
   };
@@ -160,7 +162,7 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
     soundManager.playMenuClick();
     const next: GraphicsSettings = { ...settings, ...partial, preset: 'custom' };
     setSettings(next);
-    saveGraphicsSettings(next);
+    saveGraphicsSettings(next, isMobileProfile);
     updateDeviceSettings({ graphics: next });
     onApply(next);
   };
@@ -435,13 +437,25 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
           {/* TAB 1: GRAFIK */}
           {activeTab === 'grafik' && (
             <div className="space-y-4 animate-in fade-in duration-150">
+              {/* Device Profile Indicator */}
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-cyan-500/40 bg-cyan-950/25 px-3 py-2">
+                <span className="text-xs font-bold text-cyan-200 flex items-center gap-1.5">
+                  <span>{isMobileProfile ? '📱 Profil Grafik Mobile' : '🖥️ Profil Grafik PC'}</span>
+                </span>
+                <span className="text-[10px] text-stone-400">
+                  {isMobileProfile
+                    ? 'Tersimpan terpisah di graphics_mobile'
+                    : 'Tersimpan terpisah di graphics_pc'}
+                </span>
+              </div>
+
               {/* Presets Cepat */}
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-stone-400 flex items-center gap-1.5 mb-2">
                   <Zap className="w-3.5 h-3.5 text-amber-400" />
-                  Preset Cepat Kualitas
+                  Preset Kualitas ({isMobileProfile ? 'Mobile' : 'Desktop PC'})
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className={`grid ${isMobileProfile ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'} gap-2`}>
                   <button
                     onClick={() => handleSelectPreset('low')}
                     className={`p-2.5 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
@@ -451,13 +465,13 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between w-full mb-1">
-                      <span className="font-bold text-xs">Low (Ringan)</span>
+                      <span className="font-bold text-xs">Low</span>
                       {settings.preset === 'low' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
                     </div>
                     <span className="text-[10px] text-stone-400 leading-tight">
                       {isMobileProfile
-                        ? 'Anti-Lag HP: Bayangan & rumput mati, jarak pandang hemat 45–60 FPS'
-                        : 'Maksimal FPS untuk HP / GPU terintegrasi'}
+                        ? '0 Shadow • DPR 0.75 • Far 160'
+                        : '0 Shadow • DPR 1.0 • Far 320'}
                     </span>
                   </button>
 
@@ -475,8 +489,8 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
                     </div>
                     <span className="text-[10px] text-stone-400 leading-tight">
                       {isMobileProfile
-                        ? 'Seimbang Mobile: Bayangan dekat ringan (512px) & rumput 35%'
-                        : 'Keseimbangan visual dan performa stabil'}
+                        ? 'Shadow 512 • DPR 1.0 • Far 250'
+                        : 'Shadow 1024 • DPR 1.25 • Far 520'}
                     </span>
                   </button>
 
@@ -489,35 +503,160 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between w-full mb-1">
-                      <span className="font-bold text-xs">Ultra</span>
+                      <span className="font-bold text-xs">High</span>
                       {settings.preset === 'high' && <Check className="w-3.5 h-3.5 text-amber-400" />}
                     </div>
                     <span className="text-[10px] text-stone-400 leading-tight">
                       {isMobileProfile
-                        ? 'Flagship HP: Bayangan halus 1024px, rumput 75% & partikel penuh'
-                        : 'Bayangan tajam & efek partikel penuh'}
+                        ? 'Shadow 1024 • DPR 1.4 • Far 380'
+                        : 'Shadow 1536 • DPR 1.6 • Far 740'}
                     </span>
                   </button>
+
+                  {!isMobileProfile && (
+                    <button
+                      onClick={() => handleSelectPreset('ultra')}
+                      className={`p-2.5 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                        settings.preset === 'ultra'
+                          ? 'border-purple-500 bg-purple-950/45 text-purple-200 shadow'
+                          : 'border-stone-800 bg-stone-950/60 text-stone-400 hover:border-stone-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1">
+                        <span className="font-bold text-xs">Ultra</span>
+                        {settings.preset === 'ultra' && <Check className="w-3.5 h-3.5 text-purple-400" />}
+                      </div>
+                      <span className="text-[10px] text-stone-400 leading-tight">
+                        Shadow 2048 • DPR 2.0 • Far 950 • Bloom
+                      </span>
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Render Scale Slider */}
-              <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3.5 space-y-2">
+              {/* Render Scale (PixelRatio) & Render Distance Sliders */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-stone-300 flex items-center gap-1.5 font-semibold">
+                      <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+                      Pixel Ratio / DPR
+                    </span>
+                    <span className="font-mono text-cyan-300 font-bold">{settings.renderScale.toFixed(2)}×</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={isMobileProfile ? '0.65' : '0.75'}
+                    max={isMobileProfile ? '1.4' : '2.0'}
+                    step="0.05"
+                    value={settings.renderScale}
+                    onChange={(e) => handleUpdateGraphics({ renderScale: parseFloat(e.target.value) })}
+                    className="w-full accent-cyan-500 cursor-pointer"
+                  />
+                </div>
+
+                <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-stone-300 font-semibold">Jarak Render (camera.far)</span>
+                    <span className="font-mono text-amber-300 font-bold">{settings.renderDistance}m</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={isMobileProfile ? '140' : '320'}
+                    max={isMobileProfile ? '380' : '950'}
+                    step={isMobileProfile ? '10' : '20'}
+                    value={settings.renderDistance}
+                    onChange={(e) => handleUpdateGraphics({ renderDistance: parseInt(e.target.value, 10) })}
+                    className="w-full accent-amber-500 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* Shadow Resolution, Sky Quality, & Grass/Flower Density */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-stone-300 font-semibold">Resolusi Bayangan</span>
+                    <span className="font-mono text-cyan-300 font-bold">
+                      {!settings.enableShadows ? 'Mati' : `${settings.shadowResolution ?? 1024}px`}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1 text-[10px]">
+                    {(isMobileProfile ? [0, 512, 1024] : [0, 1024, 1536, 2048]).map((res) => {
+                      const active = res === 0 ? !settings.enableShadows : Boolean(settings.enableShadows) && (settings.shadowResolution ?? 1024) === res;
+                      return (
+                        <button
+                          key={res}
+                          onClick={() =>
+                            handleUpdateGraphics(
+                              res === 0
+                                ? { shadows: false, enableShadows: false, shadowResolution: 0 }
+                                : {
+                                    shadows: true,
+                                    enableShadows: true,
+                                    shadowResolution: res,
+                                    shadowQuality: res >= 2048 ? 'ultra' : res >= 1024 ? 'high' : 'low',
+                                  }
+                            )
+                          }
+                          className={`py-1 rounded border font-bold cursor-pointer ${
+                            active
+                              ? 'border-cyan-400 bg-cyan-950/50 text-cyan-200'
+                              : 'border-stone-800 bg-stone-900 text-stone-400'
+                          }`}
+                        >
+                          {res === 0 ? 'Off' : res}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-stone-300 font-semibold">Kualitas Langit & Awan</span>
+                    <span className="font-mono text-amber-300 uppercase font-bold">{settings.skyQuality || 'medium'}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 text-[10px]">
+                    {(['low', 'medium', 'high'] as SkyQuality[]).map((sq) => {
+                      const active = (settings.skyQuality || 'medium') === sq;
+                      return (
+                        <button
+                          key={sq}
+                          onClick={() => handleUpdateGraphics({ skyQuality: sq })}
+                          className={`py-1 rounded border font-bold uppercase cursor-pointer ${
+                            active
+                              ? 'border-amber-400 bg-amber-950/50 text-amber-200'
+                              : 'border-stone-800 bg-stone-900 text-stone-400'
+                          }`}
+                        >
+                          {sq}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Grass & Flower Density Slider */}
+              <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-3 space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-stone-300 flex items-center gap-1.5 font-semibold">
-                    <Sliders className="w-3.5 h-3.5 text-cyan-400" />
-                    Skala Resolusi Render
+                  <span className="text-stone-300 font-semibold">Kepadatan Rumput & Bunga</span>
+                  <span className="font-mono text-emerald-300 font-bold">
+                    {settings.enableGrass === false ? '0%' : `${Math.round((settings.grassDensity ?? 1) * 100)}%`}
                   </span>
-                  <span className="font-mono text-cyan-300 font-bold">{Math.round(settings.renderScale * 100)}%</span>
                 </div>
                 <input
                   type="range"
-                  min="0.5"
-                  max="1.25"
+                  min="0"
+                  max="1"
                   step="0.05"
-                  value={settings.renderScale}
-                  onChange={(e) => handleUpdateGraphics({ renderScale: parseFloat(e.target.value) })}
-                  className="w-full accent-cyan-500 cursor-pointer"
+                  value={settings.enableGrass === false ? 0 : (settings.grassDensity ?? 1)}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    handleUpdateGraphics({ enableGrass: val > 0.02, grassDensity: val });
+                  }}
+                  className="w-full accent-emerald-500 cursor-pointer"
                 />
               </div>
 
@@ -526,16 +665,16 @@ export const GraphicsSettingsModal: React.FC<GraphicsSettingsModalProps> = ({
                 <label className="text-xs font-bold uppercase tracking-wider text-stone-400">Efek & Visual</label>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <button
-                    onClick={() => handleUpdateGraphics({ enableShadows: !settings.enableShadows })}
+                    onClick={() => handleUpdateGraphics({ enableBloomGlow: !settings.enableBloomGlow })}
                     className={`p-2.5 rounded-xl border text-left flex items-center justify-between transition cursor-pointer ${
-                      settings.enableShadows
-                        ? 'border-cyan-500/50 bg-cyan-950/30 text-cyan-200'
+                      settings.enableBloomGlow
+                        ? 'border-amber-500/50 bg-amber-950/30 text-amber-200'
                         : 'border-stone-800 bg-stone-950/60 text-stone-400'
                     }`}
                   >
-                    <span>Bayangan Realtime</span>
-                    <div className={`w-4 h-4 rounded flex items-center justify-center ${settings.enableShadows ? 'bg-cyan-500 text-black' : 'bg-stone-800'}`}>
-                      {settings.enableShadows && <Check className="w-3 h-3 stroke-[3]" />}
+                    <span>Post-Bloom & Glow</span>
+                    <div className={`w-4 h-4 rounded flex items-center justify-center ${settings.enableBloomGlow ? 'bg-amber-500 text-black' : 'bg-stone-800'}`}>
+                      {settings.enableBloomGlow && <Check className="w-3 h-3 stroke-[3]" />}
                     </div>
                   </button>
 

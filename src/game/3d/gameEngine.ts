@@ -44,9 +44,12 @@ import {
   getExactMeshGroundHeight,
 } from './worldEnvironment';
 import { getSolidGroundHeight } from './walkableSurfaceSystem';
-import { getBiomeAt } from './worldData';
+import { getBiomeAt, WATER_LEVEL, isFarOcean, isMainContinentLand } from './worldData';
+import { DynamicSkySystem } from './skyDomeSystem';
+import { PostProcessingManager } from '../postProcessing';
 import { BossManager } from '../BossManager';
-import { BOSS_ARENA_ZONES, BossArenaZone, SPAWN_NAGA, resolveEnemyTarget } from '../monsterAI';
+import { BOSS_ARENA_ZONES, BossArenaZone, SPAWN_NAGA, resolveEnemyTarget, getActiveBossZoneForPosition } from '../monsterAI';
+import type { RoleSaveData } from '../storage/guestSaveManager';
 import { createHunterModel } from './playerModel';
 import {
   SkillCooldownManager,
@@ -98,6 +101,9 @@ import {
   WorldLayoutConfig,
   getLandmarkLayout,
   SAFE_ZONES,
+  SAFE_SETTLEMENTS,
+  BOSS_SAFE_ENTRANCES,
+  getSettlementById,
 } from './worldLayoutConfig';
 import { WORLD_BOUNDS, isPointOnBridgeDeck } from './worldData';
 import {
@@ -208,6 +214,7 @@ export interface GameEngineCallbacks {
   onInteriorFadeChange?: (fadingOut: boolean) => void;
   onInteriorPortalState?: (portalInfo: { label: string; kind: 'enter' | 'exit' | 'floor'; promptText: string } | null) => void;
   onInteriorRoomChange?: (roomInfo: InteriorRoomInfoPayload | null) => void;
+  onSettlementCheckpointChange?: (settlementId: string, settlementName: string) => void;
   onPreviewRoleSelected?: (role: 'warrior' | 'mage' | 'rogue') => void;
   onPlayerPositionUpdate?: (data: {
     x: number;
@@ -310,15 +317,27 @@ export class GameEngine {
       const saved = localStorage.getItem('eldoria_last_visited_town');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed.x === 'number') return parsed;
+        if (parsed && typeof parsed.id === 'string') {
+          const settlement = getSettlementById(parsed.id);
+          return {
+            id: settlement.id,
+            x: settlement.plazaPos.x,
+            y: 0.5,
+            z: settlement.plazaPos.z,
+            name: settlement.nameId,
+          };
+        }
       }
     } catch { }
-    return { id: 'town_sanctuary', x: 20, y: 0.5, z: -50, name: 'Desa Utama Eldoria' };
+    return { id: 'town_sanctuary', x: 20, y: 0.5, z: -48, name: 'Desa Utama Eldoria' };
   })();
   private scenePointLights: THREE.PointLight[] = [];
   private frameCount: number = 0;
   private currentParticleCount = 0;
   public dayNightSystem: DayNightSystem;
+  private skySystem: DynamicSkySystem | null = null;
+  private moonAmbientLight: THREE.AmbientLight | null = null;
+  private postProcessor: PostProcessingManager | null = null;
 
   // World and Player (Deferred / Lazy World Loading for instant 60 FPS Main Menu)
   public isWorldLoaded = false;
@@ -1446,6 +1465,9 @@ export class GameEngine {
     // Root scene ambient light dedicated cleanly for interior rendering (intensity=0 outdoors)
     this.interiorAmbientLight = new THREE.AmbientLight(0xfef3c7, 0);
     this.scene.add(this.interiorAmbientLight);
+    // Soft moonlit fill ambient light outdoors during night phase (intensity=0 indoors/daytime)
+    this.moonAmbientLight = new THREE.AmbientLight(0x4769a6, 0);
+    this.scene.add(this.moonAmbientLight);
     this.camera = new THREE.PerspectiveCamera(
       60,
       container.clientWidth / container.clientHeight,
@@ -1481,8 +1503,9 @@ export class GameEngine {
     this.renderer.domElement.style.visibility = 'visible';
     container.appendChild(this.renderer.domElement);
 
-    // 3. Atmosphere & Day-Night System
+    // 3. Atmosphere, Dynamic Sky Dome & Post-Processing Pipeline
     this.dayNightSystem = getSharedDayNightSystem();
+    this.skySystem = new DynamicSkySystem();
 
     // Static Player Skill PointLight (always in scene with 0 default intensity)
     this.skillVfxLight = new THREE.PointLight(0x00f0ff, 0, 15);
@@ -1559,9 +1582,16 @@ export class GameEngine {
       this.world.exteriorWorldGroup.add(this.worldEnvironment.group);
     }
 
-    // 3. Connect Day-Night lights
+    // 3. Connect Day-Night lights & Dynamic Sky Dome
+    this.attachSkySystemToWorld();
     if (this.world?.hemiLight && this.world?.dirLight) {
-      this.dayNightSystem.applyOutdoorLighting(this.scene, this.world.hemiLight, this.world.dirLight, this.playerPos);
+      this.dayNightSystem.applyOutdoorLighting(
+        this.scene,
+        this.world.hemiLight,
+        this.world.dirLight,
+        this.playerPos,
+        this.moonAmbientLight
+      );
     }
 
     // 4. Warm-up & pre-compile all Mage shaders, geometries, and object pools in frustum
@@ -1702,9 +1732,16 @@ export class GameEngine {
       });
     }
 
+    this.attachSkySystemToWorld();
     // Connect Day-Night outdoor lighting and dynamic PointLights
     if (this.world?.hemiLight && this.world?.dirLight) {
-      this.dayNightSystem.applyOutdoorLighting(this.scene, this.world.hemiLight, this.world.dirLight, this.playerPos);
+      this.dayNightSystem.applyOutdoorLighting(
+        this.scene,
+        this.world.hemiLight,
+        this.world.dirLight,
+        this.playerPos,
+        this.moonAmbientLight
+      );
     }
     this.scenePointLights = this.world.pointLights || [];
 
@@ -2057,69 +2094,91 @@ export class GameEngine {
     this.rebuildPlayerMesh();
   }
 
+  private attachSkySystemToWorld() {
+    if (!this.skySystem) return;
+    if (this.world?.exteriorWorldGroup && this.skySystem.group.parent !== this.world.exteriorWorldGroup) {
+      this.world.exteriorWorldGroup.add(this.skySystem.group);
+    } else if (!this.skySystem.group.parent) {
+      this.scene.add(this.skySystem.group);
+    }
+    const skyQ =
+      this.graphicsSettings.skyQuality ||
+      (this.graphicsSettings.preset === 'ultra' ? 'ultra' : this.graphicsSettings.preset === 'custom' ? 'medium' : this.graphicsSettings.preset);
+    this.skySystem.setQuality(skyQ, this.graphicsSettings.enableBloomGlow !== false);
+  }
+
   public applyGraphicsSettings(settings: GraphicsSettings) {
     this.graphicsSettings = settings;
 
     const isMobile = isMobileRenderDevice();
-    const profile = getDeviceProfile();
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
 
-    // 1. Resolution / Pixel Ratio Scaling
+    // 1. Resolution / Pixel Ratio Scaling (PC up to 2.0 | Mobile 0.75..1.4)
     if (isMobile) {
       let targetRatio = Math.min(dpr, 1.0);
-      if (settings.preset === 'low') {
-        targetRatio = Math.min(dpr, 0.75);
-      } else if (settings.preset === 'high') {
-        targetRatio = Math.min(dpr, 1.5);
-      } else if (settings.preset === 'custom') {
-        targetRatio = Math.min(dpr * settings.renderScale, 1.5);
-      } else {
-        targetRatio = Math.min(dpr, 1.0);
-      }
-      this.renderer.setPixelRatio(Math.max(0.5, targetRatio));
+      if (settings.preset === 'low') targetRatio = Math.min(dpr, 0.75);
+      else if (settings.preset === 'high') targetRatio = Math.min(dpr, 1.4);
+      else if (settings.preset === 'medium') targetRatio = Math.min(dpr, 1.0);
+      else targetRatio = Math.max(0.6, Math.min(1.4, settings.renderScale || 1.0));
+      this.renderer.setPixelRatio(Math.max(0.55, targetRatio));
     } else {
-      this.renderer.setPixelRatio(settings.renderScale * Math.min(dpr, profile.maxPixelRatio));
+      const targetPcDpr = Math.max(0.75, Math.min(2.0, settings.renderScale || 1.25));
+      this.renderer.setPixelRatio(targetPcDpr);
     }
 
-    // 2. Real-Time Shadow Profile (Mobile Low: OFF | Mobile Med: 512px Basic | Mobile High: 1024px PCFSoft)
-    const shadowsEnabled = isMobile && settings.preset === 'low' ? false : Boolean(settings.shadows);
+    // 2. Real-Time Shadow Resolution & Filtering Profile
+    const shadowsEnabled =
+      (isMobile && settings.preset === 'low') || settings.shadowResolution === 0
+        ? false
+        : Boolean(settings.shadows ?? settings.enableShadows);
     this.renderer.shadowMap.enabled = shadowsEnabled;
     this.renderer.shadowMap.autoUpdate = false;
 
-    if (isMobile) {
+    if (this.world?.dirLight) {
+      const dl = this.world.dirLight;
       if (shadowsEnabled) {
-        const useHighShadow = settings.preset === 'high' || settings.shadowQuality === 'high';
-        this.renderer.shadowMap.type = useHighShadow ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
-        if (this.world?.dirLight) {
-          const dl = this.world.dirLight;
-          dl.castShadow = true;
-          const targetSize = useHighShadow ? 1024 : 512;
-          const targetBounds = useHighShadow ? 75 : 40;
-          if (dl.shadow.mapSize.width !== targetSize || dl.shadow.mapSize.height !== targetSize) {
-            dl.shadow.mapSize.set(targetSize, targetSize);
-            if (dl.shadow.map) {
-              dl.shadow.map.dispose();
-              dl.shadow.map = null;
-            }
-          }
-          dl.shadow.camera.left = -targetBounds;
-          dl.shadow.camera.right = targetBounds;
-          dl.shadow.camera.top = targetBounds;
-          dl.shadow.camera.bottom = -targetBounds;
-          dl.shadow.camera.far = useHighShadow ? 300 : 220;
-          dl.shadow.camera.updateProjectionMatrix();
+        dl.castShadow = true;
+        let targetSize = 1024;
+        let targetBounds = 90;
+        let useSoftShadow = false;
+
+        if (isMobile) {
+          const isMobHigh = settings.preset === 'high' || (settings.shadowResolution ?? 0) >= 1024 || settings.shadowQuality === 'high';
+          targetSize = isMobHigh ? 1024 : 512;
+          targetBounds = isMobHigh ? 75 : 40;
+          useSoftShadow = isMobHigh;
+          this.renderer.shadowMap.type = useSoftShadow ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
+        } else {
+          const res = settings.shadowResolution;
+          targetSize =
+            typeof res === 'number' && res >= 512
+              ? Math.min(2048, res)
+              : settings.preset === 'ultra' || settings.shadowQuality === 'ultra'
+                ? 2048
+                : settings.preset === 'high' || settings.shadowQuality === 'high'
+                  ? 1536
+                  : 1024;
+          targetBounds = targetSize >= 2048 ? 140 : targetSize >= 1536 ? 120 : 95;
+          useSoftShadow = targetSize >= 1536;
+          this.renderer.shadowMap.type = useSoftShadow ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
         }
+
+        if (dl.shadow.mapSize.width !== targetSize || dl.shadow.mapSize.height !== targetSize) {
+          dl.shadow.mapSize.set(targetSize, targetSize);
+          if (dl.shadow.map) {
+            dl.shadow.map.dispose();
+            dl.shadow.map = null;
+          }
+        }
+        dl.shadow.camera.left = -targetBounds;
+        dl.shadow.camera.right = targetBounds;
+        dl.shadow.camera.top = targetBounds;
+        dl.shadow.camera.bottom = -targetBounds;
+        dl.shadow.camera.far = isMobile ? (targetSize >= 1024 ? 300 : 220) : 420;
+        dl.shadow.camera.updateProjectionMatrix();
         this.renderer.shadowMap.needsUpdate = true;
-      } else if (this.world?.dirLight) {
-        this.world.dirLight.castShadow = false;
-      }
-    } else {
-      this.renderer.shadowMap.type = THREE.PCFShadowMap;
-      if (this.world?.dirLight) {
-        this.world.dirLight.castShadow = shadowsEnabled;
-      }
-      if (shadowsEnabled) {
-        this.renderer.shadowMap.needsUpdate = true;
+      } else {
+        dl.castShadow = false;
       }
     }
 
@@ -2127,6 +2186,7 @@ export class GameEngine {
       this.scene.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
           const mesh = child as THREE.Mesh;
+          if (mesh.name === 'SkyGradientDome') return;
           mesh.castShadow = shadowsEnabled;
           mesh.receiveShadow = shadowsEnabled;
           if (isMobile && !mesh.userData?.pooledVfx && !mesh.name?.includes('Aim') && !mesh.name?.includes('Eagle')) {
@@ -2136,16 +2196,16 @@ export class GameEngine {
       });
     }
 
-    // 3. 3D Instanced Grass Density & Non-Essential Ambient Particles
+    // 3. Grass/Flower Density & Particles
     if (isMobile) {
       const grassScale =
         settings.preset === 'low' || settings.enableGrass === false
           ? 0
           : settings.preset === 'medium'
-          ? 0.35
-          : settings.preset === 'high'
-          ? 0.75
-          : 0.5;
+            ? (settings.grassDensity ?? 0.35)
+            : settings.preset === 'high'
+              ? (settings.grassDensity ?? 0.75)
+              : (settings.grassDensity ?? 0.5);
       this.worldEnvironment?.setGrassDensity?.(grassScale);
 
       const particlesOn = settings.preset !== 'low' && settings.enableParticles !== false;
@@ -2154,45 +2214,70 @@ export class GameEngine {
       }
       this.worldEnvironment?.setAmbientEffectsVisible?.(particlesOn);
     } else {
-      this.worldEnvironment?.setGrassDensity?.(settings.enableGrass === false ? 0 : 1.0);
-      const particlesOn = settings.enableParticles !== false;
+      const pcGrass =
+        settings.enableGrass === false
+          ? 0
+          : (settings.grassDensity ?? (settings.preset === 'low' ? 0 : settings.preset === 'medium' ? 0.55 : settings.preset === 'high' ? 0.85 : 1.0));
+      this.worldEnvironment?.setGrassDensity?.(pcGrass);
+
+      const particlesOn = settings.enableParticles !== false && settings.preset !== 'low';
       if (this.world?.particles) {
         this.world.particles.visible = particlesOn;
       }
       this.worldEnvironment?.setAmbientEffectsVisible?.(particlesOn);
     }
 
-    // 4. Camera Far & Atmospheric Fog Culling (Do not override menu preview camera or spectator mode)
-    let targetFar = Math.max(50, settings.renderDistance * profile.drawDistanceScale);
-    let fogFar = targetFar * 0.92;
-    let fogNear = fogFar * 0.35;
+    // 4. Sky Dome Quality & Optional PC Bloom/Glow Post-Processing
+    const skyQ =
+      settings.skyQuality ||
+      (settings.preset === 'ultra' ? 'ultra' : settings.preset === 'custom' ? 'medium' : settings.preset);
+    this.skySystem?.setQuality(skyQ, settings.enableBloomGlow !== false);
 
-    if (isMobile) {
-      if (settings.preset === 'low') {
-        targetFar = 160;
-        fogFar = 145;
-        fogNear = 50;
-      } else if (settings.preset === 'medium') {
-        targetFar = 260;
-        fogFar = 240;
-        fogNear = 84;
-      } else if (settings.preset === 'high') {
-        targetFar = 420;
-        fogFar = 390;
-        fogNear = 135;
+    if (!isMobile && settings.enableBloomGlow && (settings.preset === 'high' || settings.preset === 'ultra' || settings.preset === 'custom')) {
+      if (!this.postProcessor && this.renderer && this.scene && this.camera && this.container) {
+        this.postProcessor = new PostProcessingManager(this.renderer, this.scene, this.camera, this.container, settings);
       } else {
-        targetFar = Math.max(120, Math.min(450, settings.renderDistance));
-        fogFar = targetFar * 0.92;
-        fogNear = fogFar * 0.35;
+        this.postProcessor?.applySettings(settings);
       }
+    } else if (this.postProcessor) {
+      this.postProcessor.applySettings(settings);
     }
 
-    if (this.menuMode === 'gameplay' && !this.isSpectatorMode) {
+    // 5. Camera Far & Atmospheric Fog (PC: 320..950 | Mobile: 160 / 250 / 380)
+    let targetFar = isMobile
+      ? settings.preset === 'low'
+        ? 160
+        : settings.preset === 'medium'
+          ? 250
+          : settings.preset === 'high'
+            ? 380
+            : Math.max(140, Math.min(380, settings.renderDistance))
+      : settings.preset === 'low'
+        ? 320
+        : settings.preset === 'medium'
+          ? 520
+          : settings.preset === 'high'
+            ? 740
+            : settings.preset === 'ultra'
+              ? 950
+              : Math.max(320, Math.min(950, settings.renderDistance));
+
+    const fogFar = targetFar * 0.92;
+    const fogNear = fogFar * 0.35;
+
+    if (this.menuMode === 'gameplay' && !this.isSpectatorMode && !this.world?.interiorManager?.activeRoom) {
       this.camera.far = targetFar;
       this.camera.updateProjectionMatrix();
 
       if (this.scene.fog) {
-        if (isMobile) {
+        if (settings.enableFog === false) {
+          if (this.scene.fog instanceof THREE.Fog) {
+            this.scene.fog.near = targetFar * 2;
+            this.scene.fog.far = targetFar * 3;
+          } else if ('density' in this.scene.fog) {
+            (this.scene.fog as THREE.FogExp2).density = 0.00005;
+          }
+        } else if (isMobile) {
           const curColor = this.scene.fog.color.clone();
           if (!(this.scene.fog instanceof THREE.Fog)) {
             this.scene.fog = new THREE.Fog(curColor, fogNear, fogFar);
@@ -3652,10 +3737,29 @@ export class GameEngine {
         ...stats,
         hp: stats.maxHp,
         mp: stats.maxMp,
+        stamina: stats.maxStamina,
       }));
       this.callbacks.onAddFloatingText('🛡️ KEBAL KEMATIAN (GOD MODE)!', '#38bdf8', 'info');
       return;
     }
+
+    // Ensure clean exterior return if somehow defeated inside an interior
+    if (this.world?.interiorManager?.activeRoom) {
+      this.world.interiorManager.setActiveRoom(null);
+      if (this.world.exteriorWorldGroup) {
+        this.world.exteriorWorldGroup.visible = true;
+      }
+      this.activeExteriorReturnPos = null;
+      this.lastInteriorRoomSig = '';
+      this.callbacks.onInteriorRoomChange?.(null);
+      this.callbacks.onInteriorPortalState?.(null);
+      this.restoreExteriorAtmosphereAndLights();
+      this.enemies.forEach((e) => {
+        if (e.isIndoorDummy) e.mesh.visible = false;
+        else e.mesh.visible = !e.data.isDead;
+      });
+    }
+
     if (this.isCasting) {
       this.isCasting = false;
       this.callbacks.onCastingUpdate?.(null);
@@ -3666,19 +3770,51 @@ export class GameEngine {
         this.castingCircleInstance = null;
       }
     }
+
     this.endPlayerStealth('reset');
     this.dismissActiveShadowDecoy(true);
     this.cancelAstralEagleAim(false);
     this.cancelArrowVolleyAim(false);
     this.clearActiveBowSkillPools();
+
+    // Cleanly reset all boss aggro, debuffs, storm weather, & boss HUD bar
+    this.bossCombatStates.clear();
+    this.activeBossZoneId = null;
+    this.activeBossEnemyData = null;
+    this.callbacks.onBossEncounter(false, undefined, undefined, undefined, undefined, false);
     this.bossManager.clearDebuffs();
     this.bossManager.notifyPlayerRespawn();
+    this.clearIgnisPhase2AuraParticles();
+    this.skySystem?.setStormOverride(0);
     soundManager.handlePlayerRespawn();
-    const targetY = Math.max(0.5, this.world.getTerrainHeight(this.lastVisitedTownPos.x, this.lastVisitedTownPos.z) + 0.5);
-    this.playerPos.set(this.lastVisitedTownPos.x, targetY, this.lastVisitedTownPos.z);
+
+    const settlement = getSettlementById(this.lastVisitedTownPos.id);
+    const rx = settlement.plazaPos.x;
+    const rz = settlement.plazaPos.z;
+    const ry = Math.max(0.5, getSolidGroundHeight(rx, rz) + 0.35);
+
+    this.lastVisitedTownPos = {
+      id: settlement.id,
+      x: rx,
+      y: ry,
+      z: rz,
+      name: settlement.nameId,
+    };
+
+    this.teleportGraceTimer = 0.35;
+    this.playerPos.set(rx, ry, rz);
     this.playerVel.set(0, 0, 0);
+    this.isGrounded = true;
+    this.playerRotationY = settlement.plazaPos.rotationY;
+    this.cameraAngleH = settlement.plazaPos.rotationY + Math.PI;
+    if (this.playerMesh?.group) {
+      this.playerMesh.group.position.copy(this.playerPos);
+      this.playerMesh.group.rotation.y = this.playerRotationY;
+    }
+
+    this.playerStamina = this.currentStats.maxStamina || 100;
     this.callbacks.onAddFloatingText(
-      `Kamu dikalahkan! Bangkit kembali di ${this.lastVisitedTownPos.name}.`,
+      `Kamu dikalahkan! Bangkit kembali di ${settlement.nameId}.`,
       '#ff5252',
       'crit'
     );
@@ -3687,6 +3823,7 @@ export class GameEngine {
       ...stats,
       hp: stats.maxHp,
       mp: stats.maxMp,
+      stamina: stats.maxStamina,
       gold: Math.max(0, stats.gold - 10),
     }));
   }
@@ -3710,6 +3847,136 @@ export class GameEngine {
 
   public getUnlockedCheckpoints(): string[] {
     return Array.from(this.unlockedCheckpoints);
+  }
+
+  public getLastVisitedSettlementId(): string {
+    return this.lastVisitedTownPos?.id || 'town_sanctuary';
+  }
+
+  public getSafeExteriorSavePosition(): { x: number; y: number; z: number; rotationY: number; settlementId: string } {
+    const settlement = getSettlementById(this.lastVisitedTownPos?.id);
+    if (this.world?.interiorManager?.activeRoom) {
+      if (this.activeExteriorReturnPos) {
+        const ey = getSolidGroundHeight(this.activeExteriorReturnPos.x, this.activeExteriorReturnPos.z);
+        return {
+          x: this.activeExteriorReturnPos.x,
+          y: ey,
+          z: this.activeExteriorReturnPos.z,
+          rotationY: 0,
+          settlementId: settlement.id,
+        };
+      }
+      const py = getSolidGroundHeight(settlement.plazaPos.x, settlement.plazaPos.z);
+      return {
+        x: settlement.plazaPos.x,
+        y: py,
+        z: settlement.plazaPos.z,
+        rotationY: settlement.plazaPos.rotationY,
+        settlementId: settlement.id,
+      };
+    }
+
+    const px = this.playerPos.x;
+    const pz = this.playerPos.z;
+    const groundY = getSolidGroundHeight(px, pz, this.playerPos.y);
+    const inLavaMoat = Math.hypot(px - 40, pz - 840) >= 52 && Math.hypot(px - 40, pz - 840) <= 90 && groundY < 1.2;
+    const inDeepOcean = isFarOcean(px, pz) || (!isMainContinentLand(px, pz) && getBiomeAt(px, pz) !== 'volcano' && groundY <= WATER_LEVEL + 0.3);
+
+    if (!inLavaMoat && !inDeepOcean && groundY > WATER_LEVEL + 0.3) {
+      return {
+        x: px,
+        y: groundY,
+        z: pz,
+        rotationY: this.playerRotationY,
+        settlementId: settlement.id,
+      };
+    }
+
+    return {
+      x: settlement.plazaPos.x,
+      y: getSolidGroundHeight(settlement.plazaPos.x, settlement.plazaPos.z),
+      z: settlement.plazaPos.z,
+      rotationY: settlement.plazaPos.rotationY,
+      settlementId: settlement.id,
+    };
+  }
+
+  public resolveAndTeleportSavedResume(savedRole: RoleSaveData): void {
+    const settlement = getSettlementById(savedRole.lastVisitedSettlementId);
+    const settleY = Math.max(0.5, getSolidGroundHeight(settlement.plazaPos.x, settlement.plazaPos.z) + 0.35);
+    this.lastVisitedTownPos = {
+      id: settlement.id,
+      x: settlement.plazaPos.x,
+      y: settleY,
+      z: settlement.plazaPos.z,
+      name: settlement.nameId,
+    };
+    try {
+      localStorage.setItem('eldoria_last_visited_town', JSON.stringify(this.lastVisitedTownPos));
+    } catch { }
+
+    const candidate = savedRole.lastSafeExteriorPos ?? savedRole.lastPosition;
+    if (!candidate || typeof candidate.x !== 'number' || typeof candidate.z !== 'number' || Number.isNaN(candidate.x) || Number.isNaN(candidate.z)) {
+      this.teleportTo(settlement.plazaPos.x, settlement.plazaPos.z);
+      this.playerRotationY = settlement.plazaPos.rotationY;
+      this.cameraAngleH = settlement.plazaPos.rotationY + Math.PI;
+      return;
+    }
+
+    let safeX = candidate.x;
+    let safeZ = candidate.z;
+    let safeRotY = typeof (candidate as { rotationY?: number }).rotationY === 'number' ? (candidate as { rotationY?: number }).rotationY! : 0;
+    let relocateNotice: string | null = null;
+
+    const savedWasInterior = Boolean(savedRole.lastRegion && savedRole.lastRegion.toLowerCase().includes('interior')) ||
+      Boolean(savedRole.lastRegion && (savedRole.lastRegion.includes('Mage Tower Puncak') || savedRole.lastRegion.includes('Lantai ')));
+
+    // 1. If player saved inside an interior without a stored exterior door coordinate, safely return to settlement plaza
+    if (savedWasInterior && !savedRole.lastSafeExteriorPos) {
+      safeX = settlement.plazaPos.x;
+      safeZ = settlement.plazaPos.z;
+      safeRotY = settlement.plazaPos.rotationY;
+      relocateNotice = `🛡️ Posisi dipulihkan ke ${settlement.nameId}`;
+    } else {
+      // 2. If inside any active Boss Arena territory, relocate cleanly to that Boss's safe outside gate
+      const bossHit = getActiveBossZoneForPosition(safeX, safeZ);
+      if (bossHit) {
+        const entrance = BOSS_SAFE_ENTRANCES[bossHit.zone.id];
+        safeX = entrance.x;
+        safeZ = entrance.z;
+        safeRotY = entrance.rotationY;
+        relocateNotice = `🛡️ Posisi dipulihkan ke tepi aman luar arena ${bossHit.zone.nameId}`;
+      } else {
+        // 3. Validate dry walkable terrain outdoors (reject caldera lava moat & deep sea)
+        const groundY = getSolidGroundHeight(safeX, safeZ);
+        const distDragon = Math.hypot(safeX - 40, safeZ - 840);
+        const inLavaMoat = distDragon >= 52 && distDragon <= 90 && groundY < 1.2;
+        const inOceanOrInvalid =
+          isFarOcean(safeX, safeZ) ||
+          (!isMainContinentLand(safeX, safeZ) && getBiomeAt(safeX, safeZ) !== 'volcano' && groundY <= WATER_LEVEL + 0.35) ||
+          groundY <= WATER_LEVEL + 0.35;
+
+        if (inLavaMoat || inOceanOrInvalid) {
+          safeX = settlement.plazaPos.x;
+          safeZ = settlement.plazaPos.z;
+          safeRotY = settlement.plazaPos.rotationY;
+          relocateNotice = `🛡️ Lokasi lama tidak aman — dipulihkan ke ${settlement.nameId}`;
+        }
+      }
+    }
+
+    this.teleportTo(safeX, safeZ);
+    this.playerRotationY = safeRotY;
+    this.cameraAngleH = safeRotY + Math.PI;
+    if (this.playerMesh?.group) {
+      this.playerMesh.group.rotation.y = this.playerRotationY;
+    }
+
+    if (relocateNotice) {
+      setTimeout(() => {
+        this.callbacks.onAddFloatingText(relocateNotice!, '#fbbf24', 'info');
+      }, 320);
+    }
   }
 
   public teleportTo(x: number, z: number) {
@@ -4968,7 +5235,13 @@ export class GameEngine {
       this.savedExteriorBg = null;
     }
     if (this.world?.hemiLight && this.world?.dirLight) {
-      this.dayNightSystem.applyOutdoorLighting(this.scene, this.world.hemiLight, this.world.dirLight, this.playerPos);
+      this.dayNightSystem.applyOutdoorLighting(
+        this.scene,
+        this.world.hemiLight,
+        this.world.dirLight,
+        this.playerPos,
+        this.moonAmbientLight
+      );
     }
   }
 
@@ -5021,6 +5294,9 @@ export class GameEngine {
             : null;
         }
 
+        if (this.moonAmbientLight) {
+          this.moonAmbientLight.intensity = 0;
+        }
         if (this.interiorAmbientLight) {
           this.interiorAmbientLight.color.setHex(room.ambientSkyHex);
           this.interiorAmbientLight.intensity = Math.max(0.85, room.ambientIntensity);
@@ -5843,6 +6119,7 @@ export class GameEngine {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
+    this.postProcessor?.updateResolution();
   };
 
   // --- Combat VFX and Helpers ---
@@ -6423,9 +6700,15 @@ export class GameEngine {
     if (this.world?.interiorManager?.activeRoom) {
       if (this.ignisAuraPoints) this.ignisAuraPoints.visible = false;
       if (this.calderaCloudGroup) this.calderaCloudGroup.visible = false;
+      this.skySystem?.setStormOverride(0);
       return;
     }
     const stormFactor = this.bossManager?.extremeWeatherFactor || 0;
+    const calderaStormBlend =
+      stormFactor > 0.01 && Math.hypot(this.playerPos.x - SPAWN_NAGA[0], this.playerPos.z - SPAWN_NAGA[1]) <= 155
+        ? stormFactor
+        : 0;
+    this.skySystem?.setStormOverride(calderaStormBlend);
     const ignis = this.cachedIgnisEnemy;
     const isIgnisAlivePhase2 = Boolean(
       ignis &&
@@ -6748,30 +7031,37 @@ export class GameEngine {
     if (!this.isWorldLoaded) {
       return { ok: false, label: 'Masuki dunia permainan terlebih dahulu.' };
     }
-    let tx = 20;
-    let tz = -55;
-    let label = 'Desa Utama Eldoria';
+    let tx = SAFE_SETTLEMENTS[0].plazaPos.x;
+    let tz = SAFE_SETTLEMENTS[0].plazaPos.z;
+    let rotY = SAFE_SETTLEMENTS[0].plazaPos.rotationY;
+    let label = `Alun-Alun ${SAFE_SETTLEMENTS[0].nameId}`;
+
     if (preset === 'ignis') {
-      tx = 40;
-      tz = 738;
-      label = 'Gerbang Jembatan Obsidian Kaldera [40, 738]';
+      const ent = BOSS_SAFE_ENTRANCES.boss_dragonfang;
+      tx = ent.x;
+      tz = ent.z;
+      rotY = ent.rotationY;
+      label = ent.label;
     } else if (preset === 'jarrus') {
-      tx = -840;
-      tz = -205;
-      label = 'Kawah Pusaran Solaria [-840, -205]';
+      const ent = BOSS_SAFE_ENTRANCES.boss_jarrus;
+      tx = ent.x;
+      tz = ent.z;
+      rotY = ent.rotationY;
+      label = ent.label;
     } else if (preset === 'titan') {
-      const titanEnemy = this.enemies.find((e) => e.data.id === 'boss_titan');
-      const gx = titanEnemy?.spawnPos?.x ?? titanEnemy?.data.position[0] ?? SPAWN_TITAN.x;
-      const gz = titanEnemy?.spawnPos?.z ?? titanEnemy?.data.position[2] ?? SPAWN_TITAN.z;
-      tx = gx;
-      tz = gz + 42;
-      label = 'Colosseum Titan Kuno';
+      const ent = BOSS_SAFE_ENTRANCES.boss_titan;
+      tx = ent.x;
+      tz = ent.z;
+      rotY = ent.rotationY;
+      label = ent.label;
     }
+
     this.teleportGraceTimer = 0.25;
     this.teleportTo(tx, tz);
-    if (preset === 'ignis') {
-      this.playerRotationY = 0; // Menghadap Selatan melintasi Jembatan Obsidian menuju Ignis
-      this.cameraAngleH = Math.PI;
+    this.playerRotationY = rotY;
+    this.cameraAngleH = rotY + Math.PI;
+    if (this.playerMesh?.group) {
+      this.playerMesh.group.rotation.y = rotY;
     }
     this.callbacks.onAddFloatingText(`🧭 [DEV] Teleportasi: ${label}`, '#22d3ee', 'crit');
     return { ok: true, label };
@@ -15520,6 +15810,13 @@ export class GameEngine {
             }
             if (nextHp <= 0) {
               this.respawnPlayerAtLastVisitedTown();
+              return {
+                ...stats,
+                hp: stats.maxHp,
+                mp: stats.maxMp,
+                stamina: stats.maxStamina,
+                gold: Math.max(0, stats.gold - 10),
+              };
             }
             return { ...stats, hp: nextHp };
           });
@@ -17152,14 +17449,15 @@ export class GameEngine {
           this.lastVisitedTownPos = {
             id: town.id,
             x: town.respawnX,
-            y: Math.max(0.5, this.world.getTerrainHeight(town.respawnX, town.respawnZ) + 0.5),
+            y: Math.max(0.5, getSolidGroundHeight(town.respawnX, town.respawnZ) + 0.35),
             z: town.respawnZ,
             name: town.name,
           };
           try {
             localStorage.setItem('eldoria_last_visited_town', JSON.stringify(this.lastVisitedTownPos));
           } catch { }
-          this.callbacks.onAddFloatingText(`📍 Titik Respawn Disimpan: ${town.name}`, '#38bdf8', 'info');
+          this.callbacks.onSettlementCheckpointChange?.(town.id, town.name);
+          this.callbacks.onAddFloatingText(`🚩 Titik Respawn: ${town.name}`, '#38bdf8', 'info');
         }
 
         // Auto-unlock waypoint for fast travel on map
@@ -17316,6 +17614,7 @@ export class GameEngine {
           ...stats,
           hp: stats.maxHp,
           mp: stats.maxMp,
+          stamina: stats.maxStamina,
           gold: Math.max(0, stats.gold - 10),
         };
       }
@@ -17684,14 +17983,25 @@ export class GameEngine {
       this.fpsTimeAccum = 0;
     }
 
-    // Update 24-minute real-time Day-Night Cycle & Celestial Atmosphere
+    // Update real-time Day-Night Cycle, Celestial Sky Dome, & Moonlit Fill
     this.dayNightSystem.update(delta);
-    if (this.world?.hemiLight && this.world?.dirLight && !this.world.interiorManager?.activeRoom) {
+    const isOutdoors = !this.world?.interiorManager?.activeRoom;
+    if (this.world?.hemiLight && this.world?.dirLight && isOutdoors) {
       this.dayNightSystem.applyOutdoorLighting(
         this.scene,
         this.world.hemiLight,
         this.world.dirLight,
-        this.menuMode === 'gameplay' ? (this.isSpectatorMode ? this.spectatorPos : this.playerPos) : undefined
+        this.menuMode === 'gameplay' ? (this.isSpectatorMode ? this.spectatorPos : this.playerPos) : undefined,
+        this.moonAmbientLight
+      );
+    }
+    if (this.skySystem && isOutdoors && this.menuMode === 'gameplay') {
+      this.skySystem.update(
+        delta,
+        this.clock.getElapsedTime(),
+        this.camera.position,
+        this.camera.far,
+        this.dayNightSystem.getSkyAtmosphere()
       );
     }
 
@@ -18061,7 +18371,13 @@ export class GameEngine {
                 }
                 if (nextHp <= 0) {
                   this.respawnPlayerAtLastVisitedTown();
-                  return { ...stats, hp: stats.maxHp, mp: stats.maxMp, gold: Math.max(0, stats.gold - 10) };
+                  return {
+                    ...stats,
+                    hp: stats.maxHp,
+                    mp: stats.maxMp,
+                    stamina: stats.maxStamina,
+                    gold: Math.max(0, stats.gold - 10),
+                  };
                 }
                 return { ...stats, hp: nextHp };
               });
@@ -18437,10 +18753,15 @@ export class GameEngine {
       });
     }
 
-    this.renderer.render(this.scene, this.camera);
+    if (this.postProcessor && !this.world?.interiorManager?.activeRoom && this.menuMode === 'gameplay') {
+      this.postProcessor.render();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
   };
 
   public destroy() {
+    this.postProcessor?.dispose();
     this.isRunning = false;
     this.clearCharacterSelectScene();
     if (this.animationFrameId !== null) {
