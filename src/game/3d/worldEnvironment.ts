@@ -79,12 +79,28 @@ export function getSharedMaterial(
   return mat;
 }
 
+function isInsideWalledCityBounds(px: number, pz: number, margin = 0): boolean {
+  // 1. Ibukota Emas Astraea [575, -495] (170x170 walls + South Gate apron)
+  if (px >= 480 - margin && px <= 670 + margin && pz >= -590 - margin && pz <= -396 + margin) return true;
+  // 2. Benteng Val-Kragor [580, 130] (110x110 walls + North Gate apron)
+  if (px >= 518 - margin && px <= 642 + margin && pz >= 62 - margin && pz <= 194 + margin) return true;
+  // 3. Kerajaan Gurun Solaria, Istana Sultan, Kolam Refleksi & Desa Gurun [-635..-445, -598..-325]
+  if (px >= -635 - margin && px <= -445 + margin && pz >= -598 - margin && pz <= -325 + margin) return true;
+  // 4. Mage Tower Circular Plaza Ring [270, -260]
+  if (Math.hypot(px - 270, pz - -260) < 38 + margin) return true;
+  return false;
+}
+
 function isPointDryLand(px: number, pz: number, extraMargin = 0): boolean {
   if (isFarOcean(px, pz)) return false;
+  if (isInsideWalledCityBounds(px, pz, extraMargin)) return false;
   const biome = getBiomeAt(px, pz);
   if (biome === 'ocean' || biome === 'lake') return false;
   if (getWorldDistanceToRiver(px, pz) < 8.5 + extraMargin) return false;
   if (Math.hypot(px - 60, pz - -820) < 58 + extraMargin) return false;
+  for (const pond of NATURAL_POND_SITES) {
+    if (Math.hypot(px - pond.x, pz - pond.z) < pond.radius + 1.5 + extraMargin) return false;
+  }
   if (biome !== 'volcano' && !isMainContinentLand(px, pz)) {
     const onOffshoreIsland =
       Math.hypot(px - -220, pz - 460) < 54 ||
@@ -483,10 +499,8 @@ export async function buildWorldEnvironmentAsync(
   }
 
   function isInsideCastleOrFort(x: number, z: number): boolean {
-    if (Math.abs(x - 575) <= 96 && Math.abs(z - -495) <= 96) return true; // Astraea Imperial Capital
-    if (Math.abs(x - 580) <= 68 && Math.abs(z - 130) <= 68) return true;  // Val-Kragor Fortress
-    if (Math.hypot(x - 580, z - -60) <= 36 || Math.hypot(x - 580, z - -120) <= 36) return true; // Castle Ruins / Moss Valley
-    if (Math.abs(x - -540) <= 68 && Math.abs(z - -500) <= 68) return true; // Sultan Palace / Desert Village
+    if (isInsideWalledCityBounds(x, z, 4)) return true;
+    if (Math.hypot(x - 580, z - -60) <= 42 || Math.hypot(x - 580, z - -120) <= 44) return true; // Castle Ruins / Moss Valley
     return false;
   }
 
@@ -3419,8 +3433,7 @@ export async function buildWorldEnvironmentAsync(
         }
         const dx = x + (0.15 + Math.random() * 0.7) * desertStep;
         const dz = z + (0.15 + Math.random() * 0.7) * desertStep;
-        if (!spatialGrid.isDesert(dx, dz) || spatialGrid.isBlocked(dx, dz) || isNearBossArena(dx, dz) || !isValidDryLand(dx, dz, 1.2) || getDistanceToNearestRoad(dx, dz) < 9.5) continue;
-        if (Math.abs(dx - -540) < 75 && Math.abs(dz - -490) < 85) continue; // Sultan Palace & Desert Village
+        if (!spatialGrid.isDesert(dx, dz) || spatialGrid.isBlocked(dx, dz) || isInsideCastleOrFort(dx, dz) || isNearBossArena(dx, dz) || !isValidDryLand(dx, dz, 1.2) || getDistanceToNearestRoad(dx, dz) < 9.5) continue;
         const dy = getTerrainHeight(dx, dz);
         if (dy < 0.35 || dy > 20.0) continue;
 
@@ -3567,7 +3580,7 @@ export async function buildWorldEnvironmentAsync(
     [-380, -500], [-420, -530], [-460, -570], [-510, -540], [-540, -490], [-480, -620],
   ];
   cactusCoords.forEach(([cx, cz]) => {
-    if (!isDesertBiome(cx, cz) || !isValidDryLand(cx, cz, 1.5) || getDistanceToNearestRoad(cx, cz) < 9.5) return;
+    if (!isDesertBiome(cx, cz) || isInsideCastleOrFort(cx, cz) || !isValidDryLand(cx, cz, 1.5) || getDistanceToNearestRoad(cx, cz) < 9.5) return;
     const cy = getTerrainHeight(cx, cz);
     if (cy < 0.2) return;
 
@@ -3614,7 +3627,7 @@ export async function buildWorldEnvironmentAsync(
     [-560, -310], [-580, -320], [-490, -350], [-450, -320], [-310, -340], [-370, -370],
   ];
   cragCoords.forEach(([rx, rz]) => {
-    if (!isDesertBiome(rx, rz) || !isValidDryLand(rx, rz, 1.5) || getDistanceToNearestRoad(rx, rz) < 9.5) return;
+    if (!isDesertBiome(rx, rz) || isInsideCastleOrFort(rx, rz) || !isValidDryLand(rx, rz, 1.5) || getDistanceToNearestRoad(rx, rz) < 9.5) return;
     const ry = getTerrainHeight(rx, rz);
     if (ry < 0.2) return;
 
@@ -3634,7 +3647,7 @@ export async function buildWorldEnvironmentAsync(
     [-280, -310], [-330, -270], [-390, -240], [-470, -220], [-520, -260], [-560, -280],
   ];
   dryTreeCoords.forEach(([tx, tz]) => {
-    if (!isDesertBiome(tx, tz) || !isValidDryLand(tx, tz, 1.5) || getDistanceToNearestRoad(tx, tz) < 9.5) return;
+    if (!isDesertBiome(tx, tz) || isInsideCastleOrFort(tx, tz) || !isValidDryLand(tx, tz, 1.5) || getDistanceToNearestRoad(tx, tz) < 9.5) return;
     const ty = getTerrainHeight(tx, tz);
     if (ty < 0.2) return;
 
@@ -3660,7 +3673,7 @@ export async function buildWorldEnvironmentAsync(
     [-640, -250], [-720, -340], [-745, -180], [-585, -245], [-680, -455], [-470, -610],
   ];
   desertBoneCoords.forEach(([bx, bz], idx) => {
-    if (!isDesertBiome(bx, bz) || !isValidDryLand(bx, bz, 1.5) || getDistanceToNearestRoad(bx, bz) < 10.0) return;
+    if (!isDesertBiome(bx, bz) || isInsideCastleOrFort(bx, bz) || !isValidDryLand(bx, bz, 1.5) || getDistanceToNearestRoad(bx, bz) < 10.0) return;
     const by = getTerrainHeight(bx, bz);
     const bGroup = new THREE.Group();
     bGroup.position.set(bx, by, bz);

@@ -1168,6 +1168,329 @@ export async function buildMainVillage(
 }
 
 
+function createStoneBenchMesh(): THREE.Group {
+  const g = new THREE.Group();
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.85, flatShading: true });
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 });
+  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.48, 0.72), stoneMat);
+  legL.position.set(-0.95, 0.24, 0);
+  const legR = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.48, 0.72), stoneMat);
+  legR.position.set(0.95, 0.24, 0);
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.14, 0.82), woodMat);
+  seat.position.set(0, 0.52, 0);
+  seat.castShadow = true;
+  const back = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.48, 0.12), woodMat);
+  back.position.set(0, 0.85, -0.34);
+  g.add(legL, legR, seat, back);
+  return g;
+}
+
+function createFlowerPlanterMesh(blossomColor = 0xe11d48): THREE.Group {
+  const g = new THREE.Group();
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.75 });
+  const soilMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.95 });
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.8, flatShading: true });
+  const flowerMat = new THREE.MeshStandardMaterial({ color: blossomColor, roughness: 0.65, flatShading: true });
+
+  const basin = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.65, 1.3), stoneMat);
+  basin.position.y = 0.32;
+  basin.castShadow = true;
+  const soil = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.12, 1.0), soilMat);
+  soil.position.y = 0.65;
+  const hedge = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55, 0), leafMat);
+  hedge.scale.set(1.6, 0.75, 0.9);
+  hedge.position.set(0, 0.95, 0);
+  g.add(basin, soil, hedge);
+
+  for (let i = -2; i <= 2; i++) {
+    const fl = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), flowerMat);
+    fl.position.set(i * 0.36, 1.25 + (i % 2) * 0.08, (i % 2 === 0 ? 0.12 : -0.14));
+    g.add(fl);
+  }
+  return g;
+}
+
+function createBannerStandardMesh(clothColor = 0x1e3a8a, trimColor = 0xf59e0b): THREE.Group {
+  const g = new THREE.Group();
+  const metalMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.75, roughness: 0.3 });
+  const clothMat = new THREE.MeshStandardMaterial({ color: clothColor, roughness: 0.72, side: THREE.DoubleSide });
+  const goldMat = new THREE.MeshStandardMaterial({ color: trimColor, metalness: 0.8, roughness: 0.25 });
+
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.42, 0.45, 8), metalMat);
+  base.position.y = 0.22;
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 5.2, 6), metalMat);
+  pole.position.y = 2.6;
+  const crossBar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.45, 6), goldMat);
+  crossBar.rotation.z = Math.PI / 2;
+  crossBar.position.y = 4.95;
+  const finial = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 0), goldMat);
+  finial.position.y = 5.35;
+  const cloth = new THREE.Mesh(new THREE.BoxGeometry(1.15, 2.75, 0.05), clothMat);
+  cloth.position.set(0, 3.55, 0.06);
+  const crest = new THREE.Mesh(new THREE.OctahedronGeometry(0.26, 0), goldMat);
+  crest.scale.set(1, 1, 0.35);
+  crest.position.set(0, 3.85, 0.10);
+  g.add(base, pole, crossBar, finial, cloth, crest);
+  return g;
+}
+
+function createStandingBrazierMesh(withGlowRing = true): THREE.Group {
+  const g = new THREE.Group();
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.35 });
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.85, flatShading: true });
+  const fireMat = new THREE.MeshBasicMaterial({ color: 0xff7b00 });
+  const coreMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+
+  const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.62, 1.15, 8), stoneMat);
+  ped.position.y = 0.58;
+  const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.68, 0.38, 0.46, 8), ironMat);
+  bowl.position.y = 1.35;
+  const coals = new THREE.Mesh(new THREE.SphereGeometry(0.46, 8, 6), fireMat);
+  coals.scale.set(1, 0.45, 1);
+  coals.position.y = 1.56;
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.92, 6), coreMat);
+  flame.position.y = 1.98;
+  g.add(ped, bowl, coals, flame);
+
+  if (withGlowRing) {
+    const halo = new THREE.Mesh(
+      new THREE.RingGeometry(0.4, 1.85, 16),
+      new THREE.MeshBasicMaterial({ color: 0xfb923c, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false })
+    );
+    halo.rotation.x = -Math.PI / 2;
+    halo.position.y = 0.06;
+    g.add(halo);
+  }
+  return g;
+}
+
+function createCargoClusterMesh(): THREE.Group {
+  const g = new THREE.Group();
+  const crateMat = new THREE.MeshLambertMaterial({ color: 0x8d6e63, flatShading: true });
+  const barrelMat = new THREE.MeshLambertMaterial({ color: 0x5d4037, flatShading: true });
+  const sackMat = new THREE.MeshLambertMaterial({ color: 0xd6bfa2, flatShading: true });
+
+  const c1 = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.0, 1.1), crateMat);
+  c1.position.set(-0.55, 0.5, 0.25);
+  c1.castShadow = true;
+  const c2 = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.82, 0.85), crateMat);
+  c2.position.set(-0.48, 1.4, 0.22);
+  c2.rotation.y = 0.22;
+  const b1 = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.45, 1.08, 8), barrelMat);
+  b1.position.set(0.55, 0.54, 0.18);
+  const sack = new THREE.Mesh(new THREE.DodecahedronGeometry(0.46, 0), sackMat);
+  sack.scale.set(1.1, 0.8, 0.9);
+  sack.position.set(0.18, 0.36, -0.58);
+  g.add(c1, c2, b1, sack);
+  return g;
+}
+
+function createMedievalSpecialtyShopMesh(variant: 'bakery' | 'apothecary' | 'library' | 'cottage'): THREE.Group {
+  const g = new THREE.Group();
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.88, flatShading: true });
+  const plasterMat = new THREE.MeshStandardMaterial({ color: variant === 'cottage' ? 0xf5f0e1 : 0xf1f5f9, roughness: 0.85, flatShading: true });
+  const timberMat = new THREE.MeshLambertMaterial({ color: 0x451a03, flatShading: true });
+  const roofColor =
+    variant === 'bakery' ? 0x9a3412 :
+    variant === 'apothecary' ? 0x0f766e :
+    variant === 'library' ? 0x1e3a8a : 0x573b26;
+  const roofMat = new THREE.MeshStandardMaterial({ color: roofColor, roughness: 0.72, flatShading: true });
+  const winMat = new THREE.MeshBasicMaterial({ color: variant === 'apothecary' ? 0x67e8f9 : 0xfde68a });
+
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(6.8, 1.8, 6.2), stoneMat);
+  plinth.position.y = -0.6;
+  const wall1 = new THREE.Mesh(new THREE.BoxGeometry(6.2, 3.1, 5.4), variant === 'cottage' ? plasterMat : stoneMat);
+  wall1.position.y = 1.55;
+  wall1.castShadow = true;
+  wall1.receiveShadow = true;
+  g.add(plinth, wall1);
+
+  if (variant !== 'cottage') {
+    const wall2 = new THREE.Mesh(new THREE.BoxGeometry(6.8, 2.8, 6.0), plasterMat);
+    wall2.position.y = 4.5;
+    wall2.castShadow = true;
+    g.add(wall2);
+    for (const bx of [-3.3, 0, 3.3]) {
+      for (const bz of [-2.9, 2.9]) {
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(0.25, 2.85, 0.25), timberMat);
+        beam.position.set(bx, 4.5, bz);
+        g.add(beam);
+      }
+    }
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(5.2, 3.4, 4), roofMat);
+    roof.rotation.y = Math.PI / 4;
+    roof.position.y = 7.6;
+    roof.castShadow = true;
+    g.add(roof);
+  } else {
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(4.8, 2.9, 4), roofMat);
+    roof.rotation.y = Math.PI / 4;
+    roof.position.y = 4.55;
+    roof.castShadow = true;
+    g.add(roof);
+  }
+
+  // Front Door & Glowing Windows
+  const door = new THREE.Mesh(new THREE.BoxGeometry(1.25, 2.15, 0.22), timberMat);
+  door.position.set(0, 1.1, 2.75);
+  g.add(door);
+  for (const wx of [-1.85, 1.85]) {
+    const w = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.95, 0.16), winMat);
+    w.position.set(wx, 1.85, 2.74);
+    g.add(w);
+  }
+
+  // Unique exterior shop identity
+  if (variant === 'bakery') {
+    const oven = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.2, 2.1, 8), new THREE.MeshLambertMaterial({ color: 0x7c2d12, flatShading: true }));
+    oven.position.set(-2.3, 1.05, 2.2);
+    const glow = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.55, 0.2), new THREE.MeshBasicMaterial({ color: 0xf97316 }));
+    glow.position.set(-2.3, 0.85, 3.15);
+    const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.75, 4.8, 0.75), stoneMat);
+    chimney.position.set(-2.3, 4.2, 2.2);
+    g.add(oven, glow, chimney);
+  } else if (variant === 'apothecary') {
+    const awning = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.2, 1.7), new THREE.MeshLambertMaterial({ color: 0x0d9488 }));
+    awning.position.set(0, 2.75, 3.4);
+    awning.rotation.x = 0.24;
+    const vial = new THREE.Mesh(new THREE.OctahedronGeometry(0.38, 0), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+    vial.position.set(2.3, 2.6, 3.2);
+    g.add(awning, vial);
+  } else if (variant === 'library') {
+    const signBoard = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.65, 0.15), new THREE.MeshLambertMaterial({ color: 0xfbbf24 }));
+    signBoard.position.set(0, 2.7, 2.85);
+    const turret = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.2, 6.2, 8), stoneMat);
+    turret.position.set(2.6, 3.1, 2.1);
+    const dome = new THREE.Mesh(new THREE.ConeGeometry(1.35, 2.2, 8), roofMat);
+    dome.position.set(2.6, 7.2, 2.1);
+    g.add(signBoard, turret, dome);
+  }
+
+  return g;
+}
+
+function createMilitaryFieldTentMesh(clothColor = 0x7f1d1d): THREE.Group {
+  const g = new THREE.Group();
+  const canvasMat = new THREE.MeshLambertMaterial({ color: clothColor, flatShading: true, side: THREE.DoubleSide });
+  const trimMat = new THREE.MeshLambertMaterial({ color: 0xfef3c7, flatShading: true });
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x451a03 });
+
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 3.3, 2.4, 6), canvasMat);
+  body.position.y = 1.2;
+  body.castShadow = true;
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(3.0, 2.2, 6), canvasMat);
+  roof.position.y = 3.5;
+  roof.castShadow = true;
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(2.66, 2.66, 0.35, 6), trimMat);
+  band.position.y = 2.38;
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 5.2, 5), woodMat);
+  pole.position.y = 2.6;
+  g.add(body, roof, band, pole);
+  return g;
+}
+
+function createSupplyWagonMesh(): THREE.Group {
+  const g = new THREE.Group();
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x5d4037, flatShading: true });
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.75, roughness: 0.4 });
+  const canvasMat = new THREE.MeshLambertMaterial({ color: 0xe7e5e4, flatShading: true });
+
+  const bed = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.75, 2.0), woodMat);
+  bed.position.y = 0.85;
+  bed.castShadow = true;
+  const tarp = new THREE.Mesh(new THREE.CylinderGeometry(0.98, 0.98, 3.4, 8, 1, false, 0, Math.PI), canvasMat);
+  tarp.rotation.z = Math.PI / 2;
+  tarp.rotation.y = Math.PI / 2;
+  tarp.position.set(0, 1.25, 0);
+  g.add(bed, tarp);
+
+  for (const wx of [-1.25, 1.25]) {
+    for (const wz of [-1.08, 1.08]) {
+      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.16, 10), ironMat);
+      wheel.rotation.x = Math.PI / 2;
+      wheel.position.set(wx, 0.55, wz);
+      g.add(wheel);
+    }
+  }
+  return g;
+}
+
+function createHorseStableMesh(): THREE.Group {
+  const g = new THREE.Group();
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x4e342e, flatShading: true });
+  const thatchMat = new THREE.MeshLambertMaterial({ color: 0x854d0e, flatShading: true });
+  const hayMat = new THREE.MeshLambertMaterial({ color: 0xfacc15, flatShading: true });
+
+  const backWall = new THREE.Mesh(new THREE.BoxGeometry(8.2, 3.4, 0.35), woodMat);
+  backWall.position.set(0, 1.7, -2.1);
+  const sideWallL = new THREE.Mesh(new THREE.BoxGeometry(0.35, 3.4, 4.4), woodMat);
+  sideWallL.position.set(-4.0, 1.7, 0);
+  const sideWallR = new THREE.Mesh(new THREE.BoxGeometry(0.35, 3.4, 4.4), woodMat);
+  sideWallR.position.set(4.0, 1.7, 0);
+  const stallDivider = new THREE.Mesh(new THREE.BoxGeometry(0.24, 1.8, 3.6), woodMat);
+  stallDivider.position.set(0, 0.9, -0.2);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(8.8, 0.35, 5.2), thatchMat);
+  roof.position.set(0, 3.7, 0.1);
+  roof.rotation.x = 0.18;
+  roof.castShadow = true;
+
+  for (const px of [-4.0, 0, 4.0]) {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(0.26, 3.5, 0.26), woodMat);
+    p.position.set(px, 1.75, 2.1);
+    g.add(p);
+  }
+  for (const hx of [-2.0, 2.0]) {
+    const hay = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.75, 1.2), hayMat);
+    hay.position.set(hx, 0.38, -1.1);
+    g.add(hay);
+  }
+  g.add(backWall, sideWallL, sideWallR, stallDivider, roof);
+  return g;
+}
+
+function createSolariaArchedGatehouseMesh(): THREE.Group {
+  const g = new THREE.Group();
+  const sandMat = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.82, flatShading: true });
+  const copingMat = new THREE.MeshStandardMaterial({ color: 0xc28e5c, roughness: 0.78 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.85, roughness: 0.2 });
+  const turquoiseMat = new THREE.MeshStandardMaterial({ color: 0x0d9488, roughness: 0.42, metalness: 0.15 });
+  const blazeMat = new THREE.MeshBasicMaterial({ color: 0xffb703 });
+
+  // Twin Towering Golden Sandstone Gate Minarets (center -8.8 and +8.8 -> total X -11.4 .. +11.4, clean 12u opening!)
+  for (const gx of [-8.8, 8.8]) {
+    const base = new THREE.Mesh(new THREE.BoxGeometry(5.2, 9.2, 5.0), sandMat);
+    base.position.set(gx, 4.6, 0);
+    base.castShadow = true;
+    base.receiveShadow = true;
+    const crown = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.7, 5.6), goldMat);
+    crown.position.set(gx, 9.5, 0);
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.2, 2.4, 12), turquoiseMat);
+    drum.position.set(gx, 11.0, 0);
+    const domeGeo = new THREE.SphereGeometry(2.15, 16, 12);
+    domeGeo.scale(1, 1.35, 1);
+    const dome = new THREE.Mesh(domeGeo, goldMat);
+    dome.position.set(gx, 13.4, 0);
+    const spire = new THREE.Mesh(new THREE.ConeGeometry(0.14, 1.8, 6), goldMat);
+    spire.position.set(gx, 16.4, 0);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 8), blazeMat);
+    lamp.position.set(gx > 0 ? gx - 2.75 : gx + 2.75, 4.8, 2.55);
+    g.add(base, crown, drum, dome, spire, lamp);
+  }
+
+  // Grand Overarching Horseshoe Portal Bridge
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(13.6, 3.4, 4.2), sandMat);
+  lintel.position.set(0, 7.9, 0);
+  lintel.castShadow = true;
+  const mosaic = new THREE.Mesh(new THREE.BoxGeometry(11.8, 1.8, 4.45), turquoiseMat);
+  mosaic.position.set(0, 7.9, 0);
+  const goldArchTrim = new THREE.Mesh(new THREE.BoxGeometry(14.2, 0.55, 4.6), goldMat);
+  goldArchTrim.position.set(0, 9.75, 0);
+  const parapet = new THREE.Mesh(new THREE.BoxGeometry(14.0, 0.85, 4.3), copingMat);
+  parapet.position.set(0, 6.0, 0);
+  g.add(lintel, mosaic, goldArchTrim, parapet);
+  return g;
+}
+
 export async function buildAstraeaCastle(
   scene: THREE.Object3D,
   getTerrainHeight: (x: number, z: number, forVisualMesh?: boolean) => number,
@@ -1185,114 +1508,176 @@ export async function buildAstraeaCastle(
 
   const astraeaStoneMat = new THREE.MeshStandardMaterial({
     color: 0xcbd5e1,
-    roughness: 0.85,
+    roughness: 0.82,
     metalness: 0.08,
   });
   const astraeaTrimMat = new THREE.MeshStandardMaterial({
     color: 0x94a3b8,
-    roughness: 0.8,
+    roughness: 0.78,
+  });
+  const astraeaGoldMat = new THREE.MeshStandardMaterial({
+    color: 0xf59e0b,
+    roughness: 0.25,
+    metalness: 0.82,
   });
 
-  // 1. Walkable Grand Stone Avenue & Central Imperial Plaza Floor Slabs
-  const nsAvenue = new THREE.Mesh(new THREE.BoxGeometry(16, 0.16, 130), astraeaStoneMat);
-  nsAvenue.position.set(cx, baseY + 0.02, cz + 18);
+  // 1. Jaringan Jalan Kota Walkable Terhubung Utuh Tanpa Jalan Buntu
+  // Boulevard Selatan-Utara menembus Gerbang Selatan (cz+85) ke jalan raya luar & menyambung sampai Tangga Istana
+  const nsAvenue = new THREE.Mesh(new THREE.BoxGeometry(16, 0.16, 124), astraeaStoneMat);
+  nsAvenue.position.set(cx, baseY + 0.02, cz + 29); // cz - 33 .. cz + 91
   nsAvenue.receiveShadow = true;
   scene.add(nsAvenue);
-  registerWalkableSurface(nsAvenue, { label: 'Jalan Raya Selatan-Utara Astraea' });
+  registerWalkableSurface(nsAvenue, { label: 'Boulevard Raya Selatan-Utara Astraea' });
 
-  const ewAvenue = new THREE.Mesh(new THREE.BoxGeometry(162, 0.14, 13), astraeaTrimMat);
-  ewAvenue.position.set(cx, baseY + 0.015, cz + 18);
+  // Jalan Timur-Barat berujung mulus di Alun-Alun Barat (cx-60) dan Alun-Alun Pasar Timur (cx+52)
+  const ewAvenue = new THREE.Mesh(new THREE.BoxGeometry(126, 0.14, 12), astraeaTrimMat);
+  ewAvenue.position.set(cx, baseY + 0.015, cz + 18); // cx - 63 .. cx + 63
   ewAvenue.receiveShadow = true;
   scene.add(ewAvenue);
-  registerWalkableSurface(ewAvenue, { label: 'Jalan Raya Timur-Barat Astraea' });
+  registerWalkableSurface(ewAvenue, { label: 'Jalan Raya Distrik Barat-Timur Astraea' });
 
-  const plaza = createCircularPlazaMesh(26);
+  // Jalan Lintang Pelataran Istana Utara (menghubungkan distrik hunian & toko depan Istana Kaisar)
+  const northCrossRoad = new THREE.Mesh(new THREE.BoxGeometry(128, 0.14, 9.5), astraeaTrimMat);
+  northCrossRoad.position.set(cx, baseY + 0.015, cz - 24);
+  northCrossRoad.receiveShadow = true;
+  scene.add(northCrossRoad);
+  registerWalkableSurface(northCrossRoad, { label: 'Jalan Pelataran Istana Astraea' });
+
+  // Alun-Alun Utama Radial Marmer & Trim Emas (radius 30)
+  const plaza = createCircularPlazaMesh(30);
   plaza.position.set(cx, baseY + 0.04, cz + 18);
   scene.add(plaza);
-  registerWalkableSurface(plaza, { label: 'Alun-Alun Utama Ibukota Astraea' });
+  registerWalkableSurface(plaza, { label: 'Alun-Alun Agung Ibukota Astraea' });
 
-  // 2. Monumental Emperor's Sun Palace (scaled 1.85x) facing South (+Z)
+  const plazaGoldRim = new THREE.Mesh(new THREE.TorusGeometry(30.2, 0.25, 6, 48), astraeaGoldMat);
+  plazaGoldRim.rotation.x = Math.PI / 2;
+  plazaGoldRim.position.set(cx, baseY + 0.08, cz + 18);
+  scene.add(plazaGoldRim);
+
+  // Pelataran Bundaran Barat & Alun-Alun Pasar/Tavern Timur (penutup elegan setiap ujung jalan!)
+  const westCourtPlaza = createCircularPlazaMesh(16);
+  westCourtPlaza.position.set(cx - 56, baseY + 0.03, cz + 18);
+  scene.add(westCourtPlaza);
+  registerWalkableSurface(westCourtPlaza, { label: 'Bundaran Distrik Barat Astraea' });
+
+  const eastMarketPlaza = new THREE.Mesh(new THREE.BoxGeometry(44, 0.14, 48), astraeaStoneMat);
+  eastMarketPlaza.position.set(cx + 50, baseY + 0.025, cz + 28);
+  eastMarketPlaza.receiveShadow = true;
+  scene.add(eastMarketPlaza);
+  registerWalkableSurface(eastMarketPlaza, { label: 'Alun-Alun Pasar & Tavern Astraea' });
+
+  // Lorong penghubung selatan-barat & selatan-timur dari Gerbang Utama menuju rumah & Tavern
+  const southCrossLane = new THREE.Mesh(new THREE.BoxGeometry(122, 0.13, 9.0), astraeaTrimMat);
+  southCrossLane.position.set(cx, baseY + 0.015, cz + 56);
+  southCrossLane.receiveShadow = true;
+  scene.add(southCrossLane);
+  registerWalkableSurface(southCrossLane, { label: 'Jalan Distrik Selatan Astraea' });
+
+  // 2. Monumental Emperor's Sun Palace (scaled 1.85x) dengan tangga marmer berkarpet merah walkable
   const imperialPalace = createImperialPalaceMesh();
   imperialPalace.position.set(cx, baseY, cz - 54);
   imperialPalace.scale.set(1.85, 1.85, 1.85);
   imperialPalace.rotation.y = 0;
   scene.add(imperialPalace);
   registerWalkableSurface(imperialPalace, { label: 'Tangga & Podium Istana Kaisar Astraea' });
-  colliders.push({ type: 'box', minX: cx - 26, maxX: cx + 26, minZ: cz - 81, maxZ: cz - 26, label: 'Istana Kaisar Astraea' });
+  colliders.push({ type: 'box', minX: cx - 19, maxX: cx + 19, minZ: cz - 72, maxZ: cz - 38, label: 'Istana Kaisar Astraea' });
 
-  // 3. Grand Celestial Fountain & 4 Marble Hero Statues
+  // Patung Penjaga & Anglo Api Emas mengapit tangga Istana Kaisar
+  for (const sx of [-11.5, 11.5]) {
+    const brazier = createStandingBrazierMesh(true);
+    brazier.position.set(cx + sx, baseY, cz - 24.5);
+    scene.add(brazier);
+    colliders.push({ type: 'circle', x: cx + sx, z: cz - 24.5, radius: 0.75, label: 'Anglo Emas Istana' });
+  }
+
+  // 3. Grand Celestial Fountain, Bangku Taman, Pot Bunga, Panji & Patung Pahlawan di Alun-Alun Agung
   const celestialFountain = createImperialFountainMesh();
   celestialFountain.position.set(cx, baseY, cz + 18);
-  celestialFountain.scale.set(1.2, 1.2, 1.2);
+  celestialFountain.scale.set(1.25, 1.25, 1.25);
   scene.add(celestialFountain);
   decorativeProps.push(celestialFountain);
-  colliders.push({ type: 'circle', x: cx, z: cz + 18, radius: 4.5, label: 'Air Mancur Alun-Alun Astraea' });
+  colliders.push({ type: 'circle', x: cx, z: cz + 18, radius: 4.7, label: 'Air Mancur Alun-Alun Astraea' });
 
   const statueSpots: [number, number, number][] = [
-    [cx - 20, cz + 36, Math.PI * 0.25],
-    [cx + 20, cz + 36, -Math.PI * 0.25],
-    [cx - 20, cz, Math.PI * 0.75],
-    [cx + 20, cz, -Math.PI * 0.75],
+    [cx - 21, cz + 37, Math.PI * 0.25],
+    [cx + 21, cz + 37, -Math.PI * 0.25],
+    [cx - 21, cz - 1, Math.PI * 0.75],
+    [cx + 21, cz - 1, -Math.PI * 0.75],
   ];
   statueSpots.forEach(([sx, sz, rot]) => {
-    const sy = getTerrainHeight(sx, sz);
     const statue = createImperialHeroStatueMesh();
-    statue.position.set(sx, sy, sz);
+    statue.position.set(sx, baseY, sz);
     statue.rotation.y = rot;
     scene.add(statue);
     colliders.push({ type: 'circle', x: sx, z: sz, radius: 1.8, label: 'Patung Pahlawan Kekaisaran' });
   });
 
-  // 4. City Gates (South Gate & East Gate)
+  // 8 Bangku Taman & 8 Pot Bunga Kerajaan melingkari tepi Alun-Alun Agung (radius 25.5 di luar sumbu jalan)
+  const plazaAngles = [0.46, 1.11, 2.03, 2.68, 3.60, 4.25, 5.17, 5.82];
+  plazaAngles.forEach((ang, idx) => {
+    const bx = cx + Math.cos(ang) * 24.8;
+    const bz = cz + 18 + Math.sin(ang) * 24.8;
+    const bench = createStoneBenchMesh();
+    bench.position.set(bx, baseY, bz);
+    bench.rotation.y = -ang - Math.PI / 2;
+    scene.add(bench);
+    colliders.push({ type: 'circle', x: bx, z: bz, radius: 1.1, label: 'Bangku Taman Alun-Alun' });
+
+    const px = cx + Math.cos(ang + 0.14) * 27.5;
+    const pz = cz + 18 + Math.sin(ang + 0.14) * 27.5;
+    const planter = createFlowerPlanterMesh(idx % 2 === 0 ? 0xe11d48 : 0xfacc15);
+    planter.position.set(px, baseY, pz);
+    planter.rotation.y = -ang;
+    scene.add(planter);
+  });
+
+  // 6 Spanduk Panji Kerajaan Biru-Emas di sepanjang Boulevard Utama
+  [cz - 22, cz - 8, cz + 46, cz + 68].forEach((bz) => {
+    for (const bx of [cx - 9.5, cx + 9.5]) {
+      const banner = createBannerStandardMesh(0x1e3a8a, 0xfbbf24);
+      banner.position.set(bx, baseY, bz);
+      scene.add(banner);
+    }
+  });
+
+  // 4. Gerbang Selatan Agung Rapat Terintegrasi di Garis Tembok (Hapus Gerbang Timur yang mencuat!)
   const southGate = createImperialGatehouseMesh();
-  southGate.position.set(cx, getTerrainHeight(cx, cz + half), cz + half);
+  southGate.position.set(cx, baseY, cz + half);
   southGate.rotation.y = 0;
   scene.add(southGate);
-  colliders.push({ type: 'box', minX: cx - 10, maxX: cx - 4.8, minZ: cz + half - 3.5, maxZ: cz + half + 3.5, label: 'Pilar Gerbang Selatan Astraea' });
-  colliders.push({ type: 'box', minX: cx + 4.8, maxX: cx + 10, minZ: cz + half - 3.5, maxZ: cz + half + 3.5, label: 'Pilar Gerbang Selatan Astraea' });
+  colliders.push({ type: 'box', minX: cx - 9.2, maxX: cx - 3.6, minZ: cz + half - 3.0, maxZ: cz + half + 3.0, label: 'Menara Kiri Gerbang Selatan Astraea' });
+  colliders.push({ type: 'box', minX: cx + 3.6, maxX: cx + 9.2, minZ: cz + half - 3.0, maxZ: cz + half + 3.0, label: 'Menara Kanan Gerbang Selatan Astraea' });
 
-  const eastGate = createImperialGatehouseMesh();
-  eastGate.position.set(cx + half, getTerrainHeight(cx + half, cz), cz);
-  eastGate.rotation.y = Math.PI / 2;
-  scene.add(eastGate);
-  colliders.push({ type: 'box', minX: cx + half - 3.5, maxX: cx + half + 3.5, minZ: cz - 10, maxZ: cz - 4.8, label: 'Pilar Gerbang Timur Astraea' });
-  colliders.push({ type: 'box', minX: cx + half - 3.5, maxX: cx + half + 3.5, minZ: cz + 4.8, maxZ: cz + 10, label: 'Pilar Gerbang Timur Astraea' });
-
-  // 5. 170x170 City Curtain Walls
+  // 5. Tembok Keliling 170x170 Tertutup Rapat Tanpa Celah Kiri-Kanan Gerbang
   const wallNorth = createImperialWallMesh(170);
-  wallNorth.position.set(cx, getTerrainHeight(cx, cz - half), cz - half);
+  wallNorth.position.set(cx, baseY, cz - half);
   scene.add(wallNorth);
   colliders.push({ type: 'box', minX: cx - half, maxX: cx + half, minZ: cz - half - 2.2, maxZ: cz - half + 2.2, label: 'Tembok Utara Astraea' });
 
   const wallWest = createImperialWallMesh(170);
-  wallWest.position.set(cx - half, getTerrainHeight(cx - half, cz), cz);
+  wallWest.position.set(cx - half, baseY, cz);
   wallWest.rotation.y = Math.PI / 2;
   scene.add(wallWest);
   colliders.push({ type: 'box', minX: cx - half - 2.2, maxX: cx - half + 2.2, minZ: cz - half, maxZ: cz + half, label: 'Tembok Barat Astraea' });
 
-  const wallSouthW = createImperialWallMesh(75);
-  wallSouthW.position.set(cx - 47.5, getTerrainHeight(cx - 47.5, cz + half), cz + half);
+  const wallEast = createImperialWallMesh(170);
+  wallEast.position.set(cx + half, baseY, cz);
+  wallEast.rotation.y = Math.PI / 2;
+  scene.add(wallEast);
+  colliders.push({ type: 'box', minX: cx + half - 2.2, maxX: cx + half + 2.2, minZ: cz - half, maxZ: cz + half, label: 'Tembok Timur Astraea' });
+
+  // Tembok Selatan Barat & Timur panjang 79 unit mengunci 1.6 unit ke dalam menara gerbang (-7.6..+7.6)
+  const wallSouthW = createImperialWallMesh(79);
+  wallSouthW.position.set(cx - 45.5, baseY, cz + half);
   scene.add(wallSouthW);
-  colliders.push({ type: 'box', minX: cx - half, maxX: cx - 10, minZ: cz + half - 2.2, maxZ: cz + half + 2.2, label: 'Tembok Selatan Astraea' });
+  colliders.push({ type: 'box', minX: cx - half, maxX: cx - 6.0, minZ: cz + half - 2.2, maxZ: cz + half + 2.2, label: 'Tembok Selatan Barat Astraea' });
 
-  const wallSouthE = createImperialWallMesh(75);
-  wallSouthE.position.set(cx + 47.5, getTerrainHeight(cx + 47.5, cz + half), cz + half);
+  const wallSouthE = createImperialWallMesh(79);
+  wallSouthE.position.set(cx + 45.5, baseY, cz + half);
   scene.add(wallSouthE);
-  colliders.push({ type: 'box', minX: cx + 10, maxX: cx + half, minZ: cz + half - 2.2, maxZ: cz + half + 2.2, label: 'Tembok Selatan Astraea' });
+  colliders.push({ type: 'box', minX: cx + 6.0, maxX: cx + half, minZ: cz + half - 2.2, maxZ: cz + half + 2.2, label: 'Tembok Selatan Timur Astraea' });
 
-  const wallEastN = createImperialWallMesh(75);
-  wallEastN.position.set(cx + half, getTerrainHeight(cx + half, cz - 47.5), cz - 47.5);
-  wallEastN.rotation.y = Math.PI / 2;
-  scene.add(wallEastN);
-  colliders.push({ type: 'box', minX: cx + half - 2.2, maxX: cx + half + 2.2, minZ: cz - half, maxZ: cz - 10, label: 'Tembok Timur Astraea' });
-
-  const wallEastS = createImperialWallMesh(75);
-  wallEastS.position.set(cx + half, getTerrainHeight(cx + half, cz + 47.5), cz + 47.5);
-  wallEastS.rotation.y = Math.PI / 2;
-  scene.add(wallEastS);
-  colliders.push({ type: 'box', minX: cx + half - 2.2, maxX: cx + half + 2.2, minZ: cz + 10, maxZ: cz + half, label: 'Tembok Timur Astraea' });
-
-  // 6. Flush Blue-Gold Corner & Mid-Wall Watchtowers
+  // 6. Menara Penjaga Sudut & Tengah Tembok (termasuk Menara Tengah Timur pengganti gerbang janggal)
   const towerPositions: [number, number][] = [
     [cx - half, cz - half],
     [cx + half, cz - half],
@@ -1300,36 +1685,65 @@ export async function buildAstraeaCastle(
     [cx + half, cz + half],
     [cx, cz - half],
     [cx - half, cz],
+    [cx + half, cz],
   ];
   towerPositions.forEach(([tx, tz]) => {
-    const ty = getTerrainHeight(tx, tz);
     const tower = createFortressWatchtowerMesh();
-    tower.position.set(tx, ty, tz);
+    tower.position.set(tx, baseY, tz);
     tower.scale.set(1.35, 1.35, 1.35);
     scene.add(tower);
     colliders.push({ type: 'circle', x: tx, z: tz, radius: 4.5, label: 'Menara Penjaga Ibukota Astraea' });
   });
 
-  // 7. West Residential Quarter: 6 Two-Story Medieval Townhouses
-  const resHouses: Array<{ x: number; z: number; rot: number; style: 'blue' | 'terracotta'; awning?: boolean }> = [
-    { x: cx - 64, z: cz - 55, rot: Math.PI / 2, style: 'blue' },
-    { x: cx - 38, z: cz - 55, rot: Math.PI / 2, style: 'terracotta' },
-    { x: cx - 64, z: cz - 12, rot: Math.PI / 2, style: 'terracotta' },
-    { x: cx - 38, z: cz - 12, rot: Math.PI / 2, style: 'blue' },
-    { x: cx - 62, z: cz + 48, rot: 0, style: 'blue' },
-    { x: cx - 36, z: cz + 48, rot: 0, style: 'terracotta' },
+  // 7. Distrik Permukiman & Pasar Medieval Padat (21+ Bangunan Bervariasi 1- & 2-Lantai + Toko Khusus + Taman)
+  const townHouses: Array<{ x: number; z: number; rot: number; style: 'blue' | 'terracotta'; awning?: boolean; scale?: number }> = [
+    // Blok Barat Laut (menghadap Jalan Pelataran Istana & Bundaran Barat)
+    { x: cx - 66, z: cz - 62, rot: 0, style: 'blue', scale: 1.05 },
+    { x: cx - 44, z: cz - 62, rot: 0, style: 'terracotta', awning: true, scale: 1.1 },
+    { x: cx - 68, z: cz - 38, rot: Math.PI / 2, style: 'terracotta', scale: 0.96 },
+    { x: cx - 42, z: cz - 38, rot: 0, style: 'blue', awning: true, scale: 1.04 },
+    // Blok Barat Daya (menghadap Jalan Distrik Selatan & Bundaran Barat)
+    { x: cx - 68, z: cz - 6, rot: Math.PI / 2, style: 'blue', scale: 1.08 },
+    { x: cx - 42, z: cz - 6, rot: -Math.PI / 2, style: 'terracotta', scale: 0.94 },
+    { x: cx - 68, z: cz + 40, rot: 0, style: 'terracotta', awning: true, scale: 1.02 },
+    { x: cx - 42, z: cz + 40, rot: 0, style: 'blue', scale: 1.05 },
+    { x: cx - 64, z: cz + 70, rot: Math.PI, style: 'blue', scale: 1.08 },
+    { x: cx - 40, z: cz + 70, rot: Math.PI, style: 'terracotta', awning: true, scale: 0.96 },
+    // Blok Timur Laut
+    { x: cx + 42, z: cz - 62, rot: 0, style: 'terracotta', awning: true, scale: 1.08 },
+    { x: cx + 66, z: cz - 62, rot: 0, style: 'blue', scale: 1.04 },
+    { x: cx + 66, z: cz - 38, rot: -Math.PI / 2, style: 'blue', scale: 0.98 },
+    { x: cx + 42, z: cz - 38, rot: 0, style: 'terracotta', awning: true, scale: 1.06 },
+    // Pos Penjaga Gerbang Selatan
+    { x: cx - 22, z: cz + 71, rot: Math.PI, style: 'blue', scale: 0.92 },
+    { x: cx + 22, z: cz + 71, rot: Math.PI, style: 'terracotta', scale: 0.92 },
   ];
-  resHouses.forEach((h) => {
-    const hy = getTerrainHeight(h.x, h.z);
+  townHouses.forEach((h) => {
+    const s = h.scale ?? 1.0;
     const houseMesh = createMedievalTownhouseMesh(h.style, !!h.awning);
-    houseMesh.position.set(h.x, hy, h.z);
+    houseMesh.position.set(h.x, baseY, h.z);
     houseMesh.rotation.y = h.rot;
+    houseMesh.scale.setScalar(s);
     scene.add(houseMesh);
-    colliders.push({ type: 'box', minX: h.x - 3.6, maxX: h.x + 3.6, minZ: h.z - 3.4, maxZ: h.z + 3.4, label: 'Rumah Bangsawan Astraea' });
+    colliders.push({ type: 'box', minX: h.x - 3.6 * s, maxX: h.x + 3.6 * s, minZ: h.z - 3.4 * s, maxZ: h.z + 3.4 * s, label: 'Bangunan Ibukota Astraea' });
   });
 
-  // 8. East Commercial, Market, & Tavern District
-  // Grand Tavern & Guildhall (Enterable GTA Door interior 'astraea_tavern')
+  // 4 Bangunan Toko Khusus & Guild Bervariasi (Toko Roti, Apotek Elixir, Guild Peta, Pondok Warga)
+  const specialtyShops: Array<{ x: number; z: number; rot: number; kind: 'bakery' | 'apothecary' | 'library' | 'cottage'; label: string }> = [
+    { x: cx + 66, z: cz - 6, rot: -Math.PI / 2, kind: 'bakery', label: 'Toko Roti Kerajaan Astraea' },
+    { x: cx + 40, z: cz - 6, rot: 0, kind: 'apothecary', label: 'Apotek & Alkemis Kekaisaran' },
+    { x: cx - 72, z: cz + 18, rot: Math.PI / 2, kind: 'library', label: 'Guild Cendekia & Peta Astraea' },
+    { x: cx + 70, z: cz + 70, rot: Math.PI, kind: 'cottage', label: 'Rumah Pengrajin Astraea' },
+  ];
+  specialtyShops.forEach((sp) => {
+    const mesh = createMedievalSpecialtyShopMesh(sp.kind);
+    mesh.position.set(sp.x, baseY, sp.z);
+    mesh.rotation.y = sp.rot;
+    scene.add(mesh);
+    colliders.push({ type: 'box', minX: sp.x - 3.6, maxX: sp.x + 3.6, minZ: sp.z - 3.4, maxZ: sp.z + 3.4, label: sp.label });
+  });
+
+  // 8. Grand Tavern & Guildhall (Enterable GTA Door interior 'astraea_tavern' di [cx+48, cz+46])
   const astTavX = cx + 48;
   const astTavZ = cz + 46;
   const tavernY = getTerrainHeight(astTavX, astTavZ);
@@ -1341,57 +1755,72 @@ export async function buildAstraeaCastle(
   registerWalkableSurface(astraeaTavern, { label: 'Undakan Tavern & Guildhall Astraea' });
   colliders.push({ type: 'box', minX: astTavX - 8, maxX: astTavX + 8, minZ: astTavZ - 8, maxZ: astTavZ + 7.5, label: 'Tavern & Toko Ibukota Astraea' });
 
-  // Merchant Townhouses facing West Plaza
+  // Merchant Townhouses di tepi Timur Pasar
   const shopBuildings: Array<{ x: number; z: number; rot: number; style: 'blue' | 'terracotta' }> = [
-    { x: cx + 60, z: cz - 52, rot: -Math.PI / 2, style: 'terracotta' },
-    { x: cx + 60, z: cz - 20, rot: -Math.PI / 2, style: 'blue' },
+    { x: cx + 71, z: cz + 18, rot: -Math.PI / 2, style: 'terracotta' },
+    { x: cx + 71, z: cz + 40, rot: -Math.PI / 2, style: 'blue' },
   ];
   shopBuildings.forEach((s) => {
-    const sy = getTerrainHeight(s.x, s.z);
     const shopMesh = createMedievalTownhouseMesh(s.style, true);
-    shopMesh.position.set(s.x, sy, s.z);
+    shopMesh.position.set(s.x, baseY, s.z);
     shopMesh.rotation.y = s.rot;
     scene.add(shopMesh);
     colliders.push({ type: 'box', minX: s.x - 3.6, maxX: s.x + 3.6, minZ: s.z - 3.4, maxZ: s.z + 3.4, label: 'Toko Pedagang Astraea' });
   });
 
-  // Colorful Market & Armory Stalls lining East Market Square
+  // 8 Kios Pasar Kerajaan Meriah + Tumpukan Peti/Tong Barang
   const marketStalls = [
-    { mesh: createImperialBazaarStallMesh(0x1d4ed8), x: cx + 32, z: cz + 28, rot: Math.PI },
-    { mesh: createImperialBazaarStallMesh(0xb91c1c), x: cx + 46, z: cz + 28, rot: Math.PI },
-    { mesh: createMarketStallMesh(0xd97706), x: cx + 32, z: cz + 6, rot: 0 },
-    { mesh: createArmorStallMesh(), x: cx + 46, z: cz + 6, rot: 0 },
+    { mesh: createImperialBazaarStallMesh(0x1d4ed8), x: cx + 38, z: cz + 30, rot: Math.PI },
+    { mesh: createImperialBazaarStallMesh(0xb91c1c), x: cx + 52, z: cz + 30, rot: Math.PI },
+    { mesh: createMarketStallMesh(0xd97706), x: cx + 38, z: cz + 8, rot: 0 },
+    { mesh: createArmorStallMesh(), x: cx + 52, z: cz + 8, rot: 0 },
+    { mesh: createImperialBazaarStallMesh(0x7c3aed), x: cx + 62, z: cz + 18, rot: -Math.PI / 2 },
+    { mesh: createMarketStallMesh(0x15803d), x: cx - 54, z: cz + 8, rot: 0 },
+    { mesh: createImperialBazaarStallMesh(0x0284c7), x: cx - 54, z: cz + 28, rot: Math.PI },
+    { mesh: createArmorStallMesh(), x: cx + 28, z: cz + 71, rot: Math.PI },
   ];
-  marketStalls.forEach((st) => {
-    st.mesh.position.set(st.x, getTerrainHeight(st.x, st.z), st.z);
+  marketStalls.forEach((st, idx) => {
+    st.mesh.position.set(st.x, baseY, st.z);
     st.mesh.rotation.y = st.rot;
     scene.add(st.mesh);
     colliders.push({ type: 'box', minX: st.x - 2.3, maxX: st.x + 2.3, minZ: st.z - 1.8, maxZ: st.z + 1.8, label: 'Kios Pasar Ibukota Astraea' });
+    if (idx < 6) {
+      const cargo = createCargoClusterMesh();
+      cargo.position.set(st.x + (idx % 2 === 0 ? 2.6 : -2.6), baseY, st.z);
+      cargo.rotation.y = idx * 0.9;
+      scene.add(cargo);
+    }
   });
 
-  // 9. Royal Blossom Gardens & Avenue Street Lamps
+  // 9. Taman Pohon Sakura, Lampu Jalan Ornamen, & Bangku Distrik
   const gardenTrees: [number, number][] = [
-    [cx - 58, cz - 76], [cx - 32, cz - 76], [cx + 32, cz - 76], [cx + 58, cz - 76],
-    [cx - 22, cz - 36], [cx + 22, cz - 36], [cx - 22, cz + 68], [cx + 22, cz + 68],
+    [cx - 56, cz - 76], [cx - 28, cz - 76], [cx + 28, cz - 76], [cx + 56, cz - 76],
+    [cx - 26, cz - 36], [cx + 26, cz - 36], [cx - 26, cz + 44], [cx + 26, cz + 44],
+    [cx - 56, cz + 18], [cx - 54, cz - 24], [cx + 54, cz - 24],
   ];
   gardenTrees.forEach(([tx, tz]) => {
     const tree = createCherryBlossomTreeMesh();
-    tree.position.set(tx, getTerrainHeight(tx, tz), tz);
+    tree.position.set(tx, baseY, tz);
     scene.add(tree);
     colliders.push({ type: 'circle', x: tx, z: tz, radius: 1.0, label: 'Pohon Sakura Taman Ibukota' });
   });
 
   const lampCoords: [number, number][] = [
-    [cx - 9, cz + 72], [cx + 9, cz + 72], [cx - 9, cz + 48], [cx + 9, cz + 48],
-    [cx - 9, cz - 12], [cx + 9, cz - 12], [cx + 32, cz + 24], [cx + 66, cz + 24],
+    [cx - 9, cz + 74], [cx + 9, cz + 74],
+    [cx - 9, cz + 50], [cx + 9, cz + 50],
+    [cx - 9, cz - 14], [cx + 9, cz - 14],
+    [cx - 9, cz - 30], [cx + 9, cz - 30],
+    [cx - 38, cz + 12], [cx - 38, cz + 24],
+    [cx + 38, cz + 12], [cx + 38, cz + 24],
+    [cx - 38, cz - 24], [cx + 38, cz - 24],
   ];
   lampCoords.forEach(([lx, lz]) => {
     const lamp = createStreetLampMesh();
-    lamp.position.set(lx, getTerrainHeight(lx, lz), lz);
+    lamp.position.set(lx, baseY, lz);
     scene.add(lamp);
   });
 
-  // 10. Outdoor Astraea Sentinels (Emperor Aurelius, Marshal Vane, & Lyra reside inside interiors)
+  // 10. Outdoor Astraea Sentinels
   const g1Group = createCustomNPCMesh('guard');
   const g1Pos: [number, number, number] = [cx - 7, getTerrainHeight(cx - 7, cz + 79), cz + 79];
   g1Group.position.set(...g1Pos);
@@ -1443,59 +1872,76 @@ export async function buildValKragorFort(
 
   const fortRoadMat = new THREE.MeshStandardMaterial({
     color: 0x64748b,
-    roughness: 0.92,
+    roughness: 0.90,
+  });
+  const fortTrimMat = new THREE.MeshStandardMaterial({
+    color: 0x475569,
+    roughness: 0.85,
   });
 
-  // 1. Stone Courtyard Roads (North Gate to Command Keep + East-West Wing Avenue)
-  const nsFortRoad = new THREE.Mesh(new THREE.BoxGeometry(13, 0.16, 86), fortRoadMat);
-  nsFortRoad.position.set(cx, baseY + 0.02, 115);
+  // 1. Jaringan Halaman & Jalan Batu Militer Walkable Terhubung Utuh (Gerbang Utara -> Parade -> Keep & Sayap Barat/Timur)
+  const nsFortRoad = new THREE.Mesh(new THREE.BoxGeometry(14, 0.16, 94), fortRoadMat);
+  nsFortRoad.position.set(cx, baseY + 0.02, 118); // 71..165 menembus gerbang (75) ke jalan raya luar
   nsFortRoad.receiveShadow = true;
   scene.add(nsFortRoad);
   registerWalkableSurface(nsFortRoad, { label: 'Jalan Batu Benteng Val-Kragor' });
 
-  const ewFortRoad = new THREE.Mesh(new THREE.BoxGeometry(82, 0.14, 11), fortRoadMat);
-  ewFortRoad.position.set(cx, baseY + 0.015, 118);
+  const ewFortRoad = new THREE.Mesh(new THREE.BoxGeometry(92, 0.14, 12), fortRoadMat);
+  ewFortRoad.position.set(cx, baseY + 0.015, 118); // 534..626
   ewFortRoad.receiveShadow = true;
   scene.add(ewFortRoad);
   registerWalkableSurface(ewFortRoad, { label: 'Pelataran Tengah Benteng Val-Kragor' });
 
-  // 2. North Iron Gatehouse at (580, 75) facing North (-Z) to meet road_mage_valkragor
+  const centralParadeCourt = new THREE.Mesh(new THREE.BoxGeometry(30, 0.18, 28), fortTrimMat);
+  centralParadeCourt.position.set(cx, baseY + 0.03, 120);
+  centralParadeCourt.receiveShadow = true;
+  scene.add(centralParadeCourt);
+  registerWalkableSurface(centralParadeCourt, { label: 'Alun-Alun Parade Militer Val-Kragor' });
+
+  const trainingArenaFloor = new THREE.Mesh(new THREE.BoxGeometry(30, 0.12, 46), new THREE.MeshStandardMaterial({ color: 0x7c5e3c, roughness: 0.95 }));
+  trainingArenaFloor.position.set(612, baseY + 0.01, 134);
+  trainingArenaFloor.receiveShadow = true;
+  scene.add(trainingArenaFloor);
+  registerWalkableSurface(trainingArenaFloor, { label: 'Lantai Tanah Padat Arena Latihan Val-Kragor' });
+
+  // 2. North Iron Gatehouse at (580, 75) facing North (-Z) dengan Tembok Tertutup Rapat 100% Tanpa Celah!
+  // Lebar menara kiri-kanan Gerbang adalah -6.6 .. +6.6 -> tembok kiri & kanan sepanjang 49.4 mengunci 1.0 unit ke dalam menara
   const northGate = createFortressGatehouseMesh();
-  northGate.position.set(cx, getTerrainHeight(cx, cz - half), cz - half);
+  northGate.position.set(cx, baseY, cz - half);
   northGate.rotation.y = Math.PI;
   scene.add(northGate);
-  colliders.push({ type: 'box', minX: cx - 10, maxX: cx - 4.5, minZ: cz - half - 3.5, maxZ: cz - half + 3.5, label: 'Pilar Gerbang Utara Val-Kragor' });
-  colliders.push({ type: 'box', minX: cx + 4.5, maxX: cx + 10, minZ: cz - half - 3.5, maxZ: cz - half + 3.5, label: 'Pilar Gerbang Utara Val-Kragor' });
+  colliders.push({ type: 'box', minX: cx - 7.0, maxX: cx - 2.6, minZ: cz - half - 3.2, maxZ: cz - half + 3.2, label: 'Menara Kiri Gerbang Val-Kragor' });
+  colliders.push({ type: 'box', minX: cx + 2.6, maxX: cx + 7.0, minZ: cz - half - 3.2, maxZ: cz - half + 3.2, label: 'Menara Kanan Gerbang Val-Kragor' });
 
-  // 3. Perimeter Fortress Curtain Walls (110x110 flush to corners)
+  // 3. Perimeter Fortress Curtain Walls (110x110 rapat menyatu menara sudut & gerbang)
   const vkWallSouth = createFortressWallMesh(110);
-  vkWallSouth.position.set(cx, getTerrainHeight(cx, cz + half), cz + half);
+  vkWallSouth.position.set(cx, baseY, cz + half);
   scene.add(vkWallSouth);
   colliders.push({ type: 'box', minX: cx - half, maxX: cx + half, minZ: cz + half - 2.2, maxZ: cz + half + 2.2, label: 'Tembok Selatan Val-Kragor' });
 
   const vkWallWest = createFortressWallMesh(110);
-  vkWallWest.position.set(cx - half, getTerrainHeight(cx - half, cz), cz);
+  vkWallWest.position.set(cx - half, baseY, cz);
   vkWallWest.rotation.y = Math.PI / 2;
   scene.add(vkWallWest);
   colliders.push({ type: 'box', minX: cx - half - 2.2, maxX: cx - half + 2.2, minZ: cz - half, maxZ: cz + half, label: 'Tembok Barat Val-Kragor' });
 
   const vkWallEast = createFortressWallMesh(110);
-  vkWallEast.position.set(cx + half, getTerrainHeight(cx + half, cz), cz);
+  vkWallEast.position.set(cx + half, baseY, cz);
   vkWallEast.rotation.y = Math.PI / 2;
   scene.add(vkWallEast);
   colliders.push({ type: 'box', minX: cx + half - 2.2, maxX: cx + half + 2.2, minZ: cz - half, maxZ: cz + half, label: 'Tembok Timur Val-Kragor' });
 
-  const vkWallNorthW = createFortressWallMesh(46);
-  vkWallNorthW.position.set(cx - 32, getTerrainHeight(cx - 32, cz - half), cz - half);
+  const vkWallNorthW = createFortressWallMesh(49.4);
+  vkWallNorthW.position.set(cx - 30.3, baseY, cz - half);
   scene.add(vkWallNorthW);
-  colliders.push({ type: 'box', minX: cx - half, maxX: cx - 9, minZ: cz - half - 2.2, maxZ: cz - half + 2.2, label: 'Tembok Utara Barat Val-Kragor' });
+  colliders.push({ type: 'box', minX: cx - half, maxX: cx - 5.5, minZ: cz - half - 2.2, maxZ: cz - half + 2.2, label: 'Tembok Utara Barat Val-Kragor' });
 
-  const vkWallNorthE = createFortressWallMesh(46);
-  vkWallNorthE.position.set(cx + 32, getTerrainHeight(cx + 32, cz - half), cz - half);
+  const vkWallNorthE = createFortressWallMesh(49.4);
+  vkWallNorthE.position.set(cx + 30.3, baseY, cz - half);
   scene.add(vkWallNorthE);
-  colliders.push({ type: 'box', minX: cx + 9, maxX: cx + half, minZ: cz - half - 2.2, maxZ: cz - half + 2.2, label: 'Tembok Utara Timur Val-Kragor' });
+  colliders.push({ type: 'box', minX: cx + 5.5, maxX: cx + half, minZ: cz - half - 2.2, maxZ: cz - half + 2.2, label: 'Tembok Utara Timur Val-Kragor' });
 
-  // 4. STRICTLY 4 Flush Corner Watchtowers (ZERO outer protruding towers!)
+  // 4. 4 Flush Corner Watchtowers
   const cornerTowers: [number, number][] = [
     [cx - half, cz - half],
     [cx + half, cz - half],
@@ -1504,12 +1950,12 @@ export async function buildValKragorFort(
   ];
   cornerTowers.forEach(([tx, tz]) => {
     const tower = createFortressWatchtowerMesh();
-    tower.position.set(tx, getTerrainHeight(tx, tz), tz);
+    tower.position.set(tx, baseY, tz);
     scene.add(tower);
     colliders.push({ type: 'circle', x: tx, z: tz, radius: 3.6, label: 'Menara Sudut Benteng Val-Kragor' });
   });
 
-  // 5. Command Keep (Aula Komandan Benteng - Enterable GTA Interior)
+  // 5. Command Keep (Aula Komandan Benteng) + Twin Spanduk Perang Merah & Penjaga
   const fortressKeep = createFortressKeepMesh();
   fortressKeep.position.set(cx, baseY, 166);
   fortressKeep.rotation.y = Math.PI;
@@ -1517,7 +1963,13 @@ export async function buildValKragorFort(
   registerWalkableSurface(fortressKeep, { label: 'Undakan Kastil Komando Val-Kragor' });
   colliders.push({ type: 'box', minX: 571, maxX: 589, minZ: 155, maxZ: 177, label: 'Aula Komandan Val-Kragor' });
 
-  // 6. West Wing: Blacksmith Forge (Enterable GTA Interior), Barracks, & Warrior House
+  for (const bx of [cx - 7.5, cx + 7.5]) {
+    const banner = createBannerStandardMesh(0x991b1b, 0xfbbf24);
+    banner.position.set(bx, baseY, 154);
+    scene.add(banner);
+  }
+
+  // 6. West Wing: Bengkel Pandai Besi + Distrik Barak Prajurit (4 Bangunan + Tenda Kamp & Perumahan)
   const goranForge = createBlacksmithMesh();
   goranForge.position.set(546, getTerrainHeight(546, 108), 108);
   goranForge.scale.set(1.35, 1.35, 1.35);
@@ -1526,70 +1978,167 @@ export async function buildValKragorFort(
   registerWalkableSurface(goranForge, { label: 'Pelataran Pandai Besi Val-Kragor' });
   colliders.push({ type: 'box', minX: 539, maxX: 552, minZ: 102, maxZ: 114, label: 'Bengkel Pandai Besi Val-Kragor' });
 
-  const vkBarracks = createBarracksMesh();
-  vkBarracks.position.set(546, getTerrainHeight(546, 150), 150);
-  vkBarracks.rotation.y = Math.PI / 2;
-  scene.add(vkBarracks);
-  colliders.push({ type: 'box', minX: 539, maxX: 553, minZ: 143, maxZ: 157, label: 'Barak Pasukan Val-Kragor' });
+  // Rak senjata, peti besi, dan tumpukan kayu bakar di samping Bengkel Pandai Besi
+  const forgeCargo = createCargoClusterMesh();
+  forgeCargo.position.set(545, baseY, 99);
+  scene.add(forgeCargo);
+
+  const vkBarracks1 = createBarracksMesh();
+  vkBarracks1.position.set(544, baseY, 152);
+  vkBarracks1.rotation.y = Math.PI / 2;
+  scene.add(vkBarracks1);
+  colliders.push({ type: 'box', minX: 538, maxX: 550, minZ: 145, maxZ: 159, label: 'Barak Pasukan Selatan Val-Kragor' });
+
+  const vkBarracks2 = createBarracksMesh();
+  vkBarracks2.position.set(544, baseY, 130);
+  vkBarracks2.rotation.y = Math.PI / 2;
+  scene.add(vkBarracks2);
+  colliders.push({ type: 'box', minX: 538, maxX: 550, minZ: 123, maxZ: 137, label: 'Barak Pasukan Tengah Val-Kragor' });
 
   const houseNW = createVillageHouseMesh();
-  houseNW.position.set(546, getTerrainHeight(546, 90), 90);
+  houseNW.position.set(546, baseY, 88);
   houseNW.scale.set(1.15, 1.15, 1.15);
   houseNW.rotation.y = Math.PI / 2;
   scene.add(houseNW);
-  colliders.push({ type: 'box', minX: 542, maxX: 550, minZ: 86, maxZ: 94, label: 'Pos Prajurit Barat' });
+  colliders.push({ type: 'box', minX: 541, maxX: 551, minZ: 83, maxZ: 93, label: 'Pos Prajurit Barat' });
 
   const houseNE = createVillageHouseMesh();
-  houseNE.position.set(614, getTerrainHeight(614, 92), 92);
+  houseNE.position.set(614, baseY, 88);
   houseNE.scale.set(1.15, 1.15, 1.15);
   houseNE.rotation.y = -Math.PI / 2;
   scene.add(houseNE);
-  colliders.push({ type: 'box', minX: 610, maxX: 618, minZ: 88, maxZ: 96, label: 'Pos Prajurit Timur' });
+  colliders.push({ type: 'box', minX: 609, maxX: 619, minZ: 83, maxZ: 93, label: 'Pos Prajurit Timur' });
 
-  // 7. East Wing: Martial Combat & Archery Training Ground
+  // Rumah Warga & Pos Medis Benteng (Tenda Putih/Merah & Bangunan)
+  const quarterHouse = createVillageHouseMesh();
+  quarterHouse.position.set(546, baseY, 170);
+  quarterHouse.rotation.y = Math.PI / 2;
+  scene.add(quarterHouse);
+  colliders.push({ type: 'box', minX: 541, maxX: 551, minZ: 165, maxZ: 175, label: 'Perumahan Warga Benteng' });
+
+  const medicTent = createMilitaryFieldTentMesh(0xf8fafc);
+  medicTent.position.set(612, baseY, 169);
+  scene.add(medicTent);
+  const medicBanner = createBannerStandardMesh(0xdc2626, 0xf8fafc);
+  medicBanner.position.set(606, baseY, 168);
+  scene.add(medicBanner);
+  colliders.push({ type: 'circle', x: 612, z: 169, radius: 3.3, label: 'Pos Medis Benteng Val-Kragor' });
+
+  // 2 Tenda Kamp Militer di Utara Halaman Barat & Timur
+  [
+    { x: 562, z: 89, color: 0x7f1d1d },
+    { x: 598, z: 89, color: 0x3f6212 },
+  ].forEach((tc) => {
+    const tMesh = createMilitaryFieldTentMesh(tc.color);
+    tMesh.position.set(tc.x, baseY, tc.z);
+    scene.add(tMesh);
+    colliders.push({ type: 'circle', x: tc.x, z: tc.z, radius: 3.2, label: 'Tenda Kamp Militer' });
+  });
+
+  // 2 Gerobak Logistik Perbekalan & Menara Lonceng Pengawas Dalam
+  [
+    { x: 564, z: 144, rot: 0.45 },
+    { x: 596, z: 102, rot: -0.35 },
+  ].forEach((wg) => {
+    const wagon = createSupplyWagonMesh();
+    wagon.position.set(wg.x, baseY, wg.z);
+    wagon.rotation.y = wg.rot;
+    scene.add(wagon);
+    colliders.push({ type: 'box', minX: wg.x - 2.0, maxX: wg.x + 2.0, minZ: wg.z - 1.3, maxZ: wg.z + 1.3, label: 'Gerobak Logistik Val-Kragor' });
+  });
+
+  const bellWatchtower = createFortressWatchtowerMesh();
+  bellWatchtower.position.set(624, baseY, 102);
+  bellWatchtower.scale.set(0.88, 0.88, 0.88);
+  scene.add(bellWatchtower);
+  colliders.push({ type: 'circle', x: 624, z: 102, radius: 2.8, label: 'Menara Lonceng Benteng' });
+
+  // 7. East Wing: Arena Latihan Tempur Berpagar Kayu + 6 Boneka Latihan + 3 Sasaran Panah + Kandang Kuda
+  const woodFenceMat = new THREE.MeshLambertMaterial({ color: 0x4e342e, flatShading: true });
+  const addFenceRail = (x1: number, z1: number, x2: number, z2: number) => {
+    const len = Math.hypot(x2 - x1, z2 - z1);
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 1.05, 0.22), woodFenceMat);
+    rail.position.set((x1 + x2) * 0.5, baseY + 0.55, (z1 + z2) * 0.5);
+    rail.rotation.y = Math.atan2(z2 - z1, x2 - x1);
+    scene.add(rail);
+  };
+  addFenceRail(597, 111, 628, 111); // Utara arena
+  addFenceRail(597, 158, 628, 158); // Selatan arena
+  addFenceRail(597, 111, 597, 115); // Barat (menyisakan pintu masuk 115..124)
+  addFenceRail(597, 124, 597, 158);
+
+  const horseStable = createHorseStableMesh();
+  horseStable.position.set(620, baseY, 151);
+  horseStable.rotation.y = Math.PI;
+  scene.add(horseStable);
+  colliders.push({ type: 'box', minX: 615, maxX: 625, minZ: 148, maxZ: 155, label: 'Kandang Kuda Kavaleri Val-Kragor' });
+
   const rack1 = createWeaponRackMesh();
-  rack1.position.set(600, getTerrainHeight(600, 114), 114);
+  rack1.position.set(600, baseY, 114);
   scene.add(rack1);
   const rack2 = createWeaponRackMesh();
-  rack2.position.set(600, getTerrainHeight(600, 162), 162);
+  rack2.position.set(600, baseY, 155);
   scene.add(rack2);
+  const rack3 = createWeaponRackMesh();
+  rack3.position.set(558, baseY, 114);
+  rack3.rotation.y = Math.PI / 2;
+  scene.add(rack3);
 
   const dummyPositions: [number, number][] = [
-    [612, 128],
-    [612, 138],
-    [612, 148],
+    [606, 124], [606, 134], [606, 144],
+    [614, 126], [614, 136], [614, 146],
   ];
   dummyPositions.forEach(([dx, dz]) => {
     const dummy = createTrainingDummyMesh();
-    dummy.position.set(dx, getTerrainHeight(dx, dz), dz);
+    dummy.position.set(dx, baseY, dz);
     dummy.rotation.y = -Math.PI / 2;
     scene.add(dummy);
     colliders.push({ type: 'circle', x: dx, z: dz, radius: 0.75, label: 'Boneka Latihan Val-Kragor' });
   });
 
   const archerySpots: [number, number][] = [
-    [624, 130],
-    [624, 146],
+    [625, 122], [625, 132], [625, 142],
   ];
   archerySpots.forEach(([ax, az]) => {
     const target = createArcheryTargetMesh();
-    target.position.set(ax, getTerrainHeight(ax, az), az);
+    target.position.set(ax, baseY, az);
     target.rotation.y = -Math.PI / 2;
     scene.add(target);
     colliders.push({ type: 'circle', x: ax, z: az, radius: 0.85, label: 'Sasaran Panah Val-Kragor' });
   });
 
+  // Api Unggun & 12 Anglo Api Obor Hangat Terangi Seluruh Halaman Benteng
   const campfire = createBonfireMesh();
-  campfire.position.set(596, getTerrainHeight(596, 138), 138);
+  campfire.position.set(594, baseY, 134);
   scene.add(campfire);
-  colliders.push({ type: 'circle', x: 596, z: 138, radius: 1.2, label: 'Api Unggun Kamp Latihan' });
+  colliders.push({ type: 'circle', x: 594, z: 134, radius: 1.2, label: 'Api Unggun Kamp Latihan' });
+
+  const brazierSpots: [number, number][] = [
+    [573, 81], [587, 81],
+    [572, 108], [588, 108],
+    [572, 132], [588, 132],
+    [573, 151], [587, 151],
+    [555, 113], [596, 120],
+    [553, 140], [553, 160],
+  ];
+  brazierSpots.forEach(([bx, bz]) => {
+    const brazier = createStandingBrazierMesh(true);
+    brazier.position.set(bx, baseY, bz);
+    scene.add(brazier);
+  });
+
+  // 1 Cahaya hangat terpusat di tengah alun-alun parade agar benteng tetap terang bersahabat
+  const paradeLight = new THREE.PointLight(0xffb74d, 1.35, 78, 1.4);
+  paradeLight.position.set(cx, baseY + 8.0, 120);
+  scene.add(paradeLight);
 
   const lampSpots: [number, number][] = [
     [572, 88], [588, 88], [572, 112], [588, 112], [572, 144], [588, 144],
+    [554, 96], [602, 106], [602, 148],
   ];
   lampSpots.forEach(([lx, lz]) => {
     const lamp = createStreetLampMesh();
-    lamp.position.set(lx, getTerrainHeight(lx, lz), lz);
+    lamp.position.set(lx, baseY, lz);
     scene.add(lamp);
   });
 
@@ -1949,35 +2498,59 @@ export async function buildDesertStructures(
     roughness: 0.82,
   });
 
-  // Grand Walkable Sandstone Kingdom Plaza & Main Avenue
+  // Grand Walkable Sandstone Kingdom Plaza, Main Avenue & District Crosswalks (0 halangan tengah jalan!)
   const kingdomSlab = new THREE.Mesh(new THREE.BoxGeometry(144, 0.16, 144), sandstonePlazaMat);
   kingdomSlab.position.set(kcX, kingdomY + 0.02, kcZ);
   kingdomSlab.receiveShadow = true;
   scene.add(kingdomSlab);
   registerWalkableSurface(kingdomSlab, { label: 'Pelataran Batu Pasir Kerajaan Solaria' });
 
-  const kingdomAxisRoad = new THREE.Mesh(new THREE.BoxGeometry(16, 0.22, 112), sandstoneAvenueMat);
-  kingdomAxisRoad.position.set(kcX, kingdomY + 0.04, -482);
+  // Jalan utama batu pasir krem membentang mulus dari Gerbang Selatan (-424) ke Tangga Istana Sultan (-528)
+  const kingdomAxisRoad = new THREE.Mesh(new THREE.BoxGeometry(11.6, 0.22, 108), sandstoneAvenueMat);
+  kingdomAxisRoad.position.set(kcX, kingdomY + 0.04, -476); // -530 .. -422
   kingdomAxisRoad.receiveShadow = true;
   scene.add(kingdomAxisRoad);
-  registerWalkableSurface(kingdomAxisRoad, { label: 'Jalan Utama Istana Sultan Solaria' });
+  registerWalkableSurface(kingdomAxisRoad, { label: 'Jalan Utama Marmer Istana Sultan Solaria' });
 
-  // Monumental Taj Mahal Sultan Palace (scaled 1.15x) at (-540, -548) facing South (+Z)
+  // Jalan Lintang Barat-Timur menuju Permukiman & Distrik Bazar
+  const ewDesertRoad = new THREE.Mesh(new THREE.BoxGeometry(122, 0.18, 11), sandstoneAvenueMat);
+  ewDesertRoad.position.set(kcX, kingdomY + 0.03, -470);
+  ewDesertRoad.receiveShadow = true;
+  scene.add(ewDesertRoad);
+  registerWalkableSurface(ewDesertRoad, { label: 'Jalan Distrik Bazar & Permukiman Solaria' });
+
+  const bazaarSquare = new THREE.Mesh(new THREE.BoxGeometry(36, 0.17, 54), sandstoneAvenueMat);
+  bazaarSquare.position.set(-504, kingdomY + 0.03, -482);
+  bazaarSquare.receiveShadow = true;
+  scene.add(bazaarSquare);
+  registerWalkableSurface(bazaarSquare, { label: 'Lapangan Bazar Sutra Solaria' });
+
+  // Monumental Taj Mahal Sultan Palace (scaled 1.15x) menghadap SELATAN (+Z) menuju jalan raya!
   const palaceY = getTerrainHeight(-540, -548);
   const solariaPalace = createTajMahalPalaceMesh();
   solariaPalace.position.set(-540, palaceY, -548);
   solariaPalace.scale.set(1.15, 1.15, 1.15);
-  solariaPalace.rotation.y = 0;
+  solariaPalace.rotation.y = -Math.PI / 2;
   scene.add(solariaPalace);
   registerWalkableSurface(solariaPalace, { label: 'Undakan & Pelataran Istana Sultan' });
-  colliders.push({ type: 'box', minX: -560, maxX: -520, minZ: -569, maxZ: -527, label: 'Istana Megah Sultan Solaria' });
+  colliders.push({ type: 'box', minX: -560.5, maxX: -519.5, minZ: -568.5, maxZ: -527.5, label: 'Istana Megah Sultan Solaria' });
 
-  // Grand Turquoise Reflecting Pool & Palm Garden Promenade directly south of Palace stairs
-  const reflectingPool = createReflectingPoolMesh(26, 8.2);
-  reflectingPool.position.set(-540, kingdomY + 0.04, -496);
-  reflectingPool.rotation.y = Math.PI / 2;
-  scene.add(reflectingPool);
-  colliders.push({ type: 'box', minX: -544.6, maxX: -535.4, minZ: -509.5, maxZ: -482.5, label: 'Kolam Refleksi Istana Sultan' });
+  // Kolam Refleksi Kembar Simetris Khas Taj Mahal (mengapit sisi Kiri X:-553 dan Kanan X:-527, jalur tengah X:-540 100% BEBAS AIR!)
+  const poolOffsets = [-553, -527];
+  poolOffsets.forEach((px, pIdx) => {
+    const reflectingPool = createReflectingPoolMesh(34, 5.2);
+    reflectingPool.position.set(px, kingdomY + 0.04, -496);
+    reflectingPool.rotation.y = Math.PI / 2;
+    scene.add(reflectingPool);
+    colliders.push({
+      type: 'box',
+      minX: px - 3.3,
+      maxX: px + 3.3,
+      minZ: -513.5,
+      maxZ: -478.5,
+      label: pIdx === 0 ? 'Kolam Refleksi Barat Istana Sultan' : 'Kolam Refleksi Timur Istana Sultan',
+    });
+  });
 
   // Perimeter Desert Arched Sandstone Walls around 150x150 Kingdom (opening South Gate at x=-540, z=-434)
   const sandWallMat = new THREE.MeshStandardMaterial({ color: 0xe6c79c, roughness: 0.86, flatShading: true });
@@ -2005,11 +2578,12 @@ export async function buildDesertStructures(
   buildSolariaWall(144, -467, kcZ, Math.PI / 2);
   colliders.push({ type: 'box', minX: -469.2, maxX: -464.8, minZ: -578, maxZ: -434, label: 'Tembok Timur Solaria' });
 
-  buildSolariaWall(62, -582, -434, 0);
-  colliders.push({ type: 'box', minX: -613, maxX: -551, minZ: -436.2, maxZ: -431.8, label: 'Tembok Selatan Barat Solaria' });
+  // Tembok Selatan Barat & Timur panjang 64.6 unit mengunci 1.6 unit ke dalam menara gerbang emas
+  buildSolariaWall(64.6, -580.7, -434, 0);
+  colliders.push({ type: 'box', minX: -613, maxX: -545.8, minZ: -436.2, maxZ: -431.8, label: 'Tembok Selatan Barat Solaria' });
 
-  buildSolariaWall(62, -498, -434, 0);
-  colliders.push({ type: 'box', minX: -529, maxX: -467, minZ: -436.2, maxZ: -431.8, label: 'Tembok Selatan Timur Solaria' });
+  buildSolariaWall(64.6, -499.3, -434, 0);
+  colliders.push({ type: 'box', minX: -534.2, maxX: -467, minZ: -436.2, maxZ: -431.8, label: 'Tembok Selatan Timur Solaria' });
 
   // Corner Minaret Turrets for Solaria Perimeter
   [[-613, -578], [-467, -578], [-613, -434], [-467, -434]].forEach(([tx, tz]) => {
@@ -2024,45 +2598,64 @@ export async function buildDesertStructures(
     colliders.push({ type: 'circle', x: tx, z: tz, radius: 3.1, label: 'Menara Sudut Kerajaan Solaria' });
   });
 
-  // Sandstone Pillars framing South Entrance Gate (-540, -434)
-  for (const gx of [-550, -530]) {
-    const p = createSandstonePillarMesh(1.3);
-    p.position.set(gx, kingdomY, -434);
-    scene.add(p);
-    colliders.push({ type: 'circle', x: gx, z: -434, radius: 1.4, label: 'Pilar Gerbang Solaria' });
-  }
+  // Gerbang Lengkung Emas Megah Solaria di (-540, -434) menyatu rapat ke tembok selatan
+  const solariaMainGate = createSolariaArchedGatehouseMesh();
+  solariaMainGate.position.set(-540, kingdomY, -434);
+  scene.add(solariaMainGate);
+  colliders.push({ type: 'circle', x: -548.8, z: -434, radius: 2.9, label: 'Menara Kiri Gerbang Solaria' });
+  colliders.push({ type: 'circle', x: -531.2, z: -434, radius: 2.9, label: 'Menara Kanan Gerbang Solaria' });
 
-  // Twin Palm & Golden Oil Lantern Rows flanking Reflecting Pool Promenade
-  for (let pz = -516; pz <= -472; pz += 11) {
-    for (const px of [-552, -528]) {
+  // Deretan Pohon Kurma & Lentera Emas di tepi luar Kolam Refleksi Kembar & Promenade Utama
+  for (let pz = -514; pz <= -478; pz += 12) {
+    for (const px of [-558.5, -521.5]) {
       const palm = createDesertPalmMesh();
       palm.scale.setScalar(0.95);
       palm.position.set(px, kingdomY, pz);
       scene.add(palm);
       const lantern = createDesertOilLanternMesh();
-      lantern.position.set(px + (px < -540 ? 4.5 : -4.5), kingdomY, pz + 3);
+      lantern.position.set(px < -540 ? -546.8 : -533.2, kingdomY, pz + 4);
+      scene.add(lantern);
+    }
+  }
+  for (let pz = -462; pz <= -438; pz += 12) {
+    for (const lx of [-546.5, -533.5]) {
+      const lantern = createDesertOilLanternMesh();
+      lantern.position.set(lx, kingdomY, pz);
       scene.add(lantern);
     }
   }
 
-  // West Residential Wing: 6 Middle Eastern Domed Sandstone Houses
-  const desertHomes: Array<{ x: number; z: number; rot: number; v: number }> = [
-    { x: -592, z: -545, rot: Math.PI / 2, v: 0 },
-    { x: -572, z: -545, rot: Math.PI / 2, v: 1 },
-    { x: -592, z: -502, rot: Math.PI / 2, v: 2 },
-    { x: -572, z: -502, rot: Math.PI / 2, v: 0 },
-    { x: -592, z: -462, rot: 0, v: 1 },
-    { x: -572, z: -462, rot: 0, v: 2 },
+  // Distrik Permukiman & Villa Gurun Timur Tengah Bervariasi (17+ Bangunan: Kubah Emas/Toska + Rumah Batu Pasir Bertingkat)
+  const desertHomes: Array<{ x: number; z: number; rot: number; kind: 'dome' | 'mud'; variant: number }> = [
+    // Sayap Barat Permukiman Bangsawan
+    { x: -600, z: -560, rot: Math.PI / 2, kind: 'dome', variant: 0 },
+    { x: -578, z: -560, rot: 0, kind: 'mud', variant: 1 },
+    { x: -600, z: -534, rot: Math.PI / 2, kind: 'mud', variant: 2 },
+    { x: -576, z: -534, rot: Math.PI / 2, kind: 'dome', variant: 1 },
+    { x: -600, z: -508, rot: Math.PI / 2, kind: 'dome', variant: 2 },
+    { x: -576, z: -508, rot: Math.PI / 2, kind: 'mud', variant: 0 },
+    { x: -600, z: -484, rot: Math.PI / 2, kind: 'mud', variant: 1 },
+    { x: -576, z: -484, rot: 0, kind: 'dome', variant: 0 },
+    { x: -598, z: -454, rot: Math.PI, kind: 'dome', variant: 1 },
+    { x: -576, z: -454, rot: Math.PI, kind: 'mud', variant: 2 },
+    // Sayap Timur Gudang Rempah & Rumah Saudagar
+    { x: -480, z: -560, rot: -Math.PI / 2, kind: 'dome', variant: 2 },
+    { x: -504, z: -560, rot: 0, kind: 'mud', variant: 1 },
+    { x: -480, z: -534, rot: -Math.PI / 2, kind: 'mud', variant: 0 },
+    { x: -506, z: -534, rot: 0, kind: 'dome', variant: 0 },
+    { x: -480, z: -508, rot: -Math.PI / 2, kind: 'dome', variant: 1 },
+    { x: -480, z: -456, rot: Math.PI, kind: 'mud', variant: 2 },
+    { x: -502, z: -446, rot: Math.PI, kind: 'dome', variant: 0 },
   ];
   desertHomes.forEach((dh) => {
-    const house = createDesertDomeHouseMesh(dh.v);
+    const house = dh.kind === 'dome' ? createDesertDomeHouseMesh(dh.variant) : createDesertMudBrickHouseMesh(dh.variant);
     house.position.set(dh.x, kingdomY, dh.z);
     house.rotation.y = dh.rot;
     scene.add(house);
-    colliders.push({ type: 'box', minX: dh.x - 3.6, maxX: dh.x + 3.6, minZ: dh.z - 3.4, maxZ: dh.z + 3.4, label: 'Rumah Kubah Gurun Solaria' });
+    colliders.push({ type: 'box', minX: dh.x - 3.6, maxX: dh.x + 3.6, minZ: dh.z - 3.4, maxZ: dh.z + 3.4, label: 'Bangunan Kota Gurun Solaria' });
   });
 
-  // East Bazaar & Saudagar Pavilion (Enterable GTA Interior 'solaria_merchant_bazaar')
+  // East Bazaar & Saudagar Pavilion (Enterable GTA Interior 'solaria_merchant_bazaar' door di [-501.5, -482])
   const bazaarHall = createDesertDomeHouseMesh(2);
   bazaarHall.position.set(-493, kingdomY, -482);
   bazaarHall.scale.set(1.35, 1.35, 1.35);
@@ -2070,29 +2663,69 @@ export async function buildDesertStructures(
   scene.add(bazaarHall);
   colliders.push({ type: 'box', minX: -498.5, maxX: -487.5, minZ: -487.5, maxZ: -476.5, label: 'Gedung Bazar & Saudagar Solaria' });
 
+  // Distrik Bazar Sutra Ramai (10 Kios Bertenda Warna-Warni, Karpet Terbentang, & Guci Rempah)
+  const carpetColors = [0x991b1b, 0x0f766e, 0xd97706, 0x4338ca];
   const bazaarStalls = [
-    { mesh: createDesertBazaarStallMesh(0x991b1b), x: -512, z: -508, rot: -Math.PI / 2 },
-    { mesh: createDesertBazaarStallMesh(0x0d9488), x: -512, z: -494, rot: -Math.PI / 2 },
-    { mesh: createDesertBazaarStallMesh(0xd97706), x: -512, z: -468, rot: -Math.PI / 2 },
-    { mesh: createDesertBazaarStallMesh(0x7c2d12), x: -492, z: -456, rot: Math.PI },
+    { mesh: createDesertBazaarStallMesh(0x991b1b), x: -514, z: -512, rot: Math.PI / 2 },
+    { mesh: createDesertBazaarStallMesh(0x0d9488), x: -514, z: -500, rot: Math.PI / 2 },
+    { mesh: createDesertBazaarStallMesh(0xd97706), x: -514, z: -488, rot: Math.PI / 2 },
+    { mesh: createDesertBazaarStallMesh(0x7c2d12), x: -514, z: -476, rot: Math.PI / 2 },
+    { mesh: createDesertBazaarStallMesh(0x4338ca), x: -514, z: -456, rot: Math.PI / 2 },
+    { mesh: createDesertBazaarStallMesh(0x15803d), x: -496, z: -502, rot: -Math.PI / 2 },
+    { mesh: createDesertBazaarStallMesh(0xb45309), x: -496, z: -460, rot: Math.PI },
+    { mesh: createDesertBazaarStallMesh(0xbe123c), x: -484, z: -468, rot: -Math.PI / 2 },
+    { mesh: createDesertBazaarStallMesh(0x0284c7), x: -560, z: -456, rot: Math.PI },
+    { mesh: createDesertBazaarStallMesh(0xa16207), x: -560, z: -480, rot: -Math.PI / 2 },
   ];
-  bazaarStalls.forEach((st) => {
+  bazaarStalls.forEach((st, idx) => {
     st.mesh.position.set(st.x, kingdomY, st.z);
     st.mesh.rotation.y = st.rot;
     scene.add(st.mesh);
     colliders.push({ type: 'box', minX: st.x - 2.3, maxX: st.x + 2.3, minZ: st.z - 1.8, maxZ: st.z + 1.8, label: 'Tenda Kios Bazar Solaria' });
+
+    const rug = new THREE.Mesh(
+      new THREE.BoxGeometry(3.4, 0.04, 2.2),
+      new THREE.MeshLambertMaterial({ color: carpetColors[idx % carpetColors.length] })
+    );
+    rug.position.set(st.x, kingdomY + 0.05, st.z);
+    rug.rotation.y = st.rot;
+    scene.add(rug);
+
+    if (idx % 2 === 0) {
+      const cargo = createCargoClusterMesh();
+      cargo.position.set(st.x + 2.5 * Math.cos(st.rot), kingdomY, st.z - 2.5 * Math.sin(st.rot));
+      scene.add(cargo);
+    }
   });
 
-  const tent1 = createDesertTentMesh();
-  tent1.position.set(-490, kingdomY, -536);
+  const tent1 = createDesertTentMesh(0x991b1b);
+  tent1.position.set(-490, kingdomY, -546);
   tent1.rotation.y = -Math.PI / 2;
   scene.add(tent1);
-  colliders.push({ type: 'circle', x: -490, z: -536, radius: 3.2, label: 'Tenda Sutra Solaria' });
+  colliders.push({ type: 'circle', x: -490, z: -546, radius: 3.2, label: 'Tenda Sutra Solaria' });
+
+  const tent2 = createDesertTentMesh(0x0f766e);
+  tent2.position.set(-592, kingdomY, -548);
+  tent2.rotation.y = Math.PI / 2;
+  scene.add(tent2);
+  colliders.push({ type: 'circle', x: -592, z: -548, radius: 3.2, label: 'Tenda Kafilah Barat' });
 
   const kingdomWell = createDesertOasisWellMesh();
-  kingdomWell.position.set(-494, kingdomY, -514);
+  kingdomWell.position.set(-495, kingdomY, -520);
   scene.add(kingdomWell);
-  colliders.push({ type: 'circle', x: -494, z: -514, radius: 2.2, label: 'Sumur Air Kota Solaria' });
+  colliders.push({ type: 'circle', x: -495, z: -520, radius: 2.2, label: 'Sumur Air Kota Solaria' });
+
+  const westWell = createDesertOasisWellMesh();
+  westWell.position.set(-588, kingdomY, -496);
+  scene.add(westWell);
+  colliders.push({ type: 'circle', x: -588, z: -496, radius: 2.2, label: 'Sumur Air Distrik Barat Solaria' });
+
+  // Taman Pohon Kurma tambahan di pojok halaman Barat & Timur Laut
+  [[-564, -562], [-516, -562], [-482, -520], [-598, -468]].forEach(([px, pz]) => {
+    const palm = createDesertPalmMesh();
+    palm.position.set(px, kingdomY, pz);
+    scene.add(palm);
+  });
 
   // South Approach Caravan Rest Outpost outside gate (-540, -340)
   const oasisY = getTerrainHeight(-540, -340);
@@ -2160,13 +2793,13 @@ export async function buildDesertStructures(
     });
   });
 
-  // Scatter desert cacti in sandy dunes (avoiding roads, pyramid, kingdom plaza, sinkhole)
+  // Scatter desert cacti in sandy dunes (0% inside Sultan City, Reflecting Pools, Desert Village, & Caravan Post)
   const cactiList: { x: number; y: number; z: number; scale: number; rotationY: number }[] = [];
   for (let i = 0; i < 65; i++) {
     const cxRand = -900 + (((i * 197) % 450));
     const czRand = -700 + (((i * 263) % 580));
     if (!isDesertBiome(cxRand, czRand)) continue;
-    if (cxRand > -625 && cxRand < -455 && czRand > -590 && czRand < -420) continue;
+    if (cxRand > -640 && cxRand < -445 && czRand > -602 && czRand < -325) continue;
     if (Math.hypot(cxRand - -840, czRand - -260) < 72) continue;
     if (Math.hypot(cxRand - -760, czRand - -240) < 35) continue;
     if (getDistanceToNearestRoad(cxRand, czRand) < 10) continue;
@@ -3608,8 +4241,8 @@ async function populateWorldEntities(
       id: 'door_solaria_palace',
       roomId: 'solaria_sultan_palace',
       label: 'Istana Sultan Solaria',
-      exteriorDoorPos: { x: -540, y: solBaseY + 0.06, z: -523.5 },
-      exteriorReturnSpawn: { x: -540, y: solBaseY + 0.2, z: -519.2, rotationY: 0 },
+      exteriorDoorPos: { x: -540, y: solBaseY + 0.28, z: -523.5 },
+      exteriorReturnSpawn: { x: -540, y: solBaseY + 0.25, z: -518.5, rotationY: Math.PI },
       colorHex: 0xfbbf24,
     },
     solaria_merchant_bazaar: {

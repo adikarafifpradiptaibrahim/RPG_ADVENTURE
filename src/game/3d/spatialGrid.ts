@@ -7,7 +7,8 @@
  * Sized 600 x 475 cells (2 units/cell) across world bounds X: [-600, 600], Z: [-600, 350].
  */
 
-import { WORLD_BOUNDS, getBiomeAt, BRIDGE_CONFIGS, WORLD_LANDMARKS, isFarOcean, SEA_BED_HEIGHT } from './worldData';
+import { WORLD_BOUNDS, getBiomeAt, BRIDGE_CONFIGS, WORLD_LANDMARKS, NATURAL_POND_SITES, isFarOcean, SEA_BED_HEIGHT } from './worldData';
+import { getLandmarkLayout } from './worldLayoutConfig';
 import {
   RIVER_NW_BRANCH,
   RIVER_DESERT_BRANCH,
@@ -246,9 +247,30 @@ export class SpatialLookupGrid {
       this.markCircle(b.x, b.z, (b.length * 0.5) + 6.0, FLAG_BLOCKED_BRIDGE | FLAG_BLOCKED_GENERAL);
     }
 
-    // 4. Mark Settlements, Castles, Landmarks & Islands dynamically
+    // 4. Mark Settlements, Castles, Walled City Perimeters, Ponds, Landmarks & Islands dynamically
     for (const lm of WORLD_LANDMARKS) {
-      this.markCircle(lm.x, lm.z, 45.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);
+      this.markCircle(lm.x, lm.z, 52.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);
+    }
+    const astLm = getLandmarkLayout('astraea');
+    const astX = astLm?.x ?? 575;
+    const astZ = astLm?.z ?? -495;
+    this.markBox(astX - 96, astX + 96, astZ - 96, astZ + 102, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);
+
+    const vkLm = getLandmarkLayout('valkragor');
+    const vkX = vkLm?.x ?? 580;
+    const vkZ = vkLm?.z ?? 130;
+    this.markBox(vkX - 66, vkX + 66, vkZ - 72, vkZ + 66, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);
+
+    // Kerajaan Gurun Solaria + Kolam Refleksi + Desa Gurun & Kafilah Selatan
+    this.markBox(-635, -445, -598, -325, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);
+
+    // Mage Tower Circular Ring Plaza
+    const mtLm = getLandmarkLayout('mage_tower');
+    this.markCircle(mtLm?.x ?? 270, mtLm?.z ?? -260, 42.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);
+
+    // Natural Ponds & Oases
+    for (const pond of NATURAL_POND_SITES) {
+      this.markCircle(pond.x, pond.z, pond.radius + 5.0, FLAG_BLOCKED_SETTLEMENT | FLAG_BLOCKED_GENERAL);
     }
 
     // 6. Mark Farmyards (Dry Sanctuary Southwest Plains)

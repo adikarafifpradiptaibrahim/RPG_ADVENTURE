@@ -871,9 +871,12 @@ export function renderIllustratedMap(
   ctx.strokeStyle = '#d97706';
   ctx.lineWidth = 1.6;
   ctx.strokeRect(sultPlazaX - 32, sultPlazaY - 32, 64, 64);
-  // Elongated Turquoise Reflecting Pool in front of stairs
+  // Twin Symmetrical Turquoise Reflecting Pools flanking central marble walkway
+  ctx.fillStyle = '#fef3c7';
+  ctx.fillRect(sultX - 2.5, sultY + 10, 5, 24);
   ctx.fillStyle = '#06b6d4';
-  ctx.fillRect(sultX - 3.5, sultY + 11, 7, 22);
+  ctx.fillRect(sultX - 8.5, sultY + 11, 4.5, 22);
+  ctx.fillRect(sultX + 4.0, sultY + 11, 4.5, 22);
   ctx.fillStyle = '#f1f5f9';
   ctx.fillRect(sultX - 20, sultY - 7, 40, 18);
   // Onion dome
