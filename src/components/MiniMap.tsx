@@ -20,6 +20,14 @@ interface MiniMapProps {
   markers: MapMarker[];
   onOpenFullMap: () => void;
   compactMobile?: boolean;
+  interiorRoomInfo?: {
+    id: string;
+    roomName: string;
+    floorLabel: string;
+    localX: number;
+    localZ: number;
+    canExit: boolean;
+  } | null;
 }
 
 // Persistent Fog-of-War Discovery Memory
@@ -36,6 +44,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({
   markers,
   onOpenFullMap,
   compactMobile = false,
+  interiorRoomInfo = null,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -118,7 +127,52 @@ export const MiniMap: React.FC<MiniMapProps> = ({
     ctx.arc(halfSize, halfSize, halfSize - 2, 0, Math.PI * 2);
     ctx.clip();
 
-    // 1. Procedural Top-down Terrain Raster (gunakan cached raster 512x512 saat radar lebar bila tersedia)
+    // 1. Interior Blueprint Radar OR Procedural Top-down Terrain Raster
+    if (interiorRoomInfo) {
+      ctx.fillStyle = interiorRoomInfo.id.includes('mage_tower') ? '#0b1128' : '#18141c';
+      ctx.fillRect(0, 0, size, size);
+
+      // Subtle architectural floor grid shifting smoothly with player interior movement
+      const scalePx = halfSize / Math.max(24, radarRadius * 0.72);
+      const cx = halfSize - interiorRoomInfo.localX * scalePx;
+      const cz = halfSize - interiorRoomInfo.localZ * scalePx;
+
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.16)';
+      ctx.lineWidth = 1;
+      const gridStep = 5 * scalePx;
+      for (let gx = ((cx % gridStep) + gridStep) % gridStep; gx < size; gx += gridStep) {
+        ctx.beginPath();
+        ctx.moveTo(gx, 0);
+        ctx.lineTo(gx, size);
+        ctx.stroke();
+      }
+      for (let gz = ((cz % gridStep) + gridStep) % gridStep; gz < size; gz += gridStep) {
+        ctx.beginPath();
+        ctx.moveTo(0, gz);
+        ctx.lineTo(size, gz);
+        ctx.stroke();
+      }
+
+      // Room chamber outline centered at origin (0, 0)
+      ctx.strokeStyle = 'rgba(251, 191, 36, 0.55)';
+      ctx.lineWidth = 2;
+      if (interiorRoomInfo.id.includes('mage_tower')) {
+        ctx.beginPath();
+        ctx.arc(cx, cz, 21 * scalePx, 0, Math.PI * 2);
+        ctx.stroke();
+        // Spiral staircase West arc hint
+        ctx.strokeStyle = 'rgba(192, 132, 252, 0.45)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(cx, cz, 13 * scalePx, Math.PI - 1.15, Math.PI + 1.15);
+        ctx.stroke();
+      } else {
+        const w = interiorRoomInfo.id.includes('palace') ? 56 : 26;
+        const d = interiorRoomInfo.id.includes('palace') ? 78 : 22;
+        ctx.strokeRect(cx - (w * 0.5) * scalePx, cz - (d * 0.5) * scalePx, w * scalePx, d * scalePx);
+      }
+    } else {
+    // 1b. Procedural Top-down Terrain Raster (gunakan cached raster 512x512 saat radar lebar bila tersedia)
     const cachedRaster = radarRadius >= 75 ? getCachedTerrainRasterCanvas() : null;
     const sx = ((playerPos.x - radarRadius - WORLD_BOUNDS.minX) / WORLD_WIDTH) * 512;
     const sy = ((playerPos.z - radarRadius - WORLD_BOUNDS.minZ) / WORLD_HEIGHT) * 512;
@@ -216,6 +270,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({
 
     // 3. Vector 3D Cobblestone Roads
     drawRoadsOnMiniMap(ctx, playerPos.x, playerPos.z, radarRadius, size);
+    }
 
     // Re-apply circular clip for HUD decorations
     ctx.restore();
@@ -289,7 +344,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({
 
     ctx.restore();
     ctx.restore();
-  }, [playerPos.x, playerPos.z, playerPos.rotationY, discoveredChunks, radarRadius]);
+  }, [playerPos.x, playerPos.z, playerPos.rotationY, discoveredChunks, radarRadius, interiorRoomInfo?.id, interiorRoomInfo?.localX, interiorRoomInfo?.localZ]);
 
   /**
    * updateMinimapIcons():
@@ -297,6 +352,9 @@ export const MiniMap: React.FC<MiniMapProps> = ({
    * serta menghapus seluruh mob biasa.
    */
   const updateMinimapIcons = useCallback(() => {
+    if (interiorRoomInfo) {
+      return [];
+    }
     const px = playerPos.x;
     const pz = playerPos.z;
     const maxRadarDist = radarRadius * 0.90;
@@ -476,10 +534,14 @@ export const MiniMap: React.FC<MiniMapProps> = ({
 
       {/* Coordinate & Hotkey Hint Footer — Desktop only */}
       {!compactMobile && (
-        <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-stone-950/80 border border-stone-800 text-[9px] font-mono text-stone-400 shadow">
-          <span>X: {Math.round(playerPos.x)}</span>
-          <span>Z: {Math.round(playerPos.z)}</span>
-          <span className="text-amber-400/90 font-bold">[M] Peta</span>
+        <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-stone-950/85 border border-stone-800 text-[9px] font-mono text-stone-300 shadow max-w-[230px]">
+          <span>X: {interiorRoomInfo ? interiorRoomInfo.localX : Math.round(playerPos.x)}</span>
+          <span>Z: {interiorRoomInfo ? interiorRoomInfo.localZ : Math.round(playerPos.z)}</span>
+          {interiorRoomInfo ? (
+            <span className="text-sky-300 font-bold truncate">{interiorRoomInfo.floorLabel}</span>
+          ) : (
+            <span className="text-amber-400/90 font-bold">[M] Peta</span>
+          )}
         </div>
       )}
     </div>

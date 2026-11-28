@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Smartphone, Sparkles, Maximize2 } from 'lucide-react';
 import { GameEngine } from './game/3d/gameEngine';
+import { InteriorRoomInfoPayload } from './game/3d/interiorSystem';
 import { HUD } from './components/HUD';
 import { InventoryModal } from './components/InventoryModal';
 import { StatsModal } from './components/StatsModal';
@@ -148,6 +149,7 @@ export default function App() {
   const [isUIVisible, setIsUIVisible] = useState(true);
   const [interiorFading, setInteriorFading] = useState(false);
   const [interiorPortal, setInteriorPortal] = useState<{ label: string; kind: 'enter' | 'exit' | 'floor'; promptText: string } | null>(null);
+  const [interiorRoomInfo, setInteriorRoomInfo] = useState<InteriorRoomInfoPayload | null>(null);
 
   // World Map & Minimap Live Position State
   const [playerPos, setPlayerPos] = useState({ x: 0, y: 0, z: 4, rotationY: 0 });
@@ -909,6 +911,9 @@ export default function App() {
       onInteriorPortalState: (portalInfo) => {
         setInteriorPortal(portalInfo);
       },
+      onInteriorRoomChange: (roomInfo) => {
+        setInteriorRoomInfo(roomInfo);
+      },
       onCheckpointUnlocked: (id, nameId) => {
         setUnlockedCheckpoints((prev) => {
           if (prev.includes(id)) return prev;
@@ -1509,6 +1514,8 @@ export default function App() {
             floatingTexts={floatingTexts}
             nearbyPrompt={nearbyPrompt}
             interiorPortal={interiorPortal}
+            interiorRoomInfo={interiorRoomInfo}
+            onExitInterior={() => engineRef.current?.exitCurrentInterior()}
             onPromptClick={() => {
               if (promptActionRef.current) {
                 promptActionRef.current();

@@ -11,7 +11,9 @@ import {
   createSorceressMayaMesh,
   createArchmagePyroMesh,
 } from './models';
-import { registerWalkableSurface } from './walkableSurfaceSystem';
+const _interiorRaycaster = new THREE.Raycaster();
+const _interiorRayOrigin = new THREE.Vector3();
+const _interiorDownVec = new THREE.Vector3(0, -1, 0);
 
 export interface Transform {
   x: number;
@@ -67,6 +69,15 @@ export interface InteriorPortalDef {
   innerDisc: THREE.Mesh;
 }
 
+export interface InteriorRoomInfoPayload {
+  id: string;
+  roomName: string;
+  floorLabel: string;
+  localX: number;
+  localZ: number;
+  canExit: boolean;
+}
+
 export interface InteriorRoom {
   id: string;
   name: string;
@@ -74,14 +85,21 @@ export interface InteriorRoom {
   rootGroup: THREE.Group;
   origin: Transform;
   baseFloorY: number;
+  minFloorY: number;
+  maxCeilingY: number;
   dimensions: { width: number; depth: number; height: number; radius?: number };
   colliders: WorldCollider[];
+  walkableMeshes: THREE.Mesh[];
   npcs: InteriorNPCData[];
   chests: InteriorChestData[];
   trainingDummySpawns?: InteriorTrainingDummySpawn[];
   ambientSkyHex: number;
   ambientGroundHex: number;
+  ambientIntensity: number;
+  hemiIntensity: number;
+  dirIntensity: number;
   bgHex: number;
+  fogHex: number;
   animatedParts: Array<{
     mesh: THREE.Object3D;
     mode: 'spinY' | 'bobY' | 'tiltSpin';
@@ -90,7 +108,10 @@ export interface InteriorRoom {
     phase: number;
   }>;
   getFallbackFloorY: (worldX: number, worldY: number, worldZ: number) => number;
+  getFloorHeight: (worldX: number, currentY: number, worldZ: number) => number;
+  getFloorLabel: (worldY: number) => string;
   clampInsideWalls: (worldX: number, worldZ: number, playerRadius: number) => { x: number; z: number };
+  clampCameraPosition: (camPos: THREE.Vector3, anchorY?: number) => void;
 }
 
 export interface EntrancePortalConfig {
@@ -414,6 +435,168 @@ function createLargeBookcase(w: number, h: number, woodMat: THREE.Material, book
 // 3. BUILDER FOR ALL 7 EXPANSIVE INTERIORS
 // ============================================================================
 
+function enforceDoubleSideMaterial(mat: THREE.Material | THREE.Material[]) {
+  const arr = Array.isArray(mat) ? mat : [mat];
+  for (let i = 0; i < arr.length; i++) {
+    const m = arr[i];
+    if (m && m.side !== THREE.DoubleSide) {
+      m.side = THREE.DoubleSide;
+      m.needsUpdate = true;
+    }
+  }
+}
+
+function finalizeInteriorRoom(room: InteriorRoom): InteriorRoom {
+  room.walkableMeshes.length = 0;
+  room.rootGroup.frustumCulled = false;
+  room.rootGroup.traverse((obj) => {
+    obj.frustumCulled = false;
+    if (obj instanceof THREE.Mesh) {
+      if (obj.material) enforceDoubleSideMaterial(obj.material);
+      if (obj.userData && obj.userData.walkableSurface === true && obj.userData.nonWalkable !== true) {
+        room.walkableMeshes.push(obj);
+      }
+    }
+  });
+  room.rootGroup.updateMatrixWorld(true);
+  return room;
+}
+
+function sampleRoomFloorHeight(room: InteriorRoom, worldX: number, currentY: number, worldZ: number): number {
+  const fallback = Math.max(room.minFloorY, room.getFallbackFloorY(worldX, currentY, worldZ));
+  if (room.walkableMeshes.length === 0) return fallback;
+
+  _interiorRayOrigin.set(worldX, currentY + 1.55, worldZ);
+  _interiorRaycaster.set(_interiorRayOrigin, _interiorDownVec);
+  _interiorRaycaster.near = 0.01;
+  _interiorRaycaster.far = 24.0;
+
+  const hits = _interiorRaycaster.intersectObjects(room.walkableMeshes, false);
+  for (let i = 0; i < hits.length; i++) {
+    const hitY = hits[i].point.y;
+    if (hitY <= currentY + 1.35 && hitY >= room.minFloorY - 0.5) {
+      return Math.max(room.minFloorY, hitY);
+    }
+  }
+  return fallback;
+}
+
+function clampShellRoomCamera(room: InteriorRoom, camPos: THREE.Vector3): void {
+  const halfW = room.dimensions.width * 0.5;
+  const halfD = room.dimensions.depth * 0.5;
+  camPos.x = THREE.MathUtils.clamp(camPos.x, room.origin.x - halfW + 1.0, room.origin.x + halfW - 1.0);
+  camPos.z = THREE.MathUtils.clamp(camPos.z, room.origin.z - halfD + 1.0, room.origin.z + halfD - 1.0);
+  camPos.y = THREE.MathUtils.clamp(camPos.y, room.minFloorY + 0.65, room.maxCeilingY - 0.85);
+}
+
+function createSlottedTowerFloorGeometry(
+  outerR: number,
+  holeInnerR: number,
+  holeOuterR: number,
+  holeStartAngle: number,
+  holeEndAngle: number,
+  thickness: number
+): THREE.ExtrudeGeometry {
+  const shape = new THREE.Shape();
+  shape.absarc(0, 0, outerR, 0, Math.PI * 2, false);
+
+  const hole = new THREE.Path();
+  const segs = 24;
+  for (let i = 0; i <= segs; i++) {
+    const ang = Math.PI + holeStartAngle + (i / segs) * (holeEndAngle - holeStartAngle);
+    const px = Math.cos(ang) * holeOuterR;
+    const py = Math.sin(ang) * holeOuterR;
+    if (i === 0) hole.moveTo(px, py);
+    else hole.lineTo(px, py);
+  }
+  for (let i = segs; i >= 0; i--) {
+    const ang = Math.PI + holeStartAngle + (i / segs) * (holeEndAngle - holeStartAngle);
+    hole.lineTo(Math.cos(ang) * holeInnerR, Math.sin(ang) * holeInnerR);
+  }
+  hole.closePath();
+  shape.holes.push(hole);
+
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false, curveSegments: 32 });
+  geo.rotateX(-Math.PI / 2);
+  return geo;
+}
+
+function addTowerSpiralStairs(
+  rootGroup: THREE.Group,
+  colliders: WorldCollider[],
+  origin: Transform,
+  fromY: number,
+  toY: number,
+  rInner: number,
+  rOuter: number,
+  angleStart: number,
+  angleEnd: number,
+  steps: number,
+  stepMat: THREE.Material,
+  trimMat: THREE.Material
+) {
+  const rMid = (rInner + rOuter) * 0.5;
+  const stairW = rOuter - rInner;
+  const treadDepth = 1.68;
+  const thickness = 0.54;
+
+  for (let i = 0; i < steps; i++) {
+    const frac = (i + 0.5) / steps;
+    const stepTopY = fromY + ((i + 1) / steps) * (toY - fromY);
+    const t = angleStart + frac * (angleEnd - angleStart);
+    const cx = -Math.cos(t) * rMid;
+    const cz = Math.sin(t) * rMid;
+
+    const step = new THREE.Mesh(new THREE.BoxGeometry(stairW, thickness, treadDepth), stepMat);
+    step.position.set(cx, stepTopY - thickness * 0.5, cz);
+    step.rotation.y = t;
+    step.receiveShadow = true;
+    step.userData.walkableSurface = true;
+    rootGroup.add(step);
+
+    if (i % 3 === 0 || i === steps - 1) {
+      const innerPost = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.05, 6), trimMat);
+      innerPost.position.set(-Math.cos(t) * (rInner + 0.12), stepTopY + 0.52, Math.sin(t) * (rInner + 0.12));
+      innerPost.userData.nonWalkable = true;
+      rootGroup.add(innerPost);
+    }
+  }
+
+  // Upper floor stairwell guardrails so player uses stair mouths cleanly without walking off the side edge
+  const guardSteps = 7;
+  for (let i = 0; i <= guardSteps; i++) {
+    const t = angleStart + 0.12 + (i / guardSteps) * (angleEnd - angleStart - 0.24);
+    const gx = -Math.cos(t) * (rInner - 0.25);
+    const gz = Math.sin(t) * (rInner - 0.25);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 1.15, 6), trimMat);
+    post.position.set(gx, toY + 0.58, gz);
+    post.userData.nonWalkable = true;
+    rootGroup.add(post);
+
+    if (i < guardSteps) {
+      const tNext = angleStart + 0.12 + ((i + 1) / guardSteps) * (angleEnd - angleStart - 0.24);
+      const gx2 = -Math.cos(tNext) * (rInner - 0.25);
+      const gz2 = Math.sin(tNext) * (rInner - 0.25);
+      const segLen = Math.hypot(gx2 - gx, gz2 - gz);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, segLen + 0.1), trimMat);
+      rail.position.set((gx + gx2) * 0.5, toY + 1.08, (gz + gz2) * 0.5);
+      rail.rotation.y = Math.atan2(gx2 - gx, gz2 - gz);
+      rail.userData.nonWalkable = true;
+      rootGroup.add(rail);
+    }
+
+    colliders.push({
+      type: 'circle',
+      x: origin.x + gx,
+      z: origin.z + gz,
+      radius: 0.45,
+      minY: origin.y + toY - 0.5,
+      maxY: origin.y + toY + 2.5,
+      label: 'Pagar Pembatas Tangga Spiral',
+    });
+  }
+}
+
 function buildShellRoom(
   id: string,
   name: string,
@@ -472,7 +655,7 @@ function buildShellRoom(
 function createValKragorCommandHall(origin: Transform): { room: InteriorRoom; exitPos: Transform; spawnInPos: Transform } {
   const w = 28;
   const d = 26;
-  const h = 8.0;
+  const h = 11.5;
   const floorMat = new THREE.MeshStandardMaterial({ color: 0x3f4756, roughness: 0.85, flatShading: true });
   const wallMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.88, flatShading: true });
   const ceilMat = new THREE.MeshStandardMaterial({ color: 0x261d17, roughness: 0.9 });
@@ -590,8 +773,6 @@ function createValKragorCommandHall(origin: Transform): { room: InteriorRoom; ex
   captainGroup.rotation.y = 0;
   rootGroup.add(captainGroup);
 
-  registerWalkableSurface(rootGroup, { label: 'Lantai Aula Komandan Val-Kragor' });
-
   const room: InteriorRoom = {
     id: 'valkragor_command_hall',
     name: 'Aula Komandan Val-Kragor',
@@ -599,8 +780,11 @@ function createValKragorCommandHall(origin: Transform): { room: InteriorRoom; ex
     rootGroup,
     origin,
     baseFloorY: origin.y,
+    minFloorY: origin.y,
+    maxCeilingY: origin.y + h,
     dimensions: { width: w, depth: d, height: h },
     colliders,
+    walkableMeshes: [],
     npcs: [
       {
         id: 'vk_command_officer',
@@ -614,16 +798,25 @@ function createValKragorCommandHall(origin: Transform): { room: InteriorRoom; ex
       },
     ],
     chests: [chest],
-    ambientSkyHex: 0xffe4b5,
-    ambientGroundHex: 0x3b2a1f,
-    bgHex: 0x161210,
+    ambientSkyHex: 0xfef3c7,
+    ambientGroundHex: 0x475569,
+    ambientIntensity: 0.92,
+    hemiIntensity: 1.15,
+    dirIntensity: 1.0,
+    bgHex: 0x1e293b,
+    fogHex: 0x1e293b,
     animatedParts: [],
     getFallbackFloorY: () => origin.y,
+    getFloorHeight: (wx, wy, wz) => sampleRoomFloorHeight(room, wx, wy, wz),
+    getFloorLabel: () => 'Lantai 1: Aula Komandan Benteng',
     clampInsideWalls: (wx, wz, r) => ({
       x: THREE.MathUtils.clamp(wx, origin.x - halfW + 0.8 + r, origin.x + halfW - 0.8 - r),
       z: THREE.MathUtils.clamp(wz, origin.z - halfD + 0.8 + r, origin.z + halfD - 0.8 - r),
     }),
+    clampCameraPosition: (camPos) => clampShellRoomCamera(room, camPos),
   };
+
+  finalizeInteriorRoom(room);
 
   return {
     room,
@@ -636,7 +829,7 @@ function createValKragorCommandHall(origin: Transform): { room: InteriorRoom; ex
 function createValKragorBlacksmith(origin: Transform): { room: InteriorRoom; exitPos: Transform; spawnInPos: Transform } {
   const w = 22;
   const d = 20;
-  const h = 6.8;
+  const h = 11.0;
   const floorMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.92, flatShading: true });
   const wallMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.9, flatShading: true });
   const ceilMat = new THREE.MeshStandardMaterial({ color: 0x291c15, roughness: 0.9 });
@@ -742,8 +935,6 @@ function createValKragorBlacksmith(origin: Transform): { room: InteriorRoom; exi
   const chest = createChestProp('chest_vk_smith', 7.5, 0, -6.8, origin, colliders);
   rootGroup.add(chest.group);
 
-  registerWalkableSurface(rootGroup, { label: 'Lantai Bengkel Tempa Val-Kragor' });
-
   const room: InteriorRoom = {
     id: 'valkragor_blacksmith',
     name: 'Bengkel Pandai Besi Val-Kragor',
@@ -751,8 +942,11 @@ function createValKragorBlacksmith(origin: Transform): { room: InteriorRoom; exi
     rootGroup,
     origin,
     baseFloorY: origin.y,
+    minFloorY: origin.y,
+    maxCeilingY: origin.y + h,
     dimensions: { width: w, depth: d, height: h },
     colliders,
+    walkableMeshes: [],
     npcs: [
       {
         id: 'vk_indoor_smith',
@@ -766,18 +960,27 @@ function createValKragorBlacksmith(origin: Transform): { room: InteriorRoom; exi
       },
     ],
     chests: [chest],
-    ambientSkyHex: 0xffd1a4,
-    ambientGroundHex: 0x3b2218,
-    bgHex: 0x1a110d,
+    ambientSkyHex: 0xffedd5,
+    ambientGroundHex: 0x432818,
+    ambientIntensity: 0.92,
+    hemiIntensity: 1.15,
+    dirIntensity: 1.0,
+    bgHex: 0x261611,
+    fogHex: 0x261611,
     animatedParts: [
       { mesh: flame, mode: 'bobY', speed: 8.0, baseY: 2.0, phase: 0 },
     ],
     getFallbackFloorY: () => origin.y,
+    getFloorHeight: (wx, wy, wz) => sampleRoomFloorHeight(room, wx, wy, wz),
+    getFloorLabel: () => 'Lantai 1: Bengkel Pandai Besi',
     clampInsideWalls: (wx, wz, r) => ({
       x: THREE.MathUtils.clamp(wx, origin.x - halfW + 0.8 + r, origin.x + halfW - 0.8 - r),
       z: THREE.MathUtils.clamp(wz, origin.z - halfD + 0.8 + r, origin.z + halfD - 0.8 - r),
     }),
+    clampCameraPosition: (camPos) => clampShellRoomCamera(room, camPos),
   };
+
+  finalizeInteriorRoom(room);
 
   return {
     room,
@@ -790,7 +993,7 @@ function createValKragorBlacksmith(origin: Transform): { room: InteriorRoom; exi
 function createAstraeaImperialPalaceInterior(origin: Transform): { room: InteriorRoom; exitPos: Transform; spawnInPos: Transform } {
   const w = 56;
   const d = 80;
-  const h = 15.0;
+  const h = 20.0;
   const whiteMarble = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.2, metalness: 0.08 });
   const blueMarble = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.25, metalness: 0.14 });
   const goldTrim = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.22, metalness: 0.88 });
@@ -983,8 +1186,6 @@ function createAstraeaImperialPalaceInterior(origin: Transform): { room: Interio
     rootGroup.add(bench);
   }
 
-  registerWalkableSurface(rootGroup, { label: 'Istana Kaisar Astraea (Lantai & Balkon)' });
-
   const room: InteriorRoom = {
     id: 'astraea_imperial_palace',
     name: 'Istana Kaisar Astraea',
@@ -992,8 +1193,11 @@ function createAstraeaImperialPalaceInterior(origin: Transform): { room: Interio
     rootGroup,
     origin,
     baseFloorY: origin.y,
+    minFloorY: origin.y,
+    maxCeilingY: origin.y + h,
     dimensions: { width: w, depth: d, height: h },
     colliders,
+    walkableMeshes: [],
     npcs: [
       {
         id: 'astraea_indoor_emperor',
@@ -1018,15 +1222,24 @@ function createAstraeaImperialPalaceInterior(origin: Transform): { room: Interio
     ],
     chests: [chest],
     ambientSkyHex: 0xfef3c7,
-    ambientGroundHex: 0x334155,
-    bgHex: 0x0f172a,
+    ambientGroundHex: 0x475569,
+    ambientIntensity: 0.95,
+    hemiIntensity: 1.15,
+    dirIntensity: 1.0,
+    bgHex: 0x1e293b,
+    fogHex: 0x1e293b,
     animatedParts: [],
     getFallbackFloorY: () => origin.y,
+    getFloorHeight: (wx, wy, wz) => sampleRoomFloorHeight(room, wx, wy, wz),
+    getFloorLabel: (wy) => (wy - origin.y >= 4.2 ? 'Lantai 2: Balkon Emas Kekaisaran' : 'Lantai 1: Singgasana Kaisar'),
     clampInsideWalls: (wx, wz, r) => ({
       x: THREE.MathUtils.clamp(wx, origin.x - halfW + 0.9 + r, origin.x + halfW - 0.9 - r),
       z: THREE.MathUtils.clamp(wz, origin.z - halfD + 0.9 + r, origin.z + halfD - 0.9 - r),
     }),
+    clampCameraPosition: (camPos) => clampShellRoomCamera(room, camPos),
   };
+
+  finalizeInteriorRoom(room);
 
   return {
     room,
@@ -1039,7 +1252,7 @@ function createAstraeaImperialPalaceInterior(origin: Transform): { room: Interio
 function createAstraeaTavernInterior(origin: Transform): { room: InteriorRoom; exitPos: Transform; spawnInPos: Transform } {
   const w = 26;
   const d = 22;
-  const h = 7.2;
+  const h = 11.5;
   const floorMat = new THREE.MeshLambertMaterial({ color: 0x5c3d28, flatShading: true });
   const wallMat = new THREE.MeshLambertMaterial({ color: 0xe7dfd5, flatShading: true });
   const timberMat = new THREE.MeshLambertMaterial({ color: 0x3e2723, flatShading: true });
@@ -1161,8 +1374,6 @@ function createAstraeaTavernInterior(origin: Transform): { room: InteriorRoom; e
   const chest = createChestProp('chest_astraea_tavern', 9.2, 0, -8.5, origin, colliders);
   rootGroup.add(chest.group);
 
-  registerWalkableSurface(rootGroup, { label: 'Lantai Tavern Astraea' });
-
   const room: InteriorRoom = {
     id: 'astraea_tavern',
     name: 'Tavern & Toko Ibukota Astraea',
@@ -1170,8 +1381,11 @@ function createAstraeaTavernInterior(origin: Transform): { room: InteriorRoom; e
     rootGroup,
     origin,
     baseFloorY: origin.y,
+    minFloorY: origin.y,
+    maxCeilingY: origin.y + h,
     dimensions: { width: w, depth: d, height: h },
     colliders,
+    walkableMeshes: [],
     npcs: [
       {
         id: 'astraea_tavern_keeper',
@@ -1185,16 +1399,25 @@ function createAstraeaTavernInterior(origin: Transform): { room: InteriorRoom; e
       },
     ],
     chests: [chest],
-    ambientSkyHex: 0xffe4b5,
-    ambientGroundHex: 0x3e2723,
-    bgHex: 0x1a120c,
+    ambientSkyHex: 0xfef3c7,
+    ambientGroundHex: 0x57534e,
+    ambientIntensity: 0.95,
+    hemiIntensity: 1.15,
+    dirIntensity: 1.0,
+    bgHex: 0x261a11,
+    fogHex: 0x261a11,
     animatedParts: [],
     getFallbackFloorY: () => origin.y,
+    getFloorHeight: (wx, wy, wz) => sampleRoomFloorHeight(room, wx, wy, wz),
+    getFloorLabel: () => 'Lantai 1: Tavern & Toko Ibukota',
     clampInsideWalls: (wx, wz, r) => ({
       x: THREE.MathUtils.clamp(wx, origin.x - halfW + 0.8 + r, origin.x + halfW - 0.8 - r),
       z: THREE.MathUtils.clamp(wz, origin.z - halfD + 0.8 + r, origin.z + halfD - 0.8 - r),
     }),
+    clampCameraPosition: (camPos) => clampShellRoomCamera(room, camPos),
   };
+
+  finalizeInteriorRoom(room);
 
   return {
     room,
@@ -1207,7 +1430,7 @@ function createAstraeaTavernInterior(origin: Transform): { room: InteriorRoom; e
 function createSolariaSultanPalaceInterior(origin: Transform): { room: InteriorRoom; exitPos: Transform; spawnInPos: Transform } {
   const w = 56;
   const d = 76;
-  const h = 16.0;
+  const h = 20.0;
   const ivoryMarble = new THREE.MeshStandardMaterial({ color: 0xfef9c3, roughness: 0.24, metalness: 0.06 });
   const warmSandstone = new THREE.MeshStandardMaterial({ color: 0xf5deb3, roughness: 0.45 });
   const turquoiseTile = new THREE.MeshStandardMaterial({ color: 0x0d9488, roughness: 0.22, metalness: 0.25 });
@@ -1384,8 +1607,6 @@ function createSolariaSultanPalaceInterior(origin: Transform): { room: InteriorR
   guard2.rotation.y = -0.2;
   rootGroup.add(guard1, guard2);
 
-  registerWalkableSurface(rootGroup, { label: 'Istana Sultan Solaria (Lantai & Galeri)' });
-
   const room: InteriorRoom = {
     id: 'solaria_sultan_palace',
     name: 'Istana Sultan Solaria',
@@ -1393,8 +1614,11 @@ function createSolariaSultanPalaceInterior(origin: Transform): { room: InteriorR
     rootGroup,
     origin,
     baseFloorY: origin.y,
+    minFloorY: origin.y,
+    maxCeilingY: origin.y + h,
     dimensions: { width: w, depth: d, height: h },
     colliders,
+    walkableMeshes: [],
     npcs: [
       {
         id: 'sultan_indoor_malik',
@@ -1410,14 +1634,23 @@ function createSolariaSultanPalaceInterior(origin: Transform): { room: InteriorR
     chests: [chest],
     ambientSkyHex: 0xfef3c7,
     ambientGroundHex: 0x115e59,
-    bgHex: 0x0b1a1c,
+    ambientIntensity: 0.95,
+    hemiIntensity: 1.15,
+    dirIntensity: 1.0,
+    bgHex: 0x162438,
+    fogHex: 0x162438,
     animatedParts: [],
     getFallbackFloorY: () => origin.y,
+    getFloorHeight: (wx, wy, wz) => sampleRoomFloorHeight(room, wx, wy, wz),
+    getFloorLabel: (wy) => (wy - origin.y >= 4.4 ? 'Lantai 2: Galeri Atas Istana Sultan' : 'Lantai 1: Aula Kolam Refleksi'),
     clampInsideWalls: (wx, wz, r) => ({
       x: THREE.MathUtils.clamp(wx, origin.x - halfW + 0.9 + r, origin.x + halfW - 0.9 - r),
       z: THREE.MathUtils.clamp(wz, origin.z - halfD + 0.9 + r, origin.z + halfD - 0.9 - r),
     }),
+    clampCameraPosition: (camPos) => clampShellRoomCamera(room, camPos),
   };
+
+  finalizeInteriorRoom(room);
 
   return {
     room,
@@ -1434,7 +1667,7 @@ function whiteRim(mat: THREE.Material): THREE.Material {
 function createSolariaMerchantBazaarInterior(origin: Transform): { room: InteriorRoom; exitPos: Transform; spawnInPos: Transform } {
   const w = 24;
   const d = 20;
-  const h = 6.8;
+  const h = 11.5;
   const floorMat = new THREE.MeshLambertMaterial({ color: 0xe7c687, flatShading: true });
   const wallMat = new THREE.MeshLambertMaterial({ color: 0xf3e5ab, flatShading: true });
   const ceilMat = new THREE.MeshLambertMaterial({ color: 0x6b3a1f, flatShading: true });
@@ -1533,8 +1766,6 @@ function createSolariaMerchantBazaarInterior(origin: Transform): { room: Interio
   const chest = createChestProp('chest_solaria_bazaar', 8.5, 0, 1.5, origin, colliders);
   rootGroup.add(chest.group);
 
-  registerWalkableSurface(rootGroup, { label: 'Lantai Bazar Saudagar Gurun' });
-
   const room: InteriorRoom = {
     id: 'solaria_merchant_bazaar',
     name: 'Bazar & Rumah Saudagar Gurun',
@@ -1542,8 +1773,11 @@ function createSolariaMerchantBazaarInterior(origin: Transform): { room: Interio
     rootGroup,
     origin,
     baseFloorY: origin.y,
+    minFloorY: origin.y,
+    maxCeilingY: origin.y + h,
     dimensions: { width: w, depth: d, height: h },
     colliders,
+    walkableMeshes: [],
     npcs: [
       {
         id: 'solaria_indoor_merchant',
@@ -1557,16 +1791,25 @@ function createSolariaMerchantBazaarInterior(origin: Transform): { room: Interio
       },
     ],
     chests: [chest],
-    ambientSkyHex: 0xfef08a,
+    ambientSkyHex: 0xfef3c7,
     ambientGroundHex: 0x78350f,
-    bgHex: 0x1c130a,
+    ambientIntensity: 0.95,
+    hemiIntensity: 1.15,
+    dirIntensity: 1.0,
+    bgHex: 0x2c1e16,
+    fogHex: 0x2c1e16,
     animatedParts: [],
     getFallbackFloorY: () => origin.y,
+    getFloorHeight: (wx, wy, wz) => sampleRoomFloorHeight(room, wx, wy, wz),
+    getFloorLabel: () => 'Lantai 1: Bazar Saudagar Solaria',
     clampInsideWalls: (wx, wz, r) => ({
       x: THREE.MathUtils.clamp(wx, origin.x - halfW + 0.8 + r, origin.x + halfW - 0.8 - r),
       z: THREE.MathUtils.clamp(wz, origin.z - halfD + 0.8 + r, origin.z + halfD - 0.8 - r),
     }),
+    clampCameraPosition: (camPos) => clampShellRoomCamera(room, camPos),
   };
+
+  finalizeInteriorRoom(room);
 
   return {
     room,
@@ -1586,8 +1829,20 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
   room: InteriorRoom;
   portals: InteriorPortalDef[];
 } {
-  const radius = 18.0;
+  const radius = 21.0;
   const floorStep = 14.0;
+  const stairInnerR = 11.4;
+  const stairOuterR = 14.6;
+  const stairHoleStart = -1.16;
+  const stairHoleEnd = 1.16;
+  const slottedFloorGeo = createSlottedTowerFloorGeometry(
+    radius,
+    stairInnerR,
+    stairOuterR,
+    stairHoleStart,
+    stairHoleEnd,
+    0.5
+  );
   const rootGroup = new THREE.Group();
   rootGroup.name = 'interior_mage_tower_multi';
   rootGroup.position.set(origin.x, origin.y, origin.z);
@@ -1614,9 +1869,9 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
   });
 
   // -----------------------------------------------------------
-  // FLOOR 0 (localY = 0): ARCANE BASEMENT & VAULT
+  // FLOOR 0 (localY = -14): ARCANE BASEMENT & VAULT
   // -----------------------------------------------------------
-  const f0Y = 0;
+  const f0Y = -floorStep;
   const floor0Mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 0.5, 32), darkStone);
   floor0Mesh.position.y = f0Y - 0.25;
   floor0Mesh.receiveShadow = true;
@@ -1640,8 +1895,8 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
 
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2 + 0.35;
-    const tx = Math.cos(a) * 12.2;
-    const tz = Math.sin(a) * 12.2;
+    const tx = Math.cos(a) * 17.2;
+    const tz = Math.sin(a) * 17.2;
     const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.15, 0.9, 10), slateMat);
     ped.position.set(tx, f0Y + 0.45, tz);
     const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 4.2, 14), vaultGlassMat);
@@ -1669,11 +1924,11 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
   chests.push(vaultChest);
 
   // -----------------------------------------------------------
-  // FLOOR 1 (localY = 14): AULA UTAMA & PERPUSTAKAAN AGUNG (ENTRY FLOOR!)
+  // FLOOR 1 (localY = 0): AULA UTAMA & PERPUSTAKAAN AGUNG (ENTRY FLOOR!)
   // -----------------------------------------------------------
-  const f1Y = floorStep; // 14
-  const floor1Mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 0.5, 32), slateMat);
-  floor1Mesh.position.y = f1Y - 0.25;
+  const f1Y = 0;
+  const floor1Mesh = new THREE.Mesh(slottedFloorGeo, slateMat);
+  floor1Mesh.position.y = f1Y - 0.5;
   floor1Mesh.receiveShadow = true;
   floor1Mesh.userData.walkableSurface = true;
   rootGroup.add(floor1Mesh);
@@ -1695,8 +1950,8 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
   const libBookColors = [0x991b1b, 0x1d4ed8, 0x059669, 0x7c3aed, 0xd97706];
   for (let i = 0; i < 8; i++) {
     const a = -Math.PI * 0.82 + (i / 7) * Math.PI * 1.64; // Skip south entrance doorway
-    const bx = Math.sin(a) * 15.6;
-    const bz = -Math.cos(a) * 15.6;
+    const bx = Math.sin(a) * 18.4;
+    const bz = -Math.cos(a) * 18.4;
     const shelf = createLargeBookcase(3.8, 7.2, woodMat, libBookColors);
     shelf.position.set(bx, f1Y, bz);
     shelf.rotation.y = Math.atan2(-bx, -bz);
@@ -1768,11 +2023,11 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
   });
 
   // -----------------------------------------------------------
-  // FLOOR 2 (localY = 28): RESEARCH LAB & INDOOR TRAINING HALL
+  // FLOOR 2 (localY = 14): RESEARCH LAB & INDOOR TRAINING HALL
   // -----------------------------------------------------------
-  const f2Y = floorStep * 2; // 28
-  const floor2Mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 0.5, 32), slateMat);
-  floor2Mesh.position.y = f2Y - 0.25;
+  const f2Y = floorStep; // 14
+  const floor2Mesh = new THREE.Mesh(slottedFloorGeo, slateMat);
+  floor2Mesh.position.y = f2Y - 0.5;
   floor2Mesh.receiveShadow = true;
   floor2Mesh.userData.walkableSurface = true;
   rootGroup.add(floor2Mesh);
@@ -1873,29 +2128,29 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
   });
 
   // -----------------------------------------------------------
-  // FLOOR 3 (localY = 42): ARCHMAGE OBSERVATORY SANCTUM
+  // FLOOR 3 (localY = 28): ARCHMAGE OBSERVATORY SANCTUM
   // -----------------------------------------------------------
-  const f3Y = floorStep * 3; // 42
-  const floor3Mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 0.5, 32), darkStone);
-  floor3Mesh.position.y = f3Y - 0.25;
+  const f3Y = floorStep * 2; // 28
+  const floor3Mesh = new THREE.Mesh(slottedFloorGeo, darkStone);
+  floor3Mesh.position.y = f3Y - 0.5;
   floor3Mesh.receiveShadow = true;
   floor3Mesh.userData.walkableSurface = true;
   rootGroup.add(floor3Mesh);
 
   const wall3 = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius, radius, 12.0, 28, 1, true),
+    new THREE.CylinderGeometry(radius, radius, floorStep, 28, 1, true),
     new THREE.MeshStandardMaterial({ color: 0x1e1b4b, roughness: 0.85, side: THREE.DoubleSide })
   );
-  wall3.position.y = f3Y + 6.0;
+  wall3.position.y = f3Y + floorStep * 0.5;
   wall3.userData.nonWalkable = true;
   rootGroup.add(wall3);
 
   // Starry Glass Observatory Dome overhead
   const starDome = new THREE.Mesh(
     new THREE.SphereGeometry(radius, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: 0x0f172a, side: THREE.BackSide })
+    new THREE.MeshBasicMaterial({ color: 0x1e293b, side: THREE.DoubleSide })
   );
-  starDome.position.y = f3Y + 11.5;
+  starDome.position.y = f3Y + floorStep - 0.4;
   starDome.scale.set(1, 0.55, 1);
   rootGroup.add(starDome);
 
@@ -1954,9 +2209,12 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
   rootGroup.add(sanctumChest.group);
   chests.push(sanctumChest);
 
-  registerWalkableSurface(rootGroup, { label: 'Lantai 0-3 Interior Mage Tower' });
+  // Continuous Walkable Arcane Spiral Staircases connecting all 4 floors on West Arc (r=11.5..14.5)
+  addTowerSpiralStairs(rootGroup, colliders, origin, f0Y, f1Y, 11.5, 14.5, -1.10, 1.10, 28, darkStone, goldMat);
+  addTowerSpiralStairs(rootGroup, colliders, origin, f1Y, f2Y, 11.5, 14.5, -1.10, 1.10, 28, slateMat, goldMat);
+  addTowerSpiralStairs(rootGroup, colliders, origin, f2Y, f3Y, 11.5, 14.5, -1.10, 1.10, 28, darkStone, goldMat);
 
-  // Build GTA Floor Teleport Portals between all 4 floors + Exit to Exterior!
+  // Glowing GTA Floor Teleport Portals between all 4 floors (East / North-East perimeter, clear of spiral stairs)
   const portals: InteriorPortalDef[] = [];
   const addFloorPortal = (
     pid: string,
@@ -2001,9 +2259,9 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
   addFloorPortal(
     'mt_f1_to_f0',
     'Turun ke Bawah Tanah (Arcane Vault)',
-    'Turun ke Lantai Bawah Tanah (E / Ketuk)',
-    'Lantai Bawah Tanah: Arcane Vault',
-    -10.5, f1Y, -10.0,
+    'Turun ke Basement Arcane Vault (E / Ketuk)',
+    'Basement: Arcane Vault',
+    11.5, f1Y, 9.5,
     0, f0Y + 0.05, -6.5, 0,
     0xa855f7,
     'mage_tower_interior',
@@ -2014,8 +2272,8 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
     'Naik ke Lantai 1 (Perpustakaan Agung)',
     'Naik ke Lantai 1 Perpustakaan (E / Ketuk)',
     'Lantai 1: Aula Utama & Perpustakaan Agung',
-    0, f0Y, -11.5,
-    -7.0, f1Y + 0.05, -7.5, Math.PI * 0.25,
+    0, f0Y, -12.0,
+    7.5, f1Y + 0.05, 8.0, Math.PI * 0.75,
     0x38bdf8,
     'mage_tower_interior',
     'floor'
@@ -2026,9 +2284,9 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
     'mt_f1_to_f2',
     'Naik ke Lantai 2 (Lab & Ruang Latihan)',
     'Naik ke Lantai 2 Lab & Latihan (E / Ketuk)',
-    'Lantai 2: Laboratorium & Tempat Latihan Indoor',
-    10.5, f1Y, -10.0,
-    -6.5, f2Y + 0.05, -7.5, Math.PI * 0.75,
+    'Lantai 2: Lab & Ruang Latihan',
+    11.5, f1Y, -9.5,
+    7.0, f2Y + 0.05, -7.5, Math.PI * 0.25,
     0x38bdf8,
     'mage_tower_interior',
     'floor'
@@ -2038,8 +2296,8 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
     'Turun ke Lantai 1 (Perpustakaan Agung)',
     'Turun ke Lantai 1 Perpustakaan (E / Ketuk)',
     'Lantai 1: Aula Utama & Perpustakaan Agung',
-    -10.5, f2Y, -10.0,
-    7.0, f1Y + 0.05, -7.5, -Math.PI * 0.25,
+    11.5, f2Y, 9.5,
+    7.5, f1Y + 0.05, -7.5, -Math.PI * 0.25,
     0xa855f7,
     'mage_tower_interior',
     'floor'
@@ -2050,8 +2308,8 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
     'mt_f2_to_f3',
     'Naik ke Lantai 3 (Puncak Observatorium)',
     'Naik ke Lantai 3 Observatorium (E / Ketuk)',
-    'Lantai 3: Ruang Khusus Puncak Observatorium',
-    10.5, f2Y, -10.0,
+    'Lantai 3: Observatorium Agung',
+    11.5, f2Y, -9.5,
     0, f3Y + 0.05, -7.5, 0,
     0x38bdf8,
     'mage_tower_interior',
@@ -2061,8 +2319,8 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
     'mt_f3_to_f2',
     'Turun ke Lantai 2 (Lab & Ruang Latihan)',
     'Turun ke Lantai 2 Lab & Latihan (E / Ketuk)',
-    'Lantai 2: Laboratorium & Tempat Latihan Indoor',
-    0, f3Y, -12.0,
+    'Lantai 2: Lab & Ruang Latihan',
+    10.5, f3Y, -10.5,
     7.0, f2Y + 0.05, -7.5, -Math.PI * 0.75,
     0xa855f7,
     'mage_tower_interior',
@@ -2076,21 +2334,36 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
     rootGroup,
     origin,
     baseFloorY: origin.y,
+    minFloorY: origin.y + f0Y,
+    maxCeilingY: origin.y + f3Y + floorStep + 4.0,
     dimensions: { width: radius * 2, depth: radius * 2, height: floorStep * 4, radius },
     colliders,
+    walkableMeshes: [],
     npcs,
     chests,
     trainingDummySpawns,
-    ambientSkyHex: 0xc7d2fe,
-    ambientGroundHex: 0x1e1b4b,
-    bgHex: 0x090b1a,
+    ambientSkyHex: 0xe0e7ff,
+    ambientGroundHex: 0x312e81,
+    ambientIntensity: 0.92,
+    hemiIntensity: 1.15,
+    dirIntensity: 1.0,
+    bgHex: 0x171c36,
+    fogHex: 0x171c36,
     animatedParts,
     getFallbackFloorY: (_wx, wy, _wz) => {
       const localY = wy - origin.y;
-      if (localY >= 35) return origin.y + f3Y;
-      if (localY >= 21) return origin.y + f2Y;
-      if (localY >= 7) return origin.y + f1Y;
+      if (localY >= f3Y - 6) return origin.y + f3Y;
+      if (localY >= f2Y - 6) return origin.y + f2Y;
+      if (localY >= f1Y - 6) return origin.y + f1Y;
       return origin.y + f0Y;
+    },
+    getFloorHeight: (wx, wy, wz) => sampleRoomFloorHeight(room, wx, wy, wz),
+    getFloorLabel: (wy) => {
+      const localY = wy - origin.y;
+      if (localY >= f3Y - 5) return 'Lantai 3: Observatorium Agung';
+      if (localY >= f2Y - 5) return 'Lantai 2: Lab & Ruang Latihan';
+      if (localY >= f1Y - 5) return 'Lantai 1: Perpustakaan Agung';
+      return 'Basement: Arcane Vault';
     },
     clampInsideWalls: (wx, wz, r) => {
       const dx = wx - origin.x;
@@ -2105,7 +2378,33 @@ function createMageTowerMultiFloorInterior(origin: Transform): {
       }
       return { x: wx, z: wz };
     },
+    clampCameraPosition: (camPos, anchorY = origin.y) => {
+      const dx = camPos.x - origin.x;
+      const dz = camPos.z - origin.z;
+      const maxCamR = radius - 1.15;
+      const dist = Math.hypot(dx, dz);
+      if (dist > maxCamR && dist > 0.001) {
+        camPos.x = origin.x + (dx / dist) * maxCamR;
+        camPos.z = origin.z + (dz / dist) * maxCamR;
+      }
+      const refY = anchorY - origin.y;
+      let floorMin = f0Y;
+      let ceilMax = f0Y + floorStep - 0.85;
+      if (refY >= f3Y - 4) {
+        floorMin = f3Y;
+        ceilMax = f3Y + floorStep + 3.0;
+      } else if (refY >= f2Y - 4) {
+        floorMin = f2Y;
+        ceilMax = f2Y + floorStep - 0.85;
+      } else if (refY >= f1Y - 4) {
+        floorMin = f1Y;
+        ceilMax = f1Y + floorStep - 0.85;
+      }
+      camPos.y = THREE.MathUtils.clamp(camPos.y, origin.y + floorMin + 0.65, origin.y + ceilMax);
+    },
   };
+
+  finalizeInteriorRoom(room);
 
   return { room, portals };
 }
@@ -2120,40 +2419,30 @@ export class InteriorManager {
   public rooms = new Map<string, InteriorRoom>();
   public portals: InteriorPortalDef[] = [];
   public activeRoom: InteriorRoom | null = null;
-  public ambientLight: THREE.HemisphereLight;
-  public dirLight: THREE.DirectionalLight;
 
   constructor(
     scene: THREE.Scene,
     exteriorWorldGroup: THREE.Group,
     entranceConfigs: Record<string, EntrancePortalConfig>
   ) {
-    this.masterGroup.name = 'IsolatedInteriorsMaster';
+    this.masterGroup.name = 'interiorRootGroup';
     this.masterGroup.visible = false;
+    this.masterGroup.frustumCulled = false;
     scene.add(this.masterGroup);
 
     this.exteriorMarkersGroup.name = 'ExteriorGTADoorMarkers';
     exteriorWorldGroup.add(this.exteriorMarkersGroup);
 
-    // Single lightweight shared static interior lighting (0 dynamic shadow casting!)
-    this.ambientLight = new THREE.HemisphereLight(0xfef3c7, 0x334155, 1.05);
-    this.ambientLight.position.set(0, 60, 0);
-    this.masterGroup.add(this.ambientLight);
-
-    this.dirLight = new THREE.DirectionalLight(0xfffbeb, 0.9);
-    this.dirLight.position.set(15, 35, 20);
-    this.dirLight.castShadow = false;
-    this.masterGroup.add(this.dirLight);
-
-    // Build all 7 expansive rooms on non-overlapping 400-unit X offsets
+    // Every isolated room occupies clean world origin (0, 0, 0) while only activeRoom is visible
+    const cleanOrigin: Transform = { x: 0, y: 0, z: 0 };
     const origins: Record<string, Transform> = {
-      valkragor_command_hall: { x: 5000, y: -250, z: 0 },
-      valkragor_blacksmith: { x: 5400, y: -250, z: 0 },
-      astraea_imperial_palace: { x: 5800, y: -250, z: 0 },
-      astraea_tavern: { x: 6200, y: -250, z: 0 },
-      solaria_sultan_palace: { x: 6600, y: -250, z: 0 },
-      solaria_merchant_bazaar: { x: 7000, y: -250, z: 0 },
-      mage_tower_interior: { x: 7400, y: -250, z: 0 },
+      valkragor_command_hall: { ...cleanOrigin },
+      valkragor_blacksmith: { ...cleanOrigin },
+      astraea_imperial_palace: { ...cleanOrigin },
+      astraea_tavern: { ...cleanOrigin },
+      solaria_sultan_palace: { ...cleanOrigin },
+      solaria_merchant_bazaar: { ...cleanOrigin },
+      mage_tower_interior: { ...cleanOrigin },
     };
 
     const builders: Array<{
@@ -2170,11 +2459,11 @@ export class InteriorManager {
       {
         id: 'mage_tower_interior',
         built: createMageTowerMultiFloorInterior(origins.mage_tower_interior),
-        // Enter onto Floor 1 Library (origin.y + 14) near south doorway
+        // Enter onto Floor 1 Library at clean origin y=0 near south doorway
         customEntryOffset: {
-          x: origins.mage_tower_interior.x,
-          y: origins.mage_tower_interior.y + 14.05,
-          z: origins.mage_tower_interior.z + 11.2,
+          x: 0,
+          y: 0.05,
+          z: 14.5,
           rotationY: Math.PI,
         },
       },
@@ -2225,9 +2514,9 @@ export class InteriorManager {
 
       // Interior Exit Portal -> Exterior Door Front
       const actualExitPos = exitPos ?? {
-        x: origins.mage_tower_interior.x,
-        y: origins.mage_tower_interior.y + 14.0,
-        z: origins.mage_tower_interior.z + 14.8,
+        x: 0,
+        y: 0.0,
+        z: 18.0,
       };
       const exitMarker = createDoorMarkerMesh(`${room.id}_exit`, markerColor);
       exitMarker.group.position.set(
@@ -2266,15 +2555,6 @@ export class InteriorManager {
     this.masterGroup.visible = this.activeRoom !== null;
     this.exteriorMarkersGroup.visible = this.activeRoom === null;
 
-    if (this.activeRoom) {
-      this.ambientLight.color.setHex(this.activeRoom.ambientSkyHex);
-      this.ambientLight.groundColor.setHex(this.activeRoom.ambientGroundHex);
-      this.dirLight.position.set(
-        this.activeRoom.origin.x + 15,
-        this.activeRoom.origin.y + 42,
-        this.activeRoom.origin.z + 18
-      );
-    }
     return this.activeRoom;
   }
 

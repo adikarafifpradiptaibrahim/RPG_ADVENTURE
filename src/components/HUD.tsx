@@ -56,6 +56,15 @@ interface HUDProps {
   nearbyPrompt: string | null;
   onPromptClick?: () => void;
   interiorPortal?: { label: string; kind: 'enter' | 'exit' | 'floor'; promptText: string } | null;
+  interiorRoomInfo?: {
+    id: string;
+    roomName: string;
+    floorLabel: string;
+    localX: number;
+    localZ: number;
+    canExit: boolean;
+  } | null;
+  onExitInterior?: () => void;
   onOpenInventory: () => void;
   onOpenShop?: () => void;
   onOpenStats: () => void;
@@ -137,6 +146,8 @@ export const HUD: React.FC<HUDProps> = ({
   nearbyPrompt,
   onPromptClick,
   interiorPortal = null,
+  interiorRoomInfo = null,
+  onExitInterior,
   onOpenInventory,
   onOpenShop,
   onOpenStats,
@@ -624,6 +635,7 @@ export const HUD: React.FC<HUDProps> = ({
             markers={mapMarkers}
             onOpenFullMap={onOpenMap}
             compactMobile={true}
+            interiorRoomInfo={interiorRoomInfo}
           />
         </div>
       ) : (
@@ -767,6 +779,7 @@ export const HUD: React.FC<HUDProps> = ({
             markers={mapMarkers}
             onOpenFullMap={onOpenMap}
             compactMobile={false}
+            interiorRoomInfo={interiorRoomInfo}
           />
         </div>
       )}
@@ -776,8 +789,57 @@ export const HUD: React.FC<HUDProps> = ({
         <QuestTracker activeQuest={activeQuest} onOpenQuests={onOpenQuests} />
       )}
 
+      {/* Persistent Interior Active Room & Floor Banner Pill + Quick Exit Button (PC & Mobile) */}
+      {!isSpectatorMode && interiorRoomInfo && !bossState.active && !bossVictoryName && (
+        <div
+          style={
+            isMobileUi
+              ? { top: 'calc(40px + env(safe-area-inset-top, 0px))', left: '50%' }
+              : { top: '16px', left: '50%' }
+          }
+          className={`fixed -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-2 rounded-full bg-stone-950/90 border border-sky-400/70 shadow-[0_6px_24px_rgba(0,0,0,0.65)] backdrop-blur-md select-none ${
+            isMobileUi
+              ? 'px-2.5 py-1 max-w-[calc(100vw-285px)]'
+              : 'px-3.5 py-1.5 max-w-[min(92vw,540px)]'
+          }`}
+        >
+          <span className={`${isMobileUi ? 'text-xs' : 'text-sm'} shrink-0`}>
+            {interiorRoomInfo.id.includes('mage_tower') ? '🏰' : '🏛️'}
+          </span>
+          <div className="flex flex-col min-w-0 leading-tight">
+            <span className={`${isMobileUi ? 'text-[10px]' : 'text-xs'} font-bold text-amber-200 truncate`}>
+              {interiorRoomInfo.roomName}
+            </span>
+            <span className={`${isMobileUi ? 'text-[9px]' : 'text-[10.5px]'} font-semibold text-sky-300 truncate`}>
+              {interiorRoomInfo.floorLabel}
+            </span>
+          </div>
+          {interiorRoomInfo.canExit && onExitInterior && (
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onExitInterior();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onExitInterior();
+              }}
+              className={`ml-1 shrink-0 rounded-full bg-amber-900/85 hover:bg-amber-800 border border-amber-400/80 text-amber-100 font-bold flex items-center gap-1 active:scale-95 transition cursor-pointer ${
+                isMobileUi ? 'px-2 py-0.5 text-[9.5px]' : 'px-2.5 py-1 text-[11px]'
+              }`}
+              title="Keluar Bangunan"
+            >
+              <span>🚪</span>
+              <span>Keluar</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Temporary Mobile Location Transition Toast (3.2s slide/fade near top-center below utility strip ONLY on region change) */}
-      {isMobileUi && locationToast && !isSpectatorMode && !bossState.active && !bossVictoryName && (
+      {isMobileUi && locationToast && !interiorRoomInfo && !isSpectatorMode && !bossState.active && !bossVictoryName && (
         <div
           style={{
             top: 'calc(40px + env(safe-area-inset-top, 0px))',

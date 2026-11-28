@@ -35,7 +35,7 @@ import {
 } from './models';
 export { USE_LEGACY_KNIGHT, USE_LEGACY_MAGE, USE_LEGACY_HUNTER };
 import { buildWorld, buildWorldAsync, WorldObjects, WorldCheckpoint, getTerrainHeight as getProceduralTerrainHeight } from './world';
-import { InteriorPortalDef } from './interiorSystem';
+import { InteriorPortalDef, InteriorRoomInfoPayload } from './interiorSystem';
 import { createTrainingDummyMesh } from './models';
 import {
   buildWorldEnvironment,
@@ -207,6 +207,7 @@ export interface GameEngineCallbacks {
   onCheckpointUnlocked?: (id: string, nameId: string, pos: [number, number]) => void;
   onInteriorFadeChange?: (fadingOut: boolean) => void;
   onInteriorPortalState?: (portalInfo: { label: string; kind: 'enter' | 'exit' | 'floor'; promptText: string } | null) => void;
+  onInteriorRoomChange?: (roomInfo: InteriorRoomInfoPayload | null) => void;
   onPreviewRoleSelected?: (role: 'warrior' | 'mage' | 'rogue') => void;
   onPlayerPositionUpdate?: (data: {
     x: number;
@@ -999,6 +1000,10 @@ export class GameEngine {
   private isTransitioningInterior = false;
   private interiorFadeTimers: ReturnType<typeof setTimeout>[] = [];
   private activeExteriorReturnPos: { x: number; z: number } | null = null;
+  private interiorAmbientLight: THREE.AmbientLight | null = null;
+  private savedExteriorFog: THREE.Fog | THREE.FogExp2 | null = null;
+  private savedExteriorBg: THREE.Color | THREE.Texture | THREE.CubeTexture | null = null;
+  private lastInteriorRoomSig = '';
   public currentPromptAction: (() => void) | null = null;
 
   // Main Menu & 3D Character Selection Scene State
@@ -1438,6 +1443,9 @@ export class GameEngine {
 
     // 1. Setup Scene & Camera
     this.scene = new THREE.Scene();
+    // Root scene ambient light dedicated cleanly for interior rendering (intensity=0 outdoors)
+    this.interiorAmbientLight = new THREE.AmbientLight(0xfef3c7, 0);
+    this.scene.add(this.interiorAmbientLight);
     this.camera = new THREE.PerspectiveCamera(
       60,
       container.clientWidth / container.clientHeight,
@@ -3705,6 +3713,21 @@ export class GameEngine {
   }
 
   public teleportTo(x: number, z: number) {
+    if (this.world?.interiorManager?.activeRoom) {
+      this.world.interiorManager.setActiveRoom(null);
+      if (this.world.exteriorWorldGroup) {
+        this.world.exteriorWorldGroup.visible = true;
+      }
+      this.activeExteriorReturnPos = null;
+      this.lastInteriorRoomSig = '';
+      this.callbacks.onInteriorRoomChange?.(null);
+      this.callbacks.onInteriorPortalState?.(null);
+      this.restoreExteriorAtmosphereAndLights();
+      this.enemies.forEach((e) => {
+        if (e.isIndoorDummy) e.mesh.visible = false;
+        else e.mesh.visible = !e.data.isDead;
+      });
+    }
     const y = Math.max(0.5, this.world.getTerrainHeight(x, z) + 0.5);
     this.playerPos.set(x, y, z);
     this.playerVel.set(0, 0, 0);
@@ -4876,7 +4899,8 @@ export class GameEngine {
   public getActiveGroundHeight(x: number, currentY: number, z: number): number {
     const activeRoom = this.world?.interiorManager?.activeRoom ?? null;
     if (activeRoom) {
-      return Math.max(activeRoom.getFallbackFloorY(x, currentY, z), getSolidGroundHeight(x, z, currentY));
+      // Strictly raycast only the active room's walkable interior meshes (never mix outdoor terrain/bridges!)
+      return activeRoom.getFloorHeight(x, currentY, z);
     }
     return getSolidGroundHeight(x, z, currentY);
   }
@@ -4889,6 +4913,63 @@ export class GameEngine {
     if (!match) return false;
     this.executePortalTransition(match.portal);
     return true;
+  }
+
+  public exitCurrentInterior(): boolean {
+    const interiorMgr = this.world?.interiorManager;
+    const activeRoom = interiorMgr?.activeRoom ?? null;
+    if (!interiorMgr || !activeRoom || this.isTransitioningInterior) {
+      return false;
+    }
+    const exitPortal = interiorMgr.portals.find(
+      (p) => p.roomId === activeRoom.id && p.kind === 'exit' && p.targetRoomId === null
+    );
+    if (exitPortal) {
+      this.executePortalTransition(exitPortal);
+      return true;
+    }
+    if (this.activeExteriorReturnPos) {
+      const extX = this.activeExteriorReturnPos.x;
+      const extZ = this.activeExteriorReturnPos.z;
+      const extY = getSolidGroundHeight(extX, extZ) + 0.25;
+      this.executePortalTransition({
+        id: `${activeRoom.id}_hud_exit`,
+        roomId: activeRoom.id,
+        kind: 'exit',
+        label: `Keluar ke ${activeRoom.exteriorName}`,
+        promptText: `Keluar ke ${activeRoom.exteriorName}`,
+        toastText: `Kembali ke ${activeRoom.exteriorName}`,
+        targetRoomId: null,
+        markerPos: { x: 0, y: 0, z: 0 },
+        spawnPos: { x: extX, y: extY, z: extZ, rotationY: 0 },
+        triggerRadius: 2.8,
+        autoRadius: 1.4,
+        colorHex: 0x38bdf8,
+        markerMesh: new THREE.Group(),
+        arrowGroup: new THREE.Group(),
+        outerRing: new THREE.Mesh(),
+        innerDisc: new THREE.Mesh(),
+      });
+      return true;
+    }
+    return false;
+  }
+
+  private restoreExteriorAtmosphereAndLights(): void {
+    if (this.interiorAmbientLight) {
+      this.interiorAmbientLight.intensity = 0;
+    }
+    if (this.savedExteriorFog) {
+      this.scene.fog = this.savedExteriorFog;
+      this.savedExteriorFog = null;
+    }
+    if (this.savedExteriorBg) {
+      this.scene.background = this.savedExteriorBg;
+      this.savedExteriorBg = null;
+    }
+    if (this.world?.hemiLight && this.world?.dirLight) {
+      this.dayNightSystem.applyOutdoorLighting(this.scene, this.world.hemiLight, this.world.dirLight, this.playerPos);
+    }
   }
 
   private executePortalTransition(portal: InteriorPortalDef): void {
@@ -4914,6 +4995,7 @@ export class GameEngine {
         return;
       }
 
+      const wasExterior = this.world.interiorManager.activeRoom === null;
       const room = this.world.interiorManager.setActiveRoom(portal.targetRoomId);
       if (this.world.exteriorWorldGroup) {
         this.world.exteriorWorldGroup.visible = room === null;
@@ -4928,19 +5010,53 @@ export class GameEngine {
         }
       });
 
-      // Switch between isolated interior static lighting and day/night exterior sky & lights
+      // Switch between isolated root-scene interior lights & saved exterior day/night atmosphere
       if (room) {
-        this.world.dirLight.intensity = 0;
-        this.world.hemiLight.intensity = 0;
+        if (wasExterior && !this.savedExteriorFog) {
+          this.savedExteriorFog = this.scene.fog;
+          this.savedExteriorBg = this.scene.background
+            ? (this.scene.background instanceof THREE.Color
+                ? this.scene.background.clone()
+                : this.scene.background)
+            : null;
+        }
+
+        if (this.interiorAmbientLight) {
+          this.interiorAmbientLight.color.setHex(room.ambientSkyHex);
+          this.interiorAmbientLight.intensity = Math.max(0.85, room.ambientIntensity);
+        }
+        if (this.world.hemiLight) {
+          this.world.hemiLight.color.setHex(room.ambientSkyHex);
+          this.world.hemiLight.groundColor.setHex(room.ambientGroundHex);
+          this.world.hemiLight.intensity = room.hemiIntensity;
+        }
+        if (this.world.dirLight) {
+          this.world.dirLight.color.setHex(0xfffbeb);
+          this.world.dirLight.intensity = room.dirIntensity;
+          this.world.dirLight.position.set(18, 42, 22);
+          if (this.world.dirLight.target) {
+            this.world.dirLight.target.position.set(0, 0, 0);
+            if (!this.world.dirLight.target.parent) {
+              this.scene.add(this.world.dirLight.target);
+            }
+            this.world.dirLight.target.updateMatrixWorld();
+          }
+        }
         this.scene.background = new THREE.Color(room.bgHex);
-        this.scene.fog = new THREE.FogExp2(room.bgHex, 0.0058);
+        this.scene.fog = new THREE.Fog(room.fogHex, 65, 180);
+
+        // Clear any outdoor boss encounter banner while inside a building
+        this.callbacks.onBossEncounter(false, undefined, undefined, undefined, undefined, false);
+        if (soundManager.getCurrentBossMusic()) {
+          soundManager.evadeBossMusic(1.5);
+        }
       } else {
-        this.dayNightSystem.applyOutdoorLighting(this.scene, this.world.hemiLight, this.world.dirLight, this.playerPos);
+        this.restoreExteriorAtmosphereAndLights();
       }
 
-      // Apply exact teleportation destination & facing
+      // Apply exact teleportation destination, facing, & 1.2s anti-bounce cooldown
       this.teleportGraceTimer = 0.45;
-      this.interiorTransitionCooldown = 0.85;
+      this.interiorTransitionCooldown = 1.2;
       this.interiorRearmLocked = true;
       this.playerVel.set(0, 0, 0);
       this.isGrounded = true;
@@ -4949,18 +5065,43 @@ export class GameEngine {
         this.playerRotationY = portal.spawnPos.rotationY;
         this.cameraAngleH = portal.spawnPos.rotationY + Math.PI;
       }
-      this.cameraAngleV = 0.22;
+      this.cameraAngleV = 0.24;
       if (this.playerMesh?.group) {
         this.playerMesh.group.position.copy(this.playerPos);
         this.playerMesh.group.rotation.y = this.playerRotationY;
       }
 
-      // Instant camera snap behind player
-      const camX = this.playerPos.x + Math.sin(this.cameraAngleH) * Math.cos(this.cameraAngleV) * this.cameraDistance;
-      const camZ = this.playerPos.z + Math.cos(this.cameraAngleH) * Math.cos(this.cameraAngleV) * this.cameraDistance;
-      const camY = this.playerPos.y + Math.sin(this.cameraAngleV) * this.cameraDistance + 1.2;
-      this.camera.position.set(camX, camY, camZ);
-      this.camera.lookAt(this.playerPos.x, this.playerPos.y + 1.4, this.playerPos.z);
+      // Instant camera snap capped & wall/ceiling clamped inside the interior
+      const snapDist = room ? Math.min(this.cameraDistance, 9.5) : this.cameraDistance;
+      const snapCamPos = new THREE.Vector3(
+        this.playerPos.x + Math.sin(this.cameraAngleH) * Math.cos(this.cameraAngleV) * snapDist,
+        this.playerPos.y + Math.sin(this.cameraAngleV) * snapDist + 1.2,
+        this.playerPos.z + Math.cos(this.cameraAngleH) * Math.cos(this.cameraAngleV) * snapDist
+      );
+      if (room) {
+        room.clampCameraPosition(snapCamPos, this.playerPos.y);
+      }
+      this.camera.position.copy(snapCamPos);
+      this.cameraCurrentLookAt.set(this.playerPos.x, this.playerPos.y + 1.4, this.playerPos.z);
+      this.camera.lookAt(this.cameraCurrentLookAt);
+
+      if (room) {
+        const floorLabel = room.getFloorLabel(this.playerPos.y);
+        const rx = Math.round(this.playerPos.x);
+        const rz = Math.round(this.playerPos.z);
+        this.lastInteriorRoomSig = `${room.id}:${floorLabel}:${rx}:${rz}`;
+        this.callbacks.onInteriorRoomChange?.({
+          id: room.id,
+          roomName: room.name,
+          floorLabel,
+          localX: rx,
+          localZ: rz,
+          canExit: true,
+        });
+      } else {
+        this.lastInteriorRoomSig = '';
+        this.callbacks.onInteriorRoomChange?.(null);
+      }
 
       soundManager.playCheckpointUnlock();
       this.callbacks.onAddFloatingText(portal.toastText, room ? '#fbbf24' : '#38bdf8', 'info');
@@ -6279,6 +6420,11 @@ export class GameEngine {
   }
 
   private updateCalderaStormAndAura(delta: number, elapsed: number) {
+    if (this.world?.interiorManager?.activeRoom) {
+      if (this.ignisAuraPoints) this.ignisAuraPoints.visible = false;
+      if (this.calderaCloudGroup) this.calderaCloudGroup.visible = false;
+      return;
+    }
     const stormFactor = this.bossManager?.extremeWeatherFactor || 0;
     const ignis = this.cachedIgnisEnemy;
     const isIgnisAlivePhase2 = Boolean(
@@ -13703,8 +13849,15 @@ export class GameEngine {
 
     let targetX = startPos.x + dashDir.x * maxDist;
     let targetZ = startPos.z + dashDir.z * maxDist;
-    targetX = Math.max(WORLD_BOUNDS.minX + 5, Math.min(WORLD_BOUNDS.maxX - 5, targetX));
-    targetZ = Math.max(WORLD_BOUNDS.minZ + 5, Math.min(WORLD_BOUNDS.maxZ - 5, targetZ));
+    const activeDashRoom = this.world?.interiorManager?.activeRoom ?? null;
+    if (activeDashRoom) {
+      const clampedDash = activeDashRoom.clampInsideWalls(targetX, targetZ, 0.65);
+      targetX = clampedDash.x;
+      targetZ = clampedDash.z;
+    } else {
+      targetX = Math.max(WORLD_BOUNDS.minX + 5, Math.min(WORLD_BOUNDS.maxX - 5, targetX));
+      targetZ = Math.max(WORLD_BOUNDS.minZ + 5, Math.min(WORLD_BOUNDS.maxZ - 5, targetZ));
+    }
 
     // Jika sedang dalam Boss Arena, cegah dash keluar menembus batas arena
     for (const zone of Object.values(BOSS_ARENA_ZONES)) {
@@ -13817,11 +13970,18 @@ export class GameEngine {
       }
     }
 
-    // Clamp to expanded world boundaries
+    // Clamp to active interior bounds or expanded world boundaries
     let targetX = startPos.x + blinkDir.x * maxDist;
     let targetZ = startPos.z + blinkDir.z * maxDist;
-    targetX = Math.max(WORLD_BOUNDS.minX + 5, Math.min(WORLD_BOUNDS.maxX - 5, targetX));
-    targetZ = Math.max(WORLD_BOUNDS.minZ + 5, Math.min(WORLD_BOUNDS.maxZ - 5, targetZ));
+    const activeBlinkRoom = this.world?.interiorManager?.activeRoom ?? null;
+    if (activeBlinkRoom) {
+      const clampedBlink = activeBlinkRoom.clampInsideWalls(targetX, targetZ, 0.65);
+      targetX = clampedBlink.x;
+      targetZ = clampedBlink.z;
+    } else {
+      targetX = Math.max(WORLD_BOUNDS.minX + 5, Math.min(WORLD_BOUNDS.maxX - 5, targetX));
+      targetZ = Math.max(WORLD_BOUNDS.minZ + 5, Math.min(WORLD_BOUNDS.maxZ - 5, targetZ));
+    }
 
     // Resolve collisions so player never blinks inside walls or buildings
     const resolved = this.resolveCollisions(targetX, targetZ);
@@ -14806,7 +14966,10 @@ export class GameEngine {
       this.teleportGraceTimer -= delta;
       this.playerVel.set(0, 0, 0);
       this.isGrounded = true;
-      if (isInsideMageTowerInterior(this.playerPos.x, this.playerPos.y, this.playerPos.z)) {
+      const activeGraceRoom = this.world?.interiorManager?.activeRoom ?? null;
+      if (activeGraceRoom) {
+        this.playerPos.y = activeGraceRoom.getFloorHeight(this.playerPos.x, this.playerPos.y, this.playerPos.z);
+      } else if (isInsideMageTowerInterior(this.playerPos.x, this.playerPos.y, this.playerPos.z)) {
         this.playerPos.y = getMageTowerFloorHeight(this.playerPos.y);
       }
       this.playerMesh.group.position.copy(this.playerPos);
@@ -15231,52 +15394,58 @@ export class GameEngine {
       this.playerVel.z *= 0.96;
     }
 
-    // Expanded World boundary constraints
-    if (nextX < WORLD_BOUNDS.minX + 5) nextX = WORLD_BOUNDS.minX + 5;
-    if (nextX > WORLD_BOUNDS.maxX - 5) nextX = WORLD_BOUNDS.maxX - 5;
-    if (nextZ < WORLD_BOUNDS.minZ + 5) nextZ = WORLD_BOUNDS.minZ + 5;
-    if (nextZ > WORLD_BOUNDS.maxZ - 5) nextZ = WORLD_BOUNDS.maxZ - 5;
+    const activeRoom = this.world?.interiorManager?.activeRoom ?? null;
 
-    this.playerPos.x = nextX;
-    this.playerPos.z = nextZ;
+    if (activeRoom) {
+      // Interior Physics Isolation: clamp strictly to interior walls & skip outdoor world bounds/zones
+      const clampedRoomPos = activeRoom.clampInsideWalls(nextX, nextZ, 0.65);
+      this.playerPos.x = clampedRoomPos.x;
+      this.playerPos.z = clampedRoomPos.z;
+    } else {
+      // Expanded World boundary constraints
+      if (nextX < WORLD_BOUNDS.minX + 5) nextX = WORLD_BOUNDS.minX + 5;
+      if (nextX > WORLD_BOUNDS.maxX - 5) nextX = WORLD_BOUNDS.maxX - 5;
+      if (nextZ < WORLD_BOUNDS.minZ + 5) nextZ = WORLD_BOUNDS.minZ + 5;
+      if (nextZ > WORLD_BOUNDS.maxZ - 5) nextZ = WORLD_BOUNDS.maxZ - 5;
 
-    // Check quest discovery for Fortress Village Val-Kragor
-    if (Math.hypot(nextX - 520, nextZ - 10) <= 50) {
-      this.callbacks.onUpdateQuests((quests) => {
-        return quests.map((q) => {
-          if (q.id === 'quest_discover_valkragor' && !q.completed) {
-            this.callbacks.onAddFloatingText('Quest Selesai: Menemukan Benteng Val-Kragor!', '#69f0ae', 'crit');
-            soundManager.playChestOpen();
-            return { ...q, currentCount: 1, completed: true };
-          }
-          return q;
+      this.playerPos.x = nextX;
+      this.playerPos.z = nextZ;
+
+      // Check quest discovery for Fortress Village Val-Kragor
+      if (Math.hypot(nextX - 520, nextZ - 10) <= 50) {
+        this.callbacks.onUpdateQuests((quests) => {
+          return quests.map((q) => {
+            if (q.id === 'quest_discover_valkragor' && !q.completed) {
+              this.callbacks.onAddFloatingText('Quest Selesai: Menemukan Benteng Val-Kragor!', '#69f0ae', 'crit');
+              soundManager.playChestOpen();
+              return { ...q, currentCount: 1, completed: true };
+            }
+            return q;
+          });
         });
-      });
-    }
+      }
 
-    // Automatic Invisible Town Zone Trigger (Sanctuary, Val-Kragor, Astraea auto-respawn and map waypoint unlock)
-    this.checkInvisibleTownZones();
+      // Automatic Invisible Town Zone Trigger (Sanctuary, Val-Kragor, Astraea auto-respawn and map waypoint unlock)
+      this.checkInvisibleTownZones();
 
-    // Check quest discovery for Grand Imperial Kingdom of Astraea
-    if (Math.hypot(nextX - 320, nextZ - -260) <= 65) {
-      this.callbacks.onUpdateQuests((quests) => {
-        return quests.map((q) => {
-          if (q.id === 'quest_discover_astraea' && !q.completed) {
-            this.callbacks.onAddFloatingText('👑 Wilayah Ditemukan: Ibukota Kerajaan Emas Astraea!', '#facc15', 'crit');
-            soundManager.playLevelUp();
-            return { ...q, currentCount: 1, completed: true };
-          }
-          return q;
+      // Check quest discovery for Grand Imperial Kingdom of Astraea
+      if (Math.hypot(nextX - 320, nextZ - -260) <= 65) {
+        this.callbacks.onUpdateQuests((quests) => {
+          return quests.map((q) => {
+            if (q.id === 'quest_discover_astraea' && !q.completed) {
+              this.callbacks.onAddFloatingText('👑 Wilayah Ditemukan: Ibukota Kerajaan Emas Astraea!', '#facc15', 'crit');
+              soundManager.playLevelUp();
+              return { ...q, currentCount: 1, completed: true };
+            }
+            return q;
+          });
         });
-      });
+      }
     }
 
     // Gravity
     this.playerVel.y -= 22 * delta;
     this.playerPos.y += this.playerVel.y * delta;
-
-    // Check if player is inside an Interior Cell (Solaria Throne Room or Mage Tower)
-    const activeRoom = this.world?.interiorManager?.activeRoom ?? null;
 
     if (activeRoom) {
       const roomFloorY = this.getActiveGroundHeight(this.playerPos.x, this.playerPos.y, this.playerPos.z);
@@ -15284,6 +15453,10 @@ export class GameEngine {
         this.playerPos.y = roomFloorY;
         this.playerVel.y = 0;
         this.isGrounded = true;
+      } else if (this.isGrounded && this.playerPos.y - roomFloorY < 0.78) {
+        // Keep downward movement smoothly snapped to interior spiral stairs & ramps
+        this.playerPos.y = roomFloorY;
+        this.playerVel.y = 0;
       }
       const constrained = activeRoom.clampInsideWalls(this.playerPos.x, this.playerPos.z, 0.65);
       this.playerPos.x = constrained.x;
@@ -16737,6 +16910,17 @@ export class GameEngine {
    *    - Melewati 5.0s di luar -> combatActive = false, bar hilang, audio crossfade BGM normal, Boss reset standby.
    */
   private updateBossCombatZoneAndMusic(delta: number) {
+    if (this.world?.interiorManager?.activeRoom) {
+      if (this.activeBossZoneId !== null) {
+        this.activeBossZoneId = null;
+        this.activeBossEnemyData = null;
+        this.callbacks.onBossEncounter(false, undefined, undefined, undefined, undefined, false);
+        if (soundManager.getCurrentBossMusic()) {
+          soundManager.evadeBossMusic(1.5);
+        }
+      }
+      return;
+    }
     let displayZone: BossArenaZone | null = null;
     let displayBoss: (typeof this.enemies)[0] | null = null;
     let displayCombatActive = false;
@@ -16839,7 +17023,16 @@ export class GameEngine {
    * Client HANYA merender posisi monster berdasarkan koordinat (X, Z) yang dikirimkan oleh server.js via Socket.io.
    */
   private updateMonsterMultiplayer(delta: number) {
+    const activeInteriorRoomId = this.world?.interiorManager?.activeRoom?.id ?? null;
     this.enemies.forEach((enemy) => {
+      if (enemy.isIndoorDummy) {
+        enemy.mesh.visible = activeInteriorRoomId === enemy.interiorId;
+        return;
+      }
+      if (activeInteriorRoomId !== null) {
+        enemy.mesh.visible = false;
+        return;
+      }
       if (enemy.data.isDead) {
         const target = this.remoteMonsterTargets.get(enemy.data.id);
         if (target && !target.isDead && (target.hp ?? 0) > 0) {
@@ -17204,8 +17397,11 @@ export class GameEngine {
       this.camera.updateProjectionMatrix();
     }
 
-    // Orbit camera calculation with aerial zoom adjustment
-    const effectiveDist = this.cameraDistance + this.cameraAerialZoom;
+    const activeCamRoom = this.world?.interiorManager?.activeRoom ?? null;
+    // Orbit camera calculation with interior zoom cap (<= 9.5) and wall/ceiling clamping
+    const effectiveDist = activeCamRoom
+      ? Math.min(this.cameraDistance, 9.5)
+      : this.cameraDistance + this.cameraAerialZoom;
     const offsetX = Math.sin(this.cameraAngleH) * Math.cos(this.cameraAngleV) * effectiveDist;
     const offsetZ = Math.cos(this.cameraAngleH) * Math.cos(this.cameraAngleV) * effectiveDist;
     const offsetY = Math.sin(this.cameraAngleV) * effectiveDist + 1.2;
@@ -17215,6 +17411,9 @@ export class GameEngine {
       this.playerPos.y + offsetY,
       this.playerPos.z + offsetZ
     );
+    if (activeCamRoom) {
+      activeCamRoom.clampCameraPosition(targetPos, this.playerPos.y);
+    }
 
     // Instant snap without lerp during interior teleport grace period (eliminates black screen / void clipping)
     if (this.teleportGraceTimer > 0) {
@@ -17231,6 +17430,9 @@ export class GameEngine {
       targetPos.y += (Math.random() - 0.5) * shakeAmt;
       targetPos.z += (Math.random() - 0.5) * shakeAmt;
       this.cameraShake = Math.max(0, this.cameraShake - delta * 2.8);
+      if (activeCamRoom) {
+        activeCamRoom.clampCameraPosition(targetPos, this.playerPos.y);
+      }
     }
 
     // Camera FOV Punch (e.g. +4 FOV punch during Blink landing)
@@ -17250,6 +17452,9 @@ export class GameEngine {
     const normalLookAt = new THREE.Vector3(this.playerPos.x, this.playerPos.y + 1.4 + this.cameraTargetOffsetY, this.playerPos.z);
     this.cameraCurrentLookAt.lerp(normalLookAt, Math.min(1.0, delta * 12.0));
     this.camera.position.lerp(targetPos, 0.15);
+    if (activeCamRoom) {
+      activeCamRoom.clampCameraPosition(this.camera.position, this.playerPos.y);
+    }
     this.camera.lookAt(this.cameraCurrentLookAt);
   }
 
@@ -17977,19 +18182,22 @@ export class GameEngine {
       }
     }
 
-    // Floating crystal spin
-    this.world.floatingCrystals.forEach((c, idx) => {
-      c.rotation.y = elapsed * 0.8 + idx;
-      c.position.y = 1.8 + Math.sin(elapsed * 2 + idx) * 0.2;
-    });
+    const isInInterior = (this.world.interiorManager?.activeRoom ?? null) !== null;
+    if (!isInInterior) {
+      // Floating crystal spin
+      this.world.floatingCrystals.forEach((c, idx) => {
+        c.rotation.y = elapsed * 0.8 + idx;
+        c.position.y = 1.8 + Math.sin(elapsed * 2 + idx) * 0.2;
+      });
 
-    // Gentle ocean wave motion
-    if (this.world.oceanMesh) {
-      this.world.oceanMesh.position.y = -0.25 + Math.sin(elapsed * 1.5) * 0.08;
+      // Gentle ocean wave motion
+      if (this.world.oceanMesh) {
+        this.world.oceanMesh.position.y = -0.25 + Math.sin(elapsed * 1.5) * 0.08;
+      }
+
+      // Pooled Biome-Locked Weather (snow only in northern snow biome, clean Desa Utama day, fireflies at dusk/night, desert dust)
+      this.updateBiomeWeather(delta, elapsed);
     }
-
-    // Pooled Biome-Locked Weather (snow only in northern snow biome, clean Desa Utama day, fireflies at dusk/night, desert dust)
-    this.updateBiomeWeather(delta, elapsed);
 
     // Optimization 1: Dynamic PointLights (Keep only 4 closest lights active, village lanterns active only at night 18:00 - 05:30)
     if (this.posUpdateThrottle % 8 === 0 && this.scenePointLights.length > 0) {
@@ -18166,12 +18374,33 @@ export class GameEngine {
       const mapX = activeRoomNow && this.activeExteriorReturnPos ? this.activeExteriorReturnPos.x : targetPosX;
       const mapZ = activeRoomNow && this.activeExteriorReturnPos ? this.activeExteriorReturnPos.z : targetPosZ;
       const baseReg = getCurrentRegion(mapX, mapZ);
+      const activeFloorLabel = activeRoomNow ? activeRoomNow.getFloorLabel(targetPosY) : '';
+      if (activeRoomNow) {
+        const lx = Math.round(targetPosX);
+        const lz = Math.round(targetPosZ);
+        const sig = `${activeRoomNow.id}:${activeFloorLabel}:${lx}:${lz}`;
+        if (sig !== this.lastInteriorRoomSig) {
+          this.lastInteriorRoomSig = sig;
+          this.callbacks.onInteriorRoomChange?.({
+            id: activeRoomNow.id,
+            roomName: activeRoomNow.name,
+            floorLabel: activeFloorLabel,
+            localX: lx,
+            localZ: lz,
+            canExit: true,
+          });
+        }
+      } else if (this.lastInteriorRoomSig !== '') {
+        this.lastInteriorRoomSig = '';
+        this.callbacks.onInteriorRoomChange?.(null);
+      }
+
       const currentReg: RegionInfo = activeRoomNow
         ? {
             ...baseReg,
             id: `interior_${activeRoomNow.id}`,
-            name: activeRoomNow.name,
-            nameId: activeRoomNow.name,
+            name: `${activeRoomNow.name} — ${activeFloorLabel}`,
+            nameId: `${activeRoomNow.name} — ${activeFloorLabel}`,
             descriptionId: `Interior — ${activeRoomNow.exteriorName}`,
           }
         : baseReg;
