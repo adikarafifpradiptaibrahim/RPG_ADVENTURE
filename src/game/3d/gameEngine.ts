@@ -15719,7 +15719,7 @@ export class GameEngine {
       this.checkInvisibleTownZones();
 
       // Check quest discovery for Grand Imperial Kingdom of Astraea
-      if (Math.hypot(nextX - 320, nextZ - -260) <= 65) {
+      if (Math.hypot(nextX - 575, nextZ - -495) <= 110) {
         this.callbacks.onUpdateQuests((quests) => {
           return quests.map((q) => {
             if (q.id === 'quest_discover_astraea' && !q.completed) {

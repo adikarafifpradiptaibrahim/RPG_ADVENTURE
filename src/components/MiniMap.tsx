@@ -12,7 +12,7 @@ import {
 } from '../game/mapSampler';
 import { drawRoadsOnMiniMap } from '../game/RoadSystem';
 import { getCachedTerrainRasterCanvas } from '../game/mapIllustratedRenderer';
-import { WORLD_BOUNDS, WORLD_WIDTH, WORLD_HEIGHT } from '../game/3d/worldData';
+import { WORLD_BOUNDS, WORLD_WIDTH, WORLD_HEIGHT, getSnowWeight } from '../game/3d/worldData';
 
 interface MiniMapProps {
   playerPos: { x: number; z: number; rotationY: number };
@@ -204,23 +204,30 @@ export const MiniMap: React.FC<MiniMapProps> = ({
 
             const zone = getBiomeAt(wx, wz);
             const h = getProceduralContinentHeight(wx, wz);
+            const snowW = getSnowWeight(wx, wz);
             let r = 2, g = 132, b = 199; // #0284c7 ocean azure
 
             if (zone.id === 'ocean' || h <= 0.0) {
               r = 2; g = 132; b = 199; // ocean azure / lake
             } else if (zone.id === 'volcano') {
               r = 35; g = 31; b = 30; // dark obsidian basalt
-            } else if (h > 0.0 && h <= 0.45 && !(wx > -180 && wx < 260 && wz < -640)) {
+            } else if (h > 0.0 && h <= 0.45 && snowW < 0.25) {
               // Pita tipis pasir pantai tepat di bibir air
               r = 230; g = 210; b = 150; // #e6d296
             } else if (zone.id === 'desert') {
               r = 222; g = 184; b = 100; // golden desert sand (#e2be6e..#d4a64c)
-            } else if (h > 10.0 || (wx > -180 && wx < 260 && wz < -640)) {
+            } else if (snowW >= 0.45) {
               r = 242; g = 247; b = 251; // snowy mountain / snow biome (#f2f7fb)
             } else if (wx > 340 && wz < -80 && wz > -200) {
               r = 54; g = 122; b = 48; // mist forest lush green
             } else {
               r = 78; g = 148; b = 62; // fresh plains green (#569e46..#438537)
+              if (snowW > 0.02) {
+                const blendS = snowW / 0.45;
+                r = Math.round(r * (1 - blendS) + 195 * blendS);
+                g = Math.round(g * (1 - blendS) + 216 * blendS);
+                b = Math.round(b * (1 - blendS) + 220 * blendS);
+              }
             }
 
             data[idx] = r;

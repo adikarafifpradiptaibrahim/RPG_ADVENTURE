@@ -38,6 +38,7 @@ import {
   LandmarkDef,
   getBiomeAt,
   getProceduralContinentHeight,
+  getSnowWeight,
 } from './3d/worldData';
 
 let cachedTerrainRasterCanvas: HTMLCanvasElement | null = null;
@@ -145,14 +146,12 @@ export function getOrCreateTerrainRasterCanvas(): HTMLCanvasElement | null {
         }
       } else {
         const h = getProceduralContinentHeight(wx, wz);
+        const snowW = getSnowWeight(wx, wz);
         if (h <= SEA_LEVEL) {
           r = 2; g = 132; b = 199; // Azure ocean
-        } else if (h <= SEA_LEVEL + 0.45 && biome !== 'snow') {
+        } else if (h <= SEA_LEVEL + 0.45 && snowW < 0.25) {
           // STRICT Shore Beach Ribbon: HANYA pada pita tipis height > SEA_LEVEL && height <= SEA_LEVEL + 0.45
           r = 230; g = 210; b = 150; // #e6d296
-        } else if (biome === 'snow') {
-          // Pure bright snow white (#f2f7fb)
-          r = 242; g = 247; b = 251;
         } else {
           // Warna Tegas Bioma: Gurun (#e2be6e..#d4a64c) vs Padang Rumput/Hutan (#569e46..#438537)
           const duneNoise = 0.5 + 0.5 * Math.sin(wx * 0.035 + wz * 0.028);
@@ -187,6 +186,14 @@ export function getOrCreateTerrainRasterCanvas(): HTMLCanvasElement | null {
             r = Math.round(gr);
             g = Math.round(gg);
             b = Math.round(gb);
+          }
+
+          if (snowW > 0.01) {
+            const tSnow = Math.min(1, snowW);
+            const smoothS = tSnow * tSnow * (3 - 2 * tSnow);
+            r = Math.round(r * (1 - smoothS) + 242 * smoothS);
+            g = Math.round(g * (1 - smoothS) + 247 * smoothS);
+            b = Math.round(b * (1 - smoothS) + 251 * smoothS);
           }
         }
       }
@@ -433,17 +440,16 @@ export function renderIllustratedMap(
   // ==========================================================================
   ctx.save();
   const snowPeakWorldCoords: [number, number, number, number][] = [
-    [-120, -820, 70, 55],
-    [-60, -850, 75, 60],
-    [10, -870, 80, 65],
-    [80, -880, 85, 68],
-    [150, -870, 80, 65],
-    [220, -850, 75, 60],
-    [280, -820, 70, 55],
-    [-110, -740, 65, 50],
-    [-90, -670, 60, 48],
-    [260, -740, 65, 50],
-    [270, -670, 60, 48],
+    [-125, -830, 70, 55],
+    [-65, -860, 75, 60],
+    [5, -880, 80, 65],
+    [75, -890, 85, 68],
+    [145, -875, 80, 65],
+    [215, -855, 75, 60],
+    [270, -825, 68, 54],
+    [-115, -755, 65, 50],
+    [-95, -715, 58, 46],
+    [245, -760, 62, 48],
   ];
   snowPeakWorldCoords.forEach(([wx, wz, pw, ph]) => {
     const [px, py] = wToC(wx, wz);
@@ -897,8 +903,8 @@ export function renderIllustratedMap(
     ctx.fill();
   });
 
-  // 12E. Astraea Expanded Imperial Capital City (170x170 at [460, -420])
-  const [astX, astY] = wToC(460, -420);
+  // 12E. Astraea Expanded Imperial Capital City (170x170 at [575, -495])
+  const [astX, astY] = wToC(575, -495);
   ctx.fillStyle = '#64748b';
   ctx.fillRect(astX - 38, astY - 36, 76, 72);
   ctx.fillStyle = '#e2e8f0';

@@ -1,6 +1,6 @@
 import { RegionInfo, MapMarker } from '../types/game';
 import { isDesertBiome } from './mapSampler';
-import { isMainContinentLand } from './3d/worldData';
+import { isMainContinentLand, getSnowWeight } from './3d/worldData';
 
 export const REGIONS: RegionInfo[] = [
   {
@@ -47,8 +47,8 @@ export const REGIONS: RegionInfo[] = [
     description: 'A colossal 170x170 imperial metropolis featuring Grand Marble Plaza, medieval districts, bazaar shops & tavern, and Emperor Aurelius 2x Grand Sun Palace with twin-stair balconies.',
     descriptionId: 'Ibukota kerajaan medieval raksasa (~170x170) dengan Alun-Alun Utama marmer, distrik pasar & tavern, serta Istana Kaisar Aurelius 2x lebih megah lengkap dengan balkon Lantai 2!',
     color: '#fbbf24',
-    bounds: { minX: 375, maxX: 545, minZ: -505, maxZ: -335 },
-    center: [460, -420],
+    bounds: { minX: 490, maxX: 660, minZ: -580, maxZ: -410 },
+    center: [575, -495],
     recommendedLevel: 5,
   },
   {
@@ -186,7 +186,7 @@ export const WAYPOINTS: {
     nameId: 'Alun-Alun Ibukota Astraea',
     regionId: 'kerajaan_astraea',
     icon: '👑',
-    pos: [460, -372],
+    pos: [575, -447],
     desc: 'Alun-alun marmer luas di dalam gerbang selatan Ibukota Astraea menghadap Istana Kaisar',
   },
   {
@@ -338,13 +338,13 @@ export function getCurrentRegion(x: number, z: number): RegionInfo {
     return REGIONS.find((r) => r.id === 'ancient_canyon') || REGIONS[5];
   }
 
-  // 4. Lembah Danau Titan Kuno & Pegunungan Salju Utara (Z < -640 dan -180 < X < 260)
-  if ((z < -640 && x > -180 && x < 260) || Math.hypot(x - 60, z - -820) <= 120) {
+  // 4. Lembah Danau Titan Kuno & Pegunungan Salju Utara (Organik domain-warped)
+  if (getSnowWeight(x, z) >= 0.45 || Math.hypot(x - 60, z - -820) <= 120) {
     return REGIONS.find((r) => r.id === 'danau_titan') || REGIONS[4];
   }
 
-  // 5. Kerajaan Emas Astraea [460, -420]
-  if (Math.hypot(x - 460, z - -420) <= 105) {
+  // 5. Kerajaan Emas Astraea [575, -495]
+  if (Math.hypot(x - 575, z - -495) <= 105) {
     return REGIONS.find((r) => r.id === 'kerajaan_astraea') || REGIONS[3];
   }
 

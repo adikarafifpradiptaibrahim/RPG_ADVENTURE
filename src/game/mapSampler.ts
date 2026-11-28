@@ -81,6 +81,7 @@ export function getDesertBoundaryZ(xw: number): number {
 import {
   getBiomeAt as getWorldBiomeAt,
   getProceduralContinentHeight as getWorldHeight,
+  getSnowWeight,
   RIVER_NW_BRANCH,
   RIVER_DESERT_BRANCH,
   RIVER_EAST_BRANCH,
@@ -231,16 +232,24 @@ export function getTerrainVertexColor(worldX: number, worldZ: number, height: nu
     return [140, 122, 101]; // Eldoria dirt paved trail #8c7a65
   }
 
-  // 3. Bioma Salju Pegunungan & Danau Titan Utara (Z < -640 dan -180 < X < 260)
-  // Putih salju cerah (#f2f7fb s.d. #e6eff6)
-  if (b === 'snow' && worldZ < -640 && worldX > -180 && worldX < 260) {
-    const snowNoise = 0.5 + 0.5 * Math.sin(worldX * 0.04 + worldZ * 0.035);
-    return [
-      Math.round(230 + (242 - 230) * snowNoise),
-      Math.round(239 + (247 - 239) * snowNoise),
-      Math.round(246 + (251 - 246) * snowNoise),
-    ];
-  }
+  // 3. Warna Dasar Padang Rumput, Gurun, & Gradasi Bioma Salju Organik
+  const duneNoise = 0.5 + 0.5 * Math.sin(worldX * 0.035 + worldZ * 0.028);
+  const desertColor: [number, number, number] = [
+    Math.round(212 + (226 - 212) * duneNoise),
+    Math.round(166 + (190 - 166) * duneNoise),
+    Math.round(76 + (110 - 76) * duneNoise),
+  ];
+
+  const grassNoise = 0.5 + 0.5 * Math.sin(worldX * 0.025 - worldZ * 0.03);
+  const hillHighlight = clamp((height - 4.0) / 14.0, 0, 1);
+  const grassColor: [number, number, number] = [
+    Math.round(67 + (92 - 67) * grassNoise + hillHighlight * 14),
+    Math.round(133 + (162 - 133) * grassNoise - hillHighlight * 8),
+    Math.round(55 + (74 - 55) * grassNoise + hillHighlight * 6),
+  ];
+
+  // Transisi lembut bioma salju utara domain-warped (Rumput -> Tundra Lumut -> Salju Putih)
+  const snowWeight = getSnowWeight(worldX, worldZ);
 
   // 4. Bioma Vulkanik Kaldera Naga di Selatan Jauh
   if (b === 'volcano') {
@@ -256,50 +265,64 @@ export function getTerrainVertexColor(worldX: number, worldZ: number, height: nu
   }
 
   // 5. Pita Pasir Pantai Tipis (#e6d296 / [230, 210, 150])
-  // STRICT: Hanya jika height > SEA_LEVEL && height <= SEA_LEVEL + 0.45 tepat di pinggir air!
-  if (height > SEA_LEVEL && height <= SEA_LEVEL + 0.45) {
+  // STRICT: Hanya jika height > SEA_LEVEL && height <= SEA_LEVEL + 0.45 tepat di pinggir air (di luar salju utara)!
+  if (height > SEA_LEVEL && height <= SEA_LEVEL + 0.45 && snowWeight < 0.25) {
     return [230, 210, 150]; // #e6d296 Pasir Pantai Tipis
   }
-
-  // Warna Dasar Bioma Gurun: Pasir Kuning Emas (#e2be6e s.d. #d4a64c / [226, 190, 110] s.d. [212, 166, 76])
-  const duneNoise = 0.5 + 0.5 * Math.sin(worldX * 0.035 + worldZ * 0.028);
-  const desertColor: [number, number, number] = [
-    Math.round(212 + (226 - 212) * duneNoise),
-    Math.round(166 + (190 - 166) * duneNoise),
-    Math.round(76 + (110 - 76) * duneNoise),
-  ];
-
-  // Warna Dasar Bioma Padang Rumput: Rumput Hijau Segar Alami (#569e46 s.d. #438537 / [86, 158, 70] s.d. [67, 133, 55])
-  const grassNoise = 0.5 + 0.5 * Math.sin(worldX * 0.025 - worldZ * 0.03);
-  const grassColor: [number, number, number] = [
-    Math.round(67 + (86 - 67) * grassNoise),
-    Math.round(133 + (158 - 133) * grassNoise),
-    Math.round(55 + (70 - 55) * grassNoise),
-  ];
 
   // 6. Transisi Perbatasan Halus Antara Gurun Solaria & Padang Rumput Eldoria (Lebar 30 Unit)
   const wave = Math.sin(worldZ * 0.006) * 110 + Math.cos(worldZ * 0.015) * 35;
   const warp = Math.sin(worldX * 0.01 + worldZ * 0.012) * 45;
   const boundaryDist = (worldX + wave + warp) - (-240);
 
-  if (worldZ < 180 && Math.abs(boundaryDist) <= 15) {
-    // Smooth blending hanya antara Gurun dan Padang Rumput
+  let baseRGB: [number, number, number];
+  if (worldZ < 180 && Math.abs(boundaryDist) <= 15 && snowWeight < 0.35) {
     const t = clamp((boundaryDist - -15) / 30, 0, 1);
     const blend = t * t * (3 - 2 * t);
-    return [
+    baseRGB = [
       Math.round(desertColor[0] * (1 - blend) + grassColor[0] * blend),
       Math.round(desertColor[1] * (1 - blend) + grassColor[1] * blend),
       Math.round(desertColor[2] * (1 - blend) + grassColor[2] * blend),
     ];
+  } else if (b === 'desert') {
+    baseRGB = desertColor;
+  } else {
+    baseRGB = grassColor;
   }
 
-  // 7. Jika di dalam Gurun Solaria murni (> SEA_LEVEL + 0.45): 100% Pasir Kuning Emas
-  if (b === 'desert') {
-    return desertColor;
+  if (snowWeight > 0.01) {
+    const snowNoise = 0.5 + 0.5 * Math.sin(worldX * 0.04 + worldZ * 0.035);
+    const snowRGB: [number, number, number] = [
+      Math.round(230 + (242 - 230) * snowNoise),
+      Math.round(239 + (247 - 239) * snowNoise),
+      Math.round(246 + (251 - 246) * snowNoise),
+    ];
+    // Lerp mulus: rumput/pasir -> tundra sejuk -> salju terang tanpa tepi kotak!
+    const tundraFactor = clamp(snowWeight * 1.4, 0, 1);
+    const tundraRGB: [number, number, number] = [
+      Math.round(baseRGB[0] * 0.65 + 115 * 0.35),
+      Math.round(baseRGB[1] * 0.65 + 132 * 0.35),
+      Math.round(baseRGB[2] * 0.65 + 126 * 0.35),
+    ];
+    if (snowWeight < 0.45) {
+      const midT = snowWeight / 0.45;
+      return [
+        Math.round(baseRGB[0] * (1 - midT) + tundraRGB[0] * midT),
+        Math.round(baseRGB[1] * (1 - midT) + tundraRGB[1] * midT),
+        Math.round(baseRGB[2] * (1 - midT) + tundraRGB[2] * midT),
+      ];
+    }
+    const pureSnowT = (snowWeight - 0.45) / 0.55;
+    const smoothSnow = pureSnowT * pureSnowT * (3 - 2 * pureSnowT);
+    const finalMix = tundraFactor * 0.25 + smoothSnow * 0.75;
+    return [
+      Math.round(tundraRGB[0] * (1 - finalMix) + snowRGB[0] * finalMix),
+      Math.round(tundraRGB[1] * (1 - finalMix) + snowRGB[1] * finalMix),
+      Math.round(tundraRGB[2] * (1 - finalMix) + snowRGB[2] * finalMix),
+    ];
   }
 
-  // 8. Seluruh Dataran Hijau Tengah, Timur & Selatan (> SEA_LEVEL + 0.45): 100% Rumput Hijau Segar
-  return grassColor;
+  return baseRGB;
 }
 
 export function getContinentBiomeSample(x: number, z: number): BiomeSample {

@@ -104,6 +104,7 @@ import { buildWorldRoadNetwork, isPointOnRoad } from '../RoadSystem';
 import { checkFrameBudget, yieldIfBudgetExceeded, yieldToChrome, cooperativeYield, hardYield } from './frameBudget';
 import { SpatialLookupGrid } from './spatialGrid';
 import { BRIDGE_CONFIGS, isStrictLandForProps, WATER_LEVEL, distToSegment, getDistanceToNearestRoad } from './worldData';
+import { getLandmarkLayout } from './worldLayoutConfig';
 import { SmoothLoadScheduler } from '../utils/asyncLoader';
 import type { WorldCachePayload } from '../storage/worldCacheManager';
 import {
@@ -1176,9 +1177,10 @@ export async function buildAstraeaCastle(
   npcs: WorldNPC[]
 ): Promise<void> {
   await cooperativeYield(4);
-  const cx = 460;
-  const cz = -420;
-  const half = 85; // 170x170: X [375..545], Z [-505..-335]
+  const astLm = getLandmarkLayout('astraea');
+  const cx = astLm?.x ?? 575;
+  const cz = astLm?.z ?? -495;
+  const half = 85; // 170x170 relative to (cx, cz)
   const baseY = getTerrainHeight(cx, cz);
 
   const astraeaStoneMat = new THREE.MeshStandardMaterial({
@@ -1193,44 +1195,44 @@ export async function buildAstraeaCastle(
 
   // 1. Walkable Grand Stone Avenue & Central Imperial Plaza Floor Slabs
   const nsAvenue = new THREE.Mesh(new THREE.BoxGeometry(16, 0.16, 130), astraeaStoneMat);
-  nsAvenue.position.set(cx, baseY + 0.02, -402);
+  nsAvenue.position.set(cx, baseY + 0.02, cz + 18);
   nsAvenue.receiveShadow = true;
   scene.add(nsAvenue);
   registerWalkableSurface(nsAvenue, { label: 'Jalan Raya Selatan-Utara Astraea' });
 
   const ewAvenue = new THREE.Mesh(new THREE.BoxGeometry(162, 0.14, 13), astraeaTrimMat);
-  ewAvenue.position.set(cx, baseY + 0.015, -402);
+  ewAvenue.position.set(cx, baseY + 0.015, cz + 18);
   ewAvenue.receiveShadow = true;
   scene.add(ewAvenue);
   registerWalkableSurface(ewAvenue, { label: 'Jalan Raya Timur-Barat Astraea' });
 
   const plaza = createCircularPlazaMesh(26);
-  plaza.position.set(cx, baseY + 0.04, -402);
+  plaza.position.set(cx, baseY + 0.04, cz + 18);
   scene.add(plaza);
   registerWalkableSurface(plaza, { label: 'Alun-Alun Utama Ibukota Astraea' });
 
   // 2. Monumental Emperor's Sun Palace (scaled 1.85x) facing South (+Z)
   const imperialPalace = createImperialPalaceMesh();
-  imperialPalace.position.set(cx, baseY, -474);
+  imperialPalace.position.set(cx, baseY, cz - 54);
   imperialPalace.scale.set(1.85, 1.85, 1.85);
   imperialPalace.rotation.y = 0;
   scene.add(imperialPalace);
   registerWalkableSurface(imperialPalace, { label: 'Tangga & Podium Istana Kaisar Astraea' });
-  colliders.push({ type: 'box', minX: cx - 26, maxX: cx + 26, minZ: -501, maxZ: -446, label: 'Istana Kaisar Astraea' });
+  colliders.push({ type: 'box', minX: cx - 26, maxX: cx + 26, minZ: cz - 81, maxZ: cz - 26, label: 'Istana Kaisar Astraea' });
 
   // 3. Grand Celestial Fountain & 4 Marble Hero Statues
   const celestialFountain = createImperialFountainMesh();
-  celestialFountain.position.set(cx, baseY, -402);
+  celestialFountain.position.set(cx, baseY, cz + 18);
   celestialFountain.scale.set(1.2, 1.2, 1.2);
   scene.add(celestialFountain);
   decorativeProps.push(celestialFountain);
-  colliders.push({ type: 'circle', x: cx, z: -402, radius: 4.5, label: 'Air Mancur Alun-Alun Astraea' });
+  colliders.push({ type: 'circle', x: cx, z: cz + 18, radius: 4.5, label: 'Air Mancur Alun-Alun Astraea' });
 
   const statueSpots: [number, number, number][] = [
-    [cx - 20, -384, Math.PI * 0.25],
-    [cx + 20, -384, -Math.PI * 0.25],
-    [cx - 20, -420, Math.PI * 0.75],
-    [cx + 20, -420, -Math.PI * 0.75],
+    [cx - 20, cz + 36, Math.PI * 0.25],
+    [cx + 20, cz + 36, -Math.PI * 0.25],
+    [cx - 20, cz, Math.PI * 0.75],
+    [cx + 20, cz, -Math.PI * 0.75],
   ];
   statueSpots.forEach(([sx, sz, rot]) => {
     const sy = getTerrainHeight(sx, sz);
@@ -1241,7 +1243,7 @@ export async function buildAstraeaCastle(
     colliders.push({ type: 'circle', x: sx, z: sz, radius: 1.8, label: 'Patung Pahlawan Kekaisaran' });
   });
 
-  // 4. City Gates (South Gate at (460, -335) & East Gate at (545, -420))
+  // 4. City Gates (South Gate & East Gate)
   const southGate = createImperialGatehouseMesh();
   southGate.position.set(cx, getTerrainHeight(cx, cz + half), cz + half);
   southGate.rotation.y = 0;
@@ -1310,12 +1312,12 @@ export async function buildAstraeaCastle(
 
   // 7. West Residential Quarter: 6 Two-Story Medieval Townhouses
   const resHouses: Array<{ x: number; z: number; rot: number; style: 'blue' | 'terracotta'; awning?: boolean }> = [
-    { x: 396, z: -475, rot: Math.PI / 2, style: 'blue' },
-    { x: 422, z: -475, rot: Math.PI / 2, style: 'terracotta' },
-    { x: 396, z: -432, rot: Math.PI / 2, style: 'terracotta' },
-    { x: 422, z: -432, rot: Math.PI / 2, style: 'blue' },
-    { x: 398, z: -372, rot: 0, style: 'blue' },
-    { x: 424, z: -372, rot: 0, style: 'terracotta' },
+    { x: cx - 64, z: cz - 55, rot: Math.PI / 2, style: 'blue' },
+    { x: cx - 38, z: cz - 55, rot: Math.PI / 2, style: 'terracotta' },
+    { x: cx - 64, z: cz - 12, rot: Math.PI / 2, style: 'terracotta' },
+    { x: cx - 38, z: cz - 12, rot: Math.PI / 2, style: 'blue' },
+    { x: cx - 62, z: cz + 48, rot: 0, style: 'blue' },
+    { x: cx - 36, z: cz + 48, rot: 0, style: 'terracotta' },
   ];
   resHouses.forEach((h) => {
     const hy = getTerrainHeight(h.x, h.z);
@@ -1328,19 +1330,21 @@ export async function buildAstraeaCastle(
 
   // 8. East Commercial, Market, & Tavern District
   // Grand Tavern & Guildhall (Enterable GTA Door interior 'astraea_tavern')
-  const tavernY = getTerrainHeight(508, -374);
+  const astTavX = cx + 48;
+  const astTavZ = cz + 46;
+  const tavernY = getTerrainHeight(astTavX, astTavZ);
   const astraeaTavern = createTavernMesh();
-  astraeaTavern.position.set(508, tavernY, -374);
+  astraeaTavern.position.set(astTavX, tavernY, astTavZ);
   astraeaTavern.scale.set(1.35, 1.35, 1.35);
   astraeaTavern.rotation.y = 0;
   scene.add(astraeaTavern);
   registerWalkableSurface(astraeaTavern, { label: 'Undakan Tavern & Guildhall Astraea' });
-  colliders.push({ type: 'box', minX: 500, maxX: 516, minZ: -382, maxZ: -366.5, label: 'Tavern & Toko Ibukota Astraea' });
+  colliders.push({ type: 'box', minX: astTavX - 8, maxX: astTavX + 8, minZ: astTavZ - 8, maxZ: astTavZ + 7.5, label: 'Tavern & Toko Ibukota Astraea' });
 
   // Merchant Townhouses facing West Plaza
   const shopBuildings: Array<{ x: number; z: number; rot: number; style: 'blue' | 'terracotta' }> = [
-    { x: 520, z: -472, rot: -Math.PI / 2, style: 'terracotta' },
-    { x: 520, z: -440, rot: -Math.PI / 2, style: 'blue' },
+    { x: cx + 60, z: cz - 52, rot: -Math.PI / 2, style: 'terracotta' },
+    { x: cx + 60, z: cz - 20, rot: -Math.PI / 2, style: 'blue' },
   ];
   shopBuildings.forEach((s) => {
     const sy = getTerrainHeight(s.x, s.z);
@@ -1353,10 +1357,10 @@ export async function buildAstraeaCastle(
 
   // Colorful Market & Armory Stalls lining East Market Square
   const marketStalls = [
-    { mesh: createImperialBazaarStallMesh(0x1d4ed8), x: 492, z: -392, rot: Math.PI },
-    { mesh: createImperialBazaarStallMesh(0xb91c1c), x: 506, z: -392, rot: Math.PI },
-    { mesh: createMarketStallMesh(0xd97706), x: 492, z: -414, rot: 0 },
-    { mesh: createArmorStallMesh(), x: 506, z: -414, rot: 0 },
+    { mesh: createImperialBazaarStallMesh(0x1d4ed8), x: cx + 32, z: cz + 28, rot: Math.PI },
+    { mesh: createImperialBazaarStallMesh(0xb91c1c), x: cx + 46, z: cz + 28, rot: Math.PI },
+    { mesh: createMarketStallMesh(0xd97706), x: cx + 32, z: cz + 6, rot: 0 },
+    { mesh: createArmorStallMesh(), x: cx + 46, z: cz + 6, rot: 0 },
   ];
   marketStalls.forEach((st) => {
     st.mesh.position.set(st.x, getTerrainHeight(st.x, st.z), st.z);
@@ -1367,8 +1371,8 @@ export async function buildAstraeaCastle(
 
   // 9. Royal Blossom Gardens & Avenue Street Lamps
   const gardenTrees: [number, number][] = [
-    [402, -496], [428, -496], [492, -496], [518, -496],
-    [438, -456], [482, -456], [438, -352], [482, -352],
+    [cx - 58, cz - 76], [cx - 32, cz - 76], [cx + 32, cz - 76], [cx + 58, cz - 76],
+    [cx - 22, cz - 36], [cx + 22, cz - 36], [cx - 22, cz + 68], [cx + 22, cz + 68],
   ];
   gardenTrees.forEach(([tx, tz]) => {
     const tree = createCherryBlossomTreeMesh();
@@ -1378,8 +1382,8 @@ export async function buildAstraeaCastle(
   });
 
   const lampCoords: [number, number][] = [
-    [451, -348], [469, -348], [451, -372], [469, -372],
-    [451, -432], [469, -432], [492, -396], [526, -396],
+    [cx - 9, cz + 72], [cx + 9, cz + 72], [cx - 9, cz + 48], [cx + 9, cz + 48],
+    [cx - 9, cz - 12], [cx + 9, cz - 12], [cx + 32, cz + 24], [cx + 66, cz + 24],
   ];
   lampCoords.forEach(([lx, lz]) => {
     const lamp = createStreetLampMesh();
@@ -1389,7 +1393,7 @@ export async function buildAstraeaCastle(
 
   // 10. Outdoor Astraea Sentinels (Emperor Aurelius, Marshal Vane, & Lyra reside inside interiors)
   const g1Group = createCustomNPCMesh('guard');
-  const g1Pos: [number, number, number] = [453, getTerrainHeight(453, -341), -341];
+  const g1Pos: [number, number, number] = [cx - 7, getTerrainHeight(cx - 7, cz + 79), cz + 79];
   g1Group.position.set(...g1Pos);
   scene.add(g1Group);
   npcs.push({
@@ -1405,7 +1409,7 @@ export async function buildAstraeaCastle(
   });
 
   const g2Group = createCustomNPCMesh('guard');
-  const g2Pos: [number, number, number] = [472, getTerrainHeight(472, -394), -394];
+  const g2Pos: [number, number, number] = [cx + 12, getTerrainHeight(cx + 12, cz + 26), cz + 26];
   g2Group.position.set(...g2Pos);
   g2Group.rotation.y = -Math.PI / 4;
   scene.add(g2Group);
@@ -3420,7 +3424,7 @@ async function populateWorldEntities(
         id: 'wp_astraea',
         name: 'Grand Imperial Capital Astraea',
         nameId: 'Ibukota Kerajaan Emas Astraea',
-        pos: [460, -420],
+        pos: [575, -447],
       },
       {
         id: 'wp_valkragor',
@@ -3456,7 +3460,7 @@ async function populateWorldEntities(
         id: 'wp_solaria_oasis',
         name: 'Solaria Hidden Oasis',
         nameId: 'Oase Solaria',
-        pos: [-400, -290],
+        pos: [-420, -350],
       },
       {
         id: 'wp_dragoncaldera',
@@ -3557,10 +3561,13 @@ async function populateWorldEntities(
   });
 
   // Build all 7 GTA-style isolated interiors & glowing exterior entrance markers
+  const astLayout = getLandmarkLayout('astraea');
+  const astCx = astLayout?.x ?? 575;
+  const astCz = astLayout?.z ?? -495;
   const vkBaseY = getTerrainHeight(580, 130);
   const vkForgeY = getTerrainHeight(546, 108);
-  const astBaseY = getTerrainHeight(460, -420);
-  const astTavY = getTerrainHeight(508, -374);
+  const astBaseY = getTerrainHeight(astCx, astCz);
+  const astTavY = getTerrainHeight(astCx + 48, astCz + 46);
   const solBaseY = getTerrainHeight(-540, -506);
   const mtBaseY = getTerrainHeight(270, -260);
 
@@ -3585,16 +3592,16 @@ async function populateWorldEntities(
       id: 'door_astraea_palace',
       roomId: 'astraea_imperial_palace',
       label: 'Istana Kaisar Astraea',
-      exteriorDoorPos: { x: 460, y: astBaseY + 0.06, z: -442.2 },
-      exteriorReturnSpawn: { x: 460, y: astBaseY + 0.2, z: -437.8, rotationY: 0 },
+      exteriorDoorPos: { x: astCx, y: astBaseY + 0.06, z: astCz - 22.2 },
+      exteriorReturnSpawn: { x: astCx, y: astBaseY + 0.2, z: astCz - 17.8, rotationY: 0 },
       colorHex: 0xfbbf24,
     },
     astraea_tavern: {
       id: 'door_astraea_tavern',
       roomId: 'astraea_tavern',
       label: 'Tavern & Toko Ibukota',
-      exteriorDoorPos: { x: 508, y: astTavY + 0.06, z: -363.8 },
-      exteriorReturnSpawn: { x: 508, y: astTavY + 0.2, z: -359.5, rotationY: 0 },
+      exteriorDoorPos: { x: astCx + 48, y: astTavY + 0.06, z: astCz + 56.2 },
+      exteriorReturnSpawn: { x: astCx + 48, y: astTavY + 0.2, z: astCz + 60.5, rotationY: 0 },
       colorHex: 0xf59e0b,
     },
     solaria_sultan_palace: {

@@ -12,6 +12,8 @@ import {
   isMainContinentLand,
   getDistanceToNearestRoad,
   getDistanceToRiver as getWorldDistanceToRiver,
+  getSnowWeight,
+  NATURAL_POND_SITES,
   WATER_LEVEL,
   SEA_BED_HEIGHT,
   worldToBridgeLocal,
@@ -481,10 +483,10 @@ export async function buildWorldEnvironmentAsync(
   }
 
   function isInsideCastleOrFort(x: number, z: number): boolean {
-    if (Math.abs(x - 460) <= 35 && Math.abs(z - -420) <= 35) return true; // Astraea
-    if (Math.abs(x - 660) <= 35 && Math.abs(z - 150) <= 35) return true;  // Val-Kragor
-    if (Math.hypot(x - 608, z - -50) <= 22 || Math.hypot(x - 456, z - -62) <= 22) return true; // Ancient Temple Ruins
-    if (Math.abs(x - -680) <= 35 && Math.abs(z - -620) <= 35) return true; // Sultan Palace
+    if (Math.abs(x - 575) <= 96 && Math.abs(z - -495) <= 96) return true; // Astraea Imperial Capital
+    if (Math.abs(x - 580) <= 68 && Math.abs(z - 130) <= 68) return true;  // Val-Kragor Fortress
+    if (Math.hypot(x - 580, z - -60) <= 36 || Math.hypot(x - 580, z - -120) <= 36) return true; // Castle Ruins / Moss Valley
+    if (Math.abs(x - -540) <= 68 && Math.abs(z - -500) <= 68) return true; // Sultan Palace / Desert Village
     return false;
   }
 
@@ -2231,15 +2233,79 @@ export async function buildWorldEnvironmentAsync(
   // 4. Cabang D (Selatan / Hilir Utama)
   canyonGroup.add(buildRiverRibbon(RIVER_MAIN_DOWNSTREAM, 14.0, -0.25));
 
-  // Mountain spring basin pools at river headwaters
+  // Hulu sungai alami di outlet Danau Titan + Telaga Lembah Hijau & Oase Bukir Pasir (NATURAL_POND_SITES)
   const createSpringPool = (sx: number, sz: number, radius = 8.0) => {
-    const poolGeo = new THREE.CylinderGeometry(radius, radius, 0.4, 20);
+    const poolGeo = new THREE.CircleGeometry(radius, 24);
+    poolGeo.rotateX(-Math.PI / 2);
     const poolMesh = new THREE.Mesh(poolGeo, matRiverWater);
-    poolMesh.position.set(sx, -0.32, sz);
+    poolMesh.position.set(sx, -0.22, sz);
     canyonGroup.add(poolMesh);
   };
-  createSpringPool(200, -520, 8.5); // Hulu Kanyon Kuno
-  createSpringPool(485, -290, 8.0); // Hulu Pegunungan Timur Laut
+  createSpringPool(60, -764, 9.5); // Muara aliran keluar Danau Titan Kuno
+
+  const pondReedGeo = new THREE.ConeGeometry(0.14, 1.35, 4);
+  pondReedGeo.translate(0, 0.67, 0);
+  const matPondReed = new THREE.MeshStandardMaterial({ color: 0x4d7c0f, roughness: 0.85, flatShading: true });
+  const matPondWater = new THREE.MeshStandardMaterial({
+    color: 0x14b8a6,
+    roughness: 0.14,
+    metalness: 0.22,
+    transparent: true,
+    opacity: 0.84,
+  });
+
+  NATURAL_POND_SITES.forEach((site, sIdx) => {
+    const waterR = site.id === 'oasis_solaria_main' ? 11.8 : site.radius * 0.92;
+    const pondGeo = new THREE.CircleGeometry(waterR, 28);
+    pondGeo.rotateX(-Math.PI / 2);
+    const pondMesh = new THREE.Mesh(pondGeo, site.biome === 'desert' ? matPondWater : matRiverWater);
+    pondMesh.position.set(site.x, site.id === 'oasis_solaria_main' ? 0.78 : -0.22, site.z);
+    canyonGroup.add(pondMesh);
+
+    const rimCount = site.biome === 'desert' ? 6 : 8;
+    for (let r = 0; r < rimCount; r++) {
+      const ang = (r / rimCount) * Math.PI * 2 + sIdx * 0.55;
+      const rr = waterR + 1.4 + (r % 2) * 1.1;
+      const rx = site.x + Math.cos(ang) * rr;
+      const rz = site.z + Math.sin(ang) * rr;
+      const ry = getTerrainHeight(rx, rz);
+      if (ry < 0.05) continue;
+
+      if (site.biome === 'desert') {
+        if (r % 2 === 0) {
+          const pGroup = new THREE.Group();
+          pGroup.position.set(rx, ry, rz);
+          const lean = 0.18 + (r % 3) * 0.05;
+          pGroup.rotation.y = ang + Math.PI;
+          const tSeg = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.34, 4.6, 6), matPalmTrunk);
+          tSeg.position.set(Math.sin(lean) * 0.8, 2.2, 0);
+          tSeg.rotation.z = -lean;
+          tSeg.castShadow = true;
+          pGroup.add(tSeg);
+          for (let f = 0; f < 5; f++) {
+            const frond = new THREE.Mesh(new THREE.ConeGeometry(0.45, 2.5, 4), matPalmLeaf);
+            frond.position.set(Math.sin(lean) * 1.6, 4.4, 0);
+            frond.rotation.set(Math.PI * 0.38, (f / 5) * Math.PI * 2, 0);
+            pGroup.add(frond);
+          }
+          canyonGroup.add(pGroup);
+          colliders.push({ type: 'circle', x: rx, z: rz, radius: 0.65, label: 'Pohon Palem Oase' });
+        }
+      } else {
+        if (r % 2 === 0) {
+          const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.95 + (r % 3) * 0.3, 0), matMossStone);
+          boulder.position.set(rx, ry + 0.35, rz);
+          boulder.scale.set(1.2, 0.72, 1.0);
+          boulder.rotation.y = ang;
+          canyonGroup.add(boulder);
+        }
+        const reed = new THREE.Mesh(pondReedGeo, matPondReed);
+        reed.position.set(rx + 0.5, ry - 0.05, rz - 0.4);
+        reed.rotation.z = 0.08 * Math.sin(r);
+        canyonGroup.add(reed);
+      }
+    }
+  });
 
   envGroup.add(canyonGroup);
 
@@ -2688,7 +2754,7 @@ export async function buildWorldEnvironmentAsync(
     if (Math.hypot(x - (-840), z - (-260)) < Math.max(dist, 82.0)) return true;
     // 2. Boss Titan (Arena Colosseum Reruntuhan Batu)
     const titanLayout = getLandmarkLayout('bossGolem') || getLandmarkLayout('kawah_boss');
-    const tX = titanLayout?.x ?? 340;
+    const tX = titanLayout?.x ?? 180;
     const tZ = titanLayout?.z ?? -560;
     if (Math.hypot(x - tX, z - tZ) < dist) return true;
     // 3. Boss Dragon Ignis (Kepulauan Kaldera Naga)
@@ -2696,7 +2762,69 @@ export async function buildWorldEnvironmentAsync(
     return false;
   }
 
-  const OAK_COUNT = Math.max(100, Math.round(1100 * propScale));
+  // Helper penggabung geometri sederhana (0 dependensi eksternal) untuk rumpun rumput/bunga/cemara salju instanced
+  function mergeSimpleGeometries(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
+    const nonIndexed = geos.map((g) => {
+      const ni = g.index ? g.toNonIndexed() : g.clone();
+      if (!ni.getAttribute('normal')) ni.computeVertexNormals();
+      return ni;
+    });
+    let totalVerts = 0;
+    for (const g of nonIndexed) {
+      totalVerts += g.getAttribute('position').count;
+    }
+    const posArr = new Float32Array(totalVerts * 3);
+    const normArr = new Float32Array(totalVerts * 3);
+    let vOffset = 0;
+    for (const g of nonIndexed) {
+      const p = g.getAttribute('position');
+      const n = g.getAttribute('normal');
+      for (let i = 0; i < p.count; i++) {
+        posArr[(vOffset + i) * 3] = p.getX(i);
+        posArr[(vOffset + i) * 3 + 1] = p.getY(i);
+        posArr[(vOffset + i) * 3 + 2] = p.getZ(i);
+        if (n) {
+          normArr[(vOffset + i) * 3] = n.getX(i);
+          normArr[(vOffset + i) * 3 + 1] = n.getY(i);
+          normArr[(vOffset + i) * 3 + 2] = n.getZ(i);
+        }
+      }
+      vOffset += p.count;
+      g.dispose();
+    }
+    const merged = new THREE.BufferGeometry();
+    merged.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+    merged.setAttribute('normal', new THREE.BufferAttribute(normArr, 3));
+    merged.computeBoundingSphere();
+    return merged;
+  }
+
+  // GPU Vertex-Shader Wind Sway (0% CPU loop overhead) untuk rumput & bunga instanced
+  const windUniforms = { uWindTime: { value: 0 } };
+  function applyGrassWindShader(mat: THREE.MeshStandardMaterial, amplitude = 0.16) {
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uWindTime = windUniforms.uWindTime;
+      shader.vertexShader = 'uniform float uWindTime;\n' + shader.vertexShader;
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        vec4 windInstPos = vec4(0.0, 0.0, 0.0, 1.0);
+        #ifdef USE_INSTANCING
+          windInstPos = instanceMatrix * vec4(transformed, 1.0);
+        #else
+          windInstPos = vec4(transformed, 1.0);
+        #endif
+        float bendFactor = clamp(position.y, 0.0, 1.2);
+        float breeze = sin(uWindTime * 2.1 + windInstPos.x * 0.19 + windInstPos.z * 0.16) * 0.72
+                     + cos(uWindTime * 3.4 - windInstPos.x * 0.31) * 0.28;
+        transformed.x += breeze * ${amplitude.toFixed(3)} * bendFactor * bendFactor;
+        transformed.z += breeze * ${(amplitude * 0.65).toFixed(3)} * bendFactor * bendFactor;`
+      );
+    };
+    mat.customProgramCacheKey = () => `eldoria_wind_${amplitude}`;
+  }
+
+  const OAK_COUNT = Math.max(100, Math.round(1250 * propScale));
   const oakTrunkGeo = new THREE.CylinderGeometry(0.32, 0.46, 2.6, 6);
   oakTrunkGeo.translate(0, 1.3, 0);
   const oakCrownGeo = new THREE.DodecahedronGeometry(2.1, 0);
@@ -2712,20 +2840,139 @@ export async function buildWorldEnvironmentAsync(
   const pineConeGeo3 = new THREE.ConeGeometry(0.85, 1.6, 5);
   pineConeGeo3.translate(0, 4.6, 0);
 
-  const BOULDER_COUNT = Math.max(100, Math.round(800 * propScale));
+  // Pinus Salju Utara Instanced (3-tier dark spruce + white snow caps di zona snowWeight > 0.45)
+  const SNOW_PINE_COUNT = Math.max(80, Math.round(520 * propScale));
+  const snowPineTrunkGeo = new THREE.CylinderGeometry(0.26, 0.42, 2.6, 5);
+  snowPineTrunkGeo.translate(0, 1.3, 0);
+  const snowPineFoliageGeo = mergeSimpleGeometries([
+    (() => { const g = new THREE.ConeGeometry(2.05, 2.6, 6); g.translate(0, 2.9, 0); return g; })(),
+    (() => { const g = new THREE.ConeGeometry(1.55, 2.2, 6); g.translate(0, 4.3, 0); return g; })(),
+    (() => { const g = new THREE.ConeGeometry(1.05, 1.8, 6); g.translate(0, 5.5, 0); return g; })(),
+  ]);
+  const snowPineCapGeo = mergeSimpleGeometries([
+    (() => { const g = new THREE.ConeGeometry(1.42, 1.45, 6); g.translate(0, 3.55, 0); return g; })(),
+    (() => { const g = new THREE.ConeGeometry(1.08, 1.25, 6); g.translate(0, 4.85, 0); return g; })(),
+    (() => { const g = new THREE.ConeGeometry(0.74, 1.05, 6); g.translate(0, 5.95, 0); return g; })(),
+  ]);
+  const matSnowPineFoliage = new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.85, flatShading: true });
+  const matSnowPineCap = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.62, flatShading: true });
+
+  const BOULDER_COUNT = Math.max(100, Math.round(920 * propScale));
   const boulderGeo = new THREE.DodecahedronGeometry(1.0, 0);
 
-  const PLAINS_GRASS_COUNT = Math.max(200, Math.round(3500 * propScale));
-  const plainsGrassGeo = new THREE.ConeGeometry(0.35, 0.75, 4);
-  const matPlainsGrass = new THREE.MeshStandardMaterial({
-    color: 0x5da84e,
-    roughness: 0.85,
-    metalness: 0.05,
+  const SNOW_BOULDER_COUNT = Math.max(40, Math.round(280 * propScale));
+  const matSnowBoulder = new THREE.MeshStandardMaterial({
+    color: 0xdbeafe,
+    roughness: 0.48,
+    metalness: 0.15,
     flatShading: true,
   });
 
-  const SHRUB_COUNT = Math.max(80, Math.round(750 * propScale));
+  // Rumpun Rumput 3-Helai Bersilang (Wind-Swaying Instanced Tuft Cluster)
+  const PLAINS_GRASS_COUNT = Math.max(250, Math.round(4800 * propScale));
+  const buildCrossedGrassTuftGeo = (height = 0.88, width = 0.36): THREE.BufferGeometry => {
+    const blades: THREE.BufferGeometry[] = [];
+    for (let b = 0; b < 3; b++) {
+      const ang = (b * Math.PI) / 3;
+      const g = new THREE.ConeGeometry(width * 0.55, height, 3);
+      g.translate(0, height * 0.5, 0);
+      g.rotateZ((b === 0 ? 0.16 : b === 1 ? -0.14 : 0.08));
+      g.rotateY(ang);
+      g.translate(Math.cos(ang) * 0.14, 0, Math.sin(ang) * 0.14);
+      blades.push(g);
+    }
+    return mergeSimpleGeometries(blades);
+  };
+  const plainsGrassGeo = buildCrossedGrassTuftGeo(0.88, 0.36);
+  const matPlainsGrass = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.86,
+    metalness: 0.04,
+    flatShading: true,
+  });
+  applyGrassWindShader(matPlainsGrass, 0.16);
+  const plainsGrassPalette = [
+    new THREE.Color(0x4d9a3d),
+    new THREE.Color(0x62b446),
+    new THREE.Color(0x76bf49),
+    new THREE.Color(0x3f7d32),
+  ];
+
+  // Bunga Liar Berwarna-Warni Instanced (Kuning, Putih, Biru Muda, Merah Muda)
+  const WILDFLOWER_COUNT = Math.max(120, Math.round(1450 * propScale));
+  const wildflowerGeo = mergeSimpleGeometries([
+    (() => { const g = new THREE.CylinderGeometry(0.03, 0.04, 0.45, 4); g.translate(0, 0.22, 0); return g; })(),
+    (() => { const g = new THREE.DodecahedronGeometry(0.16, 0); g.scale(1.1, 0.65, 1.1); g.translate(0, 0.48, 0); return g; })(),
+    (() => { const g = new THREE.DodecahedronGeometry(0.13, 0); g.scale(1.1, 0.65, 1.1); g.translate(0.22, 0.38, 0.14); return g; })(),
+    (() => { const g = new THREE.DodecahedronGeometry(0.12, 0); g.scale(1.1, 0.65, 1.1); g.translate(-0.18, 0.34, -0.16); return g; })(),
+  ]);
+  const matWildflowerCluster = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.68,
+    metalness: 0.04,
+    flatShading: true,
+  });
+  applyGrassWindShader(matWildflowerCluster, 0.14);
+  const wildflowerPalette = [
+    new THREE.Color(0xfacc15), // Kuning keemasan
+    new THREE.Color(0xf8fafc), // Putih aster
+    new THREE.Color(0x60a5fa), // Biru langit
+    new THREE.Color(0xf472b6), // Merah muda liar
+  ];
+
+  // Semak Berry & Kayu Tumbang Alami (Lembah & Perbukitan)
+  const SHRUB_COUNT = Math.max(80, Math.round(880 * propScale));
   const shrubGeo = new THREE.DodecahedronGeometry(0.65, 0);
+
+  const BERRY_BUSH_COUNT = Math.max(50, Math.round(520 * propScale));
+  const berryBushGeo = mergeSimpleGeometries([
+    (() => { const g = new THREE.DodecahedronGeometry(0.58, 0); g.translate(0, 0.42, 0); return g; })(),
+    (() => { const g = new THREE.DodecahedronGeometry(0.42, 0); g.translate(0.38, 0.32, 0.2); return g; })(),
+    (() => { const g = new THREE.DodecahedronGeometry(0.36, 0); g.translate(-0.34, 0.28, -0.18); return g; })(),
+  ]);
+  const matBerryBush = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.85,
+    flatShading: true,
+  });
+  const berryBushPalette = [
+    new THREE.Color(0x2f6b2f),
+    new THREE.Color(0x3f7d2c),
+    new THREE.Color(0x882d3f),
+    new THREE.Color(0x36693a),
+  ];
+
+  const FALLEN_LOG_COUNT = Math.max(30, Math.round(240 * propScale));
+  const fallenLogGeo = (() => {
+    const trunk = new THREE.CylinderGeometry(0.28, 0.38, 3.6, 6);
+    trunk.rotateZ(Math.PI / 2);
+    trunk.translate(0, 0.26, 0);
+    const stub = new THREE.CylinderGeometry(0.10, 0.16, 1.0, 5);
+    stub.rotateZ(0.45);
+    stub.translate(0.7, 0.65, 0.12);
+    return mergeSimpleGeometries([trunk, stub]);
+  })();
+
+  // Flora Gurun Solaria Instanced: Rumpun Rumput Kering & Singkapan Sandstone Berlapis
+  const DESERT_GRASS_COUNT = Math.max(100, Math.round(1450 * propScale));
+  const desertGrassGeo = buildCrossedGrassTuftGeo(0.74, 0.32);
+  const matDesertGrass = new THREE.MeshStandardMaterial({
+    color: 0xc2a45c,
+    roughness: 0.9,
+    flatShading: true,
+  });
+  applyGrassWindShader(matDesertGrass, 0.12);
+
+  const DESERT_ROCK_COUNT = Math.max(60, Math.round(440 * propScale));
+  const desertRockGeo = mergeSimpleGeometries([
+    (() => { const g = new THREE.DodecahedronGeometry(1.15, 0); g.scale(1.4, 0.55, 1.15); g.translate(0, 0.45, 0); return g; })(),
+    (() => { const g = new THREE.DodecahedronGeometry(0.85, 0); g.scale(1.2, 0.45, 0.95); g.translate(0.3, 0.95, -0.15); return g; })(),
+  ]);
+  const matDesertOutcrop = new THREE.MeshStandardMaterial({
+    color: 0xc68646,
+    roughness: 0.9,
+    flatShading: true,
+  });
 
   const REEF_STONE_COUNT = Math.max(20, Math.round(60 * propScale));
   const reefStoneGeo = new THREE.DodecahedronGeometry(0.85, 0);
@@ -2738,9 +2985,16 @@ export async function buildWorldEnvironmentAsync(
     cachedProps &&
       cachedProps.oak instanceof Float32Array &&
       cachedProps.pine instanceof Float32Array &&
+      cachedProps.snowPine instanceof Float32Array &&
       cachedProps.boulder instanceof Float32Array &&
+      cachedProps.snowBoulder instanceof Float32Array &&
       cachedProps.plainsGrass instanceof Float32Array &&
+      cachedProps.wildflower instanceof Float32Array &&
       cachedProps.shrub instanceof Float32Array &&
+      cachedProps.berryBush instanceof Float32Array &&
+      cachedProps.fallenLog instanceof Float32Array &&
+      cachedProps.desertGrass instanceof Float32Array &&
+      cachedProps.desertRock instanceof Float32Array &&
       cachedProps.reefStone instanceof Float32Array &&
       cachedProps.beachGrass instanceof Float32Array
   );
@@ -2748,7 +3002,8 @@ export async function buildWorldEnvironmentAsync(
   const restoreInstancedLayer = (
     geo: THREE.BufferGeometry,
     mat: THREE.Material,
-    matrices: Float32Array
+    matrices: Float32Array,
+    palette?: THREE.Color[]
   ): THREE.InstancedMesh => {
     const count = Math.floor(matrices.length / 16);
     const mesh = new THREE.InstancedMesh(geo, mat, Math.max(1, count));
@@ -2756,6 +3011,12 @@ export async function buildWorldEnvironmentAsync(
     if (count > 0) {
       (mesh.instanceMatrix.array as Float32Array).set(matrices.subarray(0, count * 16));
       mesh.instanceMatrix.needsUpdate = true;
+      if (palette && palette.length > 0) {
+        for (let i = 0; i < count; i++) {
+          mesh.setColorAt(i, palette[(i * 7 + (i >> 2)) % palette.length]);
+        }
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      }
     }
     mesh.computeBoundingSphere();
     return mesh;
@@ -2767,9 +3028,18 @@ export async function buildWorldEnvironmentAsync(
   let pineFoliageMesh1: THREE.InstancedMesh;
   let pineFoliageMesh2: THREE.InstancedMesh;
   let pineFoliageMesh3: THREE.InstancedMesh;
+  let snowPineTrunkMesh: THREE.InstancedMesh;
+  let snowPineFoliageMesh: THREE.InstancedMesh;
+  let snowPineSnowCapMesh: THREE.InstancedMesh;
   let boulderMesh: THREE.InstancedMesh;
+  let snowBoulderMesh: THREE.InstancedMesh;
   let plainsGrassMesh: THREE.InstancedMesh;
+  let wildflowerMesh: THREE.InstancedMesh;
   let shrubMesh: THREE.InstancedMesh;
+  let berryBushMesh: THREE.InstancedMesh;
+  let fallenLogMesh: THREE.InstancedMesh;
+  let desertGrassMesh: THREE.InstancedMesh;
+  let desertRockMesh: THREE.InstancedMesh;
   let reefStoneMesh: THREE.InstancedMesh;
   let beachGrassMesh: THREE.InstancedMesh;
   let capturedPropMatrices: Record<string, Float32Array> | undefined;
@@ -2784,9 +3054,18 @@ export async function buildWorldEnvironmentAsync(
     pineFoliageMesh1 = restoreInstancedLayer(pineConeGeo1, matPineFoliage, cachedProps.pine);
     pineFoliageMesh2 = restoreInstancedLayer(pineConeGeo2, matPineFoliage, cachedProps.pine);
     pineFoliageMesh3 = restoreInstancedLayer(pineConeGeo3, matPineFoliage, cachedProps.pine);
+    snowPineTrunkMesh = restoreInstancedLayer(snowPineTrunkGeo, matWoodDark, cachedProps.snowPine);
+    snowPineFoliageMesh = restoreInstancedLayer(snowPineFoliageGeo, matSnowPineFoliage, cachedProps.snowPine);
+    snowPineSnowCapMesh = restoreInstancedLayer(snowPineCapGeo, matSnowPineCap, cachedProps.snowPine);
     boulderMesh = restoreInstancedLayer(boulderGeo, matBoulder, cachedProps.boulder);
-    plainsGrassMesh = restoreInstancedLayer(plainsGrassGeo, matPlainsGrass, cachedProps.plainsGrass);
+    snowBoulderMesh = restoreInstancedLayer(boulderGeo, matSnowBoulder, cachedProps.snowBoulder);
+    plainsGrassMesh = restoreInstancedLayer(plainsGrassGeo, matPlainsGrass, cachedProps.plainsGrass, plainsGrassPalette);
+    wildflowerMesh = restoreInstancedLayer(wildflowerGeo, matWildflowerCluster, cachedProps.wildflower, wildflowerPalette);
     shrubMesh = restoreInstancedLayer(shrubGeo, matShrub, cachedProps.shrub);
+    berryBushMesh = restoreInstancedLayer(berryBushGeo, matBerryBush, cachedProps.berryBush, berryBushPalette);
+    fallenLogMesh = restoreInstancedLayer(fallenLogGeo, matWoodDark, cachedProps.fallenLog);
+    desertGrassMesh = restoreInstancedLayer(desertGrassGeo, matDesertGrass, cachedProps.desertGrass);
+    desertRockMesh = restoreInstancedLayer(desertRockGeo, matDesertOutcrop, cachedProps.desertRock);
     reefStoneMesh = restoreInstancedLayer(reefStoneGeo, matWetSeaRock, cachedProps.reefStone);
     beachGrassMesh = restoreInstancedLayer(beachGrassGeo, matBeachGrass, cachedProps.beachGrass);
 
@@ -2797,9 +3076,18 @@ export async function buildWorldEnvironmentAsync(
       pineFoliageMesh1,
       pineFoliageMesh2,
       pineFoliageMesh3,
+      snowPineTrunkMesh,
+      snowPineFoliageMesh,
+      snowPineSnowCapMesh,
       boulderMesh,
+      snowBoulderMesh,
       plainsGrassMesh,
+      wildflowerMesh,
       shrubMesh,
+      berryBushMesh,
+      fallenLogMesh,
+      desertGrassMesh,
+      desertRockMesh,
       reefStoneMesh,
       beachGrassMesh
     );
@@ -2814,15 +3102,15 @@ export async function buildWorldEnvironmentAsync(
       }
     });
   } else {
-    // 1. SUB-TAHAP 71%: POHON OAK RINDANG / PINUS HIJAU (BERSKALA PERANGKAT)
-    onProgress?.(71, 'Menanam Pohon Oak Rindang (InstancedMesh 71%)...');
+    // 1. SUB-TAHAP 71%: POHON OAK RINDANG DI BUKIT & LEMBAH HIJAU (BERSKALA PERANGKAT)
+    onProgress?.(71, 'Menanam Pohon Oak & Hutan Salju Utara (InstancedMesh 71%)...');
     oakTrunkMesh = new THREE.InstancedMesh(oakTrunkGeo, matWoodRustic, OAK_COUNT);
     oakCrownMesh = new THREE.InstancedMesh(oakCrownGeo, matOakFoliage, OAK_COUNT);
 
     let oakAssigned = 0;
     const oakStep = 18;
-    for (let x = -600; x < 680 && oakAssigned < OAK_COUNT; x += oakStep) {
-      for (let z = -800; z < 100 && oakAssigned < OAK_COUNT; z += oakStep) {
+    for (let x = -640; x < 860 && oakAssigned < OAK_COUNT; x += oakStep) {
+      for (let z = -760; z < 210 && oakAssigned < OAK_COUNT; z += oakStep) {
         if (performance.now() - tLastEnvYield >= 6) {
           await hardYield();
           tLastEnvYield = performance.now();
@@ -2830,9 +3118,9 @@ export async function buildWorldEnvironmentAsync(
         const ox = x + (0.15 + Math.random() * 0.7) * oakStep;
         const oz = z + (0.15 + Math.random() * 0.7) * oakStep;
 
-        if (isFarOcean(ox, oz) || spatialGrid.isBlocked(ox, oz) || spatialGrid.isDesert(ox, oz) || spatialGrid.isOcean(ox, oz) || isNearBridge(ox, oz) || isNearBossArena(ox, oz) || !isValidDryLand(ox, oz, 1.5) || getDistanceToNearestRoad(ox, oz) < 9.5) continue;
-        const oy = spatialGrid.getHeight(ox, oz);
-        if (oy < 0.25 || oy > 4.5) continue;
+        if (getSnowWeight(ox, oz) > 0.35 || isFarOcean(ox, oz) || spatialGrid.isBlocked(ox, oz) || spatialGrid.isDesert(ox, oz) || spatialGrid.isOcean(ox, oz) || isNearBridge(ox, oz) || isNearBossArena(ox, oz) || !isValidDryLand(ox, oz, 1.5) || getDistanceToNearestRoad(ox, oz) < 9.5) continue;
+        const oy = getTerrainHeight(ox, oz);
+        if (oy < 0.25 || oy > 22.0) continue;
 
         const s = 0.8 + Math.random() * 0.55;
         dummy.position.set(ox, oy, oz);
@@ -2854,8 +3142,8 @@ export async function buildWorldEnvironmentAsync(
     envGroup.add(oakTrunkMesh, oakCrownMesh);
     await checkEnvYield();
 
-    // 2. SUB-TAHAP 72%: POHON CEMARA SEGITIGA (BERSKALA PERANGKAT)
-    onProgress?.(72, 'Menempatkan Rumpun Pohon Cemara (InstancedMesh 72%)...');
+    // 2. SUB-TAHAP 72%: POHON CEMARA HIJAU & HUTAN PINUS BERSALJU UTARA
+    onProgress?.(72, 'Menanam Cemara Bukit & Hutan Pinus Salju (InstancedMesh 72%)...');
     pineTrunkMesh = new THREE.InstancedMesh(pineTrunkGeo, matWoodRustic, PINE_COUNT);
     pineFoliageMesh1 = new THREE.InstancedMesh(pineConeGeo1, matPineFoliage, PINE_COUNT);
     pineFoliageMesh2 = new THREE.InstancedMesh(pineConeGeo2, matPineFoliage, PINE_COUNT);
@@ -2863,8 +3151,8 @@ export async function buildWorldEnvironmentAsync(
 
     let pineAssigned = 0;
     const pineStep = 18;
-    for (let x = -607; x < 675 && pineAssigned < PINE_COUNT; x += pineStep) {
-      for (let z = -807; z < 105 && pineAssigned < PINE_COUNT; z += pineStep) {
+    for (let x = -640; x < 860 && pineAssigned < PINE_COUNT; x += pineStep) {
+      for (let z = -760; z < 210 && pineAssigned < PINE_COUNT; z += pineStep) {
         if (performance.now() - tLastEnvYield >= 6) {
           await hardYield();
           tLastEnvYield = performance.now();
@@ -2872,9 +3160,9 @@ export async function buildWorldEnvironmentAsync(
         const px = x + (0.15 + Math.random() * 0.7) * pineStep;
         const pz = z + (0.15 + Math.random() * 0.7) * pineStep;
 
-        if (isFarOcean(px, pz) || spatialGrid.isBlocked(px, pz) || spatialGrid.isDesert(px, pz) || spatialGrid.isOcean(px, pz) || isNearBridge(px, pz) || isNearBossArena(px, pz) || !isValidDryLand(px, pz, 1.5) || getDistanceToNearestRoad(px, pz) < 9.5) continue;
-        const py = spatialGrid.getHeight(px, pz);
-        if (py < 0.25 || py > 5.0) continue;
+        if (getSnowWeight(px, pz) > 0.45 || isFarOcean(px, pz) || spatialGrid.isBlocked(px, pz) || spatialGrid.isDesert(px, pz) || spatialGrid.isOcean(px, pz) || isNearBridge(px, pz) || isNearBossArena(px, pz) || !isValidDryLand(px, pz, 1.5) || getDistanceToNearestRoad(px, pz) < 9.5) continue;
+        const py = getTerrainHeight(px, pz);
+        if (py < 0.25 || py > 22.0) continue;
 
         const s = 0.8 + Math.random() * 0.55;
         dummy.position.set(px, py, pz);
@@ -2902,16 +3190,63 @@ export async function buildWorldEnvironmentAsync(
     pineFoliageMesh2.computeBoundingSphere();
     pineFoliageMesh3.computeBoundingSphere();
     envGroup.add(pineTrunkMesh, pineFoliageMesh1, pineFoliageMesh2, pineFoliageMesh3);
+
+    // Pinus Salju Bertingkat Khusus Bioma Salju Utara (getSnowWeight > 0.45)
+    snowPineTrunkMesh = new THREE.InstancedMesh(snowPineTrunkGeo, matWoodDark, SNOW_PINE_COUNT);
+    snowPineFoliageMesh = new THREE.InstancedMesh(snowPineFoliageGeo, matSnowPineFoliage, SNOW_PINE_COUNT);
+    snowPineSnowCapMesh = new THREE.InstancedMesh(snowPineCapGeo, matSnowPineCap, SNOW_PINE_COUNT);
+    let spAssigned = 0;
+    const spStep = 14;
+    for (let x = -280; x <= 320 && spAssigned < SNOW_PINE_COUNT; x += spStep) {
+      for (let z = -980; z <= -640 && spAssigned < SNOW_PINE_COUNT; z += spStep) {
+        if (performance.now() - tLastEnvYield >= 6) {
+          await hardYield();
+          tLastEnvYield = performance.now();
+        }
+        const sx = x + (0.15 + Math.random() * 0.7) * spStep;
+        const sz = z + (0.15 + Math.random() * 0.7) * spStep;
+        if (getSnowWeight(sx, sz) <= 0.45) continue;
+        if (Math.hypot(sx - 60, sz - -820) < 64) continue; // Tepi danau
+        if (Math.hypot(sx - 180, sz - -560) < 88) continue; // Colosseum
+        if (isFarOcean(sx, sz) || spatialGrid.isOcean(sx, sz) || spatialGrid.isNearRiver(sx, sz) || !isValidDryLand(sx, sz, 1.5) || getDistanceToNearestRoad(sx, sz) < 10.0) continue;
+        const sy = getTerrainHeight(sx, sz);
+        if (sy < 0.35 || sy > 26.0) continue;
+
+        const sc = 0.85 + Math.random() * 0.6;
+        dummy.position.set(sx, sy, sz);
+        dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+        dummy.scale.set(sc, sc * (0.95 + Math.random() * 0.25), sc);
+        dummy.updateMatrix();
+        snowPineTrunkMesh.setMatrixAt(spAssigned, dummy.matrix);
+        snowPineFoliageMesh.setMatrixAt(spAssigned, dummy.matrix);
+        snowPineSnowCapMesh.setMatrixAt(spAssigned, dummy.matrix);
+        spAssigned++;
+      }
+    }
+    snowPineTrunkMesh.count = spAssigned;
+    snowPineFoliageMesh.count = spAssigned;
+    snowPineSnowCapMesh.count = spAssigned;
+    snowPineTrunkMesh.instanceMatrix.needsUpdate = true;
+    snowPineFoliageMesh.instanceMatrix.needsUpdate = true;
+    snowPineSnowCapMesh.instanceMatrix.needsUpdate = true;
+    snowPineTrunkMesh.computeBoundingSphere();
+    snowPineFoliageMesh.computeBoundingSphere();
+    snowPineSnowCapMesh.computeBoundingSphere();
+    envGroup.add(snowPineTrunkMesh, snowPineFoliageMesh, snowPineSnowCapMesh);
     await checkEnvYield();
 
-    // 3. SUB-TAHAP 73%: FORMASI BEBATUAN GRANIT & KRISTAL (BERSKALA PERANGKAT)
-    onProgress?.(73, 'Membentuk Formasi Bebatuan & Kristal (InstancedMesh 73%)...');
+    // 3. SUB-TAHAP 73%: BEBATUAN GRANIT, KAYU TUMBANG & BATU SALJU/ES
+    onProgress?.(73, 'Membentuk Bebatuan Lembah & Formasi Batu Es (InstancedMesh 73%)...');
     boulderMesh = new THREE.InstancedMesh(boulderGeo, matBoulder, BOULDER_COUNT);
+    snowBoulderMesh = new THREE.InstancedMesh(boulderGeo, matSnowBoulder, SNOW_BOULDER_COUNT);
+    fallenLogMesh = new THREE.InstancedMesh(fallenLogGeo, matWoodDark, FALLEN_LOG_COUNT);
 
     let boulderAssigned = 0;
-    const boulderStep = 18;
-    for (let x = -454; x < 400 && boulderAssigned < BOULDER_COUNT; x += boulderStep) {
-      for (let z = -404; z < 180 && boulderAssigned < BOULDER_COUNT; z += boulderStep) {
+    let sbAssigned = 0;
+    let logAssigned = 0;
+    const boulderStep = 20;
+    for (let x = -560; x < 840; x += boulderStep) {
+      for (let z = -940; z < 210; z += boulderStep) {
         if (performance.now() - tLastEnvYield >= 6) {
           await hardYield();
           tLastEnvYield = performance.now();
@@ -2920,69 +3255,118 @@ export async function buildWorldEnvironmentAsync(
         const bz = z + (0.15 + Math.random() * 0.7) * boulderStep;
 
         if (isFarOcean(bx, bz) || spatialGrid.isBlocked(bx, bz) || spatialGrid.isDesert(bx, bz) || spatialGrid.isOcean(bx, bz) || isNearBridge(bx, bz) || isNearBossArena(bx, bz) || !isValidDryLand(bx, bz, 1.5) || getDistanceToNearestRoad(bx, bz) < 9.5) continue;
-        const by = spatialGrid.getHeight(bx, bz);
-        if (by < 0.2) continue;
+        const by = getTerrainHeight(bx, bz);
+        if (by < 0.25 || by > 24.0) continue;
 
-        const scale = 0.7 + Math.random() * 0.75;
-        const scaleY = scale * (0.75 + Math.random() * 0.45);
-        dummy.position.set(bx, by + scaleY * 0.35, bz);
-        dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-        dummy.scale.set(scale, scaleY, scale);
-        dummy.updateMatrix();
-
-        boulderMesh.setMatrixAt(boulderAssigned, dummy.matrix);
-        boulderAssigned++;
+        const sw = getSnowWeight(bx, bz);
+        if (sw > 0.35 && sbAssigned < SNOW_BOULDER_COUNT) {
+          const scale = 0.75 + Math.random() * 0.9;
+          dummy.position.set(bx, by + scale * 0.35, bz);
+          dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+          dummy.scale.set(scale * 1.1, scale * 0.85, scale);
+          dummy.updateMatrix();
+          snowBoulderMesh.setMatrixAt(sbAssigned, dummy.matrix);
+          sbAssigned++;
+        } else if (sw <= 0.35 && boulderAssigned < BOULDER_COUNT && Math.random() > 0.32) {
+          const scale = 0.7 + Math.random() * 0.8;
+          const scaleY = scale * (0.72 + Math.random() * 0.45);
+          dummy.position.set(bx, by + scaleY * 0.35, bz);
+          dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+          dummy.scale.set(scale, scaleY, scale);
+          dummy.updateMatrix();
+          boulderMesh.setMatrixAt(boulderAssigned, dummy.matrix);
+          boulderAssigned++;
+        } else if (sw < 0.2 && logAssigned < FALLEN_LOG_COUNT && Math.random() > 0.72) {
+          const lScale = 0.8 + Math.random() * 0.55;
+          dummy.position.set(bx, by - 0.05, bz);
+          dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+          dummy.scale.set(lScale, lScale, lScale);
+          dummy.updateMatrix();
+          fallenLogMesh.setMatrixAt(logAssigned, dummy.matrix);
+          logAssigned++;
+        }
       }
     }
     boulderMesh.count = boulderAssigned;
+    snowBoulderMesh.count = sbAssigned;
+    fallenLogMesh.count = logAssigned;
     boulderMesh.instanceMatrix.needsUpdate = true;
+    snowBoulderMesh.instanceMatrix.needsUpdate = true;
+    fallenLogMesh.instanceMatrix.needsUpdate = true;
     boulderMesh.computeBoundingSphere();
-    envGroup.add(boulderMesh);
+    snowBoulderMesh.computeBoundingSphere();
+    fallenLogMesh.computeBoundingSphere();
+    envGroup.add(boulderMesh, snowBoulderMesh, fallenLogMesh);
     await checkEnvYield();
 
-    // 4. SUB-TAHAP 74%: RUMPUN RUMPUT HIJAU PADANG RUMPUT (BERSKALA PERANGKAT)
-    onProgress?.(74, 'Menumbuhkan Padang Rumput Hijau (InstancedMesh 74%)...');
+    // 4. SUB-TAHAP 74%: PADANG RUMPUT BERGOYANG ANGIN & BUNGA LIAR BERWARNA-WARNI
+    onProgress?.(74, 'Menumbuhkan Rumput Bergoyang & Taman Bunga Liar (InstancedMesh 74%)...');
     plainsGrassMesh = new THREE.InstancedMesh(plainsGrassGeo, matPlainsGrass, PLAINS_GRASS_COUNT);
+    wildflowerMesh = new THREE.InstancedMesh(wildflowerGeo, matWildflowerCluster, WILDFLOWER_COUNT);
 
     let pgAssigned = 0;
-    const grassStep = 8.0;
-    for (let x = -600; x < 680 && pgAssigned < PLAINS_GRASS_COUNT; x += grassStep) {
-      for (let z = -800; z < 100 && pgAssigned < PLAINS_GRASS_COUNT; z += grassStep) {
+    let wfAssigned = 0;
+    const grassStep = 8.5;
+    for (let x = -640; x < 860 && (pgAssigned < PLAINS_GRASS_COUNT || wfAssigned < WILDFLOWER_COUNT); x += grassStep) {
+      for (let z = -760; z < 210 && (pgAssigned < PLAINS_GRASS_COUNT || wfAssigned < WILDFLOWER_COUNT); z += grassStep) {
         if (performance.now() - tLastEnvYield >= 6) {
           await hardYield();
           tLastEnvYield = performance.now();
         }
-        const gx = x + (0.15 + Math.random() * 0.7) * grassStep;
-        const gz = z + (0.15 + Math.random() * 0.7) * grassStep;
+        const gx = x + (0.1 + Math.random() * 0.8) * grassStep;
+        const gz = z + (0.1 + Math.random() * 0.8) * grassStep;
 
-        if (isFarOcean(gx, gz) || spatialGrid.isBlocked(gx, gz) || spatialGrid.isDesert(gx, gz) || spatialGrid.isOcean(gx, gz) || isNearBridge(gx, gz) || isNearBossArena(gx, gz) || !isValidDryLand(gx, gz, 1.0) || getDistanceToNearestRoad(gx, gz) < 9.5) continue;
-        const gy = spatialGrid.getHeight(gx, gz);
-        if (gy < 0.25 || gy > 4.5) continue;
+        if (getSnowWeight(gx, gz) > 0.30 || isFarOcean(gx, gz) || spatialGrid.isBlocked(gx, gz) || spatialGrid.isDesert(gx, gz) || spatialGrid.isOcean(gx, gz) || isNearBridge(gx, gz) || isNearBossArena(gx, gz) || !isValidDryLand(gx, gz, 0.9) || getDistanceToNearestRoad(gx, gz) < 7.8) continue;
+        const gy = getTerrainHeight(gx, gz);
+        if (gy < 0.3 || gy > 22.0) continue;
 
-        const s = 0.7 + Math.random() * 0.6;
-        dummy.position.set(gx, gy + s * 0.35, gz);
-        dummy.rotation.set(0, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.2);
-        dummy.scale.set(s, s, s);
-        dummy.updateMatrix();
+        if (pgAssigned < PLAINS_GRASS_COUNT) {
+          const s = 0.72 + Math.random() * 0.72;
+          dummy.position.set(gx, gy - 0.04, gz);
+          dummy.rotation.set(0, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.14);
+          dummy.scale.set(s, s * (0.85 + Math.random() * 0.4), s);
+          dummy.updateMatrix();
+          plainsGrassMesh.setMatrixAt(pgAssigned, dummy.matrix);
+          plainsGrassMesh.setColorAt(pgAssigned, plainsGrassPalette[(pgAssigned * 7 + (pgAssigned >> 2)) % plainsGrassPalette.length]);
+          pgAssigned++;
+        }
 
-        plainsGrassMesh.setMatrixAt(pgAssigned, dummy.matrix);
-        pgAssigned++;
+        // Bunga liar tumbuh alami mengelompok di padang rumput & lembah
+        if (wfAssigned < WILDFLOWER_COUNT && (Math.sin(gx * 0.045) + Math.cos(gz * 0.045) > 0.35 || Math.random() > 0.82)) {
+          const fs = 0.85 + Math.random() * 0.55;
+          dummy.position.set(gx + (Math.random() - 0.5) * 1.4, gy - 0.02, gz + (Math.random() - 0.5) * 1.4);
+          dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+          dummy.scale.set(fs, fs, fs);
+          dummy.updateMatrix();
+          wildflowerMesh.setMatrixAt(wfAssigned, dummy.matrix);
+          wildflowerMesh.setColorAt(wfAssigned, wildflowerPalette[(wfAssigned * 7 + (wfAssigned >> 2)) % wildflowerPalette.length]);
+          wfAssigned++;
+        }
       }
     }
     plainsGrassMesh.count = pgAssigned;
+    wildflowerMesh.count = wfAssigned;
     plainsGrassMesh.instanceMatrix.needsUpdate = true;
+    wildflowerMesh.instanceMatrix.needsUpdate = true;
+    if (plainsGrassMesh.instanceColor) plainsGrassMesh.instanceColor.needsUpdate = true;
+    if (wildflowerMesh.instanceColor) wildflowerMesh.instanceColor.needsUpdate = true;
     plainsGrassMesh.computeBoundingSphere();
-    envGroup.add(plainsGrassMesh);
+    wildflowerMesh.computeBoundingSphere();
+    envGroup.add(plainsGrassMesh, wildflowerMesh);
     await checkEnvYield();
 
-    // 5. SUB-TAHAP 75%: SEMAK LIAR, BATU KARANG & VEGETASI PANTAI (BERSKALA PERANGKAT)
-    onProgress?.(75, 'Menyebarkan Semak Liar & Vegetasi Pantai (InstancedMesh 75%)...');
+    // 5. SUB-TAHAP 75%: SEMAK BERRY, FLORA GURUN INSTANCED & VEGETASI PANTAI
+    onProgress?.(75, 'Menyebarkan Semak Berry, Rumput Gurun & Singkapan Batu Pasir (75%)...');
     shrubMesh = new THREE.InstancedMesh(shrubGeo, matShrub, SHRUB_COUNT);
+    berryBushMesh = new THREE.InstancedMesh(berryBushGeo, matBerryBush, BERRY_BUSH_COUNT);
+    desertGrassMesh = new THREE.InstancedMesh(desertGrassGeo, matDesertGrass, DESERT_GRASS_COUNT);
+    desertRockMesh = new THREE.InstancedMesh(desertRockGeo, matDesertOutcrop, DESERT_ROCK_COUNT);
 
     let shrubAssigned = 0;
-    const shrubStep = 18;
-    for (let x = -600; x < 680 && shrubAssigned < SHRUB_COUNT; x += shrubStep) {
-      for (let z = -800; z < 100 && shrubAssigned < SHRUB_COUNT; z += shrubStep) {
+    let bbAssigned = 0;
+    const shrubStep = 17;
+    for (let x = -640; x < 860 && (shrubAssigned < SHRUB_COUNT || bbAssigned < BERRY_BUSH_COUNT); x += shrubStep) {
+      for (let z = -760; z < 210 && (shrubAssigned < SHRUB_COUNT || bbAssigned < BERRY_BUSH_COUNT); z += shrubStep) {
         if (performance.now() - tLastEnvYield >= 6) {
           await hardYield();
           tLastEnvYield = performance.now();
@@ -2990,25 +3374,82 @@ export async function buildWorldEnvironmentAsync(
         const sx = x + (0.15 + Math.random() * 0.7) * shrubStep;
         const sz = z + (0.15 + Math.random() * 0.7) * shrubStep;
 
-        if (isFarOcean(sx, sz) || spatialGrid.isBlocked(sx, sz) || spatialGrid.isDesert(sx, sz) || spatialGrid.isOcean(sx, sz) || isNearBridge(sx, sz) || isNearBossArena(sx, sz) || !isValidDryLand(sx, sz, 1.0) || getDistanceToNearestRoad(sx, sz) < 9.5) continue;
-        const sy = spatialGrid.getHeight(sx, sz);
-        if (sy < 0.2) continue;
+        if (getSnowWeight(sx, sz) > 0.35 || isFarOcean(sx, sz) || spatialGrid.isBlocked(sx, sz) || spatialGrid.isDesert(sx, sz) || spatialGrid.isOcean(sx, sz) || isNearBridge(sx, sz) || isNearBossArena(sx, sz) || !isValidDryLand(sx, sz, 1.0) || getDistanceToNearestRoad(sx, sz) < 9.0) continue;
+        const sy = getTerrainHeight(sx, sz);
+        if (sy < 0.25 || sy > 22.0) continue;
 
-        const s = 0.55 + Math.random() * 0.65;
-        dummy.position.set(sx, sy + s * 0.32, sz);
-        dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-        dummy.scale.set(s * (0.8 + Math.random() * 0.4), s * 0.7, s * (0.8 + Math.random() * 0.4));
-        dummy.updateMatrix();
-
-        shrubMesh.setMatrixAt(shrubAssigned, dummy.matrix);
-        shrubAssigned++;
+        if (shrubAssigned < SHRUB_COUNT && Math.random() > 0.25) {
+          const s = 0.55 + Math.random() * 0.65;
+          dummy.position.set(sx, sy + s * 0.32, sz);
+          dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+          dummy.scale.set(s * (0.8 + Math.random() * 0.4), s * 0.7, s * (0.8 + Math.random() * 0.4));
+          dummy.updateMatrix();
+          shrubMesh.setMatrixAt(shrubAssigned, dummy.matrix);
+          shrubAssigned++;
+        } else if (bbAssigned < BERRY_BUSH_COUNT) {
+          const bs = 0.72 + Math.random() * 0.52;
+          dummy.position.set(sx, sy - 0.04, sz);
+          dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+          dummy.scale.set(bs, bs * 0.9, bs);
+          dummy.updateMatrix();
+          berryBushMesh.setMatrixAt(bbAssigned, dummy.matrix);
+          berryBushMesh.setColorAt(bbAssigned, berryBushPalette[(bbAssigned * 7 + (bbAssigned >> 2)) % berryBushPalette.length]);
+          bbAssigned++;
+        }
       }
     }
     shrubMesh.count = shrubAssigned;
+    berryBushMesh.count = bbAssigned;
     shrubMesh.instanceMatrix.needsUpdate = true;
+    berryBushMesh.instanceMatrix.needsUpdate = true;
+    if (berryBushMesh.instanceColor) berryBushMesh.instanceColor.needsUpdate = true;
     shrubMesh.computeBoundingSphere();
-    envGroup.add(shrubMesh);
-    await checkEnvYield();
+    berryBushMesh.computeBoundingSphere();
+    envGroup.add(shrubMesh, berryBushMesh);
+
+    // Flora & Singkapan Geologi Gurun Solaria Instanced
+    let dgAssigned = 0;
+    let drAssigned = 0;
+    const desertStep = 14;
+    for (let x = -1040; x <= -180 && (dgAssigned < DESERT_GRASS_COUNT || drAssigned < DESERT_ROCK_COUNT); x += desertStep) {
+      for (let z = -760; z <= 120 && (dgAssigned < DESERT_GRASS_COUNT || drAssigned < DESERT_ROCK_COUNT); z += desertStep) {
+        if (performance.now() - tLastEnvYield >= 6) {
+          await hardYield();
+          tLastEnvYield = performance.now();
+        }
+        const dx = x + (0.15 + Math.random() * 0.7) * desertStep;
+        const dz = z + (0.15 + Math.random() * 0.7) * desertStep;
+        if (!spatialGrid.isDesert(dx, dz) || spatialGrid.isBlocked(dx, dz) || isNearBossArena(dx, dz) || !isValidDryLand(dx, dz, 1.2) || getDistanceToNearestRoad(dx, dz) < 9.5) continue;
+        if (Math.abs(dx - -540) < 75 && Math.abs(dz - -490) < 85) continue; // Sultan Palace & Desert Village
+        const dy = getTerrainHeight(dx, dz);
+        if (dy < 0.35 || dy > 20.0) continue;
+
+        if (drAssigned < DESERT_ROCK_COUNT && Math.random() > 0.78) {
+          const rs = 0.75 + Math.random() * 1.15;
+          dummy.position.set(dx, dy - 0.1, dz);
+          dummy.rotation.set((Math.random() - 0.5) * 0.14, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.14);
+          dummy.scale.set(rs * (0.9 + Math.random() * 0.5), rs * (0.65 + Math.random() * 0.45), rs);
+          dummy.updateMatrix();
+          desertRockMesh.setMatrixAt(drAssigned, dummy.matrix);
+          drAssigned++;
+        } else if (dgAssigned < DESERT_GRASS_COUNT && Math.random() > 0.35) {
+          const ds = 0.75 + Math.random() * 0.6;
+          dummy.position.set(dx, dy - 0.04, dz);
+          dummy.rotation.set(0, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.16);
+          dummy.scale.set(ds, ds, ds);
+          dummy.updateMatrix();
+          desertGrassMesh.setMatrixAt(dgAssigned, dummy.matrix);
+          dgAssigned++;
+        }
+      }
+    }
+    desertGrassMesh.count = dgAssigned;
+    desertRockMesh.count = drAssigned;
+    desertGrassMesh.instanceMatrix.needsUpdate = true;
+    desertRockMesh.instanceMatrix.needsUpdate = true;
+    desertGrassMesh.computeBoundingSphere();
+    desertRockMesh.computeBoundingSphere();
+    envGroup.add(desertGrassMesh, desertRockMesh);
 
     // Batu Karang Laut Pesisir (Coastal Reef Stones): 60 Instances
     reefStoneMesh = new THREE.InstancedMesh(reefStoneGeo, matWetSeaRock, REEF_STONE_COUNT);
@@ -3020,7 +3461,7 @@ export async function buildWorldEnvironmentAsync(
           tLastEnvYield = performance.now();
         }
         if (spatialGrid.isDesert(rx, rz) || getBiomeAt(rx, rz) === 'ocean' || getDistanceToNearestRoad(rx, rz) < 9.5) continue;
-        const ry = spatialGrid.getHeight(rx, rz);
+        const ry = getTerrainHeight(rx, rz);
         if (ry < WATER_LEVEL - 0.15) continue;
 
         const sX = 0.8 + Math.random() * 1.4;
@@ -3050,7 +3491,7 @@ export async function buildWorldEnvironmentAsync(
           tLastEnvYield = performance.now();
         }
         if (spatialGrid.isDesert(gx, gz) || !isValidDryLand(gx, gz, 1.0) || getDistanceToNearestRoad(gx, gz) < 9.5) continue;
-        const gy = spatialGrid.getHeight(gx, gz);
+        const gy = getTerrainHeight(gx, gz);
         if (gy < 0.25) continue;
 
         const s = 0.65 + Math.random() * 0.6;
@@ -3075,9 +3516,16 @@ export async function buildWorldEnvironmentAsync(
       capturedPropMatrices = {
         oak: sliceActive(oakTrunkMesh),
         pine: sliceActive(pineTrunkMesh),
+        snowPine: sliceActive(snowPineTrunkMesh),
         boulder: sliceActive(boulderMesh),
+        snowBoulder: sliceActive(snowBoulderMesh),
         plainsGrass: sliceActive(plainsGrassMesh),
+        wildflower: sliceActive(wildflowerMesh),
         shrub: sliceActive(shrubMesh),
+        berryBush: sliceActive(berryBushMesh),
+        fallenLog: sliceActive(fallenLogMesh),
+        desertGrass: sliceActive(desertGrassMesh),
+        desertRock: sliceActive(desertRockMesh),
         reefStone: sliceActive(reefStoneMesh),
         beachGrass: sliceActive(beachGrassMesh),
       };
@@ -3207,6 +3655,30 @@ export async function buildWorldEnvironmentAsync(
     desertFloraGroup.add(treeGroup);
   });
 
+  // 4. Ancient Desert Skulls & Fossil Ribs along deep dune fringes
+  const desertBoneCoords: [number, number][] = [
+    [-640, -250], [-720, -340], [-745, -180], [-585, -245], [-680, -455], [-470, -610],
+  ];
+  desertBoneCoords.forEach(([bx, bz], idx) => {
+    if (!isDesertBiome(bx, bz) || !isValidDryLand(bx, bz, 1.5) || getDistanceToNearestRoad(bx, bz) < 10.0) return;
+    const by = getTerrainHeight(bx, bz);
+    const bGroup = new THREE.Group();
+    bGroup.position.set(bx, by, bz);
+    bGroup.rotation.y = idx * 1.3;
+    const dSkull = new THREE.Mesh(new THREE.DodecahedronGeometry(0.45, 0), matBone);
+    dSkull.position.set(0, 0.28, 0);
+    dSkull.scale.set(1.35, 0.85, 0.95);
+    bGroup.add(dSkull);
+    const hornL = new THREE.Mesh(new THREE.ConeGeometry(0.10, 0.72, 5), matBone);
+    hornL.rotation.set(0.3, 0, 0.75);
+    hornL.position.set(-0.35, 0.48, -0.2);
+    const hornR = new THREE.Mesh(new THREE.ConeGeometry(0.10, 0.72, 5), matBone);
+    hornR.rotation.set(-0.3, 0, -0.75);
+    hornR.position.set(0.35, 0.48, -0.2);
+    bGroup.add(hornL, hornR);
+    desertFloraGroup.add(bGroup);
+  });
+
   envGroup.add(desertFloraGroup);
   await checkEnvYield();
 
@@ -3313,60 +3785,116 @@ export async function buildWorldEnvironmentAsync(
     colliders.push({ type: 'circle', x: mx, z: mz, radius: 1.2, label: 'Monolit Titan Kuno' });
   });
 
-  // 3. Rangkaian Pegunungan Salju Raksasa Utara (Tinggi 45 - 115 Unit, Tebing Batu Slate & Puncak Salju Putih Tajam)
+  // 3. Rangkaian Pegunungan Salju Raksasa Utara (Berpunggung Asimetris Berundak — 0% Kerucut Seragam, Bebas Jarak >=50u dari Titan Colosseum)
+  const buildRidgedMountainGeo = (variantSeed: number): THREE.BufferGeometry => {
+    const geo = new THREE.ConeGeometry(1.0, 1.0, 18, 9);
+    geo.translate(0, 0.5, 0);
+    const pos = geo.getAttribute('position');
+    const colors = new Float32Array(pos.count * 3);
+
+    for (let i = 0; i < pos.count; i++) {
+      let x = pos.getX(i);
+      let y = pos.getY(i);
+      let z = pos.getZ(i);
+      const h = Math.max(0, Math.min(1, y));
+      const ang = Math.atan2(z, x);
+
+      if (h < 0.985) {
+        const ridgeMul =
+          1.0 +
+          0.32 * Math.cos(ang * 3 + variantSeed * 1.4) +
+          0.18 * Math.sin(ang * 5 - variantSeed * 2.1) +
+          0.10 * Math.cos(h * 10 + ang * 2);
+        const spurBoost = h < 0.55 ? (1.0 - h) * 0.22 * Math.max(0, Math.sin(ang * 2 + variantSeed)) : 0;
+        x *= ridgeMul + spurBoost;
+        z *= (ridgeMul + spurBoost * 0.7) * (0.86 + 0.14 * Math.sin(variantSeed));
+        x += h * h * 0.14 * Math.cos(variantSeed * 1.9);
+        z += h * h * 0.12 * Math.sin(variantSeed * 1.3);
+        y += Math.sin(ang * 4 + h * 7 + variantSeed) * 0.035 * (1 - h);
+        pos.setXYZ(i, x, y, z);
+      }
+
+      const snowLine = 0.44 + 0.12 * Math.sin(ang * 3 + variantSeed * 1.7) + 0.06 * Math.cos(ang * 6);
+      let cr: number, cg: number, cb: number;
+      if (h < snowLine) {
+        const rockTone = 0.22 + (h / Math.max(0.1, snowLine)) * 0.14;
+        cr = rockTone;
+        cg = rockTone + 0.05;
+        cb = rockTone + 0.12;
+      } else if (h < snowLine + 0.13) {
+        const tS = (h - snowLine) / 0.13;
+        cr = 0.36 + tS * 0.54;
+        cg = 0.43 + tS * 0.50;
+        cb = 0.50 + tS * 0.46;
+      } else {
+        cr = 0.92 + 0.06 * h;
+        cg = 0.95 + 0.04 * h;
+        cb = 0.98 + 0.02 * h;
+      }
+      colors[i * 3] = cr;
+      colors[i * 3 + 1] = cg;
+      colors[i * 3 + 2] = cb;
+    }
+    pos.needsUpdate = true;
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+    return geo;
+  };
+
+  const ridgedPeakVariants = [buildRidgedMountainGeo(0.7), buildRidgedMountainGeo(2.3), buildRidgedMountainGeo(4.1)];
+  const matRidgedMassif = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.85,
+    metalness: 0.06,
+    flatShading: true,
+  });
+
   const alpinePeaks: [number, number, number, number][] = [
-    [-195, -915, 46, 98],  [-160, -965, 50, 112], [-110, -990, 48, 108],
-    [-45, -1010, 52, 115], [25, -1015, 50, 110],  [95, -995, 48, 105],
-    [160, -960, 46, 96],   [215, -905, 44, 92],   [245, -840, 40, 82],
-    [-210, -835, 38, 78],  [-170, -790, 34, 68],  [-135, -890, 38, 84],
-    [-85, -935, 42, 92],   [125, -925, 36, 76],   [188, -875, 40, 86],
-    [225, -770, 35, 64],   [-185, -730, 32, 58],  [-125, -720, 30, 52],
-    [-65, -700, 29, 48],   [165, -705, 31, 54],   [230, -685, 32, 56],
-    [-150, -845, 30, 62],
+    [-195, -915, 48, 96],  [-160, -965, 52, 110], [-110, -990, 50, 106],
+    [-45, -1010, 54, 114], [25, -1015, 52, 108],  [95, -995, 50, 104],
+    [160, -960, 48, 95],   [215, -905, 46, 90],   [245, -840, 42, 82],
+    [-210, -835, 40, 78],  [-170, -790, 36, 70],  [-135, -890, 40, 84],
+    [-85, -935, 44, 92],   [125, -925, 38, 76],   [188, -875, 42, 86],
+    [220, -785, 36, 66],   [-185, -745, 34, 58],  [-125, -735, 32, 54],
+    [-65, -725, 31, 50],   [-150, -845, 32, 62],
   ];
   alpinePeaks.forEach(([mx, mz, baseR, peakH], idx) => {
     if (!isValidDryLand(mx, mz, 5.0)) return;
-    if (Math.hypot(mx - 60, mz - -820) < 82) return;
-    if (Math.hypot(mx - 180, mz - -560) < 88) return;
+    if (Math.hypot(mx - 60, mz - -820) < 84) return;
+    if (Math.hypot(mx - 180, mz - -560) < 130) return; // Garansi lembah bebas >=50u dari dinding Colosseum Titan
     if (Math.hypot(mx - -49, mz - -828) < 48) return;
     if (getDistanceToNearestRoad(mx, mz) < 22) return;
 
     const my = getTerrainHeight(mx, mz);
     const mGroup = new THREE.Group();
-    mGroup.position.set(mx, my - 2.0, mz);
-    mGroup.rotation.y = (idx * 1.13) % (Math.PI * 2);
+    mGroup.position.set(mx, my - 2.5, mz);
+    mGroup.rotation.y = (idx * 1.27) % (Math.PI * 2);
 
-    // Tebing utama batu slate bersegi
-    const cliff = new THREE.Mesh(new THREE.ConeGeometry(baseR, peakH, 7), matMountainCliff);
-    cliff.position.y = peakH * 0.5;
-    cliff.scale.set(1.0, 1.0, 0.88);
-    cliff.castShadow = true;
-    cliff.receiveShadow = true;
-    mGroup.add(cliff);
+    const primaryGeo = ridgedPeakVariants[idx % ridgedPeakVariants.length];
+    const mainMassif = new THREE.Mesh(primaryGeo, matRidgedMassif);
+    mainMassif.scale.set(baseR, peakH, baseR * (0.82 + (idx % 3) * 0.08));
+    mainMassif.castShadow = true;
+    mainMassif.receiveShadow = true;
+    mGroup.add(mainMassif);
 
-    // Bahu puncak sekunder untuk siluet pegunungan alami
-    const shoulder = new THREE.Mesh(new THREE.ConeGeometry(baseR * 0.65, peakH * 0.72, 6), matMountainCliff);
-    shoulder.position.set(baseR * 0.36, peakH * 0.36, -baseR * 0.18);
-    shoulder.rotation.y = 0.7;
-    shoulder.receiveShadow = true;
-    mGroup.add(shoulder);
+    const flankGeo = ridgedPeakVariants[(idx + 1) % ridgedPeakVariants.length];
+    const flankRidge = new THREE.Mesh(flankGeo, matRidgedMassif);
+    flankRidge.position.set(baseR * 0.42, 0, -baseR * 0.22);
+    flankRidge.rotation.set(0.06, 0.9 + idx * 0.4, -0.05);
+    flankRidge.scale.set(baseR * 0.68, peakH * 0.72, baseR * 0.62);
+    flankRidge.receiveShadow = true;
+    mGroup.add(flankRidge);
 
-    // Puncak selimut salju tajam putih bersih di 48% bagian atas gunung
-    const snowH = peakH * 0.52;
-    const snowCap = new THREE.Mesh(new THREE.ConeGeometry(baseR * 0.55, snowH, 7), matMountainSnow);
-    snowCap.position.y = peakH - snowH * 0.48;
-    snowCap.scale.set(1.0, 1.0, 0.88);
-    snowCap.receiveShadow = true;
-    mGroup.add(snowCap);
-
-    // Salju kecil pada bahu puncak
-    const shoulderSnow = new THREE.Mesh(new THREE.ConeGeometry(baseR * 0.34, peakH * 0.32, 6), matMountainSnow);
-    shoulderSnow.position.set(baseR * 0.36, peakH * 0.58, -baseR * 0.18);
-    shoulderSnow.rotation.y = 0.7;
-    mGroup.add(shoulderSnow);
+    const spurGeo = ridgedPeakVariants[(idx + 2) % ridgedPeakVariants.length];
+    const spurRidge = new THREE.Mesh(spurGeo, matRidgedMassif);
+    spurRidge.position.set(-baseR * 0.34, 0, baseR * 0.25);
+    spurRidge.rotation.set(-0.04, 2.2 - idx * 0.3, 0.05);
+    spurRidge.scale.set(baseR * 0.56, peakH * 0.54, baseR * 0.52);
+    spurRidge.receiveShadow = true;
+    mGroup.add(spurRidge);
 
     titanLakeGroup.add(mGroup);
-    colliders.push({ type: 'circle', x: mx, z: mz, radius: baseR * 0.42, label: 'Puncak Gunung Salju Utara' });
+    colliders.push({ type: 'circle', x: mx, z: mz, radius: baseR * 0.46, label: 'Puncak Gunung Salju Utara' });
   });
 
   // 4. Pohon Pinus Hijau Gelap Bertopi Salju Mengelilingi Lereng Danau & Pegunungan Utara
@@ -3706,6 +4234,9 @@ export async function buildWorldEnvironmentAsync(
   let ambientEffectsEnabled = true;
 
   const update = (delta: number, time: number) => {
+    // Update seragam animasi angin rumput & bunga liar (GPU vertex shader)
+    windUniforms.uWindTime.value = time;
+
     // Animasi flicker cahaya obor dan api unggun
     animatedLights.forEach((al) => {
       al.light.intensity = al.baseIntensity + Math.sin(time * al.speed) * 0.35 + Math.cos(time * al.speed * 1.6) * 0.15;
@@ -3747,13 +4278,22 @@ export async function buildWorldEnvironmentAsync(
     pineFoliageMesh1,
     pineFoliageMesh2,
     pineFoliageMesh3,
+    snowPineTrunkMesh,
+    snowPineFoliageMesh,
+    snowPineSnowCapMesh,
     oakTrunkMesh,
     oakCrownMesh,
     boulderMesh,
+    snowBoulderMesh,
     shrubMesh,
+    berryBushMesh,
+    fallenLogMesh,
+    desertGrassMesh,
+    desertRockMesh,
     reefStoneMesh,
     beachGrassMesh,
     plainsGrassMesh,
+    wildflowerMesh,
     desertFloraGroup,
     titanLakeGroup,
     ancientCanyonGroup,
@@ -3776,8 +4316,11 @@ export async function buildWorldEnvironmentAsync(
   ];
 
   const fullPlainsGrassCount = plainsGrassMesh?.count ?? 0;
+  const fullWildflowerCount = wildflowerMesh?.count ?? 0;
+  const fullDesertGrassCount = desertGrassMesh?.count ?? 0;
   const fullBeachGrassCount = beachGrassMesh?.count ?? 0;
   const fullShrubCount = shrubMesh?.count ?? 0;
+  const fullBerryBushCount = berryBushMesh?.count ?? 0;
   let currentGrassDensity = 1.0;
 
   const setGrassDensity = (scale: number) => {
@@ -3786,6 +4329,18 @@ export async function buildWorldEnvironmentAsync(
       plainsGrassMesh.visible = currentGrassDensity > 0.01;
       if (plainsGrassMesh.visible && fullPlainsGrassCount > 0) {
         plainsGrassMesh.count = Math.max(1, Math.floor(fullPlainsGrassCount * currentGrassDensity));
+      }
+    }
+    if (wildflowerMesh) {
+      wildflowerMesh.visible = currentGrassDensity > 0.01;
+      if (wildflowerMesh.visible && fullWildflowerCount > 0) {
+        wildflowerMesh.count = Math.max(1, Math.floor(fullWildflowerCount * currentGrassDensity));
+      }
+    }
+    if (desertGrassMesh) {
+      desertGrassMesh.visible = currentGrassDensity > 0.01;
+      if (desertGrassMesh.visible && fullDesertGrassCount > 0) {
+        desertGrassMesh.count = Math.max(1, Math.floor(fullDesertGrassCount * currentGrassDensity));
       }
     }
     if (beachGrassMesh) {
@@ -3799,6 +4354,13 @@ export async function buildWorldEnvironmentAsync(
       if (shrubMesh.visible && fullShrubCount > 0) {
         const shrubScale = Math.max(0.2, currentGrassDensity);
         shrubMesh.count = Math.max(1, Math.floor(fullShrubCount * shrubScale));
+      }
+    }
+    if (berryBushMesh) {
+      berryBushMesh.visible = currentGrassDensity > 0.01;
+      if (berryBushMesh.visible && fullBerryBushCount > 0) {
+        const bushScale = Math.max(0.2, currentGrassDensity);
+        berryBushMesh.count = Math.max(1, Math.floor(fullBerryBushCount * bushScale));
       }
     }
   };

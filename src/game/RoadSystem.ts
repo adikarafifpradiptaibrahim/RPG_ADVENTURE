@@ -11,6 +11,7 @@ import {
   ROAD_NETWORK,
   ROAD_SPLINES,
   BRIDGE_CONFIGS,
+  WORLD_LANDMARKS,
   BridgeDef,
   isPointOnBridgeDeck,
   getDistanceToRiver,
@@ -67,109 +68,115 @@ export const ROAD_ROUTE_DEFS: RoadRouteDef[] = ROAD_NETWORK.map((r) => {
  */
 export const ROAD_JUNCTIONS: RoadJunctionDef[] = [
   {
-    id: 'jct_crossroad_east',
-    name: 'Simpang Timur Sanctuary',
-    pos: [45, 110],
-    signPos: [47.5, 107.5],
+    id: 'jct_village_east',
+    name: 'Gerbang Timur Desa Utama',
+    pos: [52, -60],
+    signPos: [52, -66.5],
     signDirections: [
-      { label: '<- Jembatan Utama & Sanctuary', angle: Math.PI },
-      { label: 'Benteng Val-Kragor ->', angle: 0.0 },
-      { label: '^ Puing Kastil Terbengkalai', angle: -Math.PI * 0.4 },
+      { label: 'Mage Tower & Astraea ->', angle: 0.0 },
+      { label: '<- Alun-Alun Sanctuary', angle: Math.PI },
     ],
   },
   {
-    id: 'jct_bridge_west',
-    name: 'Pangkal Barat Jembatan Utama',
-    pos: [4, 110],
-    signPos: [2.5, 107.5],
+    id: 'jct_bridge_east',
+    name: 'Pangkal Timur Jembatan Astraea',
+    pos: [122, -62],
+    signPos: [122, -69],
     signDirections: [
-      { label: 'Benteng Val-Kragor & Puing Kastil ->', angle: 0.0 },
-      { label: '<- Desa Sanctuary & Pelabuhan', angle: Math.PI },
+      { label: 'Puncak Mage Tower ->', angle: -Math.PI * 0.25 },
+      { label: '<- Jembatan & Desa Utama', angle: Math.PI },
+    ],
+  },
+  {
+    id: 'jct_mage_ring_sw',
+    name: 'Gerbang Barat Daya Bundaran Sihir',
+    pos: [244, -241],
+    signPos: [237, -245],
+    signDirections: [
+      { label: 'Mage Tower & Astraea ->', angle: -Math.PI * 0.25 },
+      { label: '<- Jembatan & Desa Utama', angle: Math.PI * 0.75 },
+    ],
+  },
+  {
+    id: 'jct_mage_ring_ne',
+    name: 'Simpang Kekaisaran Bundaran Mage Tower',
+    pos: [298, -286],
+    signPos: [291, -294],
+    signDirections: [
+      { label: 'Ibukota Emas Astraea ->', angle: -0.35 },
+      { label: 'Val-Kragor & Puing Kastil ->', angle: Math.PI * 0.35 },
+      { label: '<- Mage Tower', angle: Math.PI * 0.85 },
+    ],
+  },
+  {
+    id: 'jct_astraea_gate',
+    name: 'Gerbang Selatan Ibukota Astraea',
+    pos: [575, -400],
+    signPos: [567, -400],
+    signDirections: [
+      { label: 'Gerbang Selatan Astraea ->', angle: -Math.PI * 0.5 },
+      { label: '<- Bundaran Mage Tower', angle: Math.PI * 0.72 },
+    ],
+  },
+  {
+    id: 'jct_valkragor_bridge',
+    name: 'Simpang Selatan Jembatan Val-Kragor',
+    pos: [384, -165],
+    signPos: [391, -162],
+    signDirections: [
+      { label: 'Puing Kastil & Val-Kragor ->', angle: Math.PI * 0.3 },
+      { label: '<- Jembatan & Mage Tower', angle: -Math.PI * 0.5 },
+    ],
+  },
+  {
+    id: 'jct_puing_kastil',
+    name: 'Persimpangan Puing Kastil & Hutan Kabut',
+    pos: [533, -43],
+    signPos: [525, -40],
+    signDirections: [
+      { label: 'Lembah Lumut & Hutan Kabut ->', angle: -Math.PI * 0.35 },
+      { label: 'Benteng Val-Kragor ->', angle: Math.PI * 0.4 },
+      { label: '<- Mage Tower', angle: -Math.PI * 0.8 },
     ],
   },
   {
     id: 'jct_valkragor_gate',
     name: 'Ambang Luar Gerbang Benteng Val-Kragor',
-    pos: [278, 115],
-    signPos: [275.5, 112.5],
+    pos: [580, 64],
+    signPos: [572, 62],
     signDirections: [
-      { label: 'Gerbang Benteng Val-Kragor ->', angle: 0.0 },
-      { label: '<- Simpang Timur & Sanctuary', angle: Math.PI },
-      { label: '^ Lembah Batu Lumut & Hutan Kabut', angle: -Math.PI * 0.5 },
-    ],
-  },
-  {
-    id: 'jct_astraea_gate',
-    name: 'Gerbang Selatan Astraea',
-    pos: [-250, -204],
-    signPos: [-252.5, -201.5],
-    signDirections: [
-      { label: 'Gerbang Istana Astraea ->', angle: -Math.PI * 0.5 },
-      { label: '<- Desa Sanctuary & Padang Rumput', angle: Math.PI * 0.5 },
-      { label: 'Jalur Sutra Gurun Solaria ->', angle: 0.0 },
-      { label: '<- Ziarah Danau Titan Kuno', angle: Math.PI },
-    ],
-  },
-  {
-    id: 'jct_puing_kastil',
-    name: 'Pintu Masuk Puing Kastil Terbengkalai',
-    pos: [220, -35],
-    signPos: [217.0, -32.5],
-    signDirections: [
-      { label: 'Puing Kastil Kuno ->', angle: 0.0 },
-      { label: '<- Simpang Timur & Val-Kragor', angle: Math.PI * 0.65 },
+      { label: 'Gerbang Utara Val-Kragor ->', angle: Math.PI * 0.5 },
+      { label: '<- Puing Kastil & Hutan Kabut', angle: -Math.PI * 0.55 },
     ],
   },
   {
     id: 'jct_harbor_apron',
-    name: 'Pangkal Tangga Dermaga Pelabuhan',
-    pos: [0, 162],
-    signPos: [-2.5, 160.0],
+    name: 'Pangkal Jalan Pelabuhan Sanctuary',
+    pos: [20, -6],
+    signPos: [13.5, -6],
     signDirections: [
-      { label: 'Dermaga Kayu & Kapal Layar ->', angle: Math.PI * 0.5 },
-      { label: '<- Alun-Alun Desa Sanctuary', angle: -Math.PI * 0.5 },
+      { label: 'Dermaga Pelabuhan & Kapal ->', angle: Math.PI * 0.5 },
+      { label: '<- Alun-Alun Desa Utama', angle: -Math.PI * 0.5 },
     ],
   },
   {
-    id: 'jct_astraea_east_gate',
-    name: 'Gerbang Timur Astraea & Jembatan 1',
-    pos: [-225, -230],
-    signPos: [-222.5, -227.5],
+    id: 'jct_desert_bridge',
+    name: 'Simpang Utara Jembatan Gurun Solaria',
+    pos: [-106, -196],
+    signPos: [-98, -192],
     signDirections: [
-      { label: '<- Alun-Alun Istana Astraea', angle: Math.PI },
-      { label: 'Jembatan Sungai & Gurun Solaria ->', angle: 0.0 },
+      { label: 'Oase & Desa Gurun Solaria ->', angle: -Math.PI * 0.85 },
+      { label: '<- Jembatan & Desa Utama', angle: 0.45 },
     ],
   },
   {
     id: 'jct_desert_village',
-    name: 'Gerbang Barat Desa Gurun',
-    pos: [110, -245],
-    signPos: [107.5, -242.5],
+    name: 'Gerbang Bazaar Desa Gurun Solaria',
+    pos: [-532, -412],
+    signPos: [-524, -408],
     signDirections: [
-      { label: '<- Oase Solaria & Astraea', angle: Math.PI },
-      { label: 'Desa Bazaar Gurun ->', angle: 0.0 },
-    ],
-  },
-  {
-    id: 'jct_desert_crossroads',
-    name: 'Simpang Gurun Solaria',
-    pos: [200, -260],
-    signPos: [197.5, -257.5],
-    signDirections: [
-      { label: '<- Desa Gurun & Oase', angle: Math.PI },
-      { label: 'Istana Sultan Malik ->', angle: -Math.PI * 0.25 },
-      { label: 'Kawah Colosseum (World Boss) ->', angle: -Math.PI * 0.65 },
-    ],
-  },
-  {
-    id: 'jct_sultan_palace_gate',
-    name: 'Gerbang Depan Istana Sultan Malik',
-    pos: [375, -470],
-    signPos: [372.5, -467.5],
-    signDirections: [
-      { label: 'Istana Sultan Malik ->', angle: 0.0 },
-      { label: '<- Simpang Gurun & Desa', angle: Math.PI * 0.75 },
-      { label: '^ Kanyon Kuno Utara', angle: -Math.PI * 0.5 },
+      { label: 'Istana Sultan Malik ->', angle: -Math.PI * 0.5 },
+      { label: '<- Oase Solaria & Kafilah', angle: 0.55 },
     ],
   },
 ];
@@ -727,15 +734,19 @@ export function buildWorldRoadNetwork(
           const lampX = cur.x + nx * (road.def.width * 0.5 + 1.2) * side;
           const lampZ = cur.z + nz * (road.def.width * 0.5 + 1.2) * side;
 
-          // Filter rintangan: Jangan spawn di jembatan, di dalam sungai, di dalam desa, atau di dalam tembok kastil
+          // Filter rintangan: Jangan spawn di jembatan, sungai, kota, atau di dalam tembok kastil
           if (isRiverZone(lampX, lampZ, 11.0)) continue;
           if (getTerrainHeight(lampX, lampZ) < 0.60) continue;
-          if (Math.hypot(lampX - (-35), lampZ - 45) < 30.0) continue; // Confluence exclusion
-          if (isPointOnBridgeDeck(lampX, lampZ, 4.0)) continue;
-          if (lampX > 280 && Math.abs(lampZ - 115) < 55) continue; // Val-Kragor
-          if (lampZ < -206 && Math.abs(lampX - (-250)) < 65) continue; // Astraea
-          if (Math.hypot(lampX - (-35), lampZ - 135) <= 25.0) continue; // Alun-alun Desa Utama
-          if (lampZ > 160) continue; // Area Pelabuhan
+          if (Math.hypot(lampX - 25, lampZ - -110) < 28.0) continue; // Confluence exclusion
+          if (isPointOnBridgeDeck(lampX, lampZ, 4.2)) continue;
+          const astLm = WORLD_LANDMARKS.find((l) => l.id === 'astraea');
+          const vkLm = WORLD_LANDMARKS.find((l) => l.id === 'valkragor');
+          const mtLm = WORLD_LANDMARKS.find((l) => l.id === 'mage_tower');
+          if (astLm && Math.abs(lampX - astLm.x) < 92 && Math.abs(lampZ - astLm.z) < 92) continue;
+          if (vkLm && Math.abs(lampX - vkLm.x) < 62 && Math.abs(lampZ - vkLm.z) < 62) continue;
+          if (mtLm && Math.hypot(lampX - mtLm.x, lampZ - mtLm.z) < 26) continue;
+          if (Math.hypot(lampX - 20, lampZ - -60) <= 36.0) continue; // Alun-alun Desa Utama
+          if (Math.hypot(lampX - 20, lampZ - 20) <= 22.0) continue; // Area Pelabuhan
           if (isPointOnRoad(lampX, lampZ)) continue;
 
           const lampY = getTerrainHeight(lampX, lampZ);

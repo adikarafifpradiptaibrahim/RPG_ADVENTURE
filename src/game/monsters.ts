@@ -34,7 +34,7 @@ export function isInsideValKragorSafeZone(x: number, z: number): boolean {
 }
 
 export function isInsideAstraeaSafeZone(x: number, z: number): boolean {
-  return Math.hypot(x - 460, z - -420) < 130;
+  return Math.hypot(x - 575, z - -495) < 130;
 }
 
 export function isInsideSolariaSafeZone(x: number, z: number): boolean {
